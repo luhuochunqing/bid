@@ -5809,3 +5809,20 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 - `QualificationVetoPolicy.java` 行数严格维持在 237 行（<= 300 行）。
 
 > 维护纪律：第一阶段确定性核验策略若已具备完全充分的事实依据（如硬性资质全集比对），必须形成 PASS/FAIL 完整自闭环，禁止空转回退给大模型生成冗长废话；比较类结论必须精准列出要求基准与未满足项，禁止仅报单点错误。
+
+---
+
+## 363. 全量 ESLint 扫描范围漂移与基线 warning 无损清理（2026-09-13）
+
+**背景**：全量 ESLint 门禁排查时发现，直接在工程根目录执行 `npx eslint .` 会产生 1310 处 error 和 758 处 warning，而项目规范命令 `npm run lint`（`eslint src e2e`）仅扫描 `src e2e`，实际 0 error、247 warning（退出码 0，正常通过）。
+
+**根因分析**：
+1. **全仓扫描范围漂移**：`eslint.config.js` 的 `ignores` 配置了 `'wechat-miniprogram/**'`，但在仓库真实路径为 `'integration/wechat-miniprogram/**'`，导致小程序 CommonJS 与 `wx` 全局被当作浏览器 ESM 扫描；同时 `skills/` 与 `.agents/` 未加入忽略，引入了千余个外部脚本与依赖的语法报错。
+2. **调试代码与意图缺失 warning**：基线中 247 个 warning 包含了 12 个 `no-console`（11 处 E2E 测试残留 debug 打印、1 处 Sentry 必要日志缺少 lint 豁免）和 4 个 `no-empty`（`catch {}` 裸空块未书写业务降级意图注释）。
+
+**根治方案**：
+1. **无损清理 12 个 no-console**：删除 E2E 测试用例中的 `[DEBUG ...]` 临时日志；对 `src/sentry.js` 关键初始化日志添加 `// eslint-disable-next-line no-console` 显式注解。
+2. **意图注释消除 4 个 no-empty**：在 `WarehouseDialog.vue`、`WarehouseDrawer.vue`、`TenderCreatePage.vue` 的静默降级 `catch` 块中补齐清晰中文意图注释，明确说明容错场景。
+3. **验证结果**：`npm run lint` 告警数从 247 降至 231（`no-console` 与 `no-empty` 完全清零），前端 3131 项单元测试与 pre-push 门禁全绿。
+
+> 维护纪律：日常静态扫描必须通过统一规范脚本 `npm run lint` 执行；业务与测试代码中禁止遗留临时 `console.log` 调试语句；对合理静默降级的 `catch` 块必须显式补充意图注释，避免触发 `no-empty` 警告。

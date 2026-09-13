@@ -144,6 +144,7 @@ export function initSentry(app) {
     }
   })
 
+  // eslint-disable-next-line no-console
   console.info(`[Sentry] Initialized: env=${environment}, tracesSampleRate=${tracesSampleRate}`)
 }
 

@@ -33,7 +33,6 @@ test.describe('full tender-to-project flow', () => {
     const tenderData = await tenderRes.json()
     const tenderId = tenderData?.data?.id
     expect(tenderId).toBeTruthy()
-    console.log(`Step 1: Created tender ${tenderId}`)
 
     // Step 2: Evaluate tender
     const evalRes = await fetch(`${apiBaseUrl}/api/tenders/${tenderId}/evaluation/submit`, {
@@ -42,7 +41,6 @@ test.describe('full tender-to-project flow', () => {
       body: JSON.stringify({ evaluationResult: 'PASS', remark: '流程测试评估通过' })
     })
     expect(evalRes.ok).toBeTruthy()
-    console.log('Step 2: Evaluated tender')
 
     // Step 3: Bid on tender (create project)
     const projectRes = await fetch(`${apiBaseUrl}/api/tenders/${tenderId}/bid`, {
@@ -53,17 +51,14 @@ test.describe('full tender-to-project flow', () => {
     const projectData = await projectRes.json()
     const projectId = projectData?.data?.id || projectData?.data?.projectId
     expect(projectId).toBeTruthy()
-    console.log(`Step 3: Created project ${projectId}`)
 
     // Step 4: Verify project renders in frontend
     await injectSession(page, session)
     await page.goto('/project')
     await expect(page.getByText('投标项目列表')).toBeVisible()
-    console.log('Step 4: Project list page renders')
 
     // Step 5: Verify project detail page
     await page.goto(`/project/${projectId}`)
     await expect(page).toHaveURL(/\/project\/.+$/)
-    console.log('Step 5: Project detail page renders')
   })
 })

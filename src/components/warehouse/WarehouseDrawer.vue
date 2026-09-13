@@ -167,7 +167,9 @@ const loadLogs = async () => {
   try {
     const { data } = await http.get(`/api/knowledge/warehouses/${props.warehouseId}/logs?page=${logPage.value - 1}&size=${pageSize}`)
     logs.value = data?.content || []; logTotal.value = data?.totalElements || 0
-  } catch {}
+  } catch {
+    // 变更日志加载失败静默处理
+  }
 }
 
 watch(() => props.modelValue, (v) => { if (v) { loadDetail(); loadLogs() } else { detail.value = null; attachments.value = []; logs.value = []; filterType.value = 'ALL' } })
@@ -196,7 +198,9 @@ const deleteAttach = async (row) => {
     await ElMessageBox.confirm(`确认删除附件「${row.originalFilename}」？`, '删除确认', { type: 'warning' })
     await http.delete(`/api/knowledge/warehouses/${props.warehouseId}/attachments/${row.id}`)
     ElMessage.success('已删除'); loadDetail()
-  } catch {}
+  } catch {
+    // 用户取消删除或请求失败静默处理
+  }
 }
 
 const formatSize = (bytes) => { if (!bytes) return '—'; if (bytes < 1024) return `${bytes}B`; if (bytes < 1048576) return `${(bytes/1024).toFixed(1)}KB`; return `${(bytes/1048576).toFixed(1)}MB` }

@@ -3,6 +3,14 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-13] chore | 全量 ESLint 门禁分析与 16 处 warning 无损治理
+
+- 触发：用户反馈全量 ESLint 门禁失败，排查全仓扫描与规范命令差异，并专项治理基线 warnings。
+- 根因：根目录 `npx eslint .` 会误扫未忽略的 `skills/` 与 `integration/wechat-miniprogram/`（路径匹配缺失），而官方命令 `npm run lint` 仅扫 `src e2e`；基线存在 12 处 `no-console` 与 4 处 `no-empty`。
+- 治理：无损清理 11 处 E2E 测试残留 debug 打印、对 Sentry 关键日志显式加 `eslint-disable-next-line` 注解，为 4 处静默 catch 块补全意图注释；基线 warnings 净降至 231 个。
+- 知识沉淀：追加 `docs/lessons/lessons-learned.md` §363 与 `.wiki/pages/frontend-pitfalls.md` §24。
+- 验证：`npm run lint` 231 warnings（0 errors），Vitest 3131 tests 全部通过，pre-push 门禁全绿。
+
 ## [2026-09-13] fix | 人工复核完成后关闭待复核提示
 
 - 触发：保留按钮虽已置灰，但 `decisionStatus=REVIEW_REQUIRED` 仍驱动页面显示“待人工复核”。

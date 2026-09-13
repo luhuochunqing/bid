@@ -233,7 +233,6 @@ test.describe('知识库 - 人员编辑（编辑证书子节）', () => {
       })
     })
     const created = await createRes.json()
-    console.log('[DEBUG edit-self] createRes status:', createRes.status, 'body:', JSON.stringify(created).slice(0, 600))
     const personId = created?.data?.id || created?.data?.personnel?.id
     expect(personId).toBeTruthy()
 
@@ -304,7 +303,6 @@ test.describe('知识库 - 人员编辑（编辑证书子节）', () => {
       })
     })
     const created = await createRes.json()
-    console.log('[DEBUG edit-denied] createRes status:', createRes.status, 'body:', JSON.stringify(created).slice(0, 400))
     const personId = created?.data?.id || created?.data?.personnel?.id
 
     // 无权限角色尝试编辑
@@ -325,7 +323,6 @@ test.describe('知识库 - 人员编辑（编辑证书子节）', () => {
       })
     })
 
-    console.log('[DEBUG edit-denied] updateRes status:', updateRes.status)
     expect(updateRes.status).toBe(403)
   })
 
@@ -555,7 +552,6 @@ test.describe('删除人员 - 边界与恢复流程', () => {
       })
     })
     const created = await createRes.json()
-    console.log('[DEBUG delete] createRes status:', createRes.status, 'body:', JSON.stringify(created).slice(0, 400))
     const personId = created?.data?.id
     expect(personId).toBeTruthy()
 

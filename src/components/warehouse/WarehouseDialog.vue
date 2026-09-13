@@ -193,8 +193,9 @@ const loadExistingAttachments = async () => {
     certFiles.value = existingAttachments.value.filter(a => a.type === 'PROPERTY_CERTIFICATE').map(toUploadFile)
     invoiceFiles.value = existingAttachments.value.filter(a => a.type === 'INVOICE').map(toUploadFile)
     photoFiles.value = existingAttachments.value.filter(a => a.type === 'PHOTOS').map(toUploadFile)
-    leaseContractFiles.value = existingAttachments.value.filter(a => a.type === 'LEASE_CONTRACT').map(toUploadFile)
-  } catch {}
+  } catch {
+    // 仓库附件加载失败静默降级，不阻塞表单渲染
+  }
 }
 
 watch(() => [props.modelValue, props.form], ([v, f]) => {
