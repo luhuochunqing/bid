@@ -351,6 +351,10 @@ drawer 结构：
     - **概念清晰分流**：将失信惩戒关键词（`PENALTY_AND_DISCREDIT_KEYWORDS` 如吊销许可证、停产停业等）从专用资质 `isSpecificCertificate` 中剔除，但保留在 `isGeneralCapacity` 通用主体资格中，保证失信被执行人等条款正常核验；
     - **结构化标记过滤替代词汇黑名单**：杜绝将表格表头拆解词（如“认证机构”、“有效期限”、“佐证材料”）作为全局黑名单导致的误杀合法资质缺陷；采用结构化表格标记过滤（`clean.contains("|")` 强阻断表格跨列行），并补充正向防误杀单测；
     - **一票否决核验层二次守卫与 Nullability 防护**：`QualificationVetoPolicy.checkMandatoryQualifications` 增加 `qualification == null || qualification.isBlank()` 严防 NPE，且跳过超长文本（>100字）与非专用资质项的 contains 阻断，杜绝不可控外部长文本导致一票否决误判。
+45. **资格条件一票否决检查项结论精简与确定性闭环规范（2026-09-13）**：
+    - **确定性自闭环消除 LLM 冗长输出**：旧逻辑在标书满足全部硬性资质要求时直接返回 `Optional.empty()`，移交第二阶段 LLM lane 裁决，导致大模型生成数百字冗长废话；重构后 `QualificationVetoPolicy.checkMandatoryQualifications` 形成确定性闭环：全部资质满足时直接判定 `PASS` 并格式化输出 `招标文件要求的一票否决资格项均已满足：【...】。`，并关联招标与标书正文证据；
+    - **不通过分支聚合说明**：旧逻辑在遇到首个未满足项时直接 break 单项报错；重构后对清洗后的专用资质集合进行全量比对，汇总 `validQualifications` 与 `unsatisfied`，不通过时精准输出 `招标文件要求了一票否决资格项【...】，标书中未满足【...】。`；
+    - **去重与空值守卫**：多重招标提取场景下资质项自动去重；若未提取到任何专用资质，则维持原有降级与语义裁决逻辑不变。
 
 ## 6. 后续任务（Backlog）
 
