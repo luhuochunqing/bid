@@ -61,19 +61,6 @@
           </div>
         </div>
 
-        <ScoreParseReviewPanel
-          v-if="reviewRequired"
-          :facts="reviewFacts"
-          :audits="reviewAudits"
-          :loading="reviewLoading"
-          :submitting="reviewSubmitting"
-          :submitted="reviewSubmitted"
-          :error="reviewError"
-          :pipeline-version="pipelineVersion"
-          :artifact-sha256="artifactSha256"
-          @retain="submitReviewRetention"
-        />
-
         <div class="collapse-item expanded">
           <div class="collapse-header" @click="isSection1Expanded = !isSection1Expanded">
             <div class="collapse-title">📋 评分标准提取</div>
@@ -199,7 +186,6 @@
 <script setup>
 import { useScoreParseDrawer } from '@/composables/projectDetail/useScoreParseDrawer.js'
 import ScoreItemDetailModal from './ScoreItemDetailModal.vue'
-import ScoreParseReviewPanel from './ScoreParseReviewPanel.vue'
 import ScoreParseTable from './ScoreParseTable.vue'
 
 const props = defineProps({
@@ -215,8 +201,6 @@ const {
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
   decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason,
-  reviewRequired, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewSubmitted, reviewError, pipelineVersion, artifactSha256,
-  submitReviewRetention,
 } = useScoreParseDrawer(props, emit)
 
 defineExpose({ open, runScoring })

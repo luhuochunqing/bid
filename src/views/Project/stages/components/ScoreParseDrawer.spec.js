@@ -212,12 +212,12 @@ describe('ScoreParseDrawer.vue', () => {
     expect(badge.exists()).toBe(true)
     expect(badge.text()).toBe('待人工复核')
     expect(wrapper.text()).toContain('理由: 权重合计不符合预期')
-    expect(wrapper.find('[data-test="score-parse-review-panel"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('人工复核闭环')
-    expect(wrapper.text()).toContain('总体架构设计')
+    expect(wrapper.find('[data-test="score-parse-review-panel"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('人工复核闭环')
+    expect(wrapper.text()).not.toContain('事实 1 条')
   })
 
-  it('shows a completed state instead of saving after retention already exists', async () => {
+  it('keeps review audit state internal when retention already exists', async () => {
     scoreParseApi.getItems.mockResolvedValue({
       data: {
         items: itemsFixture,
@@ -241,8 +241,8 @@ describe('ScoreParseDrawer.vue', () => {
 
     await wrapper.vm.open({ stage: 1, autoScore: false })
 
-    const button = wrapper.find('[data-test="score-parse-review-retain"]')
-    expect(button.attributes('disabled')).toBeDefined()
-    expect(button.text()).toBe('已保留')
+    expect(scoreParseApi.getReview).toHaveBeenCalledWith(123)
+    expect(wrapper.find('[data-test="score-parse-review-panel"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('已保留')
   })
 })

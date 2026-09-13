@@ -24,19 +24,6 @@
         <div class="detail-value detail-location-text">📄 {{ item.location }}</div>
       </div>
 
-      <div v-if="hasCellEvidence" class="detail-row">
-        <div class="detail-label">表格单元格证据</div>
-        <div class="detail-value detail-evidence-text">
-          <span v-if="item?.validationStatus" class="pill" :class="validationStatusClass" style="margin-right: 6px;" :title="validationStatusTitle">{{ validationStatusText }}</span>
-          <span v-if="extractionMethodDisplay" class="pill info" style="margin-right: 6px;">{{ extractionMethodDisplay }}</span>
-          <span v-if="evidenceCellIds.length" class="doc-tag" style="margin-right: 6px;">单元格：{{ evidenceCellIds.join(', ') }}</span>
-          <span v-if="item?.confidence != null" class="doc-tag">置信度 {{ (item.confidence * 100).toFixed(0) }}%</span>
-          <div v-if="weightEvidenceText" class="weight-evidence-text" style="margin-top: 4px; font-size: 12px; color: var(--text-muted);">
-            权重依据：{{ weightEvidenceText }}
-          </div>
-        </div>
-      </div>
-
       <div class="detail-row">
         <div class="detail-label">所属评分项 / 权重 / 评分类别</div>
         <div class="detail-value">
@@ -182,64 +169,6 @@ const suggestionText = computed(() => {
   return props.result?.suggestion || props.item?.suggestion || ''
 })
 
-// Phase 5 证据字段计算属性
-const evidenceCellIds = computed(() => {
-  const cells = props.item?.sourceCellIds
-  if (Array.isArray(cells)) return cells
-  return []
-})
-
-const weightEvidenceText = computed(() => {
-  const we = props.item?.weightEvidence
-  if (!we) return ''
-  if (typeof we === 'string') return we
-  if (typeof we === 'object') {
-    // 如有 rawText / text / description 字段优先使用文本
-    return we.rawText || we.text || we.description || JSON.stringify(we)
-  }
-  return ''
-})
-
-const hasCellEvidence = computed(() => {
-  if (evidenceCellIds.value.length > 0 || weightEvidenceText.value) return true
-  const method = props.item?.extractionMethod
-  if (method && method !== 'LEGACY_FALLBACK' && method !== 'UNKNOWN') return true
-  return false
-})
-
-const EXTRACTION_METHOD_MAP = {
-  STRUCTURED_TABLE: '表格结构化提取',
-  EVIDENCE_PIPELINE: '证据管道提取',
-  CELL: '单元格映射',
-}
-
-const extractionMethodDisplay = computed(() => {
-  const method = props.item?.extractionMethod
-  if (!method || method === 'LEGACY_FALLBACK') return ''
-  return EXTRACTION_METHOD_MAP[method] || method
-})
-
-const VALIDATION_STATUS_MAP = {
-  AUTO_APPROVED: { text: '自动通过', cls: 'success', title: '系统确定性提取，已自动通过' },
-  REVIEW_REQUIRED: { text: '待人工复核', cls: 'warning', title: '需人工确认后方可生效' },
-  STRUCTURE_INCOMPLETE: { text: '结构异常', cls: 'danger', title: '文档结构不完整，无法自动提取' },
-  PARSE_FAILED: { text: '解析失败', cls: 'info', title: '提取失败，建议重新解析' },
-}
-
-const validationStatusClass = computed(() => {
-  const s = VALIDATION_STATUS_MAP[props.item?.validationStatus]
-  return s ? s.cls : ''
-})
-
-const validationStatusText = computed(() => {
-  const s = VALIDATION_STATUS_MAP[props.item?.validationStatus]
-  return s ? s.text : (props.item?.validationStatus || '')
-})
-
-const validationStatusTitle = computed(() => {
-  const s = VALIDATION_STATUS_MAP[props.item?.validationStatus]
-  return s ? s.title : ''
-})
 </script>
 
 <style scoped>

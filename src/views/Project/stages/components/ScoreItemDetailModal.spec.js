@@ -107,7 +107,7 @@ describe('ScoreItemDetailModal.vue', () => {
     expect(wrapper.text()).not.toContain('LEGACY_FALLBACK')
   })
 
-  it('renders table cell evidence row when cell IDs exist', () => {
+  it('hides internal table-cell evidence even when the API provides it', () => {
     const wrapper = mount(ScoreItemDetailModal, {
       props: {
         visible: true,
@@ -123,8 +123,8 @@ describe('ScoreItemDetailModal.vue', () => {
       global: { stubs: globalStubs },
     })
 
-    expect(wrapper.text()).toContain('表格单元格证据')
-    expect(wrapper.text()).toContain('单元格：T1-R2-C3')
-    expect(wrapper.text()).toContain('表格结构化提取')
+    expect(wrapper.text()).not.toContain('表格单元格证据')
+    expect(wrapper.text()).not.toContain('单元格：T1-R2-C3')
+    expect(wrapper.text()).not.toContain('表格结构化提取')
   })
 })
