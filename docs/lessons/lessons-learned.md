@@ -5603,6 +5603,21 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 - `ScoreParseReviewAppServiceTest#submitReview_savesAuditOnlyAndReturnsSnapshot`
 - `useScoreParseDrawer.js#loads review facts for REVIEW_REQUIRED and records retention audit`
 
+### 复核完成后的待复核提示收口（2026-09-13）
+
+### 问题背景
+
+人工点击“记录已复核，保留现有项”后，审计记录已经写入且按钮已置灰，但页面仍由 `decisionStatus=REVIEW_REQUIRED` 显示“待人工复核”。
+
+### 根因分析
+
+- `decisionStatus` 表示原始解析决策，人工保留动作不会也不应把它伪造为 `AUTO_APPROVED`。
+- 前端此前只用 `reviewSubmitted` 控制按钮，没有把已存在的 `RETAIN_ORIGINAL` 审计作为人工复核完成信号参与待复核面板和徽章展示。
+
+### 落地规则
+
+保留原始 `decisionStatus` 语义，以成功提交或加载到 `RETAIN_ORIGINAL` 审计派生人工复核完成状态；完成后关闭待复核面板、显示“已完成复核”，刷新/重开仍从持久化审计恢复，失败请求仍允许重试。
+
 ## 357. AI 评分解析 1381：验收标准必须回到招标文件评分表全量项（2026-09-12）
 
 ### 问题背景

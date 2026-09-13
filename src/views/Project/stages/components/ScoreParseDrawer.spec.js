@@ -245,4 +245,27 @@ describe('ScoreParseDrawer.vue', () => {
     expect(wrapper.find('[data-test="score-parse-review-panel"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('已保留')
   })
+
+  it('keeps pending review state internal when the review panel is hidden', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: { items: itemsFixture, meta: { decisionStatus: 'REVIEW_REQUIRED' } },
+    })
+    scoreParseApi.getReview.mockResolvedValue({ data: { facts: [], audits: [] } })
+
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId: 123 },
+      global: {
+        stubs: {
+          'el-drawer': { template: '<div class="el-drawer-mock" v-if="modelValue"><slot /></div>', props: ['modelValue'] },
+          'el-dialog': true,
+          'el-button': true,
+        },
+      },
+    })
+
+    await wrapper.vm.open({ stage: 1, autoScore: false })
+
+    expect(wrapper.find('[data-test="score-parse-review-panel"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="score-parse-decision-status"]').text()).toBe('待人工复核')
+  })
 })
