@@ -58,7 +58,11 @@ public final class ScoreTableSplitPolicy {
         }
         if (!noEvidenceFacts.isEmpty()) {
             results.add(new TableCompleteness(NO_DECLARED_TOTAL, false,
-                    ScoreCompletenessPolicy.evaluateCompleteness(noEvidenceFacts, tenderSectionText, true, List.of())));
+                    ScoreCompletenessPolicy.evaluateCompleteness(noEvidenceFacts, tenderSectionText, true, List.of()),
+                    tablesById.values().stream()
+                            .filter(table -> totalsByTable.getOrDefault(table.tableId(), List.of()).isEmpty())
+                            .map(ScoreTableInput::tableId)
+                            .toList()));
         }
         return new TableSplitResult(List.copyOf(results),
                 aggregateDocumentLevel(results, tenderSectionText));

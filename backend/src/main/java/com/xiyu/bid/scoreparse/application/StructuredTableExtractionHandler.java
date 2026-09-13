@@ -237,6 +237,7 @@ final class StructuredTableExtractionHandler {
         var completeness = table.completeness();
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("tableId", table.tableId());
+        view.put("sourceTableIds", table.sourceTableIds());
         view.put("declaredTotal", completeness == null ? null : completeness.declaredTotalScore());
         view.put("decision", completeness == null ? "" : completeness.decision().name());
         view.put("fallbackReason", completeness == null ? "" : completeness.fallbackReason());

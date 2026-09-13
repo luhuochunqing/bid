@@ -3,6 +3,8 @@
 // Pos: scoreparse/domain — 纯核心 record（spec 062）
 package com.xiyu.bid.scoreparse.domain;
 
+import java.util.List;
+
 /**
  * 单张评分表的多表拆分完整性结果。
  * <p>{@code tableId} 为来源评分表 ID；无本表结构化总分证据时合并为
@@ -11,8 +13,16 @@ package com.xiyu.bid.scoreparse.domain;
 public record TableCompleteness(
         String tableId,
         boolean hasOwnDeclaredTotal,
-        ScoreCompletenessPolicy.ScoreCompletenessResult completeness) {
+        ScoreCompletenessPolicy.ScoreCompletenessResult completeness,
+        List<String> sourceTableIds) {
+    public TableCompleteness(String tableId, boolean hasOwnDeclaredTotal,
+                             ScoreCompletenessPolicy.ScoreCompletenessResult completeness) {
+        this(tableId, hasOwnDeclaredTotal, completeness,
+                tableId == null || tableId.isBlank() ? List.of() : List.of(tableId));
+    }
+
     public TableCompleteness {
         tableId = tableId == null ? "" : tableId;
+        sourceTableIds = sourceTableIds == null ? List.of() : List.copyOf(sourceTableIds);
     }
 }

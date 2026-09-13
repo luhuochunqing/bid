@@ -101,6 +101,7 @@ class ScoreTableSplitPolicyTest {
         assertThat(result.tables()).singleElement().satisfies(t -> {
             assertThat(t.tableId()).isEqualTo("NO_DECLARED_TOTAL");
             assertThat(t.hasOwnDeclaredTotal()).isFalse();
+            assertThat(t.sourceTableIds()).containsExactly("t1", "t2");
             assertThat(t.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
         });
         assertThat(result.documentLevel().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
