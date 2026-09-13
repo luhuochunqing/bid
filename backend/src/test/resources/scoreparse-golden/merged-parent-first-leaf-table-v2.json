@@ -1,0 +1,57 @@
+{
+  "artifact": {
+    "documentId": "sanitized-merged-parent-first-leaf",
+    "sha256": "sanitized-project-1377-shape",
+    "fileType": "DOCX",
+    "extractionVersion": "table-v2"
+  },
+  "tables": [
+    {
+      "tableId": "t-sanitized-merged-origin",
+      "sourcePage": null,
+      "sourceSection": "评分标准",
+      "rows": 5,
+      "columns": 4,
+      "mergedRegions": [
+        {
+          "startCellId": "t-sanitized-r2-c1",
+          "rowspan": 2,
+          "colspan": 1
+        },
+        {
+          "startCellId": "t-sanitized-r2-c0",
+          "rowspan": 2,
+          "colspan": 1
+        }
+      ],
+      "cells": [
+        {"cellId":"t-sanitized-r0-c0","row":0,"column":0,"rawText":"编号","normalizedText":"编号","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[1]/w:tc[1]"},
+        {"cellId":"t-sanitized-r0-c1","row":0,"column":1,"rawText":"评审要素","normalizedText":"评审要素","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[1]/w:tc[2]"},
+        {"cellId":"t-sanitized-r0-c2","row":0,"column":2,"rawText":"评审内容","normalizedText":"评审内容","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[1]/w:tc[3]"},
+        {"cellId":"t-sanitized-r0-c3","row":0,"column":3,"rawText":"最高分","normalizedText":"最高分","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[1]/w:tc[4]"},
+
+        {"cellId":"t-sanitized-r1-c0","row":1,"column":0,"rawText":"A1","normalizedText":"A1","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[2]/w:tc[1]"},
+        {"cellId":"t-sanitized-r1-c1","row":1,"column":1,"rawText":"方案能力","normalizedText":"方案能力","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[2]/w:tc[2]"},
+        {"cellId":"t-sanitized-r1-c2","row":1,"column":2,"rawText":"整体方案完整可行","normalizedText":"整体方案完整可行","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[2]/w:tc[3]"},
+        {"cellId":"t-sanitized-r1-c3","row":1,"column":3,"rawText":"90","normalizedText":"90","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[2]/w:tc[4]"},
+
+        {"cellId":"t-sanitized-r2-c0","row":2,"column":0,"rawText":"A2","normalizedText":"A2","rowspan":2,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[3]/w:tc[1]"},
+        {"cellId":"t-sanitized-r2-c1","row":2,"column":1,"rawText":"履约保障（10分）","normalizedText":"履约保障（10分）","rowspan":2,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[3]/w:tc[2]"},
+        {"cellId":"t-sanitized-r2-c2","row":2,"column":2,"rawText":"仓储保障满足要求","normalizedText":"仓储保障满足要求","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[3]/w:tc[3]"},
+        {"cellId":"t-sanitized-r2-c3","row":2,"column":3,"rawText":"5","normalizedText":"5","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[3]/w:tc[4]"},
+
+        {"cellId":"t-sanitized-r3-c0","row":3,"column":0,"rawText":"","normalizedText":"","rowspan":1,"colspan":1,"isMergedContinue":true,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[4]/w:tc[1]"},
+        {"cellId":"t-sanitized-r3-c1","row":3,"column":1,"rawText":"","normalizedText":"","rowspan":1,"colspan":1,"isMergedContinue":true,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[4]/w:tc[2]"},
+        {"cellId":"t-sanitized-r3-c2","row":3,"column":2,"rawText":"配送保障满足要求","normalizedText":"配送保障满足要求","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[4]/w:tc[3]"},
+        {"cellId":"t-sanitized-r3-c3","row":3,"column":3,"rawText":"5","normalizedText":"5","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[4]/w:tc[4]"},
+
+        {"cellId":"t-sanitized-r4-c0","row":4,"column":0,"rawText":"合计","normalizedText":"合计","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[5]/w:tc[1]"},
+        {"cellId":"t-sanitized-r4-c1","row":4,"column":1,"rawText":"","normalizedText":"","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[5]/w:tc[2]"},
+        {"cellId":"t-sanitized-r4-c2","row":4,"column":2,"rawText":"","normalizedText":"","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[5]/w:tc[3]"},
+        {"cellId":"t-sanitized-r4-c3","row":4,"column":3,"rawText":"100","normalizedText":"100","rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"/w:document[1]/w:body[1]/w:tbl[1]/w:tr[5]/w:tc[4]"}
+      ],
+      "isScoreTable": true
+    }
+  ],
+  "warnings": []
+}

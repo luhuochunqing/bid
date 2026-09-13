@@ -80,24 +80,27 @@ class GoldenCorpusBaselineTest {
 
         List<ScoreFact> facts = DeterministicScoreFactExtractor.extract(g, mapping());
 
-        assertEquals(2, facts.size(), "预期末级事实数=2（1 父 + 1 子）");
+        assertEquals(3, facts.size(), "预期事实数=3（1 父 + 2 子），原行子项不得丢失");
         ScoreFact parent = facts.get(0);
-        ScoreFact child = facts.get(1);
-        assertEquals(new BigDecimal("10"), parent.weight());
-        assertEquals(new BigDecimal("10"), child.weight());
-        assertEquals(parent.factId(), child.parentFactId(), "子项必须指向父项");
+        List<ScoreFact> children = facts.subList(1, 3);
+        assertEquals(new BigDecimal("20"), parent.weight());
+        assertEquals(List.of(new BigDecimal("10"), new BigDecimal("10")),
+                children.stream().map(ScoreFact::weight).toList());
+        assertTrue(children.stream().allMatch(child -> parent.factId().equals(child.parentFactId())),
+                "两个子项都必须指向父项");
         assertFalse(ScoreFact.isLeaf(parent, facts), "被引用的父项不是叶子");
-        assertTrue(ScoreFact.isLeaf(child, facts), "未被引用的子项是叶子");
-        assertTrue(child.sourceCellIds().stream().noneMatch(id -> id.startsWith("t-0001-r1-")),
-                "子项 source cell 不得引用父项行");
+        assertTrue(children.stream().allMatch(child -> ScoreFact.isLeaf(child, facts)),
+                "两个未被引用的子项都是叶子");
+        assertTrue(children.get(0).sourceCellIds().contains("t-0001-r1-c2"),
+                "原行第一子项必须保留自己的 detail 证据");
+        assertTrue(children.get(1).sourceCellIds().stream().noneMatch(id -> id.startsWith("t-0001-r1-")),
+                "续行子项 source cell 不得引用父项行");
 
         ScoreFactValidator.ValidationResult scoring = ScoreFactValidator.validateScoringSet(facts);
-        assertFalse(scoring.factsValid(), "父项被标 AUTO_APPROVED 必须被拦截");
-        assertFalse(scoring.scoringComplete());
-        assertTrue(scoring.violations().stream()
-                .anyMatch(v -> v.contains(parent.factId()) && v.contains("parent fact")));
-        assertEquals(0, autoLeafWeightSum(facts).compareTo(new BigDecimal("10")),
-                "自动评分只允许末级合计 10 分，不得出现 20/30/40");
+        assertTrue(scoring.factsValid(), "父项仅作 REVIEW_REQUIRED 结构事实，不进入自动评分集");
+        assertTrue(scoring.scoringComplete());
+        assertEquals(0, autoLeafWeightSum(facts).compareTo(new BigDecimal("20")),
+                "自动评分只允许两个末级子项合计 20 分，不得重复叠加父项");
     }
 
     // ------------------------------------------------------------------
@@ -165,21 +168,20 @@ class GoldenCorpusBaselineTest {
 
         List<ScoreFact> facts = DeterministicScoreFactExtractor.extract(g, mapping());
 
-        assertEquals(3, facts.size(), "预期事实数=3（1 父 + 2 子），不得把大类再建成第 4 个平级项");
+        assertEquals(4, facts.size(), "预期事实数=4（1 父 + 3 子），原行第一子项不得丢失");
         ScoreFact parent = facts.get(0);
-        List<ScoreFact> children = facts.subList(1, 3);
-        assertEquals(parent.factId(), children.get(0).parentFactId());
-        assertEquals(parent.factId(), children.get(1).parentFactId());
-        assertEquals(2, children.stream().filter(c -> ScoreFact.isLeaf(c, facts)).count(),
-                "两个子项都是叶子");
+        List<ScoreFact> children = facts.subList(1, 4);
+        assertTrue(children.stream().allMatch(child -> parent.factId().equals(child.parentFactId())));
+        assertEquals(3, children.stream().filter(c -> ScoreFact.isLeaf(c, facts)).count(),
+                "三个子项都是叶子");
 
         ScoreFactValidator.ValidationResult scoring = ScoreFactValidator.validateScoringSet(facts);
-        assertFalse(scoring.factsValid(), "父项 AUTO_APPROVED 必须拦截");
-        assertFalse(scoring.scoringComplete());
-        assertEquals(0, autoLeafWeightSum(facts).compareTo(new BigDecimal("15")),
-                "自动评分只允许末级合计 15 分；父项 20 分不得与子项相加");
-        assertEquals(new BigDecimal("5"), parent.weight(),
-                "父项权重取自显式分值列，仅入快照不入评分");
+        assertTrue(scoring.factsValid(), "父项仅作 REVIEW_REQUIRED 结构事实，不进入自动评分集");
+        assertTrue(scoring.scoringComplete());
+        assertEquals(0, autoLeafWeightSum(facts).compareTo(new BigDecimal("20")),
+                "自动评分只允许三个末级子项合计 20 分；父项不得重复相加");
+        assertEquals(new BigDecimal("20"), parent.weight(),
+                "父项权重取自标题总分，仅作结构证据");
     }
 
     // ------------------------------------------------------------------

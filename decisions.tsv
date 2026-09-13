@@ -1,0 +1,6 @@
+timestamp	decision	evidence	consequence
+2026-09-13T10:57:00+08:00	Resume existing spec 062 as compatible drift	062 already owns per-table completeness and the deployed bug is an uncovered merged-origin shape	Amend spec/plan/tasks instead of creating a competing specification
+2026-09-13T10:57:00+08:00	Split one physical origin row into parent and first-leaf facts only under five explicit conditions	Live 1377 artifact has rowspan origin title total plus non-empty detail and explicit maximum, followed by a scored continuation	Preserve ordinary and ambiguous merged rows while restoring all leaf weights
+2026-09-13T10:57:00+08:00	Keep completeness guards unchanged	The guards correctly exposed 95/86 instead of 100	Fix semantic projection at the extractor source and retain fail-closed behavior
+2026-09-13T11:04:00+08:00	Require a scored continuation before splitting a merged origin	Existing regression has a formatting-only blank continuation; rowspan alone does not prove a parent-child group	Avoid inventing redundant parents while preserving the 1377 multi-child shape
+2026-09-13T11:22:00+08:00	Index parent linkage only from the mapped dimension column	Two independent reviewers reproduced multi-column vMerge overwriting the row-only origin map	Keep continuation leaves attached to the semantic dimension parent when code and dimension columns both merge

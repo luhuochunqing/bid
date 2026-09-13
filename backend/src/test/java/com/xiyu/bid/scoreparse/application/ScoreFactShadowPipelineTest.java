@@ -3,19 +3,44 @@
 // 组装成只读管道并产出可校验的事实池。
 package com.xiyu.bid.scoreparse.application;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import org.junit.jupiter.api.Test;
 
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ScoreFactShadowPipelineTest {
+
+    @Test
+    void merged_origin_fixture_preserves_parent_total_and_all_leaf_weights() throws Exception {
+        try (InputStream input = getClass().getResourceAsStream(
+                "/scoreparse-golden/merged-parent-first-leaf-table-v2.json")) {
+            assertNotNull(input, "sanitized DocumentArtifact fixture must be available");
+            DocumentArtifact fixture = new ObjectMapper().readValue(input, DocumentArtifact.class);
+
+            ScoreFactShadowPipeline.ShadowResult result = ScoreFactShadowPipeline.run(fixture);
+
+            assertEquals(1, result.tableCompletenesses().size());
+            var completeness = result.tableCompletenesses().get(0).completeness();
+            assertEquals(ScoreParseDecision.AUTO_APPROVED, completeness.decision());
+            assertEquals(0, completeness.declaredTotalScore().compareTo(new BigDecimal("100")));
+            assertEquals(0, completeness.leafWeightSum().compareTo(new BigDecimal("100")));
+            assertEquals(3, completeness.leafCount());
+            assertEquals(1, completeness.parentCount());
+            assertEquals(4, result.tables().get(0).facts().size());
+            assertTrue(result.scoring().factsValid());
+            assertTrue(result.scoring().scoringComplete());
+        }
+    }
 
     private static DocumentArtifact.CanonicalTable.CanonicalCellDto cell(
             String id, int row, int column, String text) {
