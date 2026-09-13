@@ -515,6 +515,7 @@ describe('useScoreParseDrawer.js', () => {
     await drawer.submitReviewRetention()
 
     expect(drawer.reviewSubmitted.value).toBe(true)
+    expect(drawer.reviewRequired.value).toBe(false)
 
     await drawer.submitReviewRetention()
 
@@ -536,6 +537,6 @@ describe('useScoreParseDrawer.js', () => {
     await drawer.open({ stage: 1, autoScore: false, autoParse: false })
 
     expect(drawer.reviewSubmitted.value).toBe(true)
-    expect(drawer.reviewRequired.value).toBe(true)
+    expect(drawer.reviewRequired.value).toBe(false)
   })
 })

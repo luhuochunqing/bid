@@ -245,11 +245,12 @@ Fix A+B 的回归锚点仍是单元/验收级合成夹具，无法证明真实 1
 ## 人工复核「保留」按钮防重复提交（2026-09-12）
 
 - **背景**：`ScoreParseReviewPanel` 的「记录已复核，保留现有项」点击后只向 `score_parse_review` 落一条审计（`action=RETAIN_ORIGINAL`），`task.decisionStatus` 仍为 `REVIEW_REQUIRED` → 面板与"待人工复核"徽章持续显示、按钮可无限重复点击，向审计表插入重复记录（实测项目出现"审计 2 条"= 点击两次）。
-- **语义（非 bug）**：保留按钮只做**审计留痕，不改变 decisionStatus**；闭环证据是 `score_parse_review` 记录数，面板持续显示属设计如此。
+- **原始决策语义**：保留按钮只做审计留痕，不把解析结果伪造为 `AUTO_APPROVED`；`decisionStatus` 仍表示原始解析决策。
 - **修复**：`useScoreParseDrawer.js` 新增 `reviewSubmitted` 状态：
   - `submitReviewRetention` 成功后置 `true` → 按钮 disabled
   - `loadReviewSnapshotIfNeeded` 加载快照时若 `audits` 已含 `RETAIN_ORIGINAL` 同样置灰（刷新 / 重开抽屉不复活按钮）
   - `ScoreParseDrawer.vue` 分离 `:submitting="reviewSubmitting"` 与 `:submitted="reviewSubmitted"`
   - `ScoreParseReviewPanel.vue` 已提交显示“已保留”，不再把终态误显示为“保存中”
   - composable 入口同时拦截 `reviewSubmitting` 和 `reviewSubmitted`，避免并发或重复调用绕过按钮状态
-- **验证**：`useScoreParseDrawer.spec.js` 与 `ScoreParseDrawer.spec.js` 共 35 例全绿；覆盖提交后终态文案、刷新后已有审计置灰、重复调用只发一次请求。
+- **验证**：`useScoreParseDrawer.spec.js` 与 `ScoreParseDrawer.spec.js` 共 36 例全绿；覆盖提交后关闭待复核提示、终态文案、刷新后已有审计收口、重复调用只发一次请求。
+- **复核完成收口（2026-09-13）**：`reviewSubmitted` 作为人工复核完成信号；提交成功或加载到 `RETAIN_ORIGINAL` 审计后，前端关闭待复核面板并将徽章显示为“已完成复核”。原始 `decisionStatus` 保留其解析语义，不改为 `AUTO_APPROVED`。

@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-13] fix | 人工复核完成后关闭待复核提示
+
+- 触发：保留按钮虽已置灰，但 `decisionStatus=REVIEW_REQUIRED` 仍驱动页面显示“待人工复核”。
+- 根因：`reviewSubmitted` 只控制按钮，未参与 `reviewRequired` 和决策徽章展示；后端保留原始解析决策是正确的，不能伪造为 `AUTO_APPROVED`。
+- 修复：以成功提交或已有 `RETAIN_ORIGINAL` 审计作为人工复核完成信号，关闭待复核面板并显示“已完成复核”；失败仍可重试，刷新/重开从审计恢复。
+- 验证：ScoreParseDrawer 与 composable 回归测试共 36 例通过。
+
 ## [2026-09-13] fix | 项目 1377 合并维度起始行首个评分叶子丢失
 
 - 触发：多轮 PR 后项目 1377 仍显示评分标准 0 项；最新链路为 Sidecar v2 成功，但表内叶子合计 95 / 86，进入 `REVIEW_REQUIRED / WEIGHT_SUM_MISMATCH`。
