@@ -36,6 +36,7 @@ export function useScoreParseDrawer(props, emit) {
   const reviewSubmitted = ref(false)
 
   const decisionBadgeType = computed(() => {
+    if (reviewSubmitted.value) return 'success'
     switch (decisionStatus.value) {
       case 'AUTO_APPROVED': return 'success'
       case 'REVIEW_REQUIRED': return 'warning'
@@ -46,6 +47,7 @@ export function useScoreParseDrawer(props, emit) {
   })
 
   const decisionBadgeText = computed(() => {
+    if (reviewSubmitted.value) return '已完成复核'
     switch (decisionStatus.value) {
       case 'AUTO_APPROVED': return '自动通过'
       case 'REVIEW_REQUIRED': return '待人工复核'
@@ -55,7 +57,8 @@ export function useScoreParseDrawer(props, emit) {
     }
   })
 
-  const reviewRequired = computed(() => decisionStatus.value === 'REVIEW_REQUIRED' || decisionStatus.value === 'STRUCTURE_INCOMPLETE')
+  const decisionReviewRequired = computed(() => decisionStatus.value === 'REVIEW_REQUIRED' || decisionStatus.value === 'STRUCTURE_INCOMPLETE')
+  const reviewRequired = computed(() => decisionReviewRequired.value && !reviewSubmitted.value)
   const reviewFacts = computed(() => Array.isArray(reviewSnapshot.value?.facts) ? reviewSnapshot.value.facts : [])
   const reviewAudits = computed(() => Array.isArray(reviewSnapshot.value?.audits) ? reviewSnapshot.value.audits : [])
 
@@ -114,6 +117,7 @@ export function useScoreParseDrawer(props, emit) {
       if (meta.scoreTime) scoreTime.value = formatTime(meta.scoreTime)
       if (meta.lastScoringHint) scoringHint.value = meta.lastScoringHint
       decisionStatus.value = meta.decisionStatus || ''
+      reviewSubmitted.value = false
       reviewReason.value = meta.reviewReason || ''
       fallbackReason.value = meta.fallbackReason || ''
       pipelineVersion.value = meta.pipelineVersion || ''
@@ -249,7 +253,7 @@ export function useScoreParseDrawer(props, emit) {
 
   async function loadReviewSnapshotIfNeeded() {
     reviewError.value = ''
-    if (!reviewRequired.value) {
+    if (!decisionReviewRequired.value) {
       reviewSnapshot.value = null
       reviewSubmitted.value = false
       return
@@ -257,7 +261,7 @@ export function useScoreParseDrawer(props, emit) {
     reviewLoading.value = true
     try {
       reviewSnapshot.value = (await scoreParseApi.getReview(props.projectId))?.data || null
-      // 已提交过保留动作则置灰，防止刷新/重开抽屉后重复提交（2026-09-12）
+      // 已提交过保留动作则恢复复核完成态，防止刷新/重开抽屉后重复提交（2026-09-12）
       reviewSubmitted.value = (reviewSnapshot.value?.audits ?? []).some(a => a.action === 'RETAIN_ORIGINAL')
     } catch (e) {
       reviewError.value = e?.response?.data?.msg || '复核证据加载失败'
