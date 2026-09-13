@@ -5,7 +5,7 @@ category: module
 tags: [结果确认, 竞争对手, 二次确认, 不可变性, 幂等, ResultConfirmStage]
 created: 2026-08-27
 updated: 2026-08-27
-health_checked: 2026-09-05
+health_checked: 2026-09-13
 sources:
   - src/views/Project/stages/ResultConfirmStage.vue
   - backend/src/main/java/com/xiyu/bid/project/service/ProjectResultRegistrationService.java

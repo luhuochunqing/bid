@@ -5,7 +5,7 @@ category: guide
 tags: [implementation, delivery, 待确认, 阻塞项, 客户沟通]
 created: 2026-05-28
 updated: 2026-08-12
-health_checked: 2026-09-05
+health_checked: 2026-09-13
 sources:
   - .wiki/pages/integration-oa-crm.md
   - .wiki/pages/integration-organization-event-sdk.md

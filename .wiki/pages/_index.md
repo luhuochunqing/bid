@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-09-10
-health_checked: 2026-09-10
+updated: 2026-09-13
+health_checked: 2026-09-13
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -58,8 +58,8 @@ backlinks:
 - [[duplicate-implementation-gate]] — 重复实现门禁（防造轮子）
 - [[dynamic-form-engine]] — 动态表单自定义引擎
 - [[engineering-discipline]] — 工程纪律手册 — 反复修复的根因、根治与预防
-- [[event-library-integration-rca]] — 事件库两次集成反复失败根因复盘
 - [[evaluation-form-field-adjustments]] — 评估表字段文案调整与 GAP 文本框下线
+- [[event-library-integration-rca]] — 事件库两次集成反复失败根因复盘
 - [[flyway-migration-pitfalls]] — Flyway 迁移陷阱集
 - [[frontend-pitfalls]] — 前端 Vue3 / Element Plus 陷阱集
 - [[gitee-token-resolution]] — Gitee token 多源可见性与统一解析链（Agent 提 PR 找不到 token 的根因与唯一真相源规范）
@@ -82,7 +82,7 @@ backlinks:
 - [[multi-agent-defense-playbook]] — 多 Agent 并行开发防御工程化手册
 - [[notification-system-pitfalls]] — 通知系统陷阱集
 - [[operations/logging-bug-investigation-guide]] — 日志系统查 Bug 手册
-- [[opportunity-prediction-reminder]] — 商机预测提醒（含事件失败补偿与通知去重）
+- [[opportunity-prediction-reminder]] — 商机预测提醒
 - [[oss-organization-sync-playbook]] — OSS 组织架构同步实战手册
 - [[overview]] — 项目综述
 - [[production-deployment-lessons]] — 生产环境首次部署实战教训
@@ -93,11 +93,12 @@ backlinks:
 - [[root-cause-analysis-ijssgg]] — 立项招标文件上传 Bug 根因分析 (IJSSGG)
 - [[score-item-select-short-label]] — 评分项下拉短标签（ScoreItemSelect：短标签契约 / filterable 原文搜索陷阱 / 测试 stub 反模式）
 - [[score-parse-optimization]] — 评分解析优化记录
-- [[score-parse-service]] — AI 评分标准解析后端服务（Evidence Pipeline、结构化汇总行总分单一事实源）
-- [[spec059-score-parse-evidence-pipeline]] — spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构（含人工复核终态与幂等防护）
+- [[score-parse-service]] — AI 评分标准解析后端服务
+- [[spec059-score-parse-evidence-pipeline]] — spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构
 - [[spring-pitfalls]] — Spring Boot 陷阱集
 - [[team-and-timeline]] — 团队与排期
 - [[tender-create-upload-triage]] — 标讯人工录入"未上传"假象排障与 UX 缺陷修复
+- [[tender-event-pr2598-contract-review]] — PR2598 标讯事件推送契约与验证审查
 - [[tenderevent-sdk-bean-conflict]] — TenderEvent SDK Bean 冲突陷阱
 - [[testing/_index]] — 功能实现对照 — 测试说明文档索引
 - [[testing/container-test-env-compat]] — 容器测试环境兼容（Testcontainers / Docker Desktop / MySQL sql_mode）
@@ -135,5 +136,3 @@ backlinks:
 2. `npm run wiki:build`
 3. `npm run wiki:check`
 
-
-- [[tender-event-pr2598-contract-review]] — PR2598 标讯事件契约分层、响应误判与闭环验证审查

@@ -5,7 +5,7 @@ category: guide
 tags: [score-parse, spec059, 评分解析, DocumentArtifact, CanonicalTableGrid, ScoreFact]
 created: 2026-09-02
 updated: 2026-09-12
-health_checked: 2026-09-12
+health_checked: 2026-09-13
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreParseDecision.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseAppService.java

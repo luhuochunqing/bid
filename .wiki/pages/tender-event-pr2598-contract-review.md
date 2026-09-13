@@ -3,6 +3,9 @@ title: PR2598 标讯事件推送契约与验证审查
 space: engineering
 category: lessons
 tags: [tender, event-sdk, integration, contract, review]
+created: 2026-09-09
+updated: 2026-09-09
+health_checked: 2026-09-13
 sources:
   - backend/libs/ClientSDK-release_0.0.2.jar
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/application/TenderEventPublishService.java
@@ -10,12 +13,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/infrastructure/sdk/TenderEventSdkConfig.java
   - backend/src/test/java/com/xiyu/bid/integration/tenderevent/infrastructure/sdk/TenderEventSdkProducerTest.java
 backlinks:
-  - .wiki/pages/_index.md
-created: 2026-09-09
-updated: 2026-09-09
-health_checked: 2026-09-09
+  - _index
 ---
-
 # PR2598 标讯事件推送契约与验证审查
 
 ## 审查边界与结论

@@ -5,7 +5,7 @@ category: guide
 tags: [Flyway, 数据库迁移, MySQL, collation, 版本号冲突, baseline-on-migrate, 回滚脚本, 失败迁移, 事务回滚]
 created: 2026-07-10
 updated: 2026-09-03
-health_checked: 2026-09-05
+health_checked: 2026-09-13
 sources:
   - backend/src/main/resources/db/migration-mysql/
   - backend/src/main/resources/application-mysql.yml

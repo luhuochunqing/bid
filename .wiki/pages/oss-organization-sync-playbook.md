@@ -5,7 +5,7 @@ category: guide
 tags: [OSS, 组织架构, 人员同步, skipUnmappedUsers, LoginRoleWhitelist, OssPermissionCache, Kafka]
 created: 2026-07-09
 updated: 2026-09-04
-health_checked: 2026-09-05
+health_checked: 2026-09-13
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationUserSyncWriter.java
   - backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationIntegrationProperties.java

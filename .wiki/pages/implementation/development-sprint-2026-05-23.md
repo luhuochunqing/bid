@@ -5,7 +5,7 @@ category: plan
 tags: [sprint, 开发计划, 冲刺, 每日跟进, 里程碑]
 created: 2026-05-22
 updated: 2026-08-12
-health_checked: 2026-09-05
+health_checked: 2026-09-13
 sources:
   - .wiki/pages/implementation/sow-2026-v1-4.md
   - .wiki/pages/implementation/milestones.md
