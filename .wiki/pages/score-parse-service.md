@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-09-12
-health_checked: 2026-09-12
+updated: 2026-09-13
+health_checked: 2026-09-13
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
@@ -20,6 +20,10 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableSummaryPolicy.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreCompletenessPolicy.java
   - backend/src/test/resources/scoreparse-golden/case-misaligned-summary-row.md
+  - specs/062-score-multi-table-split/spec.md
+  - specs/062-score-multi-table-split/plan.md
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableSplitPolicy.java
+  - backend/src/test/resources/scoreparse-golden/case-multi-table-tech-commercial.md
   - document-converter-sidecar/converter.py
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/GoldenCasesReplaySupport.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/ScoreParseRealCorpusRecorderTest.java
@@ -468,3 +472,29 @@ trigger（同步<1s，互斥校验+建任务）
 - 单元测试覆盖错位合计行、合计行不泄漏、原始 null 分值价格公式不阻断正分项；golden 夹具 `case-misaligned-summary-row` 保留脱敏版式样本。
 - 门禁要求评分解析主代码变更同步夹具或回放测试；禁止通过 `SCOREPARSE_GATE_SKIP` 绕过新版式回归。
 - 这能根治本次“合计错位 + 价格公式误阻断”故障类，但任意新文档版式仍需新增脱敏夹具和结构化证据验证；发布后必须对项目 1377 重解析，验收 `/review`、`/items` 与页面三层结果。
+
+
+## 15. 多表评分标准自动拆分（spec 062，2026-09-13）
+
+### 生产问题
+
+一份招标文件含多张独立评分表（如技术 60 / 商务 40 两张）时，旧实现按整份文档合并校验声明总分：文档级 declaredTotal 取一张表的 60，而叶子权重合计是 60+40=100，触发"声明总分冲突 / 权重失配"→ REVIEW_REQUIRED，正式评分项列表为空，用户看到"未识别出评分项"。
+
+### 方案 A：按表自动拆分
+
+- `ScoreTableSplitPolicy` 以 `sourceTableId` 分组评分项，每张表按本表声明总分独立校验；各表自洽即本表全部评分项落库为正式 score_item。
+- `TableCompleteness` / `TableSplitResult` 承载每张表的独立完整性结果；文档级聚合按最差决策（PARSE_FAILED > STRUCTURE_INCOMPLETE > REVIEW_REQUIRED > AUTO_APPROVED）仅用于任务状态标记，不阻塞按表落库。
+- `run_summary` 新增 `tableSplits` 明细，逐表输出 tableId / declaredTotal / decision，供前端复核展示。
+
+### 归一化告警判据修正
+
+多表场景下文档级 declaredTotal 与全表 totalWeight 无直接可比性，原比较必现误报。`StructuredTableExtractionHandler` 改为以 `weightWarning`（分表后 leafWeightSum vs 本表声明总分）为唯一判据；单表失配仍保留原告警语义。
+
+### 回归锚点
+
+- `ScoreTableSplitPolicyTest`（纯核心：分组 / 独立校验 / 文档级聚合）
+- `PdfEvidencePipelineTest#multiTableTender_eachOwnTotalSelfConsistent_allTablesAutoApproved`
+- `StructuredTableExtractionMarkCompletedTest`（落库层：多表自洽不误报 + tableSplits 明细 + 单表失配告警）
+- golden 夹具 `case-multi-table-tech-commercial`（两张独立评分表输入形态锁定，F1=1.0）
+
+> 维护纪律：多表拆分以"表"为基本校验单元，文档级聚合只做状态标记。新增多表形态回归必须同步金标夹具或回放测试；`case-multi-table-tech-commercial` 已立基线。
