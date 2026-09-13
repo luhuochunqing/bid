@@ -151,29 +151,5 @@ public final class ScoreFactShadowPipeline {
             ScoreCompletenessPolicy.ScoreCompletenessResult completeness,
             List<TableCompleteness> tableCompletenesses) {
 
-        public ShadowResult(
-                List<TableOutcome> tables,
-                int skippedTables,
-                ScoreFactValidator.ValidationResult scoring) {
-            this(tables, skippedTables, scoring, splitView(tables));
-        }
-
-        public ShadowResult(
-                List<TableOutcome> tables,
-                int skippedTables,
-                ScoreFactValidator.ValidationResult scoring,
-                SplitView view) {
-            this(tables, skippedTables, scoring, view.documentLevel(), view.tables());
-        }
-    }
-
-    private static SplitView splitView(List<TableOutcome> outcomes) {
-        TableSplitResult split = splitOutcomes(outcomes, collectDeclaredTotals(outcomes), null);
-        return new SplitView(split.documentLevel(), split.tables());
-    }
-
-    private record SplitView(
-            ScoreCompletenessPolicy.ScoreCompletenessResult documentLevel,
-            List<TableCompleteness> tables) {
     }
 }
