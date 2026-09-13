@@ -249,5 +249,7 @@ Fix A+B 的回归锚点仍是单元/验收级合成夹具，无法证明真实 1
 - **修复**：`useScoreParseDrawer.js` 新增 `reviewSubmitted` 状态：
   - `submitReviewRetention` 成功后置 `true` → 按钮 disabled
   - `loadReviewSnapshotIfNeeded` 加载快照时若 `audits` 已含 `RETAIN_ORIGINAL` 同样置灰（刷新 / 重开抽屉不复活按钮）
-  - `ScoreParseDrawer.vue` 绑定 `:submitting="reviewSubmitting || reviewSubmitted"`
-- **验证**：`useScoreParseDrawer.spec.js` 28 例全绿（新增 2 例：提交后置灰、刷新后已有审计置灰）。
+  - `ScoreParseDrawer.vue` 分离 `:submitting="reviewSubmitting"` 与 `:submitted="reviewSubmitted"`
+  - `ScoreParseReviewPanel.vue` 已提交显示“已保留”，不再把终态误显示为“保存中”
+  - composable 入口同时拦截 `reviewSubmitting` 和 `reviewSubmitted`，避免并发或重复调用绕过按钮状态
+- **验证**：`useScoreParseDrawer.spec.js` 与 `ScoreParseDrawer.spec.js` 共 35 例全绿；覆盖提交后终态文案、刷新后已有审计置灰、重复调用只发一次请求。

@@ -251,6 +251,7 @@ export function useScoreParseDrawer(props, emit) {
     reviewError.value = ''
     if (!reviewRequired.value) {
       reviewSnapshot.value = null
+      reviewSubmitted.value = false
       return
     }
     reviewLoading.value = true
@@ -266,7 +267,7 @@ export function useScoreParseDrawer(props, emit) {
   }
 
   async function submitReviewRetention() {
-    if (!reviewRequired.value) return
+    if (!reviewRequired.value || reviewSubmitting.value || reviewSubmitted.value) return
     reviewSubmitting.value = true
     try {
       reviewSnapshot.value = (await scoreParseApi.submitReview(props.projectId, {

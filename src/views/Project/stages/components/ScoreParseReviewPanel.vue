@@ -10,8 +10,8 @@
         <div class="review-panel-title">人工复核闭环</div>
         <div class="review-panel-sub">本次解析未自动覆盖正式评分项，请按 facts/evidence 复核后留痕。</div>
       </div>
-      <button class="btn-tool" :disabled="submitting" data-test="score-parse-review-retain" @click="$emit('retain')">
-        {{ submitting ? '保存中...' : '记录已复核，保留现有项' }}
+      <button class="btn-tool" :disabled="submitting || submitted" data-test="score-parse-review-retain" @click="$emit('retain')">
+        {{ submitting ? '保存中...' : submitted ? '已保留' : '记录已复核，保留现有项' }}
       </button>
     </div>
     <div v-if="loading" class="review-panel-muted">正在加载复核证据...</div>
@@ -49,6 +49,7 @@ defineProps({
   audits: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   submitting: { type: Boolean, default: false },
+  submitted: { type: Boolean, default: false },
   error: { type: String, default: '' },
   pipelineVersion: { type: String, default: '' },
   artifactSha256: { type: String, default: '' },

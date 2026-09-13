@@ -515,6 +515,10 @@ describe('useScoreParseDrawer.js', () => {
     await drawer.submitReviewRetention()
 
     expect(drawer.reviewSubmitted.value).toBe(true)
+
+    await drawer.submitReviewRetention()
+
+    expect(scoreParseApi.submitReview).toHaveBeenCalledTimes(1)
   })
 
   it('keeps review button disabled when audits already contain RETAIN_ORIGINAL (refresh/reopen)', async () => {
