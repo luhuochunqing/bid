@@ -5666,3 +5666,30 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 - `PdfEvidencePipelineTest#project1381LikePdfWithoutStructuredSummary_keepsLossyMarkdownFallbackBehavior`
 - `PdfEvidencePipelineTest#conflictingStructuredSummaryTotals_requireReviewInsteadOfGuessing`
 - `ScoreParseAppServiceTest#parse_project1381PdfStructuredSummary_persistsAllEightItems`
+
+## 359. 多张独立评分表按表拆分校验，归一化告警以 weightWarning 为唯一判据（2026-09-13，spec 062）
+
+### 问题背景
+
+一份招标文件含多张独立评分表（如技术 60 / 商务 40 两张）时，旧实现按整份文档合并校验声明总分：文档级 `declaredTotal` 取其中一张表的 60，而全表叶子权重合计是 60+40=100，比较 60 vs 100 必现"声明总分冲突 / 权重失配"→ `REVIEW_REQUIRED`，正式评分项列表为空，用户看到"未识别出评分项"。
+
+### 根因规则
+
+1. **校验单元错位**：文档级 `declaredTotal` 与全表 `totalWeight` 属不同粒度（一张表 vs 全部表之和），多表场景下无直接可比性，比较必现误报。
+2. **归一化告警判据混用**：正确判据是"分表后本表 `leafWeightSum` vs 本表声明总分"，旧实现误用文档级声明总分。
+
+### 落地规则
+
+- `ScoreTableSplitPolicy` 以 `sourceTableId` 分组评分项，每张表按本表声明总分独立校验；各表自洽即本表全部评分项落库为正式 `score_item`。
+- `StructuredTableExtractionHandler` 归一化告警以 `weightResult.weightWarning()` 为唯一判据（分表后 leafWeightSum vs 本表声明总分），单表失配保留原告警语义。
+- 文档级聚合按最差决策（PARSE_FAILED > STRUCTURE_INCOMPLETE > REVIEW_REQUIRED > AUTO_APPROVED）仅用于任务状态标记，**不阻塞按表落库**。
+- `run_summary` 新增 `tableSplits` 明细，逐表输出 tableId / declaredTotal / decision，供前端复核展示。
+
+### 回归锚点
+
+- `ScoreTableSplitPolicyTest`（纯核心：分组 / 独立校验 / 文档级聚合）
+- `PdfEvidencePipelineTest#multiTableTender_eachOwnTotalSelfConsistent_allTablesAutoApproved`
+- `StructuredTableExtractionMarkCompletedTest`（落库层：多表自洽不误报 + tableSplits 明细 + 单表失配告警）
+- golden 夹具 `case-multi-table-tech-commercial`（两张独立评分表输入形态锁定，F1=1.0）
+
+> 维护纪律：多表拆分以"表"为基本校验单元，文档级聚合只做状态标记。新增多表形态回归必须同步金标夹具或回放测试。
