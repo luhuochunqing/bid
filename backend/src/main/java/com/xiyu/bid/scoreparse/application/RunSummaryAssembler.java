@@ -13,6 +13,7 @@ import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreGlobalMergeExecutor;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -60,6 +61,19 @@ final class RunSummaryAssembler {
     static Assembled assemble(RecallOutcome recall, int tableRows, MergeView merge,
             WeightSumCheck.Result weight, int itemCount, String llmModel,
             String pipelineVersion, String decisionStatus, String fallbackReason) {
+        return assemble(recall, tableRows, merge, weight, itemCount, llmModel,
+                pipelineVersion, decisionStatus, fallbackReason, List.of());
+    }
+
+    /**
+     * spec 062 US2 装配入口：在 Phase 0 键基础上追加 {@code tableSplits} 拆分明细。
+     * <p>非空时输出 {@code tableSplits} 数组（每项 tableId/declaredTotal/decision/fallbackReason）；
+     * 为空时不输出该键，保证旧调用方序列化零变化。
+     */
+    static Assembled assemble(RecallOutcome recall, int tableRows, MergeView merge,
+            WeightSumCheck.Result weight, int itemCount, String llmModel,
+            String pipelineVersion, String decisionStatus, String fallbackReason,
+            List<Map<String, Object>> tableSplits) {
         double alignedRatio = recall.alignedTotal() > 0
                 ? (double) recall.alignedHit() / recall.alignedTotal() : -1;
         boolean warnLowAlignment = alignedRatio >= 0 && alignedRatio < ALIGNED_RATIO_FLOOR;
@@ -97,6 +111,10 @@ final class RunSummaryAssembler {
         root.put("pipelineVersion", pipelineVersion == null ? "" : pipelineVersion);
         root.put("decisionStatus", decisionStatus == null ? "" : decisionStatus);
         root.put("fallbackReason", fallbackReason == null ? "" : fallbackReason);
+        // spec 062 US2：多表拆分明细，仅非空时透出。
+        if (tableSplits != null && !tableSplits.isEmpty()) {
+            root.put("tableSplits", tableSplits);
+        }
         return new Assembled(writeJson(root), warnLowAlignment, warnHighHallucination);
     }
 

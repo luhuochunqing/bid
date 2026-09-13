@@ -93,6 +93,7 @@
 - **ratchet 双处定义必须同步改**：本地 hook 与 CI workflow 是同一约束的两份拷贝，只改一处会造成"本地能过 CI 挂"或反向漂移；调整时必须在注释中写明日期、现存数量、调整原因和下调条件。
 - **验证路径**：Fix B 的活体验证 = 携带本提交直推 origin main 且**不带** `FORCE_PUSH_OK`（8 roots ≤ 上限 8 应天然放行）；Fix A 的活体验证 = 改造后的 `sync-to-github.sh` 以真实增量走新解耦路径推 GitHub 成功。两者均已实测通过。
 - **同日活体复现（直推路径）**：本节落盘当天，携带本提交首次直推 origin main 时再次实证根因——内联门禁全绿（16 通过/0 失败）后传输前静默死亡（远端 ref 未更新、门禁通过消息之后无任何传输输出，exit code 还被管道下游吞掉），同一 HEAD 改用 `PRE_PUSH_GATE=0` 后瞬时成功。至此该机制共四度实证（GitHub 镜像路径 3 次 + Gitee 直推路径 1 次），全部符合「长门禁空闲窗口」预测。**待团队决策的根治方向**：普通直推路径的内联门禁与 git「先建连接、后传包」时序存在结构性冲突，可选方案为推广「显式先跑 `pre-push-gate.sh` → `PRE_PUSH_GATE=0` 传输」的推送包装脚本（sync-to-github.sh 已内置同型解法），或接受间歇性静默失败 + 重试；另注意 shell 管道会吞掉 git push 的真实退出码（SIGPIPE 141 变成 tail 的 0），排障时必须重定向到文件再取 `$?`。
+- **普通 `git push` 路径五度实证 + keep-alive 缓解（2026-09-13）**：`agent/trae/score-multi-table-split` 分支推送时再次复现同型故障——`git push` 已配置 alias 包装器（`.githooks/git-push-wrapper.sh`）先显式跑 `pre-push-gate.sh`（29 通过/0 失败）再调真实 push，真实 push 的 pre-push hook 又内联触发第二遍门禁，门禁通过后传输阶段仍死于 SIGPIPE（exit 141，远端 ref 未更新）。至此普通直推路径共两度实证（Gitee），证明「门禁与传输解耦」方案尚未覆盖 `git push` 通用路径。**新缓解手段**：`GIT_SSH_COMMAND="ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes -o BatchMode=yes -o ConnectTimeout=15 -4" git push ...` 实测一次成功——keep-alive 包对抗「空闲连接被掐」机制，与 Gitee SSH 长事务建议（见 deploy-report-2026-08-28-147th-test §SSH 连接中断）同源。注意 keep-alive 属「适配超时」类方案，仅作直推路径兜底；根治方向仍以「显式先跑门禁 → 传输」解耦为准。
 
 ## 7. 多服务/容器组件部署闭环与接口探活硬门禁（2026-09-07）
 

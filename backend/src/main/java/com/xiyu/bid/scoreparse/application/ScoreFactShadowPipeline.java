@@ -7,7 +7,10 @@ import com.xiyu.bid.scoreparse.domain.DeterministicScoreFactExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreFactValidator;
+import com.xiyu.bid.scoreparse.domain.ScoreTableSplitPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreTableSummaryPolicy;
+import com.xiyu.bid.scoreparse.domain.TableCompleteness;
+import com.xiyu.bid.scoreparse.domain.TableSplitResult;
 import com.xiyu.bid.scoreparse.domain.grid.CanonicalTableGrid;
 import com.xiyu.bid.scoreparse.domain.grid.CanonicalTableGridFactory;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
@@ -29,6 +32,9 @@ import java.util.List;
  *   <li>迁移前对照基线——金标语料（docs/lessons/scoreparse-golden-corpus）
  *       的只读回放口径。</li>
  * </ul>
+ * <p>多表拆分（spec 062）：自 062 起管道按 {@link ScoreTableSplitPolicy} 先按表分组独立校验，
+ * 再聚合文档级结果；{@code completeness} 恒为文档级聚合值，新增
+ * {@code tableCompletenesses} 承载每张独立评分表的明细。
  * <p>纯静态、无框架依赖：输入产出全部是不可变值对象（FP-Java）。
  */
 public final class ScoreFactShadowPipeline {
@@ -50,7 +56,8 @@ public final class ScoreFactShadowPipeline {
         if (artifact == null) {
             return new ShadowResult(List.of(), 0,
                     new ScoreFactValidator.ValidationResult(false, false, List.of("artifact is null")),
-                    ScoreCompletenessPolicy.evaluateCompleteness(List.of(), tenderSectionText, false));
+                    ScoreCompletenessPolicy.evaluateCompleteness(List.of(), tenderSectionText, false),
+                    List.of());
         }
         List<TableOutcome> outcomes = new ArrayList<>();
         int skipped = 0;
@@ -66,15 +73,25 @@ public final class ScoreFactShadowPipeline {
                     : List.of();
             outcomes.add(new TableOutcome(grid, mapping, facts, grid.isStructurallyValid()));
         }
+        List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> declaredTotals = collectDeclaredTotals(outcomes);
+        TableSplitResult split = splitOutcomes(outcomes, declaredTotals, tenderSectionText);
         List<ScoreFact> allFacts = outcomes.stream()
                 .flatMap(outcome -> outcome.facts().stream())
                 .toList();
-        List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> declaredTotals = collectDeclaredTotals(outcomes);
-        boolean allValid = outcomes.stream().allMatch(TableOutcome::structurallyValid);
         return new ShadowResult(List.copyOf(outcomes), skipped,
                 ScoreFactValidator.validateScoringSet(allFacts),
-                ScoreCompletenessPolicy.evaluateCompleteness(
-                        allFacts, tenderSectionText, allValid, declaredTotals));
+                split.documentLevel(), split.tables());
+    }
+
+    private static TableSplitResult splitOutcomes(
+            List<TableOutcome> outcomes,
+            List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> declaredTotals,
+            String tenderSectionText) {
+        List<ScoreTableSplitPolicy.ScoreTableInput> inputs = outcomes.stream()
+                .map(outcome -> new ScoreTableSplitPolicy.ScoreTableInput(
+                        outcome.grid().tableId(), outcome.structurallyValid(), outcome.facts()))
+                .toList();
+        return ScoreTableSplitPolicy.split(inputs, declaredTotals, tenderSectionText);
     }
 
     private static List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> collectDeclaredTotals(
@@ -121,24 +138,18 @@ public final class ScoreFactShadowPipeline {
     }
 
     /**
-     * @param tables        每个评分表的影子执行结果
-     * @param skippedTables 非评分表数量
-     * @param scoring       全量事实池的自动评分集校验
-     * @param completeness  完整性校验与 7 大维度判定结果
+     * @param tables             每个评分表的影子执行结果
+     * @param skippedTables      非评分表数量
+     * @param scoring            全量事实池的自动评分集校验
+     * @param completeness       文档级完整性聚合（最差决策，spec 062）
+     * @param tableCompletenesses 每张独立评分表的完整性结果（spec 062）
      */
     public record ShadowResult(
             List<TableOutcome> tables,
             int skippedTables,
             ScoreFactValidator.ValidationResult scoring,
-            ScoreCompletenessPolicy.ScoreCompletenessResult completeness) {
+            ScoreCompletenessPolicy.ScoreCompletenessResult completeness,
+            List<TableCompleteness> tableCompletenesses) {
 
-        public ShadowResult(
-                List<TableOutcome> tables,
-                int skippedTables,
-                ScoreFactValidator.ValidationResult scoring) {
-            this(tables, skippedTables, scoring, ScoreCompletenessPolicy.evaluateCompleteness(
-                    tables.stream().flatMap(t -> t.facts().stream()).toList(), null,
-                    tables.stream().allMatch(TableOutcome::structurallyValid), collectDeclaredTotals(tables)));
-        }
     }
 }

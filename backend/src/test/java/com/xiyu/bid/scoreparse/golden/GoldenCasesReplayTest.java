@@ -44,7 +44,8 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-1374-redundant-formula"),
                 Arguments.of("case-3col-embedded-bracket-weight"),
                 Arguments.of("case-1381-pdf-preliminary-and-summary"),
-                Arguments.of("case-pdf-cert-list-single-item"));
+                Arguments.of("case-pdf-cert-list-single-item"),
+                Arguments.of("case-multi-table-tech-commercial"));
     }
 
     @ParameterizedTest(name = "{0}")
