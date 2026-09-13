@@ -171,17 +171,29 @@ class PdfEvidencePipelineTest {
     }
 
     @Test
-    void multiTableTender_eachOwnTotalSelfConsistent_currentlyBlockedByDeclaredTotalConflict()
+    void multiTableTender_eachOwnTotalSelfConsistent_allTablesAutoApproved()
             throws IOException, InterruptedException {
         // 期望行为：两张独立评分表（技术 60 / 商务 40）各自按本表声明总分独立校验，两表全自洽
         // → 整份文档 AUTO_APPROVED → 两表全部评分项可落库为正式 score_item。
-        // Red 状态：当前实现合并校验触发"结构化声明总分冲突"→ REVIEW_REQUIRED，本断言失败。
         StructuredTableExtractionHandler.Result result = extractMultiTable();
 
         assertThat(result.evidencePipeline()).isTrue();
         assertThat(result.facts()).hasSize(5);
         assertThat(result.candidates()).hasSize(5);
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        // spec 062 US1：文档级聚合取最差决策（两表均 AUTO_APPROVED 时取先出现的技术表）
+        assertThat(result.completeness().declaredTotalScore()).isEqualByComparingTo("60.00");
+        assertThat(result.completeness().declaredTotalSource())
+                .isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.STRUCTURED_SUMMARY_ROW);
+        assertThat(result.completeness().leafWeightSum()).isEqualByComparingTo("60.00");
+        // spec 062 US2：每张独立表各自的完整性结果，含本表声明总分与决策
+        assertThat(result.tableCompletenesses()).hasSize(2);
+        assertThat(result.tableCompletenesses())
+                .allMatch(table -> table.completeness() != null
+                        && table.completeness().decision() == ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.tableCompletenesses())
+                .extracting(table -> table.completeness().declaredTotalScore())
+                .containsExactly(new BigDecimal("60.00"), new BigDecimal("40.00"));
     }
 
     private static StructuredTableExtractionHandler.Result extractMultiTable()

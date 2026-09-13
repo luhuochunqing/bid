@@ -189,8 +189,9 @@ final class StructuredTableExtractionHandler {
         task.setDecisionStatus(decision.name());
         task.setFallbackReason(fallbackReason);
         BigDecimal declaredTotal = completeness == null ? BigDecimal.valueOf(100) : completeness.declaredTotalScore();
-        if (weightResult.totalWeight() != null && declaredTotal != null
-                && weightResult.totalWeight().compareTo(declaredTotal) != 0) {
+        // spec 062：多表场景文档级 declaredTotal 与全表 totalWeight 无直接可比性，
+        // 归一化告警以 weightWarning（leafWeightSum vs 声明总分）为唯一判据，避免多表自洽必现误报。
+        if (weightResult.weightWarning() && weightResult.totalWeight() != null && declaredTotal != null) {
             task.setOriginalTotalWeight(weightResult.totalWeight());
             task.setNormalizationWarning(String.format(
                     "评分权重合计为 %s分，不符合%s分声明总分（Evidence Pipeline 不自动归一化，保留旧评分项待复核）",
