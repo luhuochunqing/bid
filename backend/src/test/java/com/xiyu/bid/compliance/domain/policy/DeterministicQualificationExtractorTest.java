@@ -187,4 +187,45 @@ class DeterministicQualificationExtractorTest {
         assertThat(DeterministicQualificationExtractor.extract("  \n\t  ")).isEmpty();
         assertThat(DeterministicQualificationExtractor.extract("本项目采购办公用纸 500 箱，请于周五前送达。")).isEmpty();
     }
+
+    @Test
+    @DisplayName("金标 1359/1377 防护：严禁将评分细则、超长文本（>100字）及应答模板误提取为硬性资质")
+    void extract_incident1377_doesNotExtractScoringRulesOrTemplates() throws Exception {
+        java.nio.file.Path sidecarPath = java.nio.file.Path.of("src/test/resources/scoreparse-golden/1359_sidecar.md");
+        if (!java.nio.file.Files.exists(sidecarPath)) {
+            sidecarPath = java.nio.file.Path.of("backend/src/test/resources/scoreparse-golden/1359_sidecar.md");
+        }
+        String tenderText = java.nio.file.Files.readString(sidecarPath);
+
+        List<String> quals = DeterministicQualificationExtractor.extract(tenderText);
+
+        // 核心防线 1：任何提取出的资质长度绝对不得超过 100 字（杜绝粘连巨型评分标准）
+        assertThat(quals).allSatisfy(q -> assertThat(q.length()).as("资质名称不应超长: %s", q).isLessThanOrEqualTo(100));
+
+        // 核心防线 2：绝对不得提取前附表履约提示与评分细则粘连段落
+        assertThat(quals).noneMatch(q -> q.contains("紧急需求应急响应专项方案")
+                || q.contains("商务评审细则")
+                || q.contains("框架采购供货履约承诺函")
+                || q.contains("是否应急响应小类"));
+
+        // 核心防线 3：绝对不得提取第五章应答模板（有/无、填写认证名称、响应说明）
+        assertThat(quals).noneMatch(q -> q.contains("填写认证名称")
+                || q.contains("企业绿码国家级认证：有")
+                || q.contains("绿色工厂国家级认证：有")
+                || q.contains("响应说明："));
+    }
+
+    @Test
+    @DisplayName("正向提取防误杀：正规资质条款包含认证机构、有效期限或佐证材料等常用词时必须正常提取")
+    void extract_legitimateQualificationWithCommonWords_isNotFalseExcluded() {
+        String text = """
+                3.2 专用资格条件
+                （1）投标人须具备由经认证认可监督管理委员会认可的认证机构颁发的ISO9001质量管理体系认证证书，且证书须在有效期限内；
+                （2）投标人须具备建筑工程施工总承包一级资质，并提供加盖公章的证书扫描件作为佐证材料。
+                """;
+        List<String> quals = DeterministicQualificationExtractor.extract(text);
+        assertThat(quals).hasSize(2);
+        assertThat(quals).anyMatch(q -> q.contains("ISO9001") && q.contains("认证机构"));
+        assertThat(quals).anyMatch(q -> q.contains("总承包") && q.contains("佐证材料"));
+    }
 }

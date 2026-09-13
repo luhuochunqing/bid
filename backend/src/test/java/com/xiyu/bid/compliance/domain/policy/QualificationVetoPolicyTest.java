@@ -88,4 +88,32 @@ class QualificationVetoPolicyTest {
 
         assertThat(result).isEmpty();
     }
+
+    @Test
+    @DisplayName("长句与评分细则防护：非规范资质证书要求（如超长文本或非证书描述）不得作为硬性资质在一票否决中直接判定 FAIL")
+    void checkFirstStage_overlongOrScoringItem_doesNotFailAsQualification() {
+        String p1 = "投标函正文\n我方完全满足招标文件要求。承诺无转包，无违法分包。";
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash6", p1);
+        String longText = "8.应答人应在提交应答文件时签署并提供框架采购供货履约承诺函，格式见采购文件第五章应答文件格式。9.最终用户紧急需求应急响应专项方案。";
+        TenderRequirements req = TenderRequirements.empty().withMergedQualifications(List.of(longText));
+
+        Optional<QualityCheckItemResult> result = QualificationVetoPolicy.checkFirstStage(bidDoc, null, req, List.of());
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("空值防御：mandatoryQualifications 包含 null 元素时不抛 NPE 并安全跳过")
+    void checkFirstStage_nullQualificationInRequirements_doesNotThrowNpe() {
+        String p1 = "投标函正文\n我方完全满足招标文件要求。";
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash7", p1);
+        java.util.List<String> listWithNull = new java.util.ArrayList<>();
+        listWithNull.add(null);
+        listWithNull.add("   ");
+        TenderRequirements req = new TenderRequirements(List.of(), listWithNull, List.of(), List.of(), List.of(), false);
+
+        Optional<QualityCheckItemResult> result = QualificationVetoPolicy.checkFirstStage(bidDoc, null, req, List.of());
+
+        assertThat(result).isEmpty();
+    }
 }

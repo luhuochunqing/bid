@@ -141,7 +141,10 @@ public final class QualificationVetoPolicy {
 
         List<QualityEvidence> evidences = new ArrayList<>();
         for (String qualification : requirements.mandatoryQualifications()) {
-            if (qualification.isBlank()) {
+            if (qualification == null
+                    || qualification.isBlank()
+                    || qualification.length() > DeterministicQualificationExtractor.MAX_QUALIFICATION_LENGTH
+                    || !DeterministicQualificationExtractor.isSpecificCertificate(qualification)) {
                 continue;
             }
             if (tenderDoc != null) {
