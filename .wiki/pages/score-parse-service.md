@@ -268,6 +268,11 @@ trigger（同步<1s，互斥校验+建任务）
 - **escape-hatch 词汇注册表（Phase 5）**：`ScoreVocabularyRegistry`（Builder + 不可变 `Entry` record，global/project 两级）提供 `matches` / `isWeightInRange` / `getEntries` / `matchesAny` / `findMatch` / `toPromptExamples`；`ScoreVocabularyConfiguration` 注册 8 条全局词汇 Bean。纯核心无框架依赖（FP-Java，受 `preflight-domain-purity` 守卫）。
 - **真实文档金标 CI（Phase 4）**：`RealProjectScoreParsingTest` 去掉 `@Disabled`，入库 case-1347 / case-1362 真实文档，建立回归防御。
 
+## 客户侧展示边界（2026-09-13）
+
+- `score_parse_fact`、`score_parse_evidence`、`score_parse_review` 继续作为解析安全与复核审计的内部数据链路保留；客户侧评分抽屉不展示事实条数、审计条数、Pipeline、Artifact、单元格 ID、提取方式、置信度或权重依据。正式评分项、解析状态、原文位置与评分依据保持不变。
+- 回归锚点：`ScoreParseDrawer.spec.js`、`ScoreItemDetailModal.spec.js`；API 与 composable 仍保留复核数据读取/提交契约。
+
 ## Task2 Evidence Pipeline 主链路收敛与复核态保留旧项（2026-09-12）
 
 - **根因**：PR #2620 只解决了 Sidecar 协议漂移后的保留策略，但 `SidecarDocumentArtifactExtractor` + `ScoreFactShadowPipeline` 仍未进入生产主链路；docx 解析继续绕回 legacy v1 table extractor / markdown / LLM 后处理。与此同时 legacy `REVIEW_REQUIRED` 仍会覆盖 `score_item` 并触发估分，把不完整结果伪装成正式评分标准。

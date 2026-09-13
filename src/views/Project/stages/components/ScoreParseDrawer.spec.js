@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import ScoreParseDrawer from './ScoreParseDrawer.vue'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 
@@ -212,12 +212,12 @@ describe('ScoreParseDrawer.vue', () => {
     expect(badge.exists()).toBe(true)
     expect(badge.text()).toBe('待人工复核')
     expect(wrapper.text()).toContain('理由: 权重合计不符合预期')
-    expect(wrapper.find('[data-test="score-parse-review-panel"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('人工复核闭环')
-    expect(wrapper.text()).toContain('总体架构设计')
+    expect(wrapper.find('[data-test="score-parse-review-panel"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('人工复核闭环')
+    expect(wrapper.text()).not.toContain('事实 1 条')
   })
 
-  it('shows a completed state instead of saving after retention already exists', async () => {
+  it('keeps review audit state internal when retention already exists', async () => {
     scoreParseApi.getItems.mockResolvedValue({
       data: {
         items: itemsFixture,
@@ -241,11 +241,12 @@ describe('ScoreParseDrawer.vue', () => {
 
     await wrapper.vm.open({ stage: 1, autoScore: false })
 
+    expect(scoreParseApi.getReview).toHaveBeenCalledWith(123)
     expect(wrapper.find('[data-test="score-parse-review-panel"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="score-parse-decision-status"]').text()).toBe('已完成复核')
+    expect(wrapper.text()).not.toContain('已保留')
   })
 
-  it('closes the pending review state after retention succeeds', async () => {
+  it('keeps pending review state internal when the review panel is hidden', async () => {
     scoreParseApi.getItems.mockResolvedValue({
       data: { items: itemsFixture, meta: { decisionStatus: 'REVIEW_REQUIRED' } },
     })
@@ -263,10 +264,8 @@ describe('ScoreParseDrawer.vue', () => {
     })
 
     await wrapper.vm.open({ stage: 1, autoScore: false })
-    await wrapper.find('[data-test="score-parse-review-retain"]').trigger('click')
-    await flushPromises()
 
     expect(wrapper.find('[data-test="score-parse-review-panel"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="score-parse-decision-status"]').text()).toBe('已完成复核')
+    expect(wrapper.find('[data-test="score-parse-decision-status"]').text()).toBe('待人工复核')
   })
 })
