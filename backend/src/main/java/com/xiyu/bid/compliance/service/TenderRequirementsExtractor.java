@@ -178,7 +178,7 @@ public class TenderRequirementsExtractor {
                   },
                   "caCertificateRequirement": {
                     "required": true或false或null,
-                    "platformName": "招标文件指定的电子招投标交易平台名称或null",
+                    "platformName": "招标文件指定的电子招投标交易平台或省市CA锁/数字认证机构名称（如河北CA、政采云、北京CA、国网新源、冀招标等）或null",
                     "requireCertificateCopy": true或false或null,
                     "requireElectronicSeal": true或false或null,
                     "description": "招标文件关于电子标 CA 数字证书、电子签章等具体要求或免收说明的条款摘录或null"

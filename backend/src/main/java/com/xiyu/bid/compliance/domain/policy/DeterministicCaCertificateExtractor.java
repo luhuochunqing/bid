@@ -15,7 +15,15 @@ import java.util.regex.Pattern;
 public final class DeterministicCaCertificateExtractor {
 
     private static final Pattern PLATFORM_PATTERN = Pattern.compile(
-            "([\\u4e00-\\u9fa5A-Za-z0-9]{2,20}(?:电子招投标交易平台|公共资源交易中心|公共资源交易平台|电子商务平台|电子招标采购系统|交易平台|交易系统|政采云))"
+            "([\\u4e00-\\u9fa5A-Za-z0-9]{2,20}(?:电子招投标交易平台|公共资源交易中心|公共资源交易平台|电子商务平台|电子招标采购系统|交易平台|交易系统|公共服务平台|采购网|政采云|招采进宝|优质采))"
+    );
+
+    private static final Pattern CA_SPECIFIC_LOCK_PATTERN = Pattern.compile(
+            "(?:使用|办理|持有|注册|通过)?(?:企业|单位)?([\\u4e00-\\u9fa5]{2,8}(?:省|市)?\\s*CA(?:锁|数字证书|数字认证)?)"
+    );
+
+    private static final Pattern REGIONAL_CA_SIGNAL = Pattern.compile(
+            "(?i)[\\u4e00-\\u9fa5]{2,6}\\s*CA"
     );
 
     private static final String[] EXEMPT_SIGNALS = {
@@ -23,7 +31,8 @@ public final class DeterministicCaCertificateExtractor {
     };
 
     private static final String[] CA_REQUIRED_KEYWORDS = {
-            "电子招投标", "CA证书", "CA数字证书", "电子签章", "电子印章", "数字证书认证", "加密投标文件", "全流程电子化", "CA锁", "CA加密"
+            "电子招投标", "电子投标", "CA证书", "CA数字证书", "电子签章", "电子印章", "数字证书认证", "数字证书", "数字认证",
+            "加密投标文件", "全流程电子化", "CA锁", "CA加密", "CA注册", "办理CA", "使用CA", "企业CA", "电子标"
     };
 
     private DeterministicCaCertificateExtractor() {
@@ -63,17 +72,25 @@ public final class DeterministicCaCertificateExtractor {
                 break;
             }
         }
+        if (!hasCaKeyword && REGIONAL_CA_SIGNAL.matcher(fullText).find()) {
+            hasCaKeyword = true;
+        }
 
         if (!hasCaKeyword) {
             // 未检索到任何电子标或 CA 关键词，返回 null 供大模型或后续判定
             return null;
         }
 
-        // 3. 提取平台名称
+        // 3. 提取平台名称或省份 CA 锁名称
         String platform = null;
-        Matcher m = PLATFORM_PATTERN.matcher(fullText);
-        if (m.find()) {
-            platform = m.group(1);
+        Matcher mPlatform = PLATFORM_PATTERN.matcher(fullText);
+        if (mPlatform.find()) {
+            platform = mPlatform.group(1).trim();
+        } else {
+            Matcher mCaLock = CA_SPECIFIC_LOCK_PATTERN.matcher(fullText);
+            if (mCaLock.find()) {
+                platform = mCaLock.group(1).replaceAll("\\s+", "");
+            }
         }
 
         boolean requireCopy = fullText.contains("证书复印件")
@@ -88,7 +105,7 @@ public final class DeterministicCaCertificateExtractor {
                 || fullText.contains("CA签名");
 
         String desc = platform != null
-                ? "本项目通过 " + platform + " 实行全流程电子招投标，须提供有效 CA 证书及电子签章"
+                ? "本项目要求使用 " + platform + " 实行全流程电子招投标，须提供有效 CA 证书及电子签章"
                 : "本项目要求使用 CA 数字证书及电子签章响应电子招投标";
 
         return new CaCertificateRequirement(true, platform, requireCopy, requireSeal, desc);
