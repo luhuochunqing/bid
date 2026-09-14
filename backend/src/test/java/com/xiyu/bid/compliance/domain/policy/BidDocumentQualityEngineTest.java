@@ -916,21 +916,17 @@ class BidDocumentQualityEngineTest {
     }
 
     @Test
-    @DisplayName("电子标CA证书反假：规范标书附真实CA证书及序列号时，强凭证直通 PASS")
-    void testEvaluateAll_WhenCaCertificateRealCredentials_PassesDirectly() {
-        String caPage = """
-                五、CA数字证书及签章有效性证明
-                颁发机构：CFCA中国金融认证中心
-                证书序列号：2026-CA-99882211A
-                证书持有主体：西域数智技术有限公司
-                算法：SM2/SM3 国密算法
-                有效期至：2027-12-31
-                电子签章有效性状态：有效，时间戳验证通过
-                """;
-        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_ca_real", caPage);
+    @DisplayName("电子标CA证书核查：知识库台账中存在有效在库 CA 证书时直通 PASS")
+    void testEvaluateAll_WhenCaCertificateInStockInKb_PassesDirectly() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_ca_real", "正常投标文件正文内容");
+        CaCertificateEvidence ca = new CaCertificateEvidence(
+                301L, "ENTITY_CA", "公章+法人章", "CFCA",
+                java.time.LocalDate.now().plusYears(1), "上海公共资源交易中心",
+                "IN_STOCK", "ACTIVE", "张主管", "李四");
+        List<KnowledgeMatch> matches = List.of(ca.toKnowledgeMatch(true));
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
-                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of());
+                doc, DocumentContent.empty(), matches, TenderRequirements.empty(), Set.of());
 
         QualityCheckItemResult caResult = results.stream()
                 .filter(r -> r.itemCode().equals(BidQualityCheckItem.CA_CERTIFICATE.getCode()))
@@ -938,18 +934,22 @@ class BidDocumentQualityEngineTest {
                 .orElseThrow();
 
         assertThat(caResult.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(caResult.conclusion()).contains("真实有效");
+        assertThat(caResult.conclusion()).contains("在库可用");
         assertThat(caResult.evidences()).isNotEmpty();
     }
 
     @Test
-    @DisplayName("电子标CA证书反假：目录点线不被误认为有效凭据，判定为 FAIL")
-    void testEvaluateAll_WhenCaCertificateOnlyCatalog_Fails() {
-        String catalogPage = "目录\n五、CA数字证书及签章有效性证明........................58";
-        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_ca_cat", catalogPage);
+    @DisplayName("电子标CA证书核查：指定交易平台但台账未录入对应平台 CA 证书时判定 FAIL 并给出录入指引")
+    void testEvaluateAll_WhenCaCertificatePlatformMissingInKb_Fails() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_ca_cat", "正文无要求");
+        CaCertificateRequirement req = CaCertificateRequirement.requiredStandard(
+                "江苏政府采购网", "本项目须使用江苏政府采购网 CA 锁加密");
+        TenderRequirements tr = new TenderRequirements(
+                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
+                null, null, null, null, null, null, null, req, false);
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
-                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of());
+                doc, DocumentContent.empty(), Collections.emptyList(), tr, Set.of());
 
         QualityCheckItemResult caResult = results.stream()
                 .filter(r -> r.itemCode().equals(BidQualityCheckItem.CA_CERTIFICATE.getCode()))
@@ -957,7 +957,8 @@ class BidDocumentQualityEngineTest {
                 .orElseThrow();
 
         assertThat(caResult.status()).isEqualTo(QualityCheckStatus.FAIL);
-        assertThat(caResult.conclusion()).contains("目录");
+        assertThat(caResult.conclusion()).contains("未在 CA 证书管理中检索到匹配【江苏政府采购网】");
+        assertThat(caResult.suggestion()).contains("CA证书管理");
     }
 
     @Test

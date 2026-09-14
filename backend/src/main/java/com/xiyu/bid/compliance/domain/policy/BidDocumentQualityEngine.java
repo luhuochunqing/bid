@@ -99,10 +99,11 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.PRICE_CONSISTENCY.getCode(),
                     BasicInfoCheckPolicy.checkPriceConsistency(bidDoc, effective.priceRequirement()));
         }
-        if (effective.caCertificateRequirement() != null) {
-            resultMap.put(BidQualityCheckItem.CA_CERTIFICATE.getCode(),
-                    SubItemAndAttachmentRules.checkCaCertificate(bidDoc, effective.caCertificateRequirement(), kbEvidences));
-        }
+        CaCertificateRequirement caReq = effective.caCertificateRequirement() != null
+                ? effective.caCertificateRequirement()
+                : (!effectiveTender.fullText().isBlank() ? DeterministicCaCertificateExtractor.extract(effectiveTender) : null);
+        resultMap.put(BidQualityCheckItem.CA_CERTIFICATE.getCode(),
+                SubItemAndAttachmentRules.checkCaCertificate(bidDoc, caReq, kbEvidences));
         if (effective.businessTermsRequirement() != null) {
             resultMap.put(BidQualityCheckItem.SCHEDULE_RESPONSE.getCode(),
                     BasicInfoCheckPolicy.checkScheduleResponse(bidDoc, effective.businessTermsRequirement()));
@@ -260,23 +261,11 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.BID_OPENING_TABLE.getCode(), tableVerdict);
         }
 
-        // 10. 电子标 CA 证书与签章有效性要求联动与标书端 LLM 深度语义裁决接通（免收直通，强凭证直通，占位未填 FAIL 保留，存疑或未检出接通 LLM）
-        QualityCheckItemResult existingCa = resultMap.get(BidQualityCheckItem.CA_CERTIFICATE.getCode());
-        boolean caNotRequired = effective.caCertificateRequirement() != null
-                && !effective.caCertificateRequirement().required();
-        if (!caNotRequired) {
-            boolean hasStrongCaPass = existingCa != null
-                    && existingCa.status() == QualityCheckStatus.PASS
-                    && !existingCa.evidences().isEmpty();
-            boolean isCaPlaceholderFail = existingCa != null
-                    && existingCa.status() == QualityCheckStatus.FAIL
-                    && existingCa.conclusion() != null
-                    && existingCa.conclusion().contains("占位");
-            if (!hasStrongCaPass && !isCaPlaceholderFail && llm != null) {
-                QualityCheckItemResult caVerdict = llm.adjudicateItem(
-                        BidQualityCheckItem.CA_CERTIFICATE, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
-                resultMap.put(BidQualityCheckItem.CA_CERTIFICATE.getCode(), caVerdict);
-            }
+        // 10. 电子标 CA 证书：以知识库 CA 管理台账核验为主导，已有确定性台账结论不被 LLM 覆盖
+        if (!resultMap.containsKey(BidQualityCheckItem.CA_CERTIFICATE.getCode()) && llm != null) {
+            QualityCheckItemResult caVerdict = llm.adjudicateItem(
+                    BidQualityCheckItem.CA_CERTIFICATE, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
+            resultMap.put(BidQualityCheckItem.CA_CERTIFICATE.getCode(), caVerdict);
         }
 
         // 11. 严格按 25 项标准序号排序输出

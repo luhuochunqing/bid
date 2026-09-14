@@ -100,7 +100,7 @@ class CaCertificateCheckPolicyResourceTest {
     }
 
     @Test
-    @DisplayName("电子标要求附图且标书正文附有效证明，且匹配在库 CA 时判定 PASS 并沉淀双重证据")
+    @DisplayName("电子标正文附有效证明且匹配在库 CA 时判定 PASS")
     void testCheck_WhenCopyRequiredAndDocContainsProof_PassesWithBothEvidences() {
         String certText = """
                 附件：CA数字证书认证有效性证明
@@ -121,9 +121,8 @@ class CaCertificateCheckPolicyResourceTest {
         QualityCheckItemResult result = CaCertificateCheckPolicy.check(doc, req, kbEvidences);
 
         assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(result.conclusion()).contains("要素齐全");
+        assertThat(result.conclusion()).contains("已在【CA证书管理】检索到匹配【政采云】的有效 CA 证书");
         assertThat(result.evidences()).anyMatch(e -> "ca-certificate".equals(e.knowledgeSource()));
-        assertThat(result.evidences()).anyMatch(e -> "BID".equals(e.sourceType()));
     }
 
     @Test
