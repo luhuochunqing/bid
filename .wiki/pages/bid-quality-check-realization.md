@@ -4,14 +4,18 @@ space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出, 资质智能匹配, 三级穿透]
 created: 2026-08-20
-updated: 2026-09-13
-health_checked: 2026-09-13
+updated: 2026-09-14
+health_checked: 2026-09-14
 sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
   - src/views/Project/stages/components/QualityCheckDetailDialog.vue
   - src/views/Project/stages/composables/qualityCheckDetail.js
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/CaCertificateEvidence.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/CaCertificateEvidencePort.java
+  - backend/src/main/java/com/xiyu/bid/resources/application/CaCertificateEvidenceQueryAdapter.java
+  - backend/src/main/java/com/xiyu/bid/compliance/service/QualificationQueryDelegate.java
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckTaskAppService.java
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckProgressUpdater.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/QualificationDetail.java
@@ -354,7 +358,21 @@ drawer 结构：
 45. **资格条件一票否决检查项结论精简与确定性闭环规范（2026-09-13）**：
     - **确定性自闭环消除 LLM 冗长输出**：旧逻辑在标书满足全部硬性资质要求时直接返回 `Optional.empty()`，移交第二阶段 LLM lane 裁决，导致大模型生成数百字冗长废话；重构后 `QualificationVetoPolicy.checkMandatoryQualifications` 形成确定性闭环：全部资质满足时直接判定 `PASS` 并格式化输出 `招标文件要求的一票否决资格项均已满足：【...】。`，并关联招标与标书正文证据；
     - **不通过分支聚合说明**：旧逻辑在遇到首个未满足项时直接 break 单项报错；重构后对清洗后的专用资质集合进行全量比对，汇总 `validQualifications` 与 `unsatisfied`，不通过时精准输出 `招标文件要求了一票否决资格项【...】，标书中未满足【...】。`；
-    - **去重与空值守卫**：多重招标提取场景下资质项自动去重；若未提取到任何专用资质，则维持原有降级与语义裁决逻辑不变。
+46. **电子标 CA 证书质检项联动 CA 管理台账与知识库按需检索依赖治理（2026-09-14）**：
+    - **CA 证书台账深度联动与一键闭环跳转**：
+      - 核心痛点：标书质检 25 项检查中的“电子标 CA 证书”质检项此前脱离系统真实的 `/resource/ca-management` 台账，仅进行静态文本文案比对，无法校验企业是否真实持有该平台的有效 CA 锁及证书状态；
+      - 领域模型与端口倒置：定义不可变纯领域模型 `CaCertificateEvidence`（支持平台模糊匹配、有效期与借出状态判定）与端口 `CaCertificateEvidencePort`；由 `resources` 模块提供 `CaCertificateEvidenceAdapter`，真实查询系统有效在库/借出中的 CA 证书（平台名称、状态、证书类型、到期日、保管人等）；
+      - 质检策略升级（`CaCertificateCheckPolicy`）：
+        1. 真实匹配平台有效在库：直通 PASS 并组装知识库证据；
+        2. 证书借出中：置 MANUAL_REVIEW 提示「CA证书当前处于借出状态（保管人: XX），请在投标/截标前及时催还」；
+        3. 证书已过期：置 FAIL 提示过期阻断废标风险；
+        4. 未匹配台账平台：置 MANUAL_REVIEW 并引导维护；
+        5. 免收/纸质标直通：保持确定性免收通过；
+      - 前端一键闭环：`extractKbLinks` 扩展支持 `ca-certificate`，输出「CA管理台账 ↗」链接，点击一键平滑跳转至 `/resource/ca-management?tab=ca`；
+    - **知识库按需加载器多源依赖膨胀治理与架构守卫**：
+      - `KnowledgeBaseOnDemandLoader` 接入 CA 端口后依赖字段达 6 个，超出 `MaintainabilityArchitectureTest.MAX_SERVICE_DEPENDENCIES = 5`；
+      - 下沉抽取 `QualificationQueryDelegate`（持有新业务资质库与旧资质库），解耦新旧库回退逻辑；
+      - `KnowledgeBaseOnDemandLoader` 依赖字段数收敛至 5 个，彻底清退架构豁免，保持代码高内聚低耦合。
 
 ## 6. 后续任务（Backlog）
 
