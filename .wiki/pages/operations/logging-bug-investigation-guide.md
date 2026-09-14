@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [日志, 可观测性, 排查, traceId, MDC]
 created: 2026-06-27
-updated: 2026-09-13
-health_checked: 2026-09-13
+updated: 2026-09-14
+health_checked: 2026-09-14
 sources:
   - docs/operations/logging-bug-investigation-guide.md
 backlinks:

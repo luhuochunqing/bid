@@ -5,7 +5,7 @@ category: guide
 tags: [评分项, ScoreItemSelect, 短标签, tooltip, element-plus, 前端测试]
 created: 2026-08-28
 updated: 2026-08-28
-health_checked: 2026-09-13
+health_checked: 2026-09-14
 sources:
   - src/components/common/ScoreItemSelect.vue
   - src/utils/scoreItemOptionDisplay.js

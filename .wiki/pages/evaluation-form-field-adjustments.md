@@ -5,7 +5,7 @@ category: business-rules
 tags: [tender-evaluation, initiation, gap, field-label, migration-v1191]
 created: 2026-08-17
 updated: 2026-08-17
-health_checked: 2026-09-13
+health_checked: 2026-09-14
 sources:
   - docs/prd-简报-评估表字段与联系人调整-2026-08-16.md
 backlinks:

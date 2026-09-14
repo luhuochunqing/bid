@@ -13,7 +13,7 @@
       "_index"
     ],
     "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/_index.md"
   },
   {
@@ -31,7 +31,7 @@
       "lessons-learned"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/agent-sop-quickref.md"
   },
   {
@@ -62,7 +62,7 @@
       "requirements"
     ],
     "updated": "2026-08-21",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/ai-capabilities.md"
   },
   {
@@ -79,7 +79,7 @@
       "_index"
     ],
     "updated": "2026-09-05",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/ai-case-recommend-data-source-fix.md"
   },
   {
@@ -97,7 +97,7 @@
       "engineering-discipline"
     ],
     "updated": "2026-08-25",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/ai-provider-configuration.md"
   },
   {
@@ -119,7 +119,7 @@
       "_index"
     ],
     "updated": "2026-08-31",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/ai-slop-cleanup-and-composable-inlining.md"
   },
   {
@@ -138,8 +138,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/analytics-dept-virtual-root-unwrap.md"
   },
   {
@@ -162,7 +162,7 @@
       "workflow-form-center"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/api-openapi.md"
   },
   {
@@ -200,7 +200,7 @@
       "team-and-timeline"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/architecture.md"
   },
   {
@@ -216,7 +216,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/architecture/effective-role-resolution.md"
   },
   {
@@ -232,8 +232,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/audit-whitelist-pitfalls.md"
   },
   {
@@ -250,8 +250,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/backend-test-baseline-green.md"
   },
   {
@@ -270,7 +270,7 @@
       "bid-quality-multifile-check"
     ],
     "updated": "2026-09-01",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/bid-quality-check-pagination-fix.md"
   },
   {
@@ -284,10 +284,15 @@
       "src/views/Project/stages/components/QualityCheckDetailDialog.vue",
       "src/views/Project/stages/composables/qualityCheckDetail.js",
       "backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutor.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/CaCertificateEvidence.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/CaCertificateEvidencePort.java",
+      "backend/src/main/java/com/xiyu/bid/resources/application/CaCertificateEvidenceQueryAdapter.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/service/QualificationQueryDelegate.java",
       "backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckTaskAppService.java",
       "backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckProgressUpdater.java",
       "backend/src/main/java/com/xiyu/bid/compliance/domain/QualificationDetail.java",
       "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationMatchPolicy.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicQualificationExtractor.java",
       "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationDetailReconciler.java",
       "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidDocumentQualityEngine.java",
       "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BasicInfoCheckPolicy.java",
@@ -348,8 +353,8 @@
       "bid-quality-check-pagination-fix",
       "bid-quality-multifile-check"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/bid-quality-check-realization.md"
   },
   {
@@ -367,7 +372,7 @@
       "_index"
     ],
     "updated": "2026-09-10",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/bid-quality-multifile-check.md"
   },
   {
@@ -395,7 +400,7 @@
       "workflow-form-center"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/business-process.md"
   },
   {
@@ -412,7 +417,7 @@
       "_index"
     ],
     "updated": "2026-08-24",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/case-library-prd-refine.md"
   },
   {
@@ -428,8 +433,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/case-precipitation-streaming.md"
   },
   {
@@ -449,7 +454,7 @@
       "_index"
     ],
     "updated": "2026-09-03",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/case-source-actions-and-import-pitfalls.md"
   },
   {
@@ -469,7 +474,7 @@
       "result-registration-immutability"
     ],
     "updated": "2026-08-25",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/competitor-library-governance.md"
   },
   {
@@ -486,7 +491,7 @@
       "_index"
     ],
     "updated": "2026-08-26",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/configuration-binding-silent-failure.md"
   },
   {
@@ -515,7 +520,7 @@
       "team-and-timeline"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/contract-constraints.md"
   },
   {
@@ -535,7 +540,7 @@
       "spring-pitfalls"
     ],
     "updated": "2026-08-18",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/crm-integration-lessons.md"
   },
   {
@@ -552,7 +557,7 @@
       "design-system"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/dashboard-gap-analysis.md"
   },
   {
@@ -567,7 +572,7 @@
       "_index"
     ],
     "updated": "2026-08-28",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/data-analysis-revamp.md"
   },
   {
@@ -588,7 +593,7 @@
       "implementation/attachment4-requirement-task-book"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/data-model.md"
   },
   {
@@ -609,7 +614,7 @@
       "workflow-form-center"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/data-permission-hardening.md"
   },
   {
@@ -649,8 +654,8 @@
       "requirements",
       "team-and-timeline"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/deployment.md"
   },
   {
@@ -672,7 +677,7 @@
       "overview"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/design-system.md"
   },
   {
@@ -691,7 +696,7 @@
       "ai-provider-configuration"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/docinsight-engine.md"
   },
   {
@@ -708,7 +713,7 @@
       "_index"
     ],
     "updated": "2026-08-21",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/duplicate-implementation-gate.md"
   },
   {
@@ -736,7 +741,7 @@
       "_index"
     ],
     "updated": "2026-09-02",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/dynamic-form-engine.md"
   },
   {
@@ -755,8 +760,8 @@
       "_index",
       "frontend-pitfalls"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/engineering-discipline.md"
   },
   {
@@ -771,7 +776,7 @@
       "_index"
     ],
     "updated": "2026-08-17",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/evaluation-form-field-adjustments.md"
   },
   {
@@ -795,8 +800,8 @@
       "integration-organization-event-sdk",
       "integration-tender-event-push"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/event-library-integration-rca.md"
   },
   {
@@ -816,7 +821,7 @@
       "evaluation-form-field-adjustments"
     ],
     "updated": "2026-09-03",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/flyway-migration-pitfalls.md"
   },
   {
@@ -833,8 +838,8 @@
       "ai-case-recommend-data-source-fix",
       "engineering-discipline"
     ],
-    "updated": "2026-09-09",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/frontend-pitfalls.md"
   },
   {
@@ -854,7 +859,7 @@
       "_index"
     ],
     "updated": "2026-09-03",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/gitee-token-resolution.md"
   },
   {
@@ -872,7 +877,7 @@
       "data-model"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/glossary.md"
   },
   {
@@ -888,7 +893,7 @@
       "_index"
     ],
     "updated": "2026-08-26",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/hibernate-string-enum-varchar-validate.md"
   },
   {
@@ -906,7 +911,7 @@
       "_index"
     ],
     "updated": "2026-09-01",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/historical-case-obs-download.md"
   },
   {
@@ -933,7 +938,7 @@
       "implementation/sow-2026-v1-4"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/acceptance-and-closure.md"
   },
   {
@@ -959,7 +964,7 @@
       "implementation/document-delivery-ledger"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/attachment4-gap-matrix.md"
   },
   {
@@ -978,7 +983,7 @@
       "requirements"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/attachment4-requirement-task-book.md"
   },
   {
@@ -1001,7 +1006,7 @@
       "implementation/document-delivery-ledger"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/attachment6-function-list-trace.md"
   },
   {
@@ -1022,7 +1027,7 @@
       "implementation/xiyu-pending-confirmations"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/delivery-playbook.md"
   },
   {
@@ -1039,7 +1044,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/development-sprint-2026-05-23.md"
   },
   {
@@ -1059,7 +1064,7 @@
       "implementation/delivery-playbook"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/document-delivery-ledger.md"
   },
   {
@@ -1080,7 +1085,7 @@
       "implementation/sow-2026-v1-4"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/milestones.md"
   },
   {
@@ -1095,7 +1100,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/org-sdk-deployment-handoff.md"
   },
   {
@@ -1119,7 +1124,7 @@
       "implementation/xiyu-pending-confirmations"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/risk-register.md"
   },
   {
@@ -1146,7 +1151,7 @@
       "team-and-timeline"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/sow-2026-v1-4.md"
   },
   {
@@ -1168,7 +1173,7 @@
       "implementation/xiyu-pending-confirmations"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/weekly-status.md"
   },
   {
@@ -1184,7 +1189,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/implementation/xiyu-pending-confirmations.md"
   },
   {
@@ -1200,8 +1205,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/initiation-form-fake-zero-display.md"
   },
   {
@@ -1220,8 +1225,8 @@
       "_index",
       "roles-and-permissions"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/integration-boran-permission-api.md"
   },
   {
@@ -1241,7 +1246,7 @@
       "integration-tender-api"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/integration-oa-crm.md"
   },
   {
@@ -1264,7 +1269,7 @@
       "oss-organization-sync-playbook"
     ],
     "updated": "2026-09-10",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/integration-organization-event-sdk.md"
   },
   {
@@ -1284,8 +1289,8 @@
       "api-openapi",
       "integration-oa-crm"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/integration-tender-api.md"
   },
   {
@@ -1304,7 +1309,7 @@
       "opportunity-prediction-reminder"
     ],
     "updated": "2026-09-10",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/integration-tender-event-push.md"
   },
   {
@@ -1326,7 +1331,7 @@
       "workflow-form-center"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/integration-wecom.md"
   },
   {
@@ -1341,7 +1346,7 @@
       "_index"
     ],
     "updated": "2026-09-04",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/knowledge-base.md"
   },
   {
@@ -1360,7 +1365,7 @@
       "_index"
     ],
     "updated": "2026-09-10",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/large-file-streaming-and-memory-discipline.md"
   },
   {
@@ -1385,7 +1390,7 @@
       "spring-pitfalls"
     ],
     "updated": "2026-09-04",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/lessons-learned.md"
   },
   {
@@ -1402,8 +1407,8 @@
       "_index",
       "case-precipitation-streaming"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/lessons-learned/case-precipitation-oversize-oom.md"
   },
   {
@@ -1419,8 +1424,8 @@
       "_index",
       "engineering-discipline"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/lessons-learned/CO-361-five-rounds-no-fix.md"
   },
   {
@@ -1459,7 +1464,7 @@
       "workflow-form-center"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/modules.md"
   },
   {
@@ -1483,7 +1488,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/multi-agent-defense-playbook.md"
   },
   {
@@ -1500,7 +1505,7 @@
       "engineering-discipline"
     ],
     "updated": "2026-09-04",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/notification-system-pitfalls.md"
   },
   {
@@ -1514,8 +1519,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/operations/logging-bug-investigation-guide.md"
   },
   {
@@ -1536,7 +1541,7 @@
       "integration-tender-event-push"
     ],
     "updated": "2026-09-10",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/opportunity-prediction-reminder.md"
   },
   {
@@ -1558,7 +1563,7 @@
       "flyway-migration-pitfalls"
     ],
     "updated": "2026-09-04",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/oss-organization-sync-playbook.md"
   },
   {
@@ -1581,7 +1586,7 @@
       "team-and-timeline"
     ],
     "updated": "2026-09-04",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/overview.md"
   },
   {
@@ -1602,8 +1607,8 @@
       "oss-organization-sync-playbook",
       "spring-pitfalls"
     ],
-    "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "updated": "2026-09-14",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/production-deployment-lessons.md"
   },
   {
@@ -1620,7 +1625,7 @@
       "_index"
     ],
     "updated": "2026-08-31",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/project-search-owner-unit.md"
   },
   {
@@ -1650,7 +1655,7 @@
       "implementation/sow-2026-v1-4"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/requirements.md"
   },
   {
@@ -1668,7 +1673,7 @@
       "_index"
     ],
     "updated": "2026-08-27",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/result-registration-immutability.md"
   },
   {
@@ -1693,7 +1698,7 @@
       "overview"
     ],
     "updated": "2026-08-17",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/roles-and-permissions.md"
   },
   {
@@ -1709,7 +1714,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/root-cause-analysis-ijssgg.md"
   },
   {
@@ -1727,7 +1732,7 @@
       "_index"
     ],
     "updated": "2026-08-28",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/score-item-select-short-label.md"
   },
   {
@@ -1748,7 +1753,7 @@
       "_index"
     ],
     "updated": "2026-09-11",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/score-parse-optimization.md"
   },
   {
@@ -1773,6 +1778,8 @@
       "specs/062-score-multi-table-split/spec.md",
       "specs/062-score-multi-table-split/plan.md",
       "backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableSplitPolicy.java",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/domain/DeterministicScoreFactExtractor.java",
+      "backend/src/test/resources/scoreparse-golden/merged-parent-first-leaf-table-v2.json",
       "backend/src/test/resources/scoreparse-golden/case-multi-table-tech-commercial.md",
       "document-converter-sidecar/converter.py",
       "backend/src/test/java/com/xiyu/bid/scoreparse/golden/GoldenCasesReplaySupport.java",
@@ -1790,7 +1797,7 @@
       "spring-pitfalls"
     ],
     "updated": "2026-09-13",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/score-parse-service.md"
   },
   {
@@ -1816,7 +1823,7 @@
       "_index"
     ],
     "updated": "2026-09-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/spec059-score-parse-evidence-pipeline.md"
   },
   {
@@ -1837,7 +1844,7 @@
       "notification-system-pitfalls"
     ],
     "updated": "2026-08-17",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/spring-pitfalls.md"
   },
   {
@@ -1864,7 +1871,7 @@
       "requirements"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/team-and-timeline.md"
   },
   {
@@ -1882,7 +1889,7 @@
       "_index"
     ],
     "updated": "2026-08-28",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/tender-create-upload-triage.md"
   },
   {
@@ -1901,7 +1908,7 @@
       "_index"
     ],
     "updated": "2026-09-09",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/tender-event-pr2598-contract-review.md"
   },
   {
@@ -1918,7 +1925,7 @@
       "hibernate-string-enum-varchar-validate"
     ],
     "updated": "2026-08-26",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/tenderevent-sdk-bean-conflict.md"
   },
   {
@@ -1933,7 +1940,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/testing/_index.md"
   },
   {
@@ -1951,7 +1958,7 @@
       "_index"
     ],
     "updated": "2026-08-15",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/testing/container-test-env-compat.md"
   },
   {
@@ -1967,7 +1974,7 @@
       "_index"
     ],
     "updated": "2026-08-15",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/testing/module-01-workbench.md"
   },
   {
@@ -1983,7 +1990,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/testing/module-02-bidding.md"
   },
   {
@@ -1999,7 +2006,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/testing/module-03-project.md"
   },
   {
@@ -2015,7 +2022,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/testing/module-04-knowledge.md"
   },
   {
@@ -2031,7 +2038,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/testing/module-05-resource.md"
   },
   {
@@ -2047,7 +2054,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/testing/module-06-analytics.md"
   },
   {
@@ -2063,7 +2070,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/testing/module-07-settings.md"
   },
   {
@@ -2079,7 +2086,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/testing/module-08-ai.md"
   },
   {
@@ -2095,7 +2102,7 @@
       "_index"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/testing/module-09-integration.md"
   },
   {
@@ -2116,7 +2123,7 @@
       "modules"
     ],
     "updated": "2026-08-12",
-    "health_checked": "2026-09-13",
+    "health_checked": "2026-09-14",
     "path": ".wiki/pages/workflow-form-center.md"
   }
 ]

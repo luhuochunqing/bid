@@ -3,6 +3,17 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-14] chore | 存量过期 Wiki 页面与历史档案豁免标记批量回填
+
+- 触发：处理 Wiki 既有存量过期页面。
+- 根因：
+  - 存量页面中包含 21 篇 A 类历史档案（SOW、实施附件、合同、里程碑等），此前在构建过程中丢失了 `archive: true` 标记，面临 `updated > 30 天` 过期风险；
+  - 活跃文档需定期刷新健康巡检日期 `health_checked`。
+- 处理：
+  - 执行 `scripts/wiki-backfill-stale.mjs` 为 21 篇 A 类历史档案恢复 `archive: true` 豁免标记；
+  - 执行 `scripts/wiki-backfill-active.mjs` 与 `scripts/wiki-build.mjs` 刷新健康巡检日期并同步目录与索引。
+- 验证：`npm run wiki:check` 100 篇页面全量通过，0 违规。
+
 ## [2026-09-14] feat | 电子标 CA 证书质检联动 CA 管理台账与知识库依赖治理
 
 - 触发：用户指出 AI 标书质量核查 25 项中的“电子标 CA 证书”未关联 `/resource/ca-management` 台账，质检项失去实际意义。

@@ -5,7 +5,7 @@ category: refactoring
 tags: [refactoring, ai-slop, dead-code, composable, code-health]
 created: 2026-08-31
 updated: 2026-08-31
-health_checked: 2026-09-13
+health_checked: 2026-09-14
 sources:
   - src/views/Project/stages/DraftingStage.vue
   - src/views/Project/stages/InitiationStage.vue

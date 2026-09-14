@@ -5,11 +5,12 @@ category: guide
 tags: [handoff, 部署, 组织架构, integration, org-sync]
 created: 2026-05-28
 updated: 2026-08-12
-health_checked: 2026-09-13
+health_checked: 2026-09-14
 sources:
   - README.md
 backlinks:
   - _index
+archive: true
 ---
 # 组织架构 SDK 集成 — 部署 Handoff
 

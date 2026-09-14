@@ -4,8 +4,8 @@ space: engineering
 category: analysis
 tags: [bug, 根因分析, 立项表单, 数值字段, 列表一致性]
 created: 2026-08-27
-updated: 2026-09-13
-health_checked: 2026-09-13
+updated: 2026-09-14
+health_checked: 2026-09-14
 sources:
   - src/views/Project/stages/InitiationStage.vue
   - src/views/Project/stages/useInitiationStageActions.js

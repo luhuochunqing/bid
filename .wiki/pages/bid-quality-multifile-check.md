@@ -5,7 +5,7 @@ category: guide
 tags: [质量核查, 多文件, DocumentContent, sidecar, 合并, spec047]
 created: 2026-09-02
 updated: 2026-09-10
-health_checked: 2026-09-13
+health_checked: 2026-09-14
 sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/ComplianceTargetLoader.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/DocumentContent.java

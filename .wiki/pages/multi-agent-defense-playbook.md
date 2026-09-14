@@ -5,7 +5,7 @@ category: guide
 tags: [工程化护栏, 多Agent并行, Git历史, CI, 文件锁, 自愈, 可移植]
 created: 2026-05-12
 updated: 2026-08-12
-health_checked: 2026-09-13
+health_checked: 2026-09-14
 sources:
   - .wiki/pages/lessons-learned.md
   - RULES.md
@@ -19,6 +19,7 @@ sources:
   - scripts/dev-services.sh
 backlinks:
   - _index
+archive: true
 ---
 # 多 Agent 并行开发防御工程化手册
 

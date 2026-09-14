@@ -5,7 +5,7 @@ category: testing
 tags: [testing, 蓝图对照, 系统设置, settings]
 created: 2026-05-28
 updated: 2026-08-12
-health_checked: 2026-09-13
+health_checked: 2026-09-14
 sources:
   - .wiki/sources/testing/module-07-settings-test.md
   - .wiki/sources/testing/module-07-settings-test.md

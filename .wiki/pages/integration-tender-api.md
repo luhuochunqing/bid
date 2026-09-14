@@ -4,8 +4,8 @@ space: engineering
 category: integration
 tags: [integration, api, tender, crm, callback, x-api-key]
 created: 2026-06-21
-updated: 2026-09-13
-health_checked: 2026-09-13
+updated: 2026-09-14
+health_checked: 2026-09-14
 sources:
   - docs/integration/标讯集成接口文档-v3.8.md
   - docs/integration/外部业务系统对接技术设计与接口规范说明.md
