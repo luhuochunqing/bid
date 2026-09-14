@@ -5826,3 +5826,21 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 3. **验证结果**：`npm run lint` 告警数从 247 降至 231（`no-console` 与 `no-empty` 完全清零），前端 3131 项单元测试与 pre-push 门禁全绿。
 
 > 维护纪律：日常静态扫描必须通过统一规范脚本 `npm run lint` 执行；业务与测试代码中禁止遗留临时 `console.log` 调试语句；对合理静默降级的 `catch` 块必须显式补充意图注释，避免触发 `no-empty` 警告。
+
+---
+
+## 364. 标书质检知识库按需检索多源依赖膨胀与委托下沉治理（2026-09-14）
+
+**背景**：在实现“标书质量核查电子标 CA 证书质检项联动 CA 管理台账”时，向 `KnowledgeBaseOnDemandLoader` 注入 `CaCertificateEvidencePort`，使其持有的实例依赖字段达到 6 个，超出了 `MaintainabilityArchitectureTest.MAX_SERVICE_DEPENDENCIES = 5` 的硬性约束。此前代码评审中作为临时豁免加入测试豁免列表。
+
+**根因分析**：
+1. **多源多库平滑迁移导致的依赖膨胀**：`KnowledgeBaseOnDemandLoader` 同时持有历史旧资质库 `QualificationRepository` 和新企业资质库 `BusinessQualificationRepository`，并在其内部实现了“优先查新库、回退旧库”的双轨查询逻辑。
+2. **职责聚合不足**：`KnowledgeBaseOnDemandLoader` 的核心职责应是“统一调度各大类知识库（资质、授权、人员、业绩、CA证书）”，而不是承载资质单领域的底层新旧库版本回退实现细节。
+
+**根治方案**：
+1. **下沉抽取委托组件**：新建 `QualificationQueryDelegate`（包私有/应用组件），统一持有新旧两个资质仓储，将两库互备与实体转换逻辑内聚。
+2. **收敛顶级服务依赖**：`KnowledgeBaseOnDemandLoader` 改为注入单一的 `QualificationQueryDelegate`，依赖字段数从 6 个收敛至 5 个（`<= MAX_SERVICE_DEPENDENCIES`），行数从 275 行下降至 238 行。
+3. **彻底清退架构豁免**：从 `MaintainabilityArchitectureTest.java` 中彻底移除 `KnowledgeBaseOnDemandLoader`，新增专职单测 `QualificationQueryDelegateTest`。全量架构与单元测试完全通过。
+
+> 维护纪律：服务类因多源互备或平滑升级导致依赖数超过 5 个协作方时，禁止直接向架构测试申请豁免；应优先将同一能力的多个仓储下沉为领域查询委托（Query Delegate），保持顶层编排服务的精简与职责纯粹。
+

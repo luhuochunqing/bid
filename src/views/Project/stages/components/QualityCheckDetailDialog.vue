@@ -93,8 +93,8 @@
         <div class="dt-quote">{{ quoteText }}</div>
       </div>
 
-      <!-- 联动数据来源：四知识库跳转链接 -->
-      <div v-if="showLocationRows && kbLinks.length > 0" class="dt-row">
+      <!-- 联动数据来源：知识库与资源库跳转链接 -->
+      <div v-if="(showLocationRows || isCaItem) && kbLinks.length > 0" class="dt-row">
         <div class="dt-label">联动数据来源</div>
         <div class="dt-source-list">
           <a
@@ -127,7 +127,8 @@ import {
   extractKbLinks,
   getStatusMeta,
   getQualDetailStatusMeta,
-  isQualificationMatchItem
+  isQualificationMatchItem,
+  isCaCertificateItem
 } from '../composables/qualityCheckDetail.js'
 
 const props = defineProps({
@@ -148,6 +149,7 @@ const dialogVisible = defineModel({ type: Boolean, default: false })
 const router = useRouter()
 
 const isQualificationMatch = computed(() => isQualificationMatchItem(props.item?.itemCode))
+const isCaItem = computed(() => isCaCertificateItem(props.item?.itemCode))
 
 const qualificationDetails = computed(() => {
   return Array.isArray(props.item?.details) ? props.item.details : []
@@ -173,7 +175,13 @@ const showLocationRows = computed(() => props.item?.status !== 'PASS')
 
 const pagesText = computed(() => extractBidPages(props.item?.evidences))
 const quoteText = computed(() => extractBidQuote(props.item?.evidences))
-const kbLinks = computed(() => extractKbLinks(props.item?.evidences))
+const kbLinks = computed(() => {
+  const links = extractKbLinks(props.item?.evidences)
+  if (isCaItem.value && !links.some(l => l.source === 'ca-certificate')) {
+    links.push({ source: 'ca-certificate', label: 'CA证书管理', route: '/resource/ca-management' })
+  }
+  return links
+})
 
 // 评分项响应（SCORING_RESPONSE）：结论最前展示客观项得分链接（未打分时不显示）
 const showScoreLink = computed(() =>

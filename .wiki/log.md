@@ -3,6 +3,17 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-14] feat | 电子标 CA 证书质检联动 CA 管理台账与知识库依赖治理
+
+- 触发：用户指出 AI 标书质量核查 25 项中的“电子标 CA 证书”未关联 `/resource/ca-management` 台账，质检项失去实际意义。
+- 方案：
+  - 端口倒置与纯核心：定义 `CaCertificateEvidencePort` 与不可变模型 `CaCertificateEvidence`，由 `resources` 模块提供 `CaCertificateEvidenceAdapter`，真实查询 CA 台账有效在库/借出状态；
+  - 质检策略升级：`CaCertificateCheckPolicy` 真实校验有效在库（直通PASS）、借出中（MANUAL提醒催还）、已过期（FAIL阻断废标）、未匹配台账（MANUAL引导维护）；
+  - 前端一键闭环：`extractKbLinks` 扩展 `ca-certificate` 链接，点击直达 `/resource/ca-management?tab=ca`；
+  - 架构治理：抽取 `QualificationQueryDelegate` 整合新旧资质库，使 `KnowledgeBaseOnDemandLoader` 依赖字段数收敛至 5 个，彻底清退架构豁免。
+- 知识沉淀：更新 `docs/lessons/lessons-learned.md` §364 与 `.wiki/pages/bid-quality-check-realization.md` §46。
+- 验证：后端 83 项架构与单元测试通过，前端 374 文件 3133 测试全绿。
+
 ## [2026-09-13] chore | 全量 ESLint 门禁分析与 16 处 warning 无损治理
 
 - 触发：用户反馈全量 ESLint 门禁失败，排查全仓扫描与规范命令差异，并专项治理基线 warnings。

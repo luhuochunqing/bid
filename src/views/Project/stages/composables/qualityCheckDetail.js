@@ -48,7 +48,8 @@ export const KB_SOURCE_LINKS = {
   qualification: { label: '资质库', route: '/knowledge/qualification' },
   'brand-authorization': { label: '品牌授权库', route: '/knowledge/brand-auth' },
   personnel: { label: '人员库', route: '/knowledge/personnel' },
-  performance: { label: '业绩库', route: '/knowledge/performance' }
+  performance: { label: '业绩库', route: '/knowledge/performance' },
+  'ca-certificate': { label: 'CA证书管理', route: '/resource/ca-management' }
 }
 
 /** 剥离 MANUAL 结论的 [REASON_CODE] 前缀；空值返回 ''. */
@@ -122,4 +123,9 @@ export function isQualificationMatchItem(itemCode) {
   if (!itemCode) return false
   const lower = String(itemCode).toLowerCase()
   return lower === 'qualification_match' || lower === 'qualification_veto' || lower === 'qualification_review'
+}
+
+export function isCaCertificateItem(itemCode) {
+  if (!itemCode) return false
+  return String(itemCode).toUpperCase() === 'CA_CERTIFICATE'
 }

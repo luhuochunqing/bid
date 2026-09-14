@@ -150,7 +150,7 @@ class BidQualityCheckAsyncExecutorTest {
 
         TenderRequirements reqs = TenderRequirements.empty();
         when(requirementsExtractor.extract(tenderDoc)).thenReturn(reqs);
-        when(kbLoader.queryKnowledgeBases(any())).thenReturn(KnowledgeQueryOutcome.empty());
+        when(kbLoader.queryKnowledgeBases(any(), any())).thenReturn(KnowledgeQueryOutcome.empty());
         when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
                 .thenReturn("{\"status\":\"PASS\",\"conclusion\":\"核查通过\"}");
 
@@ -177,7 +177,7 @@ class BidQualityCheckAsyncExecutorTest {
                 eq("hash_alert"), eq("hash_tender_alert"), eq(ComplianceCheckResult.TaskStatus.COMPLETED)))
                 .thenReturn(Optional.empty());
         when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.empty());
-        when(kbLoader.queryKnowledgeBases(any())).thenReturn(KnowledgeQueryOutcome.empty());
+        when(kbLoader.queryKnowledgeBases(any(), any())).thenReturn(KnowledgeQueryOutcome.empty());
         // 全部语义项返回非法 JSON：每项 2 次调用均失败 → 7/7 计入失败计数
         when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
                 .thenReturn("不是合法 JSON 文本");
@@ -216,7 +216,7 @@ class BidQualityCheckAsyncExecutorTest {
                 eq("hash_no_alert"), eq("hash_tender_no_alert"), eq(ComplianceCheckResult.TaskStatus.COMPLETED)))
                 .thenReturn(Optional.empty());
         when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.empty());
-        when(kbLoader.queryKnowledgeBases(any())).thenReturn(KnowledgeQueryOutcome.empty());
+        when(kbLoader.queryKnowledgeBases(any(), any())).thenReturn(KnowledgeQueryOutcome.empty());
         // 前 13 次调用合法，其后全部非法 → 仅 2 个项失败，低于阈值 3
         String legal = "{\"status\":\"PASS\",\"conclusion\":\"核查通过\"}";
         when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
@@ -356,7 +356,7 @@ class BidQualityCheckAsyncExecutorTest {
 
         // 模拟 LLM 提取降级为 missingSentinel
         when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.missingSentinel());
-        when(kbLoader.queryKnowledgeBases(any())).thenReturn(KnowledgeQueryOutcome.empty());
+        when(kbLoader.queryKnowledgeBases(any(), any())).thenReturn(KnowledgeQueryOutcome.empty());
         when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
                 .thenReturn("{\"status\":\"PASS\",\"conclusion\":\"资质匹配\"}");
 
@@ -364,7 +364,7 @@ class BidQualityCheckAsyncExecutorTest {
 
         // 验证：双轨提取生效，知识库查询接收到了确定性提取的增值电信与等保三级证书要求
         org.mockito.ArgumentCaptor<List<String>> certsCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(kbLoader).queryKnowledgeBases(certsCaptor.capture());
+        verify(kbLoader).queryKnowledgeBases(certsCaptor.capture(), any());
         List<String> queriedCerts = certsCaptor.getValue();
 
         assertThat(queriedCerts).isNotEmpty();
@@ -398,7 +398,7 @@ class BidQualityCheckAsyncExecutorTest {
                 .thenReturn(Optional.empty());
 
         when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.missingSentinel());
-        when(kbLoader.queryKnowledgeBases(any())).thenReturn(KnowledgeQueryOutcome.empty());
+        when(kbLoader.queryKnowledgeBases(any(), any())).thenReturn(KnowledgeQueryOutcome.empty());
         when(kbLoader.findAllQualifications()).thenReturn(List.of()); // 资质库空，标书无证明 -> UNMATCHED
         // 模拟 LLM 误判 PASS
         when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
