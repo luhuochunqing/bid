@@ -10,6 +10,7 @@ sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
   - src/views/Project/stages/components/QualityCheckDetailDialog.vue
+  - src/views/Project/stages/components/qualityCheckDetailDialog.css
   - src/views/Project/stages/composables/qualityCheckDetail.js
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/CaCertificateEvidence.java
@@ -377,7 +378,21 @@ drawer 结构：
     - **业务纠偏与真实源锁定**：明确 CA 锁是投标系统登录、标书加密与开标电子解密的媒介工具，核查唯一源为企业知识库台账（`/resource/ca-management`），与投标文件正文无关，标书正文根本无需粘贴证书扫描件或复印件；
     - **解除标书正文贴图约束**：标书正文仅保留对未替换占位模板（如【此处粘贴CA数字证书】）的反假拦截 FAIL，绝不因正文未提及证书信息或无截图而报错；
     - **切断大模型误覆写通道**：`BidDocumentQualityEngine` 移除了大模型覆写 CA 确定性台账结论的通道，并在招标要求缺失时兜底确保 `kbEvidences` 透传；同时纠偏 `AdjudicationGuidelines` 准则 11，从大模型知识库层面彻底杜绝误判；
-    - **台账状态映射严格化**：平台匹配且在库可用 -> PASS；平台匹配已借出 -> MANUAL_REVIEW（催还）；平台匹配已过期 -> FAIL（续期）；未录入该平台 -> FAIL（引导录入）；纸质标/线下标 -> PASS（【不涉及】）。
+48. **CA 证书平台双向归一化、通用分支假通过治理与供需比对看板（2026-09-14）**：
+    - **平台双向对称归一化与别名机制（`CaCertificateEvidence`）**：
+      - 根因剖析：招标文件要求“河北 CA / 河北省公共资源交易中心”，台账可能录入“河北CA”或“河北省交易平台”或“河北CA锁”，原有单向 `contains` 极易因噪音后缀或字序差异匹配落空；
+      - 双向归一化（`normalizePlatform`）：对招标要求与台账名称双向剔除噪音词（交易中心/交易平台/服务平台/电子交易系统/CA锁/数字证书/省/市等）提取核心词根（如“河北”）；
+      - 别名与跨省防冲突守卫：构建央企及政采别名映射（国网/南网/政采云）；同时引入跨省地域冲突防护（如“河北”不匹配“河南”），兼顾灵活性与安全性；
+    - **通用电子标假通过彻底治理（`CaCertificateCheckPolicy`）**：
+      - 废除通用分支“库内有任意锁即通过”的盲目放行逻辑；
+      - 若招标文件未指定具体平台名称，安全降级为 `MANUAL_REVIEW`，提示项目人员核对招标平台与可用锁具，杜绝用错锁废标；
+      - 若指定了平台名称但在库未找到匹配锁，坚决判定为 `FAIL`（不可盲目降级通过）；
+    - **前后端口径对齐的三段式结构化输出与证据链强化**：
+      - 策略统一输出 `【招标文件要求】`、`【企业CA台账比对】`、`【判定结论】` 三段式结构化文本；
+      - 企业台账比对明确输出 `【已拥有】`、`【未拥有】`、`【已过期】`、`【已借出】`、`【在库可用】`，并在证据链中装载 `QualityEvidence.tender` 保证前端提取原文；
+    - **前端质检详情弹窗专属【CA 证书供需比对】看板（`QualityCheckDetailDialog.vue`）**：
+      - 引入纯函数 `parseCaComparison` 解析三段式结论；
+      - 弹窗为 CA 质检项渲染专属左右供需比对卡片：左侧清晰呈现招标文件要求平台与原文摘录，右侧清晰呈现企业 CA 台账现状（明确标注拥有状态、证书信息、到期日及台账直跳链接），一目了然。
 
 ## 6. 后续任务（Backlog）
 
