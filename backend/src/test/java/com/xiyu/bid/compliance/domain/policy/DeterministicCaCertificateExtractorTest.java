@@ -64,4 +64,18 @@ class DeterministicCaCertificateExtractorTest {
         assertThat(fused.requireElectronicSeal()).isTrue();
         assertThat(fused.description()).isEqualTo("确定性描述");
     }
+
+    @Test
+    @DisplayName("提取器：识别各省专用 CA 锁（如河北 CA、企业河北 CA）并提取为平台/CA名称")
+    void testExtract_WhenHebeiCaSpecified_ExtractsHebeiCa() {
+        String text = "编制投标文件需使用企业河北 CA，未办理河北 CA 的投标单位，需进行企业河北 CA 注册。CA 注册有一定周期，请及时办理以免影响本次项目。在线办理地址为：";
+        DocumentContent doc = DocumentContent.fromText("tender.pdf", "hash_hebei", text);
+
+        CaCertificateRequirement req = DeterministicCaCertificateExtractor.extract(doc);
+
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isTrue();
+        assertThat(req.platformName()).contains("河北");
+        assertThat(req.platformName()).contains("CA");
+    }
 }

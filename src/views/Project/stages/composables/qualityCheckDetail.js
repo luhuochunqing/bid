@@ -1,5 +1,5 @@
 // Input: 质量核查项证据列表 / AI 结论文本 / 知识库来源标识 / 评分项与打分结果（已归一化）
-// Output: 详情弹窗展示用纯函数（结论前缀剥离、页码聚合、摘录提取、四库链接映射、客观项得分汇总）
+// Output: 详情弹窗展示用纯函数（结论前缀剥离、页码聚合、摘录提取、四库链接映射、CA证书供需比对提取、客观项得分汇总）
 // Pos: src/views/Project/stages/composables/ - 质量核查详情展示纯核心（可单测，不依赖组件状态）
 
 import { lookupScoreResult } from '@/composables/projectDetail/scoreParseTask.js'
@@ -128,4 +128,69 @@ export function isQualificationMatchItem(itemCode) {
 export function isCaCertificateItem(itemCode) {
   if (!itemCode) return false
   return String(itemCode).toUpperCase() === 'CA_CERTIFICATE'
+}
+
+/**
+ * 解析 CA 证书项的结构化比对数据（招标文件要求 vs 企业 CA 台账比对）.
+ */
+export function parseCaComparison(conclusion = '', evidences = []) {
+  if (!conclusion) return null
+  const c = String(conclusion)
+
+  // 1. 招标文件要求
+  const reqMatch = c.match(/【招标文件要求】[：:]\s*([^\n]+)/)
+  const tenderEv = (evidences || []).find(e => e?.sourceType === 'TENDER' && e.quote)
+  const requirementText = reqMatch ? reqMatch[1].trim() : (tenderEv?.quote || '电子标 CA 数字证书/电子签章')
+
+  // 2. 企业 CA 台账比对
+  const stockMatch = c.match(/【企业CA台账比对】[：:]\s*([^\n]+)/)
+  const stockText = stockMatch ? stockMatch[1].trim() : '企业【CA证书管理】比对结果'
+
+  // 3. 判定结论
+  const outcomeMatch = c.match(/【判定结论】[：:]\s*([^\n]+)/)
+  const outcomeText = outcomeMatch ? outcomeMatch[1].trim() : ''
+
+  // 4. 状态判定
+  let statusClass = 'unknown'
+  let statusText = '待确认'
+  let tagType = 'warning'
+
+  if (c.includes('【已拥有】') || c.includes('【在库可用】')) {
+    statusClass = 'have'
+    statusText = '已拥有'
+    tagType = 'success'
+  } else if (c.includes('【未拥有】') || c.includes('【未录入】')) {
+    statusClass = 'not-have'
+    statusText = '未拥有'
+    tagType = 'danger'
+  } else if (c.includes('【已过期】')) {
+    statusClass = 'expired'
+    statusText = '已过期'
+    tagType = 'danger'
+  } else if (c.includes('【已借出】')) {
+    statusClass = 'borrowed'
+    statusText = '已借出'
+    tagType = 'warning'
+  } else if (c.includes('【不涉及】')) {
+    statusClass = 'na'
+    statusText = '不涉及'
+    tagType = 'info'
+  }
+
+  // 5. 匹配到的证书详情
+  const matchedKb = (evidences || []).find(
+    e => e?.sourceType === 'KNOWLEDGE_BASE' && e.knowledgeSource === 'ca-certificate' && e.matched
+  )
+  const matchedCertDetail = matchedKb?.quote || ''
+
+  return {
+    requirementText,
+    tenderQuote: tenderEv?.quote && tenderEv.quote !== requirementText ? tenderEv.quote : '',
+    stockText,
+    outcomeText,
+    statusClass,
+    statusText,
+    tagType,
+    matchedCertDetail
+  }
 }

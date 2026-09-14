@@ -16,7 +16,8 @@ import {
   getQualDetailStatusMeta,
   isQualificationMatchItem,
   isCaCertificateItem,
-  isNotApplicableItem
+  isNotApplicableItem,
+  parseCaComparison
 } from '../composables/qualityCheckDetail.js'
 
 const pushMock = vi.fn()
@@ -159,6 +160,30 @@ describe('质量核查详情纯函数', () => {
     expect(isQualificationMatchItem('QUALIFICATION_VETO')).toBe(true)
     expect(isQualificationMatchItem('cover_info')).toBe(false)
     expect(isQualificationMatchItem(null)).toBe(false)
+  })
+
+  it('parseCaComparison：正确解析三段式结论并提取需求、台账现状与状态', () => {
+    const failConclusion = `【招标文件要求】：须使用【河北 CA】CA数字证书/电子签章进行电子投标。
+【企业CA台账比对】：【未拥有】未在 CA 证书管理中检索到匹配【河北 CA】平台的有效 CA 证书。
+【判定结论】：未满足本项目电子投标用锁要求，存在无法递交与解密风险！`
+    const parsedFail = parseCaComparison(failConclusion, [{ sourceType: 'TENDER', quote: '编制需使用河北 CA' }])
+    expect(parsedFail.requirementText).toBe('须使用【河北 CA】CA数字证书/电子签章进行电子投标。')
+    expect(parsedFail.tenderQuote).toBe('编制需使用河北 CA')
+    expect(parsedFail.stockText).toContain('【未拥有】')
+    expect(parsedFail.statusClass).toBe('not-have')
+    expect(parsedFail.statusText).toBe('未拥有')
+    expect(parsedFail.tagType).toBe('danger')
+
+    const passConclusion = `【招标文件要求】：须使用【河北 CA】CA数字证书/电子签章进行电子投标。
+【企业CA台账比对】：【已拥有】已在【CA证书管理】检索到匹配【河北 CA】的有效 CA 证书。
+【判定结论】：在库可用，满足电子投标及开标解密要求。`
+    const parsedPass = parseCaComparison(passConclusion, [
+      { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'ca-certificate', matched: true, quote: 'CA证书: 河北CA（有效，在库）' }
+    ])
+    expect(parsedPass.statusClass).toBe('have')
+    expect(parsedPass.statusText).toBe('已拥有')
+    expect(parsedPass.tagType).toBe('success')
+    expect(parsedPass.matchedCertDetail).toBe('CA证书: 河北CA（有效，在库）')
   })
 })
 
@@ -347,6 +372,36 @@ describe('质量核查详情弹窗字段对照表', () => {
       }
     })
     expect(wrapper.find('.qual-compare-table').exists()).toBe(false)
+  })
+
+  it('CA_CERTIFICATE 项渲染专属 CA 证书供需比对看板（招标文件要求 vs 企业 CA 台账比对）', async () => {
+    const wrapper = mountDialog({
+      item: {
+        itemCode: 'CA_CERTIFICATE',
+        status: 'FAIL',
+        title: 'CA证书及电子签章有效性',
+        conclusion: `【招标文件要求】：须使用【河北 CA】CA数字证书/电子签章进行电子投标。
+【企业CA台账比对】：【未拥有】未在 CA 证书管理中检索到匹配【河北 CA】平台的有效 CA 证书。
+【判定结论】：未满足本项目电子投标用锁要求，存在无法递交与解密风险！`,
+        evidences: [
+          { sourceType: 'TENDER', quote: '编制投标文件需使用企业河北 CA' }
+        ]
+      }
+    })
+    const text = wrapper.text()
+    expect(text).toContain('CA 证书供需比对')
+    expect(text).toContain('未拥有')
+    expect(text).toContain('招标文件要求')
+    expect(text).toContain('须使用【河北 CA】CA数字证书/电子签章进行电子投标。')
+    expect(text).toContain('“编制投标文件需使用企业河北 CA”')
+    expect(text).toContain('企业 CA 台账比对')
+    expect(text).toContain('未在 CA 证书管理中检索到匹配【河北 CA】平台的有效 CA 证书。')
+    expect(text).toContain('前往【CA证书管理】查看台账 ↗')
+
+    const jumpLink = wrapper.find('.ca-jump-link a')
+    expect(jumpLink.exists()).toBe(true)
+    await jumpLink.trigger('click')
+    expect(pushMock).toHaveBeenCalledWith('/resource/ca-management?tab=ca')
   })
 })
 

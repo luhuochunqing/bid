@@ -78,4 +78,35 @@ class CaCertificateCheckPolicyTest {
         assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(result.conclusion()).contains("未检索到企业 CA 数字证书台账记录");
     }
+
+    @Test
+    @DisplayName("CA证书核查：招标文件要求河北CA但知识库无河北CA时判定FAIL并输出结构化比对（招标要求 vs 台账比对）")
+    void testCheck_WhenHebeiCaRequired_AndNotInDb_FailsWithStructuredComparison() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash6", "技术方案与施工组织计划");
+        CaCertificateRequirement req = CaCertificateRequirement.requiredStandard(
+                "河北CA", "编制投标文件需使用企业河北 CA，未办理河北 CA 的投标单位，需进行企业河北 CA 注册");
+
+        // 知识库仅有上海与国网 CA，无河北 CA
+        CaCertificateEvidence shanghaiCa = new CaCertificateEvidence(
+                301L, "ENTITY_CA", "公章", "CFCA",
+                LocalDate.now().plusYears(1), "上海市公共资源交易中心",
+                "IN_STOCK", "ACTIVE", "王五", "赵六");
+        CaCertificateEvidence sgccCa = new CaCertificateEvidence(
+                302L, "ENTITY_CA", "公章", "CFCA",
+                LocalDate.now().plusYears(1), "国家电网新一代电子商务平台",
+                "IN_STOCK", "ACTIVE", "孙七", "周八");
+
+        List<QualityEvidence> kbEvidences = List.of(
+                QualityEvidence.fromKnowledgeMatch(shanghaiCa.toKnowledgeMatch(false)),
+                QualityEvidence.fromKnowledgeMatch(sgccCa.toKnowledgeMatch(false))
+        );
+
+        QualityCheckItemResult result = CaCertificateCheckPolicy.check(doc, req, kbEvidences);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.conclusion()).contains("【招标文件要求】：须使用【河北CA】");
+        assertThat(result.conclusion()).contains("【企业CA台账比对】：【未拥有】");
+        assertThat(result.conclusion()).contains("【判定结论】：未满足本项目电子投标用锁要求");
+        assertThat(result.evidences()).anyMatch(e -> "TENDER".equals(e.sourceType()) && e.quote().contains("河北CA"));
+    }
 }

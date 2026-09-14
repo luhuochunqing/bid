@@ -33,6 +33,49 @@
         </div>
       </div>
 
+      <!-- CA 证书供需比对看板（招标文件要求 vs 企业 CA 台账比对） -->
+      <div v-if="isCaItem && caComparisonData" class="dt-section ca-comparison-section">
+        <div class="dt-section-header">
+          <div class="dt-label">CA 证书供需比对</div>
+          <el-tag size="small" :type="caComparisonData.tagType" effect="dark">
+            {{ caComparisonData.statusText }}
+          </el-tag>
+        </div>
+        <div class="ca-compare-grid">
+          <!-- 左侧：招标文件要求 -->
+          <div class="ca-card ca-card-req">
+            <div class="ca-card-title">
+              <span><span class="ca-icon">📑</span> 招标文件要求</span>
+            </div>
+            <div class="ca-card-content">
+              <div class="ca-req-text">{{ caComparisonData.requirementText }}</div>
+              <div v-if="caComparisonData.tenderQuote" class="ca-quote-text">
+                “{{ caComparisonData.tenderQuote }}”
+              </div>
+            </div>
+          </div>
+
+          <!-- 右侧：企业 CA 台账现状 -->
+          <div class="ca-card ca-card-stock" :class="'ca-border-' + caComparisonData.statusClass">
+            <div class="ca-card-title">
+              <span><span class="ca-icon">🔐</span> 企业 CA 台账比对</span>
+              <span class="ca-badge" :class="'badge-' + caComparisonData.statusClass">
+                {{ caComparisonData.statusText }}
+              </span>
+            </div>
+            <div class="ca-card-content">
+              <div class="ca-stock-desc">{{ caComparisonData.stockText }}</div>
+              <div v-if="caComparisonData.matchedCertDetail" class="ca-cert-detail">
+                {{ caComparisonData.matchedCertDetail }}
+              </div>
+              <div class="ca-jump-link">
+                <a @click="goKnowledge('/resource/ca-management?tab=ca')">前往【CA证书管理】查看台账 ↗</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 结构化资质比对清单（招标要求 vs 我司证书 vs 标书页码） -->
       <div v-if="isQualificationMatch && qualificationDetails.length > 0" class="dt-section">
         <div class="dt-section-header">
@@ -128,7 +171,8 @@ import {
   getStatusMeta,
   getQualDetailStatusMeta,
   isQualificationMatchItem,
-  isCaCertificateItem
+  isCaCertificateItem,
+  parseCaComparison
 } from '../composables/qualityCheckDetail.js'
 
 const props = defineProps({
@@ -155,9 +199,15 @@ const qualificationDetails = computed(() => {
   return Array.isArray(props.item?.details) ? props.item.details : []
 })
 
-const dialogWidth = computed(() =>
-  isQualificationMatch.value && qualificationDetails.value.length > 0 ? '720px' : '560px'
+const caComparisonData = computed(() =>
+  isCaItem.value ? parseCaComparison(props.item?.conclusion, props.item?.evidences) : null
 )
+
+const dialogWidth = computed(() => {
+  if (isQualificationMatch.value && qualificationDetails.value.length > 0) return '720px'
+  if (isCaItem.value && caComparisonData.value) return '680px'
+  return '560px'
+})
 
 const statusTag = computed(() => {
   const meta = getStatusMeta(props.item?.status, props.item?.conclusion)
@@ -201,34 +251,5 @@ function goKnowledge(route) {
 </script>
 
 <style scoped>
-.detail-content { padding: 0 4px; }
-.dt-row { margin-bottom: 14px; }
-.dt-label { font-size: 11px; color: var(--gray-350); font-weight: 600; margin-bottom: 4px; letter-spacing: 0.5px; }
-.dt-val { font-size: 13px; color: var(--text-primary-ui); line-height: 1.6; }
-.dt-quote { background: var(--gray-50); border-left: 3px solid var(--color-danger); padding: 8px 12px; border-radius: 4px; font-size: 12px; color: var(--text-secondary-ui); line-height: 1.6; }
-.dt-location { display: inline-flex; align-items: center; gap: 4px; background: var(--color-danger-bg); border: 1px solid var(--color-danger-dark); color: var(--color-danger-dark); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; }
-.dt-source-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.dt-source { display: inline-flex; align-items: center; gap: 4px; background: var(--brand-xiyu-logo-light); color: var(--brand-xiyu-logo); padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 500; border: 1px solid var(--brand-xiyu-logo-soft); transition: background-color 0.16s; }
-.dt-source:hover { background: var(--brand-xiyu-logo-soft); }
-.suggestion-fail { color: var(--color-danger-dark); font-weight: 600; }
-.suggestion-manual { color: var(--color-warning); }
-.score-link { display: inline-flex; align-items: center; gap: 2px; color: var(--brand-xiyu-logo); font-weight: 600; cursor: pointer; border-bottom: 1px dashed var(--brand-xiyu-logo); padding-bottom: 1px; margin-right: 8px; }
-.score-link:hover { color: var(--brand-xiyu-logo-hover); border-bottom-color: var(--brand-xiyu-logo-hover); }
-.dt-section { margin-bottom: 16px; }
-.dt-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.dt-section-count { font-size: 12px; color: var(--gray-350); }
-.qual-table-wrapper { border: 1px solid var(--gray-150); border-radius: 6px; overflow: hidden; }
-.qual-compare-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.5; }
-.qual-compare-table th { background: var(--gray-50); color: var(--text-secondary-ui); font-weight: 600; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--gray-150); }
-.qual-compare-table td { padding: 8px 10px; border-bottom: 1px solid var(--gray-100); vertical-align: top; }
-.qual-row:last-child td { border-bottom: none; }
-.qual-row:hover { background: var(--gray-50); }
-.qual-req-text { color: var(--text-primary-ui); font-weight: 500; word-break: break-word; }
-.qual-cert-name { color: var(--text-primary); font-weight: 500; margin-bottom: 2px; word-break: break-word; }
-.qual-cert-empty { color: var(--text-placeholder); font-style: italic; }
-.qual-days-tag { display: inline-block; font-size: 11px; color: var(--brand-xiyu-logo); background: var(--color-success-bg); border: 1px solid var(--brand-xiyu-logo-soft); border-radius: 3px; padding: 1px 6px; margin-top: 2px; }
-.qual-days-tag.days-warning { color: var(--color-warning); background: var(--color-warning-bg); border-color: var(--color-warning); }
-.qual-page-badge { display: inline-block; background: var(--brand-xiyu-logo-light); color: var(--brand-xiyu-logo); border: 1px solid var(--brand-xiyu-logo-soft); border-radius: 3px; padding: 2px 6px; font-size: 11px; font-weight: 500; }
-.qual-page-none { color: var(--text-placeholder); font-size: 11px; }
-.qual-remark { font-size: 11px; color: var(--text-secondary-ui); margin-top: 4px; line-height: 1.4; }
+@import './qualityCheckDetailDialog.css';
 </style>
