@@ -4,14 +4,15 @@ space: engineering
 category: lesson
 tags: [教训, CO-361, CO-373, 角色解析, 工程治理, 多Agent协作, pre-existing-error, 接口一致性]
 created: 2026-06-28
-updated: 2026-09-13
-health_checked: 2026-09-13
+updated: 2026-09-14
+health_checked: 2026-09-14
 sources:
   - docs/lessons/lessons-learned.md
   - backend/src/main/java/com/xiyu/bid/entity/User.java
 backlinks:
   - _index
   - engineering-discipline
+archive: true
 ---
 # CO-361 五次修复不彻底的教训
 

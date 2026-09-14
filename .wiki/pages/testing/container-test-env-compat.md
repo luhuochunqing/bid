@@ -5,7 +5,7 @@ category: pitfalls
 tags: [testing, testcontainers, docker, flyway, mysql, sql_mode, schema-validation]
 created: 2026-08-15
 updated: 2026-08-15
-health_checked: 2026-09-13
+health_checked: 2026-09-14
 sources:
   - backend/pom.xml
   - backend/src/test/java/com/xiyu/bid/support/AbstractMysqlIntegrationTest.java

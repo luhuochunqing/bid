@@ -5,7 +5,7 @@ category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
 updated: 2026-09-13
-health_checked: 2026-09-13
+health_checked: 2026-09-14
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md

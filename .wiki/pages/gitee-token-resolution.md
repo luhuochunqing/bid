@@ -5,7 +5,7 @@ category: guide
 tags: [gitee, token, PAT, 凭证, 环境变量, zshenv, git-credentials, PR, agent]
 created: 2026-09-03
 updated: 2026-09-03
-health_checked: 2026-09-13
+health_checked: 2026-09-14
 sources:
   - scripts/gitee-token.sh
   - scripts/gitee-pr-helper.sh
