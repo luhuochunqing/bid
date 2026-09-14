@@ -373,6 +373,11 @@ drawer 结构：
       - `KnowledgeBaseOnDemandLoader` 接入 CA 端口后依赖字段达 6 个，超出 `MaintainabilityArchitectureTest.MAX_SERVICE_DEPENDENCIES = 5`；
       - 下沉抽取 `QualificationQueryDelegate`（持有新业务资质库与旧资质库），解耦新旧库回退逻辑；
       - `KnowledgeBaseOnDemandLoader` 依赖字段数收敛至 5 个，彻底清退架构豁免，保持代码高内聚低耦合。
+47. **电子标 CA 证书质检项纠偏：彻底解除标书正文贴图约束并切断大模型错误覆写（2026-09-14）**：
+    - **业务纠偏与真实源锁定**：明确 CA 锁是投标系统登录、标书加密与开标电子解密的媒介工具，核查唯一源为企业知识库台账（`/resource/ca-management`），与投标文件正文无关，标书正文根本无需粘贴证书扫描件或复印件；
+    - **解除标书正文贴图约束**：标书正文仅保留对未替换占位模板（如【此处粘贴CA数字证书】）的反假拦截 FAIL，绝不因正文未提及证书信息或无截图而报错；
+    - **切断大模型误覆写通道**：`BidDocumentQualityEngine` 移除了大模型覆写 CA 确定性台账结论的通道，并在招标要求缺失时兜底确保 `kbEvidences` 透传；同时纠偏 `AdjudicationGuidelines` 准则 11，从大模型知识库层面彻底杜绝误判；
+    - **台账状态映射严格化**：平台匹配且在库可用 -> PASS；平台匹配已借出 -> MANUAL_REVIEW（催还）；平台匹配已过期 -> FAIL（续期）；未录入该平台 -> FAIL（引导录入）；纸质标/线下标 -> PASS（【不涉及】）。
 
 ## 6. 后续任务（Backlog）
 
