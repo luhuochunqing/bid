@@ -101,7 +101,7 @@ public final class BidDocumentQualityEngine {
         }
         if (effective.caCertificateRequirement() != null) {
             resultMap.put(BidQualityCheckItem.CA_CERTIFICATE.getCode(),
-                    SubItemAndAttachmentRules.checkCaCertificate(bidDoc, effective.caCertificateRequirement()));
+                    SubItemAndAttachmentRules.checkCaCertificate(bidDoc, effective.caCertificateRequirement(), kbEvidences));
         }
         if (effective.businessTermsRequirement() != null) {
             resultMap.put(BidQualityCheckItem.SCHEDULE_RESPONSE.getCode(),

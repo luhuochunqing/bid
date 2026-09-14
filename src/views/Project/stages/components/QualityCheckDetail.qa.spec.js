@@ -15,6 +15,7 @@ import {
   formatStatus,
   getQualDetailStatusMeta,
   isQualificationMatchItem,
+  isCaCertificateItem,
   isNotApplicableItem
 } from '../composables/qualityCheckDetail.js'
 
@@ -104,19 +105,28 @@ describe('质量核查详情纯函数', () => {
     expect(extractBidQuote([{ sourceType: 'TENDER', quote: '招标原文' }])).toBe('')
   })
 
-  it('extractKbLinks：四库映射、按库去重、忽略未知来源', () => {
+  it('extractKbLinks：支持五库/资源库映射（含 ca-certificate 直达 CA 证书管理）、按库去重、忽略未知来源', () => {
     const links = extractKbLinks([
       { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'qualification' },
       { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'qualification' },
       { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'brand-authorization' },
+      { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'ca-certificate' },
       { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'unknown-lib' },
       { sourceType: 'BID', knowledgeSource: 'personnel' }
     ])
     expect(links).toEqual([
       { source: 'qualification', label: '资质库', route: '/knowledge/qualification' },
-      { source: 'brand-authorization', label: '品牌授权库', route: '/knowledge/brand-auth' }
+      { source: 'brand-authorization', label: '品牌授权库', route: '/knowledge/brand-auth' },
+      { source: 'ca-certificate', label: 'CA证书管理', route: '/resource/ca-management' }
     ])
     expect(extractKbLinks([])).toEqual([])
+  })
+
+  it('isCaCertificateItem：准确识别 CA_CERTIFICATE 检查项', () => {
+    expect(isCaCertificateItem('CA_CERTIFICATE')).toBe(true)
+    expect(isCaCertificateItem('ca_certificate')).toBe(true)
+    expect(isCaCertificateItem('QUALIFICATION_MATCH')).toBe(false)
+    expect(isCaCertificateItem(null)).toBe(false)
   })
 
   it('sumObjectiveActualScore：仅汇总客观项实际得分，无有效得分返回 null', () => {
@@ -254,6 +264,26 @@ describe('质量核查详情弹窗字段对照表', () => {
     })
     await wrapper.find('.dt-source').trigger('click')
     expect(pushMock).toHaveBeenCalledWith('/knowledge/performance')
+  })
+
+  it('CA_CERTIFICATE 项点击联动数据来源直达 /resource/ca-management，并在结论中提示录入证书', async () => {
+    const wrapper = mountDialog({
+      item: {
+        itemCode: 'CA_CERTIFICATE',
+        status: 'FAIL',
+        title: '电子标 CA 数字证书及签章',
+        conclusion: '【核查不通过】未在系统 CA 库中匹配到对应平台的有效 CA 证书。请前往【资源管理-CA证书管理】录入对应交易平台的 CA 证书。',
+        evidences: []
+      }
+    })
+    const sourceLink = wrapper.find('.dt-source')
+    expect(sourceLink.exists()).toBe(true)
+    expect(sourceLink.text()).toContain('CA证书管理')
+    await sourceLink.trigger('click')
+    expect(pushMock).toHaveBeenCalledWith('/resource/ca-management')
+
+    expect(wrapper.text()).toContain('请前往【资源管理-CA证书管理】录入对应交易平台的 CA 证书。')
+    expect(wrapper.text()).toContain('高风险项，建议立即修订后重新上传标书并再次执行检查。')
   })
 
   it('qualification_match 项携带 details 时渲染结构化资质比对清单', () => {

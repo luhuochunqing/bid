@@ -118,9 +118,12 @@ public class BidQualityCheckAsyncExecutor {
             progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING, 60, "正在对照企业知识库并执行25项质量核查...");
 
             List<String> requiredCerts = requirements.mandatoryQualifications();
-            // spec 049 第三步：四知识库真实检索；单库异常记录失败源，依赖项由引擎置 MANUAL 不阻断
+            String caPlatformKeyword = requirements.caCertificateRequirement() != null
+                    ? requirements.caCertificateRequirement().platformName()
+                    : null;
+            // spec 049 第三步：知识库真实检索；单库异常记录失败源，依赖项由引擎置 MANUAL 不阻断
             KnowledgeQueryOutcome kbOutcome = kbLoader != null
-                    ? kbLoader.queryKnowledgeBases(requiredCerts)
+                    ? kbLoader.queryKnowledgeBases(requiredCerts, caPlatformKeyword)
                     : KnowledgeQueryOutcome.empty();
 
             // spec 049 第五步：LLM 混合裁决；AI 未启用降级 Noop，单项失败 LOW_CONFIDENCE，不阻断任务

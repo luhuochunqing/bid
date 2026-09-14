@@ -30,6 +30,8 @@ public record KnowledgeMatch(
     public static final String SOURCE_PERSONNEL = "personnel";
     /** 业绩库来源标识. */
     public static final String SOURCE_PERFORMANCE = "performance";
+    /** CA证书资源库来源标识. */
+    public static final String SOURCE_CA_CERTIFICATE = "ca-certificate";
 
     public KnowledgeMatch {
         if (knowledgeSource == null || knowledgeSource.isBlank()) {

@@ -191,7 +191,12 @@ public final class SubItemAndAttachmentRules {
     }
 
     public static QualityCheckItemResult checkCaCertificate(final DocumentContent bidDoc, final CaCertificateRequirement requirement) {
-        return CaCertificateCheckPolicy.check(bidDoc, requirement);
+        return checkCaCertificate(bidDoc, requirement, Collections.emptyList());
+    }
+
+    public static QualityCheckItemResult checkCaCertificate(
+            final DocumentContent bidDoc, final CaCertificateRequirement requirement, final List<QualityEvidence> kbEvidences) {
+        return CaCertificateCheckPolicy.check(bidDoc, requirement, kbEvidences);
     }
 
     public static QualityCheckItemResult checkDepositRefund(final DocumentContent bidDoc) {

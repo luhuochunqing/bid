@@ -33,7 +33,8 @@ public record QualityEvidence(
             KnowledgeMatch.SOURCE_QUALIFICATION,
             KnowledgeMatch.SOURCE_BRAND_AUTHORIZATION,
             KnowledgeMatch.SOURCE_PERSONNEL,
-            KnowledgeMatch.SOURCE_PERFORMANCE);
+            KnowledgeMatch.SOURCE_PERFORMANCE,
+            KnowledgeMatch.SOURCE_CA_CERTIFICATE);
 
     public QualityEvidence {
         if (sourceType == null) {

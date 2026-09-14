@@ -143,6 +143,7 @@ public final class EvidenceAssembler {
                     evidences.add(locateTender(tenderDoc, "招标CA数字证书要求", List.of("CA", "数字证书", "电子签章", "电子交易")));
                 }
                 evidences.add(locateBid(bidDoc, "CA数字证书及签章凭据", List.of("CA证书", "数字证书", "电子签章", "有效性证明", "证书序列号", "CFCA")));
+                appendKnowledgeEvidences(evidences, kbEvidences);
             }
             default -> {
                 // 其余项未特化证据

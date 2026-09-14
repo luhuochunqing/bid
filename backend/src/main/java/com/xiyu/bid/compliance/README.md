@@ -13,11 +13,15 @@
 | `application/BidQualityCheckAsyncExecutor.java` | Async Executor | 标书质量核查后台异步执行器（aiTaskExecutor专用线程池） |
 | `application/BidQualityCheckProgressUpdater.java` | Progress Updater | 标书质量核查进度与状态独立事务更新器（REQUIRES_NEW） |
 | `service/ComplianceCheckService.java` | Service | 合规检查入口编排、结果持久化、DTO 组装 |
-| `service/KnowledgeBaseOnDemandLoader.java` | Service | 四知识库真实检索（优先对接 BusinessQualificationRepository 企业资质库） |
+| `service/KnowledgeBaseOnDemandLoader.java` | Service | 真实检索（企业资质、品牌授权、人员资质、业绩库、CA证书库真实台账检索） |
+| `service/KnowledgeMatchFormatters.java` | Service Helper | 知识库匹配记录摘要描述与转换辅助工具（降低加载器行数） |
 | `service/ComplianceCheckPolicy.java` | Policy | 总体状态、风险分和默认风险建议等纯决策 |
 | `service/ComplianceIssueFactory.java` | Factory | 统一构造规则失败与执行失败问题 |
 | `service/ComplianceRuleEvaluator.java` | Evaluator | 规则定义解析与项目/标书规则求值 |
 | `domain/policy/BidDocumentQualityEngine.java` | Domain Engine | 标书 25 项规则求值与 AI 混合裁决纯核心引擎 |
+| `domain/policy/CaCertificateEvidence.java` | Domain Model | 电子标 CA 证书纯领域证据模型（FP-Java 不可变 Record，支持平台匹配、过期、借用状态判定与 KnowledgeMatch 转换） |
+| `domain/policy/CaCertificateEvidencePort.java` | Domain Port | 电子标 CA 证书证据查询端口（依赖倒置，resources 模块提供实现适配器） |
+| `domain/policy/CaCertificateCheckPolicy.java` | Policy | 电子标 CA 证书质量核查策略（真实台账比对，覆盖未匹配平台/过期/借出催还/有效在库/免收直通） |
 | `domain/policy/QualificationMatchPolicy.java` | Policy | 资质双向模糊匹配与三方比对清单纯核心算法（相关度打分优先、通用停用词防错配、国字头剥离与标书页码定位） |
 | `domain/policy/QualificationDetailReconciler.java` | Policy | 资质比对清单与总项裁决状态一致性校准纯核心策略（过期/未匹配一票否决降级 FAIL，需关注项降级 MANUAL_REVIEW） |
 | `domain/policy/DeterministicQualificationExtractor.java` | Policy | 招标文件硬性资格与专用资质确定性提取纯核心策略（通用主体资格与专用行业资质分流、导语过滤、序号标点清洗、Markdown 表格切分、长度门禁、评分与模板排除、双轨兜底） |

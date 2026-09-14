@@ -22,6 +22,8 @@ BAR 证书借阅记录属于项目关联记录：借阅/归还会复用 `Project
 | `service/expense/ExpensePaymentService.java` | Service | 费用支付登记与记录查询 |
 | `application/service/ScanDepositReturnTrackingAppService.java` | App Service | 自动扫描保证金退还跟踪并生成提醒 |
 | `application/service/SendExpenseReturnReminderAppService.java` | App Service | 手工发送保证金退还提醒 |
+| `application/CaCertificateEvidenceQueryAdapter.java` | Adapter | CA 证书证据端口适配器（实现 compliance 的 CaCertificateEvidencePort，依赖倒置） |
+| `service/CaCertificateService.java` | Service | CA 证书台账管理与借用生命周期服务 |
 | `service/BarAssetService.java` | Service | BAR 资产业务逻辑 |
 | `service/BarCertificateService.java` | Service | BAR 证书借阅、归还和项目关联记录权限编排 |
 | `service/BarSiteSubresourceService.java` | Service | 站点子资源业务逻辑 |

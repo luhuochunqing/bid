@@ -219,4 +219,27 @@ class KnowledgeBaseRealQueryTest {
         assertThat(all.getFirst().getName()).isEqualTo("中华人民共和国增值电信业务经营许可证");
         assertThat(all.getFirst().getExpiryDate()).isEqualTo(LocalDate.of(2030, 3, 28));
     }
+
+    @Test
+    @DisplayName("CA证书库对接：传入交易平台关键词，通过 CaCertificateEvidencePort 真实查询并输出 ca-certificate 匹配证据")
+    void testQueryKnowledgeBases_WithCaCertificateEvidencePort() {
+        com.xiyu.bid.compliance.domain.policy.CaCertificateEvidencePort caPort =
+                mock(com.xiyu.bid.compliance.domain.policy.CaCertificateEvidencePort.class);
+        when(caPort.findCaMatches("国网电商", 20)).thenReturn(List.of(
+                new KnowledgeMatch(KnowledgeMatch.SOURCE_CA_CERTIFICATE, "101",
+                        "CA证书: 国家电网新一代电子商务平台（实体CA/公章，有效，有效期至 2027-12-31，在库，保管人: 李保管）", true)));
+
+        KnowledgeBaseOnDemandLoader customLoader = new KnowledgeBaseOnDemandLoader(
+                qualificationRepository, null, personnelRepository,
+                brandAuthorizationRepository, performanceEvidencePort, caPort);
+
+        KnowledgeQueryOutcome outcome = customLoader.queryKnowledgeBases(List.of(), "国网电商");
+
+        assertThat(outcome.failedSources()).isEmpty();
+        assertThat(outcome.matches()).anyMatch(m ->
+                m.knowledgeSource().equals("ca-certificate")
+                        && m.recordId().equals("101")
+                        && m.content().contains("国家电网")
+                        && m.content().contains("李保管"));
+    }
 }
