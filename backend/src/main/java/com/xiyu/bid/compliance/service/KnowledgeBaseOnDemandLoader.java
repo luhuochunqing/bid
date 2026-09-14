@@ -1,14 +1,12 @@
 // Input: 招标硬性要求关键词与交易平台（LLM 结构化提取产物）
 // Output: KnowledgeQueryOutcome（真实匹配记录 KnowledgeMatch + 查询失败源集合）
-// Pos: compliance/service/ - 知识库按需真实检索（资质、品牌授权、人员、业绩、CA证书库检索）
+// Pos: compliance/service/ - 知识库按需真实检索（资质委托、品牌授权、人员、业绩、CA证书库检索）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.service;
 
 import com.xiyu.bid.brandauth.domain.model.BrandAuthorization;
 import com.xiyu.bid.brandauth.domain.port.BrandAuthorizationRepository;
 import com.xiyu.bid.brandauth.domain.valueobject.AuthorizationStatus;
-import com.xiyu.bid.businessqualification.application.command.QualificationListCriteria;
-import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
 import com.xiyu.bid.businessqualification.domain.port.BusinessQualificationRepository;
 import com.xiyu.bid.compliance.domain.policy.CaCertificateEvidencePort;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeMatch;
@@ -46,8 +44,7 @@ public class KnowledgeBaseOnDemandLoader {
     /** 业绩库匹配记录上限. */
     static final int MAX_PERFORMANCE_MATCHES = 10;
 
-    private final QualificationRepository qualificationRepository;
-    private final BusinessQualificationRepository businessQualificationRepository;
+    private final QualificationQueryDelegate qualificationQueryDelegate;
     private final PersonnelRepository personnelRepository;
     private final BrandAuthorizationRepository brandAuthorizationRepository;
     private final PerformanceEvidencePort performanceEvidencePort;
@@ -55,18 +52,27 @@ public class KnowledgeBaseOnDemandLoader {
 
     @Autowired(required = false)
     public KnowledgeBaseOnDemandLoader(
+            @Autowired(required = false) final QualificationQueryDelegate qualificationQueryDelegate,
+            @Autowired(required = false) final PersonnelRepository personnelRepository,
+            @Autowired(required = false) final BrandAuthorizationRepository brandAuthorizationRepository,
+            @Autowired(required = false) final PerformanceEvidencePort performanceEvidencePort,
+            @Autowired(required = false) final CaCertificateEvidencePort caCertificateEvidencePort) {
+        this.qualificationQueryDelegate = qualificationQueryDelegate;
+        this.personnelRepository = personnelRepository;
+        this.brandAuthorizationRepository = brandAuthorizationRepository;
+        this.performanceEvidencePort = performanceEvidencePort;
+        this.caCertificateEvidencePort = caCertificateEvidencePort;
+    }
+
+    public KnowledgeBaseOnDemandLoader(
             final QualificationRepository qualificationRepository,
             final BusinessQualificationRepository businessQualificationRepository,
             final PersonnelRepository personnelRepository,
             final BrandAuthorizationRepository brandAuthorizationRepository,
             final PerformanceEvidencePort performanceEvidencePort,
             final CaCertificateEvidencePort caCertificateEvidencePort) {
-        this.qualificationRepository = qualificationRepository;
-        this.businessQualificationRepository = businessQualificationRepository;
-        this.personnelRepository = personnelRepository;
-        this.brandAuthorizationRepository = brandAuthorizationRepository;
-        this.performanceEvidencePort = performanceEvidencePort;
-        this.caCertificateEvidencePort = caCertificateEvidencePort;
+        this(new QualificationQueryDelegate(qualificationRepository, businessQualificationRepository),
+                personnelRepository, brandAuthorizationRepository, performanceEvidencePort, caCertificateEvidencePort);
     }
 
     public KnowledgeBaseOnDemandLoader(
@@ -83,7 +89,7 @@ public class KnowledgeBaseOnDemandLoader {
     }
 
     public KnowledgeBaseOnDemandLoader() {
-        this(null, null, null, null, null, null);
+        this((QualificationQueryDelegate) null, null, null, null, null);
     }
 
     /**
@@ -136,57 +142,23 @@ public class KnowledgeBaseOnDemandLoader {
     }
 
     /**
-     * 资质库：按招标硬性要求关键词定向匹配资质证书（优先使用业务企业资质库）.
+     * 资质库：委托 {@link QualificationQueryDelegate} 按招标硬性要求关键词定向匹配资质证书.
      */
     List<KnowledgeMatch> matchQualifications(final List<String> requiredCerts) {
-        if (qualificationRepository == null && businessQualificationRepository == null) {
+        if (qualificationQueryDelegate == null) {
             throw new IllegalStateException("企业资质库仓储不可用");
         }
-        if (requiredCerts == null || requiredCerts.isEmpty()) {
-            return List.of();
-        }
-        List<Qualification> all = queryAllQualificationsDirectly();
-        List<KnowledgeMatch> matches = new ArrayList<>();
-        for (String kw : requiredCerts) {
-            if (kw == null || kw.isBlank()) {
-                continue;
-            }
-            for (Qualification q : all) {
-                if (q.getName() != null && QualificationMatchPolicy.isQualificationMatch(kw, q.getName())) {
-                    matches.add(new KnowledgeMatch(
-                            KnowledgeMatch.SOURCE_QUALIFICATION,
-                            String.valueOf(q.getId()), KnowledgeMatchFormatters.describe(q), true));
-                    break;
-                }
-            }
-        }
-        return matches;
+        return qualificationQueryDelegate.matchQualifications(requiredCerts);
     }
 
     /**
      * 查询企业资质库全部资质记录（供核查比对清单组装）.
      */
     public List<Qualification> findAllQualifications() {
-        try {
-            return queryAllQualificationsDirectly();
-        } catch (RuntimeException e) {
-            log.warn("获取企业资质库列表异常: {}", e.getMessage(), e);
+        if (qualificationQueryDelegate == null) {
             return List.of();
         }
-    }
-
-    private List<Qualification> queryAllQualificationsDirectly() {
-        if (businessQualificationRepository != null) {
-            List<BusinessQualification> bqList = businessQualificationRepository.findAll(
-                    QualificationListCriteria.builder().build());
-            if (bqList != null && !bqList.isEmpty()) {
-                return bqList.stream()
-                        .filter(bq -> !bq.retired())
-                        .map(KnowledgeMatchFormatters::toLegacyQualification)
-                        .toList();
-            }
-        }
-        return qualificationRepository != null ? qualificationRepository.findAll() : List.of();
+        return qualificationQueryDelegate.findAllQualifications();
     }
 
     /**

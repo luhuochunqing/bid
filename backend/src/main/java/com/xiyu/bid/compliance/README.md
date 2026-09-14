@@ -13,7 +13,8 @@
 | `application/BidQualityCheckAsyncExecutor.java` | Async Executor | 标书质量核查后台异步执行器（aiTaskExecutor专用线程池） |
 | `application/BidQualityCheckProgressUpdater.java` | Progress Updater | 标书质量核查进度与状态独立事务更新器（REQUIRES_NEW） |
 | `service/ComplianceCheckService.java` | Service | 合规检查入口编排、结果持久化、DTO 组装 |
-| `service/KnowledgeBaseOnDemandLoader.java` | Service | 真实检索（企业资质、品牌授权、人员资质、业绩库、CA证书库真实台账检索） |
+| `service/KnowledgeBaseOnDemandLoader.java` | Service | 真实检索（企业资质委托、品牌授权、人员资质、业绩库、CA证书库真实台账检索） |
+| `service/QualificationQueryDelegate.java` | Service Delegate | 企业资质库查询委托（封装新业务资质库与旧资质库的优先回退逻辑） |
 | `service/KnowledgeMatchFormatters.java` | Service Helper | 知识库匹配记录摘要描述与转换辅助工具（降低加载器行数） |
 | `service/ComplianceCheckPolicy.java` | Policy | 总体状态、风险分和默认风险建议等纯决策 |
 | `service/ComplianceIssueFactory.java` | Factory | 统一构造规则失败与执行失败问题 |

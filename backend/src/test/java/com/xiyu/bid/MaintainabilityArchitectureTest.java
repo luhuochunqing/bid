@@ -79,7 +79,6 @@ class MaintainabilityArchitectureTest {
         "com.xiyu.bid.projectworkflow.service.ProjectTaskWorkflowService",
         "com.xiyu.bid.projectworkflow.service.ProjectDocumentWorkflowService",
         "com.xiyu.bid.projectworkflow.service.ProjectWorkflowService",
-        "com.xiyu.bid.compliance.service.KnowledgeBaseOnDemandLoader",
         "com.xiyu.bid.analytics.service.TrendAnalysisQueryService$TimeDimensionRow",
         "com.xiyu.bid.analytics.service.TrendQueryCriteria"
     );
