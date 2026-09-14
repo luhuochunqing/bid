@@ -153,12 +153,13 @@ public final class CaCertificateCheckPolicy {
                 .orElse(null);
 
         if (inLibraryCa != null) {
-            String conclusion = "【招标文件要求】：本项目为电子标，须使用平台 CA 数字证书/电子签章进行投标与解密。\n"
-                    + "【企业CA台账比对】：【在库可用】已在【CA证书管理】中检索到在库可用的企业有效 CA 证书（" + inLibraryCa.quote() + "）。\n"
-                    + "【判定结论】：满足电子投标用锁要求。";
-            return QualityCheckItemResult.pass(
+            String conclusion = "【招标文件要求】：本项目为电子标，须使用平台 CA 数字证书/电子签章进行投标与解密（招标文件未明确具体交易平台名称）。\n"
+                    + "【企业CA台账比对】：【待确认】已在【CA证书管理】中检索到在库可用的企业有效 CA 证书（" + inLibraryCa.quote() + "），但招标文件未明确指定具体交易平台。\n"
+                    + "【判定结论】：各省市公共资源交易平台 CA 锁互不通用，台账虽有在库锁具但无法确认是否适配本项目，请人工复核。";
+            return QualityCheckItemResult.manualReview(
                     item,
                     conclusion,
+                    "请核对本项目招标文件实际指定的电子交易平台，并在【资源中心 - CA证书管理】确认企业是否持有该平台专属 CA 锁，避免因用错 CA 锁导致废标。",
                     List.of(tenderEv, inLibraryCa));
         }
 
