@@ -44,6 +44,9 @@ class ScoreItemCaseRecommendAppServiceTest {
     @Mock
     private ScoreItemCaseSourceMetaLoader sourceMetaLoader;
 
+    @Mock
+    private com.xiyu.bid.casework.application.port.TenderQualificationQueryPort tenderQualificationQueryPort;
+
     @InjectMocks
     private ScoreItemCaseRecommendAppService recommendAppService;
 
@@ -213,5 +216,66 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(item.getMatchScore()).isGreaterThanOrEqualTo(80);
         assertThat(item.getMatchLabel()).isEqualTo("优质");
         assertThat(item.getMatchReasons()).contains("评分点匹配", "评分项条款高度契合", "类别一致");
+    }
+
+    @Test
+    @DisplayName("推荐服务编排：业绩评分项穿透资格项成功提取实质要求并推荐高分案例")
+    void testPerformanceScoreItemPenetrationToQualification() {
+        Long projectId = 200L;
+        Long scoreItemId = 3L;
+
+        Project project = new Project();
+        project.setId(projectId);
+        project.setCustomerType("STATE_OWNED");
+        project.setIndustry("工业品");
+
+        ScoreItem scoreItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("3")
+                .dim("3 同类项目业绩")
+                .detail("在满足资格条件规定的2项有效业绩基础上...需提供的业绩证明材料同初步评审第7条供应商资格中的业绩证明材料")
+                .itemIndex(3)
+                .build();
+
+        String qualText = "供应商近三年（2023年1月1日起至响应文件递交截止日），应至少具有1项大型集团级企业电商化品类年度供应业绩：参与标包1的，单项集团层级业绩的项目服务范围应包含办公用品且单个业绩所对应的合同项下发票在2023年1月1日起至响应文件递交截止日任意一个自然年内的累计金额不低于2000万元；参与标包2的，单项集团层级业绩的项目服务范围应包含标准工业品且单个业绩所对应的合同项下发票在2023年1月1日起至响应文件递交截止日任意一个自然年内的累计金额不低于4500万元。";
+
+        var qualInfo = new com.xiyu.bid.casework.application.port.TenderQualificationQueryPort.TenderQualificationInfo(
+                List.of(qualText),
+                null
+        );
+
+        KnowledgeCase perfCase = new KnowledgeCase();
+        perfCase.setId(301L);
+        perfCase.setScoringPointTitle("同类项目业绩");
+        perfCase.setScoringCategory("业绩");
+        perfCase.setRequirementRaw("供应商需具备大型集团电商化供应业绩，单项金额不少于2000万元");
+        perfCase.setResponseText("我司与大型集团签署年度电商化采购合同，累计发票金额4500万元，包含标准工业品与办公用品。");
+        perfCase.setProjectType("工业品");
+        perfCase.setCustomerType("STATE_OWNED");
+        perfCase.setBidResult("WON");
+        perfCase.setStatus("ACTIVE");
+        perfCase.setReuseCount(10);
+
+        when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(eq(scoreItemId))).thenReturn(Optional.of(scoreItem));
+        when(tenderQualificationQueryPort.findByProjectId(eq(projectId))).thenReturn(Optional.of(qualInfo));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(perfCase));
+
+        ScoreItemCaseRecommendRequest request = ScoreItemCaseRecommendRequest.builder()
+                .scoreItemId(scoreItemId)
+                .page(0)
+                .size(10)
+                .build();
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(projectId, request);
+
+        assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getItems()).hasSize(1);
+        var item = response.getItems().get(0);
+        assertThat(item.getId()).isEqualTo(301L);
+        assertThat(item.getMatchScore()).isGreaterThanOrEqualTo(80);
+        assertThat(item.getMatchLabel()).isEqualTo("优质");
+        assertThat(item.getMatchReasons()).anyMatch(r -> r.contains("资格项业绩品类"));
     }
 }

@@ -6,7 +6,9 @@
 package com.xiyu.bid.casework.application.service;
 
 import com.xiyu.bid.casework.application.port.KnowledgeCaseQueryPort;
+import com.xiyu.bid.casework.application.port.TenderQualificationQueryPort;
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
+import com.xiyu.bid.casework.domain.policy.QualificationPerformanceRetriever;
 import com.xiyu.bid.casework.domain.policy.ScoreItemCaseMatchPolicy;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendRequest;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendResponse;
@@ -35,6 +37,7 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>项目数据权限校验（ProjectAccessScopeService）</li>
  *   <li>从数据库装配 ScoreItem 条款详情与项目上下文</li>
+ *   <li>穿透检索业绩评分项对应的资格项实质要求（TenderQualificationQueryPort）</li>
  *   <li>查询激活状态的候选案例集</li>
  *   <li>调用纯核心 {@link ScoreItemCaseMatchPolicy} 进行评分计算与排序截断</li>
  *   <li>批量装配来源项目招标主体/项目状态，并转换为标准化响应 DTO</li>
@@ -52,20 +55,24 @@ public class ScoreItemCaseRecommendAppService {
     private final ProjectRepository projectRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final ScoreItemCaseSourceMetaLoader sourceMetaLoader;
+    private final TenderQualificationQueryPort tenderQualificationQueryPort;
 
     private final ScoreItemCaseMatchPolicy matchPolicy = new ScoreItemCaseMatchPolicy();
+    private final QualificationPerformanceRetriever performanceRetriever = new QualificationPerformanceRetriever();
 
     public ScoreItemCaseRecommendAppService(
             KnowledgeCaseQueryPort knowledgeCaseQueryPort,
             ScoreItemRepository scoreItemRepository,
             ProjectRepository projectRepository,
             ProjectAccessScopeService projectAccessScopeService,
-            ScoreItemCaseSourceMetaLoader sourceMetaLoader) {
+            ScoreItemCaseSourceMetaLoader sourceMetaLoader,
+            TenderQualificationQueryPort tenderQualificationQueryPort) {
         this.knowledgeCaseQueryPort = knowledgeCaseQueryPort;
         this.scoreItemRepository = scoreItemRepository;
         this.projectRepository = projectRepository;
         this.projectAccessScopeService = projectAccessScopeService;
         this.sourceMetaLoader = sourceMetaLoader;
+        this.tenderQualificationQueryPort = tenderQualificationQueryPort;
     }
 
     /**
@@ -91,6 +98,27 @@ public class ScoreItemCaseRecommendAppService {
                     .orElse(null);
         }
 
+        String qualReqText = null;
+        List<String> qualKeywords = List.of();
+
+        if (scoreItem != null && performanceRetriever.isPerformanceScoreItem(scoreItem.getDim(), scoreItem.getDetail())) {
+            var qualInfoOpt = tenderQualificationQueryPort.findByProjectId(projectId);
+            if (qualInfoOpt.isPresent()) {
+                var qualInfo = qualInfoOpt.get();
+                var perfResultOpt = performanceRetriever.retrieve(
+                        scoreItem.getDim(),
+                        scoreItem.getDetail(),
+                        qualInfo.qualificationRequirements(),
+                        qualInfo.rawTenderText()
+                );
+                if (perfResultOpt.isPresent()) {
+                    var perfResult = perfResultOpt.get();
+                    qualReqText = perfResult.matchedRequirementText();
+                    qualKeywords = perfResult.keywords();
+                }
+            }
+        }
+
         ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
                 scoreItem != null ? scoreItem.getId() : request.getScoreItemId(),
                 scoreItem != null ? scoreItem.getCode() : null,
@@ -100,7 +128,9 @@ public class ScoreItemCaseRecommendAppService {
                 customerType,
                 request.getKeyword(),
                 projectName,
-                customerName
+                customerName,
+                qualReqText,
+                qualKeywords
         );
 
         // 通过端口获取已激活案例（ACTIVE 过滤已下沉至 adapter）

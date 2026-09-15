@@ -21,26 +21,23 @@ import static com.xiyu.bid.casework.domain.policy.TextSimilarityPolicy.hasText;
  */
 public class ScoreItemCaseMatchPolicy {
 
-    private static final int MAX_DETAIL_SIMILARITY_SCORE = 25;
-    private static final int MAX_TITLE_SIMILARITY_SCORE = 20;
-    private static final int MAX_ENTITY_MATCH_SCORE = 20;
-    private static final int ENTITY_SINGLE_HIT_SCORE = 12;
-    private static final int PROJECT_TYPE_MATCH_SCORE = 5;
-    private static final int CUSTOMER_TYPE_MATCH_SCORE = 3;
-    private static final int WON_BONUS = 5;
-    private static final int QUALITY_SCORE_BONUS = 5;
-    private static final int KEYWORD_HIT_BONUS = 5;
-    private static final int HIGH_QUALITY_THRESHOLD = 80;
-    private static final int GOOD_THRESHOLD = 60;
-    private static final int MAX_KEYWORDS_COUNT = 8;
+    private static final int MAX_DETAIL_SIMILARITY_SCORE = 25, MAX_TITLE_SIMILARITY_SCORE = 20;
+    private static final int MAX_ENTITY_MATCH_SCORE = 20, ENTITY_SINGLE_HIT_SCORE = 12;
+    private static final int PROJECT_TYPE_MATCH_SCORE = 5, CUSTOMER_TYPE_MATCH_SCORE = 3;
+    private static final int WON_BONUS = 5, QUALITY_SCORE_BONUS = 5, KEYWORD_HIT_BONUS = 5;
+    private static final int HIGH_QUALITY_THRESHOLD = 80, GOOD_THRESHOLD = 60, MAX_KEYWORDS_COUNT = 8;
 
     public record ScoreItemContext(
             Long scoreItemId, String code, String dim, String detail,
             String projectType, String customerType, String keyword,
-            String projectName, String customerName
+            String projectName, String customerName,
+            String qualificationRequirementText, List<String> qualificationKeywords
     ) {
         public ScoreItemContext(Long scoreItemId, String code, String dim, String detail, String projectType, String customerType, String keyword) {
-            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, null, null);
+            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, null, null, null, List.of());
+        }
+        public ScoreItemContext(Long scoreItemId, String code, String dim, String detail, String projectType, String customerType, String keyword, String projectName, String customerName) {
+            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, projectName, customerName, null, List.of());
         }
     }
 
@@ -87,11 +84,23 @@ public class ScoreItemCaseMatchPolicy {
             }
         }
 
-        // 3. 条款重叠度
+        // 3. 条款重叠度（若存在资格项业绩实质要求，则择优计算条款重叠）
         int detailScore = calculateDetailOverlap(context.detail(), candidateText);
+        if (hasText(context.qualificationRequirementText())) {
+            int qualDetailScore = calculateDetailOverlap(context.qualificationRequirementText(), candidateText);
+            detailScore = Math.max(detailScore, qualDetailScore);
+        }
         if (detailScore > 0) {
             score += detailScore;
             reasons.add(detailScore >= 12 ? "评分项条款高度契合" : "条款部分契合");
+        }
+
+        // 3.1 资格项业绩实质要求加权（穿透资格项业绩提取，针对品类/企业层级/金额发票佐证加分）
+        var qualPerfBonus = QualificationPerformanceRetriever.calculatePerformanceBonus(
+                context.qualificationRequirementText(), context.qualificationKeywords(), candidateText);
+        if (qualPerfBonus.score() > 0) {
+            score += qualPerfBonus.score();
+            reasons.addAll(qualPerfBonus.reasons());
         }
 
         // 4. 标题/正文跨层相似度
@@ -155,6 +164,13 @@ public class ScoreItemCaseMatchPolicy {
             for (String entity : projectEntityHits) {
                 if (result.size() >= MAX_KEYWORDS_COUNT) break;
                 if (entity.length() <= 10 && PunctuationEntityExtractor.isQualityEntity(entity)) result.add(entity);
+            }
+        }
+        // 优先吸纳资格项提取的核心特征词
+        if (context.qualificationKeywords() != null) {
+            for (String qk : context.qualificationKeywords()) {
+                if (result.size() >= MAX_KEYWORDS_COUNT) break;
+                extractMatchedKeyword(qk, candidateText).ifPresent(result::add);
             }
         }
         List<String> toCheck = new ArrayList<>();

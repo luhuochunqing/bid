@@ -134,6 +134,48 @@ class ScoreItemCaseMatchPolicyTest {
     }
 
     @Test
+    @DisplayName("业绩评分项穿透资格项：评分项detail为空泛引用，穿透资格项业绩要求后高分召回优质业绩案例")
+    void testPerformanceScoreItemWithQualificationRequirements() {
+        StubCandidate candidate = new StubCandidate(
+                99L,
+                "同类项目业绩",
+                "业绩",
+                "供应商近三年需具有大型集团级企业电商化品类年度供应业绩，单项发票金额不低于2000万元",
+                "我司自2023年起为大型集团级企业提供电商化采购年度供应服务，包含办公用品与标准工业品，单项年度发票累计金额达4500万元，合同履约评价优秀。",
+                "工业品",
+                "STATE_OWNED",
+                "WON"
+        );
+
+        String qualText = "供应商近三年（2023年1月1日起至响应文件递交截止日），应至少具有1项大型集团级企业电商化品类年度供应业绩：参与标包1的，单项集团层级业绩的项目服务范围应包含办公用品且单个业绩所对应的合同项下发票在2023年1月1日起至响应文件递交截止日任意一个自然年内的累计金额不低于2000万元；参与标包2的，单项集团层级业绩的项目服务范围应包含标准工业品且单个业绩所对应的合同项下发票在2023年1月1日起至响应文件递交截止日任意一个自然年内的累计金额不低于4500万元。";
+        List<String> qualKeywords = List.of("大型集团", "电商化", "办公用品", "标准工业品", "发票", "2000万元", "4500万元");
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                301L,
+                "3",
+                "3 同类项目业绩",
+                "在满足资格条件规定的2项有效业绩基础上...需提供的业绩证明材料同初步评审第7条供应商资格中的业绩证明材料",
+                "工业品",
+                "STATE_OWNED",
+                null,
+                "某大型央企采购项目",
+                "某央企集团",
+                qualText,
+                qualKeywords
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(candidate, context);
+
+        assertThat(result.caseId()).isEqualTo(99L);
+        assertThat(result.score()).isGreaterThanOrEqualTo(80);
+        assertThat(result.matchLabel()).isEqualTo("优质");
+        assertThat(result.matchReasons()).anyMatch(r -> r.contains("资格项业绩品类"));
+        assertThat(result.matchReasons()).anyMatch(r -> r.contains("资格项客户层级"));
+        assertThat(result.matchReasons()).anyMatch(r -> r.contains("资格项门槛凭据"));
+        assertThat(result.matchedKeywords()).contains("办公用品");
+    }
+
+    @Test
     @DisplayName("部分匹配：仅类别一致与中标加成，detail不重合")
     void testPartialMatch() {
         StubCandidate candidate = new StubCandidate(
