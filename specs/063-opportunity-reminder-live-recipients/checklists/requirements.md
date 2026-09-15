@@ -2,6 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-09-15
+**Updated**: 2026-09-16
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -31,4 +32,4 @@
 
 ## Notes
 
-- Validation iteration 1 passed all items. Production baseline counts are acceptance evidence, not implementation details.
+- Validation iteration 2 passed all items. The test baseline is read-only acceptance evidence; the production cutoff remains separately authorized and is not inferred from test.
