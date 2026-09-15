@@ -183,7 +183,7 @@ describe('OpportunityPredictionCard', () => {
     expect(wrapper.findAll('.op-filter-select').length).toBe(2)
     expect(wrapper.find('.op-filter-date').exists()).toBe(true)
     expect(wrapper.find('.op-filter-reset').exists()).toBe(true)
-    expect(wrapper.find('.op-filter-actions .el-button-stub').text()).toContain('导出')
+    expect(wrapper.find('.op-export-btn').text()).toContain('导出')
   })
 
   it('按项目名称与招标主体模糊筛选只显示匹配行', async () => {

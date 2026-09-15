@@ -10,41 +10,41 @@
       </div>
     </div>
 
-    <div class="op-filters">
-      <div class="op-filters-main op-filters-grid">
-        <div class="op-filter-row">
-          <el-input
-            v-model="projectNameFilter"
-            placeholder="项目名称"
-            clearable
-            size="small"
-            class="op-filter-input"
-          />
-          <el-input
-            v-model="customerFilter"
-            placeholder="招标主体"
-            clearable
-            size="small"
-            class="op-filter-input"
-          />
-          <el-select v-model="customerTypeFilter" placeholder="客户类型" clearable size="small" class="op-filter-select">
-            <el-option v-for="opt in customerTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-          </el-select>
-          <el-select v-model="projectTypeFilter" placeholder="项目类型" clearable size="small" class="op-filter-select">
-            <el-option v-for="opt in projectTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-          </el-select>
-        </div>
-        <div class="op-filter-row op-filter-row-bottom">
-          <el-date-picker
-            v-model="predictedDateRange"
-            type="daterange"
-            value-format="YYYY-MM-DD"
-            range-separator="—"
-            start-placeholder="预测开始"
-            end-placeholder="预测结束"
-            size="small"
-            class="op-filter-date"
-          />
+    <div class="op-filters op-filters-grid">
+      <div class="op-filter-row">
+        <el-input
+          v-model="projectNameFilter"
+          placeholder="项目名称"
+          clearable
+          size="small"
+          class="op-filter-input"
+        />
+        <el-input
+          v-model="customerFilter"
+          placeholder="招标主体"
+          clearable
+          size="small"
+          class="op-filter-input"
+        />
+        <el-select v-model="customerTypeFilter" placeholder="客户类型" clearable size="small" class="op-filter-select">
+          <el-option v-for="opt in customerTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+        </el-select>
+        <el-select v-model="projectTypeFilter" placeholder="项目类型" clearable size="small" class="op-filter-select">
+          <el-option v-for="opt in projectTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+        </el-select>
+      </div>
+      <div class="op-filter-row op-filter-row-bottom">
+        <el-date-picker
+          v-model="predictedDateRange"
+          type="daterange"
+          value-format="YYYY-MM-DD"
+          range-separator="—"
+          start-placeholder="预测开始"
+          end-placeholder="预测结束"
+          size="small"
+          class="op-filter-date"
+        />
+        <div class="op-filter-actions">
           <el-button
             size="small"
             :icon="RefreshRight"
@@ -54,12 +54,15 @@
           >
             重置
           </el-button>
+          <el-button
+            size="small"
+            :icon="Download"
+            class="op-export-btn"
+            @click="handleExport"
+          >
+            导出
+          </el-button>
         </div>
-      </div>
-      <div class="op-filter-actions">
-        <el-button size="small" :icon="Download" class="op-export-btn" @click="handleExport">
-          导出
-        </el-button>
       </div>
     </div>
 
@@ -225,28 +228,44 @@ onMounted(loadPredictions)
   border-radius: 50%;
   background: var(--color-danger, #f56c6c);
 }
-.op-filters { display: flex; align-items: stretch; gap: 0.5rem; padding: 0.35rem 1.4rem 0.65rem; }
-.op-filters-main { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; }
-.op-filter-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
-.op-filter-row-bottom { display: grid; grid-template-columns: 3fr 1fr; gap: 0.5rem; }
-.op-filter-input, .op-filter-select, .op-filter-reset { width: 100%; }
-.op-filter-reset { margin-left: 0; }
+.op-filters { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.35rem 1.4rem 0.65rem; }
+.op-filter-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; align-items: center; }
+.op-filter-row-bottom { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; align-items: center; }
+.op-filter-input, .op-filter-select { width: 100%; }
 .op-filter-row :deep(.el-select), .op-filter-row :deep(.el-input) { width: 100%; }
-.op-filter-row-bottom :deep(.el-date-editor) { width: 100% !important; max-width: 100%; box-sizing: border-box; }
-.op-filter-actions { display: flex; align-items: stretch; }
+.op-filter-row-bottom :deep(.el-date-editor) {
+  grid-column: 1 / 4;
+  width: 100% !important;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.op-filter-actions {
+  grid-column: 4 / 5;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+.op-filter-reset,
 .op-export-btn {
-  height: 100% !important;
-  min-height: 68px;
-  min-width: 72px;
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
+  line-height: 22px !important;
+  padding: 0 4px !important;
+  font-size: 12px;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 0 16px;
 }
-.op-export-btn :deep(.el-icon) { font-size: 1.15rem; margin: 0; }
-.op-export-btn :deep(span) { margin: 0; line-height: 1.2; }
+.op-filter-reset :deep(.el-icon),
+.op-export-btn :deep(.el-icon) {
+  font-size: 13px;
+  margin-right: 3px;
+}
 .op-table-wrap {
   overflow-x: auto;
   min-height: 120px;

@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [前端, Vue3, Element Plus, reactive, ref, v-model, el-upload, el-form, 权限, E2E, scoped, teleport]
 created: 2026-07-10
-updated: 2026-09-13
+updated: 2026-09-16
 health_checked: 2026-09-14
 sources:
   - src/
@@ -942,7 +942,41 @@ console.log('[DEBUG edit-self] status:', createRes.status)
 
 ---
 
-## 25. 变更记录
+## 25. 全局 accessibility.css 的 button min-height: 44px 导致组件内 small 按钮底部溢出错位
+
+### 25.1 事故现象
+
+在工作台卡片或表单筛选区中，使用 `<el-button size="small">` 与 `<el-date-picker size="small">`、`<el-input size="small">` 并排布局时，按钮的高度膨胀为 44px，导致按钮底边超出同排其他控件（24px）达 20px 之多，破坏了网格对齐和视觉底边基线。
+
+### 25.2 根因
+
+项目全局 `src/styles/accessibility.css` 中配置了针对可访问性无障碍点击区域的全局增强规则：
+```css
+a,
+button,
+[role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+```
+该规则匹配到了所有的 `<button>` 原生标签。由于 `<el-button size="small">` 渲染为 `<button class="el-button el-button--small">`，若未显式在局部设置 `min-height` 进行覆盖，就会继承全局的 `min-height: 44px;`，从而导致高度被硬性撑大到 44px，引发底部严重溢出。
+
+### 25.3 根治规则
+
+- **紧凑筛选栏显式覆盖 min-height**：在表单筛选行、工具栏等使用 `size="small"` 的紧凑操作场景中，必须在局部样式中显式重置并强约束 `min-height`、`height` 与 `box-sizing`：
+  ```css
+  .compact-btn {
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
+    box-sizing: border-box !important;
+  }
+  ```
+- **布局容器 align-items 对齐**：与输入框/选择器并排的按钮容器，统一配置 `align-items: center;`，确保在同一基准线上绝对水平对齐。
+
+---
+
+## 26. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -959,6 +993,8 @@ console.log('[DEBUG edit-self] status:', createRes.status)
 | 2026-09-05 | 新增 §22：全局注册 Element Plus 插件与样式导致 Vitest / JSDOM 测试崩溃与假死 |
 | 2026-09-09 | 新增 §23：文件删除接口 404 导致前端状态死锁与错误提示覆盖全局 429 |
 | 2026-09-13 | 新增 §24：静默 catch 块空语句触发 no-empty 与 E2E 临时日志污染（ESLint 基线警告治理） |
+| 2026-09-16 | 新增 §25：全局 accessibility.css 的 button min-height: 44px 导致组件内 small 按钮底部溢出错位 |
+
 
 
 
