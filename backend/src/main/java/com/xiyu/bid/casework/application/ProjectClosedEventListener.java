@@ -180,7 +180,9 @@ public class ProjectClosedEventListener {
         try {
             loaded = streamingFetcher.fetch(signedUrl.get(), taskId, bidFile.getFileName(), "application/octet-stream");
         } catch (IOException | InterruptedException e) {
-            Thread.currentThread().interrupt();
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             throw new IllegalStateException("流式下载 OBS 标书失败: " + filePath, e);
         }
         switch (loaded) {
@@ -192,8 +194,13 @@ public class ProjectClosedEventListener {
                 try {
                     return streamTextExtractor.extract(disk.tempFile(), disk.fileName());
                 } catch (IOException | InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("流式提取 OBS 标书文本失败: " + filePath, e);
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
+                    String detail = e.getMessage() == null || e.getMessage().isBlank()
+                            ? e.getClass().getSimpleName()
+                            : e.getMessage();
+                    throw new IllegalStateException("流式提取 OBS 标书文本失败: " + filePath + "，原因：" + detail, e);
                 }
             }
         }

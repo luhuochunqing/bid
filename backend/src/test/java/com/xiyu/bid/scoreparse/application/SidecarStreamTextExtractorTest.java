@@ -15,6 +15,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +31,7 @@ class SidecarStreamTextExtractorTest {
     private Path docFile;
     private final AtomicReference<String> receivedContentType = new AtomicReference<>();
     private final AtomicReference<byte[]> receivedBody = new AtomicReference<>();
+    private final AtomicInteger requestCount = new AtomicInteger();
 
     @BeforeEach
     void setUp() throws IOException {
@@ -100,5 +102,27 @@ class SidecarStreamTextExtractorTest {
         assertThatThrownBy(() -> extractor.extract(docFile, "投标文件.pdf"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("HTTP 500");
+    }
+
+    @Test
+    void extract_retriesTransientSidecarFailure() throws Exception {
+        byte[] successBody = "重试后正文".getBytes(StandardCharsets.UTF_8);
+        server.createContext("/convert-stream", exchange -> {
+            int request = requestCount.incrementAndGet();
+            exchange.getRequestBody().readAllBytes();
+            if (request < 3) {
+                exchange.sendResponseHeaders(503, 0);
+                exchange.close();
+                return;
+            }
+            exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
+            exchange.sendResponseHeaders(200, successBody.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(successBody);
+            }
+        });
+
+        assertThat(extractor.extract(docFile, "投标文件.pdf")).isEqualTo("重试后正文");
+        assertThat(requestCount).hasValue(3);
     }
 }

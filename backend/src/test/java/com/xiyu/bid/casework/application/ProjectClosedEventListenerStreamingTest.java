@@ -192,16 +192,22 @@ class ProjectClosedEventListenerStreamingTest {
     @Test
     @DisplayName("OBS 流式下载失败 -> notifyFailure(原因含 OBS) + 不入库 + finally release")
     void downloadFailure_notifiesFailureAndReleases() throws Exception {
+        Thread.interrupted();
         when(streamingFetcher.fetch(any(), any(), any(), any()))
                 .thenThrow(new IOException("网络中断"));
 
-        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+        try {
+            listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
-        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
-        verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
-        assertThat(reasonCaptor.getValue()).contains("流式下载 OBS 标书失败");
-        verify(knowledgeCaseRepository, never()).saveAll(any());
-        verify(tempBidFileStore, times(1)).release("case-1");
+            ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+            verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
+            assertThat(reasonCaptor.getValue()).contains("流式下载 OBS 标书失败");
+            assertThat(Thread.currentThread().isInterrupted()).isFalse();
+            verify(knowledgeCaseRepository, never()).saveAll(any());
+            verify(tempBidFileStore, times(1)).release("case-1");
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     @Test
@@ -233,7 +239,9 @@ class ProjectClosedEventListenerStreamingTest {
 
         ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
         verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
-        assertThat(reasonCaptor.getValue()).contains("流式提取 OBS 标书文本失败");
+        assertThat(reasonCaptor.getValue())
+                .contains("流式提取 OBS 标书文本失败")
+                .contains("连接中断");
         verify(knowledgeCaseRepository, never()).saveAll(any());
         verify(tempBidFileStore, times(1)).release("case-1");
     }

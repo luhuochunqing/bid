@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [案例沉淀, 超大文件, 流式, 摘录化, LLM, choices包装, 唯一键, spec049]
 created: 2026-08-20
-updated: 2026-09-14
-health_checked: 2026-09-14
+updated: 2026-09-15
+health_checked: 2026-09-15
 sources:
   - specs/049-case-precipitation-streaming/
   - docs/implementation-notes/case-precipitation-spec049.md
@@ -65,7 +65,15 @@ POST /api/cases/precipitate?projectId=X → triggerPrecipitation 发 ProjectClos
 
 `deploy-test.sh` 输出 "deployment completed" 仅表示文件上传完成，**进程重启在随后异步发生**。紧接着触发验收会落在旧进程上跑旧代码，误判"修复无效"。正确做法：先 `ps -eo pid,lstart` 确认新进程启动时间，再触发；只信启动后产生的日志/结果。
 
-## 五、相关页面
+## 五、Sidecar 流式提取失败的可诊断性
+
+- `/convert-stream` 遇到连接类 `IOException` 或 HTTP 502/503/504 时，客户端最多重试 3 次，并使用有界退避；保持流式处理、文件大小上限和字符数上限不变。
+- 最终失败通知必须携带底层异常类型和消息，不能只显示 `obs-direct:<id>`；这样才能区分 Sidecar 不可达、连接中断和服务端错误。
+- 只有 `InterruptedException` 才恢复线程中断标记；普通 `IOException` 不能污染异步执行线程的中断状态。
+
+项目 34 的失败属于上述流式提取阶段，原通知只暴露 OBS 文件标识，无法定位 Sidecar 根因；修复后会先对短暂故障重试，仍失败时把最后一次底层错误透出。
+
+## 六、相关页面
 
 - [[case-precipitation-oversize-oom]] — spec 045 OOM 根因（前身）
 - [[score-parse-service]] — 评分标准解析（摘录器复用）
