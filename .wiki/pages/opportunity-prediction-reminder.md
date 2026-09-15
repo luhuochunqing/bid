@@ -4,8 +4,8 @@ space: engineering
 category: feature
 tags: [商机预测, 提醒, 定时任务, 通知中心, 企微, CRM事件库, opportunity-prediction]
 created: 2026-08-24
-updated: 2026-09-10
-health_checked: 2026-09-14
+updated: 2026-09-15
+health_checked: 2026-09-15
 sources:
   - specs/054-opportunity-prediction-reminder/spec.md
   - specs/054-opportunity-prediction-reminder/data-model.md
@@ -64,5 +64,6 @@ event_published_at(NULL=待重试) / event_publish_claim_token / event_publish_c
 
 ## 相关
 
-- 预测规则：`OpportunityPredictionPolicy`（四条规则 + 6 个月展示窗口 + 90 天红点）
+- 预测规则：`OpportunityPredictionPolicy`（四条规则 + 1 年展示窗口（`VISIBLE_WINDOW_MONTHS = 12`） + 90 天红点）。2026-09-15 将展示窗口由 6 个月扩大到 1 年。
+- 工作台展示：`OpportunityPredictionCard.vue` 支持按项目名称和招标主体搜索，支持导出 11 列商机预测表格（CSV）。
 - 既有参考：`WarehouseExpiryScanTask`（每日 09:00 调度模板）、`QualificationExpiryNotificationService`（编排模板）
