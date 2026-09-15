@@ -32,6 +32,8 @@ const mountDialog = (props = {}) => mount(CaseDetailDialog, {
 const findButtonByText = (wrapper, text) =>
   wrapper.findAll('button').find((b) => b.text().includes(text))
 
+const sourceLocation = (wrapper) => wrapper.find('.source-location')
+
 describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
   it('应答片段标题为「应答片段摘要」，查看源项目/标书原文按钮在标题行右侧', () => {
     const wrapper = mountDialog()
@@ -49,6 +51,52 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     const wrapper = mountDialog()
     expect(wrapper.find('.word-count-hint').text()).toBe(`共 ${caseData.responseText.length} 字`)
     expect(wrapper.find('.response-box').text()).toContain(caseData.responseText)
+  })
+
+  it('来源路径优先显示，并在同一行显示文档和页码', () => {
+    const wrapper = mountDialog({
+      caseData: {
+        ...caseData,
+        sourceSectionTitle: '仅标题',
+        sourceSectionPath: '第一章 > 服务方案',
+        sourceDocumentName: '技术标.docx',
+        sourcePageNumber: 12
+      }
+    })
+    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：第一章 > 服务方案')
+    expect(sourceLocation(wrapper).text()).toContain('来源文档：技术标.docx')
+    expect(sourceLocation(wrapper).text()).toContain('页码：12')
+    expect(sourceLocation(wrapper).text()).not.toContain('仅标题')
+  })
+
+  it('只有来源标题时显示标题且可点击', () => {
+    const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionTitle: '项目实施' } })
+    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：项目实施')
+    expect(sourceLocation(wrapper).element.tagName).toBe('BUTTON')
+  })
+
+  it('来源路径和标题均为空时显示降级文案且信息行不可点击', () => {
+    const wrapper = mountDialog({
+      caseData: { ...caseData, scoringPointTitle: '项目实施', sourceSectionTitle: null, sourceSectionPath: null }
+    })
+    expect(wrapper.find('.source-location').exists()).toBe(false)
+    expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
+  })
+
+  it('来源标题与评分项标题同名时仍保留两个不同 label', () => {
+    const wrapper = mountDialog({
+      caseData: { ...caseData, sourceSectionTitle: caseData.scoringPointTitle }
+    })
+    expect(wrapper.text()).toContain(`评分项标题：${caseData.scoringPointTitle}`)
+    expect(sourceLocation(wrapper).text()).toContain(`原文所在标题：${caseData.scoringPointTitle}`)
+  })
+
+  it('点击来源信息行触发 open-bid 并携带定位提示标记', async () => {
+    const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionPath: '第二章 > 售后服务' } })
+    await sourceLocation(wrapper).trigger('click')
+    expect(wrapper.emitted('open-bid')).toHaveLength(1)
+    expect(wrapper.emitted('open-bid')[0][0]).toMatchObject({ sourceSectionPath: '第二章 > 售后服务' })
+    expect(wrapper.emitted('open-bid')[0][1]).toEqual({ notifyLocation: true })
   })
 
   it('底部操作栏仅保留「复用」按钮', () => {

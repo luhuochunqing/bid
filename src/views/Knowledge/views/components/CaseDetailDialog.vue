@@ -24,6 +24,7 @@
 
       <!-- 1. 评分项详细要素原文（浅色背景展示区） -->
       <div class="section-title">评分项详细要素原文</div>
+      <div class="scoring-point-title"><span>评分项标题：</span>{{ caseData.scoringPointTitle || caseData.scoringTitle || '暂无评分项标题' }}</div>
       <div class="content-box requirement-box">{{ caseData.requirementRaw || '暂无要求' }}</div>
 
       <!-- 2. 应答片段摘要（标注总字数，操作按钮在标题行右侧） -->
@@ -32,6 +33,23 @@
         <div class="title-actions">
           <el-button plain type="primary" size="small" @click="$emit('go-source', caseData)"><el-icon><Link /></el-icon>查看源项目</el-button>
           <el-button plain type="primary" size="small" @click="$emit('open-bid', caseData)"><el-icon><Document /></el-icon>标书原文</el-button>
+        </div>
+      </div>
+      <div class="source-location-row">
+        <button
+          v-if="hasSourceLocation"
+          type="button"
+          class="source-location"
+          @click="emitSourceLocation"
+        >
+          <span>原文所在标题：{{ sourceLocationText }}</span>
+          <span v-if="sourceDocumentText">来源文档：{{ sourceDocumentText }}</span>
+          <span v-if="sourcePageText">页码：{{ sourcePageText }}</span>
+        </button>
+        <div v-else class="source-location-fallback">
+          <span>原文所在标题：暂无来源标题</span>
+          <span v-if="sourceDocumentText">来源文档：{{ sourceDocumentText }}</span>
+          <span v-if="sourcePageText">页码：{{ sourcePageText }}</span>
         </div>
       </div>
       <div class="word-count-hint">共 {{ (caseData?.responseText || '').length }} 字</div>
@@ -91,6 +109,20 @@ const matchLabelTagType = computed(() => getMatchTagType(displayMatchScore.value
 
 const matchReasonsList = computed(() => parseStringOrArray(props.caseData?.matchReasons))
 const matchedKeywordsList = computed(() => parseStringOrArray(props.caseData?.matchedKeywords))
+
+const sourceLocationText = computed(() => {
+  const path = props.caseData?.sourceSectionPath?.trim?.()
+  const title = props.caseData?.sourceSectionTitle?.trim?.()
+  return path || title || ''
+})
+const hasSourceLocation = computed(() => Boolean(sourceLocationText.value))
+const sourceDocumentText = computed(() => props.caseData?.sourceDocumentName?.toString?.().trim?.() || '')
+const sourcePageText = computed(() => {
+  const page = props.caseData?.sourcePageNumber
+  return page === null || page === undefined || page === '' ? '' : String(page)
+})
+
+const emitSourceLocation = () => emit('open-bid', props.caseData, { notifyLocation: true })
 
 const hasResponseText = computed(() => {
   const raw = props.caseData?.responseText
@@ -242,6 +274,8 @@ const bidResultType = computed(() => {
   color: var(--el-color-primary);
 }
 .section-title { font-size: 15px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 12px; border-left: 4px solid var(--el-color-primary); padding-left: 8px; }
+.scoring-point-title { margin: -4px 0 8px; font-size: 13px; color: var(--el-text-color-regular); }
+.scoring-point-title span { color: var(--el-text-color-secondary); }
 .case-desc { margin-bottom: 16px; }
 .content-box { background-color: var(--el-fill-color-light); border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.6; color: var(--el-text-color-regular); white-space: pre-wrap; border: 1px solid var(--el-border-color-lighter); }
 .requirement-box { max-height: 150px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; }
@@ -251,6 +285,11 @@ const bidResultType = computed(() => {
 .response-box :deep(td) { border: 1px solid var(--el-border-color); padding: 6px 8px; text-align: left; }
 .response-box :deep(th) { background: var(--el-fill-color); font-weight: 600; }
 .word-count-hint { font-size: 12px; color: var(--el-text-color-secondary); text-align: right; margin-bottom: 6px; padding-right: 4px; }
+.source-location-row { margin: -2px 0 6px; font-size: 12px; color: var(--el-text-color-secondary); }
+.source-location,
+.source-location-fallback { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; padding: 0; text-align: left; line-height: 1.6; }
+.source-location { border: 0; background: transparent; color: var(--el-color-primary); cursor: pointer; }
+.source-location:hover { text-decoration: underline; }
 .response-title { display: flex; align-items: center; justify-content: space-between; }
 .response-title .title-actions { display: flex; align-items: center; }
 .dialog-actions { display: flex; justify-content: flex-end; }
