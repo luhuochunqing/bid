@@ -65,5 +65,5 @@ event_published_at(NULL=待重试) / event_publish_claim_token / event_publish_c
 ## 相关
 
 - 预测规则：`OpportunityPredictionPolicy`（四条规则 + 1 年展示窗口（`VISIBLE_WINDOW_MONTHS = 12`） + 90 天红点）。2026-09-15 将展示窗口由 6 个月扩大到 1 年。
-- 工作台展示：`OpportunityPredictionCard.vue` 支持按项目名称和招标主体搜索，支持导出 11 列商机预测表格（CSV）。
+- 工作台展示：`OpportunityPredictionCard.vue` 支持按项目名称和招标主体搜索，支持导出 11 列商机预测表格（CSV）。表头筛选区采用 4 列二维网格实现上下左右两端对齐，导出按钮纵向跨两排（Row-Span 2）。
 - 既有参考：`WarehouseExpiryScanTask`（每日 09:00 调度模板）、`QualificationExpiryNotificationService`（编排模板）

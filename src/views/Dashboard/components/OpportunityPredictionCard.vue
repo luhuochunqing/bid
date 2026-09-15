@@ -11,39 +11,51 @@
     </div>
 
     <div class="op-filters">
-      <el-input
-        v-model="projectNameFilter"
-        placeholder="项目名称"
-        clearable
-        size="small"
-        class="op-filter-input"
-      />
-      <el-input
-        v-model="customerFilter"
-        placeholder="招标主体"
-        clearable
-        size="small"
-        class="op-filter-input"
-      />
-      <el-select v-model="customerTypeFilter" placeholder="客户类型" clearable size="small" class="op-filter-select">
-        <el-option v-for="opt in customerTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-      </el-select>
-      <el-select v-model="projectTypeFilter" placeholder="项目类型" clearable size="small" class="op-filter-select">
-        <el-option v-for="opt in projectTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-      </el-select>
-      <el-date-picker
-        v-model="predictedDateRange"
-        type="daterange"
-        value-format="YYYY-MM-DD"
-        range-separator="—"
-        start-placeholder="预测开始"
-        end-placeholder="预测结束"
-        size="small"
-        class="op-filter-date"
-      />
-      <el-button v-if="hasActiveFilters" link type="primary" size="small" @click="resetFilters">重置</el-button>
+      <div class="op-filters-grid">
+        <el-input
+          v-model="projectNameFilter"
+          placeholder="项目名称"
+          clearable
+          size="small"
+          class="op-filter-input"
+        />
+        <el-input
+          v-model="customerFilter"
+          placeholder="招标主体"
+          clearable
+          size="small"
+          class="op-filter-input"
+        />
+        <el-select v-model="customerTypeFilter" placeholder="客户类型" clearable size="small" class="op-filter-select">
+          <el-option v-for="opt in customerTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+        </el-select>
+        <el-select v-model="projectTypeFilter" placeholder="项目类型" clearable size="small" class="op-filter-select">
+          <el-option v-for="opt in projectTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+        </el-select>
+        <el-date-picker
+          v-model="predictedDateRange"
+          type="daterange"
+          value-format="YYYY-MM-DD"
+          range-separator="—"
+          start-placeholder="预测开始"
+          end-placeholder="预测结束"
+          size="small"
+          class="op-filter-date"
+        />
+        <el-button
+          size="small"
+          :icon="RefreshRight"
+          class="op-filter-reset"
+          :disabled="!hasActiveFilters"
+          @click="resetFilters"
+        >
+          重置
+        </el-button>
+      </div>
       <div class="op-filter-actions">
-        <el-button size="small" :icon="Download" @click="handleExport">导出</el-button>
+        <el-button size="small" :icon="Download" class="op-export-btn" @click="handleExport">
+          导出
+        </el-button>
       </div>
     </div>
 
@@ -74,7 +86,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { Download } from '@element-plus/icons-vue'
+import { Download, RefreshRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { workbenchApi } from '@/api'
 import { exportApi, notifyExportSuccess } from '@/api/modules/export.js'
@@ -211,25 +223,43 @@ onMounted(loadPredictions)
 }
 .op-filters {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0.5rem;
-  padding: 0.25rem 1.4rem 0.6rem;
-  flex-wrap: wrap;
+  padding: 0.35rem 1.4rem 0.65rem;
 }
-.op-filter-input {
-  width: 140px;
+.op-filters-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
 }
-.op-filter-select {
-  width: 130px;
+.op-filter-input,
+.op-filter-select,
+.op-filter-reset {
+  width: 100%;
 }
+.op-filter-reset { margin-left: 0; }
 .op-filter-date {
-  width: 240px;
+  grid-column: span 3;
+  width: 100% !important;
 }
 .op-filter-actions {
-  margin-left: auto;
   display: flex;
-  align-items: center;
+  align-items: stretch;
 }
+.op-export-btn {
+  height: 100% !important;
+  min-height: 68px;
+  min-width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 16px;
+}
+.op-export-btn :deep(.el-icon) { font-size: 1.15rem; margin: 0; }
+.op-export-btn :deep(span) { margin: 0; line-height: 1.2; }
 .op-table-wrap {
   overflow-x: auto;
   min-height: 120px;

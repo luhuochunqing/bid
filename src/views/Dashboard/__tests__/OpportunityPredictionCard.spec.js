@@ -66,8 +66,8 @@ const stubs = {
     template: '<div class="el-date-picker-stub" />',
   },
   'el-button': {
-    props: ['link', 'type', 'size', 'icon'],
-    template: '<button class="el-button-stub" @click="$emit(\'click\')"><slot /></button>',
+    props: ['link', 'type', 'size', 'icon', 'disabled'],
+    template: '<button class="el-button-stub" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
   },
   loading: {},
 }
@@ -178,9 +178,11 @@ describe('OpportunityPredictionCard', () => {
     const wrapper = mountCard()
     await flushPromises()
 
+    expect(wrapper.find('.op-filters-grid').exists()).toBe(true)
     expect(wrapper.findAll('.op-filter-input').length).toBe(2)
     expect(wrapper.findAll('.op-filter-select').length).toBe(2)
     expect(wrapper.find('.op-filter-date').exists()).toBe(true)
+    expect(wrapper.find('.op-filter-reset').exists()).toBe(true)
     expect(wrapper.find('.op-filter-actions .el-button-stub').text()).toContain('导出')
   })
 
@@ -240,13 +242,17 @@ describe('OpportunityPredictionCard', () => {
     const wrapper = mountCard()
     await flushPromises()
 
+    const resetBtn = wrapper.find('.op-filter-reset')
+    expect(resetBtn.attributes('disabled')).toBeDefined()
+
     wrapper.vm.projectNameFilter = '水务'
     wrapper.vm.customerFilter = '四季青'
     wrapper.vm.customerTypeFilter = 'CENTRAL_SOE'
     await flushPromises()
     expect(wrapper.vm.hasActiveFilters).toBe(true)
+    expect(resetBtn.attributes('disabled')).toBeUndefined()
 
-    wrapper.vm.resetFilters()
+    await resetBtn.trigger('click')
     expect(wrapper.vm.projectNameFilter).toBe('')
     expect(wrapper.vm.customerFilter).toBe('')
     expect(wrapper.vm.customerTypeFilter).toBe('')
