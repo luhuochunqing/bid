@@ -5,6 +5,7 @@
 
 package com.xiyu.bid.casework.application.service;
 
+import com.xiyu.bid.casework.application.util.SummaryTruncator;
 import com.xiyu.bid.casework.dto.KnowledgeCaseDetailResponse;
 import com.xiyu.bid.casework.dto.KnowledgeCaseResponse;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
@@ -168,7 +169,6 @@ public class KnowledgeCaseQueryAppService {
     }
 
     private String summarize(String text) {
-        if (text == null) return "";
-        return text.length() <= 100 ? text : text.substring(0, 100) + "...";
+        return SummaryTruncator.truncate(text, 100);
     }
 }

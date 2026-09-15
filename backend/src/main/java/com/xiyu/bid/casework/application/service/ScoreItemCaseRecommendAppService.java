@@ -10,6 +10,7 @@ import com.xiyu.bid.casework.application.port.TenderQualificationQueryPort;
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 import com.xiyu.bid.casework.domain.policy.QualificationPerformanceRetriever;
 import com.xiyu.bid.casework.domain.policy.ScoreItemCaseMatchPolicy;
+import com.xiyu.bid.casework.application.util.SummaryTruncator;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendRequest;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendResponse;
 import com.xiyu.bid.entity.Project;
@@ -192,10 +193,7 @@ public class ScoreItemCaseRecommendAppService {
             KnowledgeCaseReadModel candidate,
             ScoreItemCaseMatchPolicy.MatchResult result,
             ScoreItemCaseSourceMetaLoader.SourceMeta sourceMeta) {
-        String summary = candidate.getResponseText();
-        if (summary != null && summary.length() > 200) {
-            summary = summary.substring(0, 200) + "...";
-        }
+        String summary = SummaryTruncator.truncate(candidate.getResponseText(), 200);
 
         return ScoreItemCaseRecommendResponse.Item.builder()
                 .id(candidate.getId())
