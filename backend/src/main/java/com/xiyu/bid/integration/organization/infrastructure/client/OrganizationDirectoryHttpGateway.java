@@ -148,6 +148,14 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
     }
 
     @Override
+    public Map<String, OssUserJobAndRoleDto> getUserJobAndRoleListByJobNumbersStrict(
+            List<String> jobNumbers,
+            OrganizationDirectoryLookupContext context
+    ) {
+        return batchClient.getUserJobAndRoleListByJobNumbersStrict(jobNumbers, context);
+    }
+
+    @Override
     public Optional<OrganizationUserSnapshot> fetchUserByUserId(String userId, OrganizationDirectoryLookupContext context) {
         String url = buildUrl(directory.getUserDetailPath());
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();

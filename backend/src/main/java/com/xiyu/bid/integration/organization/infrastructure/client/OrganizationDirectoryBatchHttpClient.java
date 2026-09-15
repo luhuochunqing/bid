@@ -30,12 +30,12 @@ import java.util.Optional;
 class OrganizationDirectoryBatchHttpClient {
 
     private static final Logger log = LoggerFactory.getLogger(OrganizationDirectoryBatchHttpClient.class);
-
     private final RestTemplate batchRestTemplate;
     private final ObjectMapper objectMapper;
     private final OrganizationIntegrationProperties.Directory directory;
     private final OrganizationDirectoryAuthHeaders authHeaders;
     private final OrganizationDirectoryJsonMapper mapper = new OrganizationDirectoryJsonMapper();
+    private final OrganizationDirectoryStrictBatchLookup strictBatchLookup;
 
     OrganizationDirectoryBatchHttpClient(
             RestTemplate batchRestTemplate,
@@ -46,14 +46,37 @@ class OrganizationDirectoryBatchHttpClient {
         this.objectMapper = objectMapper;
         this.directory = directory;
         this.authHeaders = authHeaders;
+        this.strictBatchLookup = new OrganizationDirectoryStrictBatchLookup(
+                batchRestTemplate, objectMapper, authHeaders);
     }
 
     Map<String, OssUserJobAndRoleDto> getUserJobAndRoleListByJobNumbers(
             List<String> jobNumbers,
             OrganizationDirectoryLookupContext context
     ) {
+        return queryJobAndRoleList(jobNumbers, context);
+    }
+
+    Map<String, OssUserJobAndRoleDto> getUserJobAndRoleListByJobNumbersStrict(
+            List<String> jobNumbers,
+            OrganizationDirectoryLookupContext context
+    ) {
+        return strictBatchLookup.lookup(
+                jobNumbers,
+                buildUrl(directory.getBatchJobRoleLookupPath()),
+                directory.getBatchQuerySize(),
+                context);
+    }
+
+    private Map<String, OssUserJobAndRoleDto> queryJobAndRoleList(
+            List<String> jobNumbers,
+            OrganizationDirectoryLookupContext context
+    ) {
         String url = buildUrl(directory.getBatchJobRoleLookupPath());
-        if (url.isBlank() || jobNumbers == null || jobNumbers.isEmpty()) {
+        if (jobNumbers == null || jobNumbers.isEmpty()) {
+            return Map.of();
+        }
+        if (url.isBlank()) {
             return Map.of();
         }
         int batchSize = Math.max(1, directory.getBatchQuerySize());
@@ -66,23 +89,24 @@ class OrganizationDirectoryBatchHttpClient {
             requestCount += batch.size();
             try {
                 Optional<JsonNode> response = postJsonBatch(url, Map.of("data", batch), context);
-                if (response.isPresent()) {
-                    List<OssUserJobAndRoleDto> batchResults = mapper.jobAndRoleList(response.get());
-                    for (OssUserJobAndRoleDto dto : batchResults) {
-                        if (dto.jobNumber() != null && !dto.jobNumber().isBlank()) {
-                            allResults.merge(dto.jobNumber(), dto, (existing, incoming) -> {
-                                log.warn("批量岗位/角色回查结果中工号重复，保留第一条: jobNumber={}", dto.jobNumber());
-                                return existing;
-                            });
-                            responseCount++;
-                        } else {
-                            log.warn("批量岗位/角色回查结果中存在空工号记录，已忽略");
-                        }
+                if (response.isEmpty()) {
+                    continue;
+                }
+                List<OssUserJobAndRoleDto> batchResults = mapper.jobAndRoleList(response.get());
+                for (OssUserJobAndRoleDto dto : batchResults) {
+                    if (dto.jobNumber() != null && !dto.jobNumber().isBlank()) {
+                        allResults.merge(dto.jobNumber(), dto, (existing, incoming) -> {
+                            log.warn("批量岗位/角色回查结果中工号重复，保留第一条: jobNumber={}", dto.jobNumber());
+                            return existing;
+                        });
+                        responseCount++;
+                    } else {
+                        log.warn("批量岗位/角色回查结果中存在空工号记录，已忽略");
                     }
                 }
             } catch (RuntimeException ex) {
                 log.error("批量岗位/角色回查失败: url={}, batchSize={}, error={}", url, batch.size(), ex.getMessage(), ex);
-                // 批量查询失败不影响同步主流程，返回已获取的部分结果
+                // 普通组织同步保持既有容错语义，返回已获取的部分结果
             }
         }
         long durationMs = (System.nanoTime() - startNs) / 1_000_000;

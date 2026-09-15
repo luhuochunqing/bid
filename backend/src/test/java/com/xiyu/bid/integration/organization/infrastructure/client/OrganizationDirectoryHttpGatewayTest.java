@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
@@ -360,11 +361,42 @@ class OrganizationDirectoryHttpGatewayTest {
 
         assertThat(result).hasSize(2);
         assertThat(result.get("08402").jobName()).isEqualTo("Java开发工程师");
-        assertThat(result.get("08402").sysRoleList()).containsExactly("员工测试", "管理员");
+        assertThat(result.get("08402").sysRoleList()).containsExactly("管理员");
         assertThat(result.get("08402").username()).isEqualTo("张锡臣");
         assertThat(result.get("08640").jobName()).isEqualTo("运输管理专员");
         assertThat(result.get("08640").sysRoleList()).isEmpty();
         assertThat(result.get("08640").username()).isEqualTo("范子文");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("batch job/role lookup keeps active bid role code and drops inactive or deleted roles")
+    void getUserJobAndRoleListByJobNumbers_objectRoles_filtersInactiveRoles() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        server.expect(requestTo("https://oss.example.test/oss/admin-web/v1/output/data/getUserJobListByJobNumberList"))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andRespond(withSuccess("""
+                        {
+                          "code": 0,
+                          "data": {
+                            "08402": {
+                              "jobNumber": "08402",
+                              "status": 1,
+                              "sysRoleList": [
+                                { "roleCode": "/bidAdmin", "roleName": "投标管理员", "status": 1, "del": 0 },
+                                { "roleCode": "bid-TeamLeader", "roleName": "投标组长", "status": 0, "del": 0 },
+                                { "roleCode": "bid-Team", "roleName": "投标专员", "status": 1, "del": true }
+                              ]
+                            }
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        java.util.Map<String, com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto> result =
+                gateway(restTemplate, defaultProperties()).getUserJobAndRoleListByJobNumbers(List.of("08402"));
+
+        assertThat(result.get("08402").sysRoleList()).containsExactly("/bidAdmin");
         server.verify();
     }
 
@@ -379,6 +411,78 @@ class OrganizationDirectoryHttpGatewayTest {
 
         java.util.Map<String, com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto> result =
                 gateway(restTemplate, defaultProperties()).getUserJobAndRoleListByJobNumbers(List.of("08402"));
+
+        assertThat(result).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("strict batch job/role lookup fails the whole lookup on HTTP batch failure")
+    void getUserJobAndRoleListByJobNumbersStrict_failure_throws() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        server.expect(ExpectedCount.twice(),
+                        requestTo("https://oss.example.test/oss/admin-web/v1/output/data/getUserJobListByJobNumberList"))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        OrganizationDirectoryHttpGateway strictGateway = gateway(restTemplate, defaultProperties());
+
+        assertThatThrownBy(() -> strictGateway.getUserJobAndRoleListByJobNumbersStrict(List.of("08402")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("single job number");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("strict batch job/role lookup retries then splits a failing combination")
+    void getUserJobAndRoleListByJobNumbersStrict_combinationFailure_recoversBySplitting() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        String url = "https://oss.example.test/oss/admin-web/v1/output/data/getUserJobListByJobNumberList";
+        server.expect(requestTo(url))
+                .andExpect(content().json("{\"data\":[\"10001\",\"10002\",\"10003\",\"10004\"]}"))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+        server.expect(requestTo(url))
+                .andExpect(content().json("{\"data\":[\"10001\",\"10002\",\"10003\",\"10004\"]}"))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+        server.expect(requestTo(url))
+                .andExpect(content().json("{\"data\":[\"10001\",\"10002\"]}"))
+                .andRespond(withSuccess("""
+                        {"code":0,"data":{}}
+                        """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(url))
+                .andExpect(content().json("{\"data\":[\"10003\",\"10004\"]}"))
+                .andRespond(withSuccess("""
+                        {"code":0,"data":{
+                          "10003":{"jobNumber":"10003","status":1,"sysRoleList":[]},
+                          "10004":{"jobNumber":"10004","status":1,"sysRoleList":[]}
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+        OrganizationIntegrationProperties props = defaultProperties();
+        props.getDirectory().setBatchQuerySize(4);
+
+        java.util.Map<String, com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto> result =
+                gateway(restTemplate, props).getUserJobAndRoleListByJobNumbersStrict(
+                        List.of("10001", "10002", "10003", "10004"));
+
+        assertThat(result).containsOnlyKeys("10003", "10004");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("strict batch job/role lookup treats a successful empty batch as complete")
+    void getUserJobAndRoleListByJobNumbersStrict_successWithoutMatches_returnsEmpty() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        String url = "https://oss.example.test/oss/admin-web/v1/output/data/getUserJobListByJobNumberList";
+        server.expect(requestTo(url))
+                .andExpect(content().json("{\"data\":[\"10001\",\"10002\"]}"))
+                .andRespond(withSuccess("{\"code\":0,\"data\":{}}", MediaType.APPLICATION_JSON));
+
+        java.util.Map<String, com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto> result =
+                gateway(restTemplate, defaultProperties()).getUserJobAndRoleListByJobNumbersStrict(
+                        List.of("10001", "10002"));
 
         assertThat(result).isEmpty();
         server.verify();

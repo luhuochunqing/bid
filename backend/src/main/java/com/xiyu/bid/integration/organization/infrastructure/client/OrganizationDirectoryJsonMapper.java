@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Locale;
 
 class OrganizationDirectoryJsonMapper {
+    private final OrganizationSystemRoleJsonMapper systemRoleMapper = new OrganizationSystemRoleJsonMapper();
+
     OrganizationDepartmentSnapshot department(JsonNode root) {
         JsonNode node = payloadNode(root);
         String externalDeptId = firstText(node, "deptId", "departmentId", "id");
@@ -185,7 +187,7 @@ class OrganizationDirectoryJsonMapper {
         return new OssUserJobAndRoleDto(
                 firstText(node, "jobNumber", "userNo", "jobNo", "employeeNo"),
                 firstText(node, "jobName", "positionName", "name"),
-                textList(node, "sysRoleList"),
+                systemRoleMapper.activeRoleTexts(node, "sysRoleList"),
                 firstText(node, "employeeStatus", "employeeStatusName"),
                 firstText(node, "status", "userStatus"),
                 firstText(node, "username", "userName", "name")
@@ -197,30 +199,11 @@ class OrganizationDirectoryJsonMapper {
         return new OssUserJobAndRoleDto(
                 jobNumber.isBlank() ? fallbackJobNumber : jobNumber,
                 firstText(node, "jobName", "positionName", "name"),
-                roleNameList(node, "sysRoleList"),
+                systemRoleMapper.activeRoleTexts(node, "sysRoleList"),
                 firstText(node, "employeeStatus", "employeeStatusName"),
                 firstText(node, "status", "userStatus"),
                 firstText(node, "username", "userName", "name")
         );
-    }
-
-    private List<String> textList(JsonNode node, String fieldName) {
-        JsonNode array = node.path(fieldName);
-        if (!array.isArray()) return List.of();
-        List<String> result = new ArrayList<>();
-        array.forEach(e -> { if (e.isTextual() && !e.isNull()) result.add(e.asText()); });
-        return result;
-    }
-
-    private List<String> roleNameList(JsonNode node, String fieldName) {
-        JsonNode array = node.path(fieldName);
-        if (!array.isArray()) return List.of();
-        List<String> result = new ArrayList<>();
-        array.forEach(e -> {
-            if (e.isTextual() && !e.isNull()) result.add(e.asText());
-            else if (e.isObject()) { String rn = firstText(e, "roleName", "name", "role"); if (!rn.isBlank()) result.add(rn); }
-        });
-        return result;
     }
 
     private List<JsonNode> snapshotNodes(JsonNode root) {

@@ -2,15 +2,19 @@
 title: 商机预测提醒
 space: engineering
 category: feature
-tags: [商机预测, 提醒, 定时任务, 通知中心, 企微, CRM事件库, opportunity-prediction]
+tags: [商机预测, 提醒, 定时任务, 通知中心, 企微, CRM事件库, OSS, 组织架构, opportunity-prediction]
 created: 2026-08-24
 updated: 2026-09-16
 health_checked: 2026-09-16
 sources:
   - specs/054-opportunity-prediction-reminder/spec.md
   - specs/054-opportunity-prediction-reminder/data-model.md
+  - specs/063-opportunity-reminder-live-recipients/spec.md
   - docs/implementation-notes/CO-商机预测提醒.md
   - backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderService.java
+  - backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionRecipientResolver.java
+  - backend/src/main/java/com/xiyu/bid/workbench/domain/OpportunityPredictionRecipientPolicy.java
+  - backend/src/main/java/com/xiyu/bid/integration/organization/infrastructure/client/OrganizationDirectoryStrictBatchLookup.java
   - backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderSupport.java
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/infrastructure/sdk/OpportunityPredictionEventPublisher.java
 backlinks:
@@ -26,13 +30,13 @@ backlinks:
   有服务周期截止时间时，到点即自然满足"央企提前 6 个月 / 其他提前 3 个月"。
 - **每项目只创建一次通知**：独立表 `opportunity_prediction_reminder_log`（`project_id` 唯一键），站内通知成功后落表，DB 层兜底防并发双发。
 - **事件失败可恢复**：`event_published_at=NULL` 表示 CRM 事件待重试；每日扫描只重推事件，不重复站内信或企微任务，SDK 受理后补写时间。事件先用条件 UPDATE 原子领取，多 Pod 同时扫描时只有一个实例调用 SDK；10 分钟未完成的领取可恢复。
-- **接收人**：项目经理（`Project.managerId`，启用过滤）+ 投标管理员（`/bidAdmin`）+ 投标组长（`bid-TeamLeader`），合并去重。
+- **接收人**：OSS 实时确认在职的项目经理（`Project.managerId`）+ OSS 实时活动角色中的投标管理员（`/bidAdmin`）+ 投标组长（`bid-TeamLeader`），合并去重；本地用户表只负责“工号 → 站内用户 ID”映射，不再作为在职状态或角色事实源。
 - **渠道**：站内信（`NotificationApplicationService.createNotification`，企微经 `NotificationCreatedEvent` 自动镜像，按工号推送无工号 SKIP）+ 西域事件库（`OpportunityPredictionEventPublisher` → `/eventbus/publishEvent`）。
 
 ## 关键决策（规范外）
 
 1. **项目经理来源**：定时任务无登录态，`CrmAuthService` 禁止系统服务号换 CRM JWT，不能实时反查 CRM；
-   取"自动分配"已落库的 `Project.managerId`（即 CRM 查得结果的本地落库形态）。
+   负责人身份取"自动分配"已落库的 `Project.managerId`，是否仍在职则以本轮 OSS 批量实时回查为准。
 2. **文案兜底**：无服务周期截止日期时省略"服务周期将于…截止"句，只保留"预测下次招标时间为…，请到CRM创建商机。"
 3. **事件发布隔离**：事件库失败不阻断站内信/企微主链路；失败状态持久化，后续扫描只补发事件。
 4. **结果类型回退**：`ProjectResult.resultType` 优先，缺失回退 `Project.status.name()`。
@@ -40,6 +44,35 @@ backlinks:
 6. **项目负责人来源**：取 `project_initiation_details.projectLeaderName`（`Project` 实体无此字段），`runScan` 用 `findByProjectIdIn` 批量加载避免 N+1；立项详情缺失时回退 `Tender.projectManagerName`（见决策5）。
 7. **事件全量字段**：应 CRM 要求，商机事件 `data` 从轻量标识扩展为 11 字段（客户最新增加 `projectType`）（见下节），推送触发/策略/开关/线程池/流水编码均不变。
 8. **渠道状态分离（2026-09-10）**：提醒日志表示站内提醒已创建，`event_published_at` 表示 SDK 已受理。历史行按 `notified_at` 回填，防止部署后重放全部历史事件；已知失败项目必须按项目单独置空后验收。扫描不持有长事务，通知日志、领取、成功确认、失败释放均为独立短事务，SDK 调用发生在事务外。
+
+## 实时收件人解析与 OSS 批量回查（2026-09-16）
+
+### 事实源与执行顺序
+
+1. `OpportunityPredictionRecipientResolver` 从本地 `users` 枚举非空工号，并建立规范化工号到站内用户 ID 的映射。
+2. 每轮扫描只调用一次 `OrganizationDirectoryGateway#getUserJobAndRoleListByJobNumbersStrict`，OSS 返回值决定账号是否在职及当前活动角色。
+3. `status` 必须明确为 `1/true/active/enabled/启用/在职` 才能接收；未返回或未知状态 fail-closed。
+4. `sysRoleList` 对象先排除 `del=true`（兼容数字 `1`）或非活动 `status`，再优先读取 `roleCode`；字符串型旧响应继续兼容。
+5. 核心角色在前，实时在职项目经理追加，按站内用户 ID 去重后进入既有站内信、企微镜像和事件链路。
+
+### 批量接口恢复契约
+
+| 响应 | 处理 |
+|---|---|
+| HTTP 200 且业务码 `0/200/OK/SUCCESS`，数据非空 | 映射返回人员 |
+| HTTP 200 且成功业务码、`data={}` | **成功空结果**，立即结束该批，不重试、不拆分 |
+| HTTP 5xx / 408 / 429 / 传输失败 | 短暂重试一次；仍失败则递归二分隔离组合型异常 |
+| HTTP 4xx、非法 JSON、未知业务码 | 不可重试，整轮失败关闭 |
+| 单工号重试后仍失败，或超过 64 次额外请求/55 秒恢复预算 | 整轮失败关闭；不创建新通知和项目提醒日志 |
+
+测试环境真实边界：8,509 个工号按 50 人分 171 个基础批次；一个 50 人组合稳定返回 HTTP 500，重试后二分到 12 人的成功空结果和其余成功结果。严格回查共 177 次请求、6.627 秒，返回 1,163 名当前人员，识别 3 名核心角色（`/bidAdmin=3`、`bid-TeamLeader=1`，其中 1 人兼任）。
+
+### 副作用（Cross-Module Impact）
+
+- **普通组织同步不变**：仍调用允许返回部分结果的原查询；严格重试/二分仅供商机提醒使用。
+- **提醒唯一日志不变**：实时回查失败时收件人快照为空，新提醒被跳过，因此不会用部分角色集写入一次性 `opportunity_prediction_reminder_log`。
+- **历史补发不在本次修复内**：本次仅修正每日扫描的收件人事实源；历史项目补发需在测试验收后单独执行一次性、可审计流程。
+- **09:00 验收指标**：应出现 scheduled start/done、严格回查完成、`roleRecipients=3`（组织未变化时）及总耗时小于 60 秒；`notified=0` 只能证明调度和解析链路，不能证明企微实际送达。
 
 ## 通知链路复用
 

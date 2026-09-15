@@ -69,6 +69,25 @@ public interface OrganizationDirectoryGateway {
         return java.util.Map.of();
     }
 
+    /**
+     * 严格批量回查：批次重试/拆分后仍不可恢复时抛出异常，供“写入后不可补齐”的通知链路使用。
+     */
+    default java.util.Map<String, OssUserJobAndRoleDto> getUserJobAndRoleListByJobNumbersStrict(
+            List<String> jobNumbers
+    ) {
+        return getUserJobAndRoleListByJobNumbersStrict(jobNumbers, OrganizationDirectoryLookupContext.empty());
+    }
+
+    /**
+     * 严格批量回查（带上下文）。默认实现保持兼容；真实 HTTP 网关覆盖为不可恢复失败即抛出。
+     */
+    default java.util.Map<String, OssUserJobAndRoleDto> getUserJobAndRoleListByJobNumbersStrict(
+            List<String> jobNumbers,
+            OrganizationDirectoryLookupContext context
+    ) {
+        return getUserJobAndRoleListByJobNumbers(jobNumbers, context);
+    }
+
     default List<OrganizationUserSnapshot> listUsersByWindow(
             LocalDateTime startAt,
             LocalDateTime endAt,
