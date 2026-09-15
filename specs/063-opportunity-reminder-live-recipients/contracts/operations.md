@@ -7,6 +7,8 @@
 - `cutoff`: 必填截止日期，包含当日。
 - `mode`: `preview` 或 `execute`，默认 `preview`。
 
+`cutoff` 不得晚于 `runDate`；违反该约束视为无效配置，启动和 09:00 调度都不得写入。
+
 ## Trigger lifecycle
 
 1. `enabled=false` 时，启动与调度均不处理历史补发。

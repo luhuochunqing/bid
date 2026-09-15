@@ -1,107 +1,143 @@
-# Implementation Plan: 商机预测实时收件人与历史补发
+# 商机预测历史补发 Implementation Plan
 
-**Branch**: `agent/codex/opportunity-reminder-live-recipients` | **Date**: 2026-09-15 | **Spec**: [spec.md](spec.md)
+> **For agentic workers:** 按本计划在当前隔离 worktree 内执行，严格遵守 Red → Green → Refactor；本轮只允许部署测试环境，不得触碰生产。
 
-**Input**: Feature specification from `/specs/063-opportunity-reminder-live-recipients/spec.md`
+**Branch**: `agent/codex/opportunity-reminder-history-replay` | **Date**: 2026-09-16 | **Spec**: [spec.md](spec.md)
 
-**Note**: This template is filled in by the `/speckit-plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
+**Goal:** 在不改动旧提醒日志和事件投递状态的前提下，把执行日前已提醒过的到期历史项目，按执行时实时在职的“项目经理 + 投标管理员 + 投标组长”完整补发一次。
 
-## Summary
+**Architecture:** 保留现有每日扫描不变，新增默认关闭的一次性薄调度任务。补发服务从既有 reminder log 选择历史存量，复用实时收件人快照和通知应用服务，以独立通知来源形成项目级持久幂等标记；启动阶段永远只预演，只有指定日期 09:00 且显式 `execute` 才写入。
 
-把商机预测提醒的接收人事实源从本地单角色缓存改为 OSS 批量实时结果：一次扫描先用本地用户缓存取得工号与站内用户 ID，再批量查询 OSS，按实时在职状态和全部活动角色解析项目经理、投标管理员、投标组长。正常预测、每日调度、每项目一次日志和事件投递保持原样。历史补发分两步执行：修复后的正常扫描补齐从未提醒项目；已有经理提醒项目通过一次性脚本复用既有通知内容，只给缺失的实时核心角色创建通知。生产写入前先以只读查询核对固定截止日范围。
+**Tech Stack:** Java 21、Spring Boot 3.2、Spring Data JPA、MySQL 8.0、JUnit 5、Mockito、H2 事务边界测试。
+
+## Global Constraints
+
+- 历史补发不新增表或 Flyway 迁移，不创建、更新或删除 `opportunity_prediction_reminder_log`。
+- 历史补发不发布 `OpportunityPrediction` 事件，也不改变原事件的领取或投递状态。
+- 收件人只采用 OSS 本轮明确返回为在职的项目经理及两个目标角色，本地缓存只负责工号到用户 ID 映射。
+- `cutoff` 不得晚于 `runDate`；配置缺失、日期不匹配、默认关闭或启动阶段均不得写入。
+- 测试环境执行前必须看到启动 preview；本轮禁止生产部署及生产数据写入。
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
+**Language/Version**: Java 21
 
-**Language/Version**: Java 21；一次性运维脚本使用仓库既有 Bash/Python 运行环境
+**Primary Dependencies**: Spring Boot 3.2、Spring Scheduling、Spring Data JPA、现有 `NotificationApplicationService` 与 OSS `OrganizationDirectoryGateway`
 
-**Primary Dependencies**: Spring Boot 3.2、Spring Data JPA、现有 `OrganizationDirectoryGateway`、现有通知应用服务与企微异步投递
+**Storage**: MySQL 8.0 既有 `opportunity_prediction_reminder_log`、`notification`、`user_notification`、`notification_delivery_task`
 
-**Storage**: MySQL 8.0 既有 `users`、`project`、`opportunity_prediction_reminder_log`、`notification`、`user_notification`；无 schema 变更
+**Testing**: JUnit 5 + Mockito 单测；Spring Boot + H2 事务边界测试；项目架构与 pre-push 门禁
 
-**Testing**: JUnit 5、AssertJ、Mockito 仅隔离真实外部 OSS/数据库边界；Spring MockRestServiceServer 验证真实 HTTP 映射
+**Target Platform**: 西域数智化投标管理平台 Linux 服务；首轮仅测试服务器 `172.16.38.78`
 
-**Target Platform**: Linux 生产服务器，现有 Spring Boot 单实例服务
+**Project Type**: 后端 Web 服务内部定时任务，无新增 HTTP 接口和前端页面
 
-**Project Type**: 既有 Web 服务的后台定时任务与一次性生产数据操作
+**Performance Goals**: 测试库 598 个项目、274 个历史候选在 60 秒内完成候选解析和通知创建；OSS 实时快照每轮只取一次
 
-**Performance Goals**: 在约 8,600 个本地身份、约 600 个项目规模下完整扫描 60 秒内结束；OSS 查询仅走批量接口
+**Constraints**: 默认关闭、单实例执行、逐项目短事务、失败项目隔离、可重跑、无 schema 变更、无生产操作
 
-**Constraints**: OSS 返回才视为实时有效；失败关闭；接收人按用户 ID 去重；不删除提醒日志；历史补发重复执行新增为 0；生产发送前必须 dry-run
-
-**Scale/Scope**: 当前生产基线 8,593 个有工号缓存用户、242 个截止日历史项目、3 名实时核心角色；不扩散到其他通知类型
+**Scale/Scope**: 测试基线 274 个历史候选、324 个未来项目；每个候选最多创建一条补发通知，单条最多 1000 个去重接收人
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+*GATE: Phase 0 前及 Phase 1 后均通过。*
 
-- **I FP-Java**: PASS。实时状态和角色判断放入无 Spring 依赖的纯策略；Repository/Gateway 调用留在 resolver shell。
-- **II Real-API Only**: PASS。生产代码只调用真实 `OrganizationDirectoryGateway`，不新增 mock/fallback 数据路径。
-- **III TDD**: PASS。先以 resolver/mapper/服务测试复现本地角色为 0 与离职经理误判，再实现。
-- **IV Split-First**: PASS。现有 `OpportunityPredictionReminderService` 已接近软上限，只替换协作者；新 resolver 与纯策略各自保持小文件。
-- **V OSS Integration**: PASS。全量工号一次交给既有批量网关；角色匹配大小写安全；输出请求数、返回数与命中数。
-- **VI Authorization**: PASS。最终业务代码不新增公开接口；若生产补跑需要临时入口，只放在 `/api/admin/**`、`isAuthenticated()`，并在补发后删除再部署。
-- **VII Defensive Collection**: PASS。所有非唯一工号/角色集合显式 merge 或集合去重；部分 OSS 响应按返回子集降级，不抛垮整轮扫描。
-- **VIII Boring Patterns**: PASS。复用现有网关、消息链路和日志，不引入缓存、队列、迁移或新框架。
+- **FP-Java**: 文案与 payload 派生留在无框架纯函数；调度、查询和写入留在 imperative shell。
+- **Real API only**: 生产代码继续调用真实 OSS Gateway；测试只在单元边界 Mock，不引入运行时 Mock 模式。
+- **TDD**: 先补消息、候选、幂等、调度安全测试并确认红灯，再写最小实现。
+- **Split-first**: 新调度器只负责触发；既有 transaction service 负责短事务；补发 service 只编排一个用例。
+- **OSS integration**: 一轮补发复用一个批量实时快照，不按项目重复访问 OSS。
+- **Defensive collection**: DB 数据转 Map 使用显式循环或带 merge function 的 `toMap`，单项目异常只计入失败。
+- **Security**: 不新增 Controller、权限或公网入口；开关由部署环境变量注入。
+- **Deployment**: 先定向测试、全量门禁、测试部署、启动 preview、09:00 execute、执行后幂等复核；生产另行授权。
 
-**Post-design re-check**: PASS。设计未引入 constitution 例外；无需 Complexity Tracking 记录。
+## Interfaces and Decisions
+
+### Candidate query
+
+`OpportunityPredictionReminderLogRepository` 新增：
+
+```java
+List<OpportunityPredictionReminderLog>
+findByPredictedBidDateLessThanEqualAndNotifiedAtBeforeOrderByProjectIdAsc(
+        LocalDate cutoff, LocalDateTime notifiedBefore);
+```
+
+边界固定为 `runDate.atStartOfDay()`，因此正常扫描在执行日新建的日志不进入历史补发。
+
+### Persistent idempotency
+
+`NotificationRepository` 按 `sourceEntityType + sourceEntityId + type` 查询。固定来源为 `OpportunityPredictionHistoryReplay`，类型仍为 `OPPORTUNITY_PREDICTION`，`sourceEntityId` 为项目 ID。`OpportunityPredictionReminderTransactionService` 提供：
+
+```java
+Set<Long> findExistingNotificationSourceIds(
+        String sourceEntityType, String type, Collection<Long> sourceEntityIds);
+
+boolean createNotificationIfAbsent(
+        CreateNotificationRequest request, Long systemActor);
+```
+
+后一个方法在 `REQUIRES_NEW` 短事务内再次检查并创建；返回 `false` 表示已存在。单实例是无唯一索引方案的明确运行前提。
+
+### Replay service
+
+`OpportunityPredictionHistoryReplayService` 暴露：
+
+```java
+ReplayOutcome run(LocalDate runDate, LocalDate cutoff, ReplayMode mode);
+```
+
+`ReplayMode` 仅有 `PREVIEW`、`EXECUTE`。预演和执行共用同一候选查询、项目批量加载、实时收件人解析和幂等判断；`PREVIEW` 不调用任何写方法。
+
+### Trigger safety
+
+`OpportunityPredictionHistoryReplayProperties` 绑定：
+
+- `XIYU_OPPORTUNITY_HISTORY_REPLAY_ENABLED`，默认 `false`
+- `XIYU_OPPORTUNITY_HISTORY_REPLAY_MODE`，默认 `PREVIEW`
+- `XIYU_OPPORTUNITY_HISTORY_REPLAY_RUN_DATE`，默认空
+- `XIYU_OPPORTUNITY_HISTORY_REPLAY_CUTOFF`，默认空
+
+`OpportunityPredictionHistoryReplayTask` 在 `ApplicationReadyEvent` 上只调用 `PREVIEW`；09:00 调度只有在启用、配置完整、`today == runDate` 且模式为 `EXECUTE` 时调用 `EXECUTE`。09:00 后重启只预演，不追补执行。
 
 ## Project Structure
 
-### Documentation (this feature)
-
-```text
-specs/[###-feature]/
-├── plan.md              # This file (/speckit-plan command output)
-├── research.md          # Phase 0 output (/speckit-plan command)
-├── data-model.md        # Phase 1 output (/speckit-plan command)
-├── quickstart.md        # Phase 1 output (/speckit-plan command)
-├── contracts/           # Phase 1 output (/speckit-plan command)
-└── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
-```
-
-### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
-
 ```text
 backend/src/main/java/com/xiyu/bid/
-├── integration/organization/
-│   ├── dto/OssUserJobAndRoleDto.java
-│   └── infrastructure/client/OrganizationDirectoryJsonMapper.java
+├── notification/repository/NotificationRepository.java
 └── workbench/
-    ├── domain/OpportunityPredictionRecipientPolicy.java
+    ├── domain/OpportunityPredictionAlertMessage.java
+    ├── job/
+    │   ├── OpportunityPredictionHistoryReplayProperties.java
+    │   └── OpportunityPredictionHistoryReplayTask.java
+    ├── repository/OpportunityPredictionReminderLogRepository.java
     └── service/
-        ├── OpportunityPredictionRecipientResolver.java
-        └── OpportunityPredictionReminderService.java
+        ├── OpportunityPredictionHistoryReplayService.java
+        ├── OpportunityPredictionReminderSupport.java
+        └── OpportunityPredictionReminderTransactionService.java
 
-backend/src/test/java/com/xiyu/bid/
-├── integration/organization/infrastructure/client/OrganizationDirectoryHttpGatewayTest.java
-└── workbench/
-    ├── domain/OpportunityPredictionRecipientPolicyTest.java
-    └── service/
-        ├── OpportunityPredictionRecipientResolverTest.java
-        └── OpportunityPredictionReminderServiceTest.java
+backend/src/main/resources/application.yml
 
-scripts/operations/
-└── backfill-opportunity-prediction-reminders.py
+backend/src/test/java/com/xiyu/bid/workbench/
+├── domain/OpportunityPredictionAlertMessageTest.java
+├── job/OpportunityPredictionHistoryReplayTaskTest.java
+└── service/
+    ├── OpportunityPredictionHistoryReplayServiceTest.java
+    └── OpportunityPredictionReminderTransactionBoundaryTest.java
 ```
 
-**Structure Decision**: 保持既有 workbench 分层。纯状态/角色判断进入 `domain`，一次扫描一次 I/O 的组合进入 `service`，OSS JSON 只在既有 mapper 修复“活动角色事实丢失”。一次性历史补发脚本放入 `scripts/operations`，先 dry-run；它只调用已有通知 HTTP API并做只读数据库核对，不直接写通知表。临时手动扫描入口若无法通过现有运行设施调用，则作为部署中间提交存在，执行后立即删除，不进入最终代码差异。
+**Structure Decision**: 不新增通用补发框架、不新增端点、不新增数据表。调度安全配置放在 `workbench/job`，业务编排放在 `workbench/service`，纯文案和 payload 规则复用现有 workbench 纯核心。
+
+## Verification Strategy
+
+1. **Red**: 消息测试先锁定“历史补发”可见标识；服务测试锁定完整去重收件人、preview 零写、旧通知不算送达、重跑幂等；任务测试锁定启动只预演和日期/模式门禁。
+2. **Green**: 添加最小 repository 查询、短事务幂等创建、补发编排和默认关闭任务。
+3. **Refactor**: 删除重复组装，保证正常 `OpportunityPredictionReminderService` 与事件发布代码零行为变化。
+4. **Targeted**: 运行所有 opportunity prediction 相关测试和事务边界测试。
+5. **Regression**: 运行 Architecture/FP-Java/Maintainability、完整后端测试、前端 build、pre-push gate。
+6. **Test deployment**: 按 `xiyu-server-deploy` SOP 部署测试环境；启动 preview 必须显示候选 274、未来 324 不入选，差异即停止。
+7. **09:00 acceptance**: 核对新增补发通知数、接收关系数、企微异步结果、旧 reminder log/event 状态不变；立即再 preview 应显示可新增 0。
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
-
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| 无 | 无 | 无 |
+无 Constitution 例外。一次性代码保留在独立 job/service，完成测试与未来生产补发后可整体删除；持久审计事实仍留在既有通知表。
