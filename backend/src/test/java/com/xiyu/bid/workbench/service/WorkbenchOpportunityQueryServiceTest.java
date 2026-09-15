@@ -117,12 +117,12 @@ class WorkbenchOpportunityQueryServiceTest {
     }
 
     @Test
-    @DisplayName("窗口过滤：预测时间超出未来 6 个月或已过去的行不返回")
-    void shouldFilterRowsOutsideSixMonthWindow() {
+    @DisplayName("窗口过滤：预测时间超出未来 1 年或已过去的行不返回")
+    void shouldFilterRowsOutsideOneYearWindow() {
         ProjectDTO tooLate = baseProject()
                 .id(10L).name("窗口外-太远")
                 .bidStatus("WON")
-                .servicePeriodEndDate(LocalDate.of(2028, 6, 1)) // 预测 2028-03-01
+                .servicePeriodEndDate(LocalDate.of(2028, 6, 1)) // 预测 2028-03-01 > 1 年
                 .build();
         ProjectDTO alreadyPast = baseProject()
                 .id(11L).name("窗口外-已过去")
@@ -132,6 +132,22 @@ class WorkbenchOpportunityQueryServiceTest {
         when(projectQueryService.getAllProjects()).thenReturn(List.of(tooLate, alreadyPast));
 
         assertTrue(service.getOpportunityPredictions(TODAY).isEmpty());
+    }
+
+    @Test
+    @DisplayName("窗口过滤：预测时间在 6 到 12 个月内的商机应正常返回")
+    void shouldIncludeRowsBetweenSixAndTwelveMonths() {
+        ProjectDTO eightMonthsOut = baseProject()
+                .id(12L).name("8个月后商机")
+                .bidStatus("WON")
+                .servicePeriodEndDate(LocalDate.of(2027, 7, 1)) // 预测 2027-04-01，约 7.5 个月后（落入 1 年内）
+                .build();
+        when(projectQueryService.getAllProjects()).thenReturn(List.of(eightMonthsOut));
+
+        List<WorkbenchOpportunityDTO> rows = service.getOpportunityPredictions(TODAY);
+        assertEquals(1, rows.size());
+        assertEquals("2027-04-01", rows.get(0).predictedBidDate());
+        assertFalse(rows.get(0).near());
     }
 
     @Test

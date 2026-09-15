@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-15] feat | 工作台 AI 商机预测窗口扩至1年并支持搜索与导出
+
+- 触发：工作台商机预测优化，扩大展示窗口至 1 年（`VISIBLE_WINDOW_MONTHS = 12`），支持按项目名称/招标主体搜索与表格导出。
+- 变更：
+  - 更新 `.wiki/pages/opportunity-prediction-reminder.md` 中的展示窗口说明与相关组件引用。
+  - 沉淀实现记录 `docs/implementation-notes/workbench-opportunity-prediction-enhancement.md`。
+
 ## [2026-09-14] chore | 存量过期 Wiki 页面与历史档案豁免标记批量回填
 
 - 触发：处理 Wiki 既有存量过期页面。

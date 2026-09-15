@@ -80,7 +80,7 @@ export const workbenchApi = {
 
   /**
    * 工作台 AI 商机预测：基于已中标/流标项目按提醒规则预测下一轮招标时间。
-   * 后端只返回未来 6 个月内商机，按预测招标时间升序；提醒通知暂未接入。
+   * 后端只返回未来 1 年内商机，按预测招标时间升序；提醒通知暂未接入。
    * @returns {Promise<{success: boolean, data: Array}>}
    */
   async getOpportunityPredictions() {

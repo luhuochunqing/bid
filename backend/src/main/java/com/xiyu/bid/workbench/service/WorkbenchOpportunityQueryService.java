@@ -1,5 +1,5 @@
 // Input: ProjectQueryService（已按权限过滤并 enrich 的项目列表）
-// Output: 未来 6 个月内预测招标的商机行列表（按预测时间升序）
+// Output: 未来 1 年内预测招标的商机行列表（按预测时间升序）
 // Pos: workbench/service/ - 工作台商机预测查询服务
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.workbench.service;
@@ -24,7 +24,7 @@ import java.util.Objects;
  *
  * <p>所有状态的项目均参与预测（已中标/流标/未中标/投标中等），按
  * {@link OpportunityPredictionPolicy} 提醒规则预测下一轮招标时间，
- * 只返回未来 6 个月内的商机，按预测招标时间升序。
+ * 只返回未来 1 年（12 个月）内的商机，按预测招标时间升序。
  *
  * <p>数据可见性由 {@link ProjectQueryService#getAllProjects()} 内置的
  * 权限过滤保证（管理员看全部，其他角色看参与项目）。
@@ -44,7 +44,7 @@ public class WorkbenchOpportunityQueryService {
      * 查询工作台商机预测列表。
      *
      * @param today 当前日期（预测窗口基准）
-     * @return 未来 6 个月内的预测商机，按预测招标时间升序
+     * @return 未来 1 年内的预测商机，按预测招标时间升序
      */
     @Transactional(readOnly = true)
     public List<WorkbenchOpportunityDTO> getOpportunityPredictions(final LocalDate today) {

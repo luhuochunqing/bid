@@ -27,8 +27,8 @@ import java.util.Optional;
 @UtilityClass
 public class OpportunityPredictionPolicy {
 
-    /** 只显示未来 6 个月内的预测商机。 */
-    public static final int VISIBLE_WINDOW_MONTHS = 6;
+    /** 只显示未来 1 年（12 个月）内的预测商机。 */
+    public static final int VISIBLE_WINDOW_MONTHS = 12;
 
     /** "3 个月内"红点提醒阈值（天）。 */
     public static final long NEAR_THRESHOLD_DAYS = 90;
@@ -107,7 +107,7 @@ public class OpportunityPredictionPolicy {
                 && years.compareTo(BigDecimal.valueOf(MAX_SERVICE_PERIOD_YEARS)) <= 0;
     }
 
-    /** 是否落入展示窗口：预测时间在 [今天, 今天 + 6 个月] 内。 */
+    /** 是否落入展示窗口：预测时间在 [今天, 今天 + 12 个月（1 年）] 内。 */
     public static boolean isVisible(final LocalDate predicted, final LocalDate today) {
         return predicted != null
                 && !predicted.isBefore(today)
