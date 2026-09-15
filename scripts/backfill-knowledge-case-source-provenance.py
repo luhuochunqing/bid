@@ -33,6 +33,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 
 ALLOWED_DB_HOSTS = {'127.0.0.1', 'localhost', '172.16.38.78', 'winbid-01.test.rds.ehsy.com'}
 
@@ -140,19 +141,35 @@ def build_norm_pos_map(content):
 
 
 def find_loose_match(content, response_text):
+    matches = find_loose_matches(content, response_text)
+    if matches:
+        return matches[0]
+    norm_content, norm_to_orig = build_norm_pos_map(content)
+    return None, None, norm_content, norm_to_orig
+
+
+def find_loose_matches(content, response_text):
     norm_content, norm_to_orig = build_norm_pos_map(content)
     norm_resp = normalize_ws(response_text)
     if not norm_resp:
-        return None, None, norm_content, norm_to_orig
+        return []
+
+    positions = []
     pos = norm_content.find(norm_resp)
-    if pos >= 0 and pos < len(norm_to_orig):
-        return norm_to_orig[pos], pos, norm_content, norm_to_orig
-    short = norm_resp[:min(200, len(norm_resp))]
-    if short:
-        pos = norm_content.find(short)
-        if pos >= 0 and pos < len(norm_to_orig):
-            return norm_to_orig[pos], pos, norm_content, norm_to_orig
-    return None, None, norm_content, norm_to_orig
+    while pos >= 0:
+        if pos < len(norm_to_orig):
+            positions.append((norm_to_orig[pos], pos, norm_content, norm_to_orig))
+        pos = norm_content.find(norm_resp, pos + 1)
+
+    if not positions:
+        short = norm_resp[:min(200, len(norm_resp))]
+        if short:
+            pos = norm_content.find(short)
+            while pos >= 0:
+                if pos < len(norm_to_orig):
+                    positions.append((norm_to_orig[pos], pos, norm_content, norm_to_orig))
+                pos = norm_content.find(short, pos + 1)
+    return positions
 
 
 def load_jsonl_index(jsonl_dir):
@@ -205,11 +222,14 @@ def search_in_markdown(md_path, response_text):
     with open(md_path, encoding='utf-8') as f:
         content = f.read()
     headings = parse_markdown_headings(content)
-    orig_pos, norm_pos, _, _ = find_loose_match(content, response_text)
-    if orig_pos is None:
-        return {'headings': headings, 'match': None}
-    nearest = find_nearest_heading(headings, orig_pos)
-    return {'headings': headings, 'match': {'orig_pos': orig_pos, 'nearest': nearest}}
+    matches = []
+    for orig_pos, norm_pos, _, _ in find_loose_matches(content, response_text):
+        matches.append({
+            'orig_pos': orig_pos,
+            'norm_pos': norm_pos,
+            'nearest': find_nearest_heading(headings, orig_pos),
+        })
+    return {'headings': headings, 'matches': matches}
 
 
 def process_cases(cases, text_index, markdown_dir):
@@ -245,7 +265,25 @@ def process_cases(cases, text_index, markdown_dir):
         if md_result is None:
             results.append({**case, '_status': 'file_missing', '_matched': matched})
             continue
-        nearest = md_result['match']['nearest'] if md_result['match'] else None
+        markdown_matches = md_result['matches']
+        if not markdown_matches:
+            nearest = None
+        else:
+            section_indexes = {
+                match['nearest']['index']
+                for match in markdown_matches
+                if match['nearest'] is not None
+            }
+            if len(section_indexes) > 1:
+                results.append({
+                    **case,
+                    '_status': 'cross_section_conflict',
+                    '_matches': matches,
+                    '_markdown_matches': markdown_matches,
+                    '_conflict_reason': '同一 Markdown 文档跨章节多命中',
+                })
+                continue
+            nearest = markdown_matches[0]['nearest']
         if nearest is None and md_result['headings']:
             results.append({
                 **case, '_status': 'no_nearest_heading',
@@ -323,7 +361,7 @@ def do_dry_run(args):
     if conflicts:
         print(f'\n--- 冲突样例（前 5 条）---')
         for r in conflicts[:5]:
-            n = len(r.get('_matches', []))
+            n = len(r.get('_markdown_matches', r.get('_matches', [])))
             print(f'  case_id={r["id"]} | matches={n}'
                   f' | reason={r.get("_conflict_reason", "")}'
                   f' | evidence="{(r.get("response_text") or "")[:60]}..."')
@@ -487,7 +525,48 @@ def _self_test():
     assert mapping[3] == 4   # ' ' → orig 4 (换行折叠)
     assert mapping[4] == 6   # 'c' → orig 6
 
-    print('backfill self-test passed: 9 组断言全部通过')
+    # 10. 同一 Markdown 文档跨章节重复证据不可证明，不能取首次命中
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        obs_key = '2026年（投标文件）/P/doc.docx'
+        md_path = os.path.join(tmp_dir, os.path.splitext(obs_key)[0] + '.md')
+        os.makedirs(os.path.dirname(md_path), exist_ok=True)
+        with open(md_path, 'w', encoding='utf-8') as fh:
+            fh.write('# A\n重复证据\n# B\n重复证据\n')
+        case = {
+            'id': 1,
+            'response_text': '重复证据',
+            'scoring_point_title': '评分项',
+            'obs_bid_file_key': obs_key,
+        }
+        text_index = {'重复证据': [{
+            'project': 'P', 'obs_key': obs_key, 'title': 'x', 'docx_label': 'x',
+        }]}
+        result = process_cases([case], text_index, tmp_dir)[0]
+        assert result['_status'] == 'cross_section_conflict'
+        assert result.get('_source_section_title') is None
+        assert result['_conflict_reason'] == '同一 Markdown 文档跨章节多命中'
+
+    # 11. 同一章节内重复证据仍可证明，取该章节
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        obs_key = '2026年（投标文件）/P/doc.docx'
+        md_path = os.path.join(tmp_dir, os.path.splitext(obs_key)[0] + '.md')
+        os.makedirs(os.path.dirname(md_path), exist_ok=True)
+        with open(md_path, 'w', encoding='utf-8') as fh:
+            fh.write('# A\n重复证据\n重复证据\n')
+        case = {
+            'id': 2,
+            'response_text': '重复证据',
+            'scoring_point_title': '评分项',
+            'obs_bid_file_key': obs_key,
+        }
+        text_index = {'重复证据': [{
+            'project': 'P', 'obs_key': obs_key, 'title': 'x', 'docx_label': 'x',
+        }]}
+        result = process_cases([case], text_index, tmp_dir)[0]
+        assert result['_status'] == 'updatable'
+        assert result['_source_section_title'] == 'A'
+
+    print('backfill self-test passed: 11 组断言全部通过')
 
 
 def main():
