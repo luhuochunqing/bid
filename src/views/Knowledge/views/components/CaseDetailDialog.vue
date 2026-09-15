@@ -97,9 +97,85 @@ const hasResponseText = computed(() => {
   return typeof raw === 'string' && raw.trim().length > 0
 })
 
+const escapeHtml = (str) => String(str)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;')
+
+const isMarkdownStructureLine = (line) => {
+  const trimmed = line.trimStart()
+  return trimmed.startsWith('#') || trimmed.startsWith('>') || trimmed.startsWith('```') ||
+    /^[-*+]\s/.test(trimmed) || (trimmed.match(/\|/g) || []).length >= 2
+}
+
+const isMarkdownBlock = (block) => block.split('\n').some(isMarkdownStructureLine)
+
+const SEQUENCE_RE = /^(?:\d+\.\s*|[一二三四五六七八九十]+、|[①-⑩]\s*|[(（]\d+[)）]\s*|[(（][一二三四五六七八九十]+[)）]\s*)/
+
+const insertBrBetweenNonListLines = (lines) => {
+  const tagPattern = /^<\/?ol>|^<li>/
+  const output = []
+
+  for (const line of lines) {
+    if (line === '') {
+      output.push('')
+    } else if (tagPattern.test(line)) {
+      output.push(line)
+    } else if (output.length > 0 && output[output.length - 1] !== '' && !tagPattern.test(output[output.length - 1])) {
+      output.push(`<br>${line}`)
+    } else {
+      output.push(line)
+    }
+  }
+
+  return output.join('\n')
+}
+
+const processPlainTextBlock = (block) => {
+  const lines = block.split('\n')
+  const output = []
+  let inList = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    const sequence = trimmed.match(SEQUENCE_RE)
+
+    if (sequence) {
+      if (!inList) {
+        output.push('<ol>')
+        inList = true
+      }
+      output.push(`<li>${escapeHtml(trimmed.slice(sequence[0].length))}</li>`)
+      continue
+    }
+
+    if (inList) {
+      output.push('</ol>')
+      inList = false
+    }
+    output.push(trimmed === '' ? '' : escapeHtml(line))
+  }
+
+  if (inList) output.push('</ol>')
+  return insertBrBetweenNonListLines(output)
+}
+
+const preprocessPlainText = (text) => {
+  if (!text) return ''
+  const normalized = text.replace(/\r\n/g, '\n')
+  return normalized.split(/\n{2,}/).map((block) => {
+    if (block.trim() === '') return ''
+    return isMarkdownBlock(block) ? block : processPlainTextBlock(block)
+  }).join('\n\n')
+}
+
+defineExpose({ preprocessPlainText })
+
 const responseHtml = computed(() => {
   if (!hasResponseText.value) return ''
-  return renderSafeMarkdown(props.caseData.responseText)
+  return renderSafeMarkdown(preprocessPlainText(props.caseData.responseText))
 })
 
 const bidResultLabel = computed(() => {
