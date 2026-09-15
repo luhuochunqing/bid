@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-16] fix | 工作台 AI 商机预测表头重构为显式双行网格以杜绝 Fragment 样式失效
+
+- 触发：用户反馈表头样式与设计差距大，第二排预测时间范围未占满 3 列宽度，重置按钮挤在第 2 列导致第 3-4 列大面积空白。
+- 根因：Element Plus `<el-date-picker>` 属于 Fragment 结构，Vue 3 `<style scoped>` 无法将单层 Grid 的 `grid-column: span 3` 正确作用于其根节点。
+- 方案：重构为 `.op-filters-main` 下显式双行网格，第一排 `repeat(4, 1fr)`，第二排 `3fr 1fr` 并穿透设置 `.el-date-editor { width: 100% !important }`，彻底实现上下左右四边绝对平齐。
+- 验证：Playwright 真实浏览器实测截图确认四端完全对其，Vitest 11/11 项测试通过。
+
 ## [2026-09-15] feat | 工作台 AI 商机预测窗口扩至1年并支持搜索与导出
 
 - 触发：工作台商机预测优化，扩大展示窗口至 1 年（`VISIBLE_WINDOW_MONTHS = 12`），支持按项目名称/招标主体搜索与表格导出。
