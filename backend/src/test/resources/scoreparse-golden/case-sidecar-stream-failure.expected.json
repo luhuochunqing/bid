@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "desensitization": "全文合成改写，仅保留单评分项表格版式，不含真实客户信息",
+  "focus": "流式提取失败后的解析回放基线保持稳定",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "laneHints": ["table"],
+  "items": [
+    {
+      "code": "1",
+      "dim": "技术方案",
+      "detail": "提供完整、可落地的技术实施方案得100分。",
+      "weight": 100
+    }
+  ]
+}

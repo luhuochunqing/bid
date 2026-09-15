@@ -31,6 +31,8 @@ import java.util.UUID;
 public class SidecarStreamTextExtractor {
 
     private static final int ERROR_SNIPPET_MAX_CHARS = 512;
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long RETRY_BACKOFF_MILLIS = 250L;
 
     private final HttpClient httpClient;
     private final String sidecarUrl;
@@ -69,18 +71,51 @@ public class SidecarStreamTextExtractor {
                         HttpRequest.BodyPublishers.ofFile(file),
                         HttpRequest.BodyPublishers.ofByteArray(SidecarMultipart.suffix(boundary))))
                 .build();
-        HttpResponse<InputStream> response =
-                httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        int status = response.statusCode();
-        if (status == 422) {
-            throw new IllegalStateException("投标文件无法解析：" + readErrorSnippet(response.body()));
+        IOException lastIoFailure = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<InputStream> response =
+                        httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                int status = response.statusCode();
+                if (status == 422) {
+                    throw new IllegalStateException("投标文件无法解析：" + readErrorSnippet(response.body()));
+                }
+                if (status < 200 || status >= 300) {
+                    String detail = readErrorSnippet(response.body());
+                    if (isRetryableStatus(status) && attempt < MAX_ATTEMPTS) {
+                        sleepBeforeRetry(attempt);
+                        continue;
+                    }
+                    throw new IllegalStateException("调用文档转换服务失败 HTTP " + status + "：" + detail);
+                }
+                try (InputStream body = response.body()) {
+                    return readTextWithCharLimit(body);
+                }
+            } catch (IOException ex) {
+                lastIoFailure = ex;
+                if (attempt == MAX_ATTEMPTS) {
+                    throw new IOException("调用文档转换服务失败，已重试 " + MAX_ATTEMPTS
+                            + " 次：" + describe(ex), ex);
+                }
+                sleepBeforeRetry(attempt);
+            }
         }
-        if (status < 200 || status >= 300) {
-            throw new IllegalStateException("调用文档转换服务失败 HTTP " + status + "：" + readErrorSnippet(response.body()));
+        throw new IOException("调用文档转换服务失败：" + describe(lastIoFailure), lastIoFailure);
+    }
+
+    private static boolean isRetryableStatus(int status) {
+        return status == 502 || status == 503 || status == 504;
+    }
+
+    private static void sleepBeforeRetry(int attempt) throws InterruptedException {
+        Thread.sleep(RETRY_BACKOFF_MILLIS * attempt);
+    }
+
+    private static String describe(Throwable error) {
+        if (error == null || error.getMessage() == null || error.getMessage().isBlank()) {
+            return error == null ? "未知异常" : error.getClass().getSimpleName();
         }
-        try (InputStream body = response.body()) {
-            return readTextWithCharLimit(body);
-        }
+        return error.getClass().getSimpleName() + ": " + error.getMessage();
     }
 
     /** 流式读响应 + char 计数：累计超限即抛（关闭 body 中止连接），不先缓冲完整文本再判。 */

@@ -963,3 +963,9 @@
 - 根因：`reviewSubmitted` 被复用为 `submitting`，成功后按钮虽已禁用却永久显示“保存中”，且 composable 没有并发/重复调用前置 guard。
 - 修复：面板拆分 `submitting` 与 `submitted`，已提交显示“已保留”；提交入口拒绝进行中或已完成的重复调用；非复核状态清理旧终态。
 - 验证：目标 Vitest 35 tests、`npm run build`、改动文件 ESLint 均通过。
+
+## [2026-09-15] fix | AI 案例沉淀 Sidecar 流式提取失败诊断与重试
+- 触发：项目 34 生产 AI 生成案例失败，通知只显示 `obs-direct:<id>`，无法定位底层故障。
+- 根因：`SidecarStreamTextExtractor` 的 `/convert-stream` IO/502/503/504 故障没有有限重试，`ProjectClosedEventListener` 丢失底层异常详情；下载和提取分支还可能把普通 `IOException` 错误标记为线程中断。
+- 修复：Sidecar 最多重试 3 次并保留最终异常；仅 `InterruptedException` 恢复中断标记；失败通知携带具体原因。
+- 验证：相关 Java 测试、scoreparse 金标回放、Checkstyle、前端数据边界和推送门禁均通过；PR !2658。

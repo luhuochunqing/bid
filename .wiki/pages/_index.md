@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-09-14
-health_checked: 2026-09-14
+updated: 2026-09-15
+health_checked: 2026-09-15
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -135,4 +135,3 @@ backlinks:
 1. `npm run wiki:ingest`
 2. `npm run wiki:build`
 3. `npm run wiki:check`
-
