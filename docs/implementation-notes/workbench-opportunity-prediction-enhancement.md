@@ -26,11 +26,13 @@
    - 包含空数据轻提示防护（若无可用数据导出则进行友好提示）。
 
 4. **行预算与架构门禁**
-   - `OpportunityPredictionCard.vue` 控制在 284 行（<= 300 门禁）。
+   - `OpportunityPredictionCard.vue` 控制在 271 行（<= 300 门禁）。
    - `OpportunityPredictionCard.spec.js` 控制在 288 行（<= 300 门禁）。
    - 后端 FP-Java 策略类保持纯函数无框架依赖，ArchUnit 架构校验 100% 通过。
 
 5. **表头两端对齐与跨两排导出按钮改造**
-   - 筛选控件采用 CSS Grid 4 列网格（`op-filters-grid`）铺满整行，彻底解决右侧大面积空置断层问题；
-   - 第 1 排 4 控件（项目名称、招标主体、客户类型、项目类型）各占 1fr；第 2 排预测时间选择器跨 3 列（3fr），重置按钮占 1 列（1fr），两排两端严格齐平；
-   - 导出按钮改造成跨越两排（`height: 100% !important; min-height: 68px`），图标居中置顶、文案置底，与左侧网格形成封闭规整矩形。
+   - **根因修复**：Element Plus 的 `<el-date-picker>` 属于 Fragment/内部多层包装组件，Vue 3 的 `<style scoped>` 无法将单层 Grid 的 `grid-column: span 3` 正确作用到该组件，导致其退化为单列占宽，重置按钮挤在第 2 列、第 3-4 列留白；
+   - **架构重构**：改造为显式双行网格架构：
+     - 第 1 排：`repeat(4, 1fr)` 4 列等宽，项目名称、招标主体、客户类型、项目类型各占 25%；
+     - 第 2 排：`3fr 1fr` 网格，预测日期范围占 3fr（75%）并通过 `:deep(.el-date-editor)` 设置 `width: 100% !important; box-sizing: border-box;` 完整充满前 3 列对应区域；重置按钮占 1fr（25%），与上方的项目类型左右边缘 100% 垂直重合；
+     - 右侧导出按钮：`display: flex; align-items: stretch` + `height: 100% !important; min-height: 68px;`，纵向充满两排高度，与左侧两排形成严密规整的封闭矩形。
