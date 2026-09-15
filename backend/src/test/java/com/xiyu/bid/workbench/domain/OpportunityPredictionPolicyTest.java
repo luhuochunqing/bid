@@ -1,5 +1,5 @@
 // Input: OpportunityPredictionPolicy 提醒规则输入组合
-// Output: 4 条预测规则 + 6 个月展示窗口 + 90 天临近判断的覆盖
+// Output: 4 条预测规则 + 1 年展示窗口 + 90 天临近判断的覆盖
 // Pos: backend/src/test/java/com/xiyu/bid/workbench/domain/ - 纯核心策略单测
 package com.xiyu.bid.workbench.domain;
 
@@ -126,17 +126,17 @@ class OpportunityPredictionPolicyTest {
         assertTrue(OpportunityPredictionPolicy.predict(failedWithoutOpen).isEmpty());
     }
 
-    // ==================== 展示窗口（近 6 个月） ====================
+    // ==================== 展示窗口（近 1 年） ====================
 
     @Test
-    @DisplayName("isVisible：[今天, 今天+6 个月] 边界内可见，边界外/过去不可见")
-    void isVisibleShouldRespectSixMonthWindow() {
+    @DisplayName("isVisible：[今天, 今天+12 个月] 边界内可见，边界外/过去不可见")
+    void isVisibleShouldRespectOneYearWindow() {
         LocalDate today = LocalDate.of(2026, 8, 18);
         assertTrue(OpportunityPredictionPolicy.isVisible(today, today));
-        assertTrue(OpportunityPredictionPolicy.isVisible(today.plusMonths(6), today));
+        assertTrue(OpportunityPredictionPolicy.isVisible(today.plusMonths(12), today));
         assertTrue(OpportunityPredictionPolicy.isVisible(today.plusDays(45), today));
         assertFalse(OpportunityPredictionPolicy.isVisible(today.minusDays(1), today));
-        assertFalse(OpportunityPredictionPolicy.isVisible(today.plusMonths(6).plusDays(1), today));
+        assertFalse(OpportunityPredictionPolicy.isVisible(today.plusMonths(12).plusDays(1), today));
         assertFalse(OpportunityPredictionPolicy.isVisible(null, today));
     }
 
