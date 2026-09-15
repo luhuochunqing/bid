@@ -218,6 +218,11 @@ public class ScoreItemCaseRecommendAppService {
                 .projectStatus(sourceMeta == null ? null : sourceMeta.projectStatus())
                 .subTopic(candidate.getSubTopic())
                 .qualityScore(candidate.getQualityScore())
+                .sourceSectionTitle(candidate.getSourceSectionTitle())
+                .sourceSectionPath(candidate.getSourceSectionPath())
+                .sourceDocumentName(candidate.getSourceDocumentName())
+                .sourcePageNumber(candidate.getSourcePageNumber())
+                .sourceSectionIndex(candidate.getSourceSectionIndex())
                 .build();
     }
 }

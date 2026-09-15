@@ -72,7 +72,7 @@ public final class CaseZipPackager {
                 fillDataRow(dataRow, row, dataStyle);
             }
 
-            ExcelAutoSizeHelper.autoSizeColumns(sheet, 11);
+            ExcelAutoSizeHelper.autoSizeColumns(sheet, 15);
 
             workbook.write(out);
             return out.toByteArray();
@@ -105,7 +105,8 @@ public final class CaseZipPackager {
         String[] headers = {
                 "案例ID", "来源项目名称", "评分项标题", "评分类别",
                 "客户类型", "项目类型", "中标结果", "产品线",
-                "复用次数", "状态", "创建时间"
+                "复用次数", "状态", "创建时间",
+                "原文所在标题", "原文所在路径", "原文所在文档", "原文页码"
         };
 
         for (int i = 0; i < headers.length; i++) {
@@ -130,6 +131,10 @@ public final class CaseZipPackager {
         row.createCell(8).setCellValue(data.reuseCount());
         row.createCell(9).setCellValue(data.status());
         row.createCell(10).setCellValue(data.createdAt());
+        row.createCell(11).setCellValue(data.sourceSectionTitle() != null ? data.sourceSectionTitle() : "-");
+        row.createCell(12).setCellValue(data.sourceSectionPath() != null ? data.sourceSectionPath() : "-");
+        row.createCell(13).setCellValue(data.sourceDocumentName() != null ? data.sourceDocumentName() : "-");
+        row.createCell(14).setCellValue(data.sourcePageNumber() != null ? String.valueOf(data.sourcePageNumber()) : "-");
     }
 
     public record CaseIndexRow(
@@ -143,7 +148,31 @@ public final class CaseZipPackager {
             String productLine,
             int reuseCount,
             String status,
-            String createdAt
+            String createdAt,
+            String sourceSectionTitle,
+            String sourceSectionPath,
+            String sourceDocumentName,
+            Integer sourcePageNumber
     ) {
+        /**
+         * 向后兼容的 11 参数构造函数。
+         */
+        public CaseIndexRow(
+                Long caseId,
+                String sourceProjectName,
+                String scoringPointTitle,
+                String scoringCategory,
+                String customerType,
+                String projectType,
+                String bidResult,
+                String productLine,
+                int reuseCount,
+                String status,
+                String createdAt
+        ) {
+            this(caseId, sourceProjectName, scoringPointTitle, scoringCategory,
+                    customerType, projectType, bidResult, productLine, reuseCount,
+                    status, createdAt, null, null, null, null);
+        }
     }
 }

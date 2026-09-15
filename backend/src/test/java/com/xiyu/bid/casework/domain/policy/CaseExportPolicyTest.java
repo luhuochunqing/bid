@@ -251,6 +251,23 @@ class CaseExportPolicyTest {
         assertTrue(content.contains("是"));  // isPinned 显示"是"
     }
 
+    @Test
+    @DisplayName("buildIndexContent: 包含原文来源标题、路径、文档名与页码元数据")
+    void buildIndexContent_ContainsSourceProvenanceMetadata() {
+        KnowledgeCase kc = createCase();
+        kc.setSourceSectionTitle("5.2 进度计划表");
+        kc.setSourceSectionPath("第五章 项目实施 > 5.2 进度计划表");
+        kc.setSourceDocumentName("实施方案.docx");
+        kc.setSourcePageNumber(60);
+
+        String content = policy.buildIndexContent(kc);
+
+        assertTrue(content.contains("原文所在标题：5.2 进度计划表"));
+        assertTrue(content.contains("原文所在路径：第五章 项目实施 > 5.2 进度计划表"));
+        assertTrue(content.contains("原文所在文档：实施方案.docx"));
+        assertTrue(content.contains("原文页码：60"));
+    }
+
     // ---------------------------------------------------------------
     // calculateTotalExportSize
     // ---------------------------------------------------------------

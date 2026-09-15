@@ -87,4 +87,25 @@ class KnowledgeCaseQueryAppServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("案例不存在");
     }
+
+    @Test
+    void getCaseDetailReturnsSourceProvenanceFields() {
+        KnowledgeCase kCase = createCase(3L, 400L);
+        kCase.setSourceSectionTitle("3.2 系统架构设计");
+        kCase.setSourceSectionPath("第三章 技术方案 > 3.2 系统架构设计");
+        kCase.setSourceDocumentName("技术标书.docx");
+        kCase.setSourcePageNumber(45);
+        kCase.setSourceSectionIndex(12);
+
+        when(caseRepository.findById(3L)).thenReturn(Optional.of(kCase));
+        when(initiationDetailsRepository.findByProjectId(400L)).thenReturn(Optional.empty());
+
+        KnowledgeCaseDetailResponse detail = service.getCaseDetail(3L);
+
+        assertThat(detail.sourceSectionTitle()).isEqualTo("3.2 系统架构设计");
+        assertThat(detail.sourceSectionPath()).isEqualTo("第三章 技术方案 > 3.2 系统架构设计");
+        assertThat(detail.sourceDocumentName()).isEqualTo("技术标书.docx");
+        assertThat(detail.sourcePageNumber()).isEqualTo(45);
+        assertThat(detail.sourceSectionIndex()).isEqualTo(12);
+    }
 }

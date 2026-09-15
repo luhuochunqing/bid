@@ -48,5 +48,25 @@ public interface KnowledgeCaseReadModel {
         return 60;
     }
 
+    default String getSourceSectionTitle() {
+        return null;
+    }
+
+    default String getSourceSectionPath() {
+        return null;
+    }
+
+    default String getSourceDocumentName() {
+        return null;
+    }
+
+    default Integer getSourcePageNumber() {
+        return null;
+    }
+
+    default Integer getSourceSectionIndex() {
+        return null;
+    }
+
     LocalDateTime getCreatedAt();
 }

@@ -115,4 +115,22 @@ class CaseExcelGeneratorTest {
         assertEquals((byte) 'P', data[0]);
         assertEquals((byte) 'K', data[1]);
     }
+
+    @Test
+    @DisplayName("generate: 包含原文所在标题、文档和页码的 12 列记录正常写入")
+    void generate_RecordWithProvenance_ProducesValidExcel() throws IOException {
+        List<CaseExportRecord> records = List.of(
+                new CaseExportRecord(
+                        "评分项A", "项目A", "综合", "国有企业",
+                        "技术", "WON", 3, "2026-06-09", "摘要",
+                        "3.1 总体方案", "技术标书.docx", 25)
+        );
+
+        CaseExcelGenerator.ExportResult result = generator.generate(records);
+        assertNotNull(result.data());
+        assertEquals(1, result.recordCount());
+        byte[] data = result.data();
+        assertEquals((byte) 'P', data[0]);
+        assertEquals((byte) 'K', data[1]);
+    }
 }

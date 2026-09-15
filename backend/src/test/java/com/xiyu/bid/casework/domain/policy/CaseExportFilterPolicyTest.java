@@ -223,6 +223,26 @@ class CaseExportFilterPolicyTest {
         assertEquals(200, summary.length());
     }
 
+    @Test
+    @DisplayName("toExportRecord: 正确映射原文所在标题、文档名与页码")
+    void toExportRecord_MapsSourceProvenanceFields() {
+        KnowledgeCase kc = createActiveCase("评分项A", "技术", "国有企业", "综合", "需求内容");
+        kc.setSourceSectionTitle("3.1 总体架构");
+        kc.setSourceDocumentName("技术标书.docx");
+        kc.setSourcePageNumber(23);
+
+        CaseExportRecord record = CaseExportFilterPolicy.toExportRecord(kc);
+        assertEquals("3.1 总体架构", record.sourceSectionTitle());
+        assertEquals("技术标书.docx", record.sourceDocumentName());
+        assertEquals(23, record.sourcePageNumber());
+
+        String[] rowValues = record.toRowValues();
+        assertEquals(12, rowValues.length);
+        assertEquals("3.1 总体架构", rowValues[9]);
+        assertEquals("技术标书.docx", rowValues[10]);
+        assertEquals("23", rowValues[11]);
+    }
+
     private static KnowledgeCase createActiveCase(
             String title, String category, String customerType,
             String projectType, String requirementRaw) {

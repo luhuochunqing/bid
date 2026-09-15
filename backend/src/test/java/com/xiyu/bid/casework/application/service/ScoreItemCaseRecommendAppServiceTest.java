@@ -278,4 +278,45 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(item.getMatchLabel()).isEqualTo("优质");
         assertThat(item.getMatchReasons()).anyMatch(r -> r.contains("资格项业绩品类"));
     }
+
+    @Test
+    @DisplayName("推荐条目装配原文来源标题与位置元数据")
+    void testRecommendAssemblesSourceProvenance() {
+        Long projectId = 100L;
+        Long sourceProjectId = 601L;
+
+        Project currentProject = new Project();
+        currentProject.setId(projectId);
+
+        KnowledgeCase case1 = new KnowledgeCase();
+        case1.setId(105L);
+        case1.setSourceProjectId(sourceProjectId);
+        case1.setSourceProjectName("某数据中心建设");
+        case1.setScoringPointTitle("容灾备份能力");
+        case1.setScoringCategory("技术方案");
+        case1.setRequirementRaw("要求提供异地双活");
+        case1.setResponseText("我司具备异地双活数据中心部署与容灾能力");
+        case1.setStatus("ACTIVE");
+        case1.setSourceSectionTitle("4.1 异地双活架构");
+        case1.setSourceSectionPath("第四章 建设方案 > 4.1 异地双活架构");
+        case1.setSourceDocumentName("技术方案响应书.docx");
+        case1.setSourcePageNumber(88);
+        case1.setSourceSectionIndex(15);
+
+        when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(currentProject));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(case1));
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(
+                projectId,
+                ScoreItemCaseRecommendRequest.builder().keyword("双活").page(0).size(10).build());
+
+        assertThat(response.getItems()).hasSize(1);
+        ScoreItemCaseRecommendResponse.Item item = response.getItems().get(0);
+        assertThat(item.getSourceSectionTitle()).isEqualTo("4.1 异地双活架构");
+        assertThat(item.getSourceSectionPath()).isEqualTo("第四章 建设方案 > 4.1 异地双活架构");
+        assertThat(item.getSourceDocumentName()).isEqualTo("技术方案响应书.docx");
+        assertThat(item.getSourcePageNumber()).isEqualTo(88);
+        assertThat(item.getSourceSectionIndex()).isEqualTo(15);
+    }
 }

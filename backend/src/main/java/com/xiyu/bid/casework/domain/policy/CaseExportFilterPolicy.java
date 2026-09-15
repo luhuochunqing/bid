@@ -61,7 +61,8 @@ public final class CaseExportFilterPolicy {
     public static CaseExportRecord toExportRecord(KnowledgeCaseReadModel c) {
         if (c == null) {
             return new CaseExportRecord(
-                    "", "", "", "", "", "", 0, "", ""
+                    "", "", "", "", "", "", 0, "", "",
+                    null, null, null
             );
         }
         return new CaseExportRecord(
@@ -73,7 +74,10 @@ public final class CaseExportFilterPolicy {
                 safeStr(c.getBidResult()),
                 c.getReuseCount() != null ? c.getReuseCount() : 0,
                 formatCreatedAt(c),
-                summarizeResponse(c.getResponseText())
+                summarizeResponse(c.getResponseText()),
+                c.getSourceSectionTitle(),
+                c.getSourceDocumentName(),
+                c.getSourcePageNumber()
         );
     }
 

@@ -26,6 +26,11 @@ public record KnowledgeCaseDetailResponse(
         String scoringCategory,
         String productLine,
         LocalDateTime createdAt,
-        String obsBidFileKey
+        String obsBidFileKey,
+        String sourceSectionTitle,
+        String sourceSectionPath,
+        String sourceDocumentName,
+        Integer sourcePageNumber,
+        Integer sourceSectionIndex
 ) {
 }

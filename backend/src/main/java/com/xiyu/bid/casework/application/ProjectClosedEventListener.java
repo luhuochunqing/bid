@@ -1,15 +1,16 @@
 package com.xiyu.bid.casework.application;
 
-import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
+import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
 import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
-import com.xiyu.bid.docinsight.application.ExtractedDocument;
 import com.xiyu.bid.file.application.ObsShareUrlSigner;
-import com.xiyu.bid.file.domain.FileUrlPrefixes;
+import com.xiyu.bid.scoreparse.application.SidecarStreamTextExtractor;
+import com.xiyu.bid.scoreparse.application.StreamingBidFileFetcher;
+import com.xiyu.bid.scoreparse.application.TempBidFileStore;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
 import com.xiyu.bid.entity.Project;
@@ -20,28 +21,19 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
-import com.xiyu.bid.scoreparse.application.LoadedBidFile;
-import com.xiyu.bid.scoreparse.application.SidecarStreamTextExtractor;
-import com.xiyu.bid.scoreparse.application.StreamingBidFileFetcher;
-import com.xiyu.bid.scoreparse.application.TempBidFileStore;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class ProjectClosedEventListener {
 
@@ -53,14 +45,82 @@ public class ProjectClosedEventListener {
     private final TenderRepository tenderRepository;
     private final BidResultFetchResultRepository bidResultFetchResultRepository;
     private final ProjectResultRepository projectResultRepository;
-    private final DocumentTextExtractor docTextExtractor;
     private final CaseAiMatcher caseAiMatcher;
     private final CasePrecipitationNotifier notifier;
-    private final ObsShareUrlSigner obsShareUrlSigner;
-    private final StreamingBidFileFetcher streamingFetcher;
-    private final SidecarStreamTextExtractor streamTextExtractor;
-    private final TempBidFileStore tempBidFileStore;
     private final TransactionTemplate transactionTemplate;
+    private final BidDocumentLoader bidDocumentLoader;
+
+    @Autowired
+    public ProjectClosedEventListener(
+            ProjectArchiveRepository archiveRepository,
+            ArchiveFileRepository fileRepository,
+            ScoreItemRepository scoreItemRepository,
+            KnowledgeCaseRepository knowledgeCaseRepository,
+            ProjectRepository projectRepository,
+            TenderRepository tenderRepository,
+            BidResultFetchResultRepository bidResultFetchResultRepository,
+            ProjectResultRepository projectResultRepository,
+            CaseAiMatcher caseAiMatcher,
+            CasePrecipitationNotifier notifier,
+            TransactionTemplate transactionTemplate,
+            BidDocumentLoader bidDocumentLoader) {
+        this.archiveRepository = archiveRepository;
+        this.fileRepository = fileRepository;
+        this.scoreItemRepository = scoreItemRepository;
+        this.knowledgeCaseRepository = knowledgeCaseRepository;
+        this.projectRepository = projectRepository;
+        this.tenderRepository = tenderRepository;
+        this.bidResultFetchResultRepository = bidResultFetchResultRepository;
+        this.projectResultRepository = projectResultRepository;
+        this.caseAiMatcher = caseAiMatcher;
+        this.notifier = notifier;
+        this.transactionTemplate = transactionTemplate;
+        this.bidDocumentLoader = bidDocumentLoader;
+    }
+
+    /**
+     * 兼容既有 16 参数构造函数（供单元测试直接实例化调用）。
+     */
+    public ProjectClosedEventListener(
+            ProjectArchiveRepository archiveRepository,
+            ArchiveFileRepository fileRepository,
+            ScoreItemRepository scoreItemRepository,
+            KnowledgeCaseRepository knowledgeCaseRepository,
+            ProjectRepository projectRepository,
+            TenderRepository tenderRepository,
+            BidResultFetchResultRepository bidResultFetchResultRepository,
+            ProjectResultRepository projectResultRepository,
+            DocumentTextExtractor docTextExtractor,
+            CaseAiMatcher caseAiMatcher,
+            CasePrecipitationNotifier notifier,
+            ObsShareUrlSigner obsShareUrlSigner,
+            StreamingBidFileFetcher streamingFetcher,
+            SidecarStreamTextExtractor streamTextExtractor,
+            TempBidFileStore tempBidFileStore,
+            TransactionTemplate transactionTemplate) {
+        this(
+                archiveRepository,
+                fileRepository,
+                scoreItemRepository,
+                knowledgeCaseRepository,
+                projectRepository,
+                tenderRepository,
+                bidResultFetchResultRepository,
+                projectResultRepository,
+                caseAiMatcher,
+                notifier,
+                transactionTemplate,
+                new BidDocumentLoader(
+                        archiveRepository,
+                        fileRepository,
+                        docTextExtractor,
+                        obsShareUrlSigner,
+                        streamingFetcher,
+                        streamTextExtractor,
+                        tempBidFileStore
+                )
+        );
+    }
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
@@ -93,16 +153,14 @@ public class ProjectClosedEventListener {
                 return;
             }
 
-            String markdown = loadBidFileMarkdown(event, projectId);
+            BidDocumentLoader.BidDocument bidDoc = bidDocumentLoader.loadBidDocument(event, projectId);
+            String markdown = bidDoc != null ? bidDoc.markdown() : null;
 
             List<CaseAiMatcher.AiMatchedSlice> matchedSlices = caseAiMatcher.extractSlicesWithAi(markdown, scoreItemsForGate);
-
             CasePrecipitationContext ctx = loadProjectContext(projectId);
 
-            List<KnowledgeCase> candidates = buildCases(event, scoreItemsForGate, matchedSlices, ctx);
+            List<KnowledgeCase> candidates = buildCases(event, scoreItemsForGate, matchedSlices, ctx, bidDoc);
             List<KnowledgeCase> existing = knowledgeCaseRepository.findBySourceProjectId(projectId);
-            // 幂等去重按评分项 ID（非标题）：同一项目可存在多个同标题评分项（如 61/62 均叫"投标报价"），
-            // 按标题去重会误跳过合法评分项，唯一键与之一致（uk_source_proj_scoring_point，spec 049 验收发现）。
             java.util.Set<Long> existingPointIds = existing.stream()
                     .map(KnowledgeCase::getScoringPointId)
                     .filter(java.util.Objects::nonNull)
@@ -113,7 +171,6 @@ public class ProjectClosedEventListener {
                     .toList();
 
             if (!casesToSave.isEmpty()) {
-                // 事务只包落库：下载/转换/LLM 摘录等长耗时步骤都在事务外，避免长时间持有 DB 连接
                 transactionTemplate.executeWithoutResult(status ->
                         knowledgeCaseRepository.saveAll(casesToSave));
                 log.info("Successfully persisted {} new knowledge cases for project: {} ({} skipped as duplicate)",
@@ -137,90 +194,7 @@ public class ProjectClosedEventListener {
         }
     }
 
-    private String loadBidFileMarkdown(ProjectClosedEvent event, Long projectId) {
-        Optional<ProjectArchive> archiveOpt = archiveRepository.findByProjectId(projectId);
-        if (archiveOpt.isEmpty()) {
-            log.warn("No archive found for closed project: {}", projectId);
-            return null;
-        }
-
-        ProjectArchive archive = archiveOpt.get();
-        List<ArchiveFile> files = fileRepository.findByArchiveId(archive.getId());
-        ArchiveFile bidFile = files.stream()
-                .filter(f -> "BID".equals(f.getDocumentCategory()))
-                .findFirst()
-                .orElse(null);
-
-        String fallback = "# " + event.getProjectName() + "\n暂无标书正文。";
-        String filePath = bidFile == null ? null : bidFile.getFilePath();
-        if (filePath == null) {
-            return fallback;
-        }
-        // taskId 绑定临时文件命名：OBS 流式加载可能 spill 落盘，结束必须 release 归还配额
-        String taskId = "case-" + projectId;
-        try {
-            if (filePath.startsWith(FileUrlPrefixes.OBS_DIRECT)) {
-                return loadObsBidFileMarkdown(filePath, bidFile, taskId);
-            }
-            return extractLocalBidFileMarkdown(filePath, bidFile, fallback);
-        } finally {
-            // InMemory 快路径 release 为幂等 no-op；OnDisk 删除 {taskId}.part
-            tempBidFileStore.release(taskId);
-        }
-    }
-
-    /** OBS 标书流式加载 + 二态分派（spec 049 T004）：≤50MB InMemory→docTextExtractor 快路径；
-     * 超限 OnDisk→sidecar /convert-stream 流式转换。失败一律 rethrow，禁止占位文本虚假成功。 */
-    private String loadObsBidFileMarkdown(String filePath, ArchiveFile bidFile, String taskId) {
-        Optional<String> signedUrl = obsShareUrlSigner.trySign(filePath);
-        if (signedUrl.isEmpty()) {
-            throw new IllegalStateException("OBS 签名失败，无法下载标书: " + filePath);
-        }
-        LoadedBidFile loaded;
-        try {
-            loaded = streamingFetcher.fetch(signedUrl.get(), taskId, bidFile.getFileName(), "application/octet-stream");
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new IllegalStateException("流式下载 OBS 标书失败: " + filePath, e);
-        }
-        switch (loaded) {
-            case LoadedBidFile.InMemory mem -> {
-                ExtractedDocument doc = docTextExtractor.extract(mem.fileName(), mem.contentType(), mem.content());
-                return doc != null && doc.text() != null ? doc.text() : "";
-            }
-            case LoadedBidFile.OnDisk disk -> {
-                try {
-                    return streamTextExtractor.extract(disk.tempFile(), disk.fileName());
-                } catch (IOException | InterruptedException e) {
-                    if (e instanceof InterruptedException) {
-                        Thread.currentThread().interrupt();
-                    }
-                    String detail = e.getMessage() == null || e.getMessage().isBlank()
-                            ? e.getClass().getSimpleName()
-                            : e.getMessage();
-                    throw new IllegalStateException("流式提取 OBS 标书文本失败: " + filePath + "，原因：" + detail, e);
-                }
-            }
-        }
-    }
-
-    private String extractLocalBidFileMarkdown(String filePath, ArchiveFile bidFile, String fallback) {
-        try {
-            byte[] fileBytes = Files.readAllBytes(Paths.get(filePath));
-            ExtractedDocument doc = docTextExtractor.extract(
-                    bidFile.getFileName(), "application/octet-stream", fileBytes);
-            return doc != null && doc.text() != null ? doc.text() : fallback;
-        } catch (RuntimeException | IOException e) {
-            // 本地路径保留容错（文件可能已迁移）回退占位。
-            log.error("读取本地标书失败，回退占位文本: {}", filePath, e);
-            return fallback;
-        }
-    }
-
     private CasePrecipitationContext loadProjectContext(Long projectId) {
-        // 蓝图 4.1.1.2.1 三独立语义：行业←tender.industry(兜底 project.industry)、客户类型←customerType、产品线←sourceModule（勿走 projectType，历史错位根因）
         String projectType = "综合", customerType = "其他", productLine = "综合产品线", bidResult = null;
         Optional<Project> projectOpt = projectRepository.findById(projectId);
         if (projectOpt.isPresent()) {
@@ -245,7 +219,6 @@ public class ProjectClosedEventListener {
         return new CasePrecipitationContext(projectOpt, projectType, customerType, productLine, bidResult);
     }
 
-    /** 将 score_item 映射为案例沉淀快照：title/detail/category 均取 dim（口径已确认，category 由 extractCategory 归类）。 */
     private List<ScoreItemSnapshot> loadScoreItemSnapshots(Long projectId) {
         return scoreItemRepository.findByProjectIdOrderByItemIndexAsc(projectId).stream()
                 .map(item -> new ScoreItemSnapshot(item.getId(), item.getDim(), item.getDetail(), item.getDim()))
@@ -254,9 +227,19 @@ public class ProjectClosedEventListener {
 
     private List<KnowledgeCase> buildCases(ProjectClosedEvent event, List<ScoreItemSnapshot> scoreItems,
                                             List<CaseAiMatcher.AiMatchedSlice> matchedSlices,
-                                            CasePrecipitationContext ctx) {
+                                            CasePrecipitationContext ctx,
+                                            BidDocumentLoader.BidDocument bidDoc) {
         Long projectId = event.getProjectId();
         List<KnowledgeCase> casesToSave = new ArrayList<>();
+        MarkdownSourceSectionIndex sectionIndex = null;
+        if (bidDoc != null && bidDoc.markdown() != null && !bidDoc.markdown().isBlank()) {
+            try {
+                sectionIndex = MarkdownSourceSectionIndex.parse(bidDoc.markdown());
+            } catch (RuntimeException e) {
+                log.warn("Markdown 章节索引解析失败，沉淀将降级为无来源标题: {}", e.getMessage());
+            }
+        }
+
         for (CaseAiMatcher.AiMatchedSlice slice : matchedSlices) {
             ScoreItemSnapshot scoreItem = scoreItems.stream()
                     .filter(s -> s.id().equals(slice.getDraftId()))
@@ -280,6 +263,22 @@ public class ProjectClosedEventListener {
             kCase.setBidResult(ctx.bidResult);
             kCase.setScoringCategory(caseAiMatcher.extractCategory(scoreItem.category()));
             kCase.setProductLine(ctx.productLine);
+
+            if (sectionIndex != null && slice.getMatchedSnippet() != null && !slice.getMatchedSnippet().isBlank()) {
+                try {
+                    MarkdownSourceSectionIndex.Provenance prov = sectionIndex.locate(slice.getMatchedSnippet(), scoreItem.title());
+                    if (prov != null) {
+                        kCase.setSourceSectionTitle(prov.title());
+                        kCase.setSourceSectionPath(prov.path());
+                        kCase.setSourceDocumentName(bidDoc != null ? bidDoc.documentName() : null);
+                        kCase.setSourcePageNumber(prov.pageNumber() != null ? prov.pageNumber() : (bidDoc != null ? bidDoc.pageNumber() : null));
+                        kCase.setSourceSectionIndex(prov.index());
+                    }
+                } catch (RuntimeException e) {
+                    log.warn("来源章节定位失败，降级为 NULL: {}", e.getMessage());
+                }
+            }
+
             casesToSave.add(kCase);
         }
         return casesToSave;
