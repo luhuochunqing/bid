@@ -26,6 +26,11 @@
    - 包含空数据轻提示防护（若无可用数据导出则进行友好提示）。
 
 4. **行预算与架构门禁**
-   - `OpportunityPredictionCard.vue` 控制在 254 行（<= 300 门禁）。
-   - `OpportunityPredictionCard.spec.js` 控制在 282 行（<= 300 门禁）。
+   - `OpportunityPredictionCard.vue` 控制在 284 行（<= 300 门禁）。
+   - `OpportunityPredictionCard.spec.js` 控制在 288 行（<= 300 门禁）。
    - 后端 FP-Java 策略类保持纯函数无框架依赖，ArchUnit 架构校验 100% 通过。
+
+5. **表头两端对齐与跨两排导出按钮改造**
+   - 筛选控件采用 CSS Grid 4 列网格（`op-filters-grid`）铺满整行，彻底解决右侧大面积空置断层问题；
+   - 第 1 排 4 控件（项目名称、招标主体、客户类型、项目类型）各占 1fr；第 2 排预测时间选择器跨 3 列（3fr），重置按钮占 1 列（1fr），两排两端严格齐平；
+   - 导出按钮改造成跨越两排（`height: 100% !important; min-height: 68px`），图标居中置顶、文案置底，与左侧网格形成封闭规整矩形。
