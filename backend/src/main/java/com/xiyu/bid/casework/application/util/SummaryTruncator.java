@@ -26,6 +26,7 @@ public final class SummaryTruncator {
      * @param maxLength 截断长度上限
      * @return 截断后文本（未截断则返回原文）；若截断则追加 "..."
      */
+    // REUSE-OK: backend/src/main/java/com/xiyu/bid/common/util/StringUtils.java — StringUtils.truncate 为按字符数硬截断（无断点语义/序号保护），本方法提供语义断点与序号安全，行为不同，属必要新增
     public static String truncate(String text, int maxLength) {
         if (text == null) return "";
         if (text.length() <= maxLength) return text;

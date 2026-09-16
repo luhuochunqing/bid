@@ -983,3 +983,9 @@
 - 根因：`SidecarStreamTextExtractor` 的 `/convert-stream` IO/502/503/504 故障没有有限重试，`ProjectClosedEventListener` 丢失底层异常详情；下载和提取分支还可能把普通 `IOException` 错误标记为线程中断。
 - 修复：Sidecar 最多重试 3 次并保留最终异常；仅 `InterruptedException` 恢复中断标记；失败通知携带具体原因。
 - 验证：相关 Java 测试、scoreparse 金标回放、Checkstyle、前端数据边界和推送门禁均通过；PR !2658。
+
+## [2026-09-16] feat | 案例库摘要可读性与标书原文来源标题定位（WF 0915-01）
+- 触发：用户在 `/knowledge/case` 反馈摘要仍是一大段文本（缺序号/回车换行），且需要显示应答片段在标书原文中的所在标题以便定位。
+- 实现：后端新增 `SummaryTruncator`（语义断点 + 序号硬切保护）替换两处硬截断；V1215 增加来源五字段并由采集链路唯一命中写入；详情/推荐透出、列表不透出；Excel/ZIP 导出增强。前端 `CaseDetailDialog` 正文分段/换行/序号渲染 + 「原文所在标题」信息行与定位提示；`CaseCard`/`AICaseRecommendCard` 换行可见。
+- 陷阱：Python 回填曾对同一文档跨章节重复证据静默取首个命中（评审发现）→ 现判 `cross_section_conflict` 且不写库；短前缀与命中评分项标题判 `insufficient_evidence`；截断硬切路径曾产生裸序号 `1.` → 现回退到序号起点前。
+- 验证：ArchUnit 8/8、11 类 119/119、脚本 self-test 16/16 与 6/6、前端 4 spec 50/50、四项专项实跑通过；两份独立评审 0 阻断。未覆盖：开发宿主 E2E、真实 MySQL migrate/回滚与回填 apply、真实 HTTP。
