@@ -27,7 +27,7 @@ public final class CaseCategoryMatchPolicy {
             "资质", "资格", "证书", "认证", "认证体系", "许可", "执照", "iso", "aaa", "专利", "软著", "专精特新", "高新", "资质等级", "资信"
     };
     private static final String[] PERFORMANCE_KEYWORDS = {
-            "业绩", "同类", "合同业绩", "项目业绩", "同类项目", "同类业绩"
+            "业绩", "合同业绩", "项目业绩", "同类项目", "同类业绩", "供货业绩", "类似项目"
     };
     private static final String[] COMMERCIAL_KEYWORDS = {
             "商务", "报价", "价格", "财务", "审计", "纳税", "资产负债", "结算", "货款支付", "支付条款", "合同", "保证金", "保函", "交货期", "付款", "开票"
@@ -92,11 +92,12 @@ public final class CaseCategoryMatchPolicy {
         if (containsAny(lower, PERSONNEL_KEYWORDS)) {
             return MacroCategory.PERSONNEL;
         }
-        if (containsAny(lower, QUALIFICATION_KEYWORDS)) {
-            return MacroCategory.QUALIFICATION;
-        }
+        // 混合类别（如存量标签“资质业绩”）按业绩优先归类；纯资质文本（无“业绩”）仍归 QUALIFICATION
         if (containsAny(lower, PERFORMANCE_KEYWORDS)) {
             return MacroCategory.PERFORMANCE;
+        }
+        if (containsAny(lower, QUALIFICATION_KEYWORDS)) {
+            return MacroCategory.QUALIFICATION;
         }
         if (containsAny(lower, COMMERCIAL_KEYWORDS)) {
             return MacroCategory.COMMERCIAL;

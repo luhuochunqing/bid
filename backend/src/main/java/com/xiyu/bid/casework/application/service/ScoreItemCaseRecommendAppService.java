@@ -8,6 +8,7 @@ package com.xiyu.bid.casework.application.service;
 import com.xiyu.bid.casework.application.port.KnowledgeCaseQueryPort;
 import com.xiyu.bid.casework.application.port.TenderQualificationQueryPort;
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
+import com.xiyu.bid.casework.domain.policy.PerformanceCaseAdmissionPolicy;
 import com.xiyu.bid.casework.domain.policy.QualificationPerformanceRetriever;
 import com.xiyu.bid.casework.domain.policy.ScoreItemCaseMatchPolicy;
 import com.xiyu.bid.casework.application.util.SummaryTruncator;
@@ -102,23 +103,20 @@ public class ScoreItemCaseRecommendAppService {
         String qualReqText = null;
         List<String> qualKeywords = List.of();
 
-        if (scoreItem != null && performanceRetriever.isPerformanceScoreItem(scoreItem.getDim(), scoreItem.getDetail())) {
-            var qualInfoOpt = tenderQualificationQueryPort.findByProjectId(projectId);
-            if (qualInfoOpt.isPresent()) {
-                var qualInfo = qualInfoOpt.get();
-                var perfResultOpt = performanceRetriever.retrieve(
-                        scoreItem.getDim(),
-                        scoreItem.getDetail(),
-                        qualInfo.qualificationRequirements(),
-                        qualInfo.rawTenderText()
-                );
-                if (perfResultOpt.isPresent()) {
-                    var perfResult = perfResultOpt.get();
-                    qualReqText = perfResult.matchedRequirementText();
-                    qualKeywords = perfResult.keywords();
-                }
-            }
+        boolean performanceItem = scoreItem != null
+                && performanceRetriever.isPerformanceScoreItem(scoreItem.getDim(), scoreItem.getDetail());
+        QualificationPerformanceRetriever.PerformanceRequirementResult perfRequirement = null;
+        if (performanceItem) {
+            perfRequirement = lookupPerformanceRequirement(projectId, scoreItem.getDim(), scoreItem.getDetail());
+        } else if (scoreItem == null && !hasQueryKeyword(request.getKeyword())) {
+            // 未选评分项且无关键词检索：若资格项存在业绩要求，回退用资格项作为推荐上下文
+            perfRequirement = lookupQualificationPerformance(projectId);
         }
+        if (perfRequirement != null) {
+            qualReqText = perfRequirement.matchedRequirementText();
+            qualKeywords = perfRequirement.keywords();
+        }
+        boolean applyAdmission = performanceItem || (scoreItem == null && perfRequirement != null);
 
         ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
                 scoreItem != null ? scoreItem.getId() : request.getScoreItemId(),
@@ -136,6 +134,8 @@ public class ScoreItemCaseRecommendAppService {
 
         // 通过端口获取已激活案例（ACTIVE 过滤已下沉至 adapter）
         List<KnowledgeCaseReadModel> allActiveCases = knowledgeCaseQueryPort.findAllActive();
+        List<KnowledgeCaseReadModel> candidateCases =
+                applyAdmissionIfNeeded(allActiveCases, applyAdmission, perfRequirement);
         Set<Long> sourceProjectIds = allActiveCases.stream()
                 .map(KnowledgeCaseReadModel::getSourceProjectId)
                 .filter(Objects::nonNull)
@@ -143,7 +143,7 @@ public class ScoreItemCaseRecommendAppService {
         Map<Long, ScoreItemCaseSourceMetaLoader.SourceMeta> sourceMetaByProjectId =
                 sourceMetaLoader.load(sourceProjectIds);
 
-        List<ScoreItemCaseRecommendResponse.Item> evaluatedItems = allActiveCases.stream()
+        List<ScoreItemCaseRecommendResponse.Item> evaluatedItems = candidateCases.stream()
                 .map(candidate -> {
                     ScoreItemCaseMatchPolicy.MatchResult result = matchPolicy.evaluate(candidate, context);
                     return toResponseItem(candidate, result, sourceMetaByProjectId.get(candidate.getSourceProjectId()));
@@ -224,5 +224,39 @@ public class ScoreItemCaseRecommendAppService {
                 .sourcePageNumber(candidate.getSourcePageNumber())
                 .sourceSectionIndex(candidate.getSourceSectionIndex())
                 .build();
+    }
+
+    private QualificationPerformanceRetriever.PerformanceRequirementResult lookupPerformanceRequirement(
+            Long projectId, String dim, String detail) {
+        return tenderQualificationQueryPort.findByProjectId(projectId)
+                .flatMap(info -> performanceRetriever.retrieve(
+                        dim, detail, info.qualificationRequirements(), info.rawTenderText()))
+                .orElse(null);
+    }
+
+    private QualificationPerformanceRetriever.PerformanceRequirementResult lookupQualificationPerformance(Long projectId) {
+        return tenderQualificationQueryPort.findByProjectId(projectId)
+                .flatMap(info -> performanceRetriever.retrieveFromQualification(
+                        info.qualificationRequirements(), info.rawTenderText()))
+                .orElse(null);
+    }
+
+    private static boolean hasQueryKeyword(String keyword) {
+        return keyword != null && !keyword.trim().isEmpty();
+    }
+
+    private List<KnowledgeCaseReadModel> applyAdmissionIfNeeded(
+            List<KnowledgeCaseReadModel> cases,
+            boolean applyAdmission,
+            QualificationPerformanceRetriever.PerformanceRequirementResult requirement) {
+        if (!applyAdmission) {
+            return cases;
+        }
+        List<KnowledgeCaseReadModel> admitted = PerformanceCaseAdmissionPolicy.admit(cases, requirement);
+        log.info("业绩案例准入：候选 {} 条，准入 {} 条", cases.size(), admitted.size());
+        if (admitted.isEmpty() && !cases.isEmpty()) {
+            log.info("业绩案例准入：无满足业绩证据的候选，诚实降级为空列表");
+        }
+        return admitted;
     }
 }

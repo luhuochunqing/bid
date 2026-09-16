@@ -234,3 +234,20 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 - **标签呈现**：优先提取命中的资格项核心特征词作为高亮标签，使契合业绩要求的案例达到 80+ 分（“优质”）稳定召回。
 
 
+
+---
+
+## 业绩评分项候选准入 + 金额门槛 + 资格项回退（spec 064，2026-09-16）
+
+### 1. 问题
+资格项穿透仅作打分 bonus，候选集仍是全量 ACTIVE 案例：人员/技术文案靠通用分越过前端 ≥50 门槛；金额门槛解析后无人消费；双条款只取第一条；「资质业绩」被判资质导致真业绩案例丢类别一致 +10。
+
+### 2. 机制（FP-Java 纯核心）
+- **门槛解析** `PerformanceThresholdExtractor`：按 `；;。\n` 分句配对品类与金额（办公用品/标准工业品），金额统一万元；`detectCategories` 暴露品类识别。
+- **候选准入** `PerformanceCaseAdmissionPolicy`：`tier1 门槛达成 > tier2 品类命中(缺金额) > tier3 仅业绩信号`，取最小正值 tier 的候选集合；金额明确低于门槛或全无业绩证据 → tier0 拒绝；跨候选择优避免整体空结果。
+- **条款收集** `QualificationClauseCollector`：资格项列表 + 资格审查/初步评审章节全部实质条款合并（去重、5 条/4000 字符上限）。
+- **分类修正** `CaseCategoryMatchPolicy.classifyText`：PERFORMANCE 优先于 QUALIFICATION（「资质业绩」→ 业绩；纯资质仍为资质）。
+- **编排** `ScoreItemCaseRecommendAppService`：业绩评分项执行准入；未选评分项且资格项含业绩要求时回退用资格项上下文；无资格项业绩条款时行为不变。
+
+### 3. 数据缺口
+`knowledge_case` 无金额/业绩品类字段，金额证据只能从案例文本提取；结构化金额门禁依赖文本正则，精度受限——已登记 `docs/exec-plans/tech-debt-tracker.md`。
