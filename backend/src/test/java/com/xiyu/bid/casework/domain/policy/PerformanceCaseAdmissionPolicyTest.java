@@ -29,7 +29,7 @@ class PerformanceCaseAdmissionPolicyTest {
     void testPersonnelCandidateRejected() {
         String personnel = "【Mock证明材料】证明王工有5年以上研发管理经验，拥有高级职称，参与过相似项目，项目团队配置合理。";
 
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate(personnel, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate(personnel, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
                 .isZero();
     }
 
@@ -38,7 +38,7 @@ class PerformanceCaseAdmissionPolicyTest {
     void testTechnicalCandidateRejected() {
         String technical = "我司提供微服务高可用架构与容灾备份方案，支持国产化数据库与等保三级要求。";
 
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate(technical, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate(technical, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
                 .isZero();
     }
 
@@ -48,7 +48,7 @@ class PerformanceCaseAdmissionPolicyTest {
         String candidate = "我司为大型集团客户提供办公用品年度供应服务，单个自然年累计发票金额2600万元。";
 
         PerformanceCaseAdmissionPolicy.AdmissionDecision decision =
-                PerformanceCaseAdmissionPolicy.evaluate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT));
+                PerformanceCaseAdmissionPolicy.evaluateCandidate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT));
 
         assertThat(decision.tier()).isEqualTo(1);
         assertThat(decision.reasons()).anyMatch(reason -> reason.contains("办公用品"));
@@ -59,7 +59,7 @@ class PerformanceCaseAdmissionPolicyTest {
     void testBelowThresholdCandidateRejected() {
         String candidate = "我司为大型集团客户提供办公用品年度供应服务，累计发票金额800万元。";
 
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
                 .isZero();
     }
 
@@ -68,7 +68,7 @@ class PerformanceCaseAdmissionPolicyTest {
     void testCrossSentenceAmountStillVetoes() {
         String candidate = "为大型集团提供办公用品年度供应服务。累计发票金额800万元。";
 
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
                 .isZero();
     }
 
@@ -77,7 +77,7 @@ class PerformanceCaseAdmissionPolicyTest {
     void testCategoryHitWithoutAmountFallsToSecondTier() {
         String candidate = "我司长期为大型集团提供标准工业品年度供应服务，履约评价优秀。";
 
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
                 .isEqualTo(2);
     }
 
@@ -86,7 +86,7 @@ class PerformanceCaseAdmissionPolicyTest {
     void testAnyThresholdMetWinsOverOtherBelowThresholdCategory() {
         String candidate = "办公用品累计发票金额800万元；标准工业品累计发票金额4600万元。";
 
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
                 .isEqualTo(1);
     }
 
@@ -96,14 +96,14 @@ class PerformanceCaseAdmissionPolicyTest {
         String perfSignal = "我司近三年累计供货业绩丰富，服务多家大型企业客户。";
         String personnel = "项目团队配置合理，项目经理具有高级职称。";
 
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate(perfSignal, requirement("具有类似供货业绩")).tier())
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate(perfSignal, requirement("具有类似供货业绩")).tier())
                 .isEqualTo(3);
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate(perfSignal, null).tier()).isEqualTo(3);
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate(personnel, requirement("具有类似供货业绩")).tier())
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate(perfSignal, null).tier()).isEqualTo(3);
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate(personnel, requirement("具有类似供货业绩")).tier())
                 .isZero();
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate((String) null, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate((String) null, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
                 .isZero();
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate("   ", null).tier()).isZero();
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate("   ", null).tier()).isZero();
     }
 
     @Test
@@ -128,7 +128,7 @@ class PerformanceCaseAdmissionPolicyTest {
         String candidate = "为某大型集团提供办公用品，合同金额2600万元，合同复印件见附件。";
 
         PerformanceCaseAdmissionPolicy.AdmissionDecision decision =
-                PerformanceCaseAdmissionPolicy.evaluate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT));
+                PerformanceCaseAdmissionPolicy.evaluateCandidate(candidate, requirement(OFFICE_INDUSTRIAL_REQUIREMENT));
 
         assertThat(decision.tier()).isEqualTo(1);
     }
@@ -139,9 +139,9 @@ class PerformanceCaseAdmissionPolicyTest {
         String personnelA = "项目经理具备高级职称，负责项目履约管理，团队配置合理。";
         String personnelB = "项目负责人曾参与中标项目，人员履历丰富。";
 
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate(personnelA, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate(personnelA, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
                 .isZero();
-        assertThat(PerformanceCaseAdmissionPolicy.evaluate(personnelB, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
+        assertThat(PerformanceCaseAdmissionPolicy.evaluateCandidate(personnelB, requirement(OFFICE_INDUSTRIAL_REQUIREMENT)).tier())
                 .isZero();
     }
 

@@ -42,13 +42,13 @@ public final class PerformanceCaseAdmissionPolicy {
 
     private PerformanceCaseAdmissionPolicy() {}
 
-    public static AdmissionDecision evaluate(
+    public static AdmissionDecision evaluateCandidate(
             KnowledgeCaseReadModel candidate,
             QualificationPerformanceRetriever.PerformanceRequirementResult requirement) {
         if (candidate == null) {
             return new AdmissionDecision(0, List.of("候选为空"));
         }
-        return evaluate(candidateText(candidate), requirement);
+        return evaluateCandidate(candidateText(candidate), requirement);
     }
 
     /**
@@ -62,7 +62,7 @@ public final class PerformanceCaseAdmissionPolicy {
         boolean hasCategoryEvidence = false;
         boolean hasSignalFallback = false;
         for (KnowledgeCaseReadModel candidate : candidates) {
-            int tier = evaluate(candidate, requirement).tier();
+            int tier = evaluateCandidate(candidate, requirement).tier();
             tiers.put(candidate.getId(), tier);
             if (tier == 1 || tier == 2) {
                 hasCategoryEvidence = true;
@@ -86,7 +86,7 @@ public final class PerformanceCaseAdmissionPolicy {
         return List.of();
     }
 
-    public static AdmissionDecision evaluate(
+    public static AdmissionDecision evaluateCandidate(
             String candidateText,
             QualificationPerformanceRetriever.PerformanceRequirementResult requirement) {
         if (!hasText(candidateText)) {
