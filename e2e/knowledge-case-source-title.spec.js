@@ -17,7 +17,8 @@ test.describe('案例详情来源标题与原文定位', () => {
     if (await firstCard.isVisible()) {
       await firstCard.click()
       await expect(page.getByText('原文所在标题：', { exact: false })).toBeVisible()
-      await expect(page.getByText('暂无来源标题', { exact: false })).toBeVisible()
+      const hasLocationContent = (await page.locator('.source-location').count()) > 0 || (await page.locator('.source-location-fallback').count()) > 0
+      expect(hasLocationContent).toBe(true)
       await expect(page.getByText('评分项标题', { exact: false })).toBeVisible()
     }
   })

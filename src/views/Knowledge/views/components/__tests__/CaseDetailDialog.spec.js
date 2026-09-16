@@ -77,10 +77,38 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
 
   it('来源路径和标题均为空时显示降级文案且信息行不可点击', () => {
     const wrapper = mountDialog({
-      caseData: { ...caseData, scoringPointTitle: '项目实施', sourceSectionTitle: null, sourceSectionPath: null }
+      caseData: { ...caseData, scoringPointTitle: null, scoringTitle: null, sourceSectionTitle: null, sourceSectionPath: null, responseText: '纯普通文本无标题' }
     })
     expect(wrapper.find('.source-location').exists()).toBe(false)
     expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
+  })
+
+  it('来源路径和标题为空但有评分项标题时智能兜底展示且信息行可点击', () => {
+    const wrapper = mountDialog({
+      caseData: { ...caseData, scoringPointTitle: '项目实施', sourceSectionTitle: null, sourceSectionPath: null, responseText: '纯正文内容' }
+    })
+    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：项目实施')
+    expect(sourceLocation(wrapper).element.tagName).toBe('BUTTON')
+  })
+
+  it('智能从应答正文提取章节标题、详见引用与方案书名', () => {
+    // 1. Markdown 章节列表开头
+    const w1 = mountDialog({
+      caseData: { ...caseData, scoringPointTitle: null, sourceSectionTitle: null, sourceSectionPath: null, responseText: '* 1. 质量管理方案\n     1. 商品安全溯源\n\n为全面保障质量安全...' }
+    })
+    expect(sourceLocation(w1).text()).toContain('原文所在标题：质量管理方案 > 商品安全溯源')
+
+    // 2. 详见引用
+    const w2 = mountDialog({
+      caseData: { ...caseData, scoringPointTitle: null, sourceSectionTitle: null, sourceSectionPath: null, responseText: '**西域承诺物流配送... 详见七、服务方案-（二）、供货方案**' }
+    })
+    expect(sourceLocation(w2).text()).toContain('原文所在标题：七、服务方案 > （二） > 供货方案')
+
+    // 3. 书名号规范方案
+    const w3 = mountDialog({
+      caseData: { ...caseData, scoringPointTitle: null, sourceSectionTitle: null, sourceSectionPath: null, responseText: '我司针对三峡集团业务特性，制定了完备的《突发事件防汛防灾及双活容灾应急预案》。建立三级应急联动...' }
+    })
+    expect(sourceLocation(w3).text()).toContain('原文所在标题：突发事件防汛防灾及双活容灾应急预案')
   })
 
   it('来源标题与评分项标题同名时仍保留两个不同 label', () => {
@@ -273,5 +301,48 @@ describe('CaseDetailDialog - 应答片段 markdown 安全渲染', () => {
     await findButtonByText(wrapper, '复用').trigger('click')
     expect(wrapper.emitted('reuse')[0][0].responseText).toBe(tableMarkdown)
     expect(wrapper.emitted('reuse')[0][0].responseText).not.toContain('<table')
+  })
+
+  describe('CaseDetailDialog - 真实库无换行大段文本排版与分段能力', () => {
+    it('行内无换行阿拉伯数字序号自动换行并转为列表', () => {
+      const raw = '我司将按照以下阶段实施：1.需求调研（2周）2.方案设计（3周）3.系统部署（4周）4.测试验收（2周）5.培训上线（1周），总计12周完成。'
+      const wrapper = mountDialog({ caseData: { ...caseData, responseText: raw } })
+      const box = wrapper.find('.response-box')
+
+      expect(box.find('ol').exists()).toBe(true)
+      const items = box.findAll('ol li')
+      expect(items.length).toBeGreaterThanOrEqual(5)
+      expect(items[0].text()).toContain('需求调研（2周）')
+      expect(items[1].text()).toContain('方案设计（3周）')
+    })
+
+    it('多级序号与字母子序号在无换行文本中自动切分排版', () => {
+      const raw = '完成。6.2.4）领取复盘任务初盘任务完成后，系统会把初盘有差异的盘点单生成对应的复盘任务。6.2.5）差异原因查找及差异数据的处理a.异常处理人员逐条核查b.复盘异常处理'
+      const wrapper = mountDialog({ caseData: { ...caseData, responseText: raw } })
+      const box = wrapper.find('.response-box')
+
+      // 应包含断行或有序列表，将原本挤在一行的各子项拆分
+      expect(box.html()).toMatch(/<ol>|<br>|<p>/)
+      expect(box.text()).toContain('领取复盘任务')
+      expect(box.text()).toContain('差异原因查找')
+      expect(box.find('ol li').exists()).toBe(true)
+    })
+
+    it('单行无分隔行 Markdown 表格自动补全表头并渲染为 HTML table', () => {
+      const raw = '| **投标报价** | **宣传品报价** | **商品池报价** | **/** |'
+      const wrapper = mountDialog({ caseData: { ...caseData, responseText: raw } })
+      const box = wrapper.find('.response-box')
+
+      expect(box.find('table').exists()).toBe(true)
+      expect(box.find('th').text()).toContain('投标报价')
+    })
+
+    it('多句长文本按句号智能断句插入换行，提升大段可读性', () => {
+      const raw = '我司针对三峡集团业务特性，制定了完备的应急预案。建立三级应急联动响应指挥体系：一线运维工程师15分钟内到达现场。储备包括核心板卡在内的原厂应急备件库，保证系统重大故障在2小时内恢复服务。定期开展半年度实战攻防与应急演练。'
+      const wrapper = mountDialog({ caseData: { ...caseData, responseText: raw } })
+      const box = wrapper.find('.response-box')
+
+      expect(box.html()).toContain('<br>')
+    })
   })
 })
