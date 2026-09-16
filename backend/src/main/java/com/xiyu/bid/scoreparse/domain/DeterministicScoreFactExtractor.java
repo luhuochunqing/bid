@@ -218,15 +218,9 @@ public final class DeterministicScoreFactExtractor {
     }
 
     private static ScoreRule classifyRule(String detail) {
-        if (detail == null || detail.isBlank()) {
-            return ScoreRule.MAX_SCORE;
-        }
-        if (DEDUCTION_RULE.matcher(detail).find()) {
-            return ScoreRule.DEDUCTION;
-        }
-        if (AWARD_RULE.matcher(detail).find()) {
-            return ScoreRule.AWARD;
-        }
+        if (detail == null || detail.isBlank()) return ScoreRule.MAX_SCORE;
+        if (DEDUCTION_RULE.matcher(detail).find()) return ScoreRule.DEDUCTION;
+        if (AWARD_RULE.matcher(detail).find()) return ScoreRule.AWARD;
         return ScoreRule.MAX_SCORE;
     }
 
