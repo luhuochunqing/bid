@@ -87,7 +87,8 @@ backlinks:
 - [[oss-organization-sync-playbook]] — OSS 组织架构同步实战手册
 - [[overview]] — 项目综述
 - [[production-deployment-lessons]] — 生产环境首次部署实战教训
-- [[project-search-owner-unit]] — 项目搜索按招标主体（ownerUnit 数据链路与关键词过滤契约）
+- [[project-detail-toolbar-back-fix]] — 项目详情页横条返回按钮无响应修复（el-page-header back 事件未接）
+- [[project-search-owner-unit]] — 项目搜索按招标主体（ownerUnit 数据链路与关 键词过滤契约）
 - [[requirements]] — 需求追溯
 - [[result-registration-immutability]] — 项目结果登记不可变链路与二次确认
 - [[roles-and-permissions]] — 角色与权限
