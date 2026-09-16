@@ -5926,3 +5926,31 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
    - 提取特征词优先展示为卡片标签，使符合条件的优质案例稳健突破 80+ 分（“优质”）并高亮展示。
 
 > 维护纪律：标书中具有指针引用特征的评分项（如业绩、信誉、资信等），在进行匹配推荐时应主动穿透至被引用的资格审查/初步评审源头提取实质门槛；且检索范围必须严格限制在资格章节边界内，坚决杜绝全文档泛化切词。
+
+---
+
+## 368. 前端阶段可编辑性角色硬编码遗漏 bid-SystemAdmin 根因治理（2026-09-16）
+
+**背景**：
+用户反馈在测试环境（项目 1381）和生产环境（项目 581）中，进入评标中阶段（`EvaluationStage`）时，部分管理账号无法选择评标状态（“中标 / 未中标 / 重新招标”三个状态按钮点击无任何反应，状态说明输入框 disabled，提交按钮隐藏）。经生产现场日志与数据库排查，测试环境账号 `06234` 与生产环境账号 `11484` 在 OSS 下发的主角色均为 `bid-SystemAdmin`（投标系统管理员）。
+
+**根因分析**：
+1. **角色判断散落且硬编码白名单**：
+   前端 `EvaluationStage.vue` 的 `editable` 计算属性中直接写死了字符字面量白名单：
+   `if (role === 'admin' || role === '/bidAdmin' || role === 'bid-TeamLeader') return true;`
+   `if (role === 'bid-projectLeader' || role === 'bid-Team') return true;`
+   白名单中遗漏了正式系统角色 `bid-SystemAdmin`（以及其它非标准格式角色别名）。
+2. **缺乏单一事实来源**：
+   系统在 `src/utils/permission.js` 中已存在标准角色归一与判权函数 `isBidManager`（内部已囊括 `bid-SystemAdmin`、`/bidAdmin`、`admin`、`bid_admin` 等），但部分阶段组件（如 `EvaluationStage.vue`、`ClosureStage.vue`）未复用该工具函数，而是自行重复实现了不完整的角色判断。
+3. **环境差异表现掩盖同源缺陷**：
+   测试环境与生产环境中同一个账号在 OSS 同步的角色配置不同（测试服 11484 为 `/bidAdmin`，生产服 11484 为 `bid-SystemAdmin`），导致测试环境 11484 能点而生产环境 11484 不能点，容易误导排查者以为是项目负责人或环境数据脏问题，实质为同一套前端角色白名单缺陷。
+
+**根治方案**：
+1. **单一真相源收敛**：
+   - `EvaluationStage.vue`：彻底废弃散落的 `role === ...` 硬编码，改用 `src/utils/permission.js` 中的 `isBidManager` 计算属性；
+   - `ClosureStage.vue`：将 `isAdminLead` 及相关管理员判断统一收敛至 `isBidManagerRole`，同步支持 `bid-SystemAdmin`。
+2. **防复发单元测试固化**：
+   - `EvaluationStage.spec.js`：补充 `bid-SystemAdmin` 可编辑性与状态切换的测试用例（覆盖 `admin`、`/bidAdmin`、`bid-SystemAdmin`、`bid-TeamLeader`、`bid-projectLeader`、`bid-Team`、普通只读用户）；
+   - `ClosureStage.spec.js`：补充 `bid-SystemAdmin` 的归档权限校验用例。
+
+> 维护纪律：前端页面与阶段的可编辑性、审核与管理权限判定，严禁在各组件内使用字面量 `role === 'xxx'` 编写散落白名单；必须统一调用 `src/utils/permission.js` 中的标准判权函数或 Pinia `userStore.hasPermission` 权限码，确保角色扩展时零散组件不发生遗漏。

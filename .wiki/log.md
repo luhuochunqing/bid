@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-16] fix | 评标与结项阶段角色权限判定收敛至 isBidManager 单一真相源
+
+- 触发：生产环境（项目 581）与测试环境（项目 1381）管理账号（`bid-SystemAdmin`）在评标中阶段无法选择状态（三个状态按钮不可点、提交按钮隐藏）。
+- 根因：`EvaluationStage.vue` 与 `ClosureStage.vue` 散落内联硬编码角色白名单，遗漏 `bid-SystemAdmin`。
+- 方案：收敛至 `src/utils/permission.js` 的 `isBidManager` 单一真相源，并补全针对 `bid-SystemAdmin` 的防复发单元测试。
+- 沉淀：更新 `docs/lessons/lessons-learned.md` §368 与 `.wiki/pages/roles-and-permissions.md` §11.3。
+
 ## [2026-09-16] fix | 工作台 AI 商机预测表头重构为显式双行网格以杜绝 Fragment 样式失效
 
 - 触发：用户反馈表头样式与设计差距大，第二排预测时间范围未占满 3 列宽度，重置按钮挤在第 2 列导致第 3-4 列大面积空白。
