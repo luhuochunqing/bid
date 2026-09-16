@@ -23,6 +23,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -277,6 +278,246 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(item.getMatchScore()).isGreaterThanOrEqualTo(80);
         assertThat(item.getMatchLabel()).isEqualTo("优质");
         assertThat(item.getMatchReasons()).anyMatch(r -> r.contains("资格项业绩品类"));
+    }
+
+    @Test
+    @DisplayName("业绩评分项准入：人员候选被剔除、低于门槛业绩被排除，仅保留达门槛业绩案例")
+    void testPerformanceItemAdmissionExcludesPersonnelAndBelowThreshold() {
+        Long projectId = 300L;
+        Long scoreItemId = 5L;
+
+        Project project = new Project();
+        project.setId(projectId);
+        project.setCustomerType("STATE_OWNED");
+        project.setIndustry("工业品");
+
+        ScoreItem scoreItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("3")
+                .dim("类似业绩")
+                .detail("投标人须提供类似业绩合同或协议（双方名称清晰齐全），每个合同均须提供结算发票复印件。")
+                .itemIndex(3)
+                .build();
+
+        String qualText = "供应商近三年应具有大型集团级企业年度供应业绩：办公用品累计金额不低于2000万元；"
+                + "标准工业品累计金额不低于4500万元。";
+        var qualInfo = new com.xiyu.bid.casework.application.port.TenderQualificationQueryPort.TenderQualificationInfo(
+                List.of(qualText), null);
+
+        KnowledgeCase personnel = new KnowledgeCase();
+        personnel.setId(401L);
+        personnel.setSourceProjectId(9401L);
+        personnel.setScoringPointTitle("项目实施经验");
+        personnel.setScoringCategory("EXPERIENCE");
+        personnel.setResponseText("证明王工有5年以上研发管理经验，拥有高级职称，参与过相似项目。");
+        personnel.setStatus("ACTIVE");
+        personnel.setBidResult("WON");
+        personnel.setQualityScore(90);
+
+        KnowledgeCase perfMet = new KnowledgeCase();
+        perfMet.setId(402L);
+        perfMet.setSourceProjectId(9402L);
+        perfMet.setScoringPointTitle("类似业绩");
+        perfMet.setScoringCategory("资质业绩");
+        perfMet.setResponseText("为大型集团提供办公用品年度供应，累计发票金额2600万元。");
+        perfMet.setStatus("ACTIVE");
+        perfMet.setBidResult("WON");
+        perfMet.setQualityScore(90);
+
+        KnowledgeCase perfBelowThreshold = new KnowledgeCase();
+        perfBelowThreshold.setId(403L);
+        perfBelowThreshold.setSourceProjectId(9403L);
+        perfBelowThreshold.setScoringPointTitle("类似业绩");
+        perfBelowThreshold.setScoringCategory("资质业绩");
+        perfBelowThreshold.setResponseText("为大型集团提供办公用品年度供应，累计发票金额800万元。");
+        perfBelowThreshold.setStatus("ACTIVE");
+
+        KnowledgeCase perfNoAmount = new KnowledgeCase();
+        perfNoAmount.setId(404L);
+        perfNoAmount.setSourceProjectId(9404L);
+        perfNoAmount.setScoringPointTitle("供货业绩");
+        perfNoAmount.setScoringCategory("资质业绩");
+        perfNoAmount.setResponseText("为大型集团提供办公用品年度供应服务，履约评价优秀，发票齐全。");
+        perfNoAmount.setStatus("ACTIVE");
+        perfNoAmount.setBidResult("WON");
+
+        when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(eq(scoreItemId))).thenReturn(Optional.of(scoreItem));
+        when(tenderQualificationQueryPort.findByProjectId(eq(projectId))).thenReturn(Optional.of(qualInfo));
+        when(knowledgeCaseQueryPort.findAllActive())
+                .thenReturn(List.of(personnel, perfMet, perfBelowThreshold, perfNoAmount));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(projectId,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(scoreItemId).page(0).size(10).build());
+
+        // tier2（品类命中、无金额佐证）保留展示；人员与明确低于门槛的候选被剔除
+        assertThat(response.getItems()).extracting(ScoreItemCaseRecommendResponse.Item::getId)
+                .containsExactlyInAnyOrder(402L, 404L);
+        assertThat(response.getItems().stream()
+                .filter(item -> item.getId().equals(402L))
+                .findFirst().orElseThrow().getMatchScore()).isGreaterThanOrEqualTo(50);
+    }
+
+    @Test
+    @DisplayName("业绩评分项 + 资格项快照缺失：仅凭业绩信号准入，人员案例仍被排除")
+    void testPerformanceItemWithoutQualificationSnapshotStillExcludesPersonnel() {
+        Long projectId = 304L;
+        Long scoreItemId = 6L;
+
+        Project project = new Project();
+        project.setId(projectId);
+
+        ScoreItem scoreItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("3")
+                .dim("类似业绩")
+                .detail("投标人须提供类似业绩合同或协议及结算发票复印件。")
+                .itemIndex(3)
+                .build();
+
+        KnowledgeCase personnel = new KnowledgeCase();
+        personnel.setId(441L);
+        personnel.setSourceProjectId(9441L);
+        personnel.setScoringPointTitle("项目实施经验");
+        personnel.setResponseText("证明王工有5年以上研发管理经验，拥有高级职称。");
+        personnel.setStatus("ACTIVE");
+        personnel.setBidResult("WON");
+
+        KnowledgeCase perfSignal = new KnowledgeCase();
+        perfSignal.setId(442L);
+        perfSignal.setSourceProjectId(9442L);
+        perfSignal.setScoringPointTitle("供货业绩");
+        perfSignal.setResponseText("我司近三年累计供货业绩丰富，服务多家大型企业客户。");
+        perfSignal.setStatus("ACTIVE");
+        perfSignal.setBidResult("WON");
+
+        when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(eq(scoreItemId))).thenReturn(Optional.of(scoreItem));
+        when(tenderQualificationQueryPort.findByProjectId(eq(projectId))).thenReturn(Optional.empty());
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(personnel, perfSignal));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(projectId,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(scoreItemId).page(0).size(10).build());
+
+        assertThat(response.getItems()).extracting(ScoreItemCaseRecommendResponse.Item::getId)
+                .containsExactly(442L);
+    }
+
+    @Test
+    @DisplayName("未选评分项回退：资格项存在业绩要求时按门槛准入，人员候选不出现")
+    void testDefaultRecommendationFallsBackToQualificationPerformance() {
+        Long projectId = 301L;
+
+        Project project = new Project();
+        project.setId(projectId);
+
+        String qualText = "供应商近三年应具有大型集团级企业年度供应业绩：办公用品累计金额不低于2000万元。";
+        var qualInfo = new com.xiyu.bid.casework.application.port.TenderQualificationQueryPort.TenderQualificationInfo(
+                List.of(qualText), null);
+
+        KnowledgeCase personnel = new KnowledgeCase();
+        personnel.setId(411L);
+        personnel.setSourceProjectId(9411L);
+        personnel.setScoringPointTitle("人员配置方案");
+        personnel.setResponseText("项目经理与团队配置科学合理，人员资质齐全。");
+        personnel.setStatus("ACTIVE");
+        personnel.setBidResult("WON");
+
+        KnowledgeCase perfMet = new KnowledgeCase();
+        perfMet.setId(412L);
+        perfMet.setSourceProjectId(9412L);
+        perfMet.setScoringPointTitle("类似业绩");
+        perfMet.setScoringCategory("资质业绩");
+        perfMet.setResponseText("为大型集团提供办公用品年度供应，累计发票金额2600万元。");
+        perfMet.setStatus("ACTIVE");
+        perfMet.setBidResult("WON");
+
+        when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(project));
+        when(tenderQualificationQueryPort.findByProjectId(eq(projectId))).thenReturn(Optional.of(qualInfo));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(personnel, perfMet));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(projectId,
+                ScoreItemCaseRecommendRequest.builder().keyword("").page(0).size(20).build());
+
+        assertThat(response.getItems()).extracting(ScoreItemCaseRecommendResponse.Item::getId)
+                .containsExactly(412L);
+    }
+
+    @Test
+    @DisplayName("未选评分项且资格项无业绩条款：保持现状不做准入过滤（回归防护）")
+    void testDefaultRecommendationWithoutQualificationKeepsExistingBehavior() {
+        Long projectId = 302L;
+
+        Project project = new Project();
+        project.setId(projectId);
+
+        KnowledgeCase case1 = new KnowledgeCase();
+        case1.setId(421L);
+        case1.setSourceProjectId(9421L);
+        case1.setScoringPointTitle("技术方案");
+        case1.setResponseText("微服务容灾架构方案");
+        case1.setStatus("ACTIVE");
+        case1.setBidResult("WON");
+
+        KnowledgeCase case2 = new KnowledgeCase();
+        case2.setId(422L);
+        case2.setSourceProjectId(9422L);
+        case2.setScoringPointTitle("人员配置");
+        case2.setResponseText("项目经理与团队配置方案");
+        case2.setStatus("ACTIVE");
+        case2.setBidResult("WON");
+
+        when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(project));
+        when(tenderQualificationQueryPort.findByProjectId(eq(projectId))).thenReturn(Optional.empty());
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(case1, case2));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(projectId,
+                ScoreItemCaseRecommendRequest.builder().keyword("").page(0).size(20).build());
+
+        assertThat(response.getItems()).extracting(ScoreItemCaseRecommendResponse.Item::getId)
+                .containsExactlyInAnyOrder(421L, 422L);
+    }
+
+    @Test
+    @DisplayName("未选评分项 + 关键词检索：不触发资格项回退准入，保持原检索行为")
+    void testKeywordSearchWithoutScoreItemSkipsQualificationFallback() {
+        Long projectId = 303L;
+
+        Project project = new Project();
+        project.setId(projectId);
+
+        KnowledgeCase technical = new KnowledgeCase();
+        technical.setId(431L);
+        technical.setSourceProjectId(9431L);
+        technical.setScoringPointTitle("技术方案");
+        technical.setResponseText("微服务容灾架构方案");
+        technical.setStatus("ACTIVE");
+        technical.setBidResult("WON");
+
+        KnowledgeCase personnel = new KnowledgeCase();
+        personnel.setId(432L);
+        personnel.setSourceProjectId(9432L);
+        personnel.setScoringPointTitle("人员配置");
+        personnel.setResponseText("项目经理与团队配置方案");
+        personnel.setStatus("ACTIVE");
+        personnel.setBidResult("WON");
+
+        when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(project));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(technical, personnel));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(projectId,
+                ScoreItemCaseRecommendRequest.builder().keyword("团队").page(0).size(20).build());
+
+        assertThat(response.getItems()).extracting(ScoreItemCaseRecommendResponse.Item::getId)
+                .containsExactlyInAnyOrder(431L, 432L);
+        verify(tenderQualificationQueryPort, never()).findByProjectId(projectId);
     }
 
     @Test

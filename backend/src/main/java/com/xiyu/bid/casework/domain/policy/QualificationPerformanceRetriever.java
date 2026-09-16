@@ -35,18 +35,6 @@ public final class QualificationPerformanceRetriever {
             "有效业绩", "资格条件规定的", "资格条款要求", "初步评审", "供应商资格", "资格审查", "类似业绩", "同类业绩"
     );
 
-    /** 资格项章节正则锚点（限定在资格审查/初步评审范围，坚决阻断全文档非资格区域噪声） */
-    private static final Pattern QUALIFICATION_SECTION_PATTERN = Pattern.compile(
-            "(?:(?:初步评审|资格审查|资格评审|资格性审查|供应商资格|资格条件|投标人资格|申请人资格)[^\\n]*)([\\s\\S]*?)(?=(?:\\n\\s*(?:[一二三四五六七八九十\\d]+[、.\\s]*)?(?:详细评审|技术需求|商务要求|投标文件格式|第四章|第五章|第六章|第七章)|$))",
-            Pattern.CASE_INSENSITIVE
-    );
-
-    /** 资格项中属于业绩条款的判定正则（必须同时出现业绩或类似供货要求，以及时间/数量/金额等实质条件） */
-    private static final Pattern PERF_CLAUSE_PATTERN = Pattern.compile(
-            "[^。；;\\n]*?(?:业绩|类似项目|供货记录|合同)[^。；;\\n]*?(?:年|项|万|元|发票|电商|供应|不低于|不少于|累计)[^。；;\\n]*",
-            Pattern.CASE_INSENSITIVE
-    );
-
     /** 提取核心关键词特征池 */
     private static final List<String> CORE_FEATURE_WORDS = List.of(
             "大型集团", "集团级", "电商", "电商化", "办公用品", "标准工业品", "工业品", "mro",
@@ -57,7 +45,8 @@ public final class QualificationPerformanceRetriever {
             String matchedRequirementText,
             List<String> keywords,
             List<String> targetCategories,
-            List<String> amountThresholds
+            List<String> amountThresholds,
+            List<PerformanceThresholdExtractor.CategoryThreshold> thresholds
     ) {}
 
     /**
@@ -106,56 +95,25 @@ public final class QualificationPerformanceRetriever {
         if (!isPerformanceScoreItem(dim, detail)) {
             return Optional.empty();
         }
-
-        // 1. 优先从已结构化的资格项列表提取
-        if (qualificationRequirements != null && !qualificationRequirements.isEmpty()) {
-            for (String req : qualificationRequirements) {
-                if (isSubstantivePerformanceRequirement(req)) {
-                    return Optional.of(buildResult(req));
-                }
-            }
-        }
-
-        // 2. 次选：从标书原文的资格审查/初步评审章节提取
-        if (hasText(rawTenderText)) {
-            Matcher sectionMatcher = QUALIFICATION_SECTION_PATTERN.matcher(rawTenderText);
-            while (sectionMatcher.find()) {
-                String sectionContent = sectionMatcher.group(1);
-                if (hasText(sectionContent)) {
-                    // 在资格章节中扫描包含业绩的完整段落或条款
-                    String[] paragraphs = sectionContent.split("\\n+");
-                    for (String para : paragraphs) {
-                        if (isSubstantivePerformanceRequirement(para)) {
-                            return Optional.of(buildResult(para.trim()));
-                        }
-                    }
-
-                    Matcher clauseMatcher = PERF_CLAUSE_PATTERN.matcher(sectionContent);
-                    if (clauseMatcher.find()) {
-                        return Optional.of(buildResult(clauseMatcher.group().trim()));
-                    }
-                }
-            }
-        }
-
-        return Optional.empty();
+        return retrieveFromQualification(qualificationRequirements, rawTenderText);
     }
 
-    private boolean isSubstantivePerformanceRequirement(String text) {
-        if (!hasText(text)) {
-            return false;
-        }
-        String lower = text.toLowerCase(Locale.ROOT);
-        if (!lower.contains("业绩") && !lower.contains("供货") && !lower.contains("同类项目")) {
-            return false;
-        }
-        // 必须含有实质门槛指标特征（排除如“经营业绩良好”、“展示公司业绩”等纯描述背景词）
-        boolean hasThresholdIndicator = lower.contains("年") || lower.contains("项") || lower.contains("万")
-                || lower.contains("元") || lower.contains("发票") || lower.contains("不低于")
-                || lower.contains("不少于") || lower.contains("累计") || lower.contains("合同")
-                || lower.contains("电商") || lower.contains("供应");
+    /**
+     * 不依赖评分项文本的资格项业绩条款提取（供未选评分项的回退场景使用）。
+     *
+     * @param qualificationRequirements 项目已解析的资格项列表
+     * @param rawTenderText 标书原文（可选，备选检索源）
+     * @return 合并全部实质业绩条款后的结构化结果
+     */
+    public Optional<PerformanceRequirementResult> retrieveFromQualification(
+            List<String> qualificationRequirements,
+            String rawTenderText) {
 
-        return hasThresholdIndicator;
+        String merged = QualificationClauseCollector.collectMerged(qualificationRequirements, rawTenderText);
+        if (!hasText(merged)) {
+            return Optional.empty();
+        }
+        return Optional.of(buildResult(merged));
     }
 
     private PerformanceRequirementResult buildResult(String reqText) {
@@ -171,14 +129,10 @@ public final class QualificationPerformanceRetriever {
             }
         }
 
-        // 提取典型品类
-        if (lower.contains("办公用品") || lower.contains("办公耗材")) {
-            targetCategories.add("办公用品");
-            hitKeywords.add("办公用品");
-        }
-        if (lower.contains("标准工业品") || lower.contains("工业品") || lower.contains("mro")) {
-            targetCategories.add("标准工业品");
-            hitKeywords.add("标准工业品");
+        // 提取典型品类（与门槛解析共用同一词表，避免两套归一结果）
+        for (String category : PerformanceThresholdExtractor.detectCategories(reqText)) {
+            targetCategories.add(category);
+            hitKeywords.add(category);
         }
 
         // 提取典型金额
@@ -188,11 +142,16 @@ public final class QualificationPerformanceRetriever {
             hitKeywords.add(amountMatcher.group(1));
         }
 
+        // 结构化品类-金额门槛（万元归一），供候选准入使用
+        List<PerformanceThresholdExtractor.CategoryThreshold> thresholds =
+                PerformanceThresholdExtractor.extract(reqText);
+
         return new PerformanceRequirementResult(
                 reqText,
                 List.copyOf(hitKeywords),
                 List.copyOf(targetCategories),
-                List.copyOf(amountThresholds)
+                List.copyOf(amountThresholds),
+                thresholds
         );
     }
 

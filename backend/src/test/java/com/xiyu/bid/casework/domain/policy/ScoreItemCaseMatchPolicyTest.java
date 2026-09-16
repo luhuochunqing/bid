@@ -645,6 +645,13 @@ class ScoreItemCaseMatchPolicyTest {
         assertThat(CaseCategoryMatchPolicy.classifyText("近三年同类项目业绩")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE);
         assertThat(CaseCategoryMatchPolicy.classifyText("同类业绩证明材料")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE);
         assertThat(CaseCategoryMatchPolicy.classifyText("商务-同类业绩")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE);
+        // 混合类别「资质业绩」必须按业绩优先归类（否则真业绩案例丢类别一致加分）
+        assertThat(CaseCategoryMatchPolicy.classifyText("资质业绩")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE);
+        assertThat(CaseCategoryMatchPolicy.classifyText("资质等级证书")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.QUALIFICATION);
+        // 纯资质文本含“同类”时不得翻转为业绩
+        assertThat(CaseCategoryMatchPolicy.classifyText("同类资质认证")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.QUALIFICATION);
+        assertThat(CaseCategoryMatchPolicy.classifyText("同类ISO认证")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.QUALIFICATION);
+        assertThat(CaseCategoryMatchPolicy.classifyText("同类项目实施经验")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE);
         assertThat(CaseCategoryMatchPolicy.classifyText("微服务架构高可用实施方案")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);
         assertThat(CaseCategoryMatchPolicy.classifyText("微服务实施案例")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);
         assertThat(CaseCategoryMatchPolicy.classifyText("双活容灾配置方案")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);

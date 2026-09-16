@@ -108,6 +108,103 @@ class QualificationPerformanceRetrieverTest {
     }
 
     @Test
+    @DisplayName("多条业绩条款分列时全部合并：办公用品 2000 万与标准工业品 4500 万两个门槛均生效")
+    void testRetrieveMergesAllSubstantiveClauses() {
+        String dim = "3 同类项目业绩";
+        String detail = "需提供的业绩证明材料同初步评审第7条供应商资格中的业绩证明材料。";
+
+        List<String> qualificationList = List.of(
+                "具有独立承担民事责任的能力（提供营业执照）",
+                "供应商近三年应具有大型集团级企业电商化年度供应业绩，项目服务范围包含办公用品，单个自然年发票累计金额不低于2000万元。",
+                "供应商近三年应具有大型集团级企业年度供应业绩，项目服务范围包含标准工业品，单个自然年发票累计金额不低于4500万元。",
+                "未被列入失信被执行人、重大税收违法失信主体"
+        );
+
+        Optional<QualificationPerformanceRetriever.PerformanceRequirementResult> resultOpt =
+                retriever.retrieve(dim, detail, qualificationList, null);
+
+        assertThat(resultOpt).isPresent();
+        QualificationPerformanceRetriever.PerformanceRequirementResult result = resultOpt.get();
+        assertThat(result.matchedRequirementText()).contains("办公用品").contains("标准工业品");
+        assertThat(result.targetCategories()).contains("办公用品", "标准工业品");
+        assertThat(result.thresholds())
+                .extracting(PerformanceThresholdExtractor.CategoryThreshold::category)
+                .contains("办公用品", "标准工业品");
+        assertThat(result.thresholds().stream()
+                .filter(t -> t.category().equals("办公用品"))
+                .findFirst().orElseThrow().amountWan())
+                .isEqualByComparingTo(new java.math.BigDecimal("2000"));
+        assertThat(result.thresholds().stream()
+                .filter(t -> t.category().equals("标准工业品"))
+                .findFirst().orElseThrow().amountWan())
+                .isEqualByComparingTo(new java.math.BigDecimal("4500"));
+    }
+
+    @Test
+    @DisplayName("回退入口：不依赖评分项文本，可直接从资格项提取业绩门槛（供未选评分项场景）")
+    void testRetrieveFromQualificationWithoutScoreItem() {
+        List<String> qualificationList = List.of(
+                "具有独立承担民事责任的能力（提供营业执照）",
+                "供应商近三年应具有大型集团级企业年度供应业绩，项目服务范围包含办公用品，累计金额不低于2000万元。"
+        );
+
+        Optional<QualificationPerformanceRetriever.PerformanceRequirementResult> resultOpt =
+                retriever.retrieveFromQualification(qualificationList, null);
+
+        assertThat(resultOpt).isPresent();
+        assertThat(resultOpt.get().thresholds()).isNotEmpty();
+        assertThat(resultOpt.get().matchedRequirementText()).contains("2000万元");
+    }
+
+    @Test
+    @DisplayName("回退入口：资格项无业绩条款时返回 empty，防泛化语义不变")
+    void testRetrieveFromQualificationRejectsIrrelevantClauses() {
+        assertThat(retriever.retrieveFromQualification(List.of("具备营业执照", "具备质量管理体系认证"), null))
+                .isEmpty();
+        assertThat(retriever.retrieveFromQualification(null, "\n第一章 招标公告\n本项目旨在提升采购数字化转型水平。\n"))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("品类词表与门槛解析统一：劳保/五金等工业品同义词也计入 targetCategories")
+    void testCategoryVocabularyUnified() {
+        Optional<QualificationPerformanceRetriever.PerformanceRequirementResult> resultOpt =
+                retriever.retrieveFromQualification(
+                        List.of("供应商近三年应具有劳保用品年度供应业绩，累计金额不低于500万元。"), null);
+
+        assertThat(resultOpt).isPresent();
+        assertThat(resultOpt.get().targetCategories()).contains("标准工业品");
+        assertThat(resultOpt.get().thresholds())
+                .extracting(PerformanceThresholdExtractor.CategoryThreshold::category)
+                .contains("标准工业品");
+    }
+
+    @Test
+    @DisplayName("资格项列表含泛化噪音条款时，仍从标书原文合并出真实门槛（列表+原文双源）")
+    void testListNoiseDoesNotBlockRawThresholds() {
+        String dim = "3 同类项目业绩";
+        String detail = "需提供的业绩证明材料同初步评审第7条供应商资格中的业绩证明材料。";
+        List<String> qualificationList = List.of("近三年经营业绩良好，提供合同复印件。");
+        String rawTenderText = """
+                第三章 评标办法
+                2. 初步评审标准与资格审查
+                第7条 供应商资格：供应商近三年应至少具有1项大型集团级企业电商化品类年度供应业绩：办公用品累计金额不低于2000万元；标准工业品累计金额不低于4500万元。
+
+                第四章 技术需求规范书
+                ...
+                """;
+
+        Optional<QualificationPerformanceRetriever.PerformanceRequirementResult> resultOpt =
+                retriever.retrieve(dim, detail, qualificationList, rawTenderText);
+
+        assertThat(resultOpt).isPresent();
+        assertThat(resultOpt.get().thresholds())
+                .extracting(PerformanceThresholdExtractor.CategoryThreshold::category)
+                .contains("办公用品", "标准工业品");
+        assertThat(resultOpt.get().matchedRequirementText()).contains("2000万元");
+    }
+
+    @Test
     @DisplayName("防泛化守卫：招标公告或项目介绍等非资格审查区域出现的'业绩'词汇被坚决阻断")
     void testExcludeIrrelevantTenderTextMentions() {
         String dim = "3 同类项目业绩";
