@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-16] fix | 项目详情页横条返回按钮无响应修复（el-page-header back 事件未接）
+
+- 触发：用户反馈项目详情页公共卡片上方横条框中的返回按钮点击无反应。
+- 根因：ProjectDetailHeader 的 el-page-header 未绑定 `@back`，EP 2.5 `__back` 区域点击后 emit('back') 无人消费；CSS 只隐藏了箭头图标，默认"返回"文字仍在 `__back` 内可点。
+- 方案：`@back="ctx.goBack"` 复用 useProjectDetailNavigation 的 router.push('/project')，与页面错误态返回按钮同源；新增回归用例并修复 spec 测试隔离（beforeEach clearAllMocks）。
+- 回填：`.wiki/pages/project-detail-toolbar-back-fix.md`（含 EP stub 必须复刻 __back 区域否则用例假绿的陷阱）。
+
 ## [2026-09-16] fix | 评标与结项阶段角色权限判定收敛至 isBidManager 单一真相源
 
 - 触发：生产环境（项目 581）与测试环境（项目 1381）管理账号（`bid-SystemAdmin`）在评标中阶段无法选择状态（三个状态按钮不可点、提交按钮隐藏）。

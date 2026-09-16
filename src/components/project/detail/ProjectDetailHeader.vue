@@ -1,5 +1,5 @@
 <template>
-  <el-page-header class="page-header project-detail-toolbar">
+  <el-page-header class="page-header project-detail-toolbar" @back="ctx.goBack">
     <template #content>
       <div class="header-content">
         <div class="header-title">
