@@ -63,7 +63,7 @@ describe('caseDetailFormatter 单元测试', () => {
       expect(output).toContain('\n6.2.5）')
     })
 
-    it('多句长文本句号后自动换行', () => {
+    it('多句长文本句号后自动换行切分段落', () => {
       const input = '我司具备完整的售后服务保障体系。全国设立了二十余个备品备件中心。工程师支持7x24小时全天候待命响应。'
       const output = splitInlineFormats(input)
       expect(output).toBe('我司具备完整的售后服务保障体系。\n全国设立了二十余个备品备件中心。\n工程师支持7x24小时全天候待命响应。')
@@ -89,7 +89,7 @@ describe('caseDetailFormatter 单元测试', () => {
   })
 
   describe('preprocessPlainText', () => {
-    it('处理多段纯文本，保留空行分隔', () => {
+    it('处理多段纯文本，保留空行分隔且转换为列表', () => {
       const text = '第一段说明\n\n1. 条目一\n2. 条目二\n\n第三段总结'
       const res = preprocessPlainText(text)
       expect(res).toContain('第一段说明')
@@ -109,14 +109,19 @@ describe('caseDetailFormatter 单元测试', () => {
       expect(extractSourceLocationText({ sourceSectionTitle: '第一节' })).toBe('第一节')
     })
 
-    it('从 responseText 开头识别列表或章节标题', () => {
+    it('从 responseText 开头识别列表或章节标题并保留原始章节序号', () => {
       const caseData = { responseText: '* 1. 质量管理方案\n 1. 商品安全溯源\n为全面保障质量...' }
-      expect(extractSourceLocationText(caseData)).toBe('质量管理方案 > 商品安全溯源')
+      expect(extractSourceLocationText(caseData)).toBe('1. 质量管理方案 > 1. 商品安全溯源')
     })
 
     it('从 responseText 提取 详见...方案 引用', () => {
       const caseData = { responseText: '本公司承诺按期交货，详见七、服务方案-（二）、供货方案' }
       expect(extractSourceLocationText(caseData)).toBe('七、服务方案 > （二） > 供货方案')
+    })
+
+    it('从 responseText 提取带括号序号的详见业绩引用并保留括号序号', () => {
+      const caseData = { responseText: '我司提供满足上述业绩要求共11份业绩，**业绩证明材料，详见，（四） 附件四 2023 年以来类似项目业绩**' }
+      expect(extractSourceLocationText(caseData)).toBe('（四） 附件四 2023 年以来类似项目业绩')
     })
 
     it('从 responseText 提取 《...方案/预案》 书名号', () => {

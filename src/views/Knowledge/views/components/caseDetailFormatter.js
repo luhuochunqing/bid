@@ -47,8 +47,8 @@ export const splitInlineFormats = (text) => {
   // 2. 分号后带多个空格或带子项的，切分为换行
   s = s.replace(/([；;])(\s{2,}|\s*(?=[^\s；;]+[：:]))/g, '$1\n')
 
-  // 3. 行内序号（数字、多级数字如 6.2.4）、中文、括号、字母、项目符号）前自动切分换行（非行首时才插入换行）
-  const seqSplitPattern = /(?<!\n)([。；！？!?：:]|[)）]|\s{2,}|(?<=[\u4e00-\u9fa5]))(?=(?:\d+(?:\.\d+)+[、.．）)\s]|\d+[、.．）)]\s*|[一二三四五六七八九十]+[、.．]|[①-⑩]\s*|[（(]\d+[）)]\s*|[（(][一二三四五六七八九十]+[)）]\s*|[a-zA-Z][、.．）)]\s*|[◆■●·•]\s*))/g
+  // 3. 行内序号（数字、多级数字如 6.2.4、中文、括号、字母、项目符号）前自动切分换行转为独立列表项
+  const seqSplitPattern = /(?<!\n)([。；！？!?：:]|[)）]|\s{2,}|(?<=[\u4e00-\u9fa5]))(?=(?:[一二三四五六七八九十百]+[、.．]|第[一二三四五六七八九十]+[章节部分篇]|[（(][一二三四五六七八九十]+[)）]|\d+(?:\.\d+)+[、.．）)\s]|\d+[、.．）)]\s*|[（(]\d+[）)]\s*|[①-⑩]\s*|[a-zA-Z][、.．）)]\s*|[◆■●·•]\s*))/g
   s = s.replace(seqSplitPattern, '$1\n')
 
   // 4. 连续多句长文本（无序列表外）：句号/叹号/问号后若接完整句子（4 字以上），且未换行，插入单换行
@@ -132,10 +132,11 @@ export const extractSourceLocationText = (caseData) => {
 
   if (raw) {
     // 1. 开头的章节/列表标题（必须带有标题标记，如 "# 标题"、"* 1. 质量管理方案\n 1. 商品安全溯源"）
-    const headingListMatch = raw.match(/^\s*(?:#{1,6}\s+|[*+-]\s+(?:\d+[.、]\s*)?|\d+[.、]\s+)([^\n\r]+)(?:\n\s*(?:#{1,6}\s+|[*+-]\s+(?:\d+[.、]\s*)?|\d+[.、]\s+)([^\n\r]+))?/)
+    // 仅剥离 markdown 标记符号（#、*、+、-），保留原始序号（如 1.、一、）
+    const headingListMatch = raw.match(/^\s*(?:#{1,6}\s+|[*+-]\s+)([^\n\r]+)(?:\n\s*(?:#{1,6}\s+|[*+-]\s+)?([^\n\r]+))?/)
     if (headingListMatch) {
-      const l1 = headingListMatch[1]?.replace(/^[#*+-\s\d.、]+/, '')?.replace(/[*_`]/g, '')?.trim()
-      const l2 = headingListMatch[2]?.replace(/^[#*+-\s\d.、]+/, '')?.replace(/[*_`]/g, '')?.trim()
+      const l1 = headingListMatch[1]?.replace(/^[*_`#\s]+/, '')?.replace(/[*_`#\s]+$/, '')?.trim()
+      const l2 = headingListMatch[2]?.replace(/^[*_`#\s]+/, '')?.replace(/[*_`#\s]+$/, '')?.trim()
       if (l1 && l1.length >= 2 && l1.length <= 40 && !l1.includes('。') && !l1.includes('，') && !l1.includes('|')) {
         if (l2 && l2.length >= 2 && l2.length <= 40 && !l2.includes('。') && !l2.includes('，') && !l2.includes('|') && !l2.startsWith('为') && !l2.startsWith('本')) {
           return `${l1} > ${l2}`
@@ -145,9 +146,14 @@ export const extractSourceLocationText = (caseData) => {
     }
 
     // 2. 包含 "详见...方案"
-    const seeMatch = raw.match(/详见([一二三四五六七八九十0-9a-zA-Z\u4e00-\u9fa5（）()、—\-_]+(?:方案|简历|配备|说明|表|章节|条款|内容|部分|计划))/i)
+    const seeMatch = raw.match(/详见[，,]?\s*([一二三四五六七八九十0-9a-zA-Z\u4e00-\u9fa5（）()、—\-_\s]+(?:方案|简历|配备|说明|表|章节|条款|内容|部分|计划|业绩))/i)
     if (seeMatch) {
-      const cleaned = seeMatch[1].replace(/[-—_]/g, ' > ').replace(/[）)][、，]/g, '） > ').replace(/^[（(]|\**$/g, '').trim()
+      const cleaned = seeMatch[1]
+        .replace(/[-—_]/g, ' > ')
+        .replace(/[）)][、，]/g, '） > ')
+        .replace(/^[（(](?![一二三四五六七八九十\d]+[）)])/g, '')
+        .replace(/\**$/g, '')
+        .trim()
       if (cleaned.length >= 2 && cleaned.length <= 50) return cleaned
     }
 

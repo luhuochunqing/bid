@@ -43,12 +43,10 @@
           @click="emitSourceLocation"
         >
           <span>原文所在标题：{{ sourceLocationText }}</span>
-          <span v-if="sourceDocumentText">来源文档：{{ sourceDocumentText }}</span>
           <span v-if="sourcePageText">页码：{{ sourcePageText }}</span>
         </button>
         <div v-else class="source-location-fallback">
           <span>原文所在标题：暂无来源标题</span>
-          <span v-if="sourceDocumentText">来源文档：{{ sourceDocumentText }}</span>
           <span v-if="sourcePageText">页码：{{ sourcePageText }}</span>
         </div>
       </div>
@@ -86,7 +84,6 @@ import { renderSafeMarkdown } from '@/components/common/doc-insight/markdownSani
 import { getProjectTypeLabel, getCustomerTypeLabel, getMatchLabel, getMatchTagType, parseStringOrArray } from '../caseLabels.js'
 import {
   extractSourceLocationText,
-  extractSourceDocumentText,
   preprocessPlainText
 } from './caseDetailFormatter.js'
 
@@ -117,7 +114,6 @@ const matchedKeywordsList = computed(() => parseStringOrArray(props.caseData?.ma
 
 const sourceLocationText = computed(() => extractSourceLocationText(props.caseData))
 const hasSourceLocation = computed(() => Boolean(sourceLocationText.value))
-const sourceDocumentText = computed(() => extractSourceDocumentText(props.caseData))
 const sourcePageText = computed(() => {
   const page = props.caseData?.sourcePageNumber
   return page === null || page === undefined || page === '' ? '' : String(page)
@@ -206,8 +202,9 @@ const bidResultType = computed(() => {
 .case-desc { margin-bottom: 16px; }
 .content-box { background-color: var(--el-fill-color-light); border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.6; color: var(--el-text-color-regular); white-space: pre-wrap; border: 1px solid var(--el-border-color-lighter); }
 .requirement-box { max-height: 150px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; }
-.response-box { max-height: 240px; overflow: auto; }
-.response-box :deep(p) { margin: 0 0 8px 0; }
+.response-box { max-height: 250px; overflow: auto; white-space: normal; word-break: break-word; }
+.response-box :deep(p) { margin: 0 0 10px 0; line-height: 1.7; text-align: justify; }
+.response-box :deep(p:last-child) { margin-bottom: 0; }
 .response-box :deep(ol),
 .response-box :deep(ul) { margin: 4px 0 8px 0; padding-left: 20px; }
 .response-box :deep(li) { margin-bottom: 4px; }

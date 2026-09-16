@@ -53,7 +53,7 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     expect(wrapper.find('.response-box').text()).toContain(caseData.responseText)
   })
 
-  it('来源路径优先显示，并在同一行显示文档和页码', () => {
+  it('来源路径优先显示，并在同一行显示页码，不显示来源文档名称', () => {
     const wrapper = mountDialog({
       caseData: {
         ...caseData,
@@ -64,7 +64,7 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
       }
     })
     expect(sourceLocation(wrapper).text()).toContain('原文所在标题：第一章 > 服务方案')
-    expect(sourceLocation(wrapper).text()).toContain('来源文档：技术标.docx')
+    expect(sourceLocation(wrapper).text()).not.toContain('来源文档')
     expect(sourceLocation(wrapper).text()).toContain('页码：12')
     expect(sourceLocation(wrapper).text()).not.toContain('仅标题')
   })
@@ -92,11 +92,11 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
   })
 
   it('智能从应答正文提取章节标题、详见引用与方案书名', () => {
-    // 1. Markdown 章节列表开头
+    // 1. Markdown 章节列表开头（保留原始章节序号）
     const w1 = mountDialog({
       caseData: { ...caseData, scoringPointTitle: null, sourceSectionTitle: null, sourceSectionPath: null, responseText: '* 1. 质量管理方案\n     1. 商品安全溯源\n\n为全面保障质量安全...' }
     })
-    expect(sourceLocation(w1).text()).toContain('原文所在标题：质量管理方案 > 商品安全溯源')
+    expect(sourceLocation(w1).text()).toContain('原文所在标题：1. 质量管理方案 > 1. 商品安全溯源')
 
     // 2. 详见引用
     const w2 = mountDialog({
