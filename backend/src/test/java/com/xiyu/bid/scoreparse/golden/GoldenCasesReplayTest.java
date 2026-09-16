@@ -138,4 +138,15 @@ class GoldenCasesReplayTest {
                 () -> assertEquals(new java.math.BigDecimal("10"), candidate.weight())
         );
     }
+
+    @org.junit.jupiter.api.Test
+    void mirrorMatchesMapperContract_preservesEvidenceWithoutFormattingCorruption() {
+        ScoringCriterion criterion = new ScoringCriterion(
+                "2-2", "商务及技术评分", "包含换行（10\n分）的评分细则", new java.math.BigDecimal("10"), null);
+
+        var candidate = GoldenCasesReplaySupport.toCandidate(criterion, null);
+        assertEquals("2-2", candidate.code());
+        assertEquals("商务及技术评分", candidate.dim());
+        assertEquals("包含换行（10\n分）的评分细则", candidate.detail());
+    }
 }
