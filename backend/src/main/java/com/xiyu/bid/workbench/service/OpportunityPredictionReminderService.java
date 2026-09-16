@@ -6,21 +6,17 @@ package com.xiyu.bid.workbench.service;
 
 import com.xiyu.bid.alerts.service.SystemActorResolver;
 import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.tenderevent.domain.OpportunityPredictionEventPayload;
 import com.xiyu.bid.integration.tenderevent.infrastructure.sdk.OpportunityPredictionEventPublisher;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
-import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.entity.ProjectResult;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
-import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.workbench.domain.OpportunityPredictionAlertMessage;
 import com.xiyu.bid.workbench.domain.OpportunityPredictionPolicy;
 import com.xiyu.bid.workbench.domain.OpportunityPredictionReminderPolicy;
@@ -33,8 +29,6 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,8 +43,8 @@ import java.util.stream.Collectors;
  * 即"该创建商机的时点"。每日扫描，凡今天已到该时点且从未提醒过的项目发通知；
  * 每项目只提醒一次（{@code opportunity_prediction_reminder_log} 唯一键 project_id）。
  *
- * <p>接收人：项目负责人（{@code Project.managerId}，即自动分配落库的 CRM 查得项目经理，
- * 启用状态过滤）+ 投标管理员 + 投标组长。
+ * <p>接收人：OSS 实时在职的项目负责人（{@code Project.managerId}）+
+ * OSS 实时角色中的投标管理员和投标组长。
  *
  * <p>渠道：站内信及企微镜像 + 西域事件库（{@link OpportunityPredictionEventPublisher}）。
  */
@@ -61,17 +55,11 @@ public class OpportunityPredictionReminderService {
 
     private static final Duration EVENT_CLAIM_TIMEOUT = Duration.ofMinutes(10);
 
-    /** 通知接收人角色：投标管理员、投标组长。 */
-    static final List<String> RECIPIENT_ROLE_CODES = List.of(
-            RoleProfileCatalog.BID_ADMIN_CODE,
-            RoleProfileCatalog.BID_LEAD_CODE);
-
     private final ProjectRepository projectRepository;
     private final ProjectResultRepository projectResultRepository;
     private final ProjectInitiationDetailsRepository projectInitiationDetailsRepository;
     private final TenderRepository tenderRepository;
-    private final UserRepository userRepository;
-    private final NotificationRecipientResolver recipientResolver;
+    private final OpportunityPredictionRecipientResolver recipientResolver;
     private final OpportunityPredictionReminderTransactionService transactionService;
     private final OpportunityPredictionEventPublisher eventPublisher;
     private final SystemActorResolver systemActorResolver;
@@ -101,8 +89,7 @@ public class OpportunityPredictionReminderService {
                 : tenderRepository.findAllById(tenderIds).stream()
                         .collect(Collectors.toMap(Tender::getId, t -> t, (a, b) -> a));
 
-        List<Long> roleRecipients = recipientResolver.getUserIdsByRoleCodes(RECIPIENT_ROLE_CODES);
-        Map<Long, User> enabledManagerById = loadEnabledManagers(projects);
+        OpportunityPredictionRecipientResolver.RecipientSnapshot recipientSnapshot = recipientResolver.resolve();
 
         Long systemActor = systemActorResolver.resolveCached();
         if (systemActor == null) {
@@ -116,8 +103,7 @@ public class OpportunityPredictionReminderService {
             try {
                 ProcessOutcome outcome = processProject(project, resultByProject.get(project.getId()),
                         tenderById.get(project.getTenderId()),
-                        initiationByProject.get(project.getId()), today, roleRecipients,
-                        enabledManagerById, systemActor);
+                        initiationByProject.get(project.getId()), today, recipientSnapshot, systemActor);
                 switch (outcome) {
                     case NOTIFIED -> notified++;
                     case EVENT_RETRIED -> eventRetried++;
@@ -129,16 +115,19 @@ public class OpportunityPredictionReminderService {
                 skipped++;
             }
         }
-        log.info("[商机预测提醒] scan done. scanned={} notified={} eventRetried={} skipped={} roleRecipients={}",
-                projects.size(), notified, eventRetried, skipped, roleRecipients.size());
+        log.info("[商机预测提醒] scan done. scanned={} notified={} eventRetried={} skipped={} "
+                        + "roleRecipients={} ossRequested={} ossReturned={}",
+                projects.size(), notified, eventRetried, skipped,
+                recipientSnapshot.roleRecipientIds().size(), recipientSnapshot.requestedJobNumbers(),
+                recipientSnapshot.returnedJobNumbers());
         return new ScanOutcome(projects.size(), notified, eventRetried, skipped);
     }
 
     /** 处理单个项目：命中提醒窗口则发通知 + 落日志 + 发事件。 */
     private ProcessOutcome processProject(Project project, ProjectResult result, Tender tender,
                                           ProjectInitiationDetails initiationDetails, LocalDate today,
-                                          List<Long> roleRecipients,
-                                          Map<Long, User> enabledManagerById, Long systemActor) {
+                                          OpportunityPredictionRecipientResolver.RecipientSnapshot recipientSnapshot,
+                                          Long systemActor) {
         String resultType = OpportunityPredictionReminderSupport.resolveResultType(project, result);
         LocalDate bidOpenTime = tender != null && tender.getBidOpeningTime() != null
                 ? tender.getBidOpeningTime().toLocalDate()
@@ -174,7 +163,7 @@ public class OpportunityPredictionReminderService {
             return ProcessOutcome.SKIPPED;
         }
 
-        List<Long> recipients = resolveRecipients(project, roleRecipients, enabledManagerById);
+        List<Long> recipients = recipientSnapshot.recipientsFor(project.getManagerId());
         if (recipients.isEmpty()) {
             log.warn("[商机预测提醒] no recipients for project id={}, skip", project.getId());
             return ProcessOutcome.SKIPPED;
@@ -241,29 +230,6 @@ public class OpportunityPredictionReminderService {
 
     private static String newClaimToken() {
         return UUID.randomUUID().toString();
-    }
-
-    /** 接收人：项目经理（enabled 已过滤）+ 投标管理员 + 投标组长，去重保序。 */
-    private List<Long> resolveRecipients(Project project, List<Long> roleRecipients,
-                                         Map<Long, User> enabledManagerById) {
-        Set<Long> recipients = new LinkedHashSet<>(roleRecipients);
-        Long managerId = project.getManagerId();
-        if (managerId != null && enabledManagerById.containsKey(managerId)) {
-            recipients.add(managerId);
-        }
-        return new ArrayList<>(recipients);
-    }
-
-    /** 批量加载启用状态的项目负责人（一次 user 查询，避免 N+1）。 */
-    private Map<Long, User> loadEnabledManagers(List<Project> projects) {
-        Set<Long> managerIds = projects.stream().map(Project::getManagerId)
-                .filter(Objects::nonNull).collect(Collectors.toSet());
-        if (managerIds.isEmpty()) {
-            return Map.of();
-        }
-        return userRepository.findByIdIn(managerIds).stream()
-                .filter(u -> Boolean.TRUE.equals(u.getEnabled()))
-                .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
     }
 
     /** 事件库发布失败转换为值，由领取状态决定后续补偿。 */

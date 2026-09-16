@@ -54,6 +54,16 @@ class SystemRoleListMapperTest {
         assertThat(roleCode).isEqualTo("bid-projectLeader");
     }
 
+    @Test
+    @DisplayName("maps OSS bid role code directly without position configuration")
+    void map_ossRoleCode_returnsCanonicalCode() {
+        SystemRoleListMapper mapper = new SystemRoleListMapper(
+                new PositionToRoleMapper(new OrganizationIntegrationProperties()));
+
+        assertThat(mapper.map(List.of("/BIDADMIN"))).isEqualTo("/bidAdmin");
+        assertThat(mapper.map(List.of("bid-teamleader"))).isEqualTo("bid-TeamLeader");
+    }
+
     private OrganizationIntegrationProperties propertiesWithMapping(String pattern, String roleCode) {
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
         OrganizationIntegrationProperties.PositionToRoleMapping mapping = new OrganizationIntegrationProperties.PositionToRoleMapping();

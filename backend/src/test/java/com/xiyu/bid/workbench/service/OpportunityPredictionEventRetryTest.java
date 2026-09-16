@@ -8,13 +8,11 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.integration.tenderevent.domain.OpportunityPredictionEventPayload;
 import com.xiyu.bid.integration.tenderevent.infrastructure.sdk.OpportunityPredictionEventPublisher;
-import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.project.entity.ProjectResult;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
-import com.xiyu.bid.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,8 +45,7 @@ class OpportunityPredictionEventRetryTest {
     @Mock private ProjectResultRepository projectResultRepository;
     @Mock private ProjectInitiationDetailsRepository projectInitiationDetailsRepository;
     @Mock private TenderRepository tenderRepository;
-    @Mock private UserRepository userRepository;
-    @Mock private NotificationRecipientResolver recipientResolver;
+    @Mock private OpportunityPredictionRecipientResolver recipientResolver;
     @Mock private OpportunityPredictionReminderTransactionService transactionService;
     @Mock private OpportunityPredictionEventPublisher eventPublisher;
     @Mock private SystemActorResolver systemActorResolver;
@@ -59,7 +56,7 @@ class OpportunityPredictionEventRetryTest {
     void setUp() {
         service = new OpportunityPredictionReminderService(
                 projectRepository, projectResultRepository, projectInitiationDetailsRepository,
-                tenderRepository, userRepository, recipientResolver, transactionService,
+                tenderRepository, recipientResolver, transactionService,
                 eventPublisher, systemActorResolver);
         Project project = Project.builder()
                 .id(983L)
@@ -79,7 +76,8 @@ class OpportunityPredictionEventRetryTest {
         when(projectResultRepository.findByProjectIdIn(List.of(983L))).thenReturn(List.of(result));
         when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(983L))).thenReturn(List.of());
         when(tenderRepository.findAllById(Set.of(9830L))).thenReturn(List.of());
-        when(recipientResolver.getUserIdsByRoleCodes(any())).thenReturn(List.of(10L));
+        when(recipientResolver.resolve()).thenReturn(new OpportunityPredictionRecipientResolver.RecipientSnapshot(
+                Set.of(10L), List.of(10L), 1, 1));
         when(systemActorResolver.resolveCached()).thenReturn(999L);
     }
 

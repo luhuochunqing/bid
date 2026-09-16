@@ -153,6 +153,12 @@ xiyu:
 
   tender:
     abandon-roles: ${XIYU_TENDER_ABANDON_ROLES:ADMIN,MANAGER}
+  opportunity-history-replay:
+    # 一次性历史补发：安全默认关闭。启动阶段即使 mode=EXECUTE 也只做零写入 preview。
+    enabled: ${XIYU_OPPORTUNITY_HISTORY_REPLAY_ENABLED:false}
+    mode: ${XIYU_OPPORTUNITY_HISTORY_REPLAY_MODE:PREVIEW}
+    run-date: ${XIYU_OPPORTUNITY_HISTORY_REPLAY_RUN_DATE:}
+    cutoff: ${XIYU_OPPORTUNITY_HISTORY_REPLAY_CUTOFF:}
   integrations:
     organization:
       # 默认值与 OrganizationIntegrationProperties.java 保持一致

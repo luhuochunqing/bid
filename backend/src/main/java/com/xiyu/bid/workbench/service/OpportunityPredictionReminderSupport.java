@@ -125,6 +125,18 @@ final class OpportunityPredictionReminderSupport {
         return payload;
     }
 
+    /** 历史补发 payload：复用商机中心深链，并附带可审计的执行窗口。 */
+    static Map<String, Object> buildHistoricalReplayPayload(
+            Project project, String purchaserName, LocalDate predicted,
+            LocalDate runDate, LocalDate cutoff) {
+        Map<String, Object> payload = new LinkedHashMap<>(
+                buildPayload(project, purchaserName, null, predicted));
+        payload.put("historicalReplay", true);
+        payload.put("replayRunDate", runDate.toString());
+        payload.put("replayCutoff", cutoff.toString());
+        return payload;
+    }
+
     /** 组装事件库 11 字段载荷，序列化与中文映射由 publisher 负责。 */
     static OpportunityPredictionEventPayload buildEventPayload(
             Project project, String resultType, String projectLeaderName, String customer,

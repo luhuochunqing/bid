@@ -6,19 +6,16 @@ package com.xiyu.bid.workbench.service;
 import com.xiyu.bid.alerts.service.SystemActorResolver;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.tenderevent.domain.OpportunityPredictionEventPayload;
 import com.xiyu.bid.integration.tenderevent.infrastructure.sdk.OpportunityPredictionEventPublisher;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
-import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.entity.ProjectResult;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
-import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.workbench.entity.OpportunityPredictionReminderLog;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,8 +57,7 @@ class OpportunityPredictionReminderServiceTest {
     @Mock private ProjectResultRepository projectResultRepository;
     @Mock private ProjectInitiationDetailsRepository projectInitiationDetailsRepository;
     @Mock private TenderRepository tenderRepository;
-    @Mock private UserRepository userRepository;
-    @Mock private NotificationRecipientResolver recipientResolver;
+    @Mock private OpportunityPredictionRecipientResolver recipientResolver;
     @Mock private OpportunityPredictionReminderTransactionService transactionService;
     @Mock private OpportunityPredictionEventPublisher eventPublisher;
     @Mock private SystemActorResolver systemActorResolver;
@@ -72,10 +68,11 @@ class OpportunityPredictionReminderServiceTest {
     void setUp() {
         service = new OpportunityPredictionReminderService(
                 projectRepository, projectResultRepository, projectInitiationDetailsRepository,
-                tenderRepository, userRepository, recipientResolver, transactionService,
+                tenderRepository, recipientResolver, transactionService,
                 eventPublisher, systemActorResolver);
         lenient().when(systemActorResolver.resolveCached()).thenReturn(SYSTEM_ACTOR);
-        lenient().when(recipientResolver.getUserIdsByRoleCodes(any())).thenReturn(ROLE_RECIPIENTS);
+        lenient().when(recipientResolver.resolve()).thenReturn(new OpportunityPredictionRecipientResolver.RecipientSnapshot(
+                Set.of(50L, 60L, 70L, 80L, 90L), ROLE_RECIPIENTS, 5, 5));
         lenient().when(transactionService.completeEventPublish(any(), any(), any())).thenReturn(true);
         lenient().when(eventPublisher.publish(any())).thenReturn(true);
     }
@@ -109,15 +106,12 @@ class OpportunityPredictionReminderServiceTest {
                 .projectType("集采")                 // 与立项详情冲突，验证立项详情优先
                 .bidOpeningTime(LocalDateTime.of(2025, 8, 15, 9, 0))
                 .build();
-        User manager = User.builder().id(50L).enabled(true).build();
-
         when(projectRepository.findAll()).thenReturn(List.of(project));
         when(projectResultRepository.findByProjectIdIn(List.of(1L))).thenReturn(List.of(result));
         when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(1L))).thenReturn(List.of(
                 ProjectInitiationDetails.builder().projectId(1L).projectLeaderName("王五")
                         .projectType("OFFICE").build()));
         when(tenderRepository.findAllById(Set.of(100L))).thenReturn(List.of(tender));
-        when(userRepository.findByIdIn(Set.of(50L))).thenReturn(List.of(manager));
         when(transactionService.findState(1L)).thenReturn(Optional.empty());
 
         var outcome = service.runScan(TODAY);
@@ -188,8 +182,6 @@ class OpportunityPredictionReminderServiceTest {
         when(projectResultRepository.findByProjectIdIn(List.of(5L))).thenReturn(List.of(result));
         when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(5L))).thenReturn(List.of());
         when(tenderRepository.findAllById(Set.of(500L))).thenReturn(List.of(tender));
-        when(userRepository.findByIdIn(Set.of(80L)))
-                .thenReturn(List.of(User.builder().id(80L).enabled(true).build()));
         when(transactionService.findState(5L)).thenReturn(Optional.empty());
 
         var outcome = service.runScan(TODAY);
@@ -234,8 +226,6 @@ class OpportunityPredictionReminderServiceTest {
         when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(6L))).thenReturn(List.of(
                 ProjectInitiationDetails.builder().projectId(6L).projectType("   ").build()));
         when(tenderRepository.findAllById(Set.of(600L))).thenReturn(List.of(tender));
-        when(userRepository.findByIdIn(Set.of(90L)))
-                .thenReturn(List.of(User.builder().id(90L).enabled(true).build()));
         when(transactionService.findState(6L)).thenReturn(Optional.empty());
 
         var outcome = service.runScan(TODAY);
@@ -267,7 +257,6 @@ class OpportunityPredictionReminderServiceTest {
         when(projectRepository.findAll()).thenReturn(List.of(project));
         when(projectResultRepository.findByProjectIdIn(List.of(2L))).thenReturn(List.of(result));
         when(tenderRepository.findAllById(Set.of(200L))).thenReturn(List.of());
-        when(userRepository.findByIdIn(Set.of(60L))).thenReturn(List.of(User.builder().id(60L).enabled(true).build()));
         when(transactionService.findState(2L)).thenReturn(Optional.of(
                 new OpportunityPredictionReminderTransactionService.ReminderState(
                         LocalDate.of(2026, 3, 1), LocalDateTime.of(2026, 8, 20, 9, 0))));
@@ -301,7 +290,7 @@ class OpportunityPredictionReminderServiceTest {
     }
 
     @Test
-    @DisplayName("无接收人（角色空且项目经理未启用）：跳过")
+    @DisplayName("无接收人（实时角色空且项目经理不在 OSS 在职集合）：跳过")
     void shouldSkipWhenNoRecipients() {
         Project project = reachedProject(4L, 400L, 80L);
         ProjectResult result = ProjectResult.builder()
@@ -311,8 +300,7 @@ class OpportunityPredictionReminderServiceTest {
                 .build();
         when(projectRepository.findAll()).thenReturn(List.of(project));
         when(projectResultRepository.findByProjectIdIn(List.of(4L))).thenReturn(List.of(result));
-        when(recipientResolver.getUserIdsByRoleCodes(any())).thenReturn(List.of());
-        when(userRepository.findByIdIn(Set.of(80L))).thenReturn(List.of(User.builder().id(80L).enabled(false).build()));
+        when(recipientResolver.resolve()).thenReturn(OpportunityPredictionRecipientResolver.RecipientSnapshot.empty());
         when(transactionService.findState(4L)).thenReturn(Optional.empty());
 
         var outcome = service.runScan(TODAY);
@@ -329,5 +317,6 @@ class OpportunityPredictionReminderServiceTest {
         var outcome = service.runScan(TODAY);
         assertEquals(0, outcome.scanned());
         assertEquals(0, outcome.notified());
+        verify(recipientResolver, never()).resolve();
     }
 }

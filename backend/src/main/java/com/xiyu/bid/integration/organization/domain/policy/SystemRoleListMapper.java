@@ -3,7 +3,6 @@ package com.xiyu.bid.integration.organization.domain.policy;
 import com.xiyu.bid.integration.organization.infrastructure.mapper.PositionToRoleMapper;
 
 import java.util.List;
-import java.util.Locale;
 
 /**
  * 将 OSS 系统角色列表（sysRoleList）映射为内部角色码。
@@ -32,6 +31,10 @@ public class SystemRoleListMapper {
         for (String roleName : sysRoleList) {
             if (roleName == null || roleName.isBlank()) {
                 continue;
+            }
+            String canonicalRoleCode = OssRoleEligibility.canonicalOssCode(roleName.trim());
+            if (canonicalRoleCode != null) {
+                return canonicalRoleCode;
             }
             String roleCode = positionToRoleMapper.map(roleName.trim());
             if (roleCode != null && !roleCode.isBlank()) {

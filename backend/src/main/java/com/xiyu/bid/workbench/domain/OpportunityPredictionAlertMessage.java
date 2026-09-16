@@ -32,6 +32,18 @@ public record OpportunityPredictionAlertMessage(String title, String body) {
         return new OpportunityPredictionAlertMessage(title, body);
     }
 
+    /** 一次性历史补发文案：必须让接收人在标题和正文中都能识别补发性质。 */
+    public static OpportunityPredictionAlertMessage historicalReplay(
+            final String purchaserName, final String projectName, final LocalDate predictedBidDate) {
+        String purchaser = nullSafe(purchaserName, "（未知招标主体）");
+        String project = nullSafe(projectName, "（未知项目）");
+        String predictedText = predictedBidDate == null ? "—" : predictedBidDate.toString();
+        return new OpportunityPredictionAlertMessage(
+                String.format("【商机预测·历史补发】%s", purchaser),
+                String.format("历史项目“%s”预测下次招标时间为 %s，"
+                        + "这是历史数据补发提醒，请到CRM创建商机。", project, predictedText));
+    }
+
     private static String nullSafe(final String raw, final String fallback) {
         return (raw == null || raw.isBlank()) ? fallback : raw;
     }

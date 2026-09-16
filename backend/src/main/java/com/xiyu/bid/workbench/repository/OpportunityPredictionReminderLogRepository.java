@@ -9,7 +9,9 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /** 商机预测提醒日志仓库；project_id 唯一。 */
@@ -17,6 +19,10 @@ public interface OpportunityPredictionReminderLogRepository
         extends JpaRepository<OpportunityPredictionReminderLog, Long> {
 
     Optional<OpportunityPredictionReminderLog> findByProjectId(Long projectId);
+
+    List<OpportunityPredictionReminderLog>
+    findByPredictedBidDateLessThanEqualAndNotifiedAtBeforeOrderByProjectIdAsc(
+            LocalDate cutoff, LocalDateTime notifiedBefore);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

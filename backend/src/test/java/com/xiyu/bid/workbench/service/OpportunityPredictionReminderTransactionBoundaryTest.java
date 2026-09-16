@@ -5,6 +5,8 @@ package com.xiyu.bid.workbench.service;
 
 import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
+import com.xiyu.bid.notification.entity.Notification;
+import com.xiyu.bid.notification.repository.NotificationRepository;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.test.AbstractTransactionBoundaryTest;
 import com.xiyu.bid.workbench.entity.OpportunityPredictionReminderLog;
@@ -25,6 +27,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ActiveProfiles("test")
@@ -37,11 +42,15 @@ class OpportunityPredictionReminderTransactionBoundaryTest extends AbstractTrans
     @Autowired
     private OpportunityPredictionReminderLogRepository repository;
 
+    @Autowired
+    private NotificationRepository notificationRepository;
+
     @MockBean
     private NotificationApplicationService notificationApplicationService;
 
     @BeforeEach
     void clean() {
+        notificationRepository.deleteAll();
         repository.deleteAll();
         when(notificationApplicationService.createNotification(any(), any()))
                 .thenReturn(DispatchResult.validWithId(1L));
@@ -134,11 +143,86 @@ class OpportunityPredictionReminderTransactionBoundaryTest extends AbstractTrans
         assertThat(repository.findByProjectId(988L)).isEmpty();
     }
 
+    @Test
+    @Transactional(propagation = Propagation.NEVER)
+    @DisplayName("历史补发通知在短事务内创建，同来源同项目重复调用幂等跳过")
+    void historicalReplay_createOnceAndSkipDuplicate() {
+        CreateNotificationRequest request = historicalReplayRequest(990L);
+        when(notificationApplicationService.createNotification(eq(request), eq(999L)))
+                .thenAnswer(invocation -> {
+                    notificationRepository.save(Notification.builder()
+                            .type(request.type())
+                            .sourceEntityType(request.sourceEntityType())
+                            .sourceEntityId(request.sourceEntityId())
+                            .title(request.title())
+                            .body(request.body())
+                            .createdBy(999L)
+                            .build());
+                    return DispatchResult.validWithId(88L);
+                });
+
+        assertThat(transactionService.createNotificationIfAbsent(request, 999L)).isTrue();
+        assertThat(transactionService.createNotificationIfAbsent(request, 999L)).isFalse();
+
+        assertThat(notificationRepository.findBySourceEntityTypeAndSourceEntityIdAndTypeOrderByCreatedAtDesc(
+                request.sourceEntityType(), request.sourceEntityId(), request.type())).hasSize(1);
+        assertThat(transactionService.findExistingNotificationSourceIds(
+                request.sourceEntityType(), request.type(), List.of(989L, 990L, 992L)))
+                .containsExactly(990L);
+        verify(notificationApplicationService, times(1)).createNotification(request, 999L);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NEVER)
+    @DisplayName("历史候选查询同时限制预测截止日和执行日零点")
+    void historicalCandidateQuery_usesPredictionAndNotificationBoundaries() {
+        repository.saveAndFlush(reminder(992L, LocalDate.of(2026, 9, 15),
+                LocalDateTime.of(2026, 9, 15, 9, 0)));
+        repository.saveAndFlush(reminder(993L, LocalDate.of(2026, 9, 17),
+                LocalDateTime.of(2026, 9, 15, 9, 0)));
+        repository.saveAndFlush(reminder(994L, LocalDate.of(2026, 9, 15),
+                LocalDateTime.of(2026, 9, 16, 9, 0)));
+
+        List<Long> candidates = repository
+                .findByPredictedBidDateLessThanEqualAndNotifiedAtBeforeOrderByProjectIdAsc(
+                        LocalDate.of(2026, 9, 16), LocalDate.of(2026, 9, 16).atStartOfDay())
+                .stream()
+                .map(OpportunityPredictionReminderLog::getProjectId)
+                .toList();
+
+        assertThat(candidates).containsExactly(992L);
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NEVER)
+    @DisplayName("历史补发通知校验失败时不留下幂等标记且原提醒日志不变")
+    void historicalReplay_rejectedNotificationLeavesNoMarkerOrReminderMutation() {
+        OpportunityPredictionReminderLog original = repository.saveAndFlush(pendingLog(991L));
+        CreateNotificationRequest request = historicalReplayRequest(991L);
+        when(notificationApplicationService.createNotification(eq(request), eq(999L)))
+                .thenReturn(DispatchResult.invalid("INVALID", "invalid"));
+
+        assertThrows(OpportunityPredictionReminderTransactionService.NotificationRejectedException.class,
+                () -> transactionService.createNotificationIfAbsent(request, 999L));
+
+        assertThat(notificationRepository.findBySourceEntityTypeAndSourceEntityIdAndTypeOrderByCreatedAtDesc(
+                request.sourceEntityType(), request.sourceEntityId(), request.type())).isEmpty();
+        OpportunityPredictionReminderLog unchanged = repository.findByProjectId(991L).orElseThrow();
+        assertThat(unchanged.getPredictedBidDate()).isEqualTo(original.getPredictedBidDate());
+        assertThat(unchanged.getEventPublishedAt()).isEqualTo(original.getEventPublishedAt());
+    }
+
     private OpportunityPredictionReminderLog pendingLog(Long projectId) {
+        return reminder(projectId, LocalDate.of(2026, 6, 30),
+                LocalDateTime.of(2026, 9, 10, 9, 0));
+    }
+
+    private OpportunityPredictionReminderLog reminder(
+            Long projectId, LocalDate predictedBidDate, LocalDateTime notifiedAt) {
         return OpportunityPredictionReminderLog.builder()
                 .projectId(projectId)
-                .predictedBidDate(LocalDate.of(2026, 6, 30))
-                .notifiedAt(LocalDateTime.of(2026, 9, 10, 9, 0))
+                .predictedBidDate(predictedBidDate)
+                .notifiedAt(notifiedAt)
                 .build();
     }
 
@@ -146,5 +230,11 @@ class OpportunityPredictionReminderTransactionBoundaryTest extends AbstractTrans
         return new CreateNotificationRequest(
                 "OPPORTUNITY_PREDICTION", "Project", projectId,
                 "title", "body", java.util.Map.of("projectId", projectId), List.of(10L));
+    }
+
+    private CreateNotificationRequest historicalReplayRequest(Long projectId) {
+        return new CreateNotificationRequest(
+                "OPPORTUNITY_PREDICTION", "OpportunityPredictionHistoryReplay", projectId,
+                "历史补发", "body", java.util.Map.of("historicalReplay", true), List.of(10L));
     }
 }

@@ -45,4 +45,25 @@ class OpportunityPredictionAlertMessageTest {
         var msg = OpportunityPredictionAlertMessage.from("新疆某企业", null, null);
         assertEquals("预测下次招标时间为 —，请到CRM创建商机。", msg.body());
     }
+
+    @Test
+    @DisplayName("历史补发：标题和正文都明确标识补发且包含项目名称")
+    void historicalReplayShouldBeVisibleToRecipient() {
+        var msg = OpportunityPredictionAlertMessage.historicalReplay(
+                "新疆某企业", "历史项目A", PREDICTED);
+
+        assertEquals("【商机预测·历史补发】新疆某企业", msg.title());
+        assertEquals("历史项目“历史项目A”预测下次招标时间为 2026-02-14，"
+                + "这是历史数据补发提醒，请到CRM创建商机。", msg.body());
+    }
+
+    @Test
+    @DisplayName("历史补发：招标主体和项目名称为空时使用可读兜底")
+    void historicalReplayShouldFallbackForBlankNames() {
+        var msg = OpportunityPredictionAlertMessage.historicalReplay(" ", null, null);
+
+        assertEquals("【商机预测·历史补发】（未知招标主体）", msg.title());
+        assertEquals("历史项目“（未知项目）”预测下次招标时间为 —，"
+                + "这是历史数据补发提醒，请到CRM创建商机。", msg.body());
+    }
 }
