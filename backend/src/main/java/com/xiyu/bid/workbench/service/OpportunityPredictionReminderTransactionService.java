@@ -6,6 +6,7 @@ package com.xiyu.bid.workbench.service;
 
 import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
+import com.xiyu.bid.notification.repository.NotificationRepository;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.workbench.entity.OpportunityPredictionReminderLog;
 import com.xiyu.bid.workbench.repository.OpportunityPredictionReminderLogRepository;
@@ -16,7 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 商机预测提醒的数据库事务边界。
@@ -29,6 +33,7 @@ import java.util.Optional;
 public class OpportunityPredictionReminderTransactionService {
 
     private final OpportunityPredictionReminderLogRepository reminderLogRepository;
+    private final NotificationRepository notificationRepository;
     private final NotificationApplicationService notificationApplicationService;
 
     @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
@@ -51,11 +56,31 @@ public class OpportunityPredictionReminderTransactionService {
         reminderLog.setEventPublishClaimedAt(claimedAt);
         reminderLogRepository.saveAndFlush(reminderLog);
 
-        DispatchResult dispatchResult = notificationApplicationService
-                .createNotification(notificationRequest, systemActor);
-        if (!dispatchResult.isValid()) {
-            throw new NotificationRejectedException(dispatchResult.errorCode(), dispatchResult.errorMessage());
+        createNotificationOrThrow(notificationRequest, systemActor);
+    }
+
+    /** 批量读取已存在的通知来源 ID，供历史补发 preview 和 execute 共用。 */
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public Set<Long> findExistingNotificationSourceIds(
+            String sourceEntityType, String type, Collection<Long> sourceEntityIds) {
+        if (sourceEntityIds == null || sourceEntityIds.isEmpty()) {
+            return Set.of();
         }
+        return Set.copyOf(new LinkedHashSet<>(notificationRepository.findSourceEntityIds(
+                sourceEntityType, type, sourceEntityIds)));
+    }
+
+    /** 同一短事务内再次查重并创建通知；false 表示其他执行已留下持久通知事实。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean createNotificationIfAbsent(
+            CreateNotificationRequest notificationRequest, Long systemActor) {
+        if (notificationRepository.existsBySourceEntityTypeAndSourceEntityIdAndType(
+                notificationRequest.sourceEntityType(), notificationRequest.sourceEntityId(),
+                notificationRequest.type())) {
+            return false;
+        }
+        createNotificationOrThrow(notificationRequest, systemActor);
+        return true;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -72,6 +97,15 @@ public class OpportunityPredictionReminderTransactionService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void releaseEventClaim(Long projectId, String claimToken) {
         reminderLogRepository.releaseEventClaim(projectId, claimToken);
+    }
+
+    private void createNotificationOrThrow(
+            CreateNotificationRequest notificationRequest, Long systemActor) {
+        DispatchResult dispatchResult = notificationApplicationService
+                .createNotification(notificationRequest, systemActor);
+        if (!dispatchResult.isValid()) {
+            throw new NotificationRejectedException(dispatchResult.errorCode(), dispatchResult.errorMessage());
+        }
     }
 
     public record ReminderState(LocalDate predictedBidDate, LocalDateTime eventPublishedAt) {

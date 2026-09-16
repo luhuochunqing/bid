@@ -64,6 +64,7 @@ class OpportunityPredictionRecipientResolverTest {
         assertThat(snapshot.recipientsFor(60L)).containsExactly(10L, 11L);
         assertThat(snapshot.requestedJobNumbers()).isEqualTo(4);
         assertThat(snapshot.returnedJobNumbers()).isEqualTo(4);
+        assertThat(snapshot.lookupSucceeded()).isTrue();
 
         ArgumentCaptor<List<String>> jobs = ArgumentCaptor.forClass(List.class);
         verify(directoryGateway).getUserJobAndRoleListByJobNumbersStrict(jobs.capture());
@@ -81,6 +82,7 @@ class OpportunityPredictionRecipientResolverTest {
         assertThat(snapshot.roleRecipientIds()).isEmpty();
         assertThat(snapshot.requestedJobNumbers()).isZero();
         assertThat(snapshot.returnedJobNumbers()).isZero();
+        assertThat(snapshot.lookupSucceeded()).isTrue();
         verify(directoryGateway, never()).getUserJobAndRoleListByJobNumbersStrict(org.mockito.ArgumentMatchers.anyList());
     }
 
@@ -98,6 +100,7 @@ class OpportunityPredictionRecipientResolverTest {
         assertThat(snapshot.recipientsFor(10L)).isEmpty();
         assertThat(snapshot.requestedJobNumbers()).isEqualTo(1);
         assertThat(snapshot.returnedJobNumbers()).isZero();
+        assertThat(snapshot.lookupSucceeded()).isFalse();
     }
 
     @Test
@@ -112,6 +115,7 @@ class OpportunityPredictionRecipientResolverTest {
         assertThat(snapshot.activeUserIds()).containsExactly(10L);
         assertThat(snapshot.roleRecipientIds()).containsExactly(10L);
         assertThat(snapshot.returnedJobNumbers()).isEqualTo(1);
+        assertThat(snapshot.lookupSucceeded()).isTrue();
     }
 
     @Test
@@ -132,6 +136,7 @@ class OpportunityPredictionRecipientResolverTest {
         assertThat(snapshot.recipientsFor(11L)).containsExactly(10L);
         assertThat(snapshot.requestedJobNumbers()).isEqualTo(2);
         assertThat(snapshot.returnedJobNumbers()).isEqualTo(1);
+        assertThat(snapshot.lookupSucceeded()).isTrue();
     }
 
     private static User user(Long id, String employeeNumber, boolean enabled) {

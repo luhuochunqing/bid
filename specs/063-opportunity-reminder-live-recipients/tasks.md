@@ -46,13 +46,13 @@
 
 **Independent Test**: 固定 `runDate/cutoff`，旧提醒是否曾包含经理或角色均不影响补发；未来项目、执行日新日志和已补发项目不写入，原提醒日志与事件状态不变。
 
-- [ ] T012 [P] [US2] 在 `backend/src/test/java/com/xiyu/bid/workbench/domain/OpportunityPredictionAlertMessageTest.java` 先添加历史补发标题、正文和空招标主体红灯测试
-- [ ] T013 [P] [US2] 在 `backend/src/test/java/com/xiyu/bid/workbench/service/OpportunityPredictionHistoryReplayServiceTest.java` 先添加候选边界、完整去重收件人、preview 零写、已补发跳过、缺失项目/无收件人及单项目失败隔离红灯测试
-- [ ] T014 [US2] 在 `backend/src/test/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderTransactionBoundaryTest.java` 先添加独立来源通知的事务创建、重复跳过和失败回滚红灯测试
-- [ ] T015 [US2] 在 `backend/src/main/java/com/xiyu/bid/workbench/domain/OpportunityPredictionAlertMessage.java` 与 `backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderSupport.java` 实现用户可见历史标识和带 replay 元数据的纯 payload 组装
-- [ ] T016 [US2] 在 `backend/src/main/java/com/xiyu/bid/workbench/repository/OpportunityPredictionReminderLogRepository.java`、`backend/src/main/java/com/xiyu/bid/notification/repository/NotificationRepository.java` 和 `backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderTransactionService.java` 实现候选查询、持久幂等查询及 REQUIRES_NEW 创建
-- [ ] T017 [US2] 在 `backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionHistoryReplayService.java` 实现一次快照、项目批量加载、preview/execute 共用计划、逐项目异常隔离和精确计数
-- [ ] T018 [US2] 运行 `specs/063-opportunity-reminder-live-recipients/quickstart.md` 第 1 节服务与事务测试，确认先红后绿且正常扫描回归通过
+- [x] T012 [P] [US2] 在 `backend/src/test/java/com/xiyu/bid/workbench/domain/OpportunityPredictionAlertMessageTest.java` 先添加历史补发标题、正文和空招标主体红灯测试
+- [x] T013 [P] [US2] 在 `backend/src/test/java/com/xiyu/bid/workbench/service/OpportunityPredictionHistoryReplayServiceTest.java` 先添加候选边界、完整去重收件人、preview 零写、已补发跳过、缺失项目/无收件人及单项目失败隔离红灯测试
+- [x] T014 [US2] 在 `backend/src/test/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderTransactionBoundaryTest.java` 先添加独立来源通知的事务创建、重复跳过和失败回滚红灯测试
+- [x] T015 [US2] 在 `backend/src/main/java/com/xiyu/bid/workbench/domain/OpportunityPredictionAlertMessage.java` 与 `backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderSupport.java` 实现用户可见历史标识和带 replay 元数据的纯 payload 组装
+- [x] T016 [US2] 在 `backend/src/main/java/com/xiyu/bid/workbench/repository/OpportunityPredictionReminderLogRepository.java`、`backend/src/main/java/com/xiyu/bid/notification/repository/NotificationRepository.java` 和 `backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderTransactionService.java` 实现候选查询、持久幂等查询及 REQUIRES_NEW 创建
+- [x] T017 [US2] 在 `backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionHistoryReplayService.java` 实现一次快照、项目批量加载、preview/execute 共用计划、逐项目异常隔离和精确计数
+- [x] T018 [US2] 运行 `specs/063-opportunity-reminder-live-recipients/quickstart.md` 第 1 节服务与事务测试，确认先红后绿且正常扫描回归通过
 
 **Checkpoint**: User Story 2 可由显式调用安全预演或执行，不依赖调度器即可独立验证。
 
@@ -64,10 +64,10 @@
 
 **Independent Test**: enabled=false、缺日期、cutoff 晚于 runDate、非执行日、启动事件均不写入；仅合法 09:00 调度调用 EXECUTE，重复执行新增为 0。
 
-- [ ] T019 [US3] 在 `backend/src/test/java/com/xiyu/bid/workbench/job/OpportunityPredictionHistoryReplayTaskTest.java` 先添加默认关闭、启动强制 preview、配置无效、日期不符和合法 execute 红灯测试
-- [ ] T020 [US3] 在 `backend/src/main/java/com/xiyu/bid/workbench/job/OpportunityPredictionHistoryReplayProperties.java` 与 `backend/src/main/resources/application.yml` 添加默认关闭的四项部署配置和 fail-closed 校验
-- [ ] T021 [US3] 在 `backend/src/main/java/com/xiyu/bid/workbench/job/OpportunityPredictionHistoryReplayTask.java` 实现 `ApplicationReadyEvent` 预演、09:00 薄调度、业务时区比较和异常日志
-- [ ] T022 [US3] 运行 `specs/063-opportunity-reminder-live-recipients/quickstart.md` 第 1 节调度测试并确认启动/日期/模式安全门禁全绿
+- [x] T019 [US3] 在 `backend/src/test/java/com/xiyu/bid/workbench/job/OpportunityPredictionHistoryReplayTaskTest.java` 先添加默认关闭、启动强制 preview、配置无效、日期不符和合法 execute 红灯测试
+- [x] T020 [US3] 在 `backend/src/main/java/com/xiyu/bid/workbench/job/OpportunityPredictionHistoryReplayProperties.java` 与 `backend/src/main/resources/application.yml` 添加默认关闭的四项部署配置和 fail-closed 校验
+- [x] T021 [US3] 在 `backend/src/main/java/com/xiyu/bid/workbench/job/OpportunityPredictionHistoryReplayTask.java` 实现 `ApplicationReadyEvent` 预演、09:00 薄调度、业务时区比较和异常日志
+- [x] T022 [US3] 运行 `specs/063-opportunity-reminder-live-recipients/quickstart.md` 第 1 节调度测试并确认启动/日期/模式安全门禁全绿
 
 **Checkpoint**: 只有一个明确日期的 09:00 调度可执行写入，重启不会补执行。
 

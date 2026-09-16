@@ -48,7 +48,7 @@ public class OpportunityPredictionRecipientResolver {
             liveByJobNumber = normalizeLookup(directoryGateway.getUserJobAndRoleListByJobNumbersStrict(jobNumbers));
         } catch (RuntimeException ex) {
             log.error("[商机预测提醒] OSS recipient lookup failed: requested={}", jobNumbers.size(), ex);
-            return new RecipientSnapshot(Set.of(), List.of(), jobNumbers.size(), 0);
+            return new RecipientSnapshot(Set.of(), List.of(), jobNumbers.size(), 0, false);
         }
         int returnedRequested = (int) userByJobNumber.keySet().stream()
                 .filter(liveByJobNumber::containsKey)
@@ -76,7 +76,7 @@ public class OpportunityPredictionRecipientResolver {
         log.info("[商机预测提醒] OSS recipients resolved: requested={} returned={} active={} roles={}",
                 jobNumbers.size(), returnedRequested, activeUserIds.size(), roleRecipientIds.size());
         return new RecipientSnapshot(activeUserIds, roleRecipientIds,
-                jobNumbers.size(), returnedRequested);
+                jobNumbers.size(), returnedRequested, true);
     }
 
     private Map<String, User> loadLocalIdentities() {
@@ -113,14 +113,21 @@ public class OpportunityPredictionRecipientResolver {
 
     /** 一轮扫描内不可变的实时接收人事实。 */
     public record RecipientSnapshot(Set<Long> activeUserIds, List<Long> roleRecipientIds,
-                                    int requestedJobNumbers, int returnedJobNumbers) {
+                                    int requestedJobNumbers, int returnedJobNumbers,
+                                    boolean lookupSucceeded) {
         public RecipientSnapshot {
             activeUserIds = Set.copyOf(activeUserIds);
             roleRecipientIds = List.copyOf(roleRecipientIds);
         }
 
+        /** 向后兼容测试与调用方构造；显式快照默认代表查询成功。 */
+        public RecipientSnapshot(Set<Long> activeUserIds, List<Long> roleRecipientIds,
+                                 int requestedJobNumbers, int returnedJobNumbers) {
+            this(activeUserIds, roleRecipientIds, requestedJobNumbers, returnedJobNumbers, true);
+        }
+
         public static RecipientSnapshot empty() {
-            return new RecipientSnapshot(Set.of(), List.of(), 0, 0);
+            return new RecipientSnapshot(Set.of(), List.of(), 0, 0, true);
         }
 
         /** 核心角色在前，实时在职项目经理追加并去重。 */

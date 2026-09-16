@@ -2,8 +2,11 @@ package com.xiyu.bid.notification.repository;
 
 import com.xiyu.bid.notification.entity.Notification;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
@@ -22,4 +25,19 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
      */
     List<Notification> findBySourceEntityTypeAndSourceEntityIdAndTypeOrderByCreatedAtDesc(
             String sourceEntityType, Long sourceEntityId, String type);
+
+    boolean existsBySourceEntityTypeAndSourceEntityIdAndType(
+            String sourceEntityType, Long sourceEntityId, String type);
+
+    @Query("""
+            select notification.sourceEntityId
+            from Notification notification
+            where notification.sourceEntityType = :sourceEntityType
+              and notification.type = :type
+              and notification.sourceEntityId in :sourceEntityIds
+            """)
+    List<Long> findSourceEntityIds(
+            @Param("sourceEntityType") String sourceEntityType,
+            @Param("type") String type,
+            @Param("sourceEntityIds") Collection<Long> sourceEntityIds);
 }
