@@ -8,6 +8,15 @@ set -euo pipefail
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
+# 门禁拆分 (2026-09-16): HAFlow 工作流任务提交只跑快速必需检查,
+# 全量后端/前端测试由 workflow test 节点与 pre-push 门禁负责(不丢失覆盖)。
+# 判定: HAFlow controller 在 git 集成收尾 commits 时显式下发 HERDR_DEFER_HEAVY_TESTS=1。
+# 人类开发与 Agent 手工提交不受影响,仍走全量门禁(不猜测仓库来源,避免误伤)。
+if [ "${HERDR_DEFER_HEAVY_TESTS:-0}" = "1" ]; then
+  echo "testing-gate: herdr 任务提交 -> 延迟全量测试 (由 workflow test 节点 / pre-push gate 执行)"
+  exit 0
+fi
+
 # 1. 后端测试门禁 (Java)
 STAGED_JAVA_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^backend/src/main/java/.*\.java$' || true)
 STAGED_BACKEND_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^backend/(src/main/java|src/test/java)/.*\.java$' || true)
