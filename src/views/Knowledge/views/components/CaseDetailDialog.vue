@@ -43,12 +43,10 @@
           @click="emitSourceLocation"
         >
           <span>原文所在标题：{{ sourceLocationText }}</span>
-          <span v-if="sourceDocumentText">来源文档：{{ sourceDocumentText }}</span>
           <span v-if="sourcePageText">页码：{{ sourcePageText }}</span>
         </button>
         <div v-else class="source-location-fallback">
           <span>原文所在标题：暂无来源标题</span>
-          <span v-if="sourceDocumentText">来源文档：{{ sourceDocumentText }}</span>
           <span v-if="sourcePageText">页码：{{ sourcePageText }}</span>
         </div>
       </div>
@@ -84,6 +82,10 @@ import { Link, Document, CopyDocument } from '@element-plus/icons-vue'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 import { renderSafeMarkdown } from '@/components/common/doc-insight/markdownSanitizer.js'
 import { getProjectTypeLabel, getCustomerTypeLabel, getMatchLabel, getMatchTagType, parseStringOrArray } from '../caseLabels.js'
+import {
+  extractSourceLocationText,
+  preprocessPlainText
+} from './caseDetailFormatter.js'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -110,13 +112,8 @@ const matchLabelTagType = computed(() => getMatchTagType(displayMatchScore.value
 const matchReasonsList = computed(() => parseStringOrArray(props.caseData?.matchReasons))
 const matchedKeywordsList = computed(() => parseStringOrArray(props.caseData?.matchedKeywords))
 
-const sourceLocationText = computed(() => {
-  const path = props.caseData?.sourceSectionPath?.trim?.()
-  const title = props.caseData?.sourceSectionTitle?.trim?.()
-  return path || title || ''
-})
+const sourceLocationText = computed(() => extractSourceLocationText(props.caseData))
 const hasSourceLocation = computed(() => Boolean(sourceLocationText.value))
-const sourceDocumentText = computed(() => props.caseData?.sourceDocumentName?.toString?.().trim?.() || '')
 const sourcePageText = computed(() => {
   const page = props.caseData?.sourcePageNumber
   return page === null || page === undefined || page === '' ? '' : String(page)
@@ -128,80 +125,6 @@ const hasResponseText = computed(() => {
   const raw = props.caseData?.responseText
   return typeof raw === 'string' && raw.trim().length > 0
 })
-
-const escapeHtml = (str) => String(str)
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#039;')
-
-const isMarkdownStructureLine = (line) => {
-  const trimmed = line.trimStart()
-  return trimmed.startsWith('#') || trimmed.startsWith('>') || trimmed.startsWith('```') ||
-    /^[-*+]\s/.test(trimmed) || (trimmed.match(/\|/g) || []).length >= 2
-}
-
-const isMarkdownBlock = (block) => block.split('\n').some(isMarkdownStructureLine)
-
-const SEQUENCE_RE = /^(?:\d+\.\s*|[一二三四五六七八九十]+、|[①-⑩]\s*|[(（]\d+[)）]\s*|[(（][一二三四五六七八九十]+[)）]\s*)/
-
-const insertBrBetweenNonListLines = (lines) => {
-  const tagPattern = /^<\/?ol>|^<li>/
-  const output = []
-
-  for (const line of lines) {
-    if (line === '') {
-      output.push('')
-    } else if (tagPattern.test(line)) {
-      output.push(line)
-    } else if (output.length > 0 && output[output.length - 1] !== '' && !tagPattern.test(output[output.length - 1])) {
-      output.push(`<br>${line}`)
-    } else {
-      output.push(line)
-    }
-  }
-
-  return output.join('\n')
-}
-
-const processPlainTextBlock = (block) => {
-  const lines = block.split('\n')
-  const output = []
-  let inList = false
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-    const sequence = trimmed.match(SEQUENCE_RE)
-
-    if (sequence) {
-      if (!inList) {
-        output.push('<ol>')
-        inList = true
-      }
-      output.push(`<li>${escapeHtml(trimmed.slice(sequence[0].length))}</li>`)
-      continue
-    }
-
-    if (inList) {
-      output.push('</ol>')
-      inList = false
-    }
-    output.push(trimmed === '' ? '' : escapeHtml(line))
-  }
-
-  if (inList) output.push('</ol>')
-  return insertBrBetweenNonListLines(output)
-}
-
-const preprocessPlainText = (text) => {
-  if (!text) return ''
-  const normalized = text.replace(/\r\n/g, '\n')
-  return normalized.split(/\n{2,}/).map((block) => {
-    if (block.trim() === '') return ''
-    return isMarkdownBlock(block) ? block : processPlainTextBlock(block)
-  }).join('\n\n')
-}
 
 defineExpose({ preprocessPlainText })
 
@@ -279,7 +202,12 @@ const bidResultType = computed(() => {
 .case-desc { margin-bottom: 16px; }
 .content-box { background-color: var(--el-fill-color-light); border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.6; color: var(--el-text-color-regular); white-space: pre-wrap; border: 1px solid var(--el-border-color-lighter); }
 .requirement-box { max-height: 150px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; }
-.response-box { max-height: 240px; overflow: auto; }
+.response-box { max-height: 250px; overflow: auto; white-space: normal; word-break: break-word; }
+.response-box :deep(p) { margin: 0 0 10px 0; line-height: 1.7; text-align: justify; }
+.response-box :deep(p:last-child) { margin-bottom: 0; }
+.response-box :deep(ol),
+.response-box :deep(ul) { margin: 4px 0 8px 0; padding-left: 20px; }
+.response-box :deep(li) { margin-bottom: 4px; }
 .response-box :deep(table) { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; white-space: normal; }
 .response-box :deep(th),
 .response-box :deep(td) { border: 1px solid var(--el-border-color); padding: 6px 8px; text-align: left; }
