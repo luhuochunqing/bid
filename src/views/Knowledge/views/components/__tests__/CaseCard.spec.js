@@ -89,4 +89,15 @@ describe('CaseCard.vue', () => {
     expect(wrapper.emitted('reuse')).toHaveLength(1)
     expect(wrapper.emitted('reuse')[0][0]).toMatchObject({ caseId: 101 })
   })
+
+  it('保留后端完整摘要并让换行由 CSS 呈现', () => {
+    const summary = `${'摘要内容'.repeat(30)}\n第二行`
+    const wrapper = mount(CaseCard, {
+      props: { caseData: { ...mockCaseData, responseTextSummary: summary }, matchScore: null },
+      global: { stubs }
+    })
+
+    expect(wrapper.find('.summary-text').text()).toContain(summary)
+    expect(wrapper.find('.summary-text').text()).not.toContain('...')
+  })
 })

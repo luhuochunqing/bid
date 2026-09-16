@@ -32,6 +32,8 @@ const mountDialog = (props = {}) => mount(CaseDetailDialog, {
 const findButtonByText = (wrapper, text) =>
   wrapper.findAll('button').find((b) => b.text().includes(text))
 
+const sourceLocation = (wrapper) => wrapper.find('.source-location')
+
 describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
   it('应答片段标题为「应答片段摘要」，查看源项目/标书原文按钮在标题行右侧', () => {
     const wrapper = mountDialog()
@@ -49,6 +51,52 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     const wrapper = mountDialog()
     expect(wrapper.find('.word-count-hint').text()).toBe(`共 ${caseData.responseText.length} 字`)
     expect(wrapper.find('.response-box').text()).toContain(caseData.responseText)
+  })
+
+  it('来源路径优先显示，并在同一行显示文档和页码', () => {
+    const wrapper = mountDialog({
+      caseData: {
+        ...caseData,
+        sourceSectionTitle: '仅标题',
+        sourceSectionPath: '第一章 > 服务方案',
+        sourceDocumentName: '技术标.docx',
+        sourcePageNumber: 12
+      }
+    })
+    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：第一章 > 服务方案')
+    expect(sourceLocation(wrapper).text()).toContain('来源文档：技术标.docx')
+    expect(sourceLocation(wrapper).text()).toContain('页码：12')
+    expect(sourceLocation(wrapper).text()).not.toContain('仅标题')
+  })
+
+  it('只有来源标题时显示标题且可点击', () => {
+    const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionTitle: '项目实施' } })
+    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：项目实施')
+    expect(sourceLocation(wrapper).element.tagName).toBe('BUTTON')
+  })
+
+  it('来源路径和标题均为空时显示降级文案且信息行不可点击', () => {
+    const wrapper = mountDialog({
+      caseData: { ...caseData, scoringPointTitle: '项目实施', sourceSectionTitle: null, sourceSectionPath: null }
+    })
+    expect(wrapper.find('.source-location').exists()).toBe(false)
+    expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
+  })
+
+  it('来源标题与评分项标题同名时仍保留两个不同 label', () => {
+    const wrapper = mountDialog({
+      caseData: { ...caseData, sourceSectionTitle: caseData.scoringPointTitle }
+    })
+    expect(wrapper.text()).toContain(`评分项标题：${caseData.scoringPointTitle}`)
+    expect(sourceLocation(wrapper).text()).toContain(`原文所在标题：${caseData.scoringPointTitle}`)
+  })
+
+  it('点击来源信息行触发 open-bid 并携带定位提示标记', async () => {
+    const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionPath: '第二章 > 售后服务' } })
+    await sourceLocation(wrapper).trigger('click')
+    expect(wrapper.emitted('open-bid')).toHaveLength(1)
+    expect(wrapper.emitted('open-bid')[0][0]).toMatchObject({ sourceSectionPath: '第二章 > 售后服务' })
+    expect(wrapper.emitted('open-bid')[0][1]).toEqual({ notifyLocation: true })
   })
 
   it('底部操作栏仅保留「复用」按钮', () => {
@@ -110,6 +158,42 @@ describe('CaseDetailDialog - 应答片段 markdown 安全渲染', () => {
     '| --- | --- |',
     '| 可用性 | 99.9% |'
   ].join('\n')
+
+  it('preprocessPlainText 将纯文本分段、换行和序号转换为安全 HTML', () => {
+    const wrapper = mountDialog()
+    const preprocess = wrapper.vm.preprocessPlainText
+
+    expect(preprocess('第一段\n第二行\n\n第二段')).toBe('第一段\n<br>第二行\n\n第二段')
+    expect(preprocess('1. 第一项\n2. 第二项')).toContain('<ol>\n<li>第一项</li>\n<li>第二项</li>\n</ol>')
+    for (const input of ['一、中文序号', '①带圈序号', '（1）括号序号', '(2)半角括号']) {
+      expect(preprocess(input)).toContain('<li>')
+      expect(preprocess(input)).not.toContain(input.slice(0, -4))
+    }
+    expect(preprocess('')).toBe('')
+    expect(preprocess('<script> & >')).toBe('&lt;script&gt; &amp; &gt;')
+  })
+
+  it.each([
+    ['S1 表格', tableMarkdown, '<table>'],
+    ['S2 标题+段落', '## 标题\n段落内容', '<h2>'],
+    ['S3 表格+段落', `${tableMarkdown}\n\n普通段落`, '<table>'],
+    ['S4 引用', '> 引用内容\n> 第二行', '<blockquote>'],
+    ['S5 围栏代码块', '```java\ncode here\n```', '<pre><code']
+  ])('%s 保持 markdown 结构并正常渲染', (_name, responseText, expectedTag) => {
+    const wrapper = mountDialog({ caseData: { ...caseData, responseText } })
+    expect(wrapper.find('.response-box').html()).toContain(expectedTag)
+  })
+
+  it('组件渲染纯文本换行和序号列表，li 内不重复显示编号', () => {
+    const responseText = '说明第一行\n说明第二行\n\n1. 第一项\n2. 第二项'
+    const wrapper = mountDialog({ caseData: { ...caseData, responseText } })
+    const box = wrapper.find('.response-box')
+
+    expect(box.html()).toContain('<br>')
+    expect(box.find('ol li').exists()).toBe(true)
+    expect(box.findAll('ol li')[0].text()).toBe('第一项')
+    expect(box.findAll('ol li')[1].text()).toBe('第二项')
+  })
 
   it('GFM 表格渲染为 HTML table，字数仍按原文长度', () => {
     const wrapper = mountDialog({
@@ -191,4 +275,3 @@ describe('CaseDetailDialog - 应答片段 markdown 安全渲染', () => {
     expect(wrapper.emitted('reuse')[0][0].responseText).not.toContain('<table')
   })
 })
-

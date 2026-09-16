@@ -24,6 +24,7 @@ knowledge_case 案例记录，使前台"AI 案例推荐"（案例库主页 + 投
 用法:
   python3 import-case-slices-to-knowledge-case.py [--jsonl-dir=DIR] [--limit=N]
       [--db-host=] [--db-port=] [--db-user=] [--db-pass=] [--db-name=]
+      （密码优先读取 XIYU_DB_PASS；无明文默认）
       [--dry-run] [--offline] [--purge] [--self-test]
 
 参数:
@@ -73,6 +74,9 @@ DATE_PREFIX_RE = re.compile(r'^\d{4}[.年/-]\d{1,2}[.月/-]\d{1,2}日?[-—]*\s*
 
 MAX_TITLE_LEN = 500
 MAX_PREVIEW_LEN = 300
+MAX_SOURCE_SECTION_TITLE_LEN = 500
+MAX_SOURCE_SECTION_PATH_LEN = 2000
+MAX_SOURCE_DOCUMENT_NAME_LEN = 255
 
 FILE_PATTERN = re.compile(r'^project_\d+\.jsonl$')
 
@@ -158,6 +162,7 @@ def load_jsonl_slices(jsonl_dir):
                     'obs_bid_file_key': obs_key,
                     'sub_topic': (rec.get('sub_topic') or '').strip() or None,
                     'quality_score': int(rec.get('quality_score') or 60),
+                    **extract_source_fields(rec),
                 })
     print(f'JSONL 解析: {len(slices)} 条切片（跳过 {skipped} 条非法行，{len(files)} 个文件）')
     return slices
@@ -193,7 +198,9 @@ def build_row(sl, project):
     列顺序与 INSERT_SQL 占位符一一对应：
       source_project_id, source_project_name, scoring_point_title,
       requirement_raw, response_text, customer_type, project_type,
-      bid_result, scoring_category, obs_bid_file_key, sub_topic, quality_score
+      bid_result, scoring_category, obs_bid_file_key, sub_topic, quality_score,
+      source_section_title, source_section_path, source_document_name,
+      source_page_number, source_section_index
     """
     title = sl['title']
     return (
@@ -209,6 +216,11 @@ def build_row(sl, project):
         sl.get('obs_bid_file_key') or None,
         sl.get('sub_topic') or None,
         int(sl.get('quality_score') or 60),
+        sl.get('source_section_title') or None,
+        sl.get('source_section_path') or None,
+        sl.get('source_document_name') or None,
+        sl.get('source_page_number') or None,
+        sl.get('source_section_index') or None,
     )
 
 
@@ -229,8 +241,11 @@ INSERT_SQL = """
         source_project_id, source_project_name, scoring_point_title, scoring_point_id,
         requirement_raw, response_text, reuse_count, is_pinned, status,
         customer_type, project_type, bid_result, scoring_category, product_line,
-        obs_bid_file_key, sub_topic, quality_score, created_at
-    ) VALUES (%s,%s,%s,NULL,%s,%s,0,0,'ACTIVE',%s,%s,%s,%s,NULL,%s,%s,%s,NOW())
+        obs_bid_file_key, sub_topic, quality_score,
+        source_section_title, source_section_path, source_document_name,
+        source_page_number, source_section_index,
+        created_at
+    ) VALUES (%s,%s,%s,NULL,%s,%s,0,0,'ACTIVE',%s,%s,%s,%s,NULL,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
 """
 
 # OBS 桶内历史投标文件根前缀（与后端 ObsObjectKeyPolicy.HISTORICAL_ROOT_PREFIX 一致）
@@ -247,6 +262,69 @@ def is_valid_obs_bid_key(key):
     if key.startswith('/') or '..' in key:
         return False
     return True
+
+
+def validate_source_section_title(value):
+    """校验来源章节标题：非空字符串截断至 MAX_SOURCE_SECTION_TITLE_LEN，空/None → None。"""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    return s[:MAX_SOURCE_SECTION_TITLE_LEN]
+
+
+def validate_source_section_path(value):
+    """校验来源章节路径：非空字符串截断至 MAX_SOURCE_SECTION_PATH_LEN，空/None → None。"""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    return s[:MAX_SOURCE_SECTION_PATH_LEN]
+
+
+def validate_source_document_name(value):
+    """校验来源文档名：非空字符串截断至 MAX_SOURCE_DOCUMENT_NAME_LEN，空/None → None。"""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    return s[:MAX_SOURCE_DOCUMENT_NAME_LEN]
+
+
+def validate_source_page_number(value):
+    """校验来源页码：正整数或 None；非法值（负数、零、非数字）→ None。"""
+    if value is None:
+        return None
+    try:
+        n = int(value)
+    except (ValueError, TypeError):
+        return None
+    return n if n > 0 else None
+
+
+def validate_source_section_index(value):
+    """校验章节序号：非负整数或 None；非法值（负数、非数字）→ None。"""
+    if value is None:
+        return None
+    try:
+        n = int(value)
+    except (ValueError, TypeError):
+        return None
+    return n if n >= 0 else None
+
+
+def extract_source_fields(rec):
+    """从 JSONL 记录提取并校验五个来源字段，返回 dict。缺失/非法 → None。"""
+    return {
+        'source_section_title': validate_source_section_title(rec.get('source_section_title')),
+        'source_section_path': validate_source_section_path(rec.get('source_section_path')),
+        'source_document_name': validate_source_document_name(rec.get('source_document_name')),
+        'source_page_number': validate_source_page_number(rec.get('source_page_number')),
+        'source_section_index': validate_source_section_index(rec.get('source_section_index')),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -324,7 +402,9 @@ def print_stats(matched, unmatched, sampled, rows, args):
     if rows:
         print('\n--- 样例（前 5 条）---')
         for r in rows[:5]:
-            print(f'  project_id={r[0]} | {r[2][:40]} | category={r[8]} | bid_result={r[7]}')
+            src_title = r[12] if len(r) > 12 else None
+            print(f'  project_id={r[0]} | {r[2][:40]} | category={r[8]} | bid_result={r[7]}'
+                  f' | source_title={fmt_value(src_title)}')
 
 
 def fmt_value(v):
@@ -475,7 +555,8 @@ def self_test():
                    '【历史标书切片】售后服务方案', '承诺7x24',
                    'CENTRAL_SOE', 'COMPREHENSIVE', 'WON', '技术',
                    OBS_BID_ROOT_PREFIX + '2026.01.20--中国建设银行龙集采项目/技术标.docx',
-                   'SLA_SERVICE', 85)
+                   'SLA_SERVICE', 85,
+                   None, None, None, None, None)
     row2 = build_row(sl, p2)
     assert row2[7] == 'LOST'   # LOST → 未中标（修复：此前误丢为 NULL 致前台显示"未知"）
     p4 = {'id': 4, 'name': '流标项目', 'status': 'FAILED',
@@ -504,10 +585,83 @@ def self_test():
     assert not is_valid_obs_bid_key('/' + OBS_BID_ROOT_PREFIX + 'x.docx')
     assert not is_valid_obs_bid_key(OBS_BID_ROOT_PREFIX + '../etc/passwd')
     assert all(is_valid_obs_bid_key(s['obs_bid_file_key']) for s in slices)
-    assert row[9] == sl['obs_bid_file_key']  # 行装配透出 obs key
+    assert row[9] == sl['obs_bid_file_key']  # 行装配透出 obs key（index 9）
     assert build_row({**sl, 'obs_bid_file_key': None}, p1)[9] is None  # 缺失时 NULL
 
-    print('self-test passed: 9 组断言全部通过')
+    # 10. 来源字段：有显式字段时写入对应位置（index 12-16）
+    sl_with_source = {**sl,
+                      'source_section_title': '技术方案 > 项目实施',
+                      'source_section_path': '技术方案 > 项目实施 > 服务保障',
+                      'source_document_name': '技术标.docx',
+                      'source_page_number': 12,
+                      'source_section_index': 3}
+    row_src = build_row(sl_with_source, p1)
+    assert len(row_src) == 17
+    assert row_src[12] == '技术方案 > 项目实施'
+    assert row_src[13] == '技术方案 > 项目实施 > 服务保障'
+    assert row_src[14] == '技术标.docx'
+    assert row_src[15] == 12
+    assert row_src[16] == 3
+
+    # 11. 来源字段：无显式字段时全部 NULL（旧格式兼容，title 不复制到来源标题）
+    row_nosrc = build_row(sl, p1)
+    assert row_nosrc[12] is None
+    assert row_nosrc[14] is None
+    assert row_nosrc[15] is None
+    assert row_nosrc[16] is None
+    assert row_nosrc[17 - 1] is None
+
+    # 12. 来源字段校验：非法页码 → None
+    assert validate_source_page_number(-1) is None
+    assert validate_source_page_number(0) is None
+    assert validate_source_page_number('abc') is None
+    assert validate_source_page_number(None) is None
+    assert validate_source_page_number(5) == 5
+    assert validate_source_page_number('42') == 42
+
+    # 13. 来源字段校验：超长值截断
+    long_title = 'A' * 600
+    assert len(validate_source_section_title(long_title)) == MAX_SOURCE_SECTION_TITLE_LEN
+    long_path = 'B' * 3000
+    assert len(validate_source_section_path(long_path)) == MAX_SOURCE_SECTION_PATH_LEN
+    long_doc = 'C' * 300
+    assert len(validate_source_document_name(long_doc)) == MAX_SOURCE_DOCUMENT_NAME_LEN
+
+    # 14. 来源字段校验：章节序号非法值
+    assert validate_source_section_index(-1) is None
+    assert validate_source_section_index('xyz') is None
+    assert validate_source_section_index(0) == 0
+    assert validate_source_section_index(7) == 7
+
+    # 15. 同名标题不复制：title == source_section_title 时各字段独立，不互相覆盖
+    sl_same = {**sl, 'source_section_title': '售后服务方案'}
+    row_same = build_row(sl_same, p1)
+    assert row_same[2] == '售后服务方案'  # scoring_point_title 仍是 title
+    assert row_same[12] == '售后服务方案'  # source_section_title 独立写入
+    assert row_same[3] == '【历史标书切片】售后服务方案'  # requirement_raw 不受来源字段影响
+
+    # 16. extract_source_fields：从 JSONL 记录提取并校验
+    rec_full = {
+        'source_section_title': '项目实施',
+        'source_section_path': '技术方案 > 项目实施',
+        'source_document_name': '技术标.docx',
+        'source_page_number': 10,
+        'source_section_index': 2,
+    }
+    src = extract_source_fields(rec_full)
+    assert src == {'source_section_title': '项目实施', 'source_section_path': '技术方案 > 项目实施',
+                   'source_document_name': '技术标.docx', 'source_page_number': 10,
+                   'source_section_index': 2}
+    rec_empty = {}
+    src_empty = extract_source_fields(rec_empty)
+    assert all(v is None for v in src_empty.values())
+    rec_mixed = {'source_section_title': '', 'source_page_number': -5, 'source_section_index': 0}
+    src_mixed = extract_source_fields(rec_mixed)
+    assert src_mixed['source_section_title'] is None
+    assert src_mixed['source_page_number'] is None
+    assert src_mixed['source_section_index'] == 0
+
+    print('self-test passed: 16 组断言全部通过')
 
 
 def main():
@@ -517,7 +671,8 @@ def main():
     ap.add_argument('--db-host', default='127.0.0.1')
     ap.add_argument('--db-port', type=int, default=3306)
     ap.add_argument('--db-user', default='xiyu_user')
-    ap.add_argument('--db-pass', default='XiyuDB!2026')
+    ap.add_argument('--db-pass', default=None,
+                    help='数据库密码；优先使用此参数，否则读取 XIYU_DB_PASS（无明文默认）')
     ap.add_argument('--db-name', default='xiyu_bid_main')
     ap.add_argument('--dry-run', action='store_true', help='连库匹配并打印统计/样例，不写入')
     ap.add_argument('--offline', action='store_true', help='不连库：解析+抽样+打印 INSERT 样例')
@@ -527,9 +682,15 @@ def main():
     ap.add_argument('--self-test', action='store_true', help='运行纯函数断言后退出')
     args = ap.parse_args()
 
+    if args.db_pass is None:
+        args.db_pass = os.environ.get('XIYU_DB_PASS')
+
     if args.self_test:
         self_test()
         return
+
+    if not args.offline and not args.db_pass:
+        ap.error('缺少数据库密码：请设置 XIYU_DB_PASS，或传入 --db-pass；不会回显密码')
 
     # 白名单硬守卫：所有连库模式（含 --purge / --dry-run）生效
     if not args.offline:
@@ -568,4 +729,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

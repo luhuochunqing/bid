@@ -126,6 +126,21 @@ class CaseZipPackagerTest {
         assertTrue(excel.length > 0);
     }
 
+    @Test
+    @DisplayName("buildCaseIndexExcel: 包含原文来源标题等15列完整信息")
+    void buildIndexExcel_WithSourceProvenance_ProducesValidExcel() {
+        List<CaseZipPackager.CaseIndexRow> rows = List.of(
+                new CaseZipPackager.CaseIndexRow(
+                        1L, "项目A", "评分项A", "技术", "国有企业",
+                        "综合", "WON", "产品线A", 3, "ACTIVE", "2026-06-09",
+                        "3.1 架构", "第三章 > 3.1 架构", "标书.docx", 10)
+        );
+
+        byte[] excel = packager.buildCaseIndexExcel(rows);
+        assertNotNull(excel);
+        assertTrue(excel.length > 0);
+    }
+
     // ---------------------------------------------------------------
     // 辅助方法
     // ---------------------------------------------------------------

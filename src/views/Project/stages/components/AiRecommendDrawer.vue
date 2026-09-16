@@ -247,9 +247,9 @@ const handleReuse = (item) => copyAndRecordReuse(item.caseId, item.responseText 
 const handleReuseInDetail = (d) => copyAndRecordReuse(d.caseId || d.id, d.responseText || '')
 // 查看源项目 / 标书原文：共享 composable（路由修正 + 未归档预检 + 假 ZIP 防护，详见 useBidCaseSourceActions.js）
 const { goToSourceProject, openBidDocument: openBidDocumentBase } = useBidCaseSourceActions()
-async function openBidDocument(d) {
+async function openBidDocument(d, options) {
   try {
-    await openBidDocumentBase(d)
+    await openBidDocumentBase(d, options)
   } catch (e) {
     notifyErrorUnlessRateLimit(e, '标书原文下载失败')
   }

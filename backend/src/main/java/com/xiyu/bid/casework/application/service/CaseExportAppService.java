@@ -1,3 +1,8 @@
+// Input: CaseExportQuery（关键词/客户类型/项目类型/排序）与导出人
+// Output: CaseExportResult（分页拉取 knowledge_case → CaseExportRecord → Excel/ZIP 打包，含原文来源五字段映射）
+// Pos: Backend/casework 模块应用服务——案例库导出编排
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.casework.application.service;
 
 import com.xiyu.bid.casework.application.CaseZipPackager;
@@ -165,7 +170,11 @@ public class CaseExportAppService {
                 nullSafe(kc.getProductLine()),
                 kc.getReuseCount() != null ? kc.getReuseCount() : 0,
                 nullSafe(kc.getStatus()),
-                formatDateTime(kc.getCreatedAt())
+                formatDateTime(kc.getCreatedAt()),
+                kc.getSourceSectionTitle(),
+                kc.getSourceSectionPath(),
+                kc.getSourceDocumentName(),
+                kc.getSourcePageNumber()
         );
     }
 

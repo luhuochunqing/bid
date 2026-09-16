@@ -44,5 +44,10 @@ public class ScoreItemCaseRecommendResponse {
         private String projectStatus;
         private String subTopic;
         private Integer qualityScore;
+        private String sourceSectionTitle;
+        private String sourceSectionPath;
+        private String sourceDocumentName;
+        private Integer sourcePageNumber;
+        private Integer sourceSectionIndex;
     }
 }

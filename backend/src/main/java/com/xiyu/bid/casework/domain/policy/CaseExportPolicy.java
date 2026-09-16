@@ -127,6 +127,10 @@ public class CaseExportPolicy {
         sb.append("状态：").append(nullSafe(kc.getStatus())).append("\n");
         sb.append("是否置顶：").append(Boolean.TRUE.equals(kc.getIsPinned()) ? "是" : "否").append("\n");
         sb.append("创建时间：").append(formatDateTime(kc.getCreatedAt())).append("\n");
+        sb.append("原文所在标题：").append(nullSafe(kc.getSourceSectionTitle())).append("\n");
+        sb.append("原文所在路径：").append(nullSafe(kc.getSourceSectionPath())).append("\n");
+        sb.append("原文所在文档：").append(nullSafe(kc.getSourceDocumentName())).append("\n");
+        sb.append("原文页码：").append(kc.getSourcePageNumber() != null ? String.valueOf(kc.getSourcePageNumber()) : "-").append("\n");
         return sb.toString();
     }
 

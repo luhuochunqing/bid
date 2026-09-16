@@ -89,6 +89,27 @@ describe('useBidCaseSourceActions', () => {
     expect(ElMessage.success).toHaveBeenCalledWith('标书原文下载已开始：项目复盘-中广核.docx')
   })
 
+  it('定位提示：路径优先，并补充来源文档和页码', async () => {
+    casesApi.getDownloadUrl.mockResolvedValue({ url: 'https://signed', filename: '技术标.docx', expireSeconds: 300 })
+    const { openBidDocument } = useBidCaseSourceActions()
+    await openBidDocument({
+      caseId: 88,
+      obsBidFileKey: 'k',
+      sourceSectionPath: '第一章 > 服务方案',
+      sourceSectionTitle: '服务方案',
+      sourceDocumentName: '技术标.docx',
+      sourcePageNumber: 12
+    }, { notifyLocation: true })
+    expect(ElMessage.success).toHaveBeenLastCalledWith('已打开标书原文，请定位到：第一章 > 服务方案（来源文档：技术标.docx，页码：12）')
+  })
+
+  it('定位提示：只有来源标题时使用标题，不伪造文档和页码', async () => {
+    casesApi.getDownloadUrl.mockResolvedValue({ url: 'https://signed', filename: '技术标.docx', expireSeconds: 300 })
+    const { openBidDocument } = useBidCaseSourceActions()
+    await openBidDocument({ caseId: 88, obsBidFileKey: 'k', sourceSectionTitle: '项目实施' }, { notifyLocation: true })
+    expect(ElMessage.success).toHaveBeenLastCalledWith('已打开标书原文，请定位到：项目实施')
+  })
+
   it('标书原文（历史直链）：签发接口报无原文（409）时透出服务端 msg，不打开任何链接', async () => {
     casesApi.getDownloadUrl.mockRejectedValue({ response: { status: 409, data: { msg: '该案例暂无原版标书' } } })
     const { openBidDocument } = useBidCaseSourceActions()

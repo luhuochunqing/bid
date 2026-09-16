@@ -66,6 +66,26 @@ public class KnowledgeCase implements KnowledgeCaseReadModel {
     @Column(name = "obs_bid_file_key", length = 512)
     private String obsBidFileKey;
 
+    /** 应答片段在标书原文中的最近有效章节标题 */
+    @Column(name = "source_section_title", length = 500)
+    private String sourceSectionTitle;
+
+    /** 标书原文章节层级路径，使用 > 分隔 */
+    @Column(name = "source_section_path", length = 2000)
+    private String sourceSectionPath;
+
+    /** 来源标书用户可读文件名 */
+    @Column(name = "source_document_name", length = 255)
+    private String sourceDocumentName;
+
+    /** 来源标书可证明的逻辑页码 */
+    @Column(name = "source_page_number")
+    private Integer sourcePageNumber;
+
+    /** Markdown 章节扫描稳定序号 */
+    @Column(name = "source_section_index")
+    private Integer sourceSectionIndex;
+
     /** 业务子主题（如 SLA_SERVICE, SYS_ARCH, LOGISTICS_WAREHOUSE 等）。 */
     @Column(name = "sub_topic", length = 50)
     private String subTopic;

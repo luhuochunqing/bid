@@ -24,6 +24,7 @@
 
       <!-- 1. 评分项详细要素原文（浅色背景展示区） -->
       <div class="section-title">评分项详细要素原文</div>
+      <div class="scoring-point-title"><span>评分项标题：</span>{{ caseData.scoringPointTitle || caseData.scoringTitle || '暂无评分项标题' }}</div>
       <div class="content-box requirement-box">{{ caseData.requirementRaw || '暂无要求' }}</div>
 
       <!-- 2. 应答片段摘要（标注总字数，操作按钮在标题行右侧） -->
@@ -32,6 +33,23 @@
         <div class="title-actions">
           <el-button plain type="primary" size="small" @click="$emit('go-source', caseData)"><el-icon><Link /></el-icon>查看源项目</el-button>
           <el-button plain type="primary" size="small" @click="$emit('open-bid', caseData)"><el-icon><Document /></el-icon>标书原文</el-button>
+        </div>
+      </div>
+      <div class="source-location-row">
+        <button
+          v-if="hasSourceLocation"
+          type="button"
+          class="source-location"
+          @click="emitSourceLocation"
+        >
+          <span>原文所在标题：{{ sourceLocationText }}</span>
+          <span v-if="sourceDocumentText">来源文档：{{ sourceDocumentText }}</span>
+          <span v-if="sourcePageText">页码：{{ sourcePageText }}</span>
+        </button>
+        <div v-else class="source-location-fallback">
+          <span>原文所在标题：暂无来源标题</span>
+          <span v-if="sourceDocumentText">来源文档：{{ sourceDocumentText }}</span>
+          <span v-if="sourcePageText">页码：{{ sourcePageText }}</span>
         </div>
       </div>
       <div class="word-count-hint">共 {{ (caseData?.responseText || '').length }} 字</div>
@@ -92,14 +110,104 @@ const matchLabelTagType = computed(() => getMatchTagType(displayMatchScore.value
 const matchReasonsList = computed(() => parseStringOrArray(props.caseData?.matchReasons))
 const matchedKeywordsList = computed(() => parseStringOrArray(props.caseData?.matchedKeywords))
 
+const sourceLocationText = computed(() => {
+  const path = props.caseData?.sourceSectionPath?.trim?.()
+  const title = props.caseData?.sourceSectionTitle?.trim?.()
+  return path || title || ''
+})
+const hasSourceLocation = computed(() => Boolean(sourceLocationText.value))
+const sourceDocumentText = computed(() => props.caseData?.sourceDocumentName?.toString?.().trim?.() || '')
+const sourcePageText = computed(() => {
+  const page = props.caseData?.sourcePageNumber
+  return page === null || page === undefined || page === '' ? '' : String(page)
+})
+
+const emitSourceLocation = () => emit('open-bid', props.caseData, { notifyLocation: true })
+
 const hasResponseText = computed(() => {
   const raw = props.caseData?.responseText
   return typeof raw === 'string' && raw.trim().length > 0
 })
 
+const escapeHtml = (str) => String(str)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;')
+
+const isMarkdownStructureLine = (line) => {
+  const trimmed = line.trimStart()
+  return trimmed.startsWith('#') || trimmed.startsWith('>') || trimmed.startsWith('```') ||
+    /^[-*+]\s/.test(trimmed) || (trimmed.match(/\|/g) || []).length >= 2
+}
+
+const isMarkdownBlock = (block) => block.split('\n').some(isMarkdownStructureLine)
+
+const SEQUENCE_RE = /^(?:\d+\.\s*|[一二三四五六七八九十]+、|[①-⑩]\s*|[(（]\d+[)）]\s*|[(（][一二三四五六七八九十]+[)）]\s*)/
+
+const insertBrBetweenNonListLines = (lines) => {
+  const tagPattern = /^<\/?ol>|^<li>/
+  const output = []
+
+  for (const line of lines) {
+    if (line === '') {
+      output.push('')
+    } else if (tagPattern.test(line)) {
+      output.push(line)
+    } else if (output.length > 0 && output[output.length - 1] !== '' && !tagPattern.test(output[output.length - 1])) {
+      output.push(`<br>${line}`)
+    } else {
+      output.push(line)
+    }
+  }
+
+  return output.join('\n')
+}
+
+const processPlainTextBlock = (block) => {
+  const lines = block.split('\n')
+  const output = []
+  let inList = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    const sequence = trimmed.match(SEQUENCE_RE)
+
+    if (sequence) {
+      if (!inList) {
+        output.push('<ol>')
+        inList = true
+      }
+      output.push(`<li>${escapeHtml(trimmed.slice(sequence[0].length))}</li>`)
+      continue
+    }
+
+    if (inList) {
+      output.push('</ol>')
+      inList = false
+    }
+    output.push(trimmed === '' ? '' : escapeHtml(line))
+  }
+
+  if (inList) output.push('</ol>')
+  return insertBrBetweenNonListLines(output)
+}
+
+const preprocessPlainText = (text) => {
+  if (!text) return ''
+  const normalized = text.replace(/\r\n/g, '\n')
+  return normalized.split(/\n{2,}/).map((block) => {
+    if (block.trim() === '') return ''
+    return isMarkdownBlock(block) ? block : processPlainTextBlock(block)
+  }).join('\n\n')
+}
+
+defineExpose({ preprocessPlainText })
+
 const responseHtml = computed(() => {
   if (!hasResponseText.value) return ''
-  return renderSafeMarkdown(props.caseData.responseText)
+  return renderSafeMarkdown(preprocessPlainText(props.caseData.responseText))
 })
 
 const bidResultLabel = computed(() => {
@@ -166,6 +274,8 @@ const bidResultType = computed(() => {
   color: var(--el-color-primary);
 }
 .section-title { font-size: 15px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 12px; border-left: 4px solid var(--el-color-primary); padding-left: 8px; }
+.scoring-point-title { margin: -4px 0 8px; font-size: 13px; color: var(--el-text-color-regular); }
+.scoring-point-title span { color: var(--el-text-color-secondary); }
 .case-desc { margin-bottom: 16px; }
 .content-box { background-color: var(--el-fill-color-light); border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.6; color: var(--el-text-color-regular); white-space: pre-wrap; border: 1px solid var(--el-border-color-lighter); }
 .requirement-box { max-height: 150px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; }
@@ -175,6 +285,11 @@ const bidResultType = computed(() => {
 .response-box :deep(td) { border: 1px solid var(--el-border-color); padding: 6px 8px; text-align: left; }
 .response-box :deep(th) { background: var(--el-fill-color); font-weight: 600; }
 .word-count-hint { font-size: 12px; color: var(--el-text-color-secondary); text-align: right; margin-bottom: 6px; padding-right: 4px; }
+.source-location-row { margin: -2px 0 6px; font-size: 12px; color: var(--el-text-color-secondary); }
+.source-location,
+.source-location-fallback { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; padding: 0; text-align: left; line-height: 1.6; }
+.source-location { border: 0; background: transparent; color: var(--el-color-primary); cursor: pointer; }
+.source-location:hover { text-decoration: underline; }
 .response-title { display: flex; align-items: center; justify-content: space-between; }
 .response-title .title-actions { display: flex; align-items: center; }
 .dialog-actions { display: flex; justify-content: flex-end; }

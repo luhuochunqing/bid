@@ -93,8 +93,7 @@ const matchReasonsList = computed(() => parseStringOrArray(props.caseData?.match
 const matchedKeywordsList = computed(() => parseStringOrArray(props.caseData?.matchedKeywords))
 
 const truncatedSummary = computed(() => {
-  const text = props.caseData?.responseTextSummary || ''
-  return text.length > 80 ? text.slice(0, 80) + '...' : text
+  return props.caseData?.responseTextSummary || ''
 })
 </script>
 
@@ -146,7 +145,7 @@ const truncatedSummary = computed(() => {
 .scoring-title { font-size: 15px; font-weight: 600; color: var(--el-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tag-row { display: flex; align-items: center; }
 .case-card-body { padding: 12px 0; flex-grow: 1; }
-.summary-text { font-size: 13px; color: var(--el-text-color-regular); line-height: 1.6; margin: 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; height: 83px; }
+.summary-text { font-size: 13px; color: var(--el-text-color-regular); line-height: 1.6; margin: 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; height: 83px; white-space: pre-wrap; }
 .case-card-footer { border-top: 1px dashed var(--el-border-color-lighter); padding-top: 12px; display: flex; justify-content: space-between; align-items: center; }
 .info-meta { font-size: 12px; color: var(--el-text-color-placeholder); display: flex; align-items: center; }
 .mt-2 { margin-top: 8px; }

@@ -63,7 +63,7 @@ describe('AICaseRecommendDrawer.vue', () => {
           matchedKeywords: ['高可用', '架构'],
           requirementRaw: '提供高可用部署方案',
           responseText: '采用双活高可用部署方案',
-          responseTextSummary: '采用双活高可用部署方案',
+          responseTextSummary: '采用双活高可用部署方案\n保障高可用',
           sourceProjectName: '测试项目A',
           bidResult: 'WON',
           reuseCount: 3,
@@ -95,6 +95,8 @@ describe('AICaseRecommendDrawer.vue', () => {
     expect(wrapper.text()).toContain('系统高可用架构')
     expect(wrapper.text()).toContain('92%')
     expect(wrapper.text()).toContain('优质')
+    expect(wrapper.find('.summary-content').html()).toContain('<br>')
+    expect(wrapper.find('.summary-content .kw-hl').exists()).toBe(true)
     expect(wrapper.text()).not.toMatch(/次复用/)
     expect(wrapper.text()).not.toMatch(/复用次数/)
   })

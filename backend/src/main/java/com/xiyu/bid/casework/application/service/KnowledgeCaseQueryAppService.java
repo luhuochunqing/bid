@@ -1,10 +1,11 @@
 // Input: 案例库列表/详情查询参数（关键词、客户类型、项目类型等）
-// Output: 分页案例列表（KnowledgeCaseResponse）与案例详情（KnowledgeCaseDetailResponse，含招标主体）
+// Output: 分页案例列表（KnowledgeCaseResponse）与案例详情（KnowledgeCaseDetailResponse，含招标主体与原文来源信息）
 // Pos: Backend/casework 模块应用服务——案例查询（列表固定按创建时间倒序）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 package com.xiyu.bid.casework.application.service;
 
+import com.xiyu.bid.casework.application.util.SummaryTruncator;
 import com.xiyu.bid.casework.dto.KnowledgeCaseDetailResponse;
 import com.xiyu.bid.casework.dto.KnowledgeCaseResponse;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
@@ -93,7 +94,12 @@ public class KnowledgeCaseQueryAppService {
                 c.getScoringCategory(),
                 c.getProductLine(),
                 c.getCreatedAt(),
-                c.getObsBidFileKey()
+                c.getObsBidFileKey(),
+                c.getSourceSectionTitle(),
+                c.getSourceSectionPath(),
+                c.getSourceDocumentName(),
+                c.getSourcePageNumber(),
+                c.getSourceSectionIndex()
         );
     }
 
@@ -168,7 +174,6 @@ public class KnowledgeCaseQueryAppService {
     }
 
     private String summarize(String text) {
-        if (text == null) return "";
-        return text.length() <= 100 ? text : text.substring(0, 100) + "...";
+        return SummaryTruncator.truncate(text, 100);
     }
 }

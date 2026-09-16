@@ -43,6 +43,7 @@ backlinks:
 - [[bid-quality-multifile-check]] — AI 标书质量核查多册合并（价格/商务/技术分册 + Loader 边界合并 + Sidecar 空册陷阱）
 - [[business-process]] — 业务流程
 - [[case-library-prd-refine]] — 案例库按 PRD 精简重构（筛选区三字段 / 排序固定 / 详情返回招标主体）
+- [[knowledge-case-summary-source-title]] — 案例库摘要可读性 + 标书原文来源标题定位（WF 0915-01）
 - [[case-precipitation-streaming]] — 案例沉淀超大标书完整链路（spec 049：流式 + 摘录化 + 三个验收坑）
 - [[case-source-actions-and-import-pitfalls]] — 案例详情"查看源项目 / 标书原文"操作契约与导入数据陷阱
 - [[competitor-library-governance]] — 竞品公司自定义输入与竞争对手库治理

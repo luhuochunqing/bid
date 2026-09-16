@@ -25,6 +25,18 @@ import { useUserStore } from '@/stores/user'
 import { isSalesRole } from '@/constants/roleCodes.js'
 
 export function useBidCaseSourceActions() {
+  const notifySourceLocation = (d, options) => {
+    if (!options?.notifyLocation) return
+    const location = d?.sourceSectionPath?.trim?.() || d?.sourceSectionTitle?.trim?.()
+    if (!location) return
+    const document = d?.sourceDocumentName?.toString?.().trim?.()
+    const page = d?.sourcePageNumber === null || d?.sourcePageNumber === undefined || d?.sourcePageNumber === ''
+      ? ''
+      : `，页码：${d.sourcePageNumber}`
+    const documentPart = document ? `（来源文档：${document}${page}）` : page ? `（${page.slice(1)}）` : ''
+    ElMessage.success(`已打开标书原文，请定位到：${location}${documentPart}`)
+  }
+
   const goToSourceProject = (d) => {
     if (d?.sourceProjectId) {
       window.open(`/project/${d.sourceProjectId}`, '_blank')
@@ -33,7 +45,7 @@ export function useBidCaseSourceActions() {
     }
   }
 
-  const openBidDocument = async (d) => {
+  const openBidDocument = async (d, options) => {
     // 角色闸门：投标项目负责人(bid-projectLeader/sales)不得下载标书原文，提示后中止（覆盖下方三条分支）
     const userStore = useUserStore()
     const roleCode = userStore.currentUser?.roleCode || userStore.currentUser?.role
@@ -48,6 +60,7 @@ export function useBidCaseSourceActions() {
         if (!url) { ElMessage.error('标书原文下载失败：链接生成异常'); return }
         window.open(url, '_blank')
         ElMessage.success(`标书原文下载已开始：${filename || ''}`)
+        notifySourceLocation(d, options)
       } catch (e) {
         notifyErrorUnlessRateLimit(e, '标书原文下载失败')
       }
@@ -68,6 +81,7 @@ export function useBidCaseSourceActions() {
         }
         triggerBlobDownload(new Blob([blob], { type: 'application/zip' }), `标书原文-${d.sourceProjectId}.zip`)
         ElMessage.success('标书原文下载成功')
+        notifySourceLocation(d, options)
         return
       }
 
@@ -81,6 +95,7 @@ export function useBidCaseSourceActions() {
           if (downloadUrl) {
             await downloadWithFilename(downloadUrl, primaryDoc.name || '投标文件')
             ElMessage.success(`标书原文下载成功：${primaryDoc.name || '投标文件'}`)
+            notifySourceLocation(d, options)
             return
           }
         }

@@ -101,7 +101,7 @@ const highlightText = (text, keywords) => {
       }
     })
   }
-  return sanitized
+  return sanitized.replace(/\r\n|\r|\n/g, '<br>')
 }
 </script>
 
@@ -215,6 +215,7 @@ const highlightText = (text, keywords) => {
   line-height: 1.5;
   color: var(--text-primary-ui);
   margin-bottom: 10px;
+  white-space: pre-wrap;
 }
 .summary-label { font-weight: 600; color: var(--text-primary); }
 :deep(.kw-hl) {
