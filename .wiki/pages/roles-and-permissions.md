@@ -4,8 +4,8 @@ space: engineering
 category: reference
 tags: [角色, 权限, 用户, 认证, RBAC]
 created: 2026-04-15
-updated: 2026-08-17
-health_checked: 2026-09-14
+updated: 2026-09-16
+health_checked: 2026-09-16
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
   - src/router/index.js
@@ -519,6 +519,18 @@ const canApprove = computed(() =>
 1. **工作台指标卡片**：当前 `workbench-role-core.js` 仍按 `admin` / `manager` / `staff` 分三支返回不同指标定义。理想情况下应改为基于 `menuPermissions` 动态组装，但因涉及 UI 展示文案和指标含义的语义差异，暂保留角色分支，仅将访问控制与数据权限分离。
 2. **`authNormalizer.js` 的 `legacyRole` 字段**：当前未暴露 `legacyRole`。如未来有外部系统（如飞书/企微连接器）必须接收 Legacy 角色枚举，可在此增加 `legacyRole: RoleProfileCatalog.legacyRoleForCode(roleCode)` 字段，但前端内部不再使用。
 3. **settings.json 缓存同步**：`hasMenuAccessForRole()` 仍读取 settings.json 中的角色权限缓存作为 fallback。长期目标是完全弃用该缓存，全部使用 `userStore.currentUser.menuPermissions` 实时数据。
+
+### 11.3 2026-09-16 阶段可编辑性角色权限收敛（EvaluationStage / ClosureStage）
+
+**背景**：
+用户反馈在评标中阶段（`EvaluationStage`），测试环境账号 `06234` 与生产环境账号 `11484`（项目 581 负责人）均无法点击选择评标状态（中标/未中标/重新招标）。排查发现二者在 OSS 授权体系下的真实运行时角色均为 `bid-SystemAdmin`（投标系统管理员）。
+
+**根因**：
+阶段组件 `EvaluationStage.vue` 中 `editable` 判定内联硬编码了角色白名单（`admin`、`/bidAdmin`、`bid-TeamLeader`、`bid-projectLeader`、`bid-Team`），遗漏了正式系统管理员角色 `bid-SystemAdmin`。类似隐患也存在于 `ClosureStage.vue`。
+
+**方案**：
+1. 废弃组件内散落的 `role === '...'` 判定，统一接入 `src/utils/permission.js` 中的权威判定源 `isBidManager` / `isBidManagerRole`。
+2. 强化防复发单测，在 `EvaluationStage.spec.js` 与 `ClosureStage.spec.js` 中显式断言 `bid-SystemAdmin` 具备完整操作权限。
 
 ## 12. 新增权限键的三处联动契约与 OSS 映射源（2026-08-27，lessons §168）
 

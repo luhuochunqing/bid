@@ -104,6 +104,12 @@ describe('EvaluationStage editable 权限', () => {
     expect(wrapper.find('.btn-container').exists()).toBe(false)
   })
 
+  it('投标系统管理员(bid-SystemAdmin)可编辑', async () => {
+    mockUser.role = 'bid-SystemAdmin'
+    const wrapper = await mountEvaluationStage()
+    expect(wrapper.find('.btn-container').exists()).toBe(true)
+  })
+
   it('OSS 用户无 menuPermissions 也可编辑（bid_lead 角色判断不依赖权限点）', async () => {
     mockUser.role = 'bid-TeamLeader'
     mockUser.menuPermissions = []

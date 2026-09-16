@@ -286,6 +286,7 @@ import { readinessToTooltip } from './readinessTooltip.js'
 import { downloadWithFilename } from '@/utils/download.js'
 import { useProjectDocumentsExport } from '@/composables/projectDetail/useProjectDocumentsExport.js'
 import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
+import { isBidManager as isBidManagerRole } from '@/utils/permission.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['closed'])
@@ -354,7 +355,7 @@ const isProjectLeader = computed(() => {
   return String(leads.value.primaryLeadUserId ?? '') === uidStr
     || String(leads.value.secondaryLeadUserId ?? '') === uidStr
 })
-const isBidManager = computed(() => userRole.value === '/bidAdmin' || userRole.value === 'bid-TeamLeader' || userRole.value === 'bid-Team')
+const isBidManager = computed(() => isBidManagerRole(userRole.value) || userRole.value === 'bid-Team')
 
 // 仅匹配"项目级投标负责人/辅助"分配(不含 bid-projectLeader 角色)。
 // 用于审核场景：区分"投标项目负责人(提交人)"与"被分配为该项目 lead 的投标辅助"。
@@ -400,9 +401,7 @@ const canSubmitClosure = computed(() => {
 // 审核人：系统管理员/投标管理员/投标组长 + 该项目的投标负责人/投标辅助(isProjectLeadAssignee)；
 // 用 isProjectLeadAssignee 而非 isProjectLeader——后者对 bid-projectLeader(提交人)直接 true 会破坏职责分离。
 const canApprove = computed(() => {
-  const isAdminLead = userRole.value === 'admin'
-    || userRole.value === '/bidAdmin'
-    || userRole.value === 'bid-TeamLeader'
+  const isAdminLead = isBidManagerRole(userRole.value)
   if (!isAdminLead && !isProjectLeadAssignee.value) return false
   return preview.value?.reviewStatus === 'PENDING'
 })

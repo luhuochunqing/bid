@@ -51,6 +51,7 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { STAGE_TRANSITION_MAP } from '@/constants/projectStages.js'
+import { isBidManager } from '@/utils/permission.js'
 import EvaluationEvidenceUpload from './components/EvaluationEvidenceUpload.vue'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
@@ -76,8 +77,8 @@ const statusOptions = [
 const editable = computed(() => {
   if (evaluationDone.value) return false
   const role = userStore.userRole
-  // 评标编辑权限：投标管理员/组长 + 投标负责人/辅助人（与蓝图权限矩阵一致）
-  if (role === 'admin' || role === '/bidAdmin' || role === 'bid-TeamLeader') return true
+  // 评标编辑权限：投标管理员/组长(含 admin, /bidAdmin, bid-SystemAdmin, bid-TeamLeader) + 投标负责人/辅助人（与蓝图权限矩阵一致）
+  if (isBidManager(role)) return true
   if (role === 'bid-projectLeader' || role === 'bid-Team') return true
   return false
 })
