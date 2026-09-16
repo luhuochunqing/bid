@@ -221,12 +221,10 @@ public final class DeterministicScoreFactExtractor {
         if (detail == null || detail.isBlank()) {
             return ScoreRule.MAX_SCORE;
         }
-        Matcher deduction = DEDUCTION_RULE.matcher(detail);
-        Matcher award = AWARD_RULE.matcher(detail);
-        if (deduction.find()) {
+        if (DEDUCTION_RULE.matcher(detail).find()) {
             return ScoreRule.DEDUCTION;
         }
-        if (award.find()) {
+        if (AWARD_RULE.matcher(detail).find()) {
             return ScoreRule.AWARD;
         }
         return ScoreRule.MAX_SCORE;
@@ -234,9 +232,11 @@ public final class DeterministicScoreFactExtractor {
 
     private static ScoreEvidence evidence(ScoreEvidence.Kind kind, CanonicalCell cell,
                                           String quoted, String explanation) {
-        int offset = quoted.isBlank() ? -1 : cell.rawText().indexOf(quoted);
-        return new ScoreEvidence(kind, quoted, cell.cellId(), offset,
-                offset < 0 ? -1 : offset + quoted.length(), explanation);
+        String q = quoted == null ? "" : quoted;
+        int offset = q.isBlank() ? -1 : cell.rawText().indexOf(q);
+        int endOffset = offset < 0 ? -1 : offset + q.length();
+        return new ScoreEvidence(kind, q.replaceAll("\\s+", " ").trim(), cell.cellId(),
+                offset, endOffset, explanation);
     }
 
     private static ScoreFact fact(String factId, String tableId, List<String> sourceCellIds,

@@ -19,11 +19,21 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.xiyu.bid.scoreparse.application.ScoreItemPersistenceService;
+import com.xiyu.bid.scoreparse.domain.ScoreEvidence;
+import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import com.xiyu.bid.scoreparse.domain.ScoreRule;
+import com.xiyu.bid.scoreparse.entity.ScoreParseFact;
+import com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository;
+
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest(properties = "spring.main.allow-bean-definition-overriding=true")
 @ActiveProfiles("flyway-mysql")
@@ -44,6 +54,12 @@ class FlywayMysqlContainerTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private ScoreItemPersistenceService scoreItemPersistenceService;
+
+    @Autowired
+    private ScoreParseFactRepository scoreParseFactRepository;
 
     // 生产 sql_mode 已确认（2026-06-30，通过 SSH jetty@172.16.38.78 直连 RDS 查询）：
     //   @@sql_mode = ''（空字符串，所有 strict mode 关闭）
@@ -285,5 +301,58 @@ class FlywayMysqlContainerTest {
         assertEquals(ContractBorrowStatus.PENDING_APPROVAL, reloadedApplication.getStatus());
         assertEquals(ContractBorrowEventType.SUBMITTED, reloadedEvent.getEventType());
         assertEquals(ContractBorrowStatus.PENDING_APPROVAL, reloadedEvent.getStatusAfter());
+    }
+
+    @Test
+    void scoreParseFactPersistsWithNewlineQuoteAndBackslashOnRealMysql() {
+        Long projectId = 999991L;
+        Long parseTaskId = 888881L;
+
+        ScoreEvidence ev = new ScoreEvidence(
+                ScoreEvidence.Kind.DIMENSION_TITLE_MAX_SCORE,
+                "（10\n分）",
+                "t-0001-r1-c1",
+                0, 10, "含换行/\"双引号\"/\\反斜杠\\证据"
+        );
+        ScoreFact fact = new ScoreFact(
+                "fact-mysql-special-char",
+                "table-1",
+                List.of("t-0001-r1-c1", "t-0001-r1-c2"),
+                "项目资质（10\n分） | 每项2分\\个，最高10分 | \"重点项\"",
+                "1.1",
+                "商务及技术评分",
+                new BigDecimal("10.00"),
+                ev,
+                ScoreRule.MAX_SCORE,
+                "",
+                "STRUCTURED_TABLE_DETERMINISTIC",
+                1.0,
+                ScoreFact.ValidationStatus.AUTO_APPROVED
+        );
+
+        scoreItemPersistenceService.persistFactsAndEvidence(projectId, parseTaskId, List.of(fact));
+
+        List<ScoreParseFact> savedFacts = scoreParseFactRepository.findByProjectId(projectId);
+        assertEquals(1, savedFacts.size());
+
+        ScoreParseFact saved = savedFacts.get(0);
+        assertEquals("fact-mysql-special-char", saved.getFactId());
+        assertEquals("1.1", saved.getCode());
+        assertNotNull(saved.getWeightEvidence());
+
+        // 验证 MySQL 8.0 JSON 列成功解析并且包含对应字段
+        Integer validJson = jdbcTemplate.queryForObject(
+                "SELECT JSON_VALID(weight_evidence) FROM score_parse_fact WHERE fact_id = ?",
+                Integer.class,
+                "fact-mysql-special-char"
+        );
+        assertEquals(1, validJson, "MySQL 8.0 JSON 列必须为合法 JSON");
+
+        String quotedTextInJson = jdbcTemplate.queryForObject(
+                "SELECT JSON_UNQUOTE(JSON_EXTRACT(weight_evidence, '$.quotedText')) FROM score_parse_fact WHERE fact_id = ?",
+                String.class,
+                "fact-mysql-special-char"
+        );
+        assertEquals("（10\n分）", quotedTextInJson);
     }
 }

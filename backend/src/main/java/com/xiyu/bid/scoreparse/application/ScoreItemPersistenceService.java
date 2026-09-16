@@ -12,7 +12,8 @@ import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreResult;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
-import lombok.RequiredArgsConstructor;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,7 @@ public class ScoreItemPersistenceService {
     private final ScoreResultRepository resultRepository;
     private final com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository factRepository;
     private final com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository evidenceRepository;
+    private final ObjectMapper objectMapper;
     private final ScoreTypeClassificationPolicy classificationPolicy = new ScoreTypeClassificationPolicy();
     private final ScoreItemOrderPolicy orderPolicy = new ScoreItemOrderPolicy();
 
@@ -47,15 +49,25 @@ public class ScoreItemPersistenceService {
             ScoreItemRepository itemRepository,
             ScoreResultRepository resultRepository,
             com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository factRepository,
-            com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository evidenceRepository) {
+            com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository evidenceRepository,
+            ObjectMapper objectMapper) {
         this.itemRepository = itemRepository;
         this.resultRepository = resultRepository;
         this.factRepository = factRepository;
         this.evidenceRepository = evidenceRepository;
+        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+    }
+
+    public ScoreItemPersistenceService(
+            ScoreItemRepository itemRepository,
+            ScoreResultRepository resultRepository,
+            com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository factRepository,
+            com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository evidenceRepository) {
+        this(itemRepository, resultRepository, factRepository, evidenceRepository, null);
     }
 
     public ScoreItemPersistenceService(ScoreItemRepository itemRepository, ScoreResultRepository resultRepository) {
-        this(itemRepository, resultRepository, null, null);
+        this(itemRepository, resultRepository, null, null, null);
     }
 
     /** 候选覆盖落库：比对指纹，结构变化时清理旧打分，未变化时保留旧打分并重挂 */
@@ -149,15 +161,10 @@ public class ScoreItemPersistenceService {
                     && f.weightEvidence() == null) {
                 throw new IllegalArgumentException("持久化服务拒绝无证据自动通过项: factId=" + f.factId());
             }
-            String cellIdsJson = f.sourceCellIds() == null ? "[]"
-                    : "[" + f.sourceCellIds().stream().map(c -> "\"" + c + "\"").collect(Collectors.joining(",")) + "]";
-            String evidenceJson = null;
+            String cellIdsJson = serializeCellIds(f.sourceCellIds());
+            String evidenceJson = serializeWeightEvidence(f.weightEvidence());
             if (f.weightEvidence() != null) {
                 var ev = f.weightEvidence();
-                evidenceJson = String.format("{\"kind\":\"%s\",\"quotedText\":\"%s\",\"cellId\":\"%s\"}",
-                        ev.kind().name(),
-                        ev.quotedText() == null ? "" : ev.quotedText().replace("\"", "\\\""),
-                        ev.cellId() == null ? "" : ev.cellId());
                 evidenceEntities.add(com.xiyu.bid.scoreparse.entity.ScoreParseEvidence.builder()
                         .factId(f.factId())
                         .parseTaskId(parseTaskId)
@@ -220,8 +227,7 @@ public class ScoreItemPersistenceService {
         for (int i = 0; i < oldItems.size(); i++) {
             ScoreItem old = oldItems.get(i);
             ScoreCandidate candidate = candidates.get(i);
-            String code = resolveCode(candidate.code());
-            if (!Objects.equals(old.getCode(), code)
+            if (!Objects.equals(old.getCode(), resolveCode(candidate.code()))
                     || !Objects.equals(old.getWeight(), candidate.weight())
                     || !Objects.equals(old.getDetail(), candidate.detail())) {
                 return false;
@@ -232,15 +238,35 @@ public class ScoreItemPersistenceService {
 
     private void invalidatePreviousResults(Long projectId, boolean clearResults) {
         List<ScoreItem> oldItems = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
-        if (oldItems.isEmpty()) {
-            return;
-        }
+        if (oldItems.isEmpty()) return;
         if (clearResults) {
-            resultRepository.deleteByScoreItemIdIn(
-                    oldItems.stream().map(ScoreItem::getId).toList());
+            resultRepository.deleteByScoreItemIdIn(oldItems.stream().map(ScoreItem::getId).toList());
             log.info("评分结构变动，清理旧打分数据: projectId={}, oldItems={}", projectId, oldItems.size());
         }
         itemRepository.deleteByProjectId(projectId);
+    }
+
+    private String serializeCellIds(List<String> cellIds) {
+        if (cellIds == null || cellIds.isEmpty()) return "[]";
+        try {
+            return objectMapper.writeValueAsString(cellIds);
+        } catch (JsonProcessingException e) {
+            log.warn("序列化 sourceCellIds 失败: {}", e.getMessage());
+            return "[]";
+        }
+    }
+
+    private String serializeWeightEvidence(com.xiyu.bid.scoreparse.domain.ScoreEvidence ev) {
+        if (ev == null) return null;
+        try {
+            return objectMapper.writeValueAsString(Map.of(
+                    "kind", ev.kind().name(),
+                    "quotedText", ev.quotedText() == null ? "" : ev.quotedText(),
+                    "cellId", ev.cellId() == null ? "" : ev.cellId()));
+        } catch (JsonProcessingException e) {
+            log.warn("序列化 weightEvidence 失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     private String resolveCode(String code) {
@@ -249,16 +275,11 @@ public class ScoreItemPersistenceService {
 
     private String resolveDim(ScoreCandidate candidate) {
         String trimmedDim = candidate.dim() == null ? "" : candidate.dim().trim();
-        boolean parentOnly = candidate.isParentOnlyDim();
-        if (parentOnly && candidate.detail() != null && !candidate.detail().isBlank()) {
+        if (candidate.isParentOnlyDim() && candidate.detail() != null && !candidate.detail().isBlank()) {
             String title = ScoreItemTitleExtractor.extract(candidate.detail()).orElse("");
-            if (!title.isBlank()) {
-                return title.length() > 200 ? title.substring(0, 200) : title;
-            }
+            if (!title.isBlank()) return title.length() > 200 ? title.substring(0, 200) : title;
         }
-        if (!trimmedDim.isBlank()) {
-            return trimmedDim.length() > 200 ? trimmedDim.substring(0, 200) : trimmedDim;
-        }
+        if (!trimmedDim.isBlank()) return trimmedDim.length() > 200 ? trimmedDim.substring(0, 200) : trimmedDim;
         if (candidate.detail() != null && !candidate.detail().isBlank()) {
             String trimmed = candidate.detail().trim();
             return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
@@ -267,9 +288,7 @@ public class ScoreItemPersistenceService {
     }
 
     private String resolveLocation(String location) {
-        if (location == null || location.isBlank()) {
-            return null;
-        }
+        if (location == null || location.isBlank()) return null;
         String trimmed = location.trim();
         return trimmed.length() > 200 ? trimmed.substring(0, 200) : trimmed;
     }
