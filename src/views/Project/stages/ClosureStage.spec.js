@@ -337,6 +337,18 @@ describe('ClosureStage — 结项编辑/提交/审核权矩阵', () => {
     expect(wrapper.vm.canApprove).toBe(true)
   })
 
+  it('C2-2: 投标系统管理员 bid-SystemAdmin → 4 字段只读 + 无提交按钮 + 可审核(PENDING)', async () => {
+    mockUserStore.userRole = 'bid-SystemAdmin'
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: pendingPreview })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isClosureEditor).toBe(false)
+    expect(wrapper.vm.canEditDeposit).toBe(false)
+    expect(wrapper.vm.canEditSummary).toBe(false)
+    expect(wrapper.vm.canSubmitClosure).toBe(false)
+    expect(wrapper.vm.canApprove).toBe(true)
+  })
+
   it('C3: 投标组长 bid-TeamLeader → 4 字段只读 + 无提交按钮 + 可审核(PENDING)', async () => {
     mockUserStore.userRole = 'bid-TeamLeader'
     projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: pendingPreview })
