@@ -75,11 +75,13 @@
 
 ## Phase 6: Test Deployment & Cross-Cutting Verification
 
-- [ ] T023 运行 `specs/063-opportunity-reminder-live-recipients/quickstart.md` 第 2 节架构、完整后端、前端构建和 pre-push 门禁并记录 pass/fail/skip
-- [ ] T024 执行 `xiyu-server-deploy` 测试环境 SOP，将当前提交部署到 `172.16.38.78`，按 `specs/063-opportunity-reminder-live-recipients/quickstart.md` 第 3 节注入测试专用配置并核对启动 preview 为 274 个历史候选
-- [ ] T025 在测试环境 09:00 后按 `specs/063-opportunity-reminder-live-recipients/quickstart.md` 第 4 节核对通知、接收关系、企微任务、旧 reminder log/event 不变及重跑新增为 0
-- [ ] T026 在 `docs/lessons/lessons-learned.md` 追加“提醒日志和站内关系不等于外部送达”的根因、防复发规则和一次性补发边界，并按 `.wiki/WIKI.md` 完成 checkpoint
-- [ ] T027 对当前分支执行 `speckit-analyze`、代码审查和生产风险审查；只提交/推送测试验证结果，不创建或执行任何生产部署
+- [x] T023 运行 `specs/063-opportunity-reminder-live-recipients/quickstart.md` 第 2 节架构、完整后端、前端构建和 pre-push 门禁并记录 pass/fail/skip
+- [x] T024 执行 `xiyu-server-deploy` 测试环境 SOP，将当前提交部署到 `172.16.38.78`，按 `specs/063-opportunity-reminder-live-recipients/quickstart.md` 第 3 节注入测试专用配置并核对启动 preview 为 274 个历史候选
+- [x] T025 在测试环境 09:00 后按 `specs/063-opportunity-reminder-live-recipients/quickstart.md` 第 4 节核对通知、接收关系、企微任务、旧 reminder log/event 不变及重跑新增为 0
+- [x] T026 在 `docs/lessons/lessons-learned.md` 追加“提醒日志和站内关系不等于外部送达”的根因、防复发规则和一次性补发边界，并按 `.wiki/WIKI.md` 完成 checkpoint
+- [x] T027 对当前分支执行 `speckit-analyze`、代码审查和生产风险审查；只提交/推送测试验证结果，不创建或执行任何生产部署
+
+**完成证据**：见 `docs/release/deploy-report-2026-09-16-184th-test.md`。完整后端套件的未改动模块基线失败、企微 662 条绑定缺失死信及生产 HOLD 结论均已如实记录；生产环境未访问。
 
 ---
 

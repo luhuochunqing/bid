@@ -10,9 +10,13 @@ sources:
   - specs/054-opportunity-prediction-reminder/spec.md
   - specs/054-opportunity-prediction-reminder/data-model.md
   - specs/063-opportunity-reminder-live-recipients/spec.md
+  - specs/063-opportunity-reminder-live-recipients/quickstart.md
   - docs/implementation-notes/CO-商机预测提醒.md
+  - docs/release/deploy-report-2026-09-16-184th-test.md
   - backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderService.java
   - backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionRecipientResolver.java
+  - backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionHistoryReplayService.java
+  - backend/src/main/java/com/xiyu/bid/workbench/job/OpportunityPredictionHistoryReplayTask.java
   - backend/src/main/java/com/xiyu/bid/workbench/domain/OpportunityPredictionRecipientPolicy.java
   - backend/src/main/java/com/xiyu/bid/integration/organization/infrastructure/client/OrganizationDirectoryStrictBatchLookup.java
   - backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderSupport.java
@@ -44,6 +48,7 @@ backlinks:
 6. **项目负责人来源**：取 `project_initiation_details.projectLeaderName`（`Project` 实体无此字段），`runScan` 用 `findByProjectIdIn` 批量加载避免 N+1；立项详情缺失时回退 `Tender.projectManagerName`（见决策5）。
 7. **事件全量字段**：应 CRM 要求，商机事件 `data` 从轻量标识扩展为 11 字段（客户最新增加 `projectType`）（见下节），推送触发/策略/开关/线程池/流水编码均不变。
 8. **渠道状态分离（2026-09-10）**：提醒日志表示站内提醒已创建，`event_published_at` 表示 SDK 已受理。历史行按 `notified_at` 回填，防止部署后重放全部历史事件；已知失败项目必须按项目单独置空后验收。扫描不持有长事务，通知日志、领取、成功确认、失败释放均为独立短事务，SDK 调用发生在事务外。
+9. **历史补发独立建模（2026-09-16）**：一次性历史补发使用 `OpportunityPredictionHistoryReplay` source type，不修改原提醒日志或 CRM 事件状态；项目级幂等以既有历史补发通知为准。启动永远只预演，只有显式 run date 当天 09:00 的 `EXECUTE` 可写入，完成幂等验证后立即关闭开关。
 
 ## 实时收件人解析与 OSS 批量回查（2026-09-16）
 
@@ -71,8 +76,43 @@ backlinks:
 
 - **普通组织同步不变**：仍调用允许返回部分结果的原查询；严格重试/二分仅供商机提醒使用。
 - **提醒唯一日志不变**：实时回查失败时收件人快照为空，新提醒被跳过，因此不会用部分角色集写入一次性 `opportunity_prediction_reminder_log`。
-- **历史补发不在本次修复内**：本次仅修正每日扫描的收件人事实源；历史项目补发需在测试验收后单独执行一次性、可审计流程。
+- **历史补发复用同一快照**：历史任务和每日扫描都从同一轮 OSS 实时快照解析在职项目经理与核心角色；本地库只做工号到站内用户映射。
 - **09:00 验收指标**：应出现 scheduled start/done、严格回查完成、`roleRecipients=3`（组织未变化时）及总耗时小于 60 秒；`notified=0` 只能证明调度和解析链路，不能证明企微实际送达。
+
+## 一次性历史补发与真实送达证据（2026-09-16）
+
+### 选择与安全边界
+
+- 候选：`opportunity_prediction_reminder_log.predicted_bid_date <= cutoff` 且当天尚无 `OpportunityPredictionHistoryReplay` 通知。
+- 接收人：OSS 实时在职项目经理 + `/bidAdmin` + `bid-TeamLeader`，按站内用户 ID 去重。
+- 写入：每项目独立短事务；只创建独立 source type 的站内通知，不修改原提醒日志和事件字段。
+- 触发：默认关闭；启动只 `PREVIEW`；指定日期 09:00 才读取 `PREVIEW/EXECUTE` 模式；错过日期不追补。
+- 收尾：外发任务无 pending/processing 后才能重启；同窗口预演必须 `alreadyReplayed=274, created=0`，随后关闭开关。
+
+### 测试环境 09:00 证据
+
+| 层级 | 结果 | 能证明什么 |
+|---|---:|---|
+| 历史候选 / 新 `notification` | 274 / 274 | 每项目成功创建一条站内通知 |
+| `user_notification` | 938 | 158 个项目 3 人、116 个项目 4 人，角色/经理重叠已去重 |
+| 不同站内接收人 | 43 | 本轮真实人员集合，不等于外部送达人数 |
+| 企微 `SENT` | 276 | 统一消息中心确认发送成功 |
+| 企微 `DEAD_LETTER` | 662 | 41 人未绑定企业微信 ID；不是“角色人数为 0” |
+| 未完成外发任务 | 0 | 可安全重启与做幂等验证 |
+
+三名全局角色都拥有 274 条站内关系；企业微信侧只有一名全部成功，另外两名均因未绑定失败。最终 43 名接收人中 2 名全部成功、41 名全部失败。由此必须分开回答三件事：
+
+1. **是否选到了人**：看 OSS 快照和 `user_notification`。
+2. **是否创建了提醒**：看 `notification` 与 source type。
+3. **是否真的送达企业微信**：看 delivery task 终态与 outbound log，不能用提醒日志或站内关系代替。
+
+原 `opportunity_prediction_reminder_log` 在执行前后均为 274 条，默认连接字符集导出校验和保持 `dbf60a6a9966bc0f5fbd6c2be0760eaaba1f79d7175a186c64666e2bbe4a7f37`；幂等预演为 `alreadyReplayed=274, created=0`。测试配置最终为 `ENABLED=false, MODE=PREVIEW`。
+
+### 跨模块副作用
+
+- 企业微信未绑定响应当前被 `NotificationFailureClassifier` 归为 `BUG` 并进入 DLQ，便于保留重放证据，但 reason code 与真实数据原因不一致；后续若调整分类，不得把“SKIPPED/DELIVERED”误表述为用户已收到。
+- 启动预演依赖 `ApplicationReadyEvent`。测试机既有组织事件 SDK 的同步 `ClientRegisterComponent.register()` 曾阻塞主线程和 readiness 约 155 秒；它返回后预演正常执行。这是启动可用性风险，不是补发事务死锁。
+- IT 补齐 41 人企微绑定后，应明确采用 DLQ 重放还是独立外发补偿；禁止再次创建同一批站内通知。
 
 ## 通知链路复用
 

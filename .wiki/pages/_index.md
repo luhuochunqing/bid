@@ -83,7 +83,7 @@ backlinks:
 - [[multi-agent-defense-playbook]] — 多 Agent 并行开发防御工程化手册
 - [[notification-system-pitfalls]] — 通知系统陷阱集
 - [[operations/logging-bug-investigation-guide]] — 日志系统查 Bug 手册
-- [[opportunity-prediction-reminder]] — 商机预测提醒（OSS 实时在职/角色收件人 + 严格批量回查恢复）
+- [[opportunity-prediction-reminder]] — 商机预测提醒（OSS 实时收件人、一次性历史补发、站内/企微送达分层验收）
 - [[oss-organization-sync-playbook]] — OSS 组织架构同步实战手册
 - [[overview]] — 项目综述
 - [[production-deployment-lessons]] — 生产环境首次部署实战教训
