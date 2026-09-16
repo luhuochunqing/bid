@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-09-13
-health_checked: 2026-09-14
+updated: 2026-09-16
+health_checked: 2026-09-16
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
@@ -539,3 +539,30 @@ trigger（同步<1s，互斥校验+建任务）
 - `ScoreFactShadowPipelineTest#merged_origin_fixture_preserves_parent_total_and_all_leaf_weights`
 - `GoldenCorpusBaselineTest#incident_1347_parent_and_children_never_scored_together`
 - `GoldenCorpusBaselineTest#incident_1362_category_weight_not_summed_with_children`
+
+## 17. 评分证据持久化原生 JSON 转义与抽取源头空白清洗（2026-09-16）
+
+### 故障链
+
+| 层级 | 证据 |
+|---|---|
+| 异常报错 | `could not execute statement [Data truncation: Invalid JSON text: "Invalid encoding in string." at position 55 in value for column 'score_parse_fact.weight_evidence'.]`（MySQL Error 3140） |
+| 生产影响 | 生产项目 33 招标文件表格包含跨行单元格“商务及技术评分（10\n分）”，解析落库失败中断 |
+| 零号病人 | `ScoreItemPersistenceService` 使用 `String.format` 手写拼接 JSON 字符串，仅转义 `"` 未转义 `\n`/`\r`/`\t`/`\\` 等 ASCII 控制字符；MySQL 8.0 原生 JSON 解析器（RapidJSON）根据 RFC 8259 严格拒绝字符串内的未转义控制字符 |
+
+### 领域治理与契约
+
+1. **序列化强制收敛至 Jackson `ObjectMapper`**：
+   - 在 `ScoreItemPersistenceService` 中提取 `serializeCellIds` 与 `serializeWeightEvidence` 方法，将 `source_cell_ids` 与 `weight_evidence` 列统一通过 `objectMapper.writeValueAsString(...)` 原生生成标准 JSON 字符串，所有控制字符与特殊字符均由标准序列化库转义。
+   - 依赖注入 Spring 容器托管的 `ObjectMapper`，并提供无参兜底兼容。
+2. **抽取端源头空白标准化清洗**：
+   - 在 `DeterministicScoreFactExtractor.evidence(...)` 构造 `ScoreEvidence` 前，对 `quotedText` 做空白与换行归一化：`quoted.replaceAll("\\s+", " ").trim()`；
+   - 依据原始未清洗的 `cell.rawText()` 计算 `offset` 与 `endOffset`，确保前端高亮定位不发生坐标漂移。
+3. **真实 MySQL 8.0 容器物理集成测试守卫**：
+   - 在 `FlywayMysqlContainerTest` 中新增 `scoreParseFactPersistsWithNewlineQuoteAndBackslashOnRealMysql`，向 MySQL 8.0 物理容器插入含 `\n`、`\"`、`\\` 的评分事实，断言 `JSON_VALID(weight_evidence) == 1` 以及 `JSON_EXTRACT` 正确取值。
+
+### 验证锚点
+
+- `DeterministicScoreFactExtractorTest#extracts_title_maximum_with_newline_and_normalizes_quoted_text`
+- `ScoreItemPersistenceServiceTest`（10/10）
+- `FlywayMysqlContainerTest#scoreParseFactPersistsWithNewlineQuoteAndBackslashOnRealMysql`（5/5）

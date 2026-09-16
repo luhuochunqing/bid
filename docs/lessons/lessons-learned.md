@@ -5973,3 +5973,32 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 5. **资格项回退**：未选评分项且无关键词检索时，若资格项存在业绩要求，以资格项为推荐上下文并执行准入；关键词检索路径保持原行为。
 
 > 维护纪律：凡“穿透提取门槛”类需求，**提取结果必须落到准入/过滤/排序的实际消费点**，仅做加分等于没做；门槛含数值（金额/年限/数量）时禁止只做字符串包含，必须数值化比较；单条款提取必须默认“全量合并 + 上限保护”，不得命中即返回。
+
+---
+
+## 370. 评分证据持久化中 MySQL JSON 语法解析限制与手写拼接反模式（2026-09-16）
+
+**背景**：
+生产环境（https://winbid.ehsy.com/project/33）招标文件包含“商务及技术评分（10\n分）”等跨行表格单元格，在评分解析事实落库阶段报出异常：
+`could not execute statement [Data truncation: Invalid JSON text: "Invalid encoding in string." at position 55 in value for column 'score_parse_fact.weight_evidence'.]`（MySQL Error 3140）。
+同类测试用例在 H2/内存数据库及普通标书中顺利通过，但在生产环境特定格式标书中直接引发持久化中断。
+
+**根因分析**：
+1. **手工字符串拼接生成 JSON 的转义缺陷**：
+   在 `ScoreItemPersistenceService` 中，`evidenceJson` 原先通过手写模板字符串拼接：
+   `String.format("{\"kind\":\"%s\",\"quotedText\":\"%s\",\"cellId\":\"%s\"}", ...)`
+   该逻辑仅对双引号进行了 `.replace("\"", "\\\"")`，而未对 ASCII 控制字符（如换行符 `\n` 0x0A、回车 `\r` 0x0D、制表符 `\t` 0x09、反斜杠 `\\`）做标准 JSON 转义。
+2. **MySQL 8.0 原生 JSON 解析器（RapidJSON）严格语义门禁**：
+   MySQL 8.0 的 `JSON` 列类型在写入时强制通过内置验证器。根据 RFC 8259 规范，JSON 字符串内严禁出现未转义的控制字符（U+0000 到 U+001F）。当未转义的真实换行符（`0x0A`）作为字符串内部值被提交入库时，MySQL 立即判定语法非法并抛出 `Invalid JSON text: "Invalid encoding in string."`。
+3. **表格解析源头未作空白与换行归一化**：
+   `DeterministicScoreFactExtractor` 在从表格单元格提取 `quotedText` 时，直接保留了原文包含的换行符和多余空白，导致脏文本一路透传至持久化层。
+
+**根治方案**：
+1. **废弃手写拼接，强制 Jackson `ObjectMapper` 序列化**：
+   - 在 `ScoreItemPersistenceService` 中引入 `ObjectMapper`，将 `cellIdsJson` 和 `evidenceJson` 分别通过 `objectMapper.writeValueAsString(...)` 原生生成标准 JSON 字符串，所有特殊字符（换行、引号、反斜杠、控制符等）由标准序列化库转义。
+2. **抽取源头空白与换行清洗**：
+   - 在 `DeterministicScoreFactExtractor` 构造 `ScoreEvidence` 前，对 `quotedText` 执行空白归一化：`quoted.replaceAll("\\s+", " ").trim()`，消除源头格式噪音；同时基于原文准确计算字符偏移（`offset` 与 `endOffset`），保证高亮定位不漂移。
+3. **补齐真实 MySQL 8.0 容器集成测试**：
+   - 在 `FlywayMysqlContainerTest` 中新增包含实际换行符、双引号与反斜杠的物理测试用例 `scoreParseFactPersistsWithNewlineQuoteAndBackslashOnRealMysql`，通过 `JSON_VALID(...)` 验证数据库原生 JSON 解析器的严格通过性。
+
+> 维护纪律：涉及入库到 MySQL `JSON` 类型的列，**严禁使用任何形式的手写字符串拼接（如 `String.format` 或 `+`）构造 JSON 文本**，必须使用 Jackson `ObjectMapper` 等合规序列化器；从 PDF/Word/OCR 表格抽取的非结构化或半结构化文本，在构造展示证据时必须前置做换行与空白标准化清洗。
