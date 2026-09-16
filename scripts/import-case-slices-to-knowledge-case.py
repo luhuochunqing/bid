@@ -24,6 +24,7 @@ knowledge_case 案例记录，使前台"AI 案例推荐"（案例库主页 + 投
 用法:
   python3 import-case-slices-to-knowledge-case.py [--jsonl-dir=DIR] [--limit=N]
       [--db-host=] [--db-port=] [--db-user=] [--db-pass=] [--db-name=]
+      （密码优先读取 XIYU_DB_PASS；无明文默认）
       [--dry-run] [--offline] [--purge] [--self-test]
 
 参数:
@@ -670,7 +671,8 @@ def main():
     ap.add_argument('--db-host', default='127.0.0.1')
     ap.add_argument('--db-port', type=int, default=3306)
     ap.add_argument('--db-user', default='xiyu_user')
-    ap.add_argument('--db-pass', default='XiyuDB!2026')
+    ap.add_argument('--db-pass', default=None,
+                    help='数据库密码；优先使用此参数，否则读取 XIYU_DB_PASS（无明文默认）')
     ap.add_argument('--db-name', default='xiyu_bid_main')
     ap.add_argument('--dry-run', action='store_true', help='连库匹配并打印统计/样例，不写入')
     ap.add_argument('--offline', action='store_true', help='不连库：解析+抽样+打印 INSERT 样例')
@@ -680,9 +682,15 @@ def main():
     ap.add_argument('--self-test', action='store_true', help='运行纯函数断言后退出')
     args = ap.parse_args()
 
+    if args.db_pass is None:
+        args.db_pass = os.environ.get('XIYU_DB_PASS')
+
     if args.self_test:
         self_test()
         return
+
+    if not args.offline and not args.db_pass:
+        ap.error('缺少数据库密码：请设置 XIYU_DB_PASS，或传入 --db-pass；不会回显密码')
 
     # 白名单硬守卫：所有连库模式（含 --purge / --dry-run）生效
     if not args.offline:
@@ -721,4 +729,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

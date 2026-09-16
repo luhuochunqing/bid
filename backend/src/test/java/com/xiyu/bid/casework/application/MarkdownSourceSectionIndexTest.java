@@ -102,11 +102,11 @@ class MarkdownSourceSectionIndexTest {
     void testUniqueMatch_successWithProvenance() {
         String md = """
                 # 第一章 技术方案
-                
+
                 ## 1.1 系统架构设计
                 本项目采用 Spring Boot 3.2 与 Java 21 微服务架构，
                 实现高吞吐、高可用的投标管理支撑。
-                
+
                 ## 1.2 数据安全方案
                 采用国密算法进行敏感数据加密存储。
                 """;
@@ -140,7 +140,7 @@ class MarkdownSourceSectionIndexTest {
         String md = """
                 # 第一章 技术要求
                 双方需严格按期交付。
-                
+
                 # 第二章 商务要求
                 双方需严格按期交付。
                 """;
@@ -188,7 +188,7 @@ class MarkdownSourceSectionIndexTest {
                 <!-- Page 1 -->
                 # 第一章 项目概述
                 概述内容。
-                
+
                 <!-- Page 12 -->
                 ## 1.1 技术架构
                 我们采用分层解耦架构设计。
@@ -216,5 +216,18 @@ class MarkdownSourceSectionIndexTest {
         MarkdownSourceSectionIndex index3 = MarkdownSourceSectionIndex.parse("# 标题\n内容");
         assertThat(index3.locate(null)).isNull();
         assertThat(index3.locate("   ")).isNull();
+    }
+
+    @Test
+    @DisplayName("混排章节标题的字段契约：层级、序号与祖先路径稳定")
+    void mixedHeadingContractMatchesPythonSelfTestTable() {
+        String md = "# 第一章\n一、 中文章节\n第2节 服务\n1.1 数字\n（1）条目\n###### 末级\n正文";
+        List<MarkdownSourceSectionIndex.Section> sections = MarkdownSourceSectionIndex.parse(md).getSections();
+        assertThat(sections).extracting(MarkdownSourceSectionIndex.Section::level)
+                .containsExactly(1, 2, 2, 3, 4, 6);
+        assertThat(sections).extracting(MarkdownSourceSectionIndex.Section::index)
+                .containsExactly(1, 2, 3, 4, 5, 6);
+        assertThat(sections.get(4).path())
+                .isEqualTo("第一章 > 第2节 服务 > 1.1 数字 > （1）条目");
     }
 }

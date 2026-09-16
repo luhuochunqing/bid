@@ -1,10 +1,16 @@
 package com.xiyu.bid.casework.application.util;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * 应答片段摘要的语义截断工具。
  * 纯函数，无状态，无线程安全问题。
  */
 public final class SummaryTruncator {
+
+    private static final Pattern SEQUENCE_MARKER = Pattern.compile(
+            "(?:\\d+\\.|[一二三四五六七八九十百]+、|[①②③④⑤⑥⑦⑧⑨⑩]|[（(](?:\\d+|[一二三四五六七八九十百]+)[）)])");
 
     private SummaryTruncator() {}
 
@@ -13,6 +19,8 @@ public final class SummaryTruncator {
      *
      * <p>断点优先序：段落 \n\n > 换行 \n > 句子 。！？!? > 序号安全回退。
      * 不在序号与后续内容之间截断（如 "1. xxx" 不拆为 "1."）。
+     * 当前实现保留“窗口内最后一个安全断点”策略，序号保护仅作为无安全断点时的回退；
+     * 这样可保持既有语义断点测试的结果，同时确保硬切不会留下裸序号。
      *
      * @param text      原始文本（可为 null）
      * @param maxLength 截断长度上限
@@ -31,10 +39,24 @@ public final class SummaryTruncator {
         int best = Math.max(p1, Math.max(p2, p3));
 
         if (best < 0) {
-            return candidate.trim() + "...";
+            return cutBeforeTruncatedSequence(candidate, maxLength, text) + "...";
         }
 
         return text.substring(0, best + 1).trim() + "...";
+    }
+
+    private static String cutBeforeTruncatedSequence(String candidate, int maxLength, String text) {
+        Matcher matcher = SEQUENCE_MARKER.matcher(text);
+        int safeEnd = maxLength;
+        while (matcher.find() && matcher.start() < maxLength) {
+            String marker = matcher.group();
+            String window = candidate.substring(0, Math.min(candidate.length(), maxLength)).trim();
+            boolean markerCut = matcher.end() >= maxLength || window.endsWith(marker);
+            if (markerCut) {
+                safeEnd = Math.min(safeEnd, matcher.start());
+            }
+        }
+        return text.substring(0, safeEnd).trim();
     }
 
     private static int lastParagraphBreak(String text, int maxLength) {

@@ -223,4 +223,19 @@ class SummaryTruncatorTest {
         assertThat(result).endsWith("...");
         assertThat(result).isEqualTo("1. 项目概述内容说明。2. 技术方案描述。...");
     }
+
+    @Test
+    @DisplayName("无断点硬切在 maxLength 边界保护阿拉伯序号")
+    void hardCutProtectsArabicMarkerAtBoundary() {
+        String text = "a".repeat(99) + "1. 项目";
+        assertThat(SummaryTruncator.truncate(text, 100)).isEqualTo("a".repeat(99) + "...");
+    }
+
+    @Test
+    @DisplayName("无断点硬切在 maxLength 边界保护中文、带圈和括号序号")
+    void hardCutProtectsOtherMarkersAtBoundary() {
+        assertThat(SummaryTruncator.truncate("a".repeat(99) + "一、项目", 100)).isEqualTo("a".repeat(99) + "...");
+        assertThat(SummaryTruncator.truncate("a".repeat(99) + "①项目", 100)).isEqualTo("a".repeat(99) + "...");
+        assertThat(SummaryTruncator.truncate("a".repeat(98) + "（1）项目", 100)).isEqualTo("a".repeat(98) + "...");
+    }
 }
