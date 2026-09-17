@@ -128,6 +128,31 @@ public final class HeuristicTableColumnMapper {
             detailCol = longestCol >= 0 ? longestCol : (colCount > 2 ? 1 : 0);
         }
 
+        // 兜底策略：如果序号列未识别，且第 0 列全部为短小编号/条目序号，识别为 codeCol，避免被后续误判为维度或权重
+        if (codeCol == -1 && colCount >= 4 && detailCol > 0) {
+            boolean col0AllCodes = true;
+            for (int r = headerRows; r < grid.rowCount(); r++) {
+                String val = grid.cell(r, 0).trim();
+                if (!val.isBlank() && !val.matches("^(?:\\d{1,3}(?:\\.\\d{1,3})*|[一二三四五六七八九十]+|[A-Za-z]|[(（]?\\d+[)）]?)$")) {
+                    col0AllCodes = false;
+                    break;
+                }
+            }
+            if (col0AllCodes && grid.rowCount() > headerRows) {
+                boolean col1HasText = false;
+                for (int r = headerRows; r < grid.rowCount(); r++) {
+                    String v1 = grid.cell(r, 1).trim();
+                    if (!v1.isBlank() && !v1.matches("^\\d+$")) {
+                        col1HasText = true;
+                        break;
+                    }
+                }
+                if (col1HasText) {
+                    codeCol = 0;
+                }
+            }
+        }
+
         // 寻找内嵌括号分值列（如"供应商业绩（7分）"）。取首个（最左）命中列锚定。
         // 命中门槛权衡（xcode-review 实测）：曾试验 count>=2 防单格偶发文本劫持，但 MRO 真实
         // 标书分页把评分表切成碎片块（首行是上一页细则残行），括号列常仅 1 格命中，门槛会整块
@@ -167,7 +192,39 @@ public final class HeuristicTableColumnMapper {
         }
 
         if (weightCol == -1) {
-            weightCol = colCount - 1;
+            int lastCol = colCount - 1;
+            int lastColValidCount = 0;
+            for (int r = headerRows; r < grid.rowCount(); r++) {
+                String val = grid.cell(r, lastCol).trim();
+                if (val.matches("^[~≈]?\\s*\\d{1,3}(?:\\.\\d+)?\\s*(?:分|分值|%)?\\s*$")) {
+                    lastColValidCount++;
+                }
+            }
+            if (lastColValidCount > 0 || colCount <= 3) {
+                weightCol = lastCol;
+            } else {
+                // 若最后一列无有效分值且表格>=4列（如项目1117最后一列是“否”或“备注说明”），
+                // 在 [1, colCount - 2] 区间内寻找纯数值密度最高的一列（严禁选用列 0，列 0 为序号或大类）
+                int bestCol = -1;
+                int maxNumericCount = 0;
+                for (int c = 1; c < colCount - 1; c++) {
+                    if (c == codeCol || c == detailCol || c == parentDimCol) {
+                        continue;
+                    }
+                    int numericCount = 0;
+                    for (int r = headerRows; r < grid.rowCount(); r++) {
+                        String cellVal = grid.cell(r, c).trim();
+                        if (cellVal.matches("^[~≈]?\\s*\\d{1,3}(?:\\.\\d+)?\\s*(?:分|分值|%)?\\s*$")) {
+                            numericCount++;
+                        }
+                    }
+                    if (numericCount > maxNumericCount) {
+                        maxNumericCount = numericCount;
+                        bestCol = c;
+                    }
+                }
+                weightCol = (bestCol >= 1 && maxNumericCount > 0) ? bestCol : lastCol;
+            }
         }
 
         if (dimCol == -1 && detailCol > 0 && detailCol != codeCol) {
@@ -192,37 +249,16 @@ public final class HeuristicTableColumnMapper {
     }
 
     private static int countHeaderMatches(List<String> row) {
-        if (row == null || row.isEmpty()) {
-            return 0;
-        }
+        if (row == null || row.isEmpty()) return 0;
         int count = 0;
-        boolean hasCode = false;
-        boolean hasParent = false;
-        boolean hasDim = false;
-        boolean hasDetail = false;
-        boolean hasWeight = false;
+        boolean hasCode = false, hasParent = false, hasDim = false, hasDetail = false, hasWeight = false;
         for (String cell : row) {
             if (cell == null || cell.isBlank()) continue;
-            if (!hasCode && CODE_HEADER.matcher(cell).find()) {
-                hasCode = true;
-                count++;
-            }
-            if (!hasParent && PARENT_DIM_HEADER.matcher(cell).find()) {
-                hasParent = true;
-                count++;
-            }
-            if (!hasDim && DIM_HEADER.matcher(cell).find()) {
-                hasDim = true;
-                count++;
-            }
-            if (!hasDetail && DETAIL_HEADER.matcher(cell).find()) {
-                hasDetail = true;
-                count++;
-            }
-            if (!hasWeight && WEIGHT_HEADER.matcher(cell).find()) {
-                hasWeight = true;
-                count++;
-            }
+            if (!hasCode && CODE_HEADER.matcher(cell).find()) { hasCode = true; count++; }
+            if (!hasParent && PARENT_DIM_HEADER.matcher(cell).find()) { hasParent = true; count++; }
+            if (!hasDim && DIM_HEADER.matcher(cell).find()) { hasDim = true; count++; }
+            if (!hasDetail && DETAIL_HEADER.matcher(cell).find()) { hasDetail = true; count++; }
+            if (!hasWeight && WEIGHT_HEADER.matcher(cell).find()) { hasWeight = true; count++; }
         }
         return count;
     }
@@ -230,9 +266,7 @@ public final class HeuristicTableColumnMapper {
     private static boolean hasOverlyLongCell(List<String> row) {
         if (row == null) return false;
         for (String cell : row) {
-            if (cell != null && cell.length() > 40) {
-                return true;
-            }
+            if (cell != null && cell.length() > 40) return true;
         }
         return false;
     }
@@ -240,9 +274,7 @@ public final class HeuristicTableColumnMapper {
     private static boolean containsAssessmentPattern(TableGrid grid) {
         for (int r = 0; r < grid.rowCount(); r++) {
             for (String cell : grid.row(r)) {
-                if (cell != null && CONTRACT_ASSESSMENT_HEADER.matcher(cell).find()) {
-                    return true;
-                }
+                if (cell != null && CONTRACT_ASSESSMENT_HEADER.matcher(cell).find()) return true;
             }
         }
         return false;
