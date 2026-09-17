@@ -69,10 +69,10 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     expect(sourceLocation(wrapper).text()).not.toContain('仅标题')
   })
 
-  it('只有来源标题时显示标题且可点击', () => {
+  it('只有来源标题时直接显示标题且非下载按钮', () => {
     const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionTitle: '项目实施' } })
     expect(sourceLocation(wrapper).text()).toContain('原文所在标题：项目实施')
-    expect(sourceLocation(wrapper).element.tagName).toBe('BUTTON')
+    expect(sourceLocation(wrapper).element.tagName).toBe('DIV')
   })
 
   it('来源路径和标题均为空时显示降级文案且信息行不可点击', () => {
@@ -83,12 +83,12 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
   })
 
-  it('来源路径和标题为空但有评分项标题时智能兜底展示且信息行可点击', () => {
+  it('来源路径和标题为空但有评分项标题时智能兜底展示且非下载按钮', () => {
     const wrapper = mountDialog({
       caseData: { ...caseData, scoringPointTitle: '项目实施', sourceSectionTitle: null, sourceSectionPath: null, responseText: '纯正文内容' }
     })
     expect(sourceLocation(wrapper).text()).toContain('原文所在标题：项目实施')
-    expect(sourceLocation(wrapper).element.tagName).toBe('BUTTON')
+    expect(sourceLocation(wrapper).element.tagName).toBe('DIV')
   })
 
   it('智能从应答正文提取章节标题、详见引用与方案书名', () => {
@@ -119,12 +119,10 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     expect(sourceLocation(wrapper).text()).toContain(`原文所在标题：${caseData.scoringPointTitle}`)
   })
 
-  it('点击来源信息行触发 open-bid 并携带定位提示标记', async () => {
+  it('来源标题为展示文本，点击不触发 open-bid 下载事件', async () => {
     const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionPath: '第二章 > 售后服务' } })
     await sourceLocation(wrapper).trigger('click')
-    expect(wrapper.emitted('open-bid')).toHaveLength(1)
-    expect(wrapper.emitted('open-bid')[0][0]).toMatchObject({ sourceSectionPath: '第二章 > 售后服务' })
-    expect(wrapper.emitted('open-bid')[0][1]).toEqual({ notifyLocation: true })
+    expect(wrapper.emitted('open-bid')).toBeFalsy()
   })
 
   it('底部操作栏仅保留「复用」按钮', () => {
