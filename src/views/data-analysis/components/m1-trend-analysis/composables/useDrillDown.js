@@ -4,6 +4,7 @@ import { dashboardApi } from '@/api'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { navigateToProject } from '@/utils/projectNavigation.js'
 import { PROJECT_STATUS_OPTIONS, X_AXIS_LABELS } from '../filterConstants.js'
+import { normalizeDepartmentFilter } from '../apiParams.js'
 
 export function useDrillDown() {
   const router = useRouter()
@@ -33,6 +34,8 @@ export function useDrillDown() {
     // 后端 List<String> 参数：依赖 src/api/client.js 的 paramsSerializer（indexes: null）
     // 将数组序列化为 repeated query params（?key=a&key=b），Spring 才能正确绑定
     const toList = (arr) => (Array.isArray(arr) && arr.length ? arr : undefined)
+    const normalizedDepts = normalizeDepartmentFilter(f.departments, ctx?.departmentOptions || [])
+
     return {
       dimension: ctx?.xAxisType || 'time',
       axisValue: ctx?.axisValue || '',
@@ -41,7 +44,7 @@ export function useDrillDown() {
       size: 10,
       ...(ctx?.startDate ? { startDate: ctx.startDate } : {}),
       ...(ctx?.endDate ? { endDate: ctx.endDate } : {}),
-      ...(toList(f.departments) ? { departments: toList(f.departments) } : {}),
+      ...(toList(normalizedDepts) ? { departments: toList(normalizedDepts) } : {}),
       ...(toList(f.persons) ? { persons: toList(f.persons) } : {}),
       ...(toList(f.regions) ? { regions: toList(f.regions) } : {}),
       ...(toList(f.customerTypes) ? { customerTypes: toList(f.customerTypes) } : {}),
@@ -52,7 +55,7 @@ export function useDrillDown() {
     }
   }
 
-  const openDrill = async (data, xAxisType, seriesName, filters, dateRange) => {
+  const openDrill = async (data, xAxisType, seriesName, filters, dateRange, departmentOptions = []) => {
     drillVisible.value = true
     drillLoading.value = true
     const axisValue = data?.label || data?.key || data?.value || ''
@@ -68,7 +71,8 @@ export function useDrillDown() {
     drillContext.value = {
       xAxisType, axisValue, seriesName, filters,
       startDate: fmt(dateRange?.[0]),
-      endDate: fmt(dateRange?.[1])
+      endDate: fmt(dateRange?.[1]),
+      departmentOptions
     }
 
     try {

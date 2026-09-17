@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { dashboardApi } from '@/api'
 import { capDepartmentTreeDepth } from '../capDepartmentTreeDepth.js'
+import { normalizeDepartmentFilter } from '../apiParams.js'
 
 /**
  * PRD §6.2 M1 筛选区下拉选项加载。
@@ -62,7 +63,8 @@ export function useFilterSearch() {
   async function refreshPersonsByDepartments(departmentNames) {
     loadingPersons.value = true
     try {
-      const res = await dashboardApi.getPersonsByDepartments(departmentNames || [])
+      const deptsToSend = normalizeDepartmentFilter(departmentNames, departmentOptions.value)
+      const res = await dashboardApi.getPersonsByDepartments(deptsToSend)
       if (res?.success && Array.isArray(res.data)) {
         personOptions.value = mapOptions(res.data)
       }
