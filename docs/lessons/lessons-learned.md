@@ -6002,3 +6002,23 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
    - 在 `FlywayMysqlContainerTest` 中新增包含实际换行符、双引号与反斜杠的物理测试用例 `scoreParseFactPersistsWithNewlineQuoteAndBackslashOnRealMysql`，通过 `JSON_VALID(...)` 验证数据库原生 JSON 解析器的严格通过性。
 
 > 维护纪律：涉及入库到 MySQL `JSON` 类型的列，**严禁使用任何形式的手写字符串拼接（如 `String.format` 或 `+`）构造 JSON 文本**，必须使用 Jackson `ObjectMapper` 等合规序列化器；从 PDF/Word/OCR 表格抽取的非结构化或半结构化文本，在构造展示证据时必须前置做换行与空白标准化清洗。
+
+---
+
+## 371. 推理模型（Kimi K3 / o1 等）固定 temperature=1.0 导致 API 400 校验拒绝（2026-09-17）
+
+**背景**：
+用户在系统设置将 AI 激活模型切换为新一代深度思考/推理模型（如月之暗面 Kimi K3），点击“测试连接”时上游网关报错：
+`custom API 请求失败（400 ）：temperature is fixed at 1.0, cannot be modified (type: invalid_request_error)`。
+
+**根因分析**：
+1. **推理模型底层采样约束**：以 Kimi K3、OpenAI o1/o3-mini 为代表的深度思考/推理模型（Reasoning Models），内部自带思维链推理机制，模型架构强制锁定内部采样温度为 `1.0`，禁止调用方自定义 temperature（传入非 1.0 值均直接抛出 400）。
+2. **客户端硬编码参数**：`OpenAiCompatibleClient` 在构造通用请求体时，为了让常规模型（如 GPT-4o-mini、DeepSeek-V3 等）的采招分析输出更具确定性，硬编码了 `requestBody.put("temperature", 0.2)`。
+3. **缺乏参数级自适应降级机制**：之前系统仅对 `response_format: json_object` 做了 400 单向置位降级（`responseFormatUnsupported`），未对 temperature 等超参做类似容错。
+
+**解决方案**：
+1. **引入自适应降级机制**：在 `OpenAiCompatibleClient` 中新增 `temperatureFixed` 原子布尔标志。首次捕获到 `temperature is fixed` / `temperature is not supported` 等 400 错误时，单向置位并透明重试不含 `temperature` 的请求体。
+2. **后续调用零开销绕过**：`temperatureFixed` 置位后，后续所有请求直接省去 `temperature` 字段，无需每次经历 400 错误往返。
+3. **单元测试固化**：在 `OpenAiCompatibleClientTest` 中补充 3 个针对 temperature-fixed 错误的端到端 Mock 测试（首次 400 自动重试成功、置位后后续请求直接不带 temperature、无关 400 错误不误触标志）。
+
+> 维护纪律：对于 OpenAI 兼容协议客户端，随着深度思考/推理系模型（Reasoning Models）普及，不同厂商对超参数（temperature、top_p、presence_penalty、response_format）的支持策略差异显著；客户端请求构造应具备自适应降级与重试韧性，严禁因个别参数被上游严格校验而导致全功能不可用。
