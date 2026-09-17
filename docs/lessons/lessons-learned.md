@@ -6022,3 +6022,31 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 3. **单元测试固化**：在 `OpenAiCompatibleClientTest` 中补充 3 个针对 temperature-fixed 错误的端到端 Mock 测试（首次 400 自动重试成功、置位后后续请求直接不带 temperature、无关 400 错误不误触标志）。
 
 > 维护纪律：对于 OpenAI 兼容协议客户端，随着深度思考/推理系模型（Reasoning Models）普及，不同厂商对超参数（temperature、top_p、presence_penalty、response_format）的支持策略差异显著；客户端请求构造应具备自适应降级与重试韧性，严禁因个别参数被上游严格校验而导致全功能不可用。
+
+---
+
+## 372. 多维度趋势分析全选部门致 HTTP 414 URI Too Long 生产事故（2026-09-17）
+
+**背景**：
+西域正式环境数据分析页面（`views/data-analysis/index.vue`）中，用户在“多维度趋势分析（M1）”中勾选“人员”维度或部门全选后，页面弹出错误提示 `请求失败，请稍后重试` 与 `Request failed with status code 414`，图表区域渲染失败。
+
+**根因分析**：
+1. **全选语义错误物化为海量扁平参数**：
+   `FilterBar.vue` 在勾选人员维度时，联动执行 `extractAllValues(departmentOptions)` 收集全量部门节点注入 `filters.departments`。当部门为“全部”时，前端在 `buildApiParams` 中使用 `departments.join(',')`，将数百个部门名称拼入 GET 请求的 `departmentIds` Query 参数；在联动刷新人员下拉时，`getPersonsByDepartments` 也将全量子部门以 repeated query 传递。
+2. **正式环境多层级架构导致 URL 长度爆炸**：
+   本地/测试环境部门树仅有 3~5 个测试节点，Query 仅数十字节，掩盖了缺陷。正式环境中西域集团组织架构（OSS 同步）包含数百个三级部门，中文部门经 URL 编码后（每个汉字 9 字节）长达 10KB~30KB，直接击穿 Nginx（默认 4KB/8KB）和 Spring Boot 内置 Tomcat（`server.max-http-request-header-size` 默认 8KB）的请求行限制，抛出 HTTP 414 URI Too Long。
+3. **前后端接口契约冗余错位**：
+   后端 `TrendAnalysisService` 与 `TrendAnalysisController` 本身设计即为“未传或传空 `departmentIds`/`departmentNames` 代表全量部门”，且后端内置树形向下自动展开（`expand(deptNodes, departmentIds)`），根本不需要前端扁平化展开并传递所有子节点。
+
+**根治方案**：
+1. **提取参数正规化纯函数（`apiParams.js`）**：
+   新增 `countTreeNodes` 与 `isAllDepartmentsSelected`，判定当前选中的部门集合是否为全量（全选）。
+2. **全选安全正规化**：
+   - 趋势分析主请求（`buildApiParams`）：当部门为全选时，省去 `departmentIds`（传 `undefined`），保持 GET 请求 URL 短小干净；
+   - 人员联动刷新（`useFilterSearch.js`）：全选时传递空数组，由后端直接查全量人员，避免生成数千字节 query；
+   - 下钻详情请求（`useDrillDown.js`）：同样接入正规化，杜绝下钻场景 414 隐患。
+3. **单元测试固化**：
+   新增 `apiParams.spec.js` 覆盖递归节点计数、全选判定、参数正规化与请求参数安全构建等 6 个核心用例，确保回归安全。
+
+> 维护纪律：在设计与调用 HTTP GET 接口时，**严禁将树形或集合的“全部”语义直接展开为所有子节点的扁平数组拼入 URL Query**；“全部/全选”在网络层必须正规化为空/缺省参数（由后端按全量口径处理），或在极端必须透传大数据量筛选集合时采用 POST 请求，坚决杜绝 HTTP 414 隐患。
+

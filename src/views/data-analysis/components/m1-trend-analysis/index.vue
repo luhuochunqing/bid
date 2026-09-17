@@ -40,6 +40,7 @@ import { useFilterSearch } from './composables/useFilterSearch.js'
 import { useDrillDown } from './composables/useDrillDown.js'
 import { dashboardApi } from '@/api'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
+import { buildApiParams } from './apiParams.js'
 import FilterBar from './FilterBar.vue'
 import TrendChart from './TrendChart.vue'
 import DrillModal from './DrillModal.vue'
@@ -80,35 +81,6 @@ const resolveXAxis = (dims) => {
   return dims[0]
 }
 
-// 日期格式化
-const formatDateStr = (date) => {
-  if (!date) return null
-  if (typeof date === 'string') return date.slice(0, 10)
-  const d = new Date(date)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-// 筛选字段 → 后端 API 参数映射（PRD 6.7）
-const buildApiParams = (filters, xAxis) => {
-  const f = filters || {}
-  const isTimeAxis = !xAxis || xAxis === 'time'
-  return {
-    xAxis,
-    startDate: formatDateStr(props.dateRange?.[0]),
-    endDate: formatDateStr(props.dateRange?.[1]),
-    // timeDimension 仅当 X 轴为时间维度时发送
-    ...(isTimeAxis && f.timeDimension ? { timeDimension: f.timeDimension } : {}),
-    ...(f.departments?.length ? { departmentIds: f.departments.join(',') } : {}),
-    ...(f.persons?.length ? { userIds: f.persons.join(',') } : {}),
-    ...(f.regions?.length ? { regionIds: f.regions.join(',') } : {}),
-    ...(f.customerTypes?.length ? { customerTypes: f.customerTypes.join(',') } : {}),
-    ...(f.projectTypes?.length ? { projectTypes: f.projectTypes.join(',') } : {}),
-    ...(f.projectStatuses?.length ? { statuses: f.projectStatuses.join(',') } : {}),
-    ...(f.tenderSubjects?.length ? { tenderEntities: f.tenderSubjects.join(',') } : {}),
-    ...(f.competitors?.length ? { competitorNames: f.competitors.join(',') } : {})
-  }
-}
-
 // 后端返回数据 → 图表数据格式适配
 const adaptTrendData = (raw) => {
   if (!raw) return []
@@ -128,7 +100,7 @@ const loadTrendData = async () => {
   chartLoading.value = true
   chartError.value = ''
   try {
-    const params = buildApiParams(currentFilters.value, currentXAxisType.value)
+    const params = buildApiParams(currentFilters.value, currentXAxisType.value, props.dateRange, departmentOptions.value)
     const response = await dashboardApi.getTrendsWithFilters(params)
     if (!response?.success) {
       throw new Error(response?.msg || '加载趋势数据失败')
@@ -169,7 +141,7 @@ const handleDepartmentChange = async (departments) => {
 }
 
 const handleBarClick = (params) => {
-  openDrill(params.data, currentXAxisType.value, params.seriesName, currentFilters.value, props.dateRange)
+  openDrill(params.data, currentXAxisType.value, params.seriesName, currentFilters.value, props.dateRange, departmentOptions.value)
 }
 
 // PRD §6.2 全局日期范围变化时自动重新加载趋势数据
