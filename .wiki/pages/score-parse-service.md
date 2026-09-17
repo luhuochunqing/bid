@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-09-16
-health_checked: 2026-09-16
+updated: 2026-09-18
+health_checked: 2026-09-18
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
@@ -589,4 +589,34 @@ trigger（同步<1s，互斥校验+建任务）
 - `RealProjectScoreParsingTest#testProject21ScoreParsing`
 - `Project1371ColumnInvariantsTest`
 - `DeterministicScoreFactExtractorTest#extract_skips_unmerged_empty_dimension_and_unscored_overflow_row`
+
+## 19. 跨页续表残行 Title Weight Fallback 劫持大类总分与无表头分值列推断（2026-09-18）
+
+### 故障链与根因
+
+1. **跨页续表残行 Title Weight Fallback 劫持大类总分（湖北中烟项目 33）**：
+   - 招标文件第 39 页“总体服务方案”细则跨页溢出到第 40 页首行；第 40 页首行左侧为跨行父大类单元格 `技术部分（30分）`，右侧显式分值列为空；
+   - `DeterministicScoreFactExtractor` 中的 `resolveWeight` 遇到分值列为空时，贪婪地从左侧维度文本通过 `parseTitleWeight` 提取了 30 分作为残行的分值，导致该表格总分虚增 30 分（总分 130 分）；
+   - 触发防污染拦截 `WEIGHT_SUM_MISMATCH`，决策判定为 `REVIEW_REQUIRED`，未写入 `score_item` 表，前端抽屉展示为空。
+2. **无显式表头分值列误判与修 A 破 B 防范（招商积余项目 1117）**：
+   - 第 43 页表格（5 列：序号、因素、细则、分值、备注）无显式表头，启发式推断器默认取最后一列（备注列“否”）作为分值列，分值全为 0.00；
+   - 若贪婪地扫描整表把纯数字列（如第 0 列编号 1..5）当分值列，会导致项目 1371 目录表等大量非评分表格被误判为评分表并召回 80+ 条虚假评分项，引发 NPE 和顺序错乱；
+   - 根治方式：仅当末列无有效分值且表格 `>= 4` 列时，在 `[1, colCount - 2]` 有界区间（严格排除列 0 序号列与 detailCol 细则列）推断纯数字密度最高的列作为分值列。
+
+### 领域治理与契约
+
+1. **跨行大类单元格 Title Weight Fallback 阻断**：
+   - 在 `DeterministicScoreFactExtractor.resolveWeight` 中明确契约：当表格存在显式分值列且当前单元格为跨行单元格（`dimCell.rowspan() > 1`）或匹配大类特征时，严禁 fallback 提取标题分值；
+   - 主循环过滤无独立细项维度名的跨页残行。
+2. **有界安全分值列推断与列 0 隔离**：
+   - `HeuristicTableColumnMapper` 维持末列优先；仅在末列非分值时在 `[1, colCount - 2]` 区间按有效分值密度推断分值列，坚决排除列 0 序号列；
+   - 无表头表格若列 0 为纯序号且列 1 为文本，推断 `codeCol = 0`，确保编号维度正确对齐。
+
+### 验证锚点
+
+- `ScoreParseContinuationRowTest#testContinuationRowDoesNotStealParentCategoryScore`
+- `ScoreParseContinuationRowTest#testNumericWeightColumnDensityInference`
+- `Project1371ColumnInvariantsTest`（0 回归）
+- `CellAnchoredScoreExtractorTest#extract_fiveColumnTableWithoutExplicitHeader_infersWeightColumnCorrectly`
+- `com.xiyu.bid.scoreparse.**` 全量 790+ 单测 100% 通过
 

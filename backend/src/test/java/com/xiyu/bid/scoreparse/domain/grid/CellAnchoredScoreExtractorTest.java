@@ -307,4 +307,24 @@ class CellAnchoredScoreExtractorTest {
         assertThat(item3.dim()).isEqualTo("技术部分/实施方案");
         assertThat(item3.weight()).isEqualByComparingTo(new BigDecimal("15"));
     }
+
+    @Test
+    void extract_fiveColumnTableWithoutExplicitHeader_infersWeightColumnCorrectly() {
+        // 模拟招商积余项目 1117 无显式表头的 5 列表格（序号 | 因素 | 细则 | 分值 | 备注非分值）
+        String markdown = """
+                | 1 | 仓储能力 | 具备大型自营物流中心得25分 | 25.0 | 否 |
+                | 2 | 线上业务能力 | 具备自有电商平台得5分 | 5.0 | 否 |
+                """;
+
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+        // 列映射预期：codeCol=0, detailCol=2, weightCol=3
+        assertThat(mapping.weightCol()).isEqualTo(3);
+        assertThat(mapping.codeCol()).isEqualTo(0);
+
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+        assertThat(candidates).hasSize(2);
+        assertThat(candidates.get(0).weight()).isEqualByComparingTo(new BigDecimal("25.0"));
+        assertThat(candidates.get(1).weight()).isEqualByComparingTo(new BigDecimal("5.0"));
+    }
 }
