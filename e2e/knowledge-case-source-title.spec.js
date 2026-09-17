@@ -23,7 +23,7 @@ test.describe('案例详情来源标题与原文定位', () => {
     }
   })
 
-  test('来源标题点击沿用原文流程并显示定位提示，权限/下载分支保持可验证', async ({ page }) => {
+  test('来源标题仅作为文本展示，标书原文由操作按钮提供', async ({ page }) => {
     const session = await ensureApiSession({
       username: `e2e_source_title_click_${Date.now()}`,
       role: '/bidAdmin',
@@ -38,8 +38,7 @@ test.describe('案例详情来源标题与原文定位', () => {
       await firstCard.click()
       const sourceLocation = page.locator('.source-location')
       if (await sourceLocation.isVisible()) {
-        await sourceLocation.click()
-        await expect(page.locator('.el-message')).toContainText('请定位到：')
+        await expect(sourceLocation).not.toHaveRole('button')
       }
       await expect(page.getByRole('button', { name: '标书原文' })).toBeVisible()
     }

@@ -36,15 +36,13 @@
         </div>
       </div>
       <div class="source-location-row">
-        <button
+        <div
           v-if="hasSourceLocation"
-          type="button"
           class="source-location"
-          @click="emitSourceLocation"
         >
           <span>原文所在标题：{{ sourceLocationText }}</span>
           <span v-if="sourcePageText">页码：{{ sourcePageText }}</span>
-        </button>
+        </div>
         <div v-else class="source-location-fallback">
           <span>原文所在标题：暂无来源标题</span>
           <span v-if="sourcePageText">页码：{{ sourcePageText }}</span>
@@ -118,8 +116,6 @@ const sourcePageText = computed(() => {
   const page = props.caseData?.sourcePageNumber
   return page === null || page === undefined || page === '' ? '' : String(page)
 })
-
-const emitSourceLocation = () => emit('open-bid', props.caseData, { notifyLocation: true })
 
 const hasResponseText = computed(() => {
   const raw = props.caseData?.responseText
@@ -216,8 +212,8 @@ const bidResultType = computed(() => {
 .source-location-row { margin: -2px 0 6px; font-size: 12px; color: var(--el-text-color-secondary); }
 .source-location,
 .source-location-fallback { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; padding: 0; text-align: left; line-height: 1.6; }
-.source-location { border: 0; background: transparent; color: var(--el-color-primary); cursor: pointer; }
-.source-location:hover { text-decoration: underline; }
+.source-location { color: var(--el-text-color-regular); }
+.source-location-fallback { color: var(--el-text-color-secondary); }
 .response-title { display: flex; align-items: center; justify-content: space-between; }
 .response-title .title-actions { display: flex; align-items: center; }
 .dialog-actions { display: flex; justify-content: flex-end; }
