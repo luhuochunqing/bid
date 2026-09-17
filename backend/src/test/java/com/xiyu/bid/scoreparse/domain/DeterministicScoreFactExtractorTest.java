@@ -450,4 +450,32 @@ class DeterministicScoreFactExtractorTest {
             assertTrue(ScoreFact.isLeaf(fact, facts));
         }
     }
+
+    @Test
+    void extract_skips_unmerged_empty_dimension_and_unscored_overflow_row() {
+        CanonicalTableGrid grid = grid(List.of(
+                cell("t-0001-r0-c0", 0, 0, "编号"),
+                cell("t-0001-r0-c1", 0, 1, "评分因素"),
+                cell("t-0001-r0-c2", 0, 2, "评分标准"),
+                cell("t-0001-r0-c3", 0, 3, "分值"),
+                cell("t-0001-r1-c0", 1, 0, "A1"),
+                cell("t-0001-r1-c1", 1, 1, "财务状况"),
+                cell("t-0001-r1-c2", 1, 2, "速动比率达标"),
+                cell("t-0001-r1-c3", 1, 3, "5"),
+                // 跨页截断/溢出残行：无编号、无维度、无分值，仅细则列有文本
+                cell("t-0001-r2-c0", 2, 0, ""),
+                cell("t-0001-r2-c1", 2, 1, ""),
+                cell("t-0001-r2-c2", 2, 2, "补充说明跨页残行"),
+                cell("t-0001-r2-c3", 2, 3, ""),
+                cell("t-0001-r3-c0", 3, 0, "A2"),
+                cell("t-0001-r3-c1", 3, 1, "技术方案"),
+                cell("t-0001-r3-c2", 3, 2, "完整覆盖"),
+                cell("t-0001-r3-c3", 3, 3, "10")
+        ), 4, 4);
+
+        List<ScoreFact> facts = DeterministicScoreFactExtractor.extract(grid, mapping());
+        assertEquals(2, facts.size(), "overflow line without dimension and weight should be skipped");
+        assertEquals("A1", facts.get(0).code());
+        assertEquals("A2", facts.get(1).code());
+    }
 }

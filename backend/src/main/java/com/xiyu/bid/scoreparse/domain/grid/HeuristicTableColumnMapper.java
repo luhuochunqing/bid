@@ -37,22 +37,53 @@ public final class HeuristicTableColumnMapper {
             return TableColumnMapping.ofStandard(0, 1, 2, 3);
         }
 
-        List<String> headerRow = grid.row(0);
+        int headerRowIndex = 0;
+        int maxHeaderMatches = countHeaderMatches(grid.row(0));
+
+        // 若首行已具备明确表头特征且无超长文本，直接以首行为表头；
+        // 仅当首行明显不是表头（如横幅/说明行 matches < 2 或含超长文本）时，才在前 3 行中向下探测真实表头。
+        if (maxHeaderMatches < 2 || hasOverlyLongCell(grid.row(0))) {
+            int maxHeaderScan = Math.min(grid.rowCount(), 3);
+            for (int r = 1; r < maxHeaderScan; r++) {
+                List<String> candidateRow = grid.row(r);
+                if (!hasOverlyLongCell(candidateRow)) {
+                    int matches = countHeaderMatches(candidateRow);
+                    if (matches >= 2) {
+                        headerRowIndex = r;
+                        maxHeaderMatches = matches;
+                        break;
+                    }
+                }
+            }
+        }
+
+        List<String> headerRow = grid.row(headerRowIndex);
         String allHeaders = String.join(" ", headerRow);
         boolean isExplicitScoreTable = EXPLICIT_BID_SCORE_HEADER.matcher(allHeaders).find();
         if (!isExplicitScoreTable) {
+            for (int r = 0; r < headerRowIndex; r++) {
+                if (EXPLICIT_BID_SCORE_HEADER.matcher(String.join(" ", grid.row(r))).find()) {
+                    isExplicitScoreTable = true;
+                    break;
+                }
+            }
+        }
+        if (!isExplicitScoreTable) {
             if (CONTRACT_ASSESSMENT_HEADER.matcher(allHeaders).find()
                     || NON_SCORE_CATALOG_HEADER.matcher(allHeaders).find()
-                    || PACKAGE_LOT_HEADER.matcher(allHeaders).find()) {
+                    || PACKAGE_LOT_HEADER.matcher(allHeaders).find()
+                    || containsAssessmentPattern(grid)) {
                 return new TableColumnMapping(-1, -1, -1, -1, -1, grid.rowCount(), false);
             }
         }
 
-        boolean isGenuineHeader = CODE_HEADER.matcher(allHeaders).find()
+        boolean isGenuineHeader = maxHeaderMatches >= 2
+                || (!hasOverlyLongCell(headerRow)
+                && (CODE_HEADER.matcher(allHeaders).find()
                 || DIM_HEADER.matcher(allHeaders).find()
                 || DETAIL_HEADER.matcher(allHeaders).find()
-                || WEIGHT_HEADER.matcher(allHeaders).find();
-        int headerRows = isGenuineHeader ? 1 : 0;
+                || WEIGHT_HEADER.matcher(allHeaders).find()));
+        int headerRows = isGenuineHeader ? (headerRowIndex + 1) : 0;
 
         int colCount = grid.colCount();
 
@@ -121,7 +152,10 @@ public final class HeuristicTableColumnMapper {
             if (weightCol == -1) {
                 weightCol = bracketCol;
             }
-            if (dimCol == -1 || dimCol == detailCol) {
+            if (parentDimCol == -1 && dimCol >= 0 && dimCol < bracketCol) {
+                parentDimCol = dimCol;
+                dimCol = bracketCol;
+            } else if (dimCol == -1 || dimCol == detailCol) {
                 dimCol = bracketCol;
             }
             // parentDim 推断防御：左侧邻列若恰是细则列或编号列，父维度会读到长细则/编号文本，
@@ -155,5 +189,62 @@ public final class HeuristicTableColumnMapper {
         }
 
         return new TableColumnMapping(codeCol, parentDimCol, dimCol, detailCol, weightCol, headerRows, isPercentage);
+    }
+
+    private static int countHeaderMatches(List<String> row) {
+        if (row == null || row.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        boolean hasCode = false;
+        boolean hasParent = false;
+        boolean hasDim = false;
+        boolean hasDetail = false;
+        boolean hasWeight = false;
+        for (String cell : row) {
+            if (cell == null || cell.isBlank()) continue;
+            if (!hasCode && CODE_HEADER.matcher(cell).find()) {
+                hasCode = true;
+                count++;
+            }
+            if (!hasParent && PARENT_DIM_HEADER.matcher(cell).find()) {
+                hasParent = true;
+                count++;
+            }
+            if (!hasDim && DIM_HEADER.matcher(cell).find()) {
+                hasDim = true;
+                count++;
+            }
+            if (!hasDetail && DETAIL_HEADER.matcher(cell).find()) {
+                hasDetail = true;
+                count++;
+            }
+            if (!hasWeight && WEIGHT_HEADER.matcher(cell).find()) {
+                hasWeight = true;
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static boolean hasOverlyLongCell(List<String> row) {
+        if (row == null) return false;
+        for (String cell : row) {
+            if (cell != null && cell.length() > 40) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsAssessmentPattern(TableGrid grid) {
+        for (int r = 0; r < grid.rowCount(); r++) {
+            for (String cell : grid.row(r)) {
+                if (cell != null && CONTRACT_ASSESSMENT_HEADER.matcher(cell).find()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

@@ -131,5 +131,23 @@ class HeuristicTableColumnMapperTest {
 
         assertThat(mapping.headerRows()).isEqualTo(grid.rowCount());
     }
+
+    @Test
+    void infer_bannerRowAboveHeader_mapsGenuineHeaderRowCorrectly() {
+        String markdown = """
+                | 总分100分，其中，商务部分：70分，技术部分：30分 | | | |
+                |---|---|---|---|
+                | 项目 | 评审因素 | 分值（分） | 评审标准 |
+                | 商务部分（70分） | 体系管理 | 8 | 投标人具备有效期内ISO9001认证得2分 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+
+        assertThat(mapping.headerRows()).isEqualTo(2);
+        assertThat(mapping.parentDimCol()).isEqualTo(0);
+        assertThat(mapping.dimCol()).isEqualTo(1);
+        assertThat(mapping.weightCol()).isEqualTo(2);
+        assertThat(mapping.detailCol()).isEqualTo(3);
+    }
 }
 
