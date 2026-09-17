@@ -6099,4 +6099,32 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 > 1. 树形选择器中当 `node.value` 不具备全局唯一性（如以部门名称而非部门 ID 作为 value）时，**全选判定与总数统计必须以去重后的唯一 value 集合（Set.size）为基准**，严禁使用裸节点递归计数。
 > 2. 修复多维筛选过滤器的参数超长（414）问题时，必须全局收敛所有可能包含大集合的维度（部门、人员、标签等），严禁“报一个改一个”的打补丁行为。
 
+---
+
+## 375. AI 评分任务降级中断未清 Redis 导致进度泄漏与假死隐患（2026-09-17）
+
+**背景**：
+1. 生产环境（`project/33`）评分标准解析报错，PR !2675 修复了 UTF-8 字符截断导致的 JSON 语法错误并已合入发布，但线上页面仍展示旧报错。经全链路日志排查 SOP 现场取证，发现发布后并未针对该项目重新触发解析，前端由于检测到历史任务 `status === 'FAILED'` 短路不自动重试；现场手动触发解析后事实提取与入库均秒级成功（21 facts），证明 PR !2675 逻辑无误。
+2. 深入排查状态机代码时发现严重缓存泄漏隐患：`ScoreParseTaskStateService.failTask` 采用三层降级设计，但在层 1（`markFailed` 成功）和层 2（仅更新 `status=FAILED` 成功）时，执行完后直接 `return`，导致 `progressService.clearProgress(taskId)` 只有在层 1 和层 2 均失败退化到层 3 时才会被调用；
+3. `markTimeout` 在将超时任务标记为 `FAILED` 时，同样完全遗漏了 `progressService.clearProgress(taskId)`。
+
+**根因分析**：
+1. **状态机与缓存生命周期错位（Redis 进度泄漏）**：
+   任务在数据库中已成为终态（`FAILED`），但 Redis 中 `score_parse:progress:{taskId}` 缓存未被清理，TTL 长达 5.7 天（499999 秒），其中的 `status: PROCESSING` 残留。轮询接口优先读取 Redis 进度时，可能导致任务状态假死或前后端状态认知不一致。
+2. **防御性降级分支的副作用清理遗漏**：
+   原逻辑在编写三层降级时，误将 `progressService.clearProgress(taskId)` 视作层 3 的专属兜底动作，而忽视了无论在哪一层将任务标记失败，清理临时执行态缓存（Redis 进度）都是必须执行的不变量（Invariant）。
+3. **工程纪律根因对照**：
+   - **盲目相信“已修复”**：之前修复 JSON 截断问题后，仅通过单元测试即认为生产已治愈，未在真实环境全链路触发验证，忽视了前端不会对已处于 `FAILED` 的任务自动重新触发解析；
+   - **框架/业务理解偏差**：误将缓存清理当作极端兜底，而非状态机跃迁到终态的必备收尾动作。
+
+**根治方案**：
+1. **无条件 finally 保证缓存清理**：
+   在 `ScoreParseTaskStateService.failTask` 中引入 `try ... finally` 结构，无论层 1 成功返回、层 2 成功返回还是降级至层 3，在 `finally` 块中无条件调用 `progressService.clearProgress(taskId)`，并捕获 Redis 清理异常记录 error 日志，保证主状态变更不被缓存抖动影响。
+2. **超时终态同步清理**：
+   在 `markTimeout` 中增加 `try ... finally`，确保将任务置为超时 FAILED 时同样无条件清理 Redis 进度。
+3. **全场景单测防护**：
+   新增 `ScoreParseTaskStateServiceTest`，针对层 1 成功、层 2 成功、层 3 兜底、Redis 异常不冒泡、markTimeout 成功及异常等 6 种场景进行了完备的 Mock 行为断言，确保 Redis 清理契约永不回归。
+
+> 维护纪律：**状态机跃迁到终态（COMPLETED/FAILED/TIMEOUT）时，对应的临时态/过程态缓存（如 Redis 进度、分布式锁、临时文件等）必须在 `finally` 块中保证无条件清理**；降级逻辑中的资源释放必须遵循防御性清理原则，严禁因多层 return 而漏掉生命周期收尾。
+
 
