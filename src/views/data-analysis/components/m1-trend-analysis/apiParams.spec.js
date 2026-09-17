@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   countTreeNodes,
+  getUniqueTreeValues,
   isAllDepartmentsSelected,
   normalizeDepartmentFilter,
+  isAllPersonsSelected,
+  normalizePersonFilter,
   buildApiParams
 } from './apiParams.js'
 
@@ -108,4 +111,69 @@ describe('m1-trend-analysis/apiParams 防 414 URL 超长参数处理', () => {
     const personQueryDepts = normalizeDepartmentFilter(allVals, mockDeptTree)
     expect(personQueryDepts).toEqual([])
   })
+
+  it('真实生产场景：组织树存在重名节点时（唯一部门数 < 总节点数），全选仍能准确识别', () => {
+    const treeWithDuplicates = [
+      {
+        label: '西域集团',
+        value: '西域集团',
+        children: [
+          {
+            label: '华东大区',
+            value: '华东大区',
+            children: [
+              { label: '综合部', value: '综合部' },
+              { label: '项目部', value: '项目部' }
+            ]
+          },
+          {
+            label: '华北大区',
+            value: '华北大区',
+            children: [
+              { label: '综合部', value: '综合部' }, // 与华东大区同名
+              { label: '北京办事处', value: '北京办事处' }
+            ]
+          }
+        ]
+      }
+    ]
+
+    // 树总节点数 7，但去重后的唯一部门名称只有 6 个
+    expect(countTreeNodes(treeWithDuplicates)).toBe(7)
+    const uniqueValues = getUniqueTreeValues(treeWithDuplicates)
+    expect(uniqueValues.size).toBe(6)
+
+    // 用户全选时收集去重后的 6 个部门名称
+    const selected = Array.from(uniqueValues)
+    expect(selected.length).toBe(6)
+
+    // 核心断言：必须准确识别为全选
+    expect(isAllDepartmentsSelected(selected, treeWithDuplicates)).toBe(true)
+    expect(normalizeDepartmentFilter(selected, treeWithDuplicates)).toEqual([])
+
+    // 少选一项时不是全选
+    expect(isAllDepartmentsSelected(selected.slice(1), treeWithDuplicates)).toBe(false)
+    expect(normalizeDepartmentFilter(selected.slice(1), treeWithDuplicates)).toEqual(selected.slice(1))
+  })
+
+  it('人员全选正规化：全选人员时返回空数组，向接口请求全量无需传 userIds', () => {
+    const mockPersonOptions = Array.from({ length: 50 }, (_, i) => ({ label: `员工${i}`, value: `员工${i}` }))
+    const allPersons = mockPersonOptions.map(p => p.value)
+
+    expect(isAllPersonsSelected(allPersons, mockPersonOptions)).toBe(true)
+    expect(normalizePersonFilter(allPersons, mockPersonOptions)).toEqual([])
+
+    // 部分选择
+    expect(isAllPersonsSelected(['员工0', '员工1'], mockPersonOptions)).toBe(false)
+    expect(normalizePersonFilter(['员工0', '员工1'], mockPersonOptions)).toEqual(['员工0', '员工1'])
+
+    // buildApiParams 全选人员时不得包含 userIds
+    const filters = {
+      departments: [],
+      persons: allPersons
+    }
+    const params = buildApiParams(filters, 'person', null, [], mockPersonOptions)
+    expect(params.userIds).toBeUndefined()
+  })
 })
+

@@ -4,7 +4,7 @@ import { dashboardApi } from '@/api'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { navigateToProject } from '@/utils/projectNavigation.js'
 import { PROJECT_STATUS_OPTIONS, X_AXIS_LABELS } from '../filterConstants.js'
-import { normalizeDepartmentFilter } from '../apiParams.js'
+import { normalizeDepartmentFilter, normalizePersonFilter } from '../apiParams.js'
 
 export function useDrillDown() {
   const router = useRouter()
@@ -35,6 +35,7 @@ export function useDrillDown() {
     // 将数组序列化为 repeated query params（?key=a&key=b），Spring 才能正确绑定
     const toList = (arr) => (Array.isArray(arr) && arr.length ? arr : undefined)
     const normalizedDepts = normalizeDepartmentFilter(f.departments, ctx?.departmentOptions || [])
+    const normalizedPersons = normalizePersonFilter(f.persons, ctx?.personOptions || [])
 
     return {
       dimension: ctx?.xAxisType || 'time',
@@ -45,7 +46,7 @@ export function useDrillDown() {
       ...(ctx?.startDate ? { startDate: ctx.startDate } : {}),
       ...(ctx?.endDate ? { endDate: ctx.endDate } : {}),
       ...(toList(normalizedDepts) ? { departments: toList(normalizedDepts) } : {}),
-      ...(toList(f.persons) ? { persons: toList(f.persons) } : {}),
+      ...(toList(normalizedPersons) ? { persons: toList(normalizedPersons) } : {}),
       ...(toList(f.regions) ? { regions: toList(f.regions) } : {}),
       ...(toList(f.customerTypes) ? { customerTypes: toList(f.customerTypes) } : {}),
       ...(toList(f.projectTypes) ? { projectTypes: toList(f.projectTypes) } : {}),
@@ -55,7 +56,7 @@ export function useDrillDown() {
     }
   }
 
-  const openDrill = async (data, xAxisType, seriesName, filters, dateRange, departmentOptions = []) => {
+  const openDrill = async (data, xAxisType, seriesName, filters, dateRange, departmentOptions = [], personOptions = []) => {
     drillVisible.value = true
     drillLoading.value = true
     const axisValue = data?.label || data?.key || data?.value || ''
@@ -72,7 +73,8 @@ export function useDrillDown() {
       xAxisType, axisValue, seriesName, filters,
       startDate: fmt(dateRange?.[0]),
       endDate: fmt(dateRange?.[1]),
-      departmentOptions
+      departmentOptions,
+      personOptions
     }
 
     try {
