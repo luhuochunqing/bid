@@ -566,3 +566,27 @@ trigger（同步<1s，互斥校验+建任务）
 - `DeterministicScoreFactExtractorTest#extracts_title_maximum_with_newline_and_normalizes_quoted_text`
 - `ScoreItemPersistenceServiceTest`（10/10）
 - `FlywayMysqlContainerTest#scoreParseFactPersistsWithNewlineQuoteAndBackslashOnRealMysql`（5/5）
+
+## 18. 评分任务异常清理与横幅表头/内嵌分值列映射修复（2026-09-17）
+
+### 故障链与根因
+
+1. **Redis 进度泄漏**：`ScoreParseTaskStateService.failTask` 三层降级分支中仅兜底分支清理 Redis，层 1/2 成功时直接 return 导致 `score_parse:progress:{taskId}` 残留 `PROCESSING` 状态（TTL 5.7天）；`markTimeout` 同样遗漏清理。
+2. **横幅表头误判与细分分值归零**：生产项目 33 表格首行是总分横幅行（`总分100分，其中商务70分技术30分`），真正列名在第二行。启发式推断器误将首行作为表头导致 `weightCol` 错位到第一列，所有细分子项分值被判为 0 并触发 `REVIEW_REQUIRED`，页面根据防污染契约保持 0 项展示。
+3. **父子维度列与内嵌分值绑定反转**：在 `供应商业绩（7分）` 等内嵌分值列左侧存在父大类维度列时，`dimCol` 预先被父列名占用且未做位置感知重分流，导致子维度名被覆盖为 null。
+
+### 领域治理与契约
+
+1. **状态机终态收尾**：`failTask` 与 `markTimeout` 统一在 `finally` 块中无条件调用 `progressService.clearProgress(taskId)`。
+2. **表头多行安全探测**：仅当 `row(0)` 表头特征不足或包含超长单元格（`>40` 字符）时才在前 3 行中探测真表头，候选行必须满足 `noneMatch(cell.length > 40)` 且 `matches >= 2`；一旦命中立即锁定。
+3. **父子维度层级绑定**：当识别到 `bracketCol` 且其左侧已有 `dimCol < bracketCol` 时，自动升级左侧为 `parentDimCol`，并由 `bracketCol` 同时承载 `dimCol` 与 `weightCol`。
+4. **合同履约考核表隔离**：对非显式评标表格增加 `containsAssessmentPattern(grid)` 全表扫描，彻底阻断履约扣款与 SLA 考核表干扰。
+
+### 验证锚点
+
+- `ScoreParseTaskStateServiceTest`（覆盖全部 failTask 降级与超时清理断言）
+- `HeuristicTableColumnMapperTest#infer_bannerRowAboveHeader_mapsGenuineHeaderRowCorrectly`
+- `RealProjectScoreParsingTest#testProject21ScoreParsing`
+- `Project1371ColumnInvariantsTest`
+- `DeterministicScoreFactExtractorTest#extract_skips_unmerged_empty_dimension_and_unscored_overflow_row`
+

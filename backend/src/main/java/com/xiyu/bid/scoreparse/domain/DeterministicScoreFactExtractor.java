@@ -90,6 +90,11 @@ public final class DeterministicScoreFactExtractor {
                 continue;
             }
             WeightResolution weight = resolveWeight(rowCells, dimCell, detailCell, mapping);
+            boolean isDimMergedContinuation = dimCell != null && dimCell.isMergedContinue();
+            if (code.isBlank() && dimension.isBlank() && !isDimMergedContinuation
+                    && (weight.weight() == null || weight.weight().compareTo(BigDecimal.ZERO) == 0)) {
+                continue;
+            }
             String factId = factId(grid.tableId(), row, code, dimension);
             ScoreFact.ValidationStatus status = weight.ambiguous() || weight.weight() == null
                     ? ScoreFact.ValidationStatus.REVIEW_REQUIRED

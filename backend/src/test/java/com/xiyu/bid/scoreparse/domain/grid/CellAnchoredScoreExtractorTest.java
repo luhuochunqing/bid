@@ -275,4 +275,36 @@ class CellAnchoredScoreExtractorTest {
             assertThat(c.sourceText()).contains(c.detail());
         }
     }
+
+    @Test
+    void extract_bannerRowAboveHeader_extractsLeafDimensionsAndWeights() {
+        String markdown = """
+                | 总分100分，其中，商务部分：70分，技术部分：30分 | | | |
+                |---|---|---|---|
+                | 项目 | 评审因素 | 分值（分） | 评审标准 |
+                | 商务部分（70分） | 体系管理 | 8 | 投标人具备有效期内ISO9001认证得2分 |
+                | | 类似业绩 | 20 | 近三年同类业绩每份得5分，满分20分 |
+                | 技术部分（30分） | 实施方案 | 15 | 方案完整可行得15分 |
+                """;
+
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+        ColumnTypeCrossVerifier.ValidationResult vr = ColumnTypeCrossVerifier.verify(grid, mapping);
+        assertThat(vr.valid()).isTrue();
+
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+        assertThat(candidates).hasSize(3);
+
+        ScoreCandidate item1 = candidates.get(0);
+        assertThat(item1.dim()).isEqualTo("商务部分/体系管理");
+        assertThat(item1.weight()).isEqualByComparingTo(new BigDecimal("8"));
+
+        ScoreCandidate item2 = candidates.get(1);
+        assertThat(item2.dim()).isEqualTo("商务部分/类似业绩");
+        assertThat(item2.weight()).isEqualByComparingTo(new BigDecimal("20"));
+
+        ScoreCandidate item3 = candidates.get(2);
+        assertThat(item3.dim()).isEqualTo("技术部分/实施方案");
+        assertThat(item3.weight()).isEqualByComparingTo(new BigDecimal("15"));
+    }
 }

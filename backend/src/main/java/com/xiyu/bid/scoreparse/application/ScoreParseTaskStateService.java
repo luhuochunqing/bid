@@ -90,15 +90,23 @@ public class ScoreParseTaskStateService {
      */
     @Transactional
     public void markTimeout(String taskId) {
-        taskRepository.findByTaskId(taskId).ifPresent(task -> {
-            task.setStatus("FAILED");
-            task.setTimeoutMarked(true);
-            String message = "SCORING".equalsIgnoreCase(task.getTaskType())
-                    ? TIMEOUT_MESSAGE_SCORING : TIMEOUT_MESSAGE_PARSE;
-            task.setErrorMessage(message);
-            task.setCompletedAt(LocalDateTime.now());
-            taskRepository.save(task);
-        });
+        try {
+            taskRepository.findByTaskId(taskId).ifPresent(task -> {
+                task.setStatus("FAILED");
+                task.setTimeoutMarked(true);
+                String message = "SCORING".equalsIgnoreCase(task.getTaskType())
+                        ? TIMEOUT_MESSAGE_SCORING : TIMEOUT_MESSAGE_PARSE;
+                task.setErrorMessage(message);
+                task.setCompletedAt(LocalDateTime.now());
+                taskRepository.save(task);
+            });
+        } finally {
+            try {
+                progressService.clearProgress(taskId);
+            } catch (RuntimeException e) {
+                log.error("markTimeout 清 Redis 进度异常: taskId={}, error={}", taskId, e.getMessage());
+            }
+        }
     }
 
     /** 任何状态 → FAILED */
@@ -116,32 +124,36 @@ public class ScoreParseTaskStateService {
      * 三层降级失败标记（spec 031 范式）。
      * <p>层 1: 完整 save（含 error_message）
      * <p>层 2: 仅更新 status=FAILED
-     * <p>层 3: 清 Redis，任务在 DB 中保持 PROCESSING（等待超时扫描/启动恢复标记 FAILED）
+     * <p>层 3: 任务在 DB 中保持 PROCESSING（等待超时扫描/启动恢复标记 FAILED）
+     * <p>无论命中哪一层，无条件在 finally 中清理 Redis 进度缓存，避免状态假死泄露。
      */
     public void failTask(String taskId, String errorMessage) {
         try {
-            markFailed(taskId, errorMessage);
-            log.info("评分任务标记 FAILED 成功: taskId={}", taskId);
-            return;
-        } catch (RuntimeException e) {
-            log.error("层 1 失败 - markFailed 异常: taskId={}, error={}", taskId, e.getMessage());
-        }
-        try {
-            taskRepository.findByTaskId(taskId).ifPresent(task -> {
-                task.setStatus("FAILED");
-                task.setCompletedAt(LocalDateTime.now());
-                taskRepository.save(task);
-            });
-            log.warn("层 2 成功 - 仅更新 status=FAILED: taskId={}", taskId);
-            return;
-        } catch (RuntimeException e) {
-            log.error("层 2 失败 - 仅更新状态异常: taskId={}, error={}", taskId, e.getMessage());
-        }
-        try {
-            progressService.clearProgress(taskId);
-            log.error("层 3 - 已清 Redis，任务保持 PROCESSING，等待扫描恢复: taskId={}", taskId);
-        } catch (RuntimeException e) {
-            log.error("层 3 失败 - 清 Redis 异常: taskId={}, error={}", taskId, e.getMessage());
+            try {
+                markFailed(taskId, errorMessage);
+                log.info("评分任务标记 FAILED 成功: taskId={}", taskId);
+                return;
+            } catch (RuntimeException e) {
+                log.error("层 1 失败 - markFailed 异常: taskId={}, error={}", taskId, e.getMessage());
+            }
+            try {
+                taskRepository.findByTaskId(taskId).ifPresent(task -> {
+                    task.setStatus("FAILED");
+                    task.setCompletedAt(LocalDateTime.now());
+                    taskRepository.save(task);
+                });
+                log.warn("层 2 成功 - 仅更新 status=FAILED: taskId={}", taskId);
+                return;
+            } catch (RuntimeException e) {
+                log.error("层 2 失败 - 仅更新状态异常: taskId={}, error={}", taskId, e.getMessage());
+            }
+            log.error("层 3 - 任务保持 PROCESSING，等待扫描恢复: taskId={}", taskId);
+        } finally {
+            try {
+                progressService.clearProgress(taskId);
+            } catch (RuntimeException e) {
+                log.error("清 Redis 进度异常: taskId={}, error={}", taskId, e.getMessage());
+            }
         }
     }
 
