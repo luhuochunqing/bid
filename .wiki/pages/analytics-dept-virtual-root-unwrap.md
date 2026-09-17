@@ -79,11 +79,12 @@ OSS 同步的组织机构表（`organization_departments`）包含顶层虚拟�
 2. **折叠规则泛化到三级**：只勾某层按该层成柱（子孙折进）；可见下级勾满折叠上级；部分勾选忽略上级保留下级。两级回退路径语义不变（既有用例原样保持绿）；
 3. **空列表 fail-closed**：勾选全部落在显示截断外时 `expand` 返回空列表，趋势查询（`queryDimension` / `fetchRegionRows`）、人员联动（`fetchDistinctPersons`）、下钻（`drillDown`）四处一律按"零命中"返回空结果，禁止退化为不过滤。
 
-## 7. 演进：网络层防 414 全选部门正规化（2026-09-17）
+## 7. 演进：网络层防 414 全选部门与人员正规化（2026-09-17）
 
-在真实生产环境下，西域集团（0001）子树三级展示包含数百个部门节点。前端原先在按人员分析（自动全选部门）或用户手动全选时，将整棵部门树的所有节点名称提取并通过 departments.join(",") 拼入 GET 请求的 departmentIds 参数中，导致 URL 超长（10KB~30KB），触发生产事故 HTTP 414 URI Too Long。
+在真实生产环境下，西域集团（0001）子树三级展示包含数百个部门节点，人员选项达 8,000+ 人。前端原先在全选部门或全选人员时，将整棵树的所有部门名称或全部人员拼入 GET 请求 Query 中，导致 URL 超长（10KB~80KB），触发生产事故 HTTP 414 URI Too Long。
 
-修复机制：
-1. 纯函数参数正规化：提取 src/views/data-analysis/components/m1-trend-analysis/apiParams.js，通过 countTreeNodes 与 isAllDepartmentsSelected 识别全选状态；
-2. 契约对齐：后端 TrendAnalysisService 设计上不传 departmentIds 即代表全量查询。前端在全选状态下正规化排除 departmentIds，保持 URL 简洁；
-3. 联动闭环：联动刷新人员（useFilterSearch.js）与明细下钻（useDrillDown.js）同步应用该正规化，彻底杜绝 414 隐患。
+修复机制与根治要点：
+1. 唯一集合判定全选：提取 `src/views/data-analysis/components/m1-trend-analysis/apiParams.js`，通过 `getUniqueTreeValues` 收集唯一 value 集合判定全选，彻底避免生产环境跨分支同名部门（547 节点 vs 418 唯一名称）导致 `selected.length >= total` 计数被击穿；
+2. 部门与人员双维度收口：同时提供部门（`normalizeDepartmentFilter`）与人员（`normalizePersonFilter`）全选正规化，当全选时不传 `departmentIds` 与 `userIds`，后端天然支持空参查全量；
+3. UI 状态闭环：`TreeSelectDropdown.vue` 内部 `totalCount` 与全选高亮同步基于唯一值数量，修复全选时显示“已选 418 项”及残留绿色数字 Badge 的 UI 缺陷；
+4. 链路全覆盖：趋势分析主接口（`buildApiParams`）、部门-人员联动（`useFilterSearch.js`）与明细下钻（`useDrillDown.js`）同步应用该正规化，彻底杜绝 414 隐患。

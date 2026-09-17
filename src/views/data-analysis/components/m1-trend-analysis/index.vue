@@ -100,7 +100,7 @@ const loadTrendData = async () => {
   chartLoading.value = true
   chartError.value = ''
   try {
-    const params = buildApiParams(currentFilters.value, currentXAxisType.value, props.dateRange, departmentOptions.value)
+    const params = buildApiParams(currentFilters.value, currentXAxisType.value, props.dateRange, departmentOptions.value, personOptions.value)
     const response = await dashboardApi.getTrendsWithFilters(params)
     if (!response?.success) {
       throw new Error(response?.msg || '加载趋势数据失败')
@@ -141,7 +141,7 @@ const handleDepartmentChange = async (departments) => {
 }
 
 const handleBarClick = (params) => {
-  openDrill(params.data, currentXAxisType.value, params.seriesName, currentFilters.value, props.dateRange, departmentOptions.value)
+  openDrill(params.data, currentXAxisType.value, params.seriesName, currentFilters.value, props.dateRange, departmentOptions.value, personOptions.value)
 }
 
 // PRD §6.2 全局日期范围变化时自动重新加载趋势数据

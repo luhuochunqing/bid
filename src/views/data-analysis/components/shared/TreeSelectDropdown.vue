@@ -55,22 +55,27 @@ const selectedCount = computed(() => props.modelValue.length)
 // 递归收集树全部节点 value
 function collectValues(nodes, acc) {
   for (const node of nodes || []) {
-    acc.push(node.value)
+    if (node.value != null && node.value !== '') acc.push(node.value)
     if (Array.isArray(node.children)) collectValues(node.children, acc)
   }
   return acc
 }
-const allValues = computed(() => collectValues(props.options, []))
-const totalCount = computed(() => allValues.value.length)
+const uniqueValues = computed(() => new Set(collectValues(props.options, [])))
+const totalCount = computed(() => uniqueValues.value.size)
+
+const isAllSelected = computed(() => {
+  if (totalCount.value === 0 || selectedCount.value === 0) return false
+  return selectedCount.value >= totalCount.value
+})
 
 const triggerText = computed(() => {
   const count = selectedCount.value
   if (count === 0) return props.placeholder
-  if (totalCount.value > 0 && count === totalCount.value) return '全部'
+  if (isAllSelected.value) return '全部'
   return `已选 ${count} 项`
 })
 const showBadge = computed(() =>
-  selectedCount.value > 0 && selectedCount.value !== totalCount.value
+  selectedCount.value > 0 && !isAllSelected.value
 )
 
 // 搜索过滤：节点匹配保留整棵子树；仅后代匹配则保留到匹配链
