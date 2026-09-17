@@ -2,10 +2,10 @@
 title: AI Provider 配置与陷阱指南
 space: engineering
 category: guide
-tags: [AI, Provider, DeepSeek, Doubao, qwen, activeProvider, 降级策略, Sidecar, textutil, mock, 配置默认值陷阱]
+tags: [AI, Provider, DeepSeek, Doubao, qwen, Kimi, Reasoning, activeProvider, 降级策略, Sidecar, textutil, mock, 配置默认值陷阱, temperature]
 created: 2026-07-10
-updated: 2026-08-25
-health_checked: 2026-09-14
+updated: 2026-09-17
+health_checked: 2026-09-17
 sources:
   - backend/src/main/java/com/xiyu/bid/ai/
   - backend/src/main/resources/application.yml
@@ -302,9 +302,35 @@ PR !2396 给 `RoutingAiProvider.resolveActiveConfig()` 加了「`ai.provider=moc
 
 ---
 
-## 9. AI Provider 配置 Checklist
+## 9. 推理/深度思考系模型（Kimi K3 / o1 等）固定 temperature=1.0 兼容机制（2026-09-17 修复）
 
-### 9.1 部署前检查
+### 9.1 陷阱与表现
+
+在系统设置切换激活模型为月之暗面 Kimi K3、OpenAI o1/o3-mini 等深度推理模型时，API 请求直接失败并报 HTTP 400：
+```
+temperature is fixed at 1.0, cannot be modified (type: invalid_request_error)
+```
+
+### 9.2 根因
+
+1. **底层算法锁定**：带思维链（Thinking Process）的推理模型在训练与推理架构中将采样温度锁死为 `1.0`，调用方传入任何其他值（如普通 Chat 模型常用的 `0.2`）均会被上游直接以参数非法拒绝。
+2. **客户端硬编码**：系统为了保证通用招标解析结果确定性，默认在请求体硬编码了 `"temperature": 0.2`。
+
+### 9.3 解决方案
+
+1. **客户端自适应降级重试**：`OpenAiCompatibleClient` 维护 `temperatureFixed` 原子标志位。首次捕获到 `temperature is fixed` 等 400 错误时，自动单向置位并透明重试不带 `temperature` 的请求体，避免业务调用中断。
+2. **零开销旁路**：置位后后续请求直接省略 `temperature` 字段，不增加额外的 400 往返耗时。
+
+### 9.4 教训
+
+- 深度推理模型与普通 Chat 模型在超参约束上有结构性差异，客户端必须具备参数级容错与自适应降级能力。
+- 类似 `response_format: json_object` 的单向降级模式，超参异常也应当具备“首次失败自动降级重试 + 后续零开销调用”设计。
+
+---
+
+## 10. AI Provider 配置 Checklist
+
+### 10.1 部署前检查
 
 > **prod 部署已由脚本自动断言**（preflight.sh + remote-deploy.sh 会拦 AI_PROVIDER 缺失/mock，见 §8），以下为手工核查路径。
 
@@ -322,7 +348,7 @@ curl -s -o /dev/null -w "%{http_code}" ${CUSTOM_AI_BASE_URL}/models
 # 期望：200 或 401（401 表示地址可达但需认证）
 ```
 
-### 9.2 部署后验证
+### 10.2 部署后验证
 
 ```bash
 # 健康检查不应出现 mockMode（出现即 ai.provider 解析为 mock，立即排查）
@@ -338,7 +364,7 @@ curl -X POST http://localhost:18080/api/ai/test \
 
 ---
 
-## 10. 相关文档
+## 11. 相关文档
 
 - [[ai-capabilities]] — AI 能力总览（产品视角）
 - [[docinsight-engine]] — DocInsight 文档智能引擎
@@ -347,9 +373,11 @@ curl -X POST http://localhost:18080/api/ai/test \
 
 ---
 
-## 11. 变更记录
+## 12. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 AI Provider 配置陷阱 |
 | 2026-08-25 | 新增 §8 `ai.provider` 默认值陷阱（PR !2396 审计发现，默认 mock → 静默假数据 + 两处 mock 分支 NPE）；部署 checklist 升级为脚本断言 |
+| 2026-09-17 | 新增 §9 推理模型（Kimi K3 / o1 等）固定 temperature=1.0 兼容机制与客户端自适应降级设计 |
+

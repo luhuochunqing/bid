@@ -286,4 +286,101 @@ class OpenAiCompatibleClientTest {
             assertThat(flag.get()).isFalse();
         }
     }
+
+    // =========================================================================
+    // 3. Temperature-Fixed Reasoning Model Compatibility Tests
+    // =========================================================================
+
+    @Test
+    @DisplayName("testConnection: 推理模型返回 400 temperature is fixed 时，自动降级（不带 temperature）重试并成功")
+    void testConnection_WhenTemperatureFixed_AutoRetryWithoutTemperatureSucceeds() {
+        OpenAiCompatibleClient client = createClient();
+        RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(client, "restTemplate");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        String temperatureFixedError = """
+                {
+                  "error": {
+                    "message": "temperature is fixed at 1.0, cannot be modified",
+                    "type": "invalid_request_error",
+                    "code": "invalid_request_error"
+                  }
+                }
+                """;
+
+        String successBody = """
+                {"choices":[{"message":{"content":"OK"}}]}
+                """;
+
+        // 第 1 次请求：带 temperature=0.2 → 返回 400 temperature is fixed
+        server.expect(requestTo("https://api.deepseek.com/chat/completions"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.temperature").value(0.2))
+                .andRespond(withBadRequest().contentType(MediaType.APPLICATION_JSON).body(temperatureFixedError));
+
+        // 第 2 次请求（自动重试）：不带 temperature → 返回 200 OK
+        server.expect(requestTo("https://api.deepseek.com/chat/completions"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.temperature").doesNotExist())
+                .andRespond(withSuccess(successBody, MediaType.APPLICATION_JSON));
+
+        // testConnection 应成功，不抛异常
+        client.testConnection(testConfig());
+
+        server.verify();
+
+        // temperatureFixed 标志应被置为 true
+        assertThat(client.isTemperatureFixed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("testConnection: temperatureFixed 置位后，后续请求直接不带 temperature（单次 HTTP，不触发 400）")
+    void testConnection_AfterTemperatureFixed_SubsequentCallsOmitTemperatureDirectly() {
+        OpenAiCompatibleClient client = createClient();
+        RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(client, "restTemplate");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        String successBody = """
+                {"choices":[{"message":{"content":"OK"}}]}
+                """;
+
+        // 预置 temperatureFixed = true（模拟已经历过一次自适应降级）
+        client.resetTemperatureFixed(); // 先重置确认干净，再手动置位
+        ReflectionTestUtils.setField(client, "temperatureFixed", new AtomicBoolean(true));
+
+        // 只有 1 次请求，且不带 temperature
+        server.expect(requestTo("https://api.deepseek.com/chat/completions"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.temperature").doesNotExist())
+                .andRespond(withSuccess(successBody, MediaType.APPLICATION_JSON));
+
+        client.testConnection(testConfig());
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("testConnection: 非 temperature 相关的 400 错误不触发 temperatureFixed 标志，直接抛出")
+    void testConnection_When400IsUnrelatedToTemperature_ThrowsWithoutSettingTemperatureFixedFlag() {
+        OpenAiCompatibleClient client = createClient();
+        RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(client, "restTemplate");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        String unrelatedError = """
+                {"error":{"message":"model not found","type":"invalid_request_error","code":"model_not_found"}}
+                """;
+
+        server.expect(requestTo("https://api.deepseek.com/chat/completions"))
+                .andExpect(method(POST))
+                .andRespond(withBadRequest().contentType(MediaType.APPLICATION_JSON).body(unrelatedError));
+
+        assertThatThrownBy(() -> client.testConnection(testConfig()))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("model not found");
+
+        server.verify();
+
+        // temperatureFixed 不应被置位
+        assertThat(client.isTemperatureFixed()).isFalse();
+    }
 }

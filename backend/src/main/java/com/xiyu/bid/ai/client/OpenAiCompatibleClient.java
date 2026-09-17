@@ -39,6 +39,7 @@ public class OpenAiCompatibleClient {
     private final AiPromptBuilder promptBuilder;
     private final AiResponseParser responseParser;
     private final AtomicBoolean responseFormatUnsupported = new AtomicBoolean(false);
+    private final AtomicBoolean temperatureFixed = new AtomicBoolean(false);
 
     public OpenAiCompatibleClient(
             RestTemplateBuilder restTemplateBuilder,
@@ -161,17 +162,33 @@ public class OpenAiCompatibleClient {
 
     private String doCallChatCompletion(
             AiProviderRuntimeConfig config, String prompt, int maxTokens, boolean jsonObjectFormat) {
+        try {
+            return executeChatPost(config, prompt, maxTokens, jsonObjectFormat, !temperatureFixed.get());
+        } catch (ExternalServiceException e) {
+            if (isTemperatureFixedError(e)) {
+                log.warn("AI 网关 ({}) 不支持自定义 temperature（推理/思考系模型），后续请求将不再传入 temperature 参数。错误: {}",
+                        config.providerCode(), e.getMessage());
+                temperatureFixed.set(true);
+                return executeChatPost(config, prompt, maxTokens, jsonObjectFormat, false);
+            }
+            if (OpenAiCompatibleErrorHandler.isRetryable(e.getUpstreamStatusCode())) {
+                throw new RetryableAiProviderException(e);
+            }
+            throw e;
+        }
+    }
+
+    private String executeChatPost(
+            AiProviderRuntimeConfig config, String prompt, int maxTokens, boolean jsonObjectFormat, boolean includeTemp) {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", config.model());
         requestBody.put("messages", java.util.List.of(
                 Map.of("role", "system", "content", "You are an expert bidding consultant analyzing tender opportunities and projects."),
                 Map.of("role", "user", "content", prompt)
         ));
-        requestBody.put("temperature", 0.2);
+        if (includeTemp) requestBody.put("temperature", 0.2);
         requestBody.put("max_tokens", maxTokens);
-        if (jsonObjectFormat) {
-            requestBody.put("response_format", Map.of("type", "json_object"));
-        }
+        if (jsonObjectFormat) requestBody.put("response_format", Map.of("type", "json_object"));
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -180,18 +197,14 @@ public class OpenAiCompatibleClient {
 
         try {
             ResponseEntity<String> response = restTemplate.exchange(
-                    config.baseUrl(), HttpMethod.POST,
-                    new HttpEntity<>(requestBody, headers), String.class);
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null)
+                    config.baseUrl(), HttpMethod.POST, new HttpEntity<>(requestBody, headers), String.class);
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 return responseParser.extractContentFromResponse(response.getBody());
+            }
             throw new RuntimeException("AI API request failed with status: " + response.getStatusCode());
         } catch (HttpStatusCodeException exception) {
-            ExternalServiceException wrapped = OpenAiCompatibleErrorHandler.translateHttpStatusCodeException(
+            throw OpenAiCompatibleErrorHandler.translateHttpStatusCodeException(
                     config.providerCode(), SERVICE_NAME, exception);
-            if (OpenAiCompatibleErrorHandler.isRetryable(wrapped.getUpstreamStatusCode())) {
-                throw new RetryableAiProviderException(wrapped);
-            }
-            throw wrapped;
         } catch (RuntimeException exception) {
             throw OpenAiCompatibleErrorHandler.translateNetworkException(config.providerCode(), SERVICE_NAME, exception);
         }
@@ -213,12 +226,41 @@ public class OpenAiCompatibleClient {
                 || combined.contains("unrecognized field");
     }
 
+    /**
+     * 检测是否为推理模型的 temperature 锁定错误（Kimi K3、OpenAI o1 系列等）。
+     *
+     * <p>这类模型固定 temperature=1.0，任何外部传入的 temperature 值都会被拒绝，
+     * 返回 400 + "temperature is fixed" 或 "temperature is not supported" 等提示。</p>
+     */
+    private boolean isTemperatureFixedError(ExternalServiceException exception) {
+        if (exception.getUpstreamStatusCode() != HttpStatus.BAD_REQUEST.value()) {
+            return false;
+        }
+        String raw = exception.getUpstreamRawMessage() != null ? exception.getUpstreamRawMessage().toLowerCase() : "";
+        String msg = exception.getMessage() != null ? exception.getMessage().toLowerCase() : "";
+        String combined = raw + " " + msg;
+        return combined.contains("temperature is fixed")
+                || combined.contains("temperature is not supported")
+                || combined.contains("temperature cannot be modified")
+                || combined.contains("temperature is not allowed")
+                || combined.contains("do not support temperature")
+                || combined.contains("does not support temperature");
+    }
+
     boolean isResponseFormatUnsupported() {
         return responseFormatUnsupported.get();
     }
 
     void resetResponseFormatUnsupported() {
         responseFormatUnsupported.set(false);
+    }
+
+    boolean isTemperatureFixed() {
+        return temperatureFixed.get();
+    }
+
+    void resetTemperatureFixed() {
+        temperatureFixed.set(false);
     }
 
     static class RetryableAiProviderException extends RuntimeException {
