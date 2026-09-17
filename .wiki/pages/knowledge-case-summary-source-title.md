@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [案例库, knowledge_case, 摘要截断, SummaryTruncator, sourceSectionTitle, provenance, V1215, 回填脚本]
 created: 2026-09-16
-updated: 2026-09-16
-health_checked: 2026-09-16
+updated: 2026-09-17
+health_checked: 2026-09-17
 sources:
   - backend/src/main/java/com/xiyu/bid/casework/application/util/SummaryTruncator.java
   - backend/src/main/java/com/xiyu/bid/casework/application/MarkdownSourceSectionIndex.java
@@ -35,7 +35,8 @@ backlinks:
    - Java 侧 `MarkdownSourceSectionIndex.locate`：枚举原文全部命中；跨多个章节 → `null`；命中内容等于评分项标题 → `null`；
    - Python 回填脚本同口径：跨章节冲突 → `cross_section_conflict`；短前缀（>200 字只命中前缀）与标题冒充 → `insufficient_evidence`；两者均**禁止写库**；
    - 列表接口 `KnowledgeCaseResponse` **不透出**来源字段；详情与推荐透出。
-3. **原文所在标题展示规范（PR #2668 细化）**：
+3. **原文所在标题展示规范（PR #2668 细化，2026-09-17 交互收敛）**：
+   - **纯文本展示与独立操作职责分离**：详情弹窗中的「原文所在标题」仅作为线索元信息纯文本展示（不作为可点击的下载链接、不带 hover 下划线与手型指针）；原版标书查阅下载功能统一由右上角操作栏中的「标书原文」独立按钮承担，交互意图清晰单一。
    - **不展示来源文档名称**：详情弹窗仅展示「原文所在标题」与「页码」，隐藏「来源文档：xxx」，保持视觉简洁聚焦。
    - **完整保留原始章节序号**：来源标题与层级路径（`source_section_path` / `source_section_title`）必须带上标书原文原始章节序号（例如 `二、 仓库管理`、`1. 商品安全溯源`、`（一） 供货业绩`、`第六章 评标办法 > 6.3 技术评分 > 1. 纸张检测报告`），严禁剥离序号导致用户无法在原文快速定位。
 4. **前端排版与分段规范**：
