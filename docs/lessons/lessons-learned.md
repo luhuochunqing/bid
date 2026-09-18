@@ -6265,3 +6265,20 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 
 > 维护纪律：**当算法面对多表格或参考模板产生歧义时，不应武断清空展示，而应将候选事实以结构化形式呈现给用户，提供人机协同的一键确认采纳闭环**。
 
+## 381. 趋势下钻负责人空串不回退导致与详情页显示分裂：COALESCE 不跳过空串（2026-09-18）
+
+**现象**：
+数据分析 M1 趋势下钻明细中，项目负责人/投标负责人显示 `-`，但项目详情页同一项目显示有值（标讯负责人）。
+
+**根因分析**：
+1. 下钻 SQL 使用 `COALESCE(pid.project_leader_name, t.project_manager_name)`：MySQL COALESCE 仅在 NULL 时回退，空串 `''` 原样返回，前端 `row.managerName || '-'` 命中 falsy 显示 `-`；
+2. 列表/详情页走 `ProjectListEnrichmentSupport.populateFromTender` 的 `isBlank()` 回退（空串也回退），前端 `ProjectBasicInfoCard` 还有 `|| tf('projectManagerName')` 二次回退——两条链路在空串边界语义不等价；
+3. 空串来源：`ProjectInitiationMapper.mergeForUpdate` 用 `!= null` 判断，用户清空负责人后 `''` 直接落库（实体无归一化）；
+4. 同类先例已修过：保证金模块 `MarginDerivedTableColumns`、区域维度 V1198 注释均记录「COALESCE 不跳过空字符串，需 NULLIF 转 NULL 才回退」。
+
+**修复**：
+- `TrendDrillDownService` 两列改为 `COALESCE(NULLIF(pid.col, ''), NULLIF(t.col, ''))`；
+- 新增集成回归测试 `TrendDrillDownManagerNameIntegrationTest`：空串回退 / 非空优先 / 双空（JSON 省略字段）三态，走真实 HTTP 端点 `/api/analytics/trends/drilldown`。
+
+> 维护纪律：**跨表 fallback 表达式必须先想清"空串算不算值"——Java 侧 `isBlank` 与 SQL `COALESCE` 对空串语义不等价；涉及空串的 COALESCE 一律 `NULLIF(col, '')` 包裹。写入侧（`mergeForUpdate`）目前仍会存 `''`，纯空格串仍不在回退覆盖内，后续如需彻底收口应在写入侧归一化。**
+

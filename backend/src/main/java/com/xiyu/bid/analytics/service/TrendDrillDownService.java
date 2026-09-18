@@ -180,14 +180,14 @@ public class TrendDrillDownService {
             return emptyResponse(pageNum, pageSize);
         }
 
-        // 数据查询（分页）
-        // 字段取值口径与项目列表页一致（ProjectListEnrichmentSupport.populateFromTender）：
-        //   项目负责人 = COALESCE(pid.project_leader_name, t.project_manager_name)
-        //   投标负责人 = COALESCE(pid.bidding_leader_name, t.bidding_person_name)
+        // 数据查询（分页）；负责人取值口径与项目列表页一致（ProjectListEnrichmentSupport.populateFromTender）：
+        //   空串按"无值"处理——COALESCE 不跳过空串，须 NULLIF(col, '') 转 NULL 后再回退
+        //   项目负责人 = COALESCE(NULLIF(pid.project_leader_name, ''), NULLIF(t.project_manager_name, ''))
+        //   投标负责人 = COALESCE(NULLIF(pid.bidding_leader_name, ''), NULLIF(t.bidding_person_name, ''))
         int offset = (pageNum - 1) * pageSize;
         String dataSql = "SELECT p.id, p.name, p.status, p.manager_id, p.created_at," +
-                " COALESCE(pid.project_leader_name, t.project_manager_name) AS manager_name," +
-                " COALESCE(pid.bidding_leader_name, t.bidding_person_name) AS tech_leader_name," +
+                " COALESCE(NULLIF(pid.project_leader_name, ''), NULLIF(t.project_manager_name, '')) AS manager_name," +
+                " COALESCE(NULLIF(pid.bidding_leader_name, ''), NULLIF(t.bidding_person_name, '')) AS tech_leader_name," +
                 " t.bid_opening_time AS open_time" +
                 " FROM projects p" +
                 " LEFT JOIN tenders t ON t.id = p.tender_id" +

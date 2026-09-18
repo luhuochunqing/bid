@@ -72,6 +72,12 @@ PRD §6/§7 明确数据口径以项目创建时间为准。
 - 同步覆盖：M2 查询 / M1 customerType 维度与筛选 / M1 下钻 / M1 筛选选项（FilterOptionsQueryService）。
 - **归一化口径补充（2026-08-20）**：coalesce 取回的是双源原始值（英文枚举/中文文本混杂），任何分组/筛选/下钻必须经 `CustomerTypeNormalizer.normalize()` 再比对，见关键陷阱 §12。
 
+### 负责人取值口径（M1 下钻，2026-09-18）
+
+- 统一取值 `COALESCE(NULLIF(pid.project_leader_name, ''), NULLIF(t.project_manager_name, ''))`：**优先立项详情**，回退标讯；投标负责人同理（`pid.bidding_leader_name` → `t.bidding_person_name`）。
+- 空串按"无值"处理，对齐列表/详情页 `ProjectListEnrichmentSupport.populateFromTender` 的 `isBlank` 回退口径；`COALESCE` 不跳过空串，必须 `NULLIF(col, '')` 包裹（同类先例：保证金模块 `MarginDerivedTableColumns`、V1198 注释）。
+- 双源都空时返回 NULL（Jackson NON_NULL 下 JSON 省略字段），前端 `DrillModal` 渲染 `-`。
+
 ### 折扣精度（M4）
 
 折扣值从 `Integer` 改为 `Double`，支持小数精度。
