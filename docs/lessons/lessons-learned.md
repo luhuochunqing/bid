@@ -6187,6 +6187,25 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 
 > 维护纪律：**跨页续表残行处理必须防止父级大类总分向下泄漏污染叶子分值；分值列推断绝对禁止将序号列（列 0）纳入候选，非末列推断必须仅在末列确认为非分值文本时作为有界收敛分支启用，坚决杜绝修 A 破 B**。
 
+---
 
+## 378. Java 正则 .* 默认不跨行致跨页残行大类判定穿透与兜底总分虚增根因（2026-09-18）
 
+**背景**：
+发布 !2685 后，生产环境湖北中烟（`project/33`，任务 `a5a49c31-23ce-42a6-b82e-13c2ffc943df`）重新执行解析，生产日志显示仍然判定为 `decision=REVIEW_REQUIRED, fallback=WEIGHT_SUM_MISMATCH`，总分依然为 130 分，评分项依然未写入 `score_item` 表。
 
+**根因分析**：
+1. **Java 正则 `.` 默认不匹配换行符（DOTALL 陷阱）**：
+   项目 33 第 40 页首行残行单元格的原始文本是 `部分\n（30\n分）`。原 `CATEGORY_TITLE_PATTERN = Pattern.compile(".*(?:部分|大类|标包|分包|类别|项目|合计|总计|小计).*");` 使用 `.*`。在 Java 中，`.` 默认不匹配行终止符（`\n`, `\r`）。因此 `matcher("部分\n（30\n分）").matches()` 在遭遇第一行末尾的 `\n` 时立即返回 `false`！
+2. **残行未合并单格穿透防劫持守卫**：
+   该跨页残行在第 40 页作为一个新表格的起始行，`rowspan == 1`（无合并），且 `isCategoryTitle` 因换行符返回 `false`，导致防劫持守卫 `(dimCell.rowspan() > 1 || isCategoryTitle(dimCell.rawText()))` 彻底击穿。
+3. **退化执行标题分值提取**：
+   随后退化执行 `parseTitleWeight(dimCell)`，其中的 `TITLE_WEIGHT` 包含 `\\s*`，恰好可以匹配跨行的 `\n`，从而成功提取出 30 分，使总分膨胀为 130 分。
+
+**根治方案**：
+1. **正则显式启用 DOTALL 标志**：
+   在 `DeterministicScoreFactExtractor` 中，将大类标题正则修正为 `Pattern.compile("(?s).*(?:部分|大类|标包|分包|类别|评审大项|合计|总计|小计).*")`，使 `.` 能够跨换行匹配所有格式变体。
+2. **生产同型测试固化**：
+   在 `ScoreParseContinuationRowTest` 中新增 `testContinuationRowWithNewlineAndNoMergeDoesNotStealParentCategoryScore`，完全还原单格 `rowspan=1` 且包含换行 `部分\n（30\n分）` 的生产物理版式，断言总分精准锁定为 20 分（不计入 30 分），全模块 792 项单测 100% 通过。
+
+> 维护纪律：**处理从 PDF/DOCX 导出的多行半结构化表格文本时，所有用于分类或标题识别的 Java 正则表达式必须显式声明 `(?s)`（DOTALL 模式）或改用标准化空白后的子串匹配，严禁假设单元格内不含换行符**。

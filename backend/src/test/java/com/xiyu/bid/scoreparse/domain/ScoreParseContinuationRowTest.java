@@ -90,6 +90,38 @@ class ScoreParseContinuationRowTest {
     }
 
     @Test
+    @DisplayName("项目 33 真实生产形态：跨页续表首行为未合并单格且含换行（部分\\n（30\\n分）），显式分值列为空，绝对不能提取 30 分")
+    void testContinuationRowWithNewlineAndNoMergeDoesNotStealParentCategoryScore() {
+        List<CanonicalCellDto> cells = List.of(
+                cell("r0-c0", 0, 0, "项目"),
+                cell("r0-c1", 0, 1, "评审因素"),
+                cell("r0-c2", 0, 2, "分值"),
+                cell("r0-c3", 0, 3, "评审标准"),
+                // Row 1: 生产真实还原：未合并单元格 (rowspan=1)，含换行 "部分\n（30\n分）"，分值为空
+                cell("r1-c0", 1, 0, "部分\n（30\n分）"),
+                cell("r1-c1", 1, 1, ""),
+                cell("r1-c2", 1, 2, ""),
+                cell("r1-c3", 1, 3, "品上架时间保障方案；③服务团队配置。1、方案合理得8-10分"),
+                // Row 2: 物流方案 8分
+                cell("r2-c0", 2, 0, ""),
+                cell("r2-c1", 2, 1, "物流仓储配送方案"),
+                cell("r2-c2", 2, 2, "8"),
+                cell("r2-c3", 2, 3, "方案完整得6-8分")
+        );
+
+        CanonicalTable table = new CanonicalTable("p40-t0019", null, "评分标准", 3, 4, List.of(), cells, true);
+        CanonicalTableGrid grid = CanonicalTableGridFactory.fromSidecarTable(table);
+        TableColumnMapping mapping = new TableColumnMapping(-1, -1, 0, 3, 2, 1, false);
+
+        List<ScoreFact> facts = DeterministicScoreFactExtractor.extract(grid, mapping);
+
+        assertThat(facts).noneMatch(f -> f.weight() != null && f.weight().compareTo(BigDecimal.valueOf(30)) == 0);
+        List<ScoreFact> leafFacts = facts.stream().filter(f -> f.weight() != null).toList();
+        assertThat(leafFacts).hasSize(1);
+        assertThat(leafFacts.get(0).weight()).isEqualByComparingTo("8.0");
+    }
+
+    @Test
     @DisplayName("项目 1117 根因：5列无表头表格，分值列必须推断为数值密度最高的第 3 列，而非第 4 列备注列")
     void testNumericWeightColumnDensityInference() {
         String markdown = """
