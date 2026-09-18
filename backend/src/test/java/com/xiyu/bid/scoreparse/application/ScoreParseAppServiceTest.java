@@ -272,8 +272,8 @@ class ScoreParseAppServiceTest {
         TenderTextSource source = new TenderTextSource("bid.docx", "doc-insight://t/1", "评分办法：...");
         when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
                 .thenReturn(TenderIntake.found(source));
-        when(initiationTenderTextResolver.loadBytes("doc-insight://t/1"))
-                .thenReturn("docx-bytes".getBytes(StandardCharsets.UTF_8));
+        when(initiationTenderTextResolver.loadTenderFile("doc-insight://t/1", "bid.docx", null))
+                .thenReturn(new LoadedBidFile.InMemory("docx-bytes".getBytes(StandardCharsets.UTF_8), "bid.docx", null));
         when(sidecarTableExtractor.extract(any(byte[].class), eq("bid.docx")))
                 .thenThrow(new IllegalStateException("Sidecar 表格提取协议版本不匹配：期望 X-Schema-Version=1.0，实际响应体 v2。"));
 
@@ -322,8 +322,8 @@ class ScoreParseAppServiceTest {
                         "project-1381-like.pdf", "doc-insight://t/1381",
                         "报价得满分30分，办公用品得满分10分。\n"
                                 + "| 合计<br>得分 | 满分<br>（100分） | |")));
-        when(initiationTenderTextResolver.loadBytes("doc-insight://t/1381"))
-                .thenReturn("pdf-bytes".getBytes(StandardCharsets.UTF_8));
+        when(initiationTenderTextResolver.loadTenderFile("doc-insight://t/1381", "project-1381-like.pdf", null))
+                .thenReturn(new LoadedBidFile.InMemory("pdf-bytes".getBytes(StandardCharsets.UTF_8), "project-1381-like.pdf", null));
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         when(artifactExtractorProvider.getIfAvailable()).thenReturn(artifactExtractor);
         when(artifactExtractor.extract(any(byte[].class), eq("project-1381-like.pdf")))
@@ -407,8 +407,8 @@ class ScoreParseAppServiceTest {
         when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
                 .thenReturn(TenderIntake.found(new TenderTextSource(
                         "bid.docx", "doc-insight://t/1", text)));
-        when(initiationTenderTextResolver.loadBytes("doc-insight://t/1"))
-                .thenReturn("docx-bytes".getBytes(StandardCharsets.UTF_8));
+        when(initiationTenderTextResolver.loadTenderFile("doc-insight://t/1", "bid.docx", null))
+                .thenReturn(new LoadedBidFile.InMemory("docx-bytes".getBytes(StandardCharsets.UTF_8), "bid.docx", null));
         return task;
     }
 
@@ -520,14 +520,29 @@ class ScoreParseAppServiceTest {
     }
 
     @Test
-    void triggerParse_rejectsOversizedWithoutSnapshot() {
+    void triggerParse_rejectsOversizedTextWithoutSnapshot() {
         when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
-                .thenReturn(TenderIntake.unavailable(BoundedHttpDownloader.TOO_LARGE_MESSAGE));
+                .thenReturn(TenderIntake.unavailable(OversizedTenderTextException.MESSAGE));
 
         assertThatThrownBy(() -> service.triggerParse(PROJECT_ID))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage(BoundedHttpDownloader.TOO_LARGE_MESSAGE);
-        verify(stateService).failTask(anyString(), eq(BoundedHttpDownloader.TOO_LARGE_MESSAGE));
+                .hasMessage(OversizedTenderTextException.MESSAGE);
+        verify(stateService).failTask(anyString(), eq(OversizedTenderTextException.MESSAGE));
+    }
+
+    @Test
+    void executeParse_oversizedTextFailedPath_neverOverwritesExistingItems() {
+        ScoreParseTask task = ScoreParseTask.builder()
+                .id(5L).taskId(TASK_ID).projectId(PROJECT_ID)
+                .taskType("PARSE").status("PENDING").build();
+        when(taskRepository.findByTaskId(TASK_ID)).thenReturn(Optional.of(task));
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.unavailable(OversizedTenderTextException.MESSAGE));
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(stateService).failTask(eq(TASK_ID), eq(OversizedTenderTextException.MESSAGE));
+        verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
     }
 
     @Test

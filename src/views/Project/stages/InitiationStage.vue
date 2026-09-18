@@ -109,7 +109,7 @@
       <el-icon class="upload-icon"><UploadFilled /></el-icon>
       <div class="upload-text">将招标文件拖到此处，或<em>点击上传</em></div>
       <template #tip>
-        <div class="upload-tip">支持 PDF、Word 格式，单个文件</div>
+        <div class="upload-tip">支持 PDF、Word 格式，单个文件 ≤{{ tenderFileMaxText }}；解析按文本量（约 500 万字上限），扫描大 PDF 压缩后一般即过</div>
         <div v-if="bidDocFiles.length > 0 && bidDocFiles[0].uploader" class="uploader-info">
           已上传：{{ bidDocFiles[0].name }}（上传人：{{ bidDocFiles[0].uploader }}）
         </div>
@@ -311,7 +311,7 @@ async function handleBidDocRemove() {
   // ok=false 且 documentId 存在：deleteFn 内部已处理错误 UI
 }
 
-const { handleDocBeforeUpload, handleDownloadBidDoc, onDepositChange, handleApprove, handleReject, saveDraft, submit, load, normalizeEmptyNumericFields } = useInitiationStageActions({
+const { handleDocBeforeUpload, handleDownloadBidDoc, onDepositChange, handleApprove, handleReject, saveDraft, submit, load, normalizeEmptyNumericFields, tenderFileMaxText } = useInitiationStageActions({
   props,
   emit,
   form,

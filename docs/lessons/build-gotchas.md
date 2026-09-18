@@ -4,6 +4,32 @@
 
 ---
 
+## 9. javac 单个重复构造错误会级联出全仓 Lombok 符号丢失——先修首个本文件错误
+
+### 场景
+
+spec 065 实现中给 `InitiationTenderTextResolver` 加构造器参数时，`@Autowired` 构造与包内测试构造签名撞车（`@Value` 注解不改变擦除），`mvn compile` 报出 200 个错误，几乎全在**从未 touched 的 `admin/*`**：
+
+```
+[ERROR] .../admin/service/DataScopeConfigService.java:[237,57] cannot find symbol
+[ERROR]   symbol:   method getEnabled()
+[ERROR]   location: variable rule of type com.xiyu.bid.dto.DataScopeConfigPayload.UserScopeRule
+```
+
+第一反应是“Lombok 注解处理坏了 / 主干本来就是 broken 的”。用 `git stash` 回到干净基线 `mvn clean compile` 验证：**0 错误**——主干是绿的，问题确由本次改动引入。
+
+### 根因
+
+javac 在遇到重复构造（`is already defined`）这类硬错误后，**同一轮的注解处理结果不可信**：Lombok 未能为部分文件生成 getter/builder，后续所有引用这些符号的文件连环报 `cannot find symbol`。200 个错误里只有 1 个是真因（本文件的重复构造），其余 199 个全是级联误报——且误报集中在 `admin/*` 这种 Lombok 重度包，极具误导性。
+
+### 正确做法
+
+1. **满屏不相关的 `cannot find symbol`（尤其 Lombok 生成方法）时，先只看第一个本文件错误**：`grep ERROR | grep <本次改动的文件>`，修完重编，误报通常一次全消（本次：修重复构造后 200→2，剩余 2 个即真实的 `loadBytes` 引用残留）。
+2. **基线对照用 `git stash + mvn clean compile`**（注意要在 `backend/` 目录执行，仓库根无 POM），不要用增量编译结论排除主干问题——增量编译成功可能是“什么都没编”。
+3. 同包新增 Army 式构造器重载时，先确认擦除后签名不重合；`@Value` 这类参数注解**不参与重载区分**。
+
+---
+
 ## 8. Flyway 回滚脚本命名与 header 由测试机械约定，手工"等价核验"必然漏项
 
 ### 场景

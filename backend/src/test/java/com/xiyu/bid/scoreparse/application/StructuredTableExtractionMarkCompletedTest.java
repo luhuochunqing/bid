@@ -25,7 +25,7 @@ class StructuredTableExtractionMarkCompletedTest {
     @Test
     void multiTableAllSelfConsistent_noFalseNormalizationWarningAndTableSplitsInRunSummary()
             throws IOException, InterruptedException {
-        StructuredTableExtractionHandler.Result structured = extract(multiTableArtifact(),
+        StructuredTableResult structured = extract(multiTableArtifact(),
                 "评分标准由技术评分表和商务评分表两张独立评分表组成。");
         ScoreParseTask task = new ScoreParseTask();
         ScoreParseTaskRepository taskRepository = mock(ScoreParseTaskRepository.class);
@@ -56,7 +56,7 @@ class StructuredTableExtractionMarkCompletedTest {
     @Test
     void singleTableWeightMismatch_emitsNormalizationWarningWithActualTotal()
             throws IOException, InterruptedException {
-        StructuredTableExtractionHandler.Result structured = extract(singleTableMismatchArtifact(),
+        StructuredTableResult structured = extract(singleTableMismatchArtifact(),
                 "投标报价得分：等于基准价的得满分30分。");
         ScoreParseTask task = new ScoreParseTask();
         ScoreParseTaskRepository taskRepository = mock(ScoreParseTaskRepository.class);
@@ -79,17 +79,17 @@ class StructuredTableExtractionMarkCompletedTest {
         assertThat(task.getFallbackReason()).isEqualTo("WEIGHT_SUM_MISMATCH");
     }
 
-    private static StructuredTableExtractionHandler.Result extract(
+    private static StructuredTableResult extract(
             DocumentArtifact artifact, String tenderText)
             throws IOException, InterruptedException {
         byte[] pdfBytes = "%PDF-1.4 mark-completed".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         TenderTextSource source = new TenderTextSource(
                 "mark-completed.pdf", "memory://mark-completed.pdf", tenderText);
         InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
-                null, null, null, null, null, null, url -> pdfBytes) {
+                null, null, null, null, null, null, null, null, null, 5000000L) {
             @Override
-            public byte[] loadBytes(String fileUrl) {
-                return pdfBytes;
+            public LoadedBidFile loadTenderFile(String fileUrl, String fileName, String contentType) {
+                return new LoadedBidFile.InMemory(pdfBytes, fileName, contentType);
             }
         };
         SidecarDocumentArtifactExtractor artifactExtractor =

@@ -7,6 +7,7 @@ created: 2026-08-15
 updated: 2026-09-18
 health_checked: 2026-09-18
 sources:
+  - specs/065-tender-large-file-parse/spec.md
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
   - specs/045-bid-file-streaming-scoring/spec.md
@@ -81,7 +82,7 @@ trigger（同步<1s，互斥校验+建任务）
 - **LLM 全文聚焦切片（2026-08-24）**：`OpenAiScoreAnalyzer` 在多 chunk 时基于 sectionPath 和评分关键词过滤高信号 chunk，避免数十个无关合同 chunk 盲目调用 LLM 稀释信号。
 - **正文来源（2026-08-16）**：立项 `TENDER` 优先，其次 Bid Agent `TENDER_FILE`，再兜底旧快照。不再要求走「启动 AI 生成初稿」。
 - **自动解析门闩（spec 043）**：仅当从未有过 PARSE 任务且无评分项时自动新建；PENDING/PROCESSING 跟随已有任务；FAILED 展示原因、不自动重打。无源 400 会落 FAILED，避免每次打开抽屉再 POST。
-- **读取上限**：远程/本地招标文件硬限制 50MB（先看 Content-Length，再流式累计）。超大无底稿提示「招标文件超过 50MB，无法解析」；有底稿则回退。`hasSource` 与 `resolve` 同一套成功条件。
+- **读取上限（spec 065，2026-09-18 起按文本量）**：OBS 下载流式自适应落盘（≤50MB 内存快路径，超即 spill 临时文件，用毕即释；单文件配额 512MB）。可解性判定口径为提取后文本量（默认约 500 万字，配置项 `app.score-parse.tender-file.max-text-chars`）。文本超限且无底稿提示「招标文件文本量超过上限（约 500 万字），无法解析，请检查是否误传或拆分文档」；有底稿则回退。`hasSource` 与 `resolve` 同一套成功条件。旧 50MB 字节硬限（`BoundedHttpDownloader`/`capSize`）已废止；超大文件结构化证据管线降级回落 markdown 文本召回。
 - 事件挂链：`TenderDocumentStoredEvent` 仍可触发解析，但产品主路径是立项文件 + 评分抽屉
 - 进度：Redis 缓存 by taskId（`ScoreParseProgressService`），非 DB 轮询
 

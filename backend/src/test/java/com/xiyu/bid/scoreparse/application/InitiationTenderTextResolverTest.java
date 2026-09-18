@@ -48,6 +48,12 @@ class InitiationTenderTextResolverTest {
     private TenderDocumentTextExtractor textExtractor;
     @Mock
     private ObsShareUrlSigner obsShareUrlSigner;
+    @Mock
+    private StreamingBidFileFetcher streamingFetcher;
+    @Mock
+    private SidecarStreamTextExtractor streamTextExtractor;
+    @Mock
+    private TempBidFileStore tempFileStore;
 
     private InitiationTenderTextResolver resolver;
 
@@ -56,7 +62,7 @@ class InitiationTenderTextResolverTest {
         resolver = new InitiationTenderTextResolver(
                 projectDocumentRepository, snapshotRepository, fileStorage,
                 tenderDocumentStorage, textExtractor, obsShareUrlSigner,
-                url -> new byte[0]);
+                streamingFetcher, streamTextExtractor, tempFileStore, 5000000L);
     }
 
     @Test
@@ -231,8 +237,27 @@ class InitiationTenderTextResolverTest {
     }
 
     @Test
-    void oversizedLocalFileFallsBackToSnapshot() {
-        byte[] oversized = new byte[BoundedHttpDownloader.MAX_BYTES + 1];
+    void exactlyMaxBytesStillResolvesViaMemoryFastPath() {
+        byte[] exact = new byte[BoundedHttpDownloader.MAX_BYTES];
+        ProjectDocument document = ProjectDocument.builder()
+                .id(5L).name("边界.pdf").fileUrl("doc-insight://t/exact.pdf").fileType("pdf").build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "TENDER", null, null))
+                .thenReturn(List.of(document));
+        when(fileStorage.load("doc-insight://t/exact.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "doc-insight://t/exact.pdf", "/tmp/exact.pdf", "application/pdf", exact)));
+        when(textExtractor.extract(eq("边界.pdf"), eq("pdf"), any()))
+                .thenReturn(new ExtractedTenderDocument("边界.pdf", "pdf", "商务部分 20 分", 8, "md"));
+
+        Optional<TenderTextSource> source = resolver.resolve(PROJECT_ID);
+
+        assertThat(source).isPresent();
+        assertThat(source.get().text()).isEqualTo("商务部分 20 分");
+    }
+
+    @Test
+    void oversizedTextFallsBackToSnapshot() {
         ProjectDocument document = ProjectDocument.builder()
                 .id(4L).name("超大.pdf").fileUrl("doc-insight://t/huge.pdf").fileType("pdf").build();
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
@@ -240,7 +265,9 @@ class InitiationTenderTextResolverTest {
                 .thenReturn(List.of(document));
         when(fileStorage.load("doc-insight://t/huge.pdf"))
                 .thenReturn(Optional.of(new LoadedProjectDocumentFile(
-                        "doc-insight://t/huge.pdf", "/tmp/huge.pdf", "application/pdf", oversized)));
+                        "doc-insight://t/huge.pdf", "/tmp/huge.pdf", "application/pdf", "小字节".getBytes())));
+        when(textExtractor.extract(eq("超大.pdf"), eq("pdf"), any()))
+                .thenReturn(new ExtractedTenderDocument("超大.pdf", "pdf", "T".repeat(5000001), 5000001, "md"));
         when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
                 .thenReturn(Optional.of(BidTenderDocumentSnapshot.builder()
                         .fileName("旧快照.pdf").extractedText("底稿正文").build()));
@@ -249,12 +276,10 @@ class InitiationTenderTextResolverTest {
 
         assertThat(source).isPresent();
         assertThat(source.get().text()).isEqualTo("底稿正文");
-        verify(textExtractor, never()).extract(any(), any(), any());
     }
 
     @Test
-    void oversizedLocalFileWithoutSnapshotReportsTooLarge() {
-        byte[] oversized = new byte[BoundedHttpDownloader.MAX_BYTES + 1];
+    void oversizedTextWithoutSnapshotReportsTextLimit() {
         ProjectDocument document = ProjectDocument.builder()
                 .id(4L).name("超大.pdf").fileUrl("doc-insight://t/huge.pdf").fileType("pdf").build();
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
@@ -262,14 +287,36 @@ class InitiationTenderTextResolverTest {
                 .thenReturn(List.of(document));
         when(fileStorage.load("doc-insight://t/huge.pdf"))
                 .thenReturn(Optional.of(new LoadedProjectDocumentFile(
-                        "doc-insight://t/huge.pdf", "/tmp/huge.pdf", "application/pdf", oversized)));
+                        "doc-insight://t/huge.pdf", "/tmp/huge.pdf", "application/pdf", "小字节".getBytes())));
+        when(textExtractor.extract(eq("超大.pdf"), eq("pdf"), any()))
+                .thenReturn(new ExtractedTenderDocument("超大.pdf", "pdf", "T".repeat(5000001), 5000001, "md"));
         when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
                 .thenReturn(Optional.empty());
 
         TenderIntake intake = resolver.resolveIntake(PROJECT_ID);
 
         assertThat(intake.source()).isEmpty();
-        assertThat(intake.emptyReason()).isEqualTo(BoundedHttpDownloader.TOO_LARGE_MESSAGE);
+        assertThat(intake.emptyReason()).isEqualTo(OversizedTenderTextException.MESSAGE);
         assertThat(resolver.hasSource(PROJECT_ID)).isFalse();
+    }
+
+    @Test
+    void obsLargeFileResolvesWithoutByteCap() throws Exception {
+        ProjectDocument document = ProjectDocument.builder()
+                .id(6L).name("云端大文件.pdf").fileUrl("obs-direct:up-1").fileType("pdf").build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "TENDER", null, null))
+                .thenReturn(List.of(document));
+        when(obsShareUrlSigner.trySign("obs-direct:up-1"))
+                .thenReturn(Optional.of("https://signed/up-1"));
+        when(streamingFetcher.fetch(eq("https://signed/up-1"), any(), eq("云端大文件.pdf"), eq("pdf")))
+                .thenReturn(new LoadedBidFile.InMemory("正文".getBytes(), "云端大文件.pdf", "pdf"));
+        when(textExtractor.extract(eq("云端大文件.pdf"), eq("pdf"), any()))
+                .thenReturn(new ExtractedTenderDocument("云端大文件.pdf", "pdf", "商务部分 90 分", 8, "md"));
+
+        Optional<TenderTextSource> source = resolver.resolve(PROJECT_ID);
+
+        assertThat(source).isPresent();
+        assertThat(source.get().text()).isEqualTo("商务部分 90 分");
     }
 }

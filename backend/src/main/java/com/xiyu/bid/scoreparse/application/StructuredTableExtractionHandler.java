@@ -30,18 +30,24 @@ final class StructuredTableExtractionHandler {
     private StructuredTableExtractionHandler() {
     }
 
-    static Result extract(TenderTextSource source,
-                          InitiationTenderTextResolver textResolver,
-                          SidecarDocumentArtifactExtractor artifactExtractor,
-                          SidecarTableExtractor sidecarTableExtractor) {
+    static StructuredTableResult extract(TenderTextSource source,
+                                          InitiationTenderTextResolver textResolver,
+                                          SidecarDocumentArtifactExtractor artifactExtractor,
+                                          SidecarTableExtractor sidecarTableExtractor) {
         String fileName = source.fileName();
         if (!supportsStructuredEvidence(fileName)) {
-            return Result.ok(List.of());
+            return StructuredTableResult.ok(List.of());
         }
+        LoadedBidFile loaded = textResolver.loadTenderFile(source.fileUrl(), source.fileName(), null);
         try {
-            byte[] content = textResolver.loadBytes(source.fileUrl());
+            if (loaded instanceof LoadedBidFile.OnDisk) {
+                // 超大文件跳过结构化证据提取（字节通道不可用），回落 markdown 文本召回
+                log.warn("超大招标文件跳过结构化证据提取，回落 markdown 召回: file={}", fileName);
+                return StructuredTableResult.ok(List.of());
+            }
+            byte[] content = loaded == null ? null : ((LoadedBidFile.InMemory) loaded).content();
             if (content == null || content.length == 0) {
-                return Result.ok(List.of());
+                return StructuredTableResult.ok(List.of());
             }
             if (artifactExtractor != null) {
                 return extractEvidencePipeline(content, fileName, source.text(), artifactExtractor);
@@ -52,15 +58,17 @@ final class StructuredTableExtractionHandler {
                 log.warn("结构化表格章节推导缺失（疑似新措辞独立分表，需人工复核）: file={}, missTables={}",
                         fileName, report.sectionDimMissTables());
             }
-            return Result.ok(report.candidates());
+            return StructuredTableResult.ok(report.candidates());
         } catch (RuntimeException | IOException exception) {
             log.warn("结构化表格提取失败，标记结构不完整，不走 markdown: file={}, msg={}",
                     fileName, exception.getMessage());
-            return Result.structureIncomplete("STRUCTURE_DEFECT");
+            return StructuredTableResult.structureIncomplete("STRUCTURE_DEFECT");
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             log.warn("结构化表格提取被中断: file={}", fileName);
-            return Result.structureIncomplete("STRUCTURE_DEFECT");
+            return StructuredTableResult.structureIncomplete("STRUCTURE_DEFECT");
+        } finally {
+            textResolver.releaseTenderFile(loaded);
         }
     }
 
@@ -72,7 +80,7 @@ final class StructuredTableExtractionHandler {
         return lower.endsWith(".docx") || lower.endsWith(".pdf");
     }
 
-    private static Result extractEvidencePipeline(byte[] content,
+    private static StructuredTableResult extractEvidencePipeline(byte[] content,
                                                   String fileName,
                                                   String tenderSectionText,
                                                   SidecarDocumentArtifactExtractor artifactExtractor)
@@ -80,7 +88,7 @@ final class StructuredTableExtractionHandler {
         var artifact = artifactExtractor.extract(content, fileName);
         if (shouldFallbackPdfToLegacy(fileName, artifact)) {
             log.warn("PDF 未抽取到结构化评分表，回落 legacy markdown 召回: file={}", fileName);
-            return Result.ok(List.of());
+            return StructuredTableResult.ok(List.of());
         }
         var shadow = ScoreFactShadowPipeline.run(artifact, tenderSectionText);
         boolean allStructureBroken = !shadow.tables().isEmpty()
@@ -88,7 +96,7 @@ final class StructuredTableExtractionHandler {
         if (allStructureBroken) {
             log.warn("DocumentArtifact v2 全部评分表结构校验失败，保留现有评分项不覆盖: file={}, tables={}",
                     fileName, shadow.tables().size());
-            return Result.structureIncomplete("STRUCTURE_DEFECT");
+            return StructuredTableResult.structureIncomplete("STRUCTURE_DEFECT");
         }
         var completeness = shadow.completeness();
         List<ScoreFact> facts = shadow.tables().stream()
@@ -107,7 +115,7 @@ final class StructuredTableExtractionHandler {
                 fileName, facts.size(), leafCandidates.size(), completeness.declaredTotalScore(),
                 completeness.declaredTotalSource(), completeness.decision(), completeness.fallbackReason(),
                 shadow.tableCompletenesses().size());
-        return Result.evidencePipeline(facts, leafCandidates, completeness, shadow.tableCompletenesses());
+        return StructuredTableResult.evidencePipeline(facts, leafCandidates, completeness, shadow.tableCompletenesses());
     }
 
     private static boolean shouldFallbackPdfToLegacy(String fileName,
@@ -150,7 +158,7 @@ final class StructuredTableExtractionHandler {
 
     static void markEvidencePipelineCompleted(ScoreParseTask task,
                                               String taskId,
-                                              Result structured,
+                                               StructuredTableResult structured,
                                               ScoreParseTaskRepository taskRepository,
                                               ScoreParseTaskStateService stateService,
                                               ScoreParseProgressService progressService,
@@ -269,31 +277,5 @@ final class StructuredTableExtractionHandler {
         progressService.updateProgress(taskId,
                 new com.xiyu.bid.scoreparse.dto.ScoreParseProgressDTO(
                         taskId, "PROCESSING", progress, stageText, null, null, null));
-    }
-
-    record Result(List<ScoreCandidate> candidates,
-                  boolean structureIncomplete,
-                  String failureReason,
-                  boolean evidencePipeline,
-                  List<ScoreFact> facts,
-                  ScoreCompletenessPolicy.ScoreCompletenessResult completeness,
-                  List<TableCompleteness> tableCompletenesses) {
-
-        static Result ok(List<ScoreCandidate> candidates) {
-            return new Result(candidates, false, null, false, List.of(), null, List.of());
-        }
-
-        static Result structureIncomplete(String failureReason) {
-            return new Result(List.of(), true, failureReason, false, List.of(), null, List.of());
-        }
-
-        static Result evidencePipeline(List<ScoreFact> facts,
-                                       List<ScoreCandidate> candidates,
-                                       ScoreCompletenessPolicy.ScoreCompletenessResult completeness,
-                                       List<TableCompleteness> tableCompletenesses) {
-            return new Result(candidates, false, null, true,
-                    facts == null ? List.of() : List.copyOf(facts), completeness,
-                    tableCompletenesses == null ? List.of() : List.copyOf(tableCompletenesses));
-        }
     }
 }

@@ -107,6 +107,23 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.error.value).toBe('立项招标文件无法读取')
   })
 
+  it('shows tender text-quota error when lastParseError is text-limit message', async () => {
+    const textLimitMessage = '招标文件文本量超过上限（约 500 万字），无法解析，请检查是否误传或拆分文档'
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: [],
+        summary: null,
+        meta: { lastParseStatus: 'FAILED', lastParseError: textLimitMessage },
+      },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(scoreParseApi.triggerParse).not.toHaveBeenCalled()
+    expect(drawer.error.value).toBe(textLimitMessage)
+  })
+
   it('follows in-flight PENDING parse when drawer opens with empty items', async () => {
     scoreParseApi.getItems
       .mockResolvedValueOnce({ data: { items: [], summary: null, meta: { lastParseStatus: 'PENDING' } } })
