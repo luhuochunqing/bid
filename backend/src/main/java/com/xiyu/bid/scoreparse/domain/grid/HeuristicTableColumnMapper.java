@@ -41,17 +41,19 @@ public final class HeuristicTableColumnMapper {
         int maxHeaderMatches = countHeaderMatches(grid.row(0));
 
         // 若首行已具备明确表头特征且无超长文本，直接以首行为表头；
-        // 仅当首行明显不是表头（如横幅/说明行 matches < 2 或含超长文本）时，才在前 3 行中向下探测真实表头。
+        // 仅当首行明显不是表头（如横幅/说明行 matches < 2 或含超长文本）时，才在前 10 行中向下探测真实表头。
         if (maxHeaderMatches < 2 || hasOverlyLongCell(grid.row(0))) {
-            int maxHeaderScan = Math.min(grid.rowCount(), 3);
+            int maxHeaderScan = Math.min(grid.rowCount(), 10);
             for (int r = 1; r < maxHeaderScan; r++) {
                 List<String> candidateRow = grid.row(r);
                 if (!hasOverlyLongCell(candidateRow)) {
                     int matches = countHeaderMatches(candidateRow);
-                    if (matches >= 2) {
+                    if (matches >= 2 && matches > maxHeaderMatches) {
                         headerRowIndex = r;
                         maxHeaderMatches = matches;
-                        break;
+                        if (matches >= 4) {
+                            break;
+                        }
                     }
                 }
             }
@@ -77,12 +79,12 @@ public final class HeuristicTableColumnMapper {
             }
         }
 
-        boolean isGenuineHeader = maxHeaderMatches >= 2
-                || (!hasOverlyLongCell(headerRow)
-                && (CODE_HEADER.matcher(allHeaders).find()
+        boolean isGenuineHeader = !hasOverlyLongCell(headerRow)
+                && (maxHeaderMatches >= 2
+                || CODE_HEADER.matcher(allHeaders).find()
                 || DIM_HEADER.matcher(allHeaders).find()
                 || DETAIL_HEADER.matcher(allHeaders).find()
-                || WEIGHT_HEADER.matcher(allHeaders).find()));
+                || WEIGHT_HEADER.matcher(allHeaders).find());
         int headerRows = isGenuineHeader ? (headerRowIndex + 1) : 0;
 
         int colCount = grid.colCount();
@@ -254,6 +256,7 @@ public final class HeuristicTableColumnMapper {
         boolean hasCode = false, hasParent = false, hasDim = false, hasDetail = false, hasWeight = false;
         for (String cell : row) {
             if (cell == null || cell.isBlank()) continue;
+            if (cell.length() > 40) continue;
             if (!hasCode && CODE_HEADER.matcher(cell).find()) { hasCode = true; count++; }
             if (!hasParent && PARENT_DIM_HEADER.matcher(cell).find()) { hasParent = true; count++; }
             if (!hasDim && DIM_HEADER.matcher(cell).find()) { hasDim = true; count++; }
