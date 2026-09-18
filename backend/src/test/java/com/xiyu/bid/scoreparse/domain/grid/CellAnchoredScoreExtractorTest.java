@@ -328,5 +328,36 @@ class CellAnchoredScoreExtractorTest {
         assertThat(candidates.get(1).weight()).isEqualByComparingTo(new BigDecimal("5.0"));
     }
 
+    @Test
+    void extract_deepHeaderAndLongDetailContinuationRow_extractedCorrectlyWithoutSwallowing() {
+        // 招商积余项目 1117 真实版式：前导多行前置条款+第8行评分表头+项2细则含“评审标准”和“最高得分30分”长文本
+        String markdown = """
+                | 2 | 投标内容 | 符合第二章投标人须知第1.3.1项规定 | | 重要指标 |
+                | 3 | 投标有效期 | 符合第二章投标人须知第3.3.1项规定 | | 重要指标 |
+                | 4 | 投标保证金 | 符合第二章投标人须知第3.4.1项规定 | | 重要指标 |
+                | 条款号 | 条款内容 | 编列内容 | | 分值 |
+                | 2.3.1 | 分值构成 | 是否设置权重：是，总分100分 | | 总分100分 |
+                | 2.3.2 | 评标基准价计算方法 | 详见本表 | | / |
+                | 2.3.3 | 投标报价的偏差率计算公式 | 详见本表 | | / |
+                | 2.3.4（1） 技术评审 | | | | |
+                | 序号 | 评分因素 | 评分标准 | 分值 | 最高得分是否唯一 |
+                | 1 | 管理体系 | 1、评审标准：1）具有 ISO9001 质量管理体系认证、ISO14001 环境管理体系认证。 | 10.0 | 否 |
+                | 2 | 公司业绩 | 评审标准：1）每提供一个有效业绩得5分，最高得分30分。 | 30.0 | 否 |
+                """;
+
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+        assertThat(mapping.headerRows()).isEqualTo(9);
+
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+        assertThat(candidates).hasSize(2);
+        assertThat(candidates.get(0).code()).isEqualTo("1");
+        assertThat(candidates.get(0).dim()).contains("管理体系");
+        assertThat(candidates.get(0).weight()).isEqualByComparingTo(new BigDecimal("10.0"));
+        assertThat(candidates.get(1).code()).isEqualTo("2");
+        assertThat(candidates.get(1).dim()).contains("公司业绩");
+        assertThat(candidates.get(1).weight()).isEqualByComparingTo(new BigDecimal("30.0"));
+    }
+
     // 关联：项目 33 真实物理版式中跨页残行大类标题含换行（部分\n（30\n分））单测见 ScoreParseContinuationRowTest
 }
