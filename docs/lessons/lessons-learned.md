@@ -6209,3 +6209,35 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
    在 `ScoreParseContinuationRowTest` 中新增 `testContinuationRowWithNewlineAndNoMergeDoesNotStealParentCategoryScore`，完全还原单格 `rowspan=1` 且包含换行 `部分\n（30\n分）` 的生产物理版式，断言总分精准锁定为 20 分（不计入 30 分），全模块 792 项单测 100% 通过。
 
 > 维护纪律：**处理从 PDF/DOCX 导出的多行半结构化表格文本时，所有用于分类或标题识别的 Java 正则表达式必须显式声明 `(?s)`（DOTALL 模式）或改用标准化空白后的子串匹配，严禁假设单元格内不含换行符**。
+
+---
+
+## 379. 跨页评分表深层表头与无表头续表接续失败致解析为空根治（招商积余项目 1117，2026-09-18）
+
+**背景**：
+招商积余项目（`project/1117`）在发布 PR !2689 后重新解析，界面依然提示评分项为空。生产取证发现 1117 招标文件第 42 页上方包含 7 行前置条款与前置表头，真正评分表头位于第 8 行；第 43 页与第 44 页为无表头续表，包含项 2 至项 7（分值合计 100.0 分）。
+
+**根因分析**：
+1. **Sidecar 端表头探测深度浅（仅限前 2 行）**：
+   原 `_has_pdf_score_header` 仅提取 `rows[:2]` 文本检测关键词，第 42 页第 8 行的真正表头 `[序号, 评分因素, 评分标准, 分值, 最高得分是否唯一]` 被直接漏判，导致第 42 页被标记为 `isScoreTable=False`；
+2. **纯数值分值与跨页无表头续表接续中断**：
+   原续表合并判定仅支持带括号分值（如 `(10分)`）与“合计/满分”行，不支持纯数值分值列（`10.0`, `30.0`）；且当第 43、44 页首行细则长文本包含“评审标准”时，被 `_has_pdf_score_header` 误判为具备独立表头，导致跨页接续合并彻底阻断，第 43、44 页被孤立或丢弃；
+3. **Java 后端 HeuristicTableColumnMapper 长细则误判为表头**：
+   `countHeaderMatches` 未限制单元格长度，项 2 首行长细则 `评审标准：1）每提供一个有效业绩得5分，最高得分30分...` 同时命中了 `DETAIL_HEADER` 和 `WEIGHT_HEADER`（得分），导致 `maxHeaderMatches >= 2`；外层 `isGenuineHeader` 未将 `!hasOverlyLongCell` 作用于 `maxHeaderMatches >= 2`，导致项 2 被直接当作表头行吞噬，剩余项不足触发 `ABNORMALLY_LOW_COUNT` 最终导致评分表展示为空。
+
+**根治方案**：
+1. **Sidecar 表头严格判定与扫描深度放宽**：
+   - 增加 `_is_genuine_header_row`：列数需在 `[3, 15]` 之间，排除列 0 为数字序号的行，排除任一单元格长度 >40 的行，显式匹配评分/评审关键词；
+   - 放宽表头扫描深度至前 10 行；
+   - 增加 `_has_numeric_score_item`，在列 1 至最后一列扫描 `0 < val <= 100` 的纯数值分值项；
+   - 在 `_is_pdf_score_table_continuation` 中回溯前序表格真表头，实现跨 3 页以上无表头长表的稳健链式合并；
+2. **Java 后端表头匹配长文本约束与外层门禁**：
+   - `countHeaderMatches` 增加 `if (cell.length() > 40) continue;`，细则长文本即使包含“标准”/“得分”也绝对不计入表头特征；
+   - `infer` 中将表头扫描深度从前 3 行放宽至前 10 行，要求候选行满足 `matches >= 2 && matches > maxHeaderMatches`，优先收敛至特征最强的评分表头行；
+   - 将 `!hasOverlyLongCell(headerRow)` 作为 `isGenuineHeader` 的绝对前置门禁，杜绝任何数据行被误吞为表头；
+3. **真实生产取证与双端单测固化**：
+   - 在真实 `1117.pdf` 上实测，第 42、43、44 页完整合并为 16 行评分表，精准锚定第 8 行表头，全量 7 项（100.0分）无一遗漏全部正确提取；
+   - Sidecar 补充 `test_pdf_score_table_deep_header_and_multipage_continuation_merged_for_project_1117_shape`；后端补充 `testProject1117FirstRowWithDetailCriteriaKeywordsNotTreatedAsHeader` 与 `testProject1117DeepHeaderDetectionAtRow8`，全部绿灯通过。
+
+> 维护纪律：**表格表头特征探测必须严格区分“短标签（表头）”与“长描述（细则）”——任何单元格字符数 >40 的行绝对不得作为表头候选；跨页无表头续表接续必须同时支持纯数值分值列与带括号分值列**。
+
