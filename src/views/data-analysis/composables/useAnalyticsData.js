@@ -67,7 +67,7 @@ export function useAnalyticsData() {
       const winRate = d.winRate != null ? Number(d.winRate) : 0
       const todayNew = Number(d.todayNewCount ?? 0)
 
-      // PRD §3.1 + 原型：投标总数显示"今日新增 +X"，其他三个显示同比
+      // PRD §3.1 + 原型：投标数显示"今日新增 +X"，其他三个显示同比
       const totalTrend = {
         text: `今日新增 +${todayNew}`,
         direction: todayNew > 0 ? 'up' : 'flat'
@@ -77,10 +77,10 @@ export function useAnalyticsData() {
       const winRateTrend = formatYoy(d.winRateYoy)
 
       kpiCards.value = [
-        { key: 'totalCount', label: '投标总数', value: String(totalCount), unit: '个', foot: '投标项目总数', trendText: totalTrend.text, trendDirection: totalTrend.direction, colorClass: 'kpi-blue' },
+        { key: 'totalCount', label: '投标数', value: String(totalCount), unit: '个', foot: '项目数（投标中+评标中+已中标+未中标）', trendText: totalTrend.text, trendDirection: totalTrend.direction, colorClass: 'kpi-blue' },
         { key: 'biddingCount', label: '投标中', value: String(biddingCount), unit: '个', foot: '项目状态为投标中', trendText: biddingTrend.text, trendDirection: biddingTrend.direction, colorClass: 'kpi-green' },
         { key: 'wonCount', label: '中标数', value: String(wonCount), unit: '个', foot: '项目状态为已中标', trendText: wonTrend.text, trendDirection: wonTrend.direction, colorClass: 'kpi-orange' },
-        { key: 'winRate', label: '中标率', value: winRate.toFixed(1), unit: '%', foot: '中标数 / 投标数', trendText: winRateTrend.text, trendDirection: winRateTrend.direction, colorClass: 'kpi-purple' }
+        { key: 'winRate', label: '中标率', value: winRate.toFixed(1), unit: '%', foot: '中标数/（已中标+未中标）项目数', trendText: winRateTrend.text, trendDirection: winRateTrend.direction, colorClass: 'kpi-purple' }
       ]
       // 跨年度检测：如果日期筛选区间跨年度，投标中/中标数/中标率的同比显示"—"
       const start = globalDateRange.value?.[0]
@@ -97,10 +97,10 @@ export function useAnalyticsData() {
       console.error('[M0] 加载KPI失败:', e)
       // PRD §5.4 接口失败：卡片数值区域显示「—」，不设 error 标志（有 fallback 数据）
       kpiCards.value = [
-        { key: 'totalCount', label: '投标总数', value: '—', unit: '', foot: '投标项目总数', trendText: '', trendDirection: '', colorClass: 'kpi-blue' },
+        { key: 'totalCount', label: '投标数', value: '—', unit: '', foot: '项目数（投标中+评标中+已中标+未中标）', trendText: '', trendDirection: '', colorClass: 'kpi-blue' },
         { key: 'biddingCount', label: '投标中', value: '—', unit: '', foot: '项目状态为投标中', trendText: '', trendDirection: '', colorClass: 'kpi-green' },
         { key: 'wonCount', label: '中标数', value: '—', unit: '', foot: '项目状态为已中标', trendText: '', trendDirection: '', colorClass: 'kpi-orange' },
-        { key: 'winRate', label: '中标率', value: '—', unit: '', foot: '中标数 / 投标数', trendText: '', trendDirection: '', colorClass: 'kpi-purple' }
+        { key: 'winRate', label: '中标率', value: '—', unit: '', foot: '中标数/（已中标+未中标）项目数', trendText: '', trendDirection: '', colorClass: 'kpi-purple' }
       ]
     } finally {
       m0Loading.value = false

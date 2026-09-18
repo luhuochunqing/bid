@@ -114,11 +114,11 @@ test('analytics M0 KPI cards render seeded project counts', async ({ page }) => 
   await expect(page.getByRole('heading', { name: '数据分析' })).toBeVisible()
 
   // KPI 卡片渲染真实统计值（非加载失败占位"—"）
-  const totalCountCard = page.locator('.kpi-card').filter({ hasText: '投标总数' })
+  const totalCountCard = page.locator('.kpi-card[data-kpi-key="totalCount"]')
   await expect(totalCountCard).toBeVisible({ timeout: 15000 })
   await expect(totalCountCard.locator('.kpi-value')).toHaveText(/^\d+/,)
 
-  const biddingCard = page.locator('.kpi-card').filter({ hasText: '投标中' })
+  const biddingCard = page.locator('.kpi-card[data-kpi-key="biddingCount"]')
   await expect(biddingCard.locator('.kpi-value')).toHaveText(/^[1-9]/)
 })
 

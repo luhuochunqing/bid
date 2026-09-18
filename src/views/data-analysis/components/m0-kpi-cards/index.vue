@@ -16,6 +16,7 @@
         :key="card.key"
         class="kpi-card"
         :class="card.colorClass"
+        :data-kpi-key="card.key"
       >
         <div class="kpi-label">{{ card.label }}</div>
         <div class="kpi-value">

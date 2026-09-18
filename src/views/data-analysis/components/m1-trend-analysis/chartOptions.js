@@ -5,11 +5,26 @@ const STATUS_ENUM_TO_LABEL = Object.fromEntries(
   PROJECT_STATUS_OPTIONS.map(o => [o.value, o.label])
 )
 
+const LEGEND_TOOLTIPS = {
+  投标数: '项目状态为：待立项/已立项/投标中/评标中/已中标/未中标/已流标/弃标 的项目总数',
+  中标数: '项目状态为：已中标的项目数',
+  中标率: '中标数/投标数'
+}
+
+// 竞品维度是竞品级事实（notes「是否中标」），禁止用项目 status 口径解释
+// 见 .wiki/pages/data-analysis-revamp.md §10 / specs/055-fix-analytics-competitor-won-notes
+const COMPETITOR_LEGEND_TOOLTIPS = {
+  投标数: '该竞品参与的项目数',
+  中标数: '该竞品参与项目中「是否中标」标记为已中标的次数',
+  中标率: '中标数/投标数（该竞品对我司的中标率）'
+}
+
 export function buildChartOption(data, xAxisType) {
   if (!data || data.length === 0) return {}
 
   const categories = data.map((item) => item.label || item.name || '')
   const isStatusAxis = xAxisType === 'projectStatus'
+  const legendTooltips = xAxisType === 'competitor' ? COMPETITOR_LEGEND_TOOLTIPS : LEGEND_TOOLTIPS
 
   // 项目状态维度：将后端返回的枚举值转为中文标签
   const displayCategories = isStatusAxis
@@ -47,7 +62,16 @@ export function buildChartOption(data, xAxisType) {
       data: isStatusAxis ? ['数量'] : ['投标数', '中标数', '中标率'],
       top: 0, left: 'center', icon: 'circle',
       textStyle: { color: '#475569', fontSize: 12 },
-      itemWidth: 8, itemHeight: 8
+      itemWidth: 8, itemHeight: 8,
+      tooltip: {
+        show: !isStatusAxis,
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderColor: '#E2E8F0',
+        borderWidth: 1,
+        textStyle: { color: '#1E293B', fontSize: 12 },
+        extraCssText: 'max-width: 360px; white-space: normal; line-height: 1.6;',
+        formatter: (params) => legendTooltips[params?.name] || ''
+      }
     },
     grid: {
       left: 50, right: 60, top: 40, bottom: showDataZoom ? 60 : 40

@@ -249,7 +249,7 @@ public class TrendAnalysisQueryService {
     }
 
     /**
-     * 查询今日新增项目数（PRD §3.1 投标总数卡片底部"今日新增"显示）。
+     * 查询今日新增项目数（PRD §3.1 投标数卡片底部"今日新增"显示）。
      * 不受全局日期筛选范围影响，固定查询今天创建的项目数。
      */
     long fetchTodayNewCount() {
