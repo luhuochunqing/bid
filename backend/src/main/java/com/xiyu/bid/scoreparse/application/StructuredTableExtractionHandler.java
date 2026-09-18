@@ -31,23 +31,14 @@ final class StructuredTableExtractionHandler {
     }
 
     static StructuredTableResult extract(TenderTextSource source,
-                                          InitiationTenderTextResolver textResolver,
+                                          LoadedBidFile loaded,
                                           SidecarDocumentArtifactExtractor artifactExtractor,
                                           SidecarTableExtractor sidecarTableExtractor) {
         String fileName = source.fileName();
-        if (!supportsStructuredEvidence(fileName)) {
+        if (!supportsStructuredEvidence(fileName) || loaded == null) {
             return StructuredTableResult.ok(List.of());
         }
-        boolean selfLoaded = false;
-        LoadedBidFile loaded = source.loaded();
-        if (loaded == null && source.fileUrl() != null) {
-            loaded = textResolver.loadTenderFile(source.fileUrl(), source.fileName(), null);
-            selfLoaded = true;
-        }
         try {
-            if (loaded == null) {
-                return StructuredTableResult.ok(List.of());
-            }
             if (artifactExtractor != null) {
                 return extractEvidencePipeline(loaded, fileName, source.text(), artifactExtractor);
             }
@@ -68,8 +59,18 @@ final class StructuredTableExtractionHandler {
             Thread.currentThread().interrupt();
             log.warn("结构化表格提取被中断: file={}", fileName);
             return StructuredTableResult.structureIncomplete("STRUCTURE_DEFECT");
+        }
+    }
+
+    static StructuredTableResult extract(TenderTextSource source,
+                                          InitiationTenderTextResolver textResolver,
+                                          SidecarDocumentArtifactExtractor artifactExtractor,
+                                          SidecarTableExtractor sidecarTableExtractor) {
+        LoadedBidFile loaded = source.fileUrl() != null ? textResolver.loadTenderFile(source.fileUrl(), source.fileName(), null) : null;
+        try {
+            return extract(source, loaded, artifactExtractor, sidecarTableExtractor);
         } finally {
-            if (selfLoaded) {
+            if (loaded != null) {
                 textResolver.releaseTenderFile(loaded);
             }
         }

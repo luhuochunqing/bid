@@ -109,7 +109,10 @@ public class InitiationTenderTextResolver {
     }
 
     public boolean hasSource(Long projectId) {
-        return resolveIntake(projectId).source().isPresent();
+        return findLatestTenderDocument(projectId).isPresent()
+                || snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
+                        .filter(snapshot -> snapshot.getExtractedText() != null && !snapshot.getExtractedText().isBlank())
+                        .isPresent();
     }
 
     public Optional<ProjectDocument> findLatestTenderDocument(Long projectId) {
@@ -128,61 +131,52 @@ public class InitiationTenderTextResolver {
     }
 
     public TenderIntake resolveIntake(Long projectId) {
+        TenderExecutionSource exec = resolveExecutionSource(projectId);
+        try {
+            if (exec.source() != null) {
+                return TenderIntake.found(exec.source());
+            }
+            return TenderIntake.unavailable(exec.emptyReason());
+        } finally {
+            if (exec.loaded() != null) {
+                releaseTenderFile(exec.loaded());
+            }
+        }
+    }
+
+    public TenderExecutionSource resolveExecutionSource(Long projectId) {
         Optional<ProjectDocument> document = findLatestTenderDocument(projectId);
         String oversizedReason = null;
         if (document.isPresent()) {
-            ExtractAttempt attempt = tryExtract(document.get());
-            if (attempt.source().isPresent()) {
-                return TenderIntake.found(attempt.source().get());
+            ProjectDocument doc = document.get();
+            LoadedBidFile loaded = null;
+            try {
+                loaded = loadTenderFile(doc.getFileUrl(), doc.getName(), doc.getFileType());
+                String text = loaded == null ? null : extractLoadedTextNoRelease(loaded, doc);
+                if (text == null || text.isBlank()) {
+                    log.warn("立项招标文件未能提取正文: name={}", doc.getName());
+                    releaseTenderFile(loaded);
+                } else {
+                    return TenderExecutionSource.found(new TenderTextSource(doc.getName(), doc.getFileUrl(), text), loaded);
+                }
+            } catch (OversizedTenderTextException | TenderFileQuotaException exception) {
+                releaseTenderFile(loaded);
+                oversizedReason = exception.getMessage();
+            } catch (BidFileQuotaException exception) {
+                releaseTenderFile(loaded);
+                oversizedReason = TenderFileQuotaException.MESSAGE;
+            } catch (RuntimeException exception) {
+                releaseTenderFile(loaded);
+                log.warn("立项招标文件读取失败: name={}, msg={}", doc.getName(), exception.getMessage());
             }
-            oversizedReason = attempt.oversizedReason();
             log.warn("立项招标文件不可用，回退历史底稿: projectId={}", projectId);
         }
         Optional<TenderTextSource> snapshot = snapshotSource(projectId);
         if (snapshot.isPresent()) {
-            return TenderIntake.found(snapshot.get());
+            return TenderExecutionSource.found(snapshot.get(), null);
         }
-        return TenderIntake.unavailable(
+        return TenderExecutionSource.unavailable(
                 oversizedReason != null ? oversizedReason : NO_TENDER_MESSAGE);
-    }
-
-    private ExtractAttempt tryExtract(ProjectDocument document) {
-        LoadedBidFile loaded = null;
-        try {
-            loaded = loadTenderFile(
-                    document.getFileUrl(), document.getName(), document.getFileType());
-            String text = loaded == null ? null : extractLoadedTextNoRelease(loaded, document);
-            if (text == null || text.isBlank()) {
-                log.warn("立项招标文件未能提取正文: name={}", document.getName());
-                releaseTenderFile(loaded);
-                return ExtractAttempt.miss();
-            }
-            return ExtractAttempt.ok(new TenderTextSource(document.getName(), document.getFileUrl(), text, loaded));
-        } catch (OversizedTenderTextException | TenderFileQuotaException exception) {
-            releaseTenderFile(loaded);
-            return ExtractAttempt.oversized(exception.getMessage());
-        } catch (BidFileQuotaException exception) {
-            releaseTenderFile(loaded);
-            return ExtractAttempt.oversized(TenderFileQuotaException.MESSAGE);
-        } catch (RuntimeException exception) {
-            releaseTenderFile(loaded);
-            log.warn("立项招标文件读取失败: name={}, msg={}", document.getName(), exception.getMessage());
-            return ExtractAttempt.miss();
-        }
-    }
-
-    private record ExtractAttempt(Optional<TenderTextSource> source, String oversizedReason) {
-        static ExtractAttempt ok(TenderTextSource source) {
-            return new ExtractAttempt(Optional.of(source), null);
-        }
-
-        static ExtractAttempt miss() {
-            return new ExtractAttempt(Optional.empty(), null);
-        }
-
-        static ExtractAttempt oversized(String reason) {
-            return new ExtractAttempt(Optional.empty(), reason);
-        }
     }
 
     private Optional<TenderTextSource> snapshotSource(Long projectId) {
@@ -239,7 +233,7 @@ public class InitiationTenderTextResolver {
     }
 
     /** 释放落盘临时文件（配额归还）；内存态、null 与非托管路径为 no-op。 */
-    void releaseTenderFile(LoadedBidFile loaded) {
+    public void releaseTenderFile(LoadedBidFile loaded) {
         if (loaded instanceof LoadedBidFile.OnDisk disk) {
             tempFileStore.releaseFile(disk.tempFile());
         }

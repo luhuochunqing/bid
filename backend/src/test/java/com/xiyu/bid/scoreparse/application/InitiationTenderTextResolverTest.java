@@ -297,8 +297,8 @@ class InitiationTenderTextResolverTest {
         TenderIntake intake = resolver.resolveIntake(PROJECT_ID);
 
         assertThat(intake.source()).isEmpty();
-        assertThat(intake.emptyReason()).isEqualTo(OversizedTenderTextException.MESSAGE);
-        assertThat(resolver.hasSource(PROJECT_ID)).isFalse();
+        assertThat(intake.emptyReason()).isEqualTo(new OversizedTenderTextException(5000000L).getMessage());
+        assertThat(resolver.hasSource(PROJECT_ID)).isTrue();
     }
 
     @Test

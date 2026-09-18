@@ -13,6 +13,7 @@ import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
+import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.infrastructure.openai.LlmTableScoreExtractor;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
@@ -509,8 +510,7 @@ class ScoreParseAppServiceTest {
 
     @Test
     void triggerParse_rejectsWhenNoInitiationTender() {
-        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
-                .thenReturn(TenderIntake.unavailable(InitiationTenderTextResolver.NO_TENDER_MESSAGE));
+        when(initiationTenderTextResolver.hasSource(PROJECT_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> service.triggerParse(PROJECT_ID))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -520,14 +520,15 @@ class ScoreParseAppServiceTest {
     }
 
     @Test
-    void triggerParse_rejectsOversizedTextWithoutSnapshot() {
-        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
-                .thenReturn(TenderIntake.unavailable(OversizedTenderTextException.MESSAGE));
+    void triggerParse_whenSourceExists_returnsPendingAndDispatchesAsync() {
+        when(initiationTenderTextResolver.hasSource(PROJECT_ID)).thenReturn(true);
 
-        assertThatThrownBy(() -> service.triggerParse(PROJECT_ID))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage(OversizedTenderTextException.MESSAGE);
-        verify(stateService).failTask(anyString(), eq(OversizedTenderTextException.MESSAGE));
+        ScoreParseTriggerDTO trigger = service.triggerParse(PROJECT_ID);
+
+        assertThat(trigger.status()).isEqualTo("PENDING");
+        verify(stateService).createTask(eq(trigger.taskId()), eq(PROJECT_ID), eq("PARSE"), isNull(), isNull(), eq("MANUAL"));
+        verify(initiationTenderTextResolver, never()).resolveIntake(any());
+        verify(initiationTenderTextResolver, never()).resolveExecutionSource(any());
     }
 
     @Test
