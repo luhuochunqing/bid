@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-09-16
-health_checked: 2026-09-16
+updated: 2026-09-18
+health_checked: 2026-09-18
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -43,7 +43,6 @@ backlinks:
 - [[bid-quality-multifile-check]] — AI 标书质量核查多册合并（价格/商务/技术分册 + Loader 边界合并 + Sidecar 空册陷阱）
 - [[business-process]] — 业务流程
 - [[case-library-prd-refine]] — 案例库按 PRD 精简重构（筛选区三字段 / 排序固定 / 详情返回招标主体）
-- [[knowledge-case-summary-source-title]] — 案例库摘要可读性 + 标书原文来源标题定位（WF 0915-01）
 - [[case-precipitation-streaming]] — 案例沉淀超大标书完整链路（spec 049：流式 + 摘录化 + 三个验收坑）
 - [[case-source-actions-and-import-pitfalls]] — 案例详情"查看源项目 / 标书原文"操作契约与导入数据陷阱
 - [[competitor-library-governance]] — 竞品公司自定义输入与竞争对手库治理
@@ -75,6 +74,7 @@ backlinks:
 - [[integration-tender-event-push]] — 标讯创建事件推送 - 西域 CRM 事件总线
 - [[integration-wecom]] — 系统集成中心 - 企业微信
 - [[knowledge-base]] — 4.4 知识库 PRD (产品需求文档)
+- [[knowledge-case-summary-source-title]] — 案例库应答片段摘要可读性 + 标书原文来源标题定位（WF 0915-01）
 - [[large-file-streaming-and-memory-discipline]] — 超大标书流式解析与前端原生下载治理（2GB+ 内存防爆与 SAX 容灾）
 - [[lessons-learned]] — 工程经验总结
 - [[lessons-learned/case-precipitation-oversize-oom]] — AI 生成案例超大标书 OOM 导致入库 0 条 — 整文件读堆 + 二次分配与"假成功"上报
@@ -83,12 +83,12 @@ backlinks:
 - [[multi-agent-defense-playbook]] — 多 Agent 并行开发防御工程化手册
 - [[notification-system-pitfalls]] — 通知系统陷阱集
 - [[operations/logging-bug-investigation-guide]] — 日志系统查 Bug 手册
-- [[opportunity-prediction-reminder]] — 商机预测提醒（OSS 实时收件人、一次性历史补发、站内/企微送达分层验收）
+- [[opportunity-prediction-reminder]] — 商机预测提醒
 - [[oss-organization-sync-playbook]] — OSS 组织架构同步实战手册
 - [[overview]] — 项目综述
 - [[production-deployment-lessons]] — 生产环境首次部署实战教训
 - [[project-detail-toolbar-back-fix]] — 项目详情页横条返回按钮无响应修复（el-page-header back 事件未接）
-- [[project-search-owner-unit]] — 项目搜索按招标主体（ownerUnit 数据链路与关 键词过滤契约）
+- [[project-search-owner-unit]] — 项目搜索按招标主体（ownerUnit 数据链路与关键词过滤契约）
 - [[requirements]] — 需求追溯
 - [[result-registration-immutability]] — 项目结果登记不可变链路与二次确认
 - [[roles-and-permissions]] — 角色与权限
@@ -137,3 +137,4 @@ backlinks:
 1. `npm run wiki:ingest`
 2. `npm run wiki:build`
 3. `npm run wiki:check`
+

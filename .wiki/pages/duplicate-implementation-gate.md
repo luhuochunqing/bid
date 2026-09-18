@@ -5,7 +5,7 @@ category: guide
 tags: [门禁, PR, 重复实现, 复用, 治理]
 created: 2026-08-21
 updated: 2026-08-21
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - scripts/check-duplicate-implementations.mjs
   - RELIABILITY.md

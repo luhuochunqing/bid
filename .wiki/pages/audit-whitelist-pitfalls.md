@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [审计, Auditable, AuditActionPolicy, 白名单, audit_logs]
 created: 2026-08-04
-updated: 2026-09-14
-health_checked: 2026-09-14
+updated: 2026-09-18
+health_checked: 2026-09-18
 sources:
   - backend/src/main/java/com/xiyu/bid/audit/core/AuditActionPolicy.java
   - backend/src/main/java/com/xiyu/bid/aspect/AuditableAspect.java

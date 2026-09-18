@@ -5,7 +5,7 @@ category: feature
 tags: [表单, 动态表单, 自定义, schema, 字段可见性, 跨字段验证, 多租户]
 created: 2026-05-24
 updated: 2026-09-02
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - backend/src/main/java/com/xiyu/bid/formengine/
   - backend/src/main/resources/db/migration-mysql/V140__dynamic_form_engine.sql

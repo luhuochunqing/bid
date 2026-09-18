@@ -5,7 +5,7 @@ category: integration
 tags: [integration, tender, event-bus, event-sdk, crm, push]
 created: 2026-08-12
 updated: 2026-09-10
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/
   - backend/src/main/resources/db/migration-mysql/V1185__create_tender_event_logs.sql

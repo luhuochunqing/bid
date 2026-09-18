@@ -5,7 +5,7 @@ category: reference
 tags: [术语, 投标, 招标, MRO, 词汇]
 created: 2026-04-15
 updated: 2026-08-12
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - docs/specs/业务流程图.md
   - docs/research/COMMERCIAL_SCOPE.md

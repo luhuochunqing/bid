@@ -5,7 +5,7 @@ category: guide
 tags: [handoff, 部署, 组织架构, integration, org-sync]
 created: 2026-05-28
 updated: 2026-08-12
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - README.md
 backlinks:

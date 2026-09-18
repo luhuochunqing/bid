@@ -5,7 +5,7 @@ category: testing
 tags: [testing, 蓝图对照, 工作台, dashboard]
 created: 2026-05-28
 updated: 2026-08-15
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - .wiki/sources/testing/module-01-workbench-test.md
   - .wiki/sources/testing/module-01-workbench-test.md

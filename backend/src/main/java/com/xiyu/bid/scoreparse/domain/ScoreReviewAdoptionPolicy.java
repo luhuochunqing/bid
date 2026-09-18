@@ -34,10 +34,12 @@ public final class ScoreReviewAdoptionPolicy {
             BigDecimal totalWeight,
             String errorMessage
     ) {
+        // REUSE-OK: backend/src/main/java/com/xiyu/bid/util/PasswordValidator.java — 评分采纳结果静态工厂，非密码验证
         public static AdoptionResult failure(String message) {
             return new AdoptionResult(false, List.of(), BigDecimal.ZERO, message);
         }
 
+        // REUSE-OK: backend/src/main/java/com/xiyu/bid/util/PasswordValidator.java — 评分采纳结果静态工厂，非密码验证
         public static AdoptionResult success(List<ScoreCandidate> candidates, BigDecimal totalWeight) {
             return new AdoptionResult(true, List.copyOf(candidates), totalWeight, null);
         }

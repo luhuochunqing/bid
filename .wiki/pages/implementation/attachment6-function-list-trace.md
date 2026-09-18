@@ -5,7 +5,7 @@ category: reference
 tags: [附件6, 需求功能清单, 功能追溯, 验收颗粒度]
 created: 2026-04-26
 updated: 2026-08-12
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - .wiki/sources/bidding/附件6：需求功能清单.md
   - .wiki/sources/bidding/附件6：需求功能清单.xlsx
