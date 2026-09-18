@@ -140,7 +140,7 @@ class AuthControllerTest {
     @Test
     void getCurrentUser_ShouldRejectUnauthorizedRequest() throws Exception {
         mockMvc.perform(get("/api/auth/me"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

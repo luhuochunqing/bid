@@ -45,7 +45,7 @@ class TenderUploadControllerIntegrationTest {
                         .content("""
                                 {"fileName":"招标文件.pdf","expectedFileSize":1024}
                                 """))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -179,7 +179,7 @@ class TenderUploadControllerIntegrationTest {
     @Test
     void taskStatus_shouldRejectUnauthenticatedRequest() throws Exception {
         mockMvc.perform(get("/api/tenders/tasks/{taskId}", 88L))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

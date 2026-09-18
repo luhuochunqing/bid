@@ -161,6 +161,9 @@ public class SecurityConfig {
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
+                            if (response.isCommitted()) {
+                                return;
+                            }
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             response.setContentType("application/json;charset=UTF-8");
                             response.getWriter().write("{\"success\":false,\"code\":401,\"message\":\"未登录或登录已过期，请重新登录\",\"msg\":\"未登录或登录已过期，请重新登录\"}");

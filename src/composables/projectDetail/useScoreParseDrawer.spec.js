@@ -618,4 +618,13 @@ describe('useScoreParseDrawer.js', () => {
 
     expect(scoreParseApi.triggerParse).not.toHaveBeenCalled()
   })
+
+  it('runScoring is guarded when loading or scoringOverlayVisible is true', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    drawer.scoringOverlayVisible.value = true
+
+    await drawer.runScoring({ auto: false })
+
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+  })
 })

@@ -53,7 +53,7 @@ class CrmChanceControllerIntegrationTest {
                         .content("""
                                 {"tenderer":"山东海化集团有限公司","registrationDeadline":"2026-06-03 23:59:00","bidOpeningTime":"2026-06-04 23:59:00","pageIndex":1,"pageSize":10}
                                 """))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

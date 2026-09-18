@@ -78,6 +78,7 @@
               :candidate-facts="candidateFacts"
               :candidate-total-weight="candidateTotalWeight"
               :is-adopting-candidates="isAdoptingCandidates"
+              :reparse-disabled="loading || scoringOverlayVisible"
               @adopt="adoptCandidateFacts()"
               @reparse="reparse"
             />
@@ -113,7 +114,7 @@
           <span class="section-num">2</span>
           投标文件评分
           <div class="section-actions">
-            <button class="btn-primary-sm" :disabled="currentStage === 1 || scoreItems.length === 0" @click="runScoring({ auto: false })">
+            <button class="btn-primary-sm" :disabled="loading || scoringOverlayVisible || currentStage === 1 || scoreItems.length === 0" @click="runScoring({ auto: false })">
               {{ currentStage === 1 ? '⚡ AI 实际打分（需先上传标书）' : scored ? '⚡ 重新打分' : '⚡ AI 实际打分' }}
             </button>
           </div>

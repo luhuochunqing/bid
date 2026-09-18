@@ -44,7 +44,7 @@
       >
         ⚡ 一键采纳为正式评分标准（{{ candidateTotalWeight }}分）
       </el-button>
-      <el-button :disabled="isAdoptingCandidates" @click="$emit('reparse')">
+      <el-button :disabled="isAdoptingCandidates || reparseDisabled" @click="$emit('reparse')">
         🔄 重新解析
       </el-button>
     </div>
@@ -62,6 +62,10 @@ defineProps({
     default: 0,
   },
   isAdoptingCandidates: {
+    type: Boolean,
+    default: false,
+  },
+  reparseDisabled: {
     type: Boolean,
     default: false,
   },
