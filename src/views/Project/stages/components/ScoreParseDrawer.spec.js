@@ -303,4 +303,25 @@ describe('ScoreParseDrawer.vue', () => {
     expect(candidateCard.text()).toContain('技术要求')
     expect(wrapper.find('[data-test="btn-adopt-candidates"]').exists()).toBe(true)
   })
+
+  it('disables reparse button when scoringOverlayVisible is true', async () => {
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId: 123 },
+      global: {
+        stubs: {
+          'el-drawer': { template: '<div class="el-drawer-mock" v-if="modelValue"><slot /></div>', props: ['modelValue'] },
+          'el-dialog': true,
+          'el-button': true,
+        },
+      },
+    })
+
+    await wrapper.vm.open({ stage: 1, autoScore: false, autoParse: false })
+    const reparseBtn = wrapper.find('[data-test="score-parse-reparse"]')
+    expect(reparseBtn.attributes('disabled')).toBeUndefined()
+
+    wrapper.vm.scoringOverlayVisible = true
+    await wrapper.vm.$nextTick()
+    expect(reparseBtn.attributes('disabled')).toBeDefined()
+  })
 })

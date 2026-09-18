@@ -62,6 +62,7 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
     @Override
     @Retryable(
             retryFor = {RestClientException.class, IllegalStateException.class},
+            noRetryFor = {ResourceAccessException.class},
             maxAttempts = 3,
             backoff = @Backoff(delay = 1000, multiplier = 2.0))
     public ExtractedDocument extract(String fileName, String contentType, byte[] content) {

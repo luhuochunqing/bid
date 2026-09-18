@@ -30,7 +30,7 @@
     <div v-else-if="error" class="error-state">
       <div>⚠ {{ error }}</div>
       <div class="error-hint">扫描大 PDF 可压缩后在立项未提交前替换文件；已提交请联系管理员</div>
-      <el-button size="small" style="margin-top: 12px" @click="reparse">重新解析</el-button>
+      <el-button size="small" style="margin-top: 12px" :disabled="loading || scoringOverlayVisible" @click="reparse">重新解析</el-button>
     </div>
 
     <div v-else class="drawer-content-wrapper" :class="{ 'scroll-locked': scoringOverlayVisible }" data-test="score-parse-content">
@@ -46,7 +46,7 @@
           <span class="section-num">1</span>
           招标文件解析
           <div class="section-actions">
-            <button class="btn-primary-sm" data-test="score-parse-reparse" @click="reparse">🔄 重新解析</button>
+            <button class="btn-primary-sm" data-test="score-parse-reparse" :disabled="loading || scoringOverlayVisible" @click="reparse">🔄 重新解析</button>
           </div>
         </div>
 
@@ -86,7 +86,7 @@
               <div class="placeholder-icon">📋</div>
               <div class="placeholder-text">尚未解析到评分标准，将使用立项招标文件解析。若立项尚未上传，请先在立项阶段上传招标文件。</div>
               <div class="placeholder-sub">
-                <button class="btn-tool" @click="reparse">重新解析</button>
+                <button class="btn-tool" :disabled="loading || scoringOverlayVisible" @click="reparse">重新解析</button>
               </div>
             </div>
             <ScoreParseTable
@@ -217,7 +217,7 @@ const {
   candidateFacts, candidateTotalWeight, isAdoptingCandidates, adoptCandidateFacts,
 } = useScoreParseDrawer(props, emit)
 
-defineExpose({ open, runScoring })
+defineExpose({ open, runScoring, scoringOverlayVisible, loading })
 </script>
 
 <style scoped>
@@ -230,7 +230,8 @@ defineExpose({ open, runScoring })
 @keyframes d { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
 
 .btn-tool { padding: 5px 12px; background: var(--bg-white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; color: var(--border-focus); transition: all 0.16s ease; display: inline-flex; align-items: center; gap: 4px; }
-.btn-tool:hover { border-color: var(--brand-xiyu-logo); color: var(--brand-xiyu-logo); }
+.btn-tool:hover:not(:disabled) { border-color: var(--brand-xiyu-logo); color: var(--brand-xiyu-logo); }
+.btn-tool:disabled { background: var(--gray-100); border-color: var(--gray-100); color: var(--gray-300); cursor: not-allowed; }
 
 .section-divider { margin-top: 20px; margin-bottom: 16px; }
 .section-divider:first-of-type { margin-top: 0; }

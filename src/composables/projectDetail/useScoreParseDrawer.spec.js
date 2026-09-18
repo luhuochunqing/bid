@@ -609,4 +609,13 @@ describe('useScoreParseDrawer.js', () => {
     expect(ElMessage.success).toHaveBeenCalledWith('已成功采纳候选评分标准！')
     expect(drawer.reviewSubmitted.value).toBe(true)
   })
+
+  it('reparse is guarded when loading or scoringOverlayVisible is true', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    drawer.scoringOverlayVisible.value = true
+
+    await drawer.reparse()
+
+    expect(scoreParseApi.triggerParse).not.toHaveBeenCalled()
+  })
 })
