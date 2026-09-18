@@ -45,12 +45,9 @@ This module exposes both:
 from __future__ import annotations
 
 import hashlib
-import io
 import logging
 import os
 import re
-import struct
-import tempfile
 import zipfile
 from typing import Any
 

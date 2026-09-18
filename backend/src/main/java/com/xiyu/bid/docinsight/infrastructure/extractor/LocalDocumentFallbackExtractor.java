@@ -66,7 +66,7 @@ final class LocalDocumentFallbackExtractor {
                     for (XWPFTableRow row : table.getRows()) {
                         List<String> cells = new ArrayList<>();
                         for (XWPFTableCell cell : row.getTableCells()) {
-                            cells.add(cell.getText().trim().replace('\n', ' '));
+                            cells.add(cell.getText().trim().replace("\n", " ").replace("|", "\\|"));
                         }
                         text.append("| ").append(String.join(" | ", cells)).append(" |\n");
                         if (isFirstRow && !cells.isEmpty()) {

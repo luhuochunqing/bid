@@ -42,4 +42,24 @@ class LocalDocumentFallbackExtractorTest {
         String text = LocalDocumentFallbackExtractor.extractDocxWithPoi(invalidBytes);
         assertThat(text).isNull();
     }
+
+    @Test
+    void extractDocxWithPoi_escapesPipeInTableCell() throws Exception {
+        byte[] docxBytes;
+        try (XWPFDocument doc = new XWPFDocument();
+             ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            XWPFTable table = doc.createTable(2, 2);
+            table.getRow(0).getCell(0).setText("方案|标准");
+            table.getRow(0).getCell(1).setText("分值");
+            table.getRow(1).getCell(0).setText("ISO9001|ISO14001");
+            table.getRow(1).getCell(1).setText("10");
+            doc.write(bos);
+            docxBytes = bos.toByteArray();
+        }
+
+        String text = LocalDocumentFallbackExtractor.extractDocxWithPoi(docxBytes);
+        assertThat(text).isNotNull();
+        assertThat(text).contains("方案\\|标准");
+        assertThat(text).contains("ISO9001\\|ISO14001");
+    }
 }

@@ -1,127 +1,233 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-import io
 import logging
 import os
 import struct
 import tempfile
 import zipfile
+import zlib
 
 logger = logging.getLogger(__name__)
 
+# Default maximum file size eligible for repair (64MB) to prevent OOM
+DEFAULT_MAX_REPAIR_SIZE = 64 * 1024 * 1024
 
-def repair_truncated_docx(path: str) -> str | None:
+
+def repair_truncated_docx(path: str, max_size_bytes: int | None = None) -> str | None:
     """Attempt to repair a .docx file missing its End of Central Directory (EOCD).
 
-    If the file was truncated during upload or is missing its central directory,
-    but local file headers (especially 'word/document.xml') are present, this function
-    rebuilds the central directory and EOCD and writes a valid zip file to a temp file.
-    Returns the path to the repaired temp file, or None if repair is not possible.
+    Memory-safe, streaming implementation:
+    - Scans Local File Headers via disk seeks without loading the entire file into memory.
+    - Streams payload to a temporary file in 64KB blocks.
+    - Accurately resolves General Purpose Bit 3 / Data Descriptors using zlib raw deflate
+      stream termination (ignoring accidental 'PK' byte patterns inside compressed data),
+      supporting both with-signature ('PK\\x07\\x08') and without-signature descriptors.
+    - Strongly validates the repaired zip with testzip() and reads 'word/document.xml'.
+    - Returns None if repair is impossible or file is truncated inside 'word/document.xml'.
     """
+    if max_size_bytes is None:
+        max_size_bytes = int(os.getenv("DOCX_MAX_REPAIR_SIZE_BYTES", DEFAULT_MAX_REPAIR_SIZE))
+
+    try:
+        file_size = os.path.getsize(path)
+    except OSError:
+        return None
+
+    if file_size == 0 or file_size > max_size_bytes:
+        if file_size > max_size_bytes:
+            logger.warning(
+                "Docx repair skipped for %s: file size (%d bytes) exceeds limit (%d bytes)",
+                path, file_size, max_size_bytes,
+            )
+        return None
+
     try:
         with open(path, "rb") as f:
-            data = f.read()
-    except Exception:
-        return None
-
-    if not data or not data.startswith(b"PK\x03\x04"):
-        return None
-
-    pos = 0
-    cd_entries = []
-    found_doc_xml = False
-    data_len = len(data)
-
-    while pos < data_len:
-        idx = data.find(b"PK\x03\x04", pos)
-        if idx == -1 or idx + 30 > data_len:
-            break
-
-        version = data[idx + 4 : idx + 6]
-        flags = data[idx + 6 : idx + 8]
-        method = data[idx + 8 : idx + 10]
-        mtime = data[idx + 10 : idx + 12]
-        mdate = data[idx + 12 : idx + 14]
-        crc = data[idx + 14 : idx + 18]
-        comp_size = int.from_bytes(data[idx + 18 : idx + 22], "little")
-        uncomp_size = int.from_bytes(data[idx + 22 : idx + 26], "little")
-        fn_len = int.from_bytes(data[idx + 26 : idx + 28], "little")
-        extra_len = int.from_bytes(data[idx + 28 : idx + 30], "little")
-
-        if idx + 30 + fn_len > data_len:
-            break
-        fn = data[idx + 30 : idx + 30 + fn_len]
-        if b"word/document.xml" in fn:
-            found_doc_xml = True
-
-        data_start = idx + 30 + fn_len + extra_len
-
-        # Handle ZIP streaming Data Descriptor (Bit 3 flag) when comp_size == 0
-        flag_val = int.from_bytes(flags, "little")
-        has_data_descriptor = (flag_val & 0x0008) != 0
-        if has_data_descriptor and comp_size == 0:
-            next_pk = data.find(b"PK", data_start)
-            if next_pk != -1:
-                comp_size = next_pk - data_start
-                if data[next_pk : next_pk + 4] == b"PK\x07\x08" and next_pk + 16 <= data_len:
-                    crc = data[next_pk + 4 : next_pk + 8]
-                    comp_size = int.from_bytes(data[next_pk + 8 : next_pk + 12], "little")
-                    uncomp_size = int.from_bytes(data[next_pk + 12 : next_pk + 16], "little")
-                    pos = next_pk + 16
-                else:
-                    pos = next_pk
-            else:
-                comp_size = max(0, data_len - data_start)
-                pos = data_len
-        else:
-            pos = data_start + comp_size
-
-        cd_header = (
-            b"PK\x01\x02"
-            + version
-            + version
-            + flags
-            + method
-            + mtime
-            + mdate
-            + crc
-            + struct.pack("<I", comp_size)
-            + struct.pack("<I", uncomp_size)
-            + struct.pack("<H", fn_len)
-            + b"\x00\x00\x00\x00\x00\x00\x00\x00"
-            + b"\x00\x00\x00\x00"
-            + struct.pack("<I", idx)
-            + fn
-        )
-        cd_entries.append(cd_header)
-
-    if not found_doc_xml or not cd_entries:
-        return None
-
-    cd_data = b"".join(cd_entries)
-    cd_offset = pos
-    eocd = (
-        b"PK\x05\x06"
-        + b"\x00\x00\x00\x00"
-        + struct.pack("<HHII", len(cd_entries), len(cd_entries), len(cd_data), cd_offset)
-        + b"\x00\x00"
-    )
-
-    rebuilt_data = data[:cd_offset] + cd_data + eocd
-
-    try:
-        with zipfile.ZipFile(io.BytesIO(rebuilt_data)) as z:
-            if "word/document.xml" not in z.namelist():
+            if f.read(4) != b"PK\x03\x04":
                 return None
-    except Exception:
-        return None
+            f.seek(0)
 
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
-            tmp.write(rebuilt_data)
+            cd_entries: list[bytes] = []
+            found_doc_xml = False
+            last_valid_pos = 0
+
+            while f.tell() < file_size:
+                entry_offset = f.tell()
+                sig = f.read(4)
+                if sig != b"PK\x03\x04":
+                    break
+
+                header_bytes = f.read(26)
+                if len(header_bytes) < 26:
+                    break
+
+                version = header_bytes[0:2]
+                flags = header_bytes[2:4]
+                method = header_bytes[4:6]
+                mtime = header_bytes[6:8]
+                mdate = header_bytes[8:10]
+                crc = header_bytes[10:14]
+                comp_size = int.from_bytes(header_bytes[14:18], "little")
+                uncomp_size = int.from_bytes(header_bytes[18:22], "little")
+                fn_len = int.from_bytes(header_bytes[22:24], "little")
+                extra_len = int.from_bytes(header_bytes[24:26], "little")
+
+                if f.tell() + fn_len + extra_len > file_size:
+                    break
+
+                fn = f.read(fn_len)
+                if extra_len > 0:
+                    f.seek(extra_len, os.SEEK_CUR)
+
+                is_doc_xml = b"word/document.xml" in fn
+                data_start = f.tell()
+
+                flag_val = int.from_bytes(flags, "little")
+                has_descriptor = (flag_val & 0x0008) != 0
+                method_num = int.from_bytes(method, "little")
+
+                if has_descriptor and comp_size == 0:
+                    # Streaming Data Descriptor case
+                    if method_num != 8:
+                        logger.debug("Unsupported streaming compression method %d in %s", method_num, fn)
+                        break
+
+                    dobj = zlib.decompressobj(-15)
+                    crc_calc = 0
+                    uncomp_calc = 0
+                    while not dobj.eof:
+                        remaining_file = file_size - f.tell()
+                        if remaining_file <= 0:
+                            break
+                        chunk = f.read(min(65536, remaining_file))
+                        if not chunk:
+                            break
+                        try:
+                            decomp = dobj.decompress(chunk)
+                            uncomp_calc += len(decomp)
+                            crc_calc = zlib.crc32(decomp, crc_calc)
+                        except zlib.error:
+                            break
+
+                    if not dobj.eof:
+                        logger.debug("Deflate stream truncated mid-decompression in %s", fn)
+                        break
+
+                    actual_comp_size = f.tell() - data_start - len(dobj.unused_data)
+                    f.seek(data_start + actual_comp_size)
+
+                    desc_peek = f.read(16)
+                    desc_len = 0
+                    desc_crc = 0
+                    if desc_peek.startswith(b"PK\x07\x08") and len(desc_peek) == 16:
+                        desc_crc, _, _ = struct.unpack("<III", desc_peek[4:16])
+                        desc_len = 16
+                    elif len(desc_peek) >= 12:
+                        desc_crc, _, _ = struct.unpack("<III", desc_peek[:12])
+                        desc_len = 12
+                    else:
+                        break
+
+                    if desc_crc != crc_calc:
+                        logger.debug("CRC mismatch in data descriptor for %s: expected %d, got %d", fn, desc_crc, crc_calc)
+                        break
+
+                    crc = struct.pack("<I", desc_crc)
+                    comp_size = actual_comp_size
+                    uncomp_size = uncomp_calc
+                    f.seek(data_start + actual_comp_size + desc_len)
+                else:
+                    # Standard entry with known comp_size
+                    if data_start + comp_size > file_size:
+                        logger.debug("Payload truncated for %s: needed %d, file ended at %d", fn, data_start + comp_size, file_size)
+                        break
+                    f.seek(data_start + comp_size)
+                    if has_descriptor:
+                        sig_peek = f.read(4)
+                        if sig_peek == b"PK\x07\x08":
+                            f.seek(12, os.SEEK_CUR)
+                        else:
+                            f.seek(-len(sig_peek), os.SEEK_CUR)
+
+                # Only mark document.xml as found once its entire payload is confirmed valid
+                if is_doc_xml:
+                    found_doc_xml = True
+
+                cd_header = (
+                    b"PK\x01\x02"
+                    + version
+                    + version
+                    + flags
+                    + method
+                    + mtime
+                    + mdate
+                    + crc
+                    + struct.pack("<I", comp_size)
+                    + struct.pack("<I", uncomp_size)
+                    + struct.pack("<H", fn_len)
+                    + b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+                    + struct.pack("<I", entry_offset)
+                    + fn
+                )
+                cd_entries.append(cd_header)
+                last_valid_pos = f.tell()
+
+            if not found_doc_xml or not cd_entries:
+                return None
+
+            cd_data = b"".join(cd_entries)
+            cd_offset = last_valid_pos
+            eocd = (
+                b"PK\x05\x06"
+                + b"\x00\x00\x00\x00"
+                + struct.pack("<HHII", len(cd_entries), len(cd_entries), len(cd_data), cd_offset)
+                + b"\x00\x00"
+            )
+
+            # Stream payload up to cd_offset into temporary file without buffering full file in RAM
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+            try:
+                f.seek(0)
+                bytes_left = cd_offset
+                while bytes_left > 0:
+                    chunk = f.read(min(65536, bytes_left))
+                    if not chunk:
+                        break
+                    tmp.write(chunk)
+                    bytes_left -= len(chunk)
+                tmp.write(cd_data)
+                tmp.write(eocd)
+                tmp.flush()
+                tmp.close()
+            except Exception:
+                tmp.close()
+                if os.path.exists(tmp.name):
+                    os.remove(tmp.name)
+                raise
+
+            # Strong validation: testzip() and read("word/document.xml")
+            try:
+                with zipfile.ZipFile(tmp.name) as z:
+                    corrupt = z.testzip()
+                    if corrupt is not None:
+                        logger.warning("Repaired docx failed testzip on member: %s", corrupt)
+                        os.remove(tmp.name)
+                        return None
+                    doc_content = z.read("word/document.xml")
+                    if not doc_content or len(doc_content.strip()) == 0:
+                        logger.warning("Repaired docx has empty word/document.xml")
+                        os.remove(tmp.name)
+                        return None
+            except Exception as exc:
+                logger.warning("Failed validating repaired docx %s: %s", tmp.name, exc)
+                if os.path.exists(tmp.name):
+                    os.remove(tmp.name)
+                return None
+
             return tmp.name
-    except Exception:
+    except Exception as exc:
+        logger.warning("Unexpected error during docx repair of %s: %s", path, exc)
         return None
 
 
