@@ -5,6 +5,7 @@ import com.xiyu.bid.scoreparse.domain.grid.CanonicalTableGridFactory;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.CanonicalCellDto;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.MergedRegionDto;
+import com.xiyu.bid.scoreparse.domain.grid.CellAnchoredScoreExtractor;
 import com.xiyu.bid.scoreparse.domain.grid.HeuristicTableColumnMapper;
 import com.xiyu.bid.scoreparse.domain.grid.TableColumnMapping;
 import com.xiyu.bid.scoreparse.domain.grid.TableGrid;
@@ -134,5 +135,67 @@ class ScoreParseContinuationRowTest {
         // 第 0 列是序号，第 1 列是因素，第 2 列是细则，第 3 列是 25.0/5.0 分值列，第 4 列是备注
         assertThat(mapping.weightCol()).isEqualTo(3);
         assertThat(mapping.detailCol()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("项目 1117 根因防误吞：首行数据项（项2 公司业绩）含长细则'评审标准：1）...最高得分30分'，绝对不得识别为表头，headerRows必须为0且项2必须保留")
+    void testProject1117FirstRowWithDetailCriteriaKeywordsNotTreatedAsHeader() {
+        String markdown = """
+                | 2 | 公司业绩 | 评审标准：1）每提供一个有效业绩得5分，最高得分30分。2）业绩需提供合同首页、合同金额页及发票复印件。 | 30.0 | 否 |
+                | 3 | 仓储能力 | 1、评审标准：1）投标人需提供指定六大地区内各一个配送仓库，面积不低于500平方米。 | 25.0 | 否 |
+                | 4 | 线上业务能力 | 1、评审标准：1）投标人具有成熟电商平台运营操作能力，得5分；否则得0分。 | 5.0 | 否 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+
+        // 绝不得把首行项2判定为表头
+        assertThat(mapping.headerRows()).isEqualTo(0);
+        assertThat(mapping.codeCol()).isEqualTo(0);
+        assertThat(mapping.dimCol()).isEqualTo(1);
+        assertThat(mapping.detailCol()).isEqualTo(2);
+        assertThat(mapping.weightCol()).isEqualTo(3);
+
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+        assertThat(candidates).hasSize(3);
+        assertThat(candidates.get(0).dim()).contains("公司业绩");
+        assertThat(candidates.get(0).weight()).isEqualByComparingTo("30.0");
+        assertThat(candidates.get(1).dim()).contains("仓储能力");
+        assertThat(candidates.get(1).weight()).isEqualByComparingTo("25.0");
+        assertThat(candidates.get(2).dim()).contains("线上业务能力");
+        assertThat(candidates.get(2).weight()).isEqualByComparingTo("5.0");
+    }
+
+    @Test
+    @DisplayName("项目 1117 真实表格深层表头探测：前导行0-7含有前置条款与前置表头，真正评分表头在第8行，必须正确识别为第8行表头且headerRows为9")
+    void testProject1117DeepHeaderDetectionAtRow8() {
+        String markdown = """
+                | 2 | 投标内容 | 符合第二章投标人须知第1.3.1项规定 | | 重要指标 |
+                | 3 | 投标有效期 | 符合第二章投标人须知第3.3.1项规定 | | 重要指标 |
+                | 4 | 投标保证金 | 符合第二章投标人须知第3.4.1项规定 | | 重要指标 |
+                | 条款号 | 条款内容 | 编列内容 | | 分值 |
+                | 2.3.1 | 分值构成 | 是否设置权重：是，总分100分 | | 总分100分 |
+                | 2.3.2 | 评标基准价计算方法 | 详见本表 | | / |
+                | 2.3.3 | 投标报价的偏差率计算公式 | 详见本表 | | / |
+                | 2.3.4（1） 技术评审 | | | | |
+                | 序号 | 评分因素 | 评分标准 | 分值 | 最高得分是否唯一 |
+                | 1 | 管理体系 | 1、评审标准：1）具有 ISO9001 质量管理体系认证、ISO14001 环境管理体系认证。 | 10.0 | 否 |
+                | 2 | 公司业绩 | 评审标准：1）每提供一个有效业绩得5分，最高得分30分。 | 30.0 | 否 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+
+        // 真实评分表头在第8行（0-based），因此 headerRows = 9
+        assertThat(mapping.headerRows()).isEqualTo(9);
+        assertThat(mapping.codeCol()).isEqualTo(0);
+        assertThat(mapping.dimCol()).isEqualTo(1);
+        assertThat(mapping.detailCol()).isEqualTo(2);
+        assertThat(mapping.weightCol()).isEqualTo(3);
+
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+        assertThat(candidates).hasSize(2);
+        assertThat(candidates.get(0).dim()).contains("管理体系");
+        assertThat(candidates.get(0).weight()).isEqualByComparingTo("10.0");
+        assertThat(candidates.get(1).dim()).contains("公司业绩");
+        assertThat(candidates.get(1).weight()).isEqualByComparingTo("30.0");
     }
 }

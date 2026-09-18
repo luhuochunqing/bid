@@ -622,3 +622,33 @@ trigger（同步<1s，互斥校验+建任务）
 - `CellAnchoredScoreExtractorTest#extract_fiveColumnTableWithoutExplicitHeader_infersWeightColumnCorrectly`
 - `com.xiyu.bid.scoreparse.**` 全量 792 项单测 100% 通过
 
+## 20. 跨页深层表头探测与长细则防误吞（招商积余项目 1117，2026-09-18）
+
+### 故障链与根因
+
+1. **Sidecar 表头扫描深度不足与跨页续表断裂**：
+   - 招商积余项目 1117 招标文件在第 42 页前 7 行均为前置条款及条款说明，真正 5 列评分表头位于第 8 行；
+   - Sidecar 原表头扫描深度仅硬编码前 2 行（`range(min(2, len(rows)))`），导致第 42 页评分表无法识别出有效表头而被当作普通非评分表丢弃；
+   - 第 43、44 页为无表头跨页续表，因第 42 页未建表，续表无法回溯合并，导致整份招标文件评分表提取为空。
+2. **长细则关键字触发表头误判与项 2（公司业绩）误吞**：
+   - 第 43 页首行（项 2 公司业绩）细则内容为：`评审标准：1）每提供一个有效业绩得5分，最高得分30分...`；
+   - `HeuristicTableColumnMapper.countHeaderMatches` 原本无单元格长度上限，该长文本同时命中 `评审标准` 与 `最高得分/得分`，触发 `matches >= 2`；
+   - 若启发式扫描未阻断该行或外层未限制超长单元格，项 2 就会被当作表头行吞噬，导致 30 分大项遗漏。
+
+### 领域治理与契约
+
+1. **Sidecar 真表头判定与深层跨页续表合并**：
+   - `converter.py` 引入 `_is_genuine_header_row` 强化真表头校验：列数限制在 3~15 列、首列排除纯数字序号、所有单元格长度 `<= 40`，且必须显式命中表头关键词；
+   - 表头扫描深度由前 2 行放宽至前 10 行；分值列识别支持纯数字分值项；
+   - 跨页表格探测到无表头续表且列数兼容时，自动回溯合并到上一页已识别的评分表主体。
+2. **Java 后端长细则忽略约束与深层表头探测**：
+   - `HeuristicTableColumnMapper.countHeaderMatches` 增加单格长度约束：`if (cell.length() > 40) continue;`，细则长文本即使包含表头关键词也绝不计入匹配数；
+   - 表头扫描安全放宽至前 10 行，候选行严格要求 `matches >= 2` 且整行不得包含超长单元格（`!hasOverlyLongCell`）。
+
+### 验证锚点
+
+- `converter.py` + `test_pdf_table_artifact.py#test_pdf_score_table_deep_header_and_multipage_continuation_merged_for_project_1117_shape`
+- `HeuristicTableColumnMapper` + `CellAnchoredScoreExtractorTest#extract_deepHeaderAndLongDetailContinuationRow_extractedCorrectlyWithoutSwallowing`
+- `ScoreParseContinuationRowTest#testProject1117DeepHeaderDetectionAtRow8`
+- 生产文件 `1117.pdf` 真实测试：42-44 页 16 行完整评分表提取，全量 7 项 100.0 分。
+

@@ -275,34 +275,81 @@ def _is_pdf_score_table_continuation(previous: list[list[str]], current: list[li
         return False
     if max(len(row) for row in previous) != max(len(row) for row in current):
         return False
-    if not _has_pdf_score_header(previous):
+    if not any(_is_genuine_header_row(r) for r in previous):
         return False
     if _has_pdf_score_header(current):
         return False
     first_cell = _normalise_cell_text(current[0][0] if current[0] else "")
     if not (re.fullmatch(r"\d+(?:[.、]\d+)?", first_cell) or "合计" in first_cell):
         return False
-    return _has_pdf_weighted_score_item(current) or _has_pdf_total_row(current)
+    return (
+        _has_pdf_weighted_score_item(current)
+        or _has_pdf_total_row(current)
+        or _has_numeric_score_item(current)
+    )
 
 
 def _normalise_cell_text(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").replace("\x0c", " ")).strip()
 
 
+def _is_genuine_header_row(row: list[str]) -> bool:
+    if not row or len(row) < 3 or len(row) > 15:
+        return False
+    first = _normalise_cell_text(row[0])
+    if re.fullmatch(r"\d+(?:[.、]\d+)?", first):
+        return False
+    if any(len(_normalise_cell_text(c)) > 40 for c in row):
+        return False
+    text = " ".join(_normalise_cell_text(c) for c in row)
+    explicit_keywords = (
+        "评分因素", "评审因素", "评分项", "评审项",
+        "评分标准", "评审标准", "评分细则", "打分细则", "打分标准",
+    )
+    if any(keyword in text for keyword in explicit_keywords):
+        return True
+    return any(w in text for w in ("分值", "得分", "权重")) and any(
+        c in text for c in ("序号", "条款号", "条款内容", "项目", "指标")
+    )
+
+
 def _is_pdf_score_table(rows: list[list[str]]) -> bool:
     if not rows:
         return False
-    sample = " ".join(" ".join(row) for row in rows[:8])
+    sample = " ".join(" ".join(row) for row in rows[:min(len(rows), 10)])
     return (
         _has_pdf_score_header(rows)
-        and (_has_pdf_weighted_score_item(rows) or _has_pdf_total_row(rows))
+        and (
+            _has_pdf_weighted_score_item(rows)
+            or _has_pdf_total_row(rows)
+            or _has_numeric_score_item(rows)
+        )
         and not _is_pdf_preliminary_review_table(sample)
     )
 
 
 def _has_pdf_score_header(rows: list[list[str]]) -> bool:
-    sample = " ".join(" ".join(row) for row in rows[:2])
-    return any(keyword in sample for keyword in ("评分因素", "评分项", "评分标准", "分值", "得分"))
+    return any(_is_genuine_header_row(r) for r in rows[:min(len(rows), 10)])
+
+
+def _has_numeric_score_item(rows: list[list[str]]) -> bool:
+    for row in rows:
+        if not row:
+            continue
+        for cell in row[1:]:
+            text = _normalise_cell_text(cell)
+            if not text:
+                continue
+            if re.fullmatch(r"[~≈]?\s*\d{1,3}(?:\.\d+)?\s*(?:分|分值|%)?", text):
+                m = re.search(r"\d+(?:\.\d+)?", text)
+                if m:
+                    try:
+                        val = float(m.group(0))
+                        if 0 < val <= 100:
+                            return True
+                    except ValueError:
+                        pass
+    return False
 
 
 def _has_pdf_weighted_score_item(rows: list[list[str]]) -> bool:
@@ -316,7 +363,8 @@ def _has_pdf_total_row(rows: list[list[str]]) -> bool:
 
 
 def _is_pdf_preliminary_review_table(sample: str) -> bool:
-    return any(keyword in sample for keyword in ("资格评审标准", "形式评审标准", "响应性评审标准"))
+    compact = re.sub(r"\s+", "", sample or "")
+    return any(keyword in compact for keyword in ("资格评审标准", "形式评审标准", "响应性评审标准", "初步评审标准"))
 
 
 def _merge_split_price_tables(markdown: str) -> str:
