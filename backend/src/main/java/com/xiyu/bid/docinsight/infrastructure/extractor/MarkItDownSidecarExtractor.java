@@ -9,10 +9,6 @@ import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
 import com.xiyu.bid.docinsight.application.ExtractedDocument;
 import com.xiyu.bid.docinsight.application.exception.DocInsightException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
-import org.apache.poi.hwpf.HWPFDocument;
-import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -197,7 +193,7 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
         String lowerName = fileName.toLowerCase(Locale.ROOT);
 
         if (lowerName.endsWith(".doc") || "application/msword".equals(contentType)) {
-            String text = extractDocWithPoi(content);
+            String text = LocalDocumentFallbackExtractor.extractDocWithPoi(content);
             if (text != null && !text.isBlank()) {
                 log.info("POI HWPF fallback extraction succeeded for {}: {} chars", fileName, text.length());
                 return new ExtractedDocument(
@@ -213,7 +209,7 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
 
         // Try Apache PDFBox for .pdf files
         if (lowerName.endsWith(".pdf") || "application/pdf".equals(contentType)) {
-            String text = extractPdfWithPdfBox(content);
+            String text = LocalDocumentFallbackExtractor.extractPdfWithPdfBox(content);
             if (text != null && !text.isBlank()) {
                 log.info("PDFBox fallback extraction succeeded for {}: {} chars", fileName, text.length());
                 return new ExtractedDocument(
@@ -225,6 +221,28 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
                 );
             }
             log.warn("PDFBox fallback extraction returned empty for {}", fileName);
+        }
+
+        // Try Apache POI XWPF for .docx files
+        if (lowerName.endsWith(".docx")
+                || "application/vnd.openxmlformats-officedocument.wordprocessingml.document".equals(contentType)
+                || "application/vnd.openxmlformats-officedocument.word".equals(contentType)) {
+            String text = LocalDocumentFallbackExtractor.extractDocxWithPoi(content);
+            if (text != null && !text.isBlank()) {
+                log.info("POI XWPF fallback extraction succeeded for {}: {} chars", fileName, text.length());
+                return new ExtractedDocument(
+                        text,
+                        text.length(),
+                        null,
+                        "poi-xwpf-fallback",
+                        Map.of("fallbackReason", reason, "originalExtractor", "markitdown-sidecar")
+                );
+            }
+            log.warn("POI XWPF fallback extraction returned empty for {}", fileName);
+        }
+
+        if (isKnownBinaryFormat(lowerName, contentType)) {
+            throw new DocInsightException(400, "无法从损毁或不受支持的二进制文档提取内容: " + fileName);
         }
 
         String text = new String(content, StandardCharsets.UTF_8);
@@ -246,47 +264,11 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
         );
     }
 
-    /**
-     * Extract text from .doc file using Apache POI HWPF.
-     * Returns null if extraction fails.
-     */
-    private String extractDocWithPoi(byte[] content) {
-        try (ByteArrayInputStream bis = new ByteArrayInputStream(content);
-             HWPFDocument doc = new HWPFDocument(bis);
-             WordExtractor extractor = new WordExtractor(doc)) {
-            String text = extractor.getText();
-            if (text != null) {
-                return text.trim();
-            }
-        } catch (IOException e) {
-            log.warn("POI HWPF extraction failed: {}", e.getMessage());
-        } catch (RuntimeException e) {
-            log.warn("POI HWPF extraction unexpected error: {}", e.getMessage());
-        }
-        return null;
-    }
-
-    /**
-     * Extract text from .pdf file using Apache PDFBox.
-     * Returns null if extraction fails.
-     */
-    private String extractPdfWithPdfBox(byte[] content) {
-        try (ByteArrayInputStream bis = new ByteArrayInputStream(content);
-             PDDocument document = PDDocument.load(bis)) {
-            PDFTextStripper stripper = new PDFTextStripper();
-            stripper.setSortByPosition(true);
-            String text = stripper.getText(document);
-            if (text != null) {
-                return text.trim()
-                        .replace('\u00A0', ' ')
-                        .replaceAll(" {2,}", " ");
-            }
-        } catch (IOException e) {
-            log.warn("PDFBox extraction failed: {}", e.getMessage());
-        } catch (RuntimeException e) {
-            log.warn("PDFBox extraction unexpected error: {}", e.getMessage());
-        }
-        return null;
+    private boolean isKnownBinaryFormat(String lowerName, String contentType) {
+        return lowerName.endsWith(".docx") || lowerName.endsWith(".doc") || lowerName.endsWith(".pdf")
+                || "application/pdf".equals(contentType) || "application/msword".equals(contentType)
+                || "application/vnd.openxmlformats-officedocument.wordprocessingml.document".equals(contentType)
+                || "application/vnd.openxmlformats-officedocument.word".equals(contentType);
     }
 
     private boolean isPlainText(String contentType) {

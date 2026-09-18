@@ -6282,3 +6282,36 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 
 > 维护纪律：**跨表 fallback 表达式必须先想清"空串算不算值"——Java 侧 `isBlank` 与 SQL `COALESCE` 对空串语义不等价；涉及空串的 COALESCE 一律 `NULLIF(col, '')` 包裹。写入侧（`mergeForUpdate`）目前仍会存 `''`，纯空格串仍不在回退覆盖内，后续如需彻底收口应在写入侧归一化。**
 
+---
+
+## 382. 截断 DOCX 容器无损自愈与 Sidecar/后端解析降级容错治理（项目 30，2026-09-18）
+
+**背景**：
+用户在项目 30（招标文件）触发 AI 评分解析时，前端抽屉显示“未提取到可自动落库的评分项”，`score_parse_task` 最终状态为 `FAILED`，`fallback_reason=ZERO_VALID_ITEMS`。历史上针对评分解析已迭代 200+ 次提交，直觉常误以为是 Layer 3 启发式提取规则或正则表达式未覆盖。
+
+**全链路排查现场与真实根因**：
+通过生产日志排查与真实文件二进制取证（OSS 文件 `obs-direct:e60e181a-78a6-4b85-b6f7-0288f21e1027`，大小 209,705 字节），发现三大系统级根因：
+1. **物理容器层（Layer 0）缺失 EOCD 截断**：
+   原 docx 在 OSS 上传或网络传输末端截断几十字节，缺少 ZIP 格式尾部的 End of Central Directory 记录（`PK\x05\x06`），导致 Python `zipfile` 判定为 `BadZipFile: File is not a zip file`；但其包含的全部 27 个 local file header（包括 2.7MB 的 `word/document.xml`）全部完好无损。
+2. **Sidecar 进程安全缺陷（Layer 1）导致 Worker 挂死超时**：
+   Sidecar 使用 `concurrent.futures.ProcessPoolExecutor` 多进程隔离转换任务。当子进程抛出异常时，Python 3.11 试图序列化 `Exception` 附带的 `traceback` 对象跨进程传递，触发 `TypeError: cannot pickle 'traceback' object`。这导致子进程崩溃且无法正常返回响应，主进程陷入 60 秒硬超时。
+3. **Java 后端降级兜底反模式（Layer 1）引发乱码泥浆**：
+   Java 后端在 Sidecar 60 秒超时后触发 `fallbackExtract`，但由于缺少针对 `.docx` 格式的原生解析器，错误地直接执行了 `new String(content, StandardCharsets.UTF_8)`，将 ZIP 压缩二进制字节流强转为文本字符串。这导致输出文本中 38.5% 是 `\uFFFD`（乱码替换字符），上层业务提取器收到纯乱码输入，自然识别出 0 项。
+
+**根治方案**：
+1. **DOCX 截断无损自愈算法（`table_extractor.py`）**：
+   - 增加 `repair_truncated_docx`：在捕获 `BadZipFile` 异常时，顺序扫描 ZIP local file headers（`PK\x03\x04`），内存中重构 Central Directory 与 End of Central Directory 记录；
+   - 容错解析出原本完好的 `word/document.xml` 与完整表格，对正常合法 docx 保持 0 额外开销的 Fast-Path 隔离。
+2. **Sidecar 异常跨进程安全脱敏（`app.py`）**：
+   - 新增 `_safe_convert_worker` 包装层，显式捕获所有 Exception 并脱敏提取纯字符串错误信息，杜绝 unpicklable traceback 破坏进程池。
+3. **Java 后端 Apache POI XWPF 原生降级（`MarkItDownSidecarExtractor.java`）**：
+   - 彻底废除 `new String(content, UTF_8)` 这一危险反模式；
+   - 对 `.docx` 采用 Apache POI `XWPFDocument` 提取段落与表格，提供结构化、高保真的纯本地降级兜底。
+
+**实测效果与回归防线**：
+- 真实项目 30 截断样本在自愈后送入未作任何修改的业务层规则，秒级精确抽取出 14 张表格，其中 Table 2 为完备的 28 行、4 列评分表，总分精确为 100.0 分；
+- 0 行业务启发式规则修改，既有 200+ 提交沉淀的规则与 790+ 单元测试保持 100% 绿色不受干扰；
+- Sidecar 99/99 测试全绿，后端 `MarkItDownSidecarExtractorTest` 5/5 全绿。
+
+> 维护纪律：**严禁在没有检查上游数据真实管道的情况下盲目在 Layer 3 调规则（“追症状不追根因”）；严禁将 zip/docx 等压缩二进制流直接当作 UTF-8 字符串强转；多进程 Worker 异常回传必须做序列化脱敏。**
+

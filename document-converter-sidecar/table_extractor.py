@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import re
 import zipfile
 from typing import Any
@@ -63,6 +64,9 @@ EXTRACTION_VERSION = "table-v2"
 # ---------------------------------------------------------------------------
 # Public entry points
 # ---------------------------------------------------------------------------
+
+from docx_repair import auto_repaired_docx, repair_truncated_docx
+
 
 def extract_tables(path: str) -> dict[str, Any]:
     """Legacy v1 contract: {tables: [...], warnings: [...]}.
@@ -94,9 +98,6 @@ def extract_tables_artifact(path: str) -> dict[str, Any]:
         "tables": [],
         "warnings": [],
     }
-    if not zipfile.is_zipfile(path):
-        artifact["warnings"].append("not a valid docx (not a zip)")
-        return artifact
 
     try:
         from docx import Document
@@ -104,21 +105,26 @@ def extract_tables_artifact(path: str) -> dict[str, Any]:
         artifact["warnings"].append("python-docx not installed")
         return artifact
 
-    try:
-        doc = Document(path)
-    except Exception as exc:
-        log.warning("python-docx failed to open %s: %s", path, exc)
-        raise ValueError(f"cannot parse docx: {exc}") from exc
+    with auto_repaired_docx(path) as target_path:
+        if not zipfile.is_zipfile(target_path):
+            artifact["warnings"].append("not a valid docx (not a zip)")
+            return artifact
 
-    for idx, table in enumerate(doc.tables):
         try:
-            tbl_data = _build_table_artifact(table, idx)
+            doc = Document(target_path)
         except Exception as exc:
-            artifact["warnings"].append(f"table {idx}: extraction failed ({exc})")
-            continue
-        if tbl_data is None:
-            continue
-        artifact["tables"].append(tbl_data)
+            log.warning("python-docx failed to open %s: %s", target_path, exc)
+            raise ValueError(f"cannot parse docx: {exc}") from exc
+
+        for idx, table in enumerate(doc.tables):
+            try:
+                tbl_data = _build_table_artifact(table, idx)
+            except Exception as exc:
+                artifact["warnings"].append(f"table {idx}: extraction failed ({exc})")
+                continue
+            if tbl_data is None:
+                continue
+            artifact["tables"].append(tbl_data)
 
     return artifact
 

@@ -294,19 +294,22 @@ def _convert_worker(path: str) -> Any:
             logger.warning("Custom PDF conversion failed, falling back to markitdown: %s", e)
 
     if path.lower().endswith(".docx"):
-        if _is_large_docx(path):
-            logger.info("Docx document.xml exceeds threshold; using streaming SAX parser: %s", path)
-            sax_text = _extract_docx_streaming_sax(path)
-            if sax_text and len(sax_text.strip()) >= 50:
-                return SimpleNamespace(text_content=sax_text, markdown=sax_text, pages=[])
-        try:
-            result = md.convert(path)
-        except Exception as e:
-            logger.warning("markitdown failed on docx (%s), falling back to streaming SAX: %s", e, path)
-            sax_text = _extract_docx_streaming_sax(path)
-            if sax_text and len(sax_text.strip()) >= 50:
-                return SimpleNamespace(text_content=sax_text, markdown=sax_text, pages=[])
-            raise
+        from docx_repair import auto_repaired_docx
+
+        with auto_repaired_docx(path) as target_path:
+            if _is_large_docx(target_path):
+                logger.info("Docx document.xml exceeds threshold; using streaming SAX parser: %s", target_path)
+                sax_text = _extract_docx_streaming_sax(target_path)
+                if sax_text and len(sax_text.strip()) >= 50:
+                    return SimpleNamespace(text_content=sax_text, markdown=sax_text, pages=[])
+            try:
+                result = md.convert(target_path)
+            except Exception as e:
+                logger.warning("markitdown failed on docx (%s), falling back to streaming SAX: %s", e, target_path)
+                sax_text = _extract_docx_streaming_sax(target_path)
+                if sax_text and len(sax_text.strip()) >= 50:
+                    return SimpleNamespace(text_content=sax_text, markdown=sax_text, pages=[])
+                raise
     else:
         result = md.convert(path)
 
@@ -326,6 +329,19 @@ def _convert_worker(path: str) -> Any:
     )
 
 
+def _safe_convert_worker(path: str) -> Any:
+    """Wrapper around _convert_worker ensuring no unpicklable exceptions cross processes.
+
+    Python 3.11 multiprocessing fails to pickle certain chained exceptions (like
+    markitdown.FileConversionException with nested tracebacks), throwing:
+    TypeError: cannot pickle 'traceback' object.
+    Catching and packing error details as a dictionary avoids crashing the worker pool.
+    """
+    try:
+        return _convert_worker(path)
+    except Exception as exc:
+        logger.exception("Worker conversion failed for %s: %s", path, exc)
+        return {"error": f"{type(exc).__name__}: {str(exc)}"}
 
 
 async def _convert_document(path: str) -> Any:
@@ -333,7 +349,10 @@ async def _convert_document(path: str) -> Any:
     global _CONVERT_POOL
     loop = asyncio.get_running_loop()
     try:
-        return await loop.run_in_executor(_get_convert_pool(), _convert_worker, path)
+        res = await loop.run_in_executor(_get_convert_pool(), _safe_convert_worker, path)
+        if isinstance(res, dict) and "error" in res:
+            raise RuntimeError(res["error"])
+        return res
     except BrokenProcessPool:
         logger.error("Conversion worker died (likely OOM); recycling pool")
         _CONVERT_POOL = None
