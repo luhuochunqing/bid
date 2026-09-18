@@ -38,22 +38,23 @@ final class StructuredTableExtractionHandler {
         if (!supportsStructuredEvidence(fileName)) {
             return StructuredTableResult.ok(List.of());
         }
-        LoadedBidFile loaded = textResolver.loadTenderFile(source.fileUrl(), source.fileName(), null);
+        boolean selfLoaded = false;
+        LoadedBidFile loaded = source.loaded();
+        if (loaded == null && source.fileUrl() != null) {
+            loaded = textResolver.loadTenderFile(source.fileUrl(), source.fileName(), null);
+            selfLoaded = true;
+        }
         try {
-            if (loaded instanceof LoadedBidFile.OnDisk) {
-                // 超大文件跳过结构化证据提取（字节通道不可用），回落 markdown 文本召回
-                log.warn("超大招标文件跳过结构化证据提取，回落 markdown 召回: file={}", fileName);
-                return StructuredTableResult.ok(List.of());
-            }
-            byte[] content = loaded == null ? null : ((LoadedBidFile.InMemory) loaded).content();
-            if (content == null || content.length == 0) {
+            if (loaded == null) {
                 return StructuredTableResult.ok(List.of());
             }
             if (artifactExtractor != null) {
-                return extractEvidencePipeline(content, fileName, source.text(), artifactExtractor);
+                return extractEvidencePipeline(loaded, fileName, source.text(), artifactExtractor);
             }
-            var report = StructuredTableCandidateExtractor.extractWithSectionReport(
-                    sidecarTableExtractor.extract(content, fileName));
+            var sidecarExtraction = loaded instanceof LoadedBidFile.InMemory inMem
+                    ? sidecarTableExtractor.extract(inMem.content(), fileName)
+                    : sidecarTableExtractor.extract(((LoadedBidFile.OnDisk) loaded).tempFile(), fileName);
+            var report = StructuredTableCandidateExtractor.extractWithSectionReport(sidecarExtraction);
             if (!report.sectionDimMissTables().isEmpty()) {
                 log.warn("结构化表格章节推导缺失（疑似新措辞独立分表，需人工复核）: file={}, missTables={}",
                         fileName, report.sectionDimMissTables());
@@ -68,7 +69,9 @@ final class StructuredTableExtractionHandler {
             log.warn("结构化表格提取被中断: file={}", fileName);
             return StructuredTableResult.structureIncomplete("STRUCTURE_DEFECT");
         } finally {
-            textResolver.releaseTenderFile(loaded);
+            if (selfLoaded) {
+                textResolver.releaseTenderFile(loaded);
+            }
         }
     }
 
@@ -80,12 +83,14 @@ final class StructuredTableExtractionHandler {
         return lower.endsWith(".docx") || lower.endsWith(".pdf");
     }
 
-    private static StructuredTableResult extractEvidencePipeline(byte[] content,
-                                                  String fileName,
-                                                  String tenderSectionText,
-                                                  SidecarDocumentArtifactExtractor artifactExtractor)
+    private static StructuredTableResult extractEvidencePipeline(LoadedBidFile loaded,
+                                                   String fileName,
+                                                   String tenderSectionText,
+                                                   SidecarDocumentArtifactExtractor artifactExtractor)
             throws IOException, InterruptedException {
-        var artifact = artifactExtractor.extract(content, fileName);
+        var artifact = loaded instanceof LoadedBidFile.InMemory inMem
+                ? artifactExtractor.extract(inMem.content(), fileName)
+                : artifactExtractor.extract(((LoadedBidFile.OnDisk) loaded).tempFile(), fileName);
         if (shouldFallbackPdfToLegacy(fileName, artifact)) {
             log.warn("PDF 未抽取到结构化评分表，回落 legacy markdown 召回: file={}", fileName);
             return StructuredTableResult.ok(List.of());

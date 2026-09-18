@@ -203,7 +203,7 @@ class PdfEvidencePipelineTest {
     }
 
     @Test
-    void oversizedOnDiskSpill_skipsStructuredLaneAndReleasesTempFile() throws Exception {
+    void oversizedOnDiskSpill_stillUsesEvidencePipelineAndReleasesTempFile() throws Exception {
         TempBidFileStore store = new TempBidFileStore(tempDir);
         Path spill = store.reserve("tender-test-spill");
         byte[] spilled = "spilled-bytes".getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -218,13 +218,22 @@ class PdfEvidencePipelineTest {
                 return new LoadedBidFile.OnDisk(spill, fileName, contentType);
             }
         };
+        java.util.concurrent.atomic.AtomicBoolean onDiskPathUsed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        SidecarDocumentArtifactExtractor artifactExtractor =
+                new SidecarDocumentArtifactExtractor("http://localhost:9", "", 1, new com.fasterxml.jackson.databind.ObjectMapper()) {
+                    @Override
+                    public DocumentArtifact extract(Path file, String fileName) {
+                        onDiskPathUsed.set(true);
+                        return pdfScoreArtifact();
+                    }
+                };
 
         StructuredTableResult result = StructuredTableExtractionHandler.extract(
-                source, resolver, null, null);
+                source, resolver, artifactExtractor, null);
 
-        assertThat(result.evidencePipeline()).isFalse();
-        assertThat(result.structureIncomplete()).isFalse();
-        assertThat(result.candidates()).isEmpty();
+        assertThat(onDiskPathUsed.get()).isTrue();
+        assertThat(result.evidencePipeline()).isTrue();
+        assertThat(result.candidates()).isNotEmpty();
         assertThat(Files.exists(spill)).isFalse();
     }
 

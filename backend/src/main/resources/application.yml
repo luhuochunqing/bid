@@ -125,6 +125,10 @@ app:
     memory-threshold: ${APP_TENDER_MEMORY_THRESHOLD:0.92}
     worker-fixed-delay-ms: ${APP_TENDER_WORKER_DELAY_MS:5000}
   score-parse:
+    # 打分侧投标文件解析配额
+    bid-file:
+      max-file-bytes: ${APP_SCORE_PARSE_BID_MAX_FILE_BYTES:536870912}  # 512MB 下载配额
+      ram-buffer-bytes: ${APP_SCORE_PARSE_BID_RAM_BUFFER_BYTES:52428800}  # 50MB 内存快路径，超即 spill 落盘
     # 招标文件解析配额（spec 065）：与打分侧 bid-file 配额解耦，独立调参
     tender-file:
       max-file-bytes: ${APP_SCORE_PARSE_TENDER_MAX_FILE_BYTES:536870912}  # 512MB 下载配额

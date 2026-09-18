@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -309,7 +310,7 @@ class InitiationTenderTextResolverTest {
                 .thenReturn(List.of(document));
         when(obsShareUrlSigner.trySign("obs-direct:up-1"))
                 .thenReturn(Optional.of("https://signed/up-1"));
-        when(streamingFetcher.fetch(eq("https://signed/up-1"), any(), eq("云端大文件.pdf"), eq("pdf")))
+        when(streamingFetcher.fetch(eq("https://signed/up-1"), any(), eq("云端大文件.pdf"), eq("pdf"), anyLong(), anyLong()))
                 .thenReturn(new LoadedBidFile.InMemory("正文".getBytes(), "云端大文件.pdf", "pdf"));
         when(textExtractor.extract(eq("云端大文件.pdf"), eq("pdf"), any()))
                 .thenReturn(new ExtractedTenderDocument("云端大文件.pdf", "pdf", "商务部分 90 分", 8, "md"));
@@ -358,7 +359,7 @@ class InitiationTenderTextResolverTest {
                 .thenReturn(List.of(document));
         when(obsShareUrlSigner.trySign("obs-direct:over-quota"))
                 .thenReturn(Optional.of("https://signed/over-quota"));
-        when(streamingFetcher.fetch(eq("https://signed/over-quota"), any(), eq("云端配额.pdf"), eq("pdf")))
+        when(streamingFetcher.fetch(eq("https://signed/over-quota"), any(), eq("云端配额.pdf"), eq("pdf"), anyLong(), anyLong()))
                 .thenThrow(new BidFileQuotaException());
         when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
                 .thenReturn(Optional.empty());

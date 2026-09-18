@@ -40,6 +40,7 @@ public class InitiationTenderTextResolver {
     private final StreamingBidFileFetcher streamingFetcher;
     private final SidecarStreamTextExtractor streamTextExtractor;
     private final TempBidFileStore tempFileStore;
+    private final long tenderRamBufferBytes;
     private final long tenderMaxTextChars;
     private final long tenderMaxFileBytes;
 
@@ -54,6 +55,7 @@ public class InitiationTenderTextResolver {
             StreamingBidFileFetcher streamingFetcher,
             SidecarStreamTextExtractor streamTextExtractor,
             TempBidFileStore tempFileStore,
+            @Value("${app.score-parse.tender-file.ram-buffer-bytes:52428800}") long tenderRamBufferBytes,
             @Value("${app.score-parse.tender-file.max-text-chars:5000000}") long tenderMaxTextChars,
             @Value("${app.score-parse.tender-file.max-file-bytes:536870912}") long tenderMaxFileBytes
     ) {
@@ -66,6 +68,7 @@ public class InitiationTenderTextResolver {
         this.streamingFetcher = streamingFetcher;
         this.streamTextExtractor = streamTextExtractor;
         this.tempFileStore = tempFileStore;
+        this.tenderRamBufferBytes = tenderRamBufferBytes;
         this.tenderMaxTextChars = tenderMaxTextChars;
         this.tenderMaxFileBytes = tenderMaxFileBytes;
     }
@@ -84,7 +87,25 @@ public class InitiationTenderTextResolver {
     ) {
         this(projectDocumentRepository, snapshotRepository, fileStorage, tenderDocumentStorage,
                 textExtractor, obsShareUrlSigner, streamingFetcher, streamTextExtractor,
-                tempFileStore, tenderMaxTextChars, 536870912L);
+                tempFileStore, 52428800L, tenderMaxTextChars, 536870912L);
+    }
+
+    InitiationTenderTextResolver(
+            ProjectDocumentRepository projectDocumentRepository,
+            BidTenderDocumentSnapshotRepository snapshotRepository,
+            ProjectDocumentFileStorage fileStorage,
+            TenderDocumentStorage tenderDocumentStorage,
+            TenderDocumentTextExtractor textExtractor,
+            ObsShareUrlSigner obsShareUrlSigner,
+            StreamingBidFileFetcher streamingFetcher,
+            SidecarStreamTextExtractor streamTextExtractor,
+            TempBidFileStore tempFileStore,
+            long tenderMaxTextChars,
+            long tenderMaxFileBytes
+    ) {
+        this(projectDocumentRepository, snapshotRepository, fileStorage, tenderDocumentStorage,
+                textExtractor, obsShareUrlSigner, streamingFetcher, streamTextExtractor,
+                tempFileStore, 52428800L, tenderMaxTextChars, tenderMaxFileBytes);
     }
 
     public boolean hasSource(Long projectId) {
@@ -126,20 +147,25 @@ public class InitiationTenderTextResolver {
     }
 
     private ExtractAttempt tryExtract(ProjectDocument document) {
+        LoadedBidFile loaded = null;
         try {
-            LoadedBidFile loaded = loadTenderFile(
+            loaded = loadTenderFile(
                     document.getFileUrl(), document.getName(), document.getFileType());
-            String text = loaded == null ? null : extractLoadedText(loaded, document);
+            String text = loaded == null ? null : extractLoadedTextNoRelease(loaded, document);
             if (text == null || text.isBlank()) {
                 log.warn("立项招标文件未能提取正文: name={}", document.getName());
+                releaseTenderFile(loaded);
                 return ExtractAttempt.miss();
             }
-            return ExtractAttempt.ok(new TenderTextSource(document.getName(), document.getFileUrl(), text));
+            return ExtractAttempt.ok(new TenderTextSource(document.getName(), document.getFileUrl(), text, loaded));
         } catch (OversizedTenderTextException | TenderFileQuotaException exception) {
+            releaseTenderFile(loaded);
             return ExtractAttempt.oversized(exception.getMessage());
         } catch (BidFileQuotaException exception) {
+            releaseTenderFile(loaded);
             return ExtractAttempt.oversized(TenderFileQuotaException.MESSAGE);
         } catch (RuntimeException exception) {
+            releaseTenderFile(loaded);
             log.warn("立项招标文件读取失败: name={}, msg={}", document.getName(), exception.getMessage());
             return ExtractAttempt.miss();
         }
@@ -181,7 +207,7 @@ public class InitiationTenderTextResolver {
             }
             try {
                 // 流式自适应 spill：≤内存快路径走内存，超限落盘；单文件超配额抛 BidFileQuotaException
-                return streamingFetcher.fetch(signed.get(), "tender-" + UUID.randomUUID(), fileName, contentType);
+                return streamingFetcher.fetch(signed.get(), "tender-" + UUID.randomUUID(), fileName, contentType, tenderRamBufferBytes, tenderMaxFileBytes);
             } catch (IOException | InterruptedException exception) {
                 log.warn("下载立项招标文件失败: {}", exception.getMessage());
                 if (exception instanceof InterruptedException) {
@@ -219,12 +245,12 @@ public class InitiationTenderTextResolver {
         }
     }
 
-    private String extractLoadedText(LoadedBidFile loaded, ProjectDocument document) {
+    private String extractLoadedTextNoRelease(LoadedBidFile loaded, ProjectDocument document) {
         if (loaded instanceof LoadedBidFile.InMemory memory) {
             var extracted = textExtractor.extract(document.getName(), document.getFileType(), memory.content());
             String text = extracted == null ? null : extracted.text();
             if (text != null && text.length() > tenderMaxTextChars) {
-                throw new OversizedTenderTextException();
+                throw new OversizedTenderTextException(tenderMaxTextChars);
             }
             return text;
         }
@@ -232,15 +258,13 @@ public class InitiationTenderTextResolver {
         try {
             return streamTextExtractor.extract(disk.tempFile(), document.getName(), tenderMaxTextChars);
         } catch (OversizedBidTextException exception) {
-            throw new OversizedTenderTextException();
+            throw new OversizedTenderTextException(tenderMaxTextChars);
         } catch (IOException | InterruptedException exception) {
             log.warn("超大招标文件流式提取失败: name={}, msg={}", document.getName(), exception.getMessage());
             if (exception instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             return null;
-        } finally {
-            releaseTenderFile(loaded);
         }
     }
 }

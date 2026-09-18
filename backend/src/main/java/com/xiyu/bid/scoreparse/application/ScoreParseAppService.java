@@ -111,7 +111,7 @@ public class ScoreParseAppService {
         }
         String taskId = UUID.randomUUID().toString();
         stateService.createTask(taskId, projectId, TASK_TYPE_PARSE, null, null, source);
-        self.executeParseAsync(taskId);
+        self.executeParseAsync(taskId, intake);
         return new ScoreParseTriggerDTO(taskId, "PENDING");
     }
 
@@ -125,20 +125,22 @@ public class ScoreParseAppService {
 
     /** 异步执行解析（scoreParseExecutor，分钟级 LLM 调用） */
     @Async("scoreParseExecutor")
-    public void executeParseAsync(String taskId) {
+    public void executeParseAsync(String taskId) { executeParseAsync(taskId, null); }
+
+    public void executeParseAsync(String taskId, TenderIntake intake) {
         try {
-            doExecuteParse(taskId);
+            doExecuteParse(taskId, intake);
         } catch (RuntimeException exception) {
             log.error("解析任务异常终止: taskId={}", taskId, exception);
             stateService.failTask(taskId, "解析失败: " + exception.getMessage());
         }
     }
 
-    private void doExecuteParse(String taskId) {
+    private void doExecuteParse(String taskId, TenderIntake providedIntake) {
         stateService.markProcessing(taskId);
         ScoreParseTask task = taskRepository.findByTaskId(taskId)
                 .orElseThrow(() -> new IllegalStateException("任务不存在: " + taskId));
-        TenderIntake intake = initiationTenderTextResolver.resolveIntake(task.getProjectId());
+        TenderIntake intake = providedIntake != null ? providedIntake : initiationTenderTextResolver.resolveIntake(task.getProjectId());
         if (intake.source().isEmpty()) {
             String reason = intake.emptyReason() == null ? NO_SNAPSHOT_MESSAGE : intake.emptyReason();
             log.warn("读取立项招标文件失败: taskId={}, msg={}", taskId, reason);
@@ -147,73 +149,75 @@ public class ScoreParseAppService {
             return;
         }
         TenderTextSource source = intake.source().orElseThrow();
-        task.setFileName(source.fileName());
-        task.setFileUrl(source.fileUrl());
-        taskRepository.save(task);
-        updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
-
-        var structuredCandidates = StructuredTableExtractionHandler.extract(
-                source, initiationTenderTextResolver,
-                artifactExtractorProvider == null ? null : artifactExtractorProvider.getIfAvailable(),
-                sidecarTableExtractor);
-        if (structuredCandidates.structureIncomplete()) {
-            StructuredTableExtractionHandler.markIncomplete(task, taskId, structuredCandidates.failureReason(),
-                    taskRepository, stateService, progressService);
-            return;
-        }
-        if (structuredCandidates.evidencePipeline()) {
-            StructuredTableExtractionHandler.markEvidencePipelineCompleted(
-                    task, taskId, structuredCandidates, taskRepository, stateService,
-                    progressService, itemPersistenceService, estimatedScoreService);
-            return;
-        }
-        RecallOutcome outcome = scoreAnalyzer.recallCandidates(source.text(), null,
-                (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
-        task.setSkippedChunks(outcome.skippedChunks());
-        List<ScoreCandidate> tableCandidates = structuredCandidates.candidates();
-        if (tableCandidates.size() >= STRUCTURED_TABLE_MIN_CANDIDATES) {
-            log.info("结构化表格提取命中候选: count={}", tableCandidates.size());
-        } else {
-            tableCandidates = recallTableCandidates(source.text());
-        }
-        updateProgress(taskId, 70, "GOVERN", "候选治理、归并裁决与权重收敛");
-        var processed = postProcessor.process(taskId, source.text(), outcome, tableCandidates,
-                (progress, stageKey) -> updateProgress(taskId, progress, stageKey,
-                        "GAP_RECHECK".equals(stageKey) ? "分值或编号连续性异常，触发完整性回补" : stageKey));
-        task.setRunSummary(processed.runSummaryJson());
-        task.setNormalizationWarning(processed.normalizationWarning());
-        task.setPipelineVersion(processed.pipelineVersion());
-        task.setDecisionStatus(processed.decisionStatus() == null ? null : processed.decisionStatus().name());
-        task.setFallbackReason(processed.fallbackReason());
-        if (processed.failMessage() != null) {
+        try {
+            task.setFileName(source.fileName());
+            task.setFileUrl(source.fileUrl());
             taskRepository.save(task);
-            stateService.failTask(taskId, processed.failMessage());
+            updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
+
+            var structuredCandidates = StructuredTableExtractionHandler.extract(
+                    source, initiationTenderTextResolver,
+                    artifactExtractorProvider == null ? null : artifactExtractorProvider.getIfAvailable(),
+                    sidecarTableExtractor);
+            if (structuredCandidates.structureIncomplete()) {
+                StructuredTableExtractionHandler.markIncomplete(task, taskId, structuredCandidates.failureReason(),
+                        taskRepository, stateService, progressService);
+                return;
+            }
+            if (structuredCandidates.evidencePipeline()) {
+                StructuredTableExtractionHandler.markEvidencePipelineCompleted(
+                        task, taskId, structuredCandidates, taskRepository, stateService,
+                        progressService, itemPersistenceService, estimatedScoreService);
+                return;
+            }
+            RecallOutcome outcome = scoreAnalyzer.recallCandidates(source.text(), null,
+                    (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
+            task.setSkippedChunks(outcome.skippedChunks());
+            List<ScoreCandidate> tableCandidates = structuredCandidates.candidates();
+            if (tableCandidates.size() >= STRUCTURED_TABLE_MIN_CANDIDATES) {
+                log.info("结构化表格提取命中候选: count={}", tableCandidates.size());
+            } else {
+                tableCandidates = recallTableCandidates(source.text());
+            }
+            updateProgress(taskId, 70, "GOVERN", "候选治理、归并裁决与权重收敛");
+            var processed = postProcessor.process(taskId, source.text(), outcome, tableCandidates,
+                    (progress, stageKey) -> updateProgress(taskId, progress, stageKey,
+                            "GAP_RECHECK".equals(stageKey) ? "分值或编号连续性异常，触发完整性回补" : stageKey));
+            task.setRunSummary(processed.runSummaryJson());
+            task.setNormalizationWarning(processed.normalizationWarning());
+            task.setPipelineVersion(processed.pipelineVersion());
+            task.setDecisionStatus(processed.decisionStatus() == null ? null : processed.decisionStatus().name());
+            task.setFallbackReason(processed.fallbackReason());
+            if (processed.failMessage() != null) {
+                taskRepository.save(task);
+                stateService.failTask(taskId, processed.failMessage());
+                progressService.clearProgress(taskId);
+                return;
+            }
+            List<ScoreCandidate> valid = processed.candidates();
+            if (processed.originalTotal() != null) task.setOriginalTotalWeight(processed.originalTotal());
+            taskRepository.save(task);
+            // task2 收敛纪律：只有 AUTO_APPROVED 可覆盖旧 score_item；
+            // REVIEW_REQUIRED / STRUCTURE_INCOMPLETE / PARSE_FAILED 都保留旧项，避免不完整结果洗掉可用数据。
+            if (!valid.isEmpty() && processed.decisionStatus() == ScoreParseDecision.AUTO_APPROVED) {
+                updateProgress(taskId, 90, "PERSIST", "评分项落库");
+                itemPersistenceService.persistItems(task.getProjectId(), task.getId(), valid);
+                updateProgress(taskId, 95, "ESTIMATE", "阶段 1 预计得分计算");
+                estimatedScoreService.estimateForProject(task.getProjectId());
+            } else if (!valid.isEmpty() && processed.decisionStatus() == ScoreParseDecision.REVIEW_REQUIRED) {
+                itemPersistenceService.persistReviewCandidateFacts(task.getProjectId(), task.getId(), valid);
+                log.warn("解析结果未自动通过，已保存复核候选快照且保留现有评分项不覆盖: taskId={}, decision={}",
+                        taskId, processed.decisionStatus());
+            } else {
+                log.warn("解析结果未自动通过，保留现有评分项不覆盖: taskId={}, decision={}", taskId, processed.decisionStatus());
+            }
+            log.info("解析任务完成: taskId={}, items={}, totalWeight={}, decision={}",
+                    taskId, valid.size(), processed.weightResult().totalWeight(), processed.decisionStatus());
+            stateService.markCompleted(taskId);
             progressService.clearProgress(taskId);
-            return;
+        } finally {
+            if (source.loaded() != null) initiationTenderTextResolver.releaseTenderFile(source.loaded());
         }
-        List<ScoreCandidate> valid = processed.candidates();
-        if (processed.originalTotal() != null) {
-            task.setOriginalTotalWeight(processed.originalTotal());
-        }
-        taskRepository.save(task);
-        // task2 收敛纪律：只有 AUTO_APPROVED 可覆盖旧 score_item；
-        // REVIEW_REQUIRED / STRUCTURE_INCOMPLETE / PARSE_FAILED 都保留旧项，避免不完整结果洗掉可用数据。
-        if (!valid.isEmpty() && processed.decisionStatus() == ScoreParseDecision.AUTO_APPROVED) {
-            updateProgress(taskId, 90, "PERSIST", "评分项落库");
-            itemPersistenceService.persistItems(task.getProjectId(), task.getId(), valid);
-            updateProgress(taskId, 95, "ESTIMATE", "阶段 1 预计得分计算");
-            estimatedScoreService.estimateForProject(task.getProjectId());
-        } else if (!valid.isEmpty() && processed.decisionStatus() == ScoreParseDecision.REVIEW_REQUIRED) {
-            itemPersistenceService.persistReviewCandidateFacts(task.getProjectId(), task.getId(), valid);
-            log.warn("解析结果未自动通过，已保存复核候选快照且保留现有评分项不覆盖: taskId={}, decision={}",
-                    taskId, processed.decisionStatus());
-        } else {
-            log.warn("解析结果未自动通过，保留现有评分项不覆盖: taskId={}, decision={}", taskId, processed.decisionStatus());
-        }
-        log.info("解析任务完成: taskId={}, items={}, totalWeight={}, decision={}",
-                taskId, valid.size(), processed.weightResult().totalWeight(), processed.decisionStatus());
-        stateService.markCompleted(taskId);
-        progressService.clearProgress(taskId);
     }
 
     public ScoreParseProgressDTO getStatus(Long projectId) {
@@ -228,8 +232,7 @@ public class ScoreParseAppService {
         List<ScoreItemDTO> itemDTOs = items.stream().map(this::toDTO).toList();
 
         SummaryAggregator.Result summary = summaryAggregator.aggregate(items.stream()
-                .map(item -> new SummaryAggregator.Item(
-                        item.getWeight(), item.getScoreType(), item.getEstScore(), item.getStatusStage1()))
+                .map(item -> new SummaryAggregator.Item(item.getWeight(), item.getScoreType(), item.getEstScore(), item.getStatusStage1()))
                 .toList());
         ScoreParseTask latest = latestTaskOrNull(projectId, TASK_TYPE_PARSE);
         return new ScoreParseItemsDTO(itemDTOs, new ScoreParseItemsDTO.Summary(
@@ -244,15 +247,16 @@ public class ScoreParseAppService {
                         .build(projectId, latest, latestTaskOrNull(projectId, "SCORING")));
     }
     private static final List<String> ANY_STATUS = List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED");
+
     private ScoreParseTask latestTaskOrNull(Long projectId, String taskType) {
         return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, taskType, ANY_STATUS)
                 .stream().max(java.util.Comparator.comparing(ScoreParseTask::getId)).orElse(null);
     }
 
     private ScoreParseTask latestTask(Long projectId, String taskType) {
-        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, taskType, ANY_STATUS)
-                .stream().max(java.util.Comparator.comparing(ScoreParseTask::getId))
-                .orElseThrow(() -> new IllegalStateException("项目无解析任务: " + projectId));
+        ScoreParseTask task = latestTaskOrNull(projectId, taskType);
+        if (task == null) throw new IllegalStateException("项目无解析任务: " + projectId);
+        return task;
     }
 
     private List<ScoreCandidate> recallTableCandidates(String fullText) {
@@ -282,8 +286,7 @@ public class ScoreParseAppService {
 
     private void updateProgress(String taskId, int progress, String stageKey, String stageText) {
         stateService.updateProgress(taskId, progress, stageText);
-        progressService.updateProgress(taskId, new ScoreParseProgressDTO(
-                taskId, "PROCESSING", progress, stageText, null, null, null));
+        progressService.updateProgress(taskId, new ScoreParseProgressDTO(taskId, "PROCESSING", progress, stageText, null, null, null));
     }
 
     private ScoreItemDTO toDTO(ScoreItem item) {

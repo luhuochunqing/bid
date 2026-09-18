@@ -59,13 +59,26 @@ public class SidecarDocumentArtifactExtractor {
     }
 
     /**
-     * 主入口：上传 docx 字节并解析为 DocumentArtifact。
+     * OnDisk 路径：磁盘临时文件流式上传。
+     */
+    public DocumentArtifact extract(java.nio.file.Path file, String fileName)
+            throws IOException, InterruptedException {
+        return post(HttpRequest.BodyPublishers.ofFile(file), fileName);
+    }
+
+    /**
+     * InMemory 路径：上传 docx 字节并解析为 DocumentArtifact。
      *
      * @throws DocumentArtifactUnavailable sidecar 不可达 / 4xx-5xx / 解析失败时抛出，
      *         调用方应将 {@link StructureValidationResult.Status#STRUCTURE_INCOMPLETE}
      *         写入任务并保留现有 {@code score_item}。
      */
     public DocumentArtifact extract(byte[] content, String fileName)
+            throws IOException, InterruptedException {
+        return post(HttpRequest.BodyPublishers.ofByteArray(content), fileName);
+    }
+
+    private DocumentArtifact post(HttpRequest.BodyPublisher fileBody, String fileName)
             throws IOException, InterruptedException {
         String boundary = "xiyu-doc-artifact-" + UUID.randomUUID().toString().replace("-", "");
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
@@ -80,7 +93,7 @@ public class SidecarDocumentArtifactExtractor {
         HttpRequest request = requestBuilder
                 .POST(HttpRequest.BodyPublishers.concat(
                         HttpRequest.BodyPublishers.ofByteArray(SidecarMultipart.prefix(boundary, fileName)),
-                        HttpRequest.BodyPublishers.ofByteArray(content),
+                        fileBody,
                         HttpRequest.BodyPublishers.ofByteArray(SidecarMultipart.suffix(boundary))))
                 .build();
         HttpResponse<InputStream> response;
