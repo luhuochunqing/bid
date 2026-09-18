@@ -60,7 +60,7 @@ class TrendAnalysisComputationService {
             }
         }
 
-        return TrendSeriesAssembler.assemble(bucketMap, expectedCategories, true);
+        return TrendSeriesAssembler.assembleWithOutcomeRate(bucketMap, expectedCategories);
     }
 
     /**
@@ -91,7 +91,7 @@ class TrendAnalysisComputationService {
         }
 
         // 竞品维度维持 specs/055 FR-02：中标率 = 中标数/该竞品参与项目数（口径变更排除项）
-        return TrendSeriesAssembler.assemble(bucketMap, expectedCategories, false);
+        return TrendSeriesAssembler.assembleWithBidRate(bucketMap, expectedCategories);
     }
 
     /**
@@ -119,7 +119,7 @@ class TrendAnalysisComputationService {
             }
         }
 
-        return TrendSeriesAssembler.assemble(bucketMap, expectedCategories, false);
+        return TrendSeriesAssembler.assembleWithBidRate(bucketMap, expectedCategories);
     }
 
     /**

@@ -227,9 +227,9 @@ public class TrendDrillDownService {
         long totalWins = isCompetitorDimension
                 ? countCompetitorWins(where, params, axisValue != null && !axisValue.isBlank() ? axisValue : null)
                 : countByStatus(where, params, "WON");
-        long rateDenominator = isCompetitorDimension || "projectStatus".equals(dimension)
-                ? total
-                : totalWins + countByStatus(where, params, "LOST");
+        long rateDenominator = TrendSeriesAssembler.usesOutcomeDenominator(dimension)
+                ? totalWins + countByStatus(where, params, "LOST")
+                : total;
         TrendDrillDownResponse.DrillDownSummary summary = TrendDrillDownResponse.DrillDownSummary.builder()
                 .totalCount(total)
                 .totalBids(total)

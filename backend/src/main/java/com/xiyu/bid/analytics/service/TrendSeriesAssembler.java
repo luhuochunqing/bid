@@ -27,8 +27,25 @@ final class TrendSeriesAssembler {
         long notWonCount;
     }
 
+    /** CO-615 排除项单一事实源：非竞品、非项目状态维度使用 outcome 分母（win/(win+notWon)）。 */
+    static boolean usesOutcomeDenominator(String dimension) {
+        return !"competitor".equals(dimension) && !"projectStatus".equals(dimension);
+    }
+
+    /** 维度/时间趋势组装：outcome 分母。 */
+    static TrendAnalysisComputationService.TrendComputationResult assembleWithOutcomeRate(
+            Map<String, Bucket> bucketMap, List<String> expectedCategories) {
+        return assemble(bucketMap, expectedCategories, true);
+    }
+
+    /** 项目状态维度（不展示中标率）与竞品维度（specs/055）组装：win/bid 分母。 */
+    static TrendAnalysisComputationService.TrendComputationResult assembleWithBidRate(
+            Map<String, Bucket> bucketMap, List<String> expectedCategories) {
+        return assemble(bucketMap, expectedCategories, false);
+    }
+
     /** 期望分类补零（数量为 0 也展示）→ 按 bidCount 降序 → 生成四序列。 */
-    static TrendAnalysisComputationService.TrendComputationResult assemble(
+    private static TrendAnalysisComputationService.TrendComputationResult assemble(
             Map<String, Bucket> bucketMap, List<String> expectedCategories, boolean outcomeDenominator) {
         if (expectedCategories != null) {
             for (String expected : expectedCategories) {
