@@ -172,7 +172,7 @@ public class TrendAnalysisService {
                 ? round1(winRate - yoyWinRate)
                 : null;
 
-        // PRD §3.1 今日新增（投标总数卡片底部显示）
+        // PRD §3.1 今日新增（投标数卡片底部显示）
         long todayNewCount = queryService.fetchTodayNewCount();
 
         return EnhancedOverviewResponse.builder()

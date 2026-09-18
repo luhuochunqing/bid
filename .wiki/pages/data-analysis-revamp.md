@@ -4,7 +4,7 @@ space: engineering
 category: architecture
 tags: [analytics, data-analysis, m0-m4, competitor, echarts, fp-java]
 created: 2026-08-14
-updated: 2026-08-28
+updated: 2026-09-18
 health_checked: 2026-09-18
 sources:
   - .wiki/pages/data-analysis-revamp.md
@@ -58,9 +58,10 @@ backlinks:
 M2/M3 时间过滤统一使用 `p.createdAt`（项目创建时间），**不是** `coalesce(p.startDate, p.createdAt)`。
 PRD §6/§7 明确数据口径以项目创建时间为准。
 
-### 投标数口径（2026-08-19 修订）
+### 投标数口径（2026-08-19 修订，2026-09-18 补充 M0/M1 区分）
 
-- 投标数 = **全部项目**（含 BIDDING/EVALUATING/INITIATED 等进行中状态），与 M0 KPI「投标总数」、项目状态维度口径对齐。
+- M1 图表「投标数」= **全部项目**（全状态，含进行中/流标/弃标）；M1 图表「中标率」= 中标数/投标数。后端 `TrendAnalysisComputationService` 与下钻 `TrendDrillDownService` 共同锁定该口径。
+- M0 卡片「投标数」（2026-09-18 由「投标总数」更名）= 投标中+评标中+已中标+未中标（4 状态，后端 `totalCount`）；M0 卡片「中标率」= 中标数/（已中标+未中标）。**两处同名不同口径**，前端分别用卡片底注、图例 tooltip 说明，禁止互相推导。
 - 旧口径（仅 WON+LOST）导致：有总部所在地的项目多为进行中状态时，区域维度图表值全 0。
 - 中标数 = WON 项目数，不变。下钻"投标数"系列不再追加 `status IN ('WON','LOST')` 过滤。
 
