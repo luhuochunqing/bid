@@ -802,6 +802,26 @@ else
   fi
 fi
 
+# ── §32: Unified Dev Flow S5/S6 物理硬门禁 ───────────────────────
+# 针对任务开发分支（agent/*, feat/*, fix/* 等非主干分支），强制核验 S5 验证与 S6 Code Review 工件
+GATE_BRANCH="$(git branch --show-current 2>/dev/null || true)"
+if [[ "$GATE_BRANCH" =~ ^(agent/|feat/|fix/) ]]; then
+  CHECKER="${HOME}/.claude/scripts/entry-gate-check.py"
+  if [[ -f "$CHECKER" ]]; then
+    echo "🔍 检查 S5 验证与 S6 Code Review 工件..."
+    if ! python3 "$CHECKER" --project-dir "$ROOT_DIR" --guard-pr; then
+      fail "Unified Dev Flow 门禁未通过：缺少合规的 S5 验证工件 (.omc/verify-*.md) 或 S6 审查工件 (.omc/review-*.md 且 verdict 须为 MERGE_READY)"
+    else
+      pass "Unified Dev Flow 门禁（S5 验证与 S6 Code Review: MERGE_READY）"
+    fi
+  else
+    echo "⚠️  entry-gate-check.py 未找到，跳过 S5/S6 门禁"
+    SKIPD=$((SKIPD + 1))
+  fi
+else
+  pass "Unified Dev Flow 门禁（非任务分支，跳过 S5/S6 检查）"
+fi
+
 # ── 汇总 ────────────────────────────────────────────────
 echo ""
 echo "─────────────────────────"

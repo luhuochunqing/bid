@@ -179,14 +179,31 @@ create_pr() {
     exit 1
   fi
 
-  # 逃生阀：DUPLICATE_IMPL_SKIP=1
   local repo_root
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+
+  # ── Unified Dev Flow S6 Code Review 物理硬卡点 ─────────────────────
+  if [[ "$branch" =~ ^(agent/|feat/|fix/) ]]; then
+    local checker="${HOME}/.claude/scripts/entry-gate-check.py"
+    if [[ -f "$checker" ]]; then
+      echo "[gitee-pr] 🔍 检查 S5 验证与 S6 Code Review 交付凭证..."
+      if ! python3 "$checker" --project-dir "$repo_root" --guard-pr; then
+        echo "[gitee-pr] ❌ 阻断：未执行 S6 Code Review 或审查结论未达 MERGE_READY，严禁创建 PR！" >&2
+        echo "[gitee-pr]    必须先运行 xiyu-code-review 或 google-code-review，并产出合格的 .omc/review-*.md 工件。" >&2
+        echo "[gitee-pr]    逃生阀: UNIFIED_DEV_FLOW_SKIP_REVIEW=1" >&2
+        exit 1
+      fi
+      echo "[gitee-pr] ✅ S6 Code Review 交付凭证合规 (MERGE_READY)"
+    fi
+  fi
+
+  # 逃生阀：DUPLICATE_IMPL_SKIP=1
+  local dup_checker="$repo_root/scripts/check-duplicate-implementations.mjs"
   if [ "${DUPLICATE_IMPL_SKIP:-0}" = "1" ]; then
     echo "[gitee-pr] ⚠ DUPLICATE_IMPL_SKIP=1 — 跳过重复实现检查"
-  else
+  elif [ -f "$dup_checker" ]; then
     echo "[gitee-pr] 重复实现检查（提交 PR 自动执行）..."
-    if ! node "$repo_root/scripts/check-duplicate-implementations.mjs"; then
+    if ! node "$dup_checker"; then
       echo "[gitee-pr] ❌ 重复实现门禁未通过。请复用已有实现，或加 // REUSE-OK: <path> — <原因>" >&2
       echo "[gitee-pr] 逃生阀: DUPLICATE_IMPL_SKIP=1" >&2
       exit 1
