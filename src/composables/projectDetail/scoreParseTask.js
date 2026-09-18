@@ -2,6 +2,7 @@
 // Output: pollTask / formatTime / STATUS_MAP / TYPE_MAP — spec 041 状态映射与任务轮询纯函数
 //         normalizeScoreItem：客观项空 estScore 保留 null（展示层渲染"待确认"，spec 044 FR-001）
 //         mapScoreResults / lookupScoreResult：按 scoreItemId 建表，有 id 时不得回退 code
+//         getDecisionBadgeType / getDecisionBadgeText: 评分决策状态徽标映射纯函数
 // Pos: src/composables/projectDetail/ - 无状态辅助模块
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -161,4 +162,30 @@ export function normalizeScoreResult(r) {
     matchRatio: r.matchRatio != null ? Number(r.matchRatio) : null,
     reuseKind: r.reuseKind || null,
   }
+}
+
+const DECISION_BADGE_TYPE_MAP = {
+  AUTO_APPROVED: 'success',
+  MANUAL_APPROVED: 'success',
+  REVIEW_REQUIRED: 'warning',
+  STRUCTURE_INCOMPLETE: 'danger',
+  PARSE_FAILED: 'info',
+}
+
+const DECISION_BADGE_TEXT_MAP = {
+  AUTO_APPROVED: '自动通过',
+  MANUAL_APPROVED: '人工采纳通过',
+  REVIEW_REQUIRED: '待人工复核',
+  STRUCTURE_INCOMPLETE: '结构异常',
+  PARSE_FAILED: '解析失败',
+}
+
+export function getDecisionBadgeType(decisionStatus, reviewSubmitted) {
+  if (reviewSubmitted) return 'success'
+  return DECISION_BADGE_TYPE_MAP[decisionStatus] || ''
+}
+
+export function getDecisionBadgeText(decisionStatus, reviewSubmitted) {
+  if (reviewSubmitted) return '已完成复核'
+  return DECISION_BADGE_TEXT_MAP[decisionStatus] || ''
 }

@@ -10,6 +10,7 @@ package com.xiyu.bid.scoreparse.domain;
  *
  * <ul>
  *   <li>{@link #AUTO_APPROVED}：自动通过；覆盖当前生效 score_item。</li>
+ *   <li>{@link #MANUAL_APPROVED}：人工复核确认采纳；覆盖当前生效 score_item。</li>
  *   <li>{@link #REVIEW_REQUIRED}：解析产出事实与证据，但触发复核信号（权重缺口/大类声明不符等）；
  *       只保留 facts/evidence 与任务复核标记，不覆盖当前生效 score_item，等待人工复核审计闭环。</li>
  *   <li>{@link #STRUCTURE_INCOMPLETE}：原文/表格结构损坏，结构化提取失败；保留现有 score_item 不覆盖。</li>
@@ -21,6 +22,7 @@ package com.xiyu.bid.scoreparse.domain;
  */
 public enum ScoreParseDecision {
     AUTO_APPROVED,
+    MANUAL_APPROVED,
     REVIEW_REQUIRED,
     STRUCTURE_INCOMPLETE,
     PARSE_FAILED

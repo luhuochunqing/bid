@@ -12,6 +12,7 @@
       遮罩展示期间锁定内容区滚动（.scroll-locked），避免轮询中用户滚动导致提示文字漂出可视区（2026-08-26）。
       为 e2e 布局契约用例新增 data-test 钩子：score-parse-content / score-parse-overlay-text / score-parse-reparse（2026-08-26）。一旦我被更新，务必更新我的开头注释。
       REVIEW_REQUIRED / STRUCTURE_INCOMPLETE 增加 facts/evidence 复核快照与 score_parse_review 审计入口（2026-09-12）。
+      新增待复核候选评分项预览与一键采纳闭环（score-parse-candidate-review / btn-adopt-candidates）（2026-09-18）。
 -->
 <template>
   <el-drawer
@@ -70,7 +71,17 @@
             </div>
           </div>
           <div v-show="isSection1Expanded" class="collapse-body">
-            <div v-if="scoreItems.length === 0" class="scoring-placeholder">
+            <!-- 候选待采纳区：有候选事实且尚未落库时展示 -->
+            <ScoreCandidateReviewCard
+              v-if="scoreItems.length === 0 && candidateFacts.length > 0"
+              :candidate-facts="candidateFacts"
+              :candidate-total-weight="candidateTotalWeight"
+              :is-adopting-candidates="isAdoptingCandidates"
+              @adopt="adoptCandidateFacts()"
+              @reparse="reparse"
+            />
+
+            <div v-else-if="scoreItems.length === 0" class="scoring-placeholder">
               <div class="placeholder-icon">📋</div>
               <div class="placeholder-text">尚未解析到评分标准，将使用立项招标文件解析。若立项尚未上传，请先在立项阶段上传招标文件。</div>
               <div class="placeholder-sub">
@@ -185,6 +196,7 @@
 
 <script setup>
 import { useScoreParseDrawer } from '@/composables/projectDetail/useScoreParseDrawer.js'
+import ScoreCandidateReviewCard from './ScoreCandidateReviewCard.vue'
 import ScoreItemDetailModal from './ScoreItemDetailModal.vue'
 import ScoreParseTable from './ScoreParseTable.vue'
 
@@ -201,6 +213,7 @@ const {
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
   decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason,
+  candidateFacts, candidateTotalWeight, isAdoptingCandidates, adoptCandidateFacts,
 } = useScoreParseDrawer(props, emit)
 
 defineExpose({ open, runScoring })
@@ -269,6 +282,7 @@ defineExpose({ open, runScoring })
 .decision-tag.danger { background: var(--status-danger-bg); color: var(--status-danger-color); border: 1px solid var(--status-danger-border); font-weight: 600; }
 .decision-tag.info { background: var(--status-info-bg); color: var(--status-info-color); border: 1px solid var(--status-info-border); }
 .review-reason-tag { background: var(--status-warning-bg-soft); color: var(--status-warning-color); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 </style>
 
 <!-- 全局：el-drawer teleport 后根元素不带 scoped data-v，scoped/:deep 选择器无法命中，必须用类前缀全局规则 -->

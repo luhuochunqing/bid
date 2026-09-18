@@ -94,7 +94,7 @@ public final class ScoreTableSplitPolicy {
             case PARSE_FAILED -> 0;
             case STRUCTURE_INCOMPLETE -> 1;
             case REVIEW_REQUIRED -> 2;
-            case AUTO_APPROVED -> 3;
+            case AUTO_APPROVED, MANUAL_APPROVED -> 3;
         };
     }
 

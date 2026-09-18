@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,13 +42,17 @@ class ScoreParseReviewAppServiceTest {
     private ScoreParseReviewRepository reviewRepository;
     @Mock
     private ProjectAccessScopeService projectAccessScopeService;
+    @Mock
+    private ScoreItemPersistenceService itemPersistenceService;
+    @Mock
+    private EstimatedScoreService estimatedScoreService;
 
     private ScoreParseReviewAppService service;
 
     @BeforeEach
     void setUp() {
         service = new ScoreParseReviewAppService(taskRepository, factRepository, evidenceRepository,
-                reviewRepository, projectAccessScopeService);
+                reviewRepository, projectAccessScopeService, itemPersistenceService, estimatedScoreService);
     }
 
     @Test
@@ -87,6 +92,34 @@ class ScoreParseReviewAppServiceTest {
         assertThat(saved.getOriginalWeight()).isEqualByComparingTo("10");
         assertThat(saved.getAdjustedWeight()).isEqualByComparingTo("12");
         assertThat(saved.getOperatorName()).isEqualTo("zhangsan");
+    }
+
+    @Test
+    void submitReview_adoptCandidates_persistsItemsAndMarksManualApproved() {
+        mockLatestTask();
+        ScoreParseFact fact1 = fact("fact-1", "20");
+        ScoreParseFact fact2 = fact("fact-2", "80");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact1, fact2));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of());
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+
+        ScoreParseReviewDTO result = service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "一键采纳所有候选项")
+        ), "人工确认采纳"), "admin");
+
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+        verify(estimatedScoreService).estimateForProject(PROJECT_ID);
+
+        ArgumentCaptor<ScoreParseTask> taskCaptor = ArgumentCaptor.forClass(ScoreParseTask.class);
+        verify(taskRepository).save(taskCaptor.capture());
+        ScoreParseTask updatedTask = taskCaptor.getValue();
+        assertThat(updatedTask.getDecisionStatus()).isEqualTo("MANUAL_APPROVED");
+        assertThat(updatedTask.getOriginalTotalWeight()).isEqualByComparingTo("100");
+        assertThat(updatedTask.getFallbackReason()).isNull();
+
+        ArgumentCaptor<ScoreParseReview> reviewCaptor = ArgumentCaptor.forClass(ScoreParseReview.class);
+        verify(reviewRepository).save(reviewCaptor.capture());
+        assertThat(reviewCaptor.getValue().getAction()).isEqualTo("ADOPT_CANDIDATES");
     }
 
     private void mockLatestTask() {

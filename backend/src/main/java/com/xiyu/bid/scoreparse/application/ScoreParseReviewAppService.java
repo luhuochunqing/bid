@@ -12,6 +12,7 @@ import com.xiyu.bid.scoreparse.repository.ScoreParseReviewRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,19 +27,25 @@ import java.util.stream.Collectors;
 /**
  * AI 评分解析人工复核应用服务（spec 059 Phase 5 task3）。
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ScoreParseReviewAppService {
 
     private static final String TASK_TYPE_PARSE = "PARSE";
     private static final List<String> ANY_STATUS = List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED");
-    private static final Set<String> ALLOWED_ACTIONS = Set.of("RETAIN_ORIGINAL", "MANUAL_ADJUST", "EXCLUDE");
+    private static final Set<String> ALLOWED_ACTIONS = Set.of(
+            "RETAIN_ORIGINAL", "MANUAL_ADJUST", "EXCLUDE", "ADOPT_CANDIDATES");
 
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreParseFactRepository factRepository;
     private final ScoreParseEvidenceRepository evidenceRepository;
     private final ScoreParseReviewRepository reviewRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final ScoreItemPersistenceService itemPersistenceService;
+    private final EstimatedScoreService estimatedScoreService;
+    private final com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy adoptionPolicy =
+            new com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy();
 
     @Transactional(readOnly = true)
     public ScoreParseReviewDTO getReviewSnapshot(Long projectId) {
@@ -83,6 +90,13 @@ public class ScoreParseReviewAppService {
             throw new IllegalArgumentException("请至少提交一条复核动作");
         }
         String fallbackReason = normalizeReason(command.reason(), "人工复核");
+
+        boolean isAdopt = actions.stream().anyMatch(a -> a != null && "ADOPT_CANDIDATES".equals(normalizeAction(a.action())));
+        if (isAdopt) {
+            handleAdoptCandidates(projectId, task, facts, actions, fallbackReason, operatorName);
+            return getReviewSnapshot(projectId);
+        }
+
         for (ScoreParseReviewCommand.Action action : actions) {
             String actionName = action == null ? null : normalizeAction(action.action());
             if (!ALLOWED_ACTIONS.contains(actionName)) {
@@ -110,6 +124,67 @@ public class ScoreParseReviewAppService {
                     .build());
         }
         return getReviewSnapshot(projectId);
+    }
+
+    private void handleAdoptCandidates(
+            Long projectId,
+            ScoreParseTask task,
+            List<ScoreParseFact> facts,
+            List<ScoreParseReviewCommand.Action> actions,
+            String fallbackReason,
+            String operatorName
+    ) {
+        java.util.Set<String> selectedFactIds = new java.util.LinkedHashSet<>();
+        java.util.Map<String, BigDecimal> adjustedWeights = new java.util.LinkedHashMap<>();
+
+        for (ScoreParseReviewCommand.Action a : actions) {
+            if (a == null) continue;
+            if (a.factId() != null && !a.factId().isBlank()) {
+                selectedFactIds.add(a.factId().trim());
+                if (a.adjustedWeight() != null) {
+                    adjustedWeights.put(a.factId().trim(), a.adjustedWeight());
+                }
+            }
+        }
+
+        List<com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput> inputs = facts.stream()
+                .map(f -> new com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput(
+                        f.getFactId(), f.getCode(), f.getDimension(), f.getWeight(), f.getSourceText(), f.getParentFactId()))
+                .toList();
+
+        com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.AdoptionResult result =
+                adoptionPolicy.adopt(inputs, selectedFactIds, adjustedWeights);
+        if (!result.success()) {
+            throw new IllegalStateException(result.errorMessage());
+        }
+
+        if (itemPersistenceService != null) {
+            itemPersistenceService.persistItems(projectId, task.getId(), result.candidates());
+        }
+
+        task.setDecisionStatus(com.xiyu.bid.scoreparse.domain.ScoreParseDecision.MANUAL_APPROVED.name());
+        task.setOriginalTotalWeight(result.totalWeight());
+        task.setFallbackReason(null);
+        taskRepository.save(task);
+
+        if (estimatedScoreService != null) {
+            try {
+                estimatedScoreService.estimateForProject(projectId);
+            } catch (RuntimeException e) {
+                log.warn("预估得分计算未完成（非致命，保留采纳结果）: projectId={}", projectId, e);
+            }
+        }
+
+        reviewRepository.save(ScoreParseReview.builder()
+                .projectId(projectId)
+                .parseTaskId(task.getId())
+                .factId("ALL_ADOPTED")
+                .action("ADOPT_CANDIDATES")
+                .originalWeight(null)
+                .adjustedWeight(result.totalWeight())
+                .reason(fallbackReason)
+                .operatorName(normalizeOperatorName(operatorName))
+                .build());
     }
 
     private ScoreParseTask latestParseTask(Long projectId) {
