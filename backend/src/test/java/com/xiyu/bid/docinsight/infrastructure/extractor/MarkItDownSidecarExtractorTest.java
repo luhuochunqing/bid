@@ -131,4 +131,44 @@ class MarkItDownSidecarExtractorTest {
         // 确定性失败绝不降级为占位文本——不允许走任何 fallbackExtract
         verify(restTemplate, never()).postForObject(anyString(), any(HttpEntity.class), eq(String.class));
     }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("根因修复验证：Sidecar 不健康时，.docx 自动走 POI XWPF 降级并提取文字与表格")
+    void docxContent_whenSidecarUnhealthy_fallsBackToPoiXwpf() throws Exception {
+        MarkItDownSidecarExtractor extractor = new MarkItDownSidecarExtractor(
+                restTemplate,
+                new ObjectMapper(),
+                "http://localhost:8000",
+                "test-sidecar-key",
+                30L
+        );
+
+        byte[] docxBytes;
+        try (org.apache.poi.xwpf.usermodel.XWPFDocument doc = new org.apache.poi.xwpf.usermodel.XWPFDocument();
+             java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream()) {
+            org.apache.poi.xwpf.usermodel.XWPFParagraph p = doc.createParagraph();
+            p.createRun().setText("招标文件评分标准说明");
+            org.apache.poi.xwpf.usermodel.XWPFTable table = doc.createTable(2, 2);
+            table.getRow(0).getCell(0).setText("评分因素");
+            table.getRow(0).getCell(1).setText("分值");
+            table.getRow(1).getCell(0).setText("服务方案");
+            table.getRow(1).getCell(1).setText("30");
+            doc.write(bos);
+            docxBytes = bos.toByteArray();
+        }
+
+        when(restTemplate.getForObject("http://localhost:8000/health", String.class))
+                .thenThrow(new org.springframework.web.client.RestClientException("Sidecar down"));
+
+        ExtractedDocument result = extractor.extract(
+                "中国电子招标文件.docx",
+                "application/vnd.openxmlformats-officedocument.word",
+                docxBytes
+        );
+
+        assertThat(result.extractorKey()).isEqualTo("poi-xwpf-fallback");
+        assertThat(result.text()).contains("招标文件评分标准说明");
+        assertThat(result.text()).contains("评分因素");
+        assertThat(result.text()).contains("服务方案");
+    }
 }
