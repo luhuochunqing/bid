@@ -171,6 +171,18 @@ Spring Security 上下文注入用户信息 -> 业务接口正常响应
 - 页面刷新时通过 `restoreSession()` 从 localStorage 恢复会话。
 - 收到 401 响应时自动清除 store 状态并重定向到登录页。
 
+### 4.1 ACCESS_DENIED 授权拒绝审计日志
+
+Service 层项目访问断言（`ProjectAccessScopeService.assertCurrentUserCanAccessProject`）在授权拒绝时会写一条 `warn` 审计日志，便于排查 403 可观测性盲区：
+
+```
+ACCESS_DENIED reason=PROJECT_ACCESS_DENIED projectId={} userId={} username={}
+```
+
+- **用途**：定位"没有操作权限"提示的根因——区分未认证（401）与真实的项目级授权不足（403），以及 OSS 用户权限实时变更对已登录会话暂不生效（JWT 快照机制）的场景。
+- **定位**：`backend/src/main/java/com/xiyu/bid/service/ProjectAccessScopeService.java`。
+- **约定**：日志只记录 `projectId/userId/username` 元数据，不记录令牌、密码等敏感信息。
+
 详细架构说明请参阅 [[architecture]]。
 
 ## 5. 数据权限
