@@ -153,24 +153,26 @@ public class InitiationTenderTextResolver {
         if (document.isPresent()) {
             ProjectDocument doc = document.get();
             LoadedBidFile loaded = null;
+            boolean sourceAcquired = false;
             try {
                 loaded = loadTenderFile(doc.getFileUrl(), doc.getName(), doc.getFileType());
                 String text = loaded == null ? null : extractLoadedTextNoRelease(loaded, doc);
                 if (text == null || text.isBlank()) {
                     log.warn("立项招标文件未能提取正文: name={}", doc.getName());
-                    releaseTenderFile(loaded);
                 } else {
+                    sourceAcquired = true;
                     return TenderExecutionSource.found(new TenderTextSource(doc.getName(), doc.getFileUrl(), text), loaded);
                 }
             } catch (OversizedTenderTextException | TenderFileQuotaException exception) {
-                releaseTenderFile(loaded);
                 oversizedReason = exception.getMessage();
             } catch (BidFileQuotaException exception) {
-                releaseTenderFile(loaded);
                 oversizedReason = TenderFileQuotaException.MESSAGE;
             } catch (RuntimeException exception) {
-                releaseTenderFile(loaded);
                 log.warn("立项招标文件读取失败: name={}, msg={}", doc.getName(), exception.getMessage());
+            } finally {
+                if (!sourceAcquired) {
+                    releaseTenderFile(loaded);
+                }
             }
             log.warn("立项招标文件不可用，回退历史底稿: projectId={}", projectId);
         }
@@ -213,8 +215,10 @@ public class InitiationTenderTextResolver {
                 return null;
             }
         }
-        Optional<byte[]> stored = fileStorage.load(fileUrl).map(LoadedProjectDocumentFile::content);
-        if (stored.isPresent() && stored.get().length > 0) {
+        Optional<byte[]> stored = fileStorage.load(fileUrl)
+                .map(LoadedProjectDocumentFile::content)
+                .filter(content -> content.length > 0);
+        if (stored.isPresent()) {
             return toLoadedBidFile(stored.get(), fileName, contentType);
         }
         return tenderDocumentStorage.loadByFileUrl(fileUrl)
@@ -264,25 +268,28 @@ public class InitiationTenderTextResolver {
     }
 
     private String extractLoadedTextNoRelease(LoadedBidFile loaded, ProjectDocument document) {
-        if (loaded instanceof LoadedBidFile.InMemory memory) {
-            var extracted = textExtractor.extract(document.getName(), document.getFileType(), memory.content());
-            String text = extracted == null ? null : extracted.text();
-            if (text != null && text.length() > tenderMaxTextChars) {
-                throw new OversizedTenderTextException(tenderMaxTextChars);
+        return switch (loaded) {
+            case LoadedBidFile.InMemory memory -> {
+                var extracted = textExtractor.extract(document.getName(), document.getFileType(), memory.content());
+                String text = extracted == null ? null : extracted.text();
+                if (text != null && text.length() > tenderMaxTextChars) {
+                    throw new OversizedTenderTextException(tenderMaxTextChars);
+                }
+                yield text;
             }
-            return text;
-        }
-        LoadedBidFile.OnDisk disk = (LoadedBidFile.OnDisk) loaded;
-        try {
-            return streamTextExtractor.extract(disk.tempFile(), document.getName(), tenderMaxTextChars);
-        } catch (OversizedBidTextException exception) {
-            throw new OversizedTenderTextException(tenderMaxTextChars);
-        } catch (IOException | InterruptedException exception) {
-            log.warn("超大招标文件流式提取失败: name={}, msg={}", document.getName(), exception.getMessage());
-            if (exception instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
+            case LoadedBidFile.OnDisk disk -> {
+                try {
+                    yield streamTextExtractor.extract(disk.tempFile(), document.getName(), tenderMaxTextChars);
+                } catch (OversizedBidTextException exception) {
+                    throw new OversizedTenderTextException(tenderMaxTextChars);
+                } catch (IOException | InterruptedException exception) {
+                    log.warn("超大招标文件流式提取失败: name={}, msg={}", document.getName(), exception.getMessage());
+                    if (exception instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
+                    yield null;
+                }
             }
-            return null;
-        }
+        };
     }
 }

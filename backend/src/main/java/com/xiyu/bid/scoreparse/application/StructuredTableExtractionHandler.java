@@ -42,9 +42,10 @@ final class StructuredTableExtractionHandler {
             if (artifactExtractor != null) {
                 return extractEvidencePipeline(loaded, fileName, source.text(), artifactExtractor);
             }
-            var sidecarExtraction = loaded instanceof LoadedBidFile.InMemory inMem
-                    ? sidecarTableExtractor.extract(inMem.content(), fileName)
-                    : sidecarTableExtractor.extract(((LoadedBidFile.OnDisk) loaded).tempFile(), fileName);
+            var sidecarExtraction = switch (loaded) {
+                case LoadedBidFile.InMemory inMem -> sidecarTableExtractor.extract(inMem.content(), fileName);
+                case LoadedBidFile.OnDisk onDisk -> sidecarTableExtractor.extract(onDisk.tempFile(), fileName);
+            };
             var report = StructuredTableCandidateExtractor.extractWithSectionReport(sidecarExtraction);
             if (!report.sectionDimMissTables().isEmpty()) {
                 log.warn("结构化表格章节推导缺失（疑似新措辞独立分表，需人工复核）: file={}, missTables={}",
@@ -89,9 +90,10 @@ final class StructuredTableExtractionHandler {
                                                    String tenderSectionText,
                                                    SidecarDocumentArtifactExtractor artifactExtractor)
             throws IOException, InterruptedException {
-        var artifact = loaded instanceof LoadedBidFile.InMemory inMem
-                ? artifactExtractor.extract(inMem.content(), fileName)
-                : artifactExtractor.extract(((LoadedBidFile.OnDisk) loaded).tempFile(), fileName);
+        var artifact = switch (loaded) {
+            case LoadedBidFile.InMemory inMem -> artifactExtractor.extract(inMem.content(), fileName);
+            case LoadedBidFile.OnDisk onDisk -> artifactExtractor.extract(onDisk.tempFile(), fileName);
+        };
         if (shouldFallbackPdfToLegacy(fileName, artifact)) {
             log.warn("PDF 未抽取到结构化评分表，回落 legacy markdown 召回: file={}", fileName);
             return StructuredTableResult.ok(List.of());
