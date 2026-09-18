@@ -28,18 +28,15 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ProjectAccessScopeService {
-
     private static final String ADMIN_AUTHORITY = "ROLE_ADMIN";
     private static final String EXTERNAL_API_AUTHORITY = "ROLE_EXTERNAL_API";
 
@@ -189,6 +186,9 @@ public class ProjectAccessScopeService {
 
         User user = resolveCurrentUser(authentication);
         if (!canAccessProjectInternal(user, projectId)) {
+            org.slf4j.LoggerFactory.getLogger(ProjectAccessScopeService.class).warn(
+                    "ACCESS_DENIED reason=PROJECT_ACCESS_DENIED projectId={} userId={} username={}",
+                    projectId, user != null ? user.getId() : null, user != null ? user.getUsername() : null);
             throw new AccessDeniedException("权限不足，无法访问该项目");
         }
     }
