@@ -6315,3 +6315,31 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 
 > 维护纪律：**严禁在没有检查上游数据真实管道的情况下盲目在 Layer 3 调规则（“追症状不追根因”）；严禁将 zip/docx 等压缩二进制流直接当作 UTF-8 字符串强转；多进程 Worker 异常回传必须做序列化脱敏。**
 
+---
+
+## 383. 评分解析三层韧性防护：读取超时重试放大导致 180s 挂死、未认证 403 死循环与前端并发防抖缺失治理（2026-09-19）
+
+**背景**：
+用户在项目 35 连续点击“重新解析”评分标准时出现页面卡顿、刷新并触发 Nginx 499（客户端断开连接）；此外在取消某些系统权限后，由于 Token 失效或匿名访问 API 时服务端返回 403 Forbidden（而非 401 Unauthorized），导致前端 Axios 拦截器未能触发无感刷新或跳回 `/login`，陷入死锁态。
+
+**全链路根因剖析**：
+1. **网络读取超时被 `@Retryable` 放大 3 倍**：
+   `MarkItDownSidecarExtractor` 对 REST 请求配置了 3 次重试（`retryFor = RestClientException.class`）。当 Sidecar 处理超大复杂文档导致读取超时（Read timed out，`ResourceAccessException`，单次耗时 30~60s）时，Spring Retry 仍盲目重试 3 次，将耗时累加放大到 184 秒以上。这导致 Tomcat 工作线程长时间被占满，用户因页面无响应而刷新或关闭页面，触发 Nginx 499。
+2. **Spring Security 6 默认未登录返回 403 破坏 HTTP 语义契约**：
+   在 Spring Security 6 架构下，若未显式配置 `AuthenticationEntryPoint`，匿名访问受保护端点时默认走 `Http403ForbiddenEntryPoint` 抛 403 Forbidden。前端 `client.js` 的 401 拦截器（负责 `refreshAuthSession` 和 `handleAuthFailure` 重定向至 `/login`）无法被触发，用户直接被挡在 403 拦截器外，误报“权限不足”且无法刷新 Cookie 重新登录。
+3. **前端解析抽屉防抖与状态互斥缺失**：
+   `ScoreParseDrawer.vue` 的重新解析按钮在解析过程中（`loading` 或 `scoringOverlayVisible` 为真）未禁用（缺失 `:disabled`），且 `useScoreParseDrawer.js` 的 `reparse` 函数未作并发执行守卫。用户连续点击会瞬间触发多个异步解析任务，造成后端计算资源争抢。
+
+**根治方案**：
+1. **`MarkItDownSidecarExtractor` 设置读取超时不重试（Fail-Fast）**：
+   在 `@Retryable` 中显式指定 `noRetryFor = {ResourceAccessException.class}`。网络读取超时后立即终止重试，直通 `@Recover` 进入本地提取器（POI/PDFBox/UTF8）降级兜底，消除 3 倍超时放大。
+2. **`SecurityConfig` 配置标准 401 `AuthenticationEntryPoint`**：
+   在 `securityFilterChain` 显式注册 `authenticationEntryPoint`，未认证请求统一返回 HTTP 401 状态码与 JSON 错误响应体，保障与前端拦截器协议对齐。
+3. **前端全链路防抖与状态锁**：
+   `ScoreParseDrawer.vue` 的三处重新解析入口统一绑定 `:disabled="loading || scoringOverlayVisible"`，并在 Composable 中增加运行态前置守卫，彻底杜绝并发重试。
+
+**防回归测试**：
+- `MarkItDownSidecarExtractorTimeoutNoRetryTest`: 模拟超时断言仅请求 1 次并不触发重试直接返回降级结果；
+- `SecurityAuthenticationEntryPointTest`: 验证匿名访问 `/api/projects`、`/api/tenders`、`/api/auth/me` 均返回 401 JSON；
+- 前端 `ScoreParseDrawer.spec.js` 与 `useScoreParseDrawer.spec.js`: 验证遮罩态与加载态下按钮 `:disabled` 及防并发拦截。
+

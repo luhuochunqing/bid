@@ -143,6 +143,7 @@ export function useScoreParseDrawer(props, emit) {
   async function runScoring(options = {}) {
     const isAuto = typeof options === 'boolean' ? options : !!options?.auto
     const customRunner = typeof options === 'object' && typeof options.runner === 'function' ? options.runner : null
+    if ((loading.value && !isAuto) || scoringOverlayVisible.value) return
 
     if (currentStage.value !== 2) {
       ElMessage.warning('请先进入阶段 2（上传投标文件后）')
@@ -219,17 +220,15 @@ export function useScoreParseDrawer(props, emit) {
       }
     } catch (e) {
       const msg = e?.response?.data?.msg || e?.message || '重新解析失败'
-      if (silent) {
-        error.value = msg
-      } else {
-        notifyErrorUnlessRateLimit(e, '重新解析失败')
-      }
+      if (silent) error.value = msg
+      else notifyErrorUnlessRateLimit(e, '重新解析失败')
     } finally {
       scoringOverlayVisible.value = false
     }
   }
 
   async function reparse() {
+    if (loading.value || scoringOverlayVisible.value) return
     await startParse({ silent: false })
   }
 

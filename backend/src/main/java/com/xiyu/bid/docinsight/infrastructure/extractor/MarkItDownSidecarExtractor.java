@@ -22,6 +22,8 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -62,6 +64,11 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
     @Override
     @Retryable(
             retryFor = {RestClientException.class, IllegalStateException.class},
+            noRetryFor = {
+                    ResourceAccessException.class,
+                    HttpClientErrorException.class,
+                    HttpServerErrorException.GatewayTimeout.class
+            },
             maxAttempts = 3,
             backoff = @Backoff(delay = 1000, multiplier = 2.0))
     public ExtractedDocument extract(String fileName, String contentType, byte[] content) {

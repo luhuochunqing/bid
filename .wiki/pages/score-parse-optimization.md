@@ -4,8 +4,8 @@ space: engineering
 category: lessons-learned
 tags: []
 created: 2026-09-05
-updated: 2026-09-11
-health_checked: 2026-09-18
+updated: 2026-09-19
+health_checked: 2026-09-19
 sources:
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableRowParser.java
@@ -271,3 +271,17 @@ markdown 输入
    - 补充张家口银行真实 3 列表格单测，验证 8 项 100 分闭环、`STRUCTURED_TABLE` 标记及原文背书完整性；
    - 补充前置无背书 LLM 候选与后置表格候选合并测试；
    - 针对性测试与全量 `scoreparse` 模块 726 个单测全部 PASS。
+
+## 2026-09-19 评分解析超时放大、未认证403与防抖韧性加固（项目 35）
+
+### 问题
+用户在项目 35 连续点击“重新解析”评分标准时出现页面卡顿并刷新触发 Nginx 499；此外在取消权限后因 Token 失效访问 API 时服务端返回 403 Forbidden（破坏 HTTP 语义），导致前端 Axios 拦截器未能触发无感刷新或跳回 `/login`，陷入死锁态。
+
+### 根因与修复
+1. **Sidecar 提取超时禁止重试**：
+   - `MarkItDownSidecarExtractor` 对 REST 请求在 `@Retryable` 中显式指定 `noRetryFor = {ResourceAccessException.class}`。网络读取超时后立即终止重试，直通 `@Recover` 进入本地提取器降级兜底，消除 3 倍超时放大。
+2. **Spring Security 401 状态码对齐**：
+   - 在 `SecurityConfig` 显式注册 `authenticationEntryPoint`，未认证请求统一返回 HTTP 401 状态码与 JSON 错误响应体，保障与前端 `client.js` 拦截器协议对齐。
+3. **前端防抖与并发控制**：
+   - `ScoreParseDrawer.vue` 的重新解析按钮绑定 `:disabled="loading || scoringOverlayVisible"`，并在 Composable 中增加运行态前置守卫，彻底杜绝并发重试。
+
