@@ -13,12 +13,15 @@ import com.xiyu.bid.projectworkflow.service.ProjectDocumentFileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -28,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -239,7 +243,7 @@ class InitiationTenderTextResolverTest {
 
     @Test
     void exactlyMaxBytesStillResolvesViaMemoryFastPath() {
-        byte[] exact = new byte[BoundedHttpDownloader.MAX_BYTES];
+        byte[] exact = new byte[30 * 1024 * 1024];
         ProjectDocument document = ProjectDocument.builder()
                 .id(5L).name("边界.pdf").fileUrl("doc-insight://t/exact.pdf").fileType("pdf").build();
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
@@ -368,5 +372,52 @@ class InitiationTenderTextResolverTest {
 
         assertThat(intake.source()).isEmpty();
         assertThat(intake.emptyReason()).isEqualTo(TenderFileQuotaException.MESSAGE);
+    }
+
+    @Test
+    void loadTenderFile_whenLocalFileExceedsRamBuffer_spillsToOnDiskAndReleases(@TempDir Path tempDir) {
+        TempBidFileStore store = new TempBidFileStore(tempDir);
+        InitiationTenderTextResolver customResolver = new InitiationTenderTextResolver(
+                projectDocumentRepository, snapshotRepository, fileStorage,
+                tenderDocumentStorage, textExtractor, obsShareUrlSigner,
+                streamingFetcher, streamTextExtractor, store, 10L, 5000000L, 536870912L);
+
+        byte[] smallBytes = "12345".getBytes();
+        byte[] bigBytes = "01234567890123456789".getBytes(); // 20 bytes > 10 bytes ramBuffer
+
+        when(fileStorage.load("local://small.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "local://small.pdf", "/tmp/small.pdf", "application/pdf", smallBytes)));
+        when(fileStorage.load("local://big.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "local://big.pdf", "/tmp/big.pdf", "application/pdf", bigBytes)));
+
+        LoadedBidFile small = customResolver.loadTenderFile("local://small.pdf", "small.pdf", "pdf");
+        assertThat(small).isInstanceOf(LoadedBidFile.InMemory.class);
+
+        LoadedBidFile big = customResolver.loadTenderFile("local://big.pdf", "big.pdf", "pdf");
+        assertThat(big).isInstanceOf(LoadedBidFile.OnDisk.class);
+        LoadedBidFile.OnDisk onDisk = (LoadedBidFile.OnDisk) big;
+        assertThat(Files.exists(onDisk.tempFile())).isTrue();
+        assertThat(store.getCurrentTotalBytes()).isEqualTo(bigBytes.length);
+
+        customResolver.releaseTenderFile(big);
+        assertThat(Files.exists(onDisk.tempFile())).isFalse();
+        assertThat(store.getCurrentTotalBytes()).isZero();
+    }
+
+    @Test
+    void loadTenderFile_obsDirect_passesTenderRamBufferLimit() throws Exception {
+        when(obsShareUrlSigner.trySign("obs-direct:test"))
+                .thenReturn(Optional.of("https://signed/test"));
+        resolver.loadTenderFile("obs-direct:test", "test.pdf", "application/pdf");
+
+        verify(streamingFetcher).fetch(
+                eq("https://signed/test"),
+                startsWith("tender-"),
+                eq("test.pdf"),
+                eq("application/pdf"),
+                eq(31457280L),
+                eq(536870912L));
     }
 }

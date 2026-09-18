@@ -109,7 +109,7 @@
 **Purpose**: 门禁、验证与知识沉淀
 
 - [X] T017 [P] 行预算与架构门禁：`ScoreParseAppService.java`/`InitiationTenderTextResolver.java` ≤300 行 + `mvn test -Dtest=ArchitectureTest` 全绿
-- [ ] T018 [P] 跑通 quickstart.md V1~V4（含 80MB/压缩版一致性比对）
+- [X] T018 [P] 跑通 quickstart.md V1~V4（含 80MB/压缩版一致性比对）
 - [X] T019 执行 `speckit-analyze` 一致性验证（spec/plan/tasks 交叉检查，按 PLANS 门禁第 5 步）→ 落地：0 Critical，F1/F2 已回写，F4 记 tech-debt 候选
 - [ ] T020 知识沉淀：`knowledge-capture` 回填 `docs/lessons/lessons-learned.md` + `.wiki` checkpoint（收尾纪律）
 

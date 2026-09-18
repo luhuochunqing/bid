@@ -17,6 +17,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -55,7 +58,7 @@ public class InitiationTenderTextResolver {
             StreamingBidFileFetcher streamingFetcher,
             SidecarStreamTextExtractor streamTextExtractor,
             TempBidFileStore tempFileStore,
-            @Value("${app.score-parse.tender-file.ram-buffer-bytes:52428800}") long tenderRamBufferBytes,
+            @Value("${app.score-parse.tender-file.ram-buffer-bytes:31457280}") long tenderRamBufferBytes,
             @Value("${app.score-parse.tender-file.max-text-chars:5000000}") long tenderMaxTextChars,
             @Value("${app.score-parse.tender-file.max-file-bytes:536870912}") long tenderMaxFileBytes
     ) {
@@ -87,7 +90,7 @@ public class InitiationTenderTextResolver {
     ) {
         this(projectDocumentRepository, snapshotRepository, fileStorage, tenderDocumentStorage,
                 textExtractor, obsShareUrlSigner, streamingFetcher, streamTextExtractor,
-                tempFileStore, 52428800L, tenderMaxTextChars, 536870912L);
+                tempFileStore, 31457280L, tenderMaxTextChars, 536870912L);
     }
 
     InitiationTenderTextResolver(
@@ -105,7 +108,7 @@ public class InitiationTenderTextResolver {
     ) {
         this(projectDocumentRepository, snapshotRepository, fileStorage, tenderDocumentStorage,
                 textExtractor, obsShareUrlSigner, streamingFetcher, streamTextExtractor,
-                tempFileStore, 52428800L, tenderMaxTextChars, tenderMaxFileBytes);
+                tempFileStore, 31457280L, tenderMaxTextChars, tenderMaxFileBytes);
     }
 
     public boolean hasSource(Long projectId) {
@@ -212,17 +215,38 @@ public class InitiationTenderTextResolver {
         }
         Optional<byte[]> stored = fileStorage.load(fileUrl).map(LoadedProjectDocumentFile::content);
         if (stored.isPresent() && stored.get().length > 0) {
-            requireWithinFileQuota(stored.get().length, fileName);
-            return new LoadedBidFile.InMemory(stored.get(), fileName, contentType);
+            return toLoadedBidFile(stored.get(), fileName, contentType);
         }
         return tenderDocumentStorage.loadByFileUrl(fileUrl)
                 .map(LoadedTenderDocument::content)
                 .filter(content -> content.length > 0)
-                .map(content -> {
-                    requireWithinFileQuota(content.length, fileName);
-                    return (LoadedBidFile) new LoadedBidFile.InMemory(content, fileName, contentType);
-                })
+                .map(content -> toLoadedBidFile(content, fileName, contentType))
                 .orElse(null);
+    }
+
+    private LoadedBidFile toLoadedBidFile(byte[] content, String fileName, String contentType) {
+        requireWithinFileQuota(content.length, fileName);
+        if (content.length <= tenderRamBufferBytes) {
+            return new LoadedBidFile.InMemory(content, fileName, contentType);
+        }
+        String taskId = "tender-local-" + UUID.randomUUID();
+        Path spillPath = tempFileStore != null ? tempFileStore.reserve(taskId) : null;
+        if (spillPath == null) {
+            log.warn("未能预分配落盘路径: taskId={}", taskId);
+            return null;
+        }
+        try (OutputStream out = Files.newOutputStream(spillPath)) {
+            tempFileStore.recordSpillChunk(taskId, content.length);
+            out.write(content);
+            return new LoadedBidFile.OnDisk(spillPath, fileName, contentType);
+        } catch (IOException | RuntimeException ex) {
+            tempFileStore.release(taskId);
+            if (ex instanceof BidFileQuotaException bfqe) {
+                throw bfqe;
+            }
+            log.warn("本地招标文件落盘失败: name={}, msg={}", fileName, ex.getMessage());
+            return null;
+        }
     }
 
     private void requireWithinFileQuota(long bytes, String fileName) {
