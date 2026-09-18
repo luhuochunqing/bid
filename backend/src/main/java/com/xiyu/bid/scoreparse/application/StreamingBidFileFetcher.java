@@ -48,6 +48,12 @@ public class StreamingBidFileFetcher {
 
     public LoadedBidFile fetch(String url, String taskId, String fileName, String contentType)
             throws IOException, InterruptedException {
+        return fetch(url, taskId, fileName, contentType, this.ramBufferBytes, this.maxFileBytes);
+    }
+
+    public LoadedBidFile fetch(String url, String taskId, String fileName, String contentType,
+                               long ramBufferBytes, long maxFileBytes)
+            throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofSeconds(downloadTimeoutSeconds))
@@ -57,13 +63,13 @@ public class StreamingBidFileFetcher {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IllegalStateException("下载投标文件失败 HTTP " + response.statusCode());
         }
-        rejectIfDeclaredOverQuota(response.headers().firstValue("Content-Length"));
+        rejectIfDeclaredOverQuota(response.headers().firstValue("Content-Length"), maxFileBytes);
         try (InputStream body = response.body()) {
-            return readWithAdaptiveSpill(body, taskId, fileName, contentType);
+            return readWithAdaptiveSpill(body, taskId, fileName, contentType, ramBufferBytes, maxFileBytes);
         }
     }
 
-    private void rejectIfDeclaredOverQuota(Optional<String> contentLength) {
+    private void rejectIfDeclaredOverQuota(Optional<String> contentLength, long maxBytes) {
         if (contentLength.isEmpty()) {
             return;
         }
@@ -73,13 +79,14 @@ public class StreamingBidFileFetcher {
         } catch (NumberFormatException ignored) {
             return;
         }
-        if (length > maxFileBytes) {
+        if (length > maxBytes) {
             throw new BidFileQuotaException();
         }
     }
 
     private LoadedBidFile readWithAdaptiveSpill(InputStream body, String taskId,
-                                                String fileName, String contentType) throws IOException {
+                                                String fileName, String contentType,
+                                                long ramBufferLimit, long maxFileLimit) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         Path spillPath = null;
         OutputStream spillOut = null;
@@ -89,13 +96,13 @@ public class StreamingBidFileFetcher {
             int n;
             while ((n = body.read(buf)) != -1) {
                 total += n;
-                if (total > maxFileBytes) {
+                if (total > maxFileLimit) {
                     throw new BidFileQuotaException();
                 }
                 if (spillOut != null) {
                     tempFileStore.recordSpillChunk(taskId, n);
                     spillOut.write(buf, 0, n);
-                } else if (total <= ramBufferBytes) {
+                } else if (total <= ramBufferLimit) {
                     buffer.write(buf, 0, n);
                 } else {
                     // spill：内存 buffer flush 到临时文件，继续流式写盘

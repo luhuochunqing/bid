@@ -6,6 +6,9 @@ import { PROJECT_LOCKED_FIELD_KEYS } from '@/views/System/workflow-form-designer
 
 const OBS_DIRECT_PREFIX = 'obs-direct:'
 const isObsEnabled = import.meta.env.VITE_OBS_ENABLED === 'true'
+// spec 065：招标文件上传配额（与后端 tender-file.max-file-bytes 对齐；传统链路受 multipart 50MB 约束）
+const TENDER_FILE_MAX_BYTES = (isObsEnabled ? 512 : 50) * 1024 * 1024
+const TENDER_FILE_MAX_TEXT = isObsEnabled ? '512MB' : '50MB'
 
 const PROJECT_TYPE_SUBMIT_MAP = {
   INDUSTRIAL_EC: 'INDUSTRIAL',
@@ -72,6 +75,11 @@ export function useInitiationStageActions({
     const valid = ['.pdf', '.doc', '.docx'].some((ext) => file.name.toLowerCase().endsWith(ext))
     if (!valid) {
       ElMessage.error('仅支持 PDF/Word 格式')
+      return false
+    }
+    // spec 065：上传前置配额拦截（OBS 直传 512MB / 传统 multipart 50MB），避免“存得上、解不出”
+    if (typeof file.size === 'number' && file.size > TENDER_FILE_MAX_BYTES) {
+      ElMessage.error(`文件大小超过限制（${TENDER_FILE_MAX_TEXT}），请压缩后重新上传`)
       return false
     }
     return true
@@ -551,6 +559,7 @@ export function useInitiationStageActions({
 
   return {
     beforeUploadDoc,
+    tenderFileMaxText: TENDER_FILE_MAX_TEXT,
     handleDocBeforeUpload,
     handleDownloadBidDoc,
     onDepositChange,

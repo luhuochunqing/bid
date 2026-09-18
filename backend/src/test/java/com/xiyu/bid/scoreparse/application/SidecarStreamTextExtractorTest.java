@@ -77,6 +77,15 @@ class SidecarStreamTextExtractorTest {
     }
 
     @Test
+    void extract_withExplicitLimit_enforcesCallerLimitInsteadOfBeanLimit() {
+        // bean 配 10，调用方传 3，返回 5 字符 → 按调用方 3 截断抛异常
+        serveConvertStream(200, "01234");
+
+        assertThatThrownBy(() -> extractor.extract(docFile, "投标文件.pdf", 3))
+                .isInstanceOf(OversizedBidTextException.class);
+    }
+
+    @Test
     void extract_overTextCharLimit_throwsOversizedBidText() {
         // maxTextChars=10，返回 20 字符 → 读满即中止抛异常
         serveConvertStream(200, "01234567890123456789");

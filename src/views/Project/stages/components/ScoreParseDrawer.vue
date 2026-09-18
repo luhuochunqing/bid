@@ -29,7 +29,8 @@
 
     <div v-else-if="error" class="error-state">
       <div>⚠ {{ error }}</div>
-      <el-button size="small" style="margin-top: 12px" @click="reparse">重试</el-button>
+      <div class="error-hint">扫描大 PDF 可压缩后在立项未提交前替换文件；已提交请联系管理员</div>
+      <el-button size="small" style="margin-top: 12px" @click="reparse">重新解析</el-button>
     </div>
 
     <div v-else class="drawer-content-wrapper" :class="{ 'scroll-locked': scoringOverlayVisible }" data-test="score-parse-content">
@@ -223,6 +224,7 @@ defineExpose({ open, runScoring })
 .drawer-content-wrapper { position: relative; flex: 1; overflow-y: auto; padding: 8px 24px 24px; background: var(--bg-white); }
 .drawer-content-wrapper.scroll-locked { overflow-y: hidden; }
 .loading-state, .error-state { text-align: center; padding: 80px 20px; color: var(--text-muted); }
+.error-hint { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
 .loading-icon { font-size: 32px; margin-bottom: 12px; }
 .dots::after { content: '...'; animation: d 1.4s infinite; }
 @keyframes d { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }

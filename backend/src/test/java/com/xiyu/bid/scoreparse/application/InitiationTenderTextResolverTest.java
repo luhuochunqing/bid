@@ -13,12 +13,15 @@ import com.xiyu.bid.projectworkflow.service.ProjectDocumentFileStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,7 +29,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +53,12 @@ class InitiationTenderTextResolverTest {
     private TenderDocumentTextExtractor textExtractor;
     @Mock
     private ObsShareUrlSigner obsShareUrlSigner;
+    @Mock
+    private StreamingBidFileFetcher streamingFetcher;
+    @Mock
+    private SidecarStreamTextExtractor streamTextExtractor;
+    @Mock
+    private TempBidFileStore tempFileStore;
 
     private InitiationTenderTextResolver resolver;
 
@@ -56,7 +67,7 @@ class InitiationTenderTextResolverTest {
         resolver = new InitiationTenderTextResolver(
                 projectDocumentRepository, snapshotRepository, fileStorage,
                 tenderDocumentStorage, textExtractor, obsShareUrlSigner,
-                url -> new byte[0]);
+                streamingFetcher, streamTextExtractor, tempFileStore, 5000000L);
     }
 
     @Test
@@ -231,8 +242,27 @@ class InitiationTenderTextResolverTest {
     }
 
     @Test
-    void oversizedLocalFileFallsBackToSnapshot() {
-        byte[] oversized = new byte[BoundedHttpDownloader.MAX_BYTES + 1];
+    void exactlyMaxBytesStillResolvesViaMemoryFastPath() {
+        byte[] exact = new byte[30 * 1024 * 1024];
+        ProjectDocument document = ProjectDocument.builder()
+                .id(5L).name("边界.pdf").fileUrl("doc-insight://t/exact.pdf").fileType("pdf").build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "TENDER", null, null))
+                .thenReturn(List.of(document));
+        when(fileStorage.load("doc-insight://t/exact.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "doc-insight://t/exact.pdf", "/tmp/exact.pdf", "application/pdf", exact)));
+        when(textExtractor.extract(eq("边界.pdf"), eq("pdf"), any()))
+                .thenReturn(new ExtractedTenderDocument("边界.pdf", "pdf", "商务部分 20 分", 8, "md"));
+
+        Optional<TenderTextSource> source = resolver.resolve(PROJECT_ID);
+
+        assertThat(source).isPresent();
+        assertThat(source.get().text()).isEqualTo("商务部分 20 分");
+    }
+
+    @Test
+    void oversizedTextFallsBackToSnapshot() {
         ProjectDocument document = ProjectDocument.builder()
                 .id(4L).name("超大.pdf").fileUrl("doc-insight://t/huge.pdf").fileType("pdf").build();
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
@@ -240,7 +270,9 @@ class InitiationTenderTextResolverTest {
                 .thenReturn(List.of(document));
         when(fileStorage.load("doc-insight://t/huge.pdf"))
                 .thenReturn(Optional.of(new LoadedProjectDocumentFile(
-                        "doc-insight://t/huge.pdf", "/tmp/huge.pdf", "application/pdf", oversized)));
+                        "doc-insight://t/huge.pdf", "/tmp/huge.pdf", "application/pdf", "小字节".getBytes())));
+        when(textExtractor.extract(eq("超大.pdf"), eq("pdf"), any()))
+                .thenReturn(new ExtractedTenderDocument("超大.pdf", "pdf", "T".repeat(5000001), 5000001, "md"));
         when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
                 .thenReturn(Optional.of(BidTenderDocumentSnapshot.builder()
                         .fileName("旧快照.pdf").extractedText("底稿正文").build()));
@@ -249,12 +281,10 @@ class InitiationTenderTextResolverTest {
 
         assertThat(source).isPresent();
         assertThat(source.get().text()).isEqualTo("底稿正文");
-        verify(textExtractor, never()).extract(any(), any(), any());
     }
 
     @Test
-    void oversizedLocalFileWithoutSnapshotReportsTooLarge() {
-        byte[] oversized = new byte[BoundedHttpDownloader.MAX_BYTES + 1];
+    void oversizedTextWithoutSnapshotReportsTextLimit() {
         ProjectDocument document = ProjectDocument.builder()
                 .id(4L).name("超大.pdf").fileUrl("doc-insight://t/huge.pdf").fileType("pdf").build();
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
@@ -262,14 +292,132 @@ class InitiationTenderTextResolverTest {
                 .thenReturn(List.of(document));
         when(fileStorage.load("doc-insight://t/huge.pdf"))
                 .thenReturn(Optional.of(new LoadedProjectDocumentFile(
-                        "doc-insight://t/huge.pdf", "/tmp/huge.pdf", "application/pdf", oversized)));
+                        "doc-insight://t/huge.pdf", "/tmp/huge.pdf", "application/pdf", "小字节".getBytes())));
+        when(textExtractor.extract(eq("超大.pdf"), eq("pdf"), any()))
+                .thenReturn(new ExtractedTenderDocument("超大.pdf", "pdf", "T".repeat(5000001), 5000001, "md"));
         when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
                 .thenReturn(Optional.empty());
 
         TenderIntake intake = resolver.resolveIntake(PROJECT_ID);
 
         assertThat(intake.source()).isEmpty();
-        assertThat(intake.emptyReason()).isEqualTo(BoundedHttpDownloader.TOO_LARGE_MESSAGE);
-        assertThat(resolver.hasSource(PROJECT_ID)).isFalse();
+        assertThat(intake.emptyReason()).isEqualTo(new OversizedTenderTextException(5000000L).getMessage());
+        assertThat(resolver.hasSource(PROJECT_ID)).isTrue();
+    }
+
+    @Test
+    void obsLargeFileResolvesWithoutByteCap() throws Exception {
+        ProjectDocument document = ProjectDocument.builder()
+                .id(6L).name("云端大文件.pdf").fileUrl("obs-direct:up-1").fileType("pdf").build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "TENDER", null, null))
+                .thenReturn(List.of(document));
+        when(obsShareUrlSigner.trySign("obs-direct:up-1"))
+                .thenReturn(Optional.of("https://signed/up-1"));
+        when(streamingFetcher.fetch(eq("https://signed/up-1"), any(), eq("云端大文件.pdf"), eq("pdf"), anyLong(), anyLong()))
+                .thenReturn(new LoadedBidFile.InMemory("正文".getBytes(), "云端大文件.pdf", "pdf"));
+        when(textExtractor.extract(eq("云端大文件.pdf"), eq("pdf"), any()))
+                .thenReturn(new ExtractedTenderDocument("云端大文件.pdf", "pdf", "商务部分 90 分", 8, "md"));
+
+        Optional<TenderTextSource> source = resolver.resolve(PROJECT_ID);
+
+        assertThat(source).isPresent();
+        assertThat(source.get().text()).isEqualTo("商务部分 90 分");
+    }
+
+    private InitiationTenderTextResolver resolverWithQuotas(long maxTextChars, long maxFileBytes) {
+        return new InitiationTenderTextResolver(
+                projectDocumentRepository, snapshotRepository, fileStorage,
+                tenderDocumentStorage, textExtractor, obsShareUrlSigner,
+                streamingFetcher, streamTextExtractor, tempFileStore, maxTextChars, maxFileBytes);
+    }
+
+    @Test
+    void localFileOverByteQuota_reportsTenderQuota() {
+        InitiationTenderTextResolver quotaResolver = resolverWithQuotas(5000000L, 10L);
+        ProjectDocument document = ProjectDocument.builder()
+                .id(7L).name("本地大文件.pdf").fileUrl("doc-insight://t/local-big.pdf").fileType("pdf").build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "TENDER", null, null))
+                .thenReturn(List.of(document));
+        when(fileStorage.load("doc-insight://t/local-big.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "doc-insight://t/local-big.pdf", "/tmp/local-big.pdf",
+                        "application/pdf", "01234567890123456789".getBytes())));
+        when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
+                .thenReturn(Optional.empty());
+
+        TenderIntake intake = quotaResolver.resolveIntake(PROJECT_ID);
+
+        assertThat(intake.source()).isEmpty();
+        assertThat(intake.emptyReason()).isEqualTo(TenderFileQuotaException.MESSAGE);
+    }
+
+    @Test
+    void obsQuotaExceeded_reportsTenderQuota() throws Exception {
+        InitiationTenderTextResolver quotaResolver = resolverWithQuotas(5000000L, 536870912L);
+        ProjectDocument document = ProjectDocument.builder()
+                .id(8L).name("云端配额.pdf").fileUrl("obs-direct:over-quota").fileType("pdf").build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "TENDER", null, null))
+                .thenReturn(List.of(document));
+        when(obsShareUrlSigner.trySign("obs-direct:over-quota"))
+                .thenReturn(Optional.of("https://signed/over-quota"));
+        when(streamingFetcher.fetch(eq("https://signed/over-quota"), any(), eq("云端配额.pdf"), eq("pdf"), anyLong(), anyLong()))
+                .thenThrow(new BidFileQuotaException());
+        when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
+                .thenReturn(Optional.empty());
+
+        TenderIntake intake = quotaResolver.resolveIntake(PROJECT_ID);
+
+        assertThat(intake.source()).isEmpty();
+        assertThat(intake.emptyReason()).isEqualTo(TenderFileQuotaException.MESSAGE);
+    }
+
+    @Test
+    void loadTenderFile_whenLocalFileExceedsRamBuffer_spillsToOnDiskAndReleases(@TempDir Path tempDir) {
+        TempBidFileStore store = new TempBidFileStore(tempDir);
+        InitiationTenderTextResolver customResolver = new InitiationTenderTextResolver(
+                projectDocumentRepository, snapshotRepository, fileStorage,
+                tenderDocumentStorage, textExtractor, obsShareUrlSigner,
+                streamingFetcher, streamTextExtractor, store, 10L, 5000000L, 536870912L);
+
+        byte[] smallBytes = "12345".getBytes();
+        byte[] bigBytes = "01234567890123456789".getBytes(); // 20 bytes > 10 bytes ramBuffer
+
+        when(fileStorage.load("local://small.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "local://small.pdf", "/tmp/small.pdf", "application/pdf", smallBytes)));
+        when(fileStorage.load("local://big.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "local://big.pdf", "/tmp/big.pdf", "application/pdf", bigBytes)));
+
+        LoadedBidFile small = customResolver.loadTenderFile("local://small.pdf", "small.pdf", "pdf");
+        assertThat(small).isInstanceOf(LoadedBidFile.InMemory.class);
+
+        LoadedBidFile big = customResolver.loadTenderFile("local://big.pdf", "big.pdf", "pdf");
+        assertThat(big).isInstanceOf(LoadedBidFile.OnDisk.class);
+        LoadedBidFile.OnDisk onDisk = (LoadedBidFile.OnDisk) big;
+        assertThat(Files.exists(onDisk.tempFile())).isTrue();
+        assertThat(store.getCurrentTotalBytes()).isEqualTo(bigBytes.length);
+
+        customResolver.releaseTenderFile(big);
+        assertThat(Files.exists(onDisk.tempFile())).isFalse();
+        assertThat(store.getCurrentTotalBytes()).isZero();
+    }
+
+    @Test
+    void loadTenderFile_obsDirect_passesTenderRamBufferLimit() throws Exception {
+        when(obsShareUrlSigner.trySign("obs-direct:test"))
+                .thenReturn(Optional.of("https://signed/test"));
+        resolver.loadTenderFile("obs-direct:test", "test.pdf", "application/pdf");
+
+        verify(streamingFetcher).fetch(
+                eq("https://signed/test"),
+                startsWith("tender-"),
+                eq("test.pdf"),
+                eq("application/pdf"),
+                eq(31457280L),
+                eq(536870912L));
     }
 }

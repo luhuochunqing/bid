@@ -37,6 +37,7 @@ import { tendersApi } from '@/api/modules/tenders.js'
 import { projectsApi } from '@/api/modules/projects.js'
 import InitiationStage from './InitiationStage.vue'
 import { useUserStore } from '@/stores/user.js'
+import { ElMessage } from 'element-plus'
 
 const stubs = {
   'el-card': { template: '<div><slot name="header" /><slot /></div>' },
@@ -393,5 +394,16 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
 
     const biddersInput = wrapper.find('[data-label="计划入围供应商数量"] input')
     expect(biddersInput.attributes('disabled')).toBeDefined()
+  })
+
+  // spec 065：招标文件上传前置配额拦截（OBS 512MB / multipart 50MB，取环境对应值）
+  it('rejects tender file exceeding upload quota before uploading', async () => {
+    projectLifecycleApi.getInitiation.mockResolvedValue({ data: { reviewStatus: 'DRAFT' } })
+    const wrapper = createWrapper()
+    await flushPromises()
+    const huge = { name: '超大招标.pdf', size: 600 * 1024 * 1024, type: 'application/pdf' }
+    const result = await wrapper.vm.handleDocBeforeUpload(huge)
+    expect(result).toBe(false)
+    expect(ElMessage.error).toHaveBeenCalledWith(expect.stringContaining('超过限制'))
   })
 })

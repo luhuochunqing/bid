@@ -33,6 +33,25 @@ class TempBidFileStoreTest {
     }
 
     @Test
+    void releaseFile_deletesPartAndFreesQuotaByPath() throws IOException {
+        Path reserved = store.reserve("task-9");
+        Files.write(reserved, "spilled".getBytes());
+        store.recordSpillChunk("task-9", 7);
+        assertThat(store.getCurrentTotalBytes()).isEqualTo(7);
+
+        store.releaseFile(reserved);
+
+        assertThat(Files.exists(reserved)).isFalse();
+        assertThat(store.getCurrentTotalBytes()).isEqualTo(0);
+    }
+
+    @Test
+    void releaseFile_ignoresNonPartAndNull() {
+        store.releaseFile(tempDir.resolve("keep.txt"));
+        store.releaseFile(null);
+    }
+
+    @Test
     void release_deletesFileAndIsIdempotent() throws IOException {
         Path reserved = store.reserve("task-1");
         Files.write(reserved, "spilled-content".getBytes());

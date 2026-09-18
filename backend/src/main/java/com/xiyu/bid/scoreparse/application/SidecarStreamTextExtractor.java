@@ -57,6 +57,14 @@ public class SidecarStreamTextExtractor {
     }
 
     public String extract(Path file, String fileName) throws IOException, InterruptedException {
+        return extract(file, fileName, maxTextChars);
+    }
+
+    /**
+     * 调用方覆盖文本量上限的提取（spec 065：招标侧用 tender-file 键，不沿用本 bean 的 bid-file 默认值）。
+     */
+    public String extract(Path file, String fileName, long maxTextChars)
+            throws IOException, InterruptedException {
         String boundary = "xiyu-score-parse-" + UUID.randomUUID().toString().replace("-", "");
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(sidecarUrl + "/convert-stream"))
@@ -89,7 +97,7 @@ public class SidecarStreamTextExtractor {
                     throw new IllegalStateException("调用文档转换服务失败 HTTP " + status + "：" + detail);
                 }
                 try (InputStream body = response.body()) {
-                    return readTextWithCharLimit(body);
+                    return readTextWithCharLimit(body, maxTextChars);
                 }
             } catch (IOException ex) {
                 lastIoFailure = ex;
@@ -119,7 +127,7 @@ public class SidecarStreamTextExtractor {
     }
 
     /** 流式读响应 + char 计数：累计超限即抛（关闭 body 中止连接），不先缓冲完整文本再判。 */
-    private String readTextWithCharLimit(InputStream body) throws IOException {
+    private String readTextWithCharLimit(InputStream body, long maxTextChars) throws IOException {
         StringBuilder text = new StringBuilder();
         Reader reader = new InputStreamReader(body, StandardCharsets.UTF_8);
         char[] buf = new char[8192];

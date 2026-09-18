@@ -8,15 +8,21 @@ import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PdfEvidencePipelineTest {
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void pdfTender_usesDocumentArtifactEvidencePipelineInsteadOfSkippingToLegacyMarkdown()
@@ -27,10 +33,10 @@ class PdfEvidencePipelineTest {
                 "memory://project-1381-like.pdf",
                 "评审标准表：商务能力 10分，技术方案 20分，报价得分 70分。");
         InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
-                null, null, null, null, null, null, url -> pdfBytes) {
+                null, null, null, null, null, null, null, null, null, 5000000L) {
             @Override
-            public byte[] loadBytes(String fileUrl) {
-                return pdfBytes;
+            public LoadedBidFile loadTenderFile(String fileUrl, String fileName, String contentType) {
+                return new LoadedBidFile.InMemory(pdfBytes, fileName, contentType);
             }
         };
         SidecarDocumentArtifactExtractor artifactExtractor =
@@ -43,7 +49,7 @@ class PdfEvidencePipelineTest {
                     }
                 };
 
-        StructuredTableExtractionHandler.Result result = StructuredTableExtractionHandler.extract(
+        StructuredTableResult result = StructuredTableExtractionHandler.extract(
                 source, resolver, artifactExtractor, null);
 
         assertThat(result.evidencePipeline()).isTrue();
@@ -66,10 +72,10 @@ class PdfEvidencePipelineTest {
                 | 合计<br>得分 | 满分<br>（100分） | |
                 """);
         InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
-                null, null, null, null, null, null, url -> pdfBytes) {
+                null, null, null, null, null, null, null, null, null, 5000000L) {
             @Override
-            public byte[] loadBytes(String fileUrl) {
-                return pdfBytes;
+            public LoadedBidFile loadTenderFile(String fileUrl, String fileName, String contentType) {
+                return new LoadedBidFile.InMemory(pdfBytes, fileName, contentType);
             }
         };
         SidecarDocumentArtifactExtractor artifactExtractor =
@@ -80,7 +86,7 @@ class PdfEvidencePipelineTest {
                     }
                 };
 
-        StructuredTableExtractionHandler.Result result = StructuredTableExtractionHandler.extract(
+        StructuredTableResult result = StructuredTableExtractionHandler.extract(
                 source, resolver, artifactExtractor, null);
 
         assertThat(result.evidencePipeline()).isTrue();
@@ -116,7 +122,7 @@ class PdfEvidencePipelineTest {
     @Test
     void project1381LikePdfWithoutStructuredSummary_keepsLossyMarkdownFallbackBehavior()
             throws IOException, InterruptedException {
-        StructuredTableExtractionHandler.Result result = extractProject1381(
+        StructuredTableResult result = extractProject1381(
                 project1381ScoreArtifact(false, null));
 
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
@@ -129,7 +135,7 @@ class PdfEvidencePipelineTest {
     @Test
     void conflictingStructuredSummaryTotals_requireReviewInsteadOfGuessing()
             throws IOException, InterruptedException {
-        StructuredTableExtractionHandler.Result result = extractProject1381(
+        StructuredTableResult result = extractProject1381(
                 project1381ScoreArtifact(true, "80"));
 
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
@@ -146,10 +152,10 @@ class PdfEvidencePipelineTest {
         TenderTextSource source = new TenderTextSource(
                 "text-only.pdf", "memory://text-only.pdf", "评分标准以普通文本描述。");
         InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
-                null, null, null, null, null, null, url -> pdfBytes) {
+                null, null, null, null, null, null, null, null, null, 5000000L) {
             @Override
-            public byte[] loadBytes(String fileUrl) {
-                return pdfBytes;
+            public LoadedBidFile loadTenderFile(String fileUrl, String fileName, String contentType) {
+                return new LoadedBidFile.InMemory(pdfBytes, fileName, contentType);
             }
         };
         SidecarDocumentArtifactExtractor artifactExtractor =
@@ -162,7 +168,7 @@ class PdfEvidencePipelineTest {
                     }
                 };
 
-        StructuredTableExtractionHandler.Result result = StructuredTableExtractionHandler.extract(
+        StructuredTableResult result = StructuredTableExtractionHandler.extract(
                 source, resolver, artifactExtractor, null);
 
         assertThat(result.evidencePipeline()).isFalse();
@@ -175,7 +181,7 @@ class PdfEvidencePipelineTest {
             throws IOException, InterruptedException {
         // 期望行为：两张独立评分表（技术 60 / 商务 40）各自按本表声明总分独立校验，两表全自洽
         // → 整份文档 AUTO_APPROVED → 两表全部评分项可落库为正式 score_item。
-        StructuredTableExtractionHandler.Result result = extractMultiTable();
+        StructuredTableResult result = extractMultiTable();
 
         assertThat(result.evidencePipeline()).isTrue();
         assertThat(result.facts()).hasSize(5);
@@ -196,7 +202,42 @@ class PdfEvidencePipelineTest {
                 .containsExactly(new BigDecimal("60.00"), new BigDecimal("40.00"));
     }
 
-    private static StructuredTableExtractionHandler.Result extractMultiTable()
+    @Test
+    void oversizedOnDiskSpill_stillUsesEvidencePipelineAndReleasesTempFile() throws Exception {
+        TempBidFileStore store = new TempBidFileStore(tempDir);
+        Path spill = store.reserve("tender-test-spill");
+        byte[] spilled = "spilled-bytes".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(spill, spilled);
+        store.recordSpillChunk("tender-test-spill", spilled.length);
+        TenderTextSource source = new TenderTextSource(
+                "oversized.pdf", "obs-direct:big", "评分标准文本。");
+        InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
+                null, null, null, null, null, null, null, null, store, 5000000L) {
+            @Override
+            public LoadedBidFile loadTenderFile(String fileUrl, String fileName, String contentType) {
+                return new LoadedBidFile.OnDisk(spill, fileName, contentType);
+            }
+        };
+        java.util.concurrent.atomic.AtomicBoolean onDiskPathUsed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        SidecarDocumentArtifactExtractor artifactExtractor =
+                new SidecarDocumentArtifactExtractor("http://localhost:9", "", 1, new com.fasterxml.jackson.databind.ObjectMapper()) {
+                    @Override
+                    public DocumentArtifact extract(Path file, String fileName) {
+                        onDiskPathUsed.set(true);
+                        return pdfScoreArtifact();
+                    }
+                };
+
+        StructuredTableResult result = StructuredTableExtractionHandler.extract(
+                source, resolver, artifactExtractor, null);
+
+        assertThat(onDiskPathUsed.get()).isTrue();
+        assertThat(result.evidencePipeline()).isTrue();
+        assertThat(result.candidates()).isNotEmpty();
+        assertThat(Files.exists(spill)).isFalse();
+    }
+
+    private static StructuredTableResult extractMultiTable()
             throws IOException, InterruptedException {
         byte[] pdfBytes = "%PDF-1.4 multi-table tender".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         TenderTextSource source = new TenderTextSource(
@@ -204,10 +245,10 @@ class PdfEvidencePipelineTest {
                 "memory://multi-table.pdf",
                 "评分标准由技术评分表和商务评分表两张独立评分表组成。");
         InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
-                null, null, null, null, null, null, url -> pdfBytes) {
+                null, null, null, null, null, null, null, null, null, 5000000L) {
             @Override
-            public byte[] loadBytes(String fileUrl) {
-                return pdfBytes;
+            public LoadedBidFile loadTenderFile(String fileUrl, String fileName, String contentType) {
+                return new LoadedBidFile.InMemory(pdfBytes, fileName, contentType);
             }
         };
         SidecarDocumentArtifactExtractor artifactExtractor =
@@ -278,7 +319,7 @@ class PdfEvidencePipelineTest {
                 List.of());
     }
 
-    private static StructuredTableExtractionHandler.Result extractProject1381(DocumentArtifact artifact)
+    private static StructuredTableResult extractProject1381(DocumentArtifact artifact)
             throws IOException, InterruptedException {
         byte[] pdfBytes = "%PDF-1.4 project 1381 split score table"
                 .getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -288,10 +329,10 @@ class PdfEvidencePipelineTest {
                 "投标报价得分：等于基准价的得满分30分，办公用品得满分10分。\n"
                         + "| 合计<br>得分 | 满分<br>（100分） | |");
         InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
-                null, null, null, null, null, null, url -> pdfBytes) {
+                null, null, null, null, null, null, null, null, null, 5000000L) {
             @Override
-            public byte[] loadBytes(String fileUrl) {
-                return pdfBytes;
+            public LoadedBidFile loadTenderFile(String fileUrl, String fileName, String contentType) {
+                return new LoadedBidFile.InMemory(pdfBytes, fileName, contentType);
             }
         };
         SidecarDocumentArtifactExtractor artifactExtractor =
