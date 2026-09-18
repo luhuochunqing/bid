@@ -8,15 +8,21 @@ import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PdfEvidencePipelineTest {
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void pdfTender_usesDocumentArtifactEvidencePipelineInsteadOfSkippingToLegacyMarkdown()
@@ -194,6 +200,32 @@ class PdfEvidencePipelineTest {
         assertThat(result.tableCompletenesses())
                 .extracting(table -> table.completeness().declaredTotalScore())
                 .containsExactly(new BigDecimal("60.00"), new BigDecimal("40.00"));
+    }
+
+    @Test
+    void oversizedOnDiskSpill_skipsStructuredLaneAndReleasesTempFile() throws Exception {
+        TempBidFileStore store = new TempBidFileStore(tempDir);
+        Path spill = store.reserve("tender-test-spill");
+        byte[] spilled = "spilled-bytes".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(spill, spilled);
+        store.recordSpillChunk("tender-test-spill", spilled.length);
+        TenderTextSource source = new TenderTextSource(
+                "oversized.pdf", "obs-direct:big", "评分标准文本。");
+        InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
+                null, null, null, null, null, null, null, null, store, 5000000L) {
+            @Override
+            public LoadedBidFile loadTenderFile(String fileUrl, String fileName, String contentType) {
+                return new LoadedBidFile.OnDisk(spill, fileName, contentType);
+            }
+        };
+
+        StructuredTableResult result = StructuredTableExtractionHandler.extract(
+                source, resolver, null, null);
+
+        assertThat(result.evidencePipeline()).isFalse();
+        assertThat(result.structureIncomplete()).isFalse();
+        assertThat(result.candidates()).isEmpty();
+        assertThat(Files.exists(spill)).isFalse();
     }
 
     private static StructuredTableResult extractMultiTable()

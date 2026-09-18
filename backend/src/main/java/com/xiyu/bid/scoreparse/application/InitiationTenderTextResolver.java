@@ -179,9 +179,11 @@ public class InitiationTenderTextResolver {
                 .orElse(null);
     }
 
-    /** 释放落盘临时文件（配额归还）；内存态与 null 为 no-op。 */
+    /** 释放落盘临时文件（配额归还）；内存态、null 与非托管路径为 no-op。 */
     void releaseTenderFile(LoadedBidFile loaded) {
-        if (loaded instanceof LoadedBidFile.OnDisk disk) {
+        if (loaded instanceof LoadedBidFile.OnDisk disk
+                && disk.tempFile() != null
+                && disk.tempFile().getFileName() != null) {
             String name = disk.tempFile().getFileName().toString();
             if (name.endsWith(".part")) {
                 tempFileStore.release(name.substring(0, name.length() - ".part".length()));
