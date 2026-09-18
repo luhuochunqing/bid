@@ -62,12 +62,21 @@ final class LocalDocumentFallbackExtractor {
                         text.append(line.trim()).append('\n');
                     }
                 } else if (element instanceof XWPFTable table) {
+                    boolean isFirstRow = true;
                     for (XWPFTableRow row : table.getRows()) {
                         List<String> cells = new ArrayList<>();
                         for (XWPFTableCell cell : row.getTableCells()) {
                             cells.add(cell.getText().trim().replace('\n', ' '));
                         }
                         text.append("| ").append(String.join(" | ", cells)).append(" |\n");
+                        if (isFirstRow && !cells.isEmpty()) {
+                            List<String> separators = new ArrayList<>(cells.size());
+                            for (int i = 0; i < cells.size(); i++) {
+                                separators.add("---");
+                            }
+                            text.append("| ").append(String.join(" | ", separators)).append(" |\n");
+                            isFirstRow = false;
+                        }
                     }
                     text.append('\n');
                 }

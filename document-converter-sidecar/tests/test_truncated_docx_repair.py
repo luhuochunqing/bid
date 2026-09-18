@@ -90,3 +90,30 @@ def test_safe_convert_worker_catches_exceptions():
     res = _safe_convert_worker("/non/existent/path/file.docx")
     assert isinstance(res, dict)
     assert "error" in res
+
+
+def test_auto_repaired_docx_context_manager(tmp_path):
+    from docx_repair import auto_repaired_docx
+
+    # 1. On valid docx: zero overhead, target == path, no tempfile created
+    valid_file = tmp_path / "valid.docx"
+    with zipfile.ZipFile(valid_file, "w") as z:
+        z.writestr("word/document.xml", "<xml/>")
+    with auto_repaired_docx(str(valid_file)) as target:
+        assert target == str(valid_file)
+
+    # 2. On truncated docx: repairs to tempfile and cleans up after context exit
+    truncated_bytes = _create_truncated_docx_bytes()
+    truncated_file = tmp_path / "truncated_ctx.docx"
+    truncated_file.write_bytes(truncated_bytes)
+
+    temp_path = None
+    with auto_repaired_docx(str(truncated_file)) as target:
+        temp_path = target
+        assert temp_path != str(truncated_file)
+        assert os.path.exists(temp_path)
+        assert zipfile.is_zipfile(temp_path)
+
+    # After exit, temp file MUST be deleted
+    assert not os.path.exists(temp_path)
+

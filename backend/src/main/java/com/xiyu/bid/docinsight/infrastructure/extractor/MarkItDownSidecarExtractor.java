@@ -241,6 +241,10 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
             log.warn("POI XWPF fallback extraction returned empty for {}", fileName);
         }
 
+        if (isKnownBinaryFormat(lowerName, contentType)) {
+            throw new DocInsightException(400, "无法从损毁或不受支持的二进制文档提取内容: " + fileName);
+        }
+
         String text = new String(content, StandardCharsets.UTF_8);
         int printableCount = 0;
         for (char c : text.toCharArray()) {
@@ -258,6 +262,13 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
                 "sidecar-fallback-plaintext",
                 Map.of("fallbackReason", reason, "printableChars", String.valueOf(printableCount))
         );
+    }
+
+    private boolean isKnownBinaryFormat(String lowerName, String contentType) {
+        return lowerName.endsWith(".docx") || lowerName.endsWith(".doc") || lowerName.endsWith(".pdf")
+                || "application/pdf".equals(contentType) || "application/msword".equals(contentType)
+                || "application/vnd.openxmlformats-officedocument.wordprocessingml.document".equals(contentType)
+                || "application/vnd.openxmlformats-officedocument.word".equals(contentType);
     }
 
     private boolean isPlainText(String contentType) {

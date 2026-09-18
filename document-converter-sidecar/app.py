@@ -294,18 +294,9 @@ def _convert_worker(path: str) -> Any:
             logger.warning("Custom PDF conversion failed, falling back to markitdown: %s", e)
 
     if path.lower().endswith(".docx"):
-        import zipfile
-        from table_extractor import repair_truncated_docx
+        from docx_repair import auto_repaired_docx
 
-        repaired_path = None
-        target_path = path
-        if not zipfile.is_zipfile(path):
-            repaired_path = repair_truncated_docx(path)
-            if repaired_path:
-                logger.info("Repaired truncated docx with missing EOCD in worker: %s -> %s", path, repaired_path)
-                target_path = repaired_path
-
-        try:
+        with auto_repaired_docx(path) as target_path:
             if _is_large_docx(target_path):
                 logger.info("Docx document.xml exceeds threshold; using streaming SAX parser: %s", target_path)
                 sax_text = _extract_docx_streaming_sax(target_path)
@@ -319,12 +310,6 @@ def _convert_worker(path: str) -> Any:
                 if sax_text and len(sax_text.strip()) >= 50:
                     return SimpleNamespace(text_content=sax_text, markdown=sax_text, pages=[])
                 raise
-        finally:
-            if repaired_path and os.path.exists(repaired_path):
-                try:
-                    os.remove(repaired_path)
-                except Exception:
-                    pass
     else:
         result = md.convert(path)
 

@@ -68,99 +68,7 @@ EXTRACTION_VERSION = "table-v2"
 # Public entry points
 # ---------------------------------------------------------------------------
 
-def repair_truncated_docx(path: str) -> str | None:
-    """Attempt to repair a .docx file missing its End of Central Directory (EOCD).
-
-    If the file was truncated during upload or is missing its central directory,
-    but local file headers (especially 'word/document.xml') are present, this function
-    rebuilds the central directory and EOCD and writes a valid zip file to a temp file.
-    Returns the path to the repaired temp file (caller responsible for unlinking),
-    or None if repair is not possible.
-    """
-    try:
-        with open(path, "rb") as f:
-            data = f.read()
-    except Exception:
-        return None
-
-    if not data or not data.startswith(b"PK\x03\x04"):
-        return None
-
-    pos = 0
-    cd_entries = []
-    found_doc_xml = False
-    data_len = len(data)
-
-    while pos < data_len:
-        idx = data.find(b"PK\x03\x04", pos)
-        if idx == -1 or idx + 30 > data_len:
-            break
-
-        version = data[idx + 4 : idx + 6]
-        flags = data[idx + 6 : idx + 8]
-        method = data[idx + 8 : idx + 10]
-        mtime = data[idx + 10 : idx + 12]
-        mdate = data[idx + 12 : idx + 14]
-        crc = data[idx + 14 : idx + 18]
-        comp_size = int.from_bytes(data[idx + 18 : idx + 22], "little")
-        uncomp_size = int.from_bytes(data[idx + 22 : idx + 26], "little")
-        fn_len = int.from_bytes(data[idx + 26 : idx + 28], "little")
-        extra_len = int.from_bytes(data[idx + 28 : idx + 30], "little")
-
-        if idx + 30 + fn_len > data_len:
-            break
-        fn = data[idx + 30 : idx + 30 + fn_len]
-        if b"word/document.xml" in fn:
-            found_doc_xml = True
-
-        cd_header = (
-            b"PK\x01\x02"
-            + version
-            + version
-            + flags
-            + method
-            + mtime
-            + mdate
-            + crc
-            + data[idx + 18 : idx + 22]
-            + data[idx + 22 : idx + 26]
-            + data[idx + 26 : idx + 28]
-            + b"\x00\x00\x00\x00\x00\x00\x00\x00"
-            + b"\x00\x00\x00\x00"
-            + struct.pack("<I", idx)
-            + fn
-        )
-        cd_entries.append(cd_header)
-        data_start = idx + 30 + fn_len + extra_len
-        pos = data_start + comp_size
-
-    if not found_doc_xml or not cd_entries:
-        return None
-
-    cd_data = b"".join(cd_entries)
-    cd_offset = pos
-    eocd = (
-        b"PK\x05\x06"
-        + b"\x00\x00\x00\x00"
-        + struct.pack("<HHII", len(cd_entries), len(cd_entries), len(cd_data), cd_offset)
-        + b"\x00\x00"
-    )
-
-    rebuilt_data = data[:cd_offset] + cd_data + eocd
-
-    try:
-        with zipfile.ZipFile(io.BytesIO(rebuilt_data)) as z:
-            if "word/document.xml" not in z.namelist():
-                return None
-    except Exception:
-        return None
-
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
-            tmp.write(rebuilt_data)
-            return tmp.name
-    except Exception:
-        return None
+from docx_repair import auto_repaired_docx, repair_truncated_docx
 
 
 def extract_tables(path: str) -> dict[str, Any]:
@@ -194,44 +102,32 @@ def extract_tables_artifact(path: str) -> dict[str, Any]:
         "warnings": [],
     }
 
-    repaired_path = None
-    target_path = path
-    if not zipfile.is_zipfile(path):
-        repaired_path = repair_truncated_docx(path)
-        if repaired_path:
-            log.info("Repaired truncated docx with missing EOCD: %s -> %s", path, repaired_path)
-            target_path = repaired_path
-        else:
-            artifact["warnings"].append("not a valid docx (not a zip)")
-            return artifact
-
     try:
         from docx import Document
     except ImportError:
         artifact["warnings"].append("python-docx not installed")
         return artifact
 
-    try:
-        doc = Document(target_path)
-    except Exception as exc:
-        log.warning("python-docx failed to open %s: %s", target_path, exc)
-        raise ValueError(f"cannot parse docx: {exc}") from exc
-    finally:
-        if repaired_path and os.path.exists(repaired_path):
-            try:
-                os.remove(repaired_path)
-            except Exception:
-                pass
+    with auto_repaired_docx(path) as target_path:
+        if not zipfile.is_zipfile(target_path):
+            artifact["warnings"].append("not a valid docx (not a zip)")
+            return artifact
 
-    for idx, table in enumerate(doc.tables):
         try:
-            tbl_data = _build_table_artifact(table, idx)
+            doc = Document(target_path)
         except Exception as exc:
-            artifact["warnings"].append(f"table {idx}: extraction failed ({exc})")
-            continue
-        if tbl_data is None:
-            continue
-        artifact["tables"].append(tbl_data)
+            log.warning("python-docx failed to open %s: %s", target_path, exc)
+            raise ValueError(f"cannot parse docx: {exc}") from exc
+
+        for idx, table in enumerate(doc.tables):
+            try:
+                tbl_data = _build_table_artifact(table, idx)
+            except Exception as exc:
+                artifact["warnings"].append(f"table {idx}: extraction failed ({exc})")
+                continue
+            if tbl_data is None:
+                continue
+            artifact["tables"].append(tbl_data)
 
     return artifact
 

@@ -31,6 +31,7 @@ class LocalDocumentFallbackExtractorTest {
         assertThat(text).isNotNull();
         assertThat(text).contains("招标文件评分标准说明");
         assertThat(text).contains("评分因素");
+        assertThat(text).contains("| --- | --- |");
         assertThat(text).contains("服务方案");
         assertThat(text).contains("30");
     }

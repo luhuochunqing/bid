@@ -171,4 +171,29 @@ class MarkItDownSidecarExtractorTest {
         assertThat(result.text()).contains("评分因素");
         assertThat(result.text()).contains("服务方案");
     }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("设计弯路修正：损毁的二进制文档在 Sidecar 宕机且 POI 失败时，Fail-Fast 抛出 DocInsightException 而非乱码")
+    void corruptDocx_whenSidecarAndPoiFail_throwsDocInsightException() {
+        MarkItDownSidecarExtractor extractor = new MarkItDownSidecarExtractor(
+                restTemplate,
+                new ObjectMapper(),
+                "http://localhost:8000",
+                "test-sidecar-key",
+                30L
+        );
+
+        when(restTemplate.getForObject("http://localhost:8000/health", String.class))
+                .thenThrow(new org.springframework.web.client.RestClientException("Sidecar down"));
+
+        byte[] corruptBytes = "PK\u0003\u0004corrupted-docx-stream".getBytes(StandardCharsets.UTF_8);
+
+        assertThatThrownBy(() -> extractor.extract(
+                "破损招标文件.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                corruptBytes
+        ))
+                .isInstanceOf(DocInsightException.class)
+                .hasMessageContaining("无法从损毁或不受支持的二进制文档提取内容");
+    }
 }
