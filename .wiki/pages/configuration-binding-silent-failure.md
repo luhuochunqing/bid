@@ -5,7 +5,7 @@ category: engineering
 tags: [spring, configuration, yaml, configuration-properties, regression, probe]
 created: 2026-08-25
 updated: 2026-08-26
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - backend/src/main/java/com/xiyu/bid/bootstrap/ConfigurationBindingProbe.java
   - backend/src/test/java/com/xiyu/bid/bootstrap/ConfigurationBindingProbeTest.java

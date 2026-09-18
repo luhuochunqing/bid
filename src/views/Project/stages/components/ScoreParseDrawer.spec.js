@@ -268,4 +268,39 @@ describe('ScoreParseDrawer.vue', () => {
     expect(wrapper.find('[data-test="score-parse-review-panel"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="score-parse-decision-status"]').text()).toBe('待人工复核')
   })
+
+  it('renders candidate review card when scoreItems is empty and candidateFacts exist', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: { items: [], meta: { decisionStatus: 'REVIEW_REQUIRED', reviewReason: '待复核' } },
+    })
+    scoreParseApi.getReview.mockResolvedValue({
+      data: {
+        facts: [
+          { factId: 'f-1', code: '1', dimension: '资质条件', weight: 20, sourceText: '具备资质得20分' },
+          { factId: 'f-2', code: '2', dimension: '技术要求', weight: 80, sourceText: '方案完整得80分' },
+        ],
+        audits: [],
+      },
+    })
+
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId: 123 },
+      global: {
+        stubs: {
+          'el-drawer': { template: '<div class="el-drawer-mock" v-if="modelValue"><slot /></div>', props: ['modelValue'] },
+          'el-dialog': true,
+          'el-button': true,
+        },
+      },
+    })
+
+    await wrapper.vm.open({ stage: 1, autoScore: false, autoParse: false })
+
+    const candidateCard = wrapper.find('[data-test="score-parse-candidate-review"]')
+    expect(candidateCard.exists()).toBe(true)
+    expect(candidateCard.text()).toContain('检测到待人工复核的候选评分标准')
+    expect(candidateCard.text()).toContain('资质条件')
+    expect(candidateCard.text()).toContain('技术要求')
+    expect(wrapper.find('[data-test="btn-adopt-candidates"]').exists()).toBe(true)
+  })
 })

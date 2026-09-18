@@ -5,7 +5,7 @@ category: guide
 tags: [AI, Provider, DeepSeek, Doubao, qwen, Kimi, Reasoning, activeProvider, 降级策略, Sidecar, textutil, mock, 配置默认值陷阱, temperature]
 created: 2026-07-10
 updated: 2026-09-17
-health_checked: 2026-09-17
+health_checked: 2026-09-18
 sources:
   - backend/src/main/java/com/xiyu/bid/ai/
   - backend/src/main/resources/application.yml

@@ -5,7 +5,7 @@ category: lessons-learned
 tags: []
 created: 2026-09-05
 updated: 2026-09-11
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableRowParser.java

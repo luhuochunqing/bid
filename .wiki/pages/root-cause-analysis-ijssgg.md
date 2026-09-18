@@ -5,7 +5,7 @@ category: analysis
 tags: [bug, 根因分析, 立项, 招标文件上传, 权限]
 created: 2026-06-13
 updated: 2026-08-12
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - src/views/Project/stages/InitiationStage.vue
   - src/views/Project/stages/useInitiationStageActions.js

@@ -5,7 +5,7 @@ category: module
 tags: [知识库, 方案管理, 资质证书, 案例库, PRD]
 created: 2026-05-20
 updated: 2026-09-04
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - .wiki/sources/bidding/西域数智化投标管理平台-产品蓝图-初稿-V1.1.md
 backlinks:

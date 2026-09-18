@@ -539,4 +539,57 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.reviewSubmitted.value).toBe(true)
     expect(drawer.reviewRequired.value).toBe(false)
   })
+
+  it('filters candidateFacts with weight > 0 and calculates candidateTotalWeight', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: [],
+        meta: { decisionStatus: 'REVIEW_REQUIRED', reviewReason: '待复核' },
+      },
+    })
+    scoreParseApi.getReview.mockResolvedValue({
+      data: {
+        facts: [
+          { factId: 'f-1', dimension: '资质要求', weight: 20, sourceText: '具备资质得20分' },
+          { factId: 'f-2', dimension: '技术方案', weight: 80, sourceText: '方案完整得80分' },
+          { factId: 'f-3', dimension: '占位模板', weight: 0, sourceText: 'XX~XX' },
+        ],
+        audits: [],
+      },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1, autoScore: false, autoParse: false })
+
+    expect(drawer.candidateFacts.value).toHaveLength(2)
+    expect(drawer.candidateTotalWeight.value).toBe(100)
+  })
+
+  it('adoptCandidateFacts calls submitReview with ADOPT_CANDIDATES and reloads items', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: [],
+        meta: { decisionStatus: 'REVIEW_REQUIRED' },
+      },
+    })
+    scoreParseApi.getReview.mockResolvedValue({
+      data: {
+        facts: [{ factId: 'f-1', dimension: '商务', weight: 100 }],
+        audits: [],
+      },
+    })
+    scoreParseApi.submitReview.mockResolvedValue({ data: { facts: [], audits: [] } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1, autoScore: false, autoParse: false })
+
+    await drawer.adoptCandidateFacts()
+
+    expect(scoreParseApi.submitReview).toHaveBeenCalledWith(99, expect.objectContaining({
+      reason: '人工确认采纳候选评分标准',
+      actions: [{ action: 'ADOPT_CANDIDATES', reason: '一键采纳所有候选有效评分项' }],
+    }))
+    expect(ElMessage.success).toHaveBeenCalledWith('已成功采纳候选评分标准！')
+    expect(drawer.reviewSubmitted.value).toBe(true)
+  })
 })

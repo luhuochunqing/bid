@@ -6,8 +6,9 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
-import { formatTime, pollTask, normalizeScoreItem, mapScoreResults, lookupScoreResult } from './scoreParseTask.js'
+import { formatTime, pollTask, normalizeScoreItem, mapScoreResults, lookupScoreResult, getDecisionBadgeType, getDecisionBadgeText } from './scoreParseTask.js'
 import { parseTriggerSource, scoringBody, scoringSkipHint, hasMeaningfulResults, circuitHintFromMeta } from './scoreParseSpendGuard.js'
+import { useScoreCandidateAdoption } from './useScoreCandidateAdoption.js'
 
 export function useScoreParseDrawer(props, emit) {
   const visible = ref(false)
@@ -35,27 +36,8 @@ export function useScoreParseDrawer(props, emit) {
   const reviewError = ref('')
   const reviewSubmitted = ref(false)
 
-  const decisionBadgeType = computed(() => {
-    if (reviewSubmitted.value) return 'success'
-    switch (decisionStatus.value) {
-      case 'AUTO_APPROVED': return 'success'
-      case 'REVIEW_REQUIRED': return 'warning'
-      case 'STRUCTURE_INCOMPLETE': return 'danger'
-      case 'PARSE_FAILED': return 'info'
-      default: return ''
-    }
-  })
-
-  const decisionBadgeText = computed(() => {
-    if (reviewSubmitted.value) return '已完成复核'
-    switch (decisionStatus.value) {
-      case 'AUTO_APPROVED': return '自动通过'
-      case 'REVIEW_REQUIRED': return '待人工复核'
-      case 'STRUCTURE_INCOMPLETE': return '结构异常'
-      case 'PARSE_FAILED': return '解析失败'
-      default: return ''
-    }
-  })
+  const decisionBadgeType = computed(() => getDecisionBadgeType(decisionStatus.value, reviewSubmitted.value))
+  const decisionBadgeText = computed(() => getDecisionBadgeText(decisionStatus.value, reviewSubmitted.value))
 
   const decisionReviewRequired = computed(() => decisionStatus.value === 'REVIEW_REQUIRED' || decisionStatus.value === 'STRUCTURE_INCOMPLETE')
   const reviewRequired = computed(() => decisionReviewRequired.value && !reviewSubmitted.value)
@@ -255,14 +237,16 @@ export function useScoreParseDrawer(props, emit) {
     reviewError.value = ''
     if (!decisionReviewRequired.value) {
       reviewSnapshot.value = null
-      reviewSubmitted.value = false
+      reviewSubmitted.value = decisionStatus.value === 'MANUAL_APPROVED'
       return
     }
     reviewLoading.value = true
     try {
       reviewSnapshot.value = (await scoreParseApi.getReview(props.projectId))?.data || null
-      // 已提交过保留动作则恢复复核完成态，防止刷新/重开抽屉后重复提交（2026-09-12）
-      reviewSubmitted.value = (reviewSnapshot.value?.audits ?? []).some(a => a.action === 'RETAIN_ORIGINAL')
+      // 已提交过保留动作或采纳动作则恢复复核完成态，防止刷新/重开抽屉后重复提交（2026-09-18）
+      reviewSubmitted.value = (reviewSnapshot.value?.audits ?? []).some(
+        (a) => a.action === 'RETAIN_ORIGINAL' || a.action === 'ADOPT_CANDIDATES'
+      )
     } catch (e) {
       reviewError.value = e?.response?.data?.msg || '复核证据加载失败'
     } finally {
@@ -287,6 +271,20 @@ export function useScoreParseDrawer(props, emit) {
     }
   }
 
+  const {
+    candidateFacts,
+    candidateTotalWeight,
+    isAdoptingCandidates,
+    adoptCandidateFacts,
+  } = useScoreCandidateAdoption({
+    props,
+    reviewFacts,
+    reviewSnapshot,
+    reviewSubmitted,
+    currentStage,
+    fetchAnalysisData,
+  })
+
   return {
     visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
     sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
@@ -296,5 +294,6 @@ export function useScoreParseDrawer(props, emit) {
     decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason, fallbackReason, pipelineVersion, artifactSha256,
     reviewRequired, reviewSnapshot, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewSubmitted, reviewError,
     loadReviewSnapshotIfNeeded, submitReviewRetention,
+    candidateFacts, candidateTotalWeight, isAdoptingCandidates, adoptCandidateFacts,
   }
 }

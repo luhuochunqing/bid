@@ -652,3 +652,21 @@ trigger（同步<1s，互斥校验+建任务）
 - `ScoreParseContinuationRowTest#testProject1117DeepHeaderDetectionAtRow8`
 - 生产文件 `1117.pdf` 真实测试：42-44 页 16 行完整评分表提取，全量 7 项 100.0 分。
 
+## 27. 人机协同候选评分标准采纳闭环（2026-09-18，REVIEW_REQUIRED 自愈）
+
+### 业务背景与问题根因
+针对五矿（如项目 49）等包含多个表格或附带响应格式模板（含有 `XX~XX` 分占位）的招标文件，解析引擎在多表拆分策略（`ScoreTableSplitPolicy`）下判定为 `REVIEW_REQUIRED`（待人工复核）。此时由于未达到 `AUTO_APPROVED`，系统未自动落库 `score_item`，导致前端抽屉展示空白（0 项评分标准），用户无法推进后续阶段 2 投标文件实际对标打分。
+
+### 领域治理与闭环设计
+1. **纯核心领域采纳策略（`ScoreReviewAdoptionPolicy`）**：
+   - 遵循 FP-Java 规范，纯核心无框架依赖；
+   - 过滤有效事实（`weight > 0` 且文本完备），支持人工微调权重，并严格校验总分合法性；
+   - 输出结构化的 `ScoreCandidate` 集合。
+2. **应用服务入库与自动化触发（`ScoreParseReviewAppService`）**：
+   - 支持 `ADOPT_CANDIDATES` 动作，调用 `ScoreItemPersistenceService.persistItems` 批量持久化到 `score_item`；
+   - 更新任务决策状态为 `MANUAL_APPROVED`，写入审计日志 `score_parse_review`；
+   - 自动联动触发 `EstimatedScoreService.estimateForProject` 完成阶段 1 预估打分。
+3. **前端人机协同交互（`ScoreCandidateReviewCard.vue` + `useScoreCandidateAdoption.js`）**：
+   - 抽屉在 `scoreItems.length === 0 && candidateFacts.length > 0` 时，呈现候选细则卡片与 `[ ⚡ 一键采纳为正式评分标准 ]` 按钮；
+   - 满足 300 行 line-budget 预算拆分。
+

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { STATUS_MAP, TYPE_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult, mapScoreResults, lookupScoreResult, sanitizeCode } from './scoreParseTask.js'
+import { STATUS_MAP, TYPE_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult, mapScoreResults, lookupScoreResult, sanitizeCode, getDecisionBadgeType, getDecisionBadgeText } from './scoreParseTask.js'
 
 describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () => {
   beforeEach(() => {
@@ -275,6 +275,28 @@ describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () 
 
       expect(task.status).toBe('COMPLETED')
       expect(fetcher).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('getDecisionBadgeType & getDecisionBadgeText', () => {
+    it('reviewSubmitted 为 true 时恒为 success 和 已完成复核', () => {
+      expect(getDecisionBadgeType('REVIEW_REQUIRED', true)).toBe('success')
+      expect(getDecisionBadgeText('REVIEW_REQUIRED', true)).toBe('已完成复核')
+    })
+
+    it('未复核时按决策状态映射', () => {
+      expect(getDecisionBadgeType('AUTO_APPROVED', false)).toBe('success')
+      expect(getDecisionBadgeText('AUTO_APPROVED', false)).toBe('自动通过')
+      expect(getDecisionBadgeType('MANUAL_APPROVED', false)).toBe('success')
+      expect(getDecisionBadgeText('MANUAL_APPROVED', false)).toBe('人工采纳通过')
+      expect(getDecisionBadgeType('REVIEW_REQUIRED', false)).toBe('warning')
+      expect(getDecisionBadgeText('REVIEW_REQUIRED', false)).toBe('待人工复核')
+      expect(getDecisionBadgeType('STRUCTURE_INCOMPLETE', false)).toBe('danger')
+      expect(getDecisionBadgeText('STRUCTURE_INCOMPLETE', false)).toBe('结构异常')
+      expect(getDecisionBadgeType('PARSE_FAILED', false)).toBe('info')
+      expect(getDecisionBadgeText('PARSE_FAILED', false)).toBe('解析失败')
+      expect(getDecisionBadgeType('UNKNOWN', false)).toBe('')
+      expect(getDecisionBadgeText('UNKNOWN', false)).toBe('')
     })
   })
 })

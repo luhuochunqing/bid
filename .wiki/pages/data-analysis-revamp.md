@@ -5,7 +5,7 @@ category: architecture
 tags: [analytics, data-analysis, m0-m4, competitor, echarts, fp-java]
 created: 2026-08-14
 updated: 2026-08-28
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - .wiki/pages/data-analysis-revamp.md
 backlinks:

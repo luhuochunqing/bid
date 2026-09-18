@@ -5,7 +5,7 @@ category: guide
 tags: [案例库, casework, PRD, 筛选区, 招标主体, ownerUnit, sortBy死参数]
 created: 2026-08-24
 updated: 2026-08-24
-health_checked: 2026-09-14
+health_checked: 2026-09-18
 sources:
   - src/views/Knowledge/views/CaseGrid.vue
   - src/views/Knowledge/views/components/CaseDetailDialog.vue

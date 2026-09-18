@@ -4,8 +4,8 @@ space: engineering
 category: architecture
 tags: [analytics, organization, department, filter, data-analysis, anchor]
 created: 2026-08-29
-updated: 2026-09-17
-health_checked: 2026-09-14
+updated: 2026-09-18
+health_checked: 2026-09-18
 sources:
   - docs/implementation-notes/analytics-dept-two-level-filter.md
   - docs/implementation-notes/dashboard-org-root-0002.md
