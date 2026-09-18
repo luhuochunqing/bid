@@ -9,7 +9,6 @@ import com.xiyu.bid.analytics.dto.AnalyticsFilterOptionDTO;
 import com.xiyu.bid.analytics.dto.EnhancedOverviewResponse;
 import com.xiyu.bid.analytics.dto.TrendAnalysisResponse;
 import com.xiyu.bid.analytics.dto.TrendFilterOptionsResponseDTO;
-import com.xiyu.bid.analytics.service.TrendAnalysisComputationService.TrendComputationResult;
 import com.xiyu.bid.analytics.service.TrendAnalysisQueryService.OverviewRow;
 import com.xiyu.bid.entity.Project;
 import lombok.RequiredArgsConstructor;
@@ -68,7 +67,9 @@ public class TrendAnalysisService {
                 customerTypes, projectTypes, statusEnums,
                 tenderEntities, competitorNames);
 
-        // 按 xAxis 路由到不同维度的查询 + 计算（PRD 6.3）
+        // 按 xAxis 路由到不同维度的查询 + 计算（PRD 6.3）。
+        // 中标率分母：仅 projectStatus（不展示）与 competitor（specs/055）为 win/bid，
+        // 其余维度为 win/(win+notWon)；排除项策略见 TrendSeriesAssembler.usesOutcomeDenominator
         String ax = xAxis != null ? xAxis : "time";
         String td = timeDimension != null ? timeDimension.toLowerCase() : "month";
         TrendComputationResult result = switch (ax) {

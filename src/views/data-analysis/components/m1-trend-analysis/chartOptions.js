@@ -8,14 +8,14 @@ const STATUS_ENUM_TO_LABEL = Object.fromEntries(
 const LEGEND_TOOLTIPS = {
   投标数: '项目状态为：待立项/已立项/投标中/评标中/已中标/未中标/已流标/弃标 的项目总数',
   中标数: '项目状态为：已中标的项目数',
-  中标率: '中标数/投标数'
+  中标率: '中标数/（已中标项目数+未中标项目数）'
 }
 
 // 竞品维度是竞品级事实（notes「是否中标」），禁止用项目 status 口径解释
 // 见 .wiki/pages/data-analysis-revamp.md §10 / specs/055-fix-analytics-competitor-won-notes
 const COMPETITOR_LEGEND_TOOLTIPS = {
   投标数: '该竞品参与的项目数',
-  中标数: '该竞品参与项目中「是否中标」标记为已中标的次数',
+  中标数: '该竞品参与项目中「是否中标」标记为已中标的项目数',
   中标率: '中标数/投标数（该竞品对我司的中标率）'
 }
 

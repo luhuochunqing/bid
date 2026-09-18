@@ -29,7 +29,7 @@ describe('m1-trend-analysis/chartOptions 图例 tooltip 口径说明', () => {
       '项目状态为：待立项/已立项/投标中/评标中/已中标/未中标/已流标/弃标 的项目总数'
     )
     expect(formatter({ name: '中标数' })).toBe('项目状态为：已中标的项目数')
-    expect(formatter({ name: '中标率' })).toBe('中标数/投标数')
+    expect(formatter({ name: '中标率' })).toBe('中标数/（已中标项目数+未中标项目数）')
   })
 
   it('图例 tooltip 仅在非项目状态维度开启', () => {
@@ -41,7 +41,7 @@ describe('m1-trend-analysis/chartOptions 图例 tooltip 口径说明', () => {
   it('竞品维度图例 tooltip 使用竞品级口径，不出现项目状态话术', () => {
     const { formatter } = buildChartOption(data, 'competitor').legend.tooltip
     expect(formatter({ name: '投标数' })).toBe('该竞品参与的项目数')
-    expect(formatter({ name: '中标数' })).toBe('该竞品参与项目中「是否中标」标记为已中标的次数')
+    expect(formatter({ name: '中标数' })).toBe('该竞品参与项目中「是否中标」标记为已中标的项目数')
     expect(formatter({ name: '中标率' })).toBe('中标数/投标数（该竞品对我司的中标率）')
     expect(formatter({ name: '投标数' })).not.toContain('项目状态为')
     expect(formatter({ name: '中标数' })).not.toContain('项目状态为')
