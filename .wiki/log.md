@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-19] fix | Sidecar Dockerfile 双文件同步陷阱（第 190 次测试部署事故）
+
+- 触发：第 190 次测试部署时 Sidecar 健康门禁拦截 rollout——容器 `ModuleNotFoundError: No module named 'docx_repair'` crash-loop。
+- 根因：sidecar 存在 `Dockerfile` 与 `Dockerfile.cn` 双文件，服务器构建实际用 `Dockerfile.cn`（remote-deploy.sh 硬编码 `-f`）；!2697 新增 `docx_repair.py` 只更新了 `Dockerfile`，`Dockerfile.cn` 漏更新。
+- 方案：PR #2699 同步两个 Dockerfile 的 COPY 行；重新打包部署成功。
+- 回填：`.wiki/pages/sidecar-dockerfile-dual-sync.md`（含防复发清单：新增模块必须双文件同步 + 打包后校验 tar 内 COPY 行）。
+
 ## [2026-09-16] fix | 项目详情页横条返回按钮无响应修复（el-page-header back 事件未接）
 
 - 触发：用户反馈项目详情页公共卡片上方横条框中的返回按钮点击无反应。
