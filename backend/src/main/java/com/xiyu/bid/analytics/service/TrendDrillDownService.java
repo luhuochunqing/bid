@@ -222,16 +222,19 @@ public class TrendDrillDownService {
                     .build());
         }
 
-        // 汇总统计（specs/055：竞品维度 totalWins 与图表 winSeries 同源——「是否中标」列口径；
-        // 其余维度沿用项目级 status=WON 汇总）
-        long totalWins = "competitor".equals(dimension)
+        // 汇总：竞品 totalWins 按「是否中标」列（specs/055）；中标率非竞品/非项目状态 = 中标数/(已中标+未中标)，其余维持 中标数/投标数
+        boolean isCompetitorDimension = "competitor".equals(dimension);
+        long totalWins = isCompetitorDimension
                 ? countCompetitorWins(where, params, axisValue != null && !axisValue.isBlank() ? axisValue : null)
-                : countByStatus(where, params);
+                : countByStatus(where, params, "WON");
+        long rateDenominator = isCompetitorDimension || "projectStatus".equals(dimension)
+                ? total
+                : totalWins + countByStatus(where, params, "LOST");
         TrendDrillDownResponse.DrillDownSummary summary = TrendDrillDownResponse.DrillDownSummary.builder()
                 .totalCount(total)
                 .totalBids(total)
                 .totalWins(totalWins)
-                .winRate(total > 0 ? Math.round(totalWins * 1000.0 / total) / 10.0 : 0.0)
+                .winRate(TrendSeriesAssembler.ratio(totalWins, rateDenominator))
                 .build();
 
         int totalPages = (int) Math.ceil((double) total / pageSize);
@@ -248,13 +251,7 @@ public class TrendDrillDownService {
                 .build();
     }
 
-    /**
-     * 竞品维度下钻汇总：totalWins 按竞品「是否中标」列口径统计（specs/055）。
-     * axisName 非 null 时限定该竞品名——与图表单柱 winCount 完全同源；
-     * null 时统计当前 where 范围内存在任一「已中标」记录的项目数（axisValue 缺失的兜底口径）。
-     * seriesName=中标数时 where 已含同条件，本方法结果自然等于 total（冗余但与既有 WON 双重统计对称，无害）。
-     * 其余维度沿用 {@link #countByStatus}（项目级 status=WON），不受影响。
-     */
+    /** 竞品维度汇总：totalWins 按 notes「是否中标」口径（specs/055），axisName 非空时限定该竞品名。 */
     private long countCompetitorWins(StringBuilder where, Map<String, Object> params, String axisName) {
         StringBuilder sql = new StringBuilder("SELECT COUNT(DISTINCT p.id) FROM projects p")
                 .append(" LEFT JOIN tenders t ON t.id = p.tender_id")
@@ -274,17 +271,16 @@ public class TrendDrillDownService {
         return ((Number) q.getSingleResult()).longValue();
     }
 
-    private long countByStatus(StringBuilder where, Map<String, Object> params) {
-        // 已通过 seriesName='中标数' 强制 status='WON' 的查询场景无需重复统计；
-        // 此处用于汇总：基于当前 where 条件统计 WON 状态项目数（参数化避免 SQL 注入）
+    /** 按项目状态统计当前 where 下项目数（汇总用；状态不写入共享 params，防止多次统计时参数污染）。 */
+    private long countByStatus(StringBuilder where, Map<String, Object> params, String status) {
         String sql = "SELECT COUNT(DISTINCT p.id) FROM projects p" +
                 " LEFT JOIN tenders t ON t.id = p.tender_id" +
                 " LEFT JOIN project_initiation_details pid ON pid.project_id = p.id" +
                 " LEFT JOIN users u ON u.id = p.manager_id" +
-                where + " AND p.status = :wonStatus";
+                where + " AND p.status = :summaryStatus";
         Query q = entityManager.createNativeQuery(sql);
         params.forEach(q::setParameter);
-        q.setParameter("wonStatus", "WON");
+        q.setParameter("summaryStatus", status);
         return ((Number) q.getSingleResult()).longValue();
     }
 

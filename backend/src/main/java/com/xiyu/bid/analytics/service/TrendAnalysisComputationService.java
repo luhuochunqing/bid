@@ -34,11 +34,13 @@ class TrendAnalysisComputationService {
     /**
      * 按维度标签分组，计算投标数、中标数、中标率。
      * 投标数 = 全部项目（含进行中状态；M0 卡片「投标数」为 4 状态口径，与 M1 不同，见 .wiki/pages/data-analysis-revamp.md；旧 WON+LOST 口径曾致区域维度全 0）。
-     * 中标数 = 已中标(WON) 的项目数。按 bidCount 降序排列（PRD 6.5）。
+     * 中标数 = 已中标(WON) 的项目数。
+     * 中标率 = 中标数 / (已中标 + 未中标)（进行中/流标/弃标等不计入分母；项目状态与竞品维度除外）。
+     * 按 bidCount 降序排列（PRD 6.5）。
      * @param expectedCategories 可选，期望在 X 轴出现的分类（数量为 0 也展示），仅 xAxis 为 customerType/projectType 时传入
      */
     TrendComputationResult computeDimensionTrend(List<DimensionRow> rows, List<String> expectedCategories) {
-        Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
+        Map<String, TrendSeriesAssembler.Bucket> bucketMap = new LinkedHashMap<>();
         // P1-2 去重：LEFT JOIN 结果/竞品表会使同一项目在同一分类下产生多行，
         // 按 (category, projectId) 去重，与下钻 COUNT(DISTINCT p.id) 口径对齐；
         // 竞品维度下一个项目可合法分属多个竞品分类，故去重键含 category。
@@ -48,50 +50,17 @@ class TrendAnalysisComputationService {
             if (row.projectId() != null && !countedKeys.add(key + "|" + row.projectId())) {
                 continue;
             }
-            MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
+            TrendSeriesAssembler.Bucket bucket = bucketMap.computeIfAbsent(key, ignored -> new TrendSeriesAssembler.Bucket());
             // 投标数口径：全部项目计入
             bucket.bidCount++;
             if (row.status() == Project.Status.WON) {
                 bucket.winCount++;
+            } else if (row.status() == Project.Status.LOST) {
+                bucket.notWonCount++;
             }
         }
 
-        return assembleSeries(bucketMap, expectedCategories);
-    }
-
-    /**
-     * 维度序列公共组装：期望分类补零（数量为 0 也在 X 轴展示）→ 按 bidCount 降序（PRD 6.5）
-     * → 生成 categories/bid/win/winRate 四序列（winRate=win/bid，1 位小数，0 除保护）。
-     * computeDimensionTrend / computeProjectStatusTrend / computeCompetitorTrend 共用，消除重复样板。
-     */
-    private TrendComputationResult assembleSeries(Map<String, MutableTrendBucket> bucketMap,
-                                                  List<String> expectedCategories) {
-        if (expectedCategories != null) {
-            for (String expected : expectedCategories) {
-                bucketMap.computeIfAbsent(expected, MutableTrendBucket::new);
-            }
-        }
-
-        List<Map.Entry<String, MutableTrendBucket>> sorted = new ArrayList<>(bucketMap.entrySet());
-        sorted.sort((a, b) -> Long.compare(b.getValue().bidCount, a.getValue().bidCount));
-
-        List<String> categories = new ArrayList<>();
-        List<Long> bidSeries = new ArrayList<>();
-        List<Long> winSeries = new ArrayList<>();
-        List<Double> winRateSeries = new ArrayList<>();
-
-        for (Map.Entry<String, MutableTrendBucket> entry : sorted) {
-            categories.add(entry.getKey());
-            long bid = entry.getValue().bidCount;
-            long win = entry.getValue().winCount;
-            bidSeries.add(bid);
-            winSeries.add(win);
-            double winRate = bid == 0 ? 0.0
-                    : Math.round(win * 1000.0 / bid) / 10.0;
-            winRateSeries.add(winRate);
-        }
-
-        return new TrendComputationResult(categories, bidSeries, winSeries, winRateSeries);
+        return TrendSeriesAssembler.assemble(bucketMap, expectedCategories, true);
     }
 
     /**
@@ -103,7 +72,7 @@ class TrendAnalysisComputationService {
      * 中标率 = 中标数 / 投标数，业务语义为「该竞品对我司的中标率」；补零与排序同 computeDimensionTrend。
      */
     TrendComputationResult computeCompetitorTrend(List<DimensionRow> rows, List<String> expectedCategories) {
-        Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
+        Map<String, TrendSeriesAssembler.Bucket> bucketMap = new LinkedHashMap<>();
         // 去重：同 computeDimensionTrend，按 (category, projectId) 去重对齐下钻口径；
         // 去重后再判 notes，重复脏行取首行语义
         Set<String> countedKeys = new HashSet<>();
@@ -112,7 +81,7 @@ class TrendAnalysisComputationService {
             if (row.projectId() != null && !countedKeys.add(key + "|" + row.projectId())) {
                 continue;
             }
-            MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
+            TrendSeriesAssembler.Bucket bucket = bucketMap.computeIfAbsent(key, ignored -> new TrendSeriesAssembler.Bucket());
             // 投标数口径：该竞品参与的全部项目计入（维持 specs/055 FR-02 不变承诺）
             bucket.bidCount++;
             // 中标数口径：仅竞品行「是否中标」=已中标 计入（竞品级事实）
@@ -121,18 +90,20 @@ class TrendAnalysisComputationService {
             }
         }
 
-        return assembleSeries(bucketMap, expectedCategories);
+        // 竞品维度维持 specs/055 FR-02：中标率 = 中标数/该竞品参与项目数（口径变更排除项）
+        return TrendSeriesAssembler.assemble(bucketMap, expectedCategories, false);
     }
 
     /**
      * 项目状态维度专用计算：统计每个状态的所有项目数量（不限于 WON+LOST）。
      * 因为 X 轴本身就是项目状态，每个状态的所有项目都应计入数量。
+     * 该维度不展示中标率系列，winRateSeries 保持 win/bid 旧口径（口径变更排除项）。
      * 按 count 降序排列（PRD 6.5）。
      * @param expectedCategories 可选，期望在 X 轴上出现的分类列表（数量为 0 的也会展示），
      *                           仅当 xAxis 为 projectStatus 时传入
      */
     TrendComputationResult computeProjectStatusTrend(List<DimensionRow> rows, List<String> expectedCategories) {
-        Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
+        Map<String, TrendSeriesAssembler.Bucket> bucketMap = new LinkedHashMap<>();
         // P1-2 去重：同 computeDimensionTrend，按 (category, projectId) 去重对齐下钻口径。
         Set<String> countedKeys = new HashSet<>();
         for (DimensionRow row : rows) {
@@ -140,7 +111,7 @@ class TrendAnalysisComputationService {
             if (row.projectId() != null && !countedKeys.add(key + "|" + row.projectId())) {
                 continue;
             }
-            MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
+            TrendSeriesAssembler.Bucket bucket = bucketMap.computeIfAbsent(key, ignored -> new TrendSeriesAssembler.Bucket());
             // 项目状态维度：统计所有项目（每个状态的项目都计入 bidCount）
             bucket.bidCount++;
             if (row.status() == Project.Status.WON) {
@@ -148,12 +119,13 @@ class TrendAnalysisComputationService {
             }
         }
 
-        return assembleSeries(bucketMap, expectedCategories);
+        return TrendSeriesAssembler.assemble(bucketMap, expectedCategories, false);
     }
 
     /**
      * 按指定时间粒度（day/week/month/year）分组计算投标数/中标数/中标率。
-     * 投标数=全部项目（含进行中），中标数=status=WON，口径同 computeDimensionTrend / M0 KPI；
+     * 投标数=全部项目（含进行中），中标数=status=WON；
+     * 中标率 = 中标数 / (已中标 + 未中标)，与维度趋势新口径一致（项目状态/竞品维度除外）。
      * startDate/endDate 齐全时补全区间内全部时间槽（缺失补 0），确保 X 轴连续。
      */
     TrendComputationResult computeTimeTrend(List<TimeDimensionRow> rows,
@@ -161,7 +133,7 @@ class TrendAnalysisComputationService {
                                             String timeDimension) {
         String td = timeDimension != null ? timeDimension : "month";
 
-        Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
+        Map<String, TrendSeriesAssembler.Bucket> bucketMap = new LinkedHashMap<>();
         // P1-2 去重：防御式按 projectId 去重，与下钻 COUNT(DISTINCT p.id) 口径对齐。
         Set<Long> countedProjectIds = new HashSet<>();
         for (TimeDimensionRow row : rows) {
@@ -169,11 +141,13 @@ class TrendAnalysisComputationService {
                 continue;
             }
             String key = buildPeriodKey(row, td);
-            MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
+            TrendSeriesAssembler.Bucket bucket = bucketMap.computeIfAbsent(key, ignored -> new TrendSeriesAssembler.Bucket());
             // 投标数口径：全部项目计入
             bucket.bidCount++;
             if (row.status() == Project.Status.WON) {
                 bucket.winCount++;
+            } else if (row.status() == Project.Status.LOST) {
+                bucket.notWonCount++;
             }
         }
 
@@ -188,14 +162,13 @@ class TrendAnalysisComputationService {
 
         for (String key : sortedKeys) {
             categories.add(key);
-            MutableTrendBucket bucket = bucketMap.get(key);
+            TrendSeriesAssembler.Bucket bucket = bucketMap.get(key);
             long bid = bucket == null ? 0L : bucket.bidCount;
             long win = bucket == null ? 0L : bucket.winCount;
+            long notWon = bucket == null ? 0L : bucket.notWonCount;
             bidSeries.add(bid);
             winSeries.add(win);
-            double winRate = bid == 0 ? 0.0
-                    : Math.round(win * 1000.0 / bid) / 10.0;
-            winRateSeries.add(winRate);
+            winRateSeries.add(TrendSeriesAssembler.ratio(win, win + notWon));
         }
 
         return new TrendComputationResult(categories, bidSeries, winSeries, winRateSeries);
@@ -287,14 +260,6 @@ class TrendAnalysisComputationService {
             List<Long> winSeries,
             List<Double> winRateSeries
     ) {
-    }
-
-    private static final class MutableTrendBucket {
-        private long bidCount;
-        private long winCount;
-
-        MutableTrendBucket(String ignoredKey) {
-        }
     }
 }
 
