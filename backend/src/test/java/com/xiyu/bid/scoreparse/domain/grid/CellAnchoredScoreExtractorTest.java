@@ -327,4 +327,6 @@ class CellAnchoredScoreExtractorTest {
         assertThat(candidates.get(0).weight()).isEqualByComparingTo(new BigDecimal("25.0"));
         assertThat(candidates.get(1).weight()).isEqualByComparingTo(new BigDecimal("5.0"));
     }
+
+    // 关联：项目 33 真实物理版式中跨页残行大类标题含换行（部分\n（30\n分））单测见 ScoreParseContinuationRowTest
 }

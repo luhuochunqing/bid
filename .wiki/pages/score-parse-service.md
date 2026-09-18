@@ -605,8 +605,9 @@ trigger（同步<1s，互斥校验+建任务）
 
 ### 领域治理与契约
 
-1. **跨行大类单元格 Title Weight Fallback 阻断**：
+1. **跨行大类单元格 Title Weight Fallback 阻断与 DOTALL 跨行正则**：
    - 在 `DeterministicScoreFactExtractor.resolveWeight` 中明确契约：当表格存在显式分值列且当前单元格为跨行单元格（`dimCell.rowspan() > 1`）或匹配大类特征时，严禁 fallback 提取标题分值；
+   - 将 `CATEGORY_TITLE_PATTERN` 升级为 `(?s)` 显式 DOTALL 模式，彻底解决单元格内含有换行（如 `部分\n（30\n分）`）时 `.*` 无法跨行匹配导致漏判大类的问题；
    - 主循环过滤无独立细项维度名的跨页残行。
 2. **有界安全分值列推断与列 0 隔离**：
    - `HeuristicTableColumnMapper` 维持末列优先；仅在末列非分值时在 `[1, colCount - 2]` 区间按有效分值密度推断分值列，坚决排除列 0 序号列；
@@ -615,8 +616,9 @@ trigger（同步<1s，互斥校验+建任务）
 ### 验证锚点
 
 - `ScoreParseContinuationRowTest#testContinuationRowDoesNotStealParentCategoryScore`
+- `ScoreParseContinuationRowTest#testContinuationRowWithNewlineAndNoMergeDoesNotStealParentCategoryScore`
 - `ScoreParseContinuationRowTest#testNumericWeightColumnDensityInference`
 - `Project1371ColumnInvariantsTest`（0 回归）
 - `CellAnchoredScoreExtractorTest#extract_fiveColumnTableWithoutExplicitHeader_infersWeightColumnCorrectly`
-- `com.xiyu.bid.scoreparse.**` 全量 790+ 单测 100% 通过
+- `com.xiyu.bid.scoreparse.**` 全量 792 项单测 100% 通过
 

@@ -155,7 +155,7 @@ public final class DeterministicScoreFactExtractor {
         return List.copyOf(resolved);
     }
 
-    private static final Pattern CATEGORY_TITLE_PATTERN = Pattern.compile(".*(?:部分|大类|标包|分包|类别|项目|合计|总计|小计).*");
+    private static final Pattern CATEGORY_TITLE_PATTERN = Pattern.compile("(?s).*(?:部分|大类|标包|分包|类别|评审大项|合计|总计|小计).*");
 
     private static boolean isCategoryTitle(String text) {
         return text != null && !text.isBlank() && CATEGORY_TITLE_PATTERN.matcher(text.trim()).matches();
