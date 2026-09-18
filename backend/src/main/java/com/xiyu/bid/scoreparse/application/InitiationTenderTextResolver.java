@@ -41,6 +41,7 @@ public class InitiationTenderTextResolver {
     private final SidecarStreamTextExtractor streamTextExtractor;
     private final TempBidFileStore tempFileStore;
     private final long tenderMaxTextChars;
+    private final long tenderMaxFileBytes;
 
     @Autowired
     public InitiationTenderTextResolver(
@@ -53,7 +54,8 @@ public class InitiationTenderTextResolver {
             StreamingBidFileFetcher streamingFetcher,
             SidecarStreamTextExtractor streamTextExtractor,
             TempBidFileStore tempFileStore,
-            @Value("${app.score-parse.tender-file.max-text-chars:5000000}") long tenderMaxTextChars
+            @Value("${app.score-parse.tender-file.max-text-chars:5000000}") long tenderMaxTextChars,
+            @Value("${app.score-parse.tender-file.max-file-bytes:536870912}") long tenderMaxFileBytes
     ) {
         this.projectDocumentRepository = projectDocumentRepository;
         this.snapshotRepository = snapshotRepository;
@@ -65,6 +67,24 @@ public class InitiationTenderTextResolver {
         this.streamTextExtractor = streamTextExtractor;
         this.tempFileStore = tempFileStore;
         this.tenderMaxTextChars = tenderMaxTextChars;
+        this.tenderMaxFileBytes = tenderMaxFileBytes;
+    }
+
+    InitiationTenderTextResolver(
+            ProjectDocumentRepository projectDocumentRepository,
+            BidTenderDocumentSnapshotRepository snapshotRepository,
+            ProjectDocumentFileStorage fileStorage,
+            TenderDocumentStorage tenderDocumentStorage,
+            TenderDocumentTextExtractor textExtractor,
+            ObsShareUrlSigner obsShareUrlSigner,
+            StreamingBidFileFetcher streamingFetcher,
+            SidecarStreamTextExtractor streamTextExtractor,
+            TempBidFileStore tempFileStore,
+            long tenderMaxTextChars
+    ) {
+        this(projectDocumentRepository, snapshotRepository, fileStorage, tenderDocumentStorage,
+                textExtractor, obsShareUrlSigner, streamingFetcher, streamTextExtractor,
+                tempFileStore, tenderMaxTextChars, 536870912L);
     }
 
     public boolean hasSource(Long projectId) {
@@ -115,8 +135,10 @@ public class InitiationTenderTextResolver {
                 return ExtractAttempt.miss();
             }
             return ExtractAttempt.ok(new TenderTextSource(document.getName(), document.getFileUrl(), text));
-        } catch (OversizedTenderTextException | BidFileQuotaException exception) {
+        } catch (OversizedTenderTextException | TenderFileQuotaException exception) {
             return ExtractAttempt.oversized(exception.getMessage());
+        } catch (BidFileQuotaException exception) {
+            return ExtractAttempt.oversized(TenderFileQuotaException.MESSAGE);
         } catch (RuntimeException exception) {
             log.warn("立项招标文件读取失败: name={}, msg={}", document.getName(), exception.getMessage());
             return ExtractAttempt.miss();
@@ -170,24 +192,30 @@ public class InitiationTenderTextResolver {
         }
         Optional<byte[]> stored = fileStorage.load(fileUrl).map(LoadedProjectDocumentFile::content);
         if (stored.isPresent() && stored.get().length > 0) {
+            requireWithinFileQuota(stored.get().length, fileName);
             return new LoadedBidFile.InMemory(stored.get(), fileName, contentType);
         }
         return tenderDocumentStorage.loadByFileUrl(fileUrl)
                 .map(LoadedTenderDocument::content)
                 .filter(content -> content.length > 0)
-                .map(content -> (LoadedBidFile) new LoadedBidFile.InMemory(content, fileName, contentType))
+                .map(content -> {
+                    requireWithinFileQuota(content.length, fileName);
+                    return (LoadedBidFile) new LoadedBidFile.InMemory(content, fileName, contentType);
+                })
                 .orElse(null);
+    }
+
+    private void requireWithinFileQuota(long bytes, String fileName) {
+        if (bytes > tenderMaxFileBytes) {
+            log.warn("招标文件超过字节配额，跳过该来源: name={}, bytes={}", fileName, bytes);
+            throw new TenderFileQuotaException();
+        }
     }
 
     /** 释放落盘临时文件（配额归还）；内存态、null 与非托管路径为 no-op。 */
     void releaseTenderFile(LoadedBidFile loaded) {
-        if (loaded instanceof LoadedBidFile.OnDisk disk
-                && disk.tempFile() != null
-                && disk.tempFile().getFileName() != null) {
-            String name = disk.tempFile().getFileName().toString();
-            if (name.endsWith(".part")) {
-                tempFileStore.release(name.substring(0, name.length() - ".part".length()));
-            }
+        if (loaded instanceof LoadedBidFile.OnDisk disk) {
+            tempFileStore.releaseFile(disk.tempFile());
         }
     }
 
@@ -202,7 +230,7 @@ public class InitiationTenderTextResolver {
         }
         LoadedBidFile.OnDisk disk = (LoadedBidFile.OnDisk) loaded;
         try {
-            return streamTextExtractor.extract(disk.tempFile(), document.getName());
+            return streamTextExtractor.extract(disk.tempFile(), document.getName(), tenderMaxTextChars);
         } catch (OversizedBidTextException exception) {
             throw new OversizedTenderTextException();
         } catch (IOException | InterruptedException exception) {

@@ -319,4 +319,53 @@ class InitiationTenderTextResolverTest {
         assertThat(source).isPresent();
         assertThat(source.get().text()).isEqualTo("商务部分 90 分");
     }
+
+    private InitiationTenderTextResolver resolverWithQuotas(long maxTextChars, long maxFileBytes) {
+        return new InitiationTenderTextResolver(
+                projectDocumentRepository, snapshotRepository, fileStorage,
+                tenderDocumentStorage, textExtractor, obsShareUrlSigner,
+                streamingFetcher, streamTextExtractor, tempFileStore, maxTextChars, maxFileBytes);
+    }
+
+    @Test
+    void localFileOverByteQuota_reportsTenderQuota() {
+        InitiationTenderTextResolver quotaResolver = resolverWithQuotas(5000000L, 10L);
+        ProjectDocument document = ProjectDocument.builder()
+                .id(7L).name("本地大文件.pdf").fileUrl("doc-insight://t/local-big.pdf").fileType("pdf").build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "TENDER", null, null))
+                .thenReturn(List.of(document));
+        when(fileStorage.load("doc-insight://t/local-big.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "doc-insight://t/local-big.pdf", "/tmp/local-big.pdf",
+                        "application/pdf", "01234567890123456789".getBytes())));
+        when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
+                .thenReturn(Optional.empty());
+
+        TenderIntake intake = quotaResolver.resolveIntake(PROJECT_ID);
+
+        assertThat(intake.source()).isEmpty();
+        assertThat(intake.emptyReason()).isEqualTo(TenderFileQuotaException.MESSAGE);
+    }
+
+    @Test
+    void obsQuotaExceeded_reportsTenderQuota() throws Exception {
+        InitiationTenderTextResolver quotaResolver = resolverWithQuotas(5000000L, 536870912L);
+        ProjectDocument document = ProjectDocument.builder()
+                .id(8L).name("云端配额.pdf").fileUrl("obs-direct:over-quota").fileType("pdf").build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "TENDER", null, null))
+                .thenReturn(List.of(document));
+        when(obsShareUrlSigner.trySign("obs-direct:over-quota"))
+                .thenReturn(Optional.of("https://signed/over-quota"));
+        when(streamingFetcher.fetch(eq("https://signed/over-quota"), any(), eq("云端配额.pdf"), eq("pdf")))
+                .thenThrow(new BidFileQuotaException());
+        when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
+                .thenReturn(Optional.empty());
+
+        TenderIntake intake = quotaResolver.resolveIntake(PROJECT_ID);
+
+        assertThat(intake.source()).isEmpty();
+        assertThat(intake.emptyReason()).isEqualTo(TenderFileQuotaException.MESSAGE);
+    }
 }

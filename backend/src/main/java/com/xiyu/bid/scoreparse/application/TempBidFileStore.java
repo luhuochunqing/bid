@@ -76,6 +76,19 @@ public class TempBidFileStore {
         taskAllocations.computeIfAbsent(taskId, k -> new java.util.concurrent.atomic.LongAdder()).add(chunkSize);
     }
 
+    /** 按文件路径释放（spec 065：调用方无需知晓 {taskId}.part 命名约定）；非托管路径 no-op。 */
+    public void releaseFile(Path file) {
+        if (file == null || file.getFileName() == null) {
+            return;
+        }
+        String name = file.getFileName().toString();
+        if (!name.endsWith(".part")) {
+            log.warn("投标文件临时文件非托管路径，跳过释放: path={}", file);
+            return;
+        }
+        release(name.substring(0, name.length() - ".part".length()));
+    }
+
     /** 删除 {taskId}.part（幂等：文件不存在 no-op）并归还配额。 */
     public void release(String taskId) {
         releasePath(tempDir.resolve(taskId + ".part"));
