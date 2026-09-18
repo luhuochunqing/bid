@@ -122,13 +122,14 @@ if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
   echo
   if [[ "$DRY_RUN" == "1" ]]; then
     warn "[DRY RUN] 将提示丢弃未提交变更"
-  elif [[ "$AUTO_CONFIRM" == "1" ]]; then
+  elif [[ "$AUTO_CONFIRM" == "1" && "$FORCE" == "1" ]]; then
     git checkout -- .
     git clean -fd
-    info "已丢弃未提交变更"
+    info "已丢弃未提交变更 (--yes + --force)"
   else
-    warn "请先提交或 stash 变更后再执行收尾。"
-    warn "如需强制丢弃，请使用 --yes 参数。"
+    error "当前工作区有未提交的变更，严禁收尾！"
+    error "请先提交或 stash 变更后再执行收尾。"
+    error "如确需强制丢弃，必须同时使用 --yes 和 --force 参数。"
     exit 1
   fi
 else
@@ -260,6 +261,20 @@ else
   fi
 fi
 echo ""
+
+# ─── Step 2.6: Unified Dev Flow S6 审查凭证硬断言 ────────────────────────────
+hdr "Step 2.6: 检查 S6 Code Review 审查凭证"
+CHECKER="${HOME}/.claude/scripts/entry-gate-check.py"
+if [[ -f "$CHECKER" && "$FORCE" != "1" ]]; then
+  if ! python3 "$CHECKER" --project-dir "$REPO_ROOT" --guard-pr; then
+    error "Unified Dev Flow 门禁未通过：缺少合规的 S6 审查工件 (.omc/review-*.md 且 verdict 须为 MERGE_READY)！"
+    error "严禁在未完成 S6 独立审查前清理收尾任务分支！"
+    error "如确系纯管理/非代码分支清理，请显式使用 --force 参数。"
+    exit 1
+  fi
+  info "S6 Code Review 审查凭证已核验 (MERGE_READY)"
+  echo ""
+fi
 
 # ─── Step 3: 列出待清理资源 ────────────────────────────────────────────────────
 hdr "Step 3: 列出待清理资源"

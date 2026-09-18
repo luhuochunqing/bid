@@ -6,6 +6,7 @@
 #
 # Installed via: ln -sf ../../scripts/pre-commit.sh .git/hooks/pre-commit
 # Gated checks:
+#   0. Unified Dev Flow Entry Gate exists if touching business code
 #   1. Blueprint gap table exists for §4.x.x touched files
 #   2. New Vue/JS files >200 lines warn about line-budget
 #   3. Placeholder anti-patterns (fake success messages)
@@ -20,6 +21,33 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SCRIPTS_DIR="${REPO_ROOT}/scripts"
 cd "$REPO_ROOT"
+
+# ── Gate 0: Unified Dev Flow Entry Gate 校验 ──────────────────────────────────
+echo "🔍 [gate-0] 检查 Unified Dev Flow Entry Gate 工件..."
+TOUCHED_PROD_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(backend/src/main/|src/)' || true)
+
+if [[ -n "$TOUCHED_PROD_FILES" ]]; then
+  if ! ls "${REPO_ROOT}/.omc"/entry-gate-*.md >/dev/null 2>&1; then
+    if [ "${SKIP_ENTRY_GATE:-0}" = "1" ]; then
+      echo "   ⚠️ SKIP_ENTRY_GATE=1 — 紧急跳过 Entry Gate 校验"
+    else
+      echo "❌ [unified-dev-flow 阻断]: 本次提交包含业务源码修改，但未检测到 .omc/entry-gate-*.md 工件！" >&2
+      echo "   修改的文件:" >&2
+      echo "$TOUCHED_PROD_FILES" | sed 's/^/     • /' >&2
+      echo "   【必须前置】: 必须先在 .omc/entry-gate-<session>.md 中明确：" >&2
+      echo "     1. 理解和假设" >&2
+      echo "     2. 最小方案 + 文件范围" >&2
+      echo "     3. 范围纪律" >&2
+      echo "     4. 验证计划" >&2
+      echo "   （逃生阀: 仅限紧急生产抢修时设置 SKIP_ENTRY_GATE=1）" >&2
+      exit 1
+    fi
+  else
+    echo "   ✅ Entry gate passed"
+  fi
+else
+  echo "   ✅ 无业务源码修改，跳过 Entry gate 校验"
+fi
 
 # ── Gate 1: Blueprint Gap Table ──────────────────────────────────────────────
 echo "🔍 [gate-1/3] Checking blueprint gap tables..."
