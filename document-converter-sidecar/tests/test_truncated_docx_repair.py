@@ -314,3 +314,25 @@ def test_regression_8_oversized_file_fail_fast(tmp_path):
 
     repaired = repair_truncated_docx(str(fpath), max_size_bytes=50 * 1024)
     assert repaired is None, "Must fail-fast when file exceeds max_size_bytes limit"
+
+
+def test_regression_9_zip_bomb_uncompressed_size_cap_rejected(tmp_path, monkeypatch):
+    """Matrix 9: Highly compressed stream exceeding uncompressed safety cap must be rejected."""
+    raw_payload = b"\x00" * (100 * 1024)  # 100KB
+    comp = zlib.compress(raw_payload)[2:-4]
+    fn = b"word/document.xml"
+    crc = zlib.crc32(raw_payload)
+    lh = (
+        b"PK\x03\x04\x14\x00\x08\x00\x08\x00\x00\x00\x00\x00"
+        + struct.pack("<IIIHH", 0, 0, 0, len(fn), 0)
+        + fn
+        + comp
+        + b"PK\x07\x08" + struct.pack("<III", crc, len(comp), len(raw_payload))
+    )
+    fpath = tmp_path / "zip_bomb.docx"
+    fpath.write_bytes(lh)
+
+    monkeypatch.setenv("DOCX_MAX_UNCOMPRESSED_ENTRY_SIZE", str(50 * 1024))
+    repaired = repair_truncated_docx(str(fpath))
+    assert repaired is None, "Must reject entry whose uncompressed size exceeds safety cap"
+

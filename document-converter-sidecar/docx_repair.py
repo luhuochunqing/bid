@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 
 # Default maximum file size eligible for repair (64MB) to prevent OOM
 DEFAULT_MAX_REPAIR_SIZE = 64 * 1024 * 1024
+# Maximum uncompressed chunk per decompress() call (1MB) to prevent decompression memory spikes
+MAX_DECOMP_CHUNK = 1024 * 1024
+# Maximum allowable uncompressed entry size (256MB) to protect against zip bombs
+DEFAULT_MAX_UNCOMPRESSED_ENTRY_SIZE = 256 * 1024 * 1024
 
 
 def repair_truncated_docx(path: str, max_size_bytes: int | None = None) -> str | None:
@@ -21,9 +25,10 @@ def repair_truncated_docx(path: str, max_size_bytes: int | None = None) -> str |
     - Scans Local File Headers via disk seeks without loading the entire file into memory.
     - Streams payload to a temporary file in 64KB blocks.
     - Accurately resolves General Purpose Bit 3 / Data Descriptors using zlib raw deflate
-      stream termination (ignoring accidental 'PK' byte patterns inside compressed data),
+      stream termination with bounded 1MB output chunks and unconsumed_tail handling,
       supporting both with-signature ('PK\\x07\\x08') and without-signature descriptors.
-    - Strongly validates the repaired zip with testzip() and reads 'word/document.xml'.
+    - Strongly validates the repaired zip with testzip() and non-buffering word/document.xml
+      checks without reading the entire XML into memory.
     - Returns None if repair is impossible or file is truncated inside 'word/document.xml'.
     """
     if max_size_bytes is None:
@@ -51,6 +56,9 @@ def repair_truncated_docx(path: str, max_size_bytes: int | None = None) -> str |
             cd_entries: list[bytes] = []
             found_doc_xml = False
             last_valid_pos = 0
+            max_uncomp_entry_size = int(
+                os.getenv("DOCX_MAX_UNCOMPRESSED_ENTRY_SIZE", DEFAULT_MAX_UNCOMPRESSED_ENTRY_SIZE)
+            )
 
             while f.tell() < file_size:
                 entry_offset = f.tell()
@@ -96,22 +104,42 @@ def repair_truncated_docx(path: str, max_size_bytes: int | None = None) -> str |
                     dobj = zlib.decompressobj(-15)
                     crc_calc = 0
                     uncomp_calc = 0
+                    decomp_failed = False
+
                     while not dobj.eof:
                         remaining_file = file_size - f.tell()
-                        if remaining_file <= 0:
+                        if remaining_file <= 0 and not dobj.unconsumed_tail:
                             break
-                        chunk = f.read(min(65536, remaining_file))
-                        if not chunk:
-                            break
-                        try:
-                            decomp = dobj.decompress(chunk)
-                            uncomp_calc += len(decomp)
-                            crc_calc = zlib.crc32(decomp, crc_calc)
-                        except zlib.error:
+                        chunk = f.read(min(65536, remaining_file)) if remaining_file > 0 else b""
+                        if not chunk and not dobj.unconsumed_tail:
                             break
 
-                    if not dobj.eof:
-                        logger.debug("Deflate stream truncated mid-decompression in %s", fn)
+                        data = chunk
+                        while data or dobj.unconsumed_tail:
+                            try:
+                                decomp = dobj.decompress(data, MAX_DECOMP_CHUNK)
+                                data = dobj.unconsumed_tail
+                                if decomp:
+                                    uncomp_calc += len(decomp)
+                                    crc_calc = zlib.crc32(decomp, crc_calc)
+                                    if uncomp_calc > max_uncomp_entry_size:
+                                        logger.warning(
+                                            "Uncompressed entry %s exceeds safety limit %d",
+                                            fn, max_uncomp_entry_size,
+                                        )
+                                        decomp_failed = True
+                                        break
+                                if not decomp and not dobj.unconsumed_tail:
+                                    break
+                            except zlib.error:
+                                decomp_failed = True
+                                break
+
+                        if decomp_failed:
+                            break
+
+                    if decomp_failed or not dobj.eof:
+                        logger.debug("Deflate stream truncated or failed in %s", fn)
                         break
 
                     actual_comp_size = f.tell() - data_start - len(dobj.unused_data)
@@ -206,7 +234,7 @@ def repair_truncated_docx(path: str, max_size_bytes: int | None = None) -> str |
                     os.remove(tmp.name)
                 raise
 
-            # Strong validation: testzip() and read("word/document.xml")
+            # Strong validation: testzip() and non-buffering word/document.xml checks
             try:
                 with zipfile.ZipFile(tmp.name) as z:
                     corrupt = z.testzip()
@@ -214,11 +242,16 @@ def repair_truncated_docx(path: str, max_size_bytes: int | None = None) -> str |
                         logger.warning("Repaired docx failed testzip on member: %s", corrupt)
                         os.remove(tmp.name)
                         return None
-                    doc_content = z.read("word/document.xml")
-                    if not doc_content or len(doc_content.strip()) == 0:
+                    info = z.getinfo("word/document.xml")
+                    if info.file_size <= 0:
                         logger.warning("Repaired docx has empty word/document.xml")
                         os.remove(tmp.name)
                         return None
+                    with z.open("word/document.xml") as doc_stream:
+                        if not doc_stream.read(1):
+                            logger.warning("Repaired docx word/document.xml has no readable bytes")
+                            os.remove(tmp.name)
+                            return None
             except Exception as exc:
                 logger.warning("Failed validating repaired docx %s: %s", tmp.name, exc)
                 if os.path.exists(tmp.name):
