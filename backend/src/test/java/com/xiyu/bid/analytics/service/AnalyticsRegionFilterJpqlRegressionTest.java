@@ -198,6 +198,26 @@ class AnalyticsRegionFilterJpqlRegressionTest {
     }
 
     @Test
+    @DisplayName("CO-615 下钻汇总中标率分母 = 已中标+未中标（进行中不计入）")
+    void drillDownSummaryWinRateUsesOutcomeDenominator() {
+        // 甘肃种子（@DataJpaTest 事务回滚，不影响其他用例）：1 WON + 1 LOST + 1 BIDDING
+        buildProject("项目I-甘肃中标", Project.Status.WON, "甘肃省兰州市");
+        buildProject("项目J-甘肃未中标", Project.Status.LOST, "甘肃省兰州市");
+        buildProject("项目K-甘肃投标中", Project.Status.BIDDING, "甘肃省兰州市");
+        entityManager.flush();
+
+        var drill = drillDownService.drillDown(
+                "time", null, "投标数",
+                null, null, null, null, List.of("甘肃省"), null, null, null,
+                null, null, 1, 10);
+
+        assertThat(drill.getSummary().getTotalCount()).isEqualTo(3L);
+        assertThat(drill.getSummary().getTotalWins()).isEqualTo(1L);
+        // 1/(1+1)=50.0；旧 win/bid 口径为 33.3
+        assertThat(drill.getSummary().getWinRate()).isEqualTo(50.0);
+    }
+
+    @Test
     @DisplayName("区域分组：筛选后行数 = 所有命中格式之和（含短省名与自由文本）")
     void regionRowsFilterMatchesNormalizedProvince() {
         var rows = dimensionQueryService.fetchRegionRows(jiangsuCriteria());

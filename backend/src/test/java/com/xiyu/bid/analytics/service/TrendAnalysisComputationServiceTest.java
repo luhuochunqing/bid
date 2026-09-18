@@ -27,7 +27,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("华东区", 2L, Project.Status.WON)
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeDimensionTrend(rows, null);
 
         assertThat(result.categories()).containsExactly("华东区");
@@ -47,7 +47,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("北京市", 5L, Project.Status.BIDDING)
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeDimensionTrend(rows, null);
 
         assertThat(result.bidSeries()).containsExactly(4L, 1L);
@@ -63,7 +63,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("竞品A", 1L, Project.Status.WON) // 同分类重复行仍去重
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeDimensionTrend(rows, null);
 
         assertThat(result.categories()).containsExactly("竞品A", "竞品B");
@@ -79,7 +79,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("BIDDING", 1L, Project.Status.BIDDING)
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeProjectStatusTrend(rows, null);
 
         assertThat(result.categories()).containsExactly("BIDDING");
@@ -95,7 +95,7 @@ class TrendAnalysisComputationServiceTest {
                 new TrendAnalysisQueryService.TimeDimensionRow(2026, 3, 0, 0, 2L, Project.Status.LOST)
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeTimeTrend(rows, null, null, "month");
 
         assertThat(result.categories()).containsExactly("2026-03");
@@ -112,7 +112,7 @@ class TrendAnalysisComputationServiceTest {
                 new TrendAnalysisQueryService.TimeDimensionRow(2026, 0, 2, 0, 2L, Project.Status.LOST)
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeTimeTrend(rows, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 11), "week");
 
         assertThat(result.categories()).containsExactly("2026-W01", "2026-W02");
@@ -129,7 +129,7 @@ class TrendAnalysisComputationServiceTest {
                 new TrendAnalysisQueryService.TimeDimensionRow(2026, 0, 2, 0, 2L, Project.Status.WON)
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeTimeTrend(rows, LocalDate.of(2025, 12, 29), LocalDate.of(2026, 1, 11), "week");
 
         assertThat(result.categories()).containsExactly("2026-W01", "2026-W02");
@@ -150,7 +150,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("竞品A", 4L, Project.Status.ABANDONED, "已中标")
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeCompetitorTrend(rows, null);
 
         assertThat(result.categories()).containsExactly("竞品A");
@@ -168,7 +168,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("竞品A", 4L, Project.Status.WON, "其他说明：报价偏高一轮")
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeCompetitorTrend(rows, null);
 
         assertThat(result.bidSeries()).containsExactly(4L);
@@ -185,7 +185,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("竞品C", 1L, Project.Status.LOST, "已中标")
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeCompetitorTrend(rows, null);
 
         assertThat(result.categories()).containsExactly("竞品A", "竞品B", "竞品C");
@@ -202,7 +202,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("竞品A", 2L, Project.Status.LOST, "未中标")
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeCompetitorTrend(rows, null);
 
         assertThat(result.bidSeries()).containsExactly(2L);
@@ -218,7 +218,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("竞品A", 3L, Project.Status.LOST, "未中标")
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeCompetitorTrend(rows, List.of("竞品A", "竞品B"));
 
         assertThat(result.categories()).containsExactly("竞品A", "竞品B");
@@ -240,7 +240,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("华东区", 5L, Project.Status.ABANDONED)
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeDimensionTrend(rows, null);
 
         assertThat(result.bidSeries()).containsExactly(5L);
@@ -259,7 +259,7 @@ class TrendAnalysisComputationServiceTest {
                 new TrendAnalysisQueryService.TimeDimensionRow(2026, 6, 0, 0, 4L, Project.Status.BIDDING)
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeTimeTrend(rows, null, null, "month");
 
         assertThat(result.categories()).containsExactly("2026-05", "2026-06");
@@ -274,7 +274,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("华北区", 1L, Project.Status.BIDDING)
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeDimensionTrend(rows, null);
 
         assertThat(result.winRateSeries()).containsExactly(0.0);
@@ -288,7 +288,7 @@ class TrendAnalysisComputationServiceTest {
                 new DimensionRow("WON", 2L, Project.Status.BIDDING)
         );
 
-        TrendAnalysisComputationService.TrendComputationResult result =
+        TrendComputationResult result =
                 service.computeProjectStatusTrend(rows, null);
 
         // 1/2=50.0（旧口径）；若误用新分母会是 100.0

@@ -15,7 +15,7 @@ const LEGEND_TOOLTIPS = {
 // 见 .wiki/pages/data-analysis-revamp.md §10 / specs/055-fix-analytics-competitor-won-notes
 const COMPETITOR_LEGEND_TOOLTIPS = {
   投标数: '该竞品参与的项目数',
-  中标数: '该竞品参与项目中「是否中标」标记为已中标的次数',
+  中标数: '该竞品参与项目中「是否中标」标记为已中标的项目数',
   中标率: '中标数/投标数（该竞品对我司的中标率）'
 }
 

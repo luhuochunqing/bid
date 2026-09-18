@@ -253,13 +253,5 @@ class TrendAnalysisComputationService {
         keys.sort(String::compareTo);
         return keys;
     }
-
-    public record TrendComputationResult(
-            List<String> categories,
-            List<Long> bidSeries,
-            List<Long> winSeries,
-            List<Double> winRateSeries
-    ) {
-    }
 }
 
