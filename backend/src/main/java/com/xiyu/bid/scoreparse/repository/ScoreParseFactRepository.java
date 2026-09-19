@@ -10,6 +10,5 @@ import java.util.List;
 public interface ScoreParseFactRepository extends JpaRepository<ScoreParseFact, Long> {
     List<ScoreParseFact> findByParseTaskId(Long parseTaskId);
     List<ScoreParseFact> findByProjectId(Long projectId);
-    void deleteByProjectId(Long projectId);
     void deleteByParseTaskId(Long parseTaskId);
 }

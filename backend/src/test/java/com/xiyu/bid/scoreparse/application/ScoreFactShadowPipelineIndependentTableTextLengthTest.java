@@ -70,14 +70,15 @@ class ScoreFactShadowPipelineIndependentTableTextLengthTest {
                 .filter(t -> t.completeness() != null
                         && t.completeness().decision() == ScoreParseDecision.AUTO_APPROVED)
                 .flatMap(t -> t.completeness().leafFacts().stream())
-                .map(f -> new ScoreCandidateView(f.factId(), f.code(), f.weight(), f.sourceTableId()))
+                .map(f -> new ScoreCandidateView(f.code(), f.weight(), f.sourceTableId()))
                 .toList();
         assertThat(leaves).hasSize(5);
         assertThat(leaves).extracting(ScoreCandidateView::sourceTableId)
                 .containsExactly("tech-t1", "tech-t1", "tech-t1", "biz-t2", "biz-t2");
         assertThat(leaves).extracting(ScoreCandidateView::code)
                 .containsExactly("1", "2", "3", "1", "2");
-        assertThat(leaves).extracting(v -> v.weight().stripTrailingZeros().toPlainString())
+        assertThat(leaves).extracting(ScoreCandidateView::weight)
+                .extracting(w -> w.stripTrailingZeros().toPlainString())
                 .containsExactly("30", "20", "10", "20", "20");
         assertThat(leaves.stream().map(ScoreCandidateView::weight)
                 .reduce(BigDecimal.ZERO, BigDecimal::add))
@@ -198,6 +199,6 @@ class ScoreFactShadowPipelineIndependentTableTextLengthTest {
     }
 
     /** 逐项断言用的候选投影（编号/分值/来源）。 */
-    private record ScoreCandidateView(String factId, String code, BigDecimal weight, String sourceTableId) {
+    private record ScoreCandidateView(String code, BigDecimal weight, String sourceTableId) {
     }
 }
