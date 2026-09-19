@@ -3,7 +3,17 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-19] fix | 合并单元格名称继承与父子层级关系解耦及独立汇总父项治理
+
+- 触发：修复项目 30 评分解析 PR #3 审查版本 `bd6fc42` 的深层边界回归：纯分类合并标签首行明细误删（100分变70分）与独立汇总父项行/横纵合并覆盖 detail 列断亲（100分变150分）。
+- 根因：版式名称继承与业务父子层级混淆；旧逻辑仅在同行有细则时注册父项，且横纵合并覆盖 detail 时被误判为无效行。
+- 方案：
+  - 后端：`DeterministicScoreFactExtractor` 划分排他性三场景：场景1纯分类标签仅继承名称不作父项；场景2独立汇总父项/横纵合并覆盖，通过 `coversDetail` 判定有效延续并识别为父项；场景3同行拆分父项与首行明细。
+  - 金标与测试：覆盖 5 大场景矩阵，通过 `GoldenCorpusBaselineTest#syn_merge_vh_combined_span_parent_child_linkage` 横纵合并金标与前端 `useScoreCandidateAdoption.spec.js` 场景4，确保 3 末级项 100 分。
+- 回填：更新 `docs/lessons/lessons-learned.md` §385、`.wiki/pages/score-parse-optimization.md`。
+
 ## [2026-09-19] fix | 项目 30 评分解析 215 分虚高过滤与续行维度继承修复
+
 
 - 触发：项目 30（中国电子 2026 年电商服务供应商入围，Table 2）AI 评分解析出 30 项 215 分，父项商务（30分）与技术（45分）与 28 项细则（100分）重复累加，且续行维度显示为破折号 `—`。
 - 根因：合并单元格展开为续行时未继承 origin 单元格维度；采纳策略与前端候选展示未过滤含有子项的 parentId 父项事实。
