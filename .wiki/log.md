@@ -3,6 +3,16 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-19] fix | 项目 30 评分解析 215 分虚高过滤与续行维度继承修复
+
+- 触发：项目 30（中国电子 2026 年电商服务供应商入围，Table 2）AI 评分解析出 30 项 215 分，父项商务（30分）与技术（45分）与 28 项细则（100分）重复累加，且续行维度显示为破折号 `—`。
+- 根因：合并单元格展开为续行时未继承 origin 单元格维度；采纳策略与前端候选展示未过滤含有子项的 parentId 父项事实。
+- 方案：
+  - 后端：`ScoreReviewAdoptionPolicy` 过滤 parentIds 父项事实；`DeterministicScoreFactExtractor` 在续行回填 origin 维度；
+  - 前端：`useScoreCandidateAdoption.js` 排除父项，`ScoreCandidateReviewCard.vue` 增加非 100 分权重告警条；
+  - 单测：补全 `ScoreReviewAdoptionPolicyTest`、`DeterministicScoreFactExtractorTest`、`useScoreCandidateAdoption.spec.js` 与 `ScoreCandidateReviewCard.spec.js`。
+- 回填：更新 `.wiki/pages/score-parse-optimization.md`。
+
 ## [2026-09-19] fix | Sidecar Dockerfile 双文件同步陷阱（第 190 次测试部署事故）
 
 - 触发：第 190 次测试部署时 Sidecar 健康门禁拦截 rollout——容器 `ModuleNotFoundError: No module named 'docx_repair'` crash-loop。

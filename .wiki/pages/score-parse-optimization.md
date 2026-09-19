@@ -304,3 +304,23 @@ markdown 输入
 ### 教训
 **降级失败原因不得复用"数据缺失"类文案**：能力因内容特性（而非缺失）失败时，必须区分"没给数据"与"给了但不可用"，否则误导用户反复做无效操作。判定依据：真实链路验证（如 `pdftotext`）+ 全链路日志，再定位被哪一层吞掉并改写语义。详见 `docs/lessons/lessons-learned.md` §384。
 
+## 2026-09-19 评分解析项目 30 父项汇总过滤与续行维度丢失修复
+
+### 问题
+项目 30（中国电子 2026 年电商服务供应商入围招标项目，Table 2）AI 评分解析中存在两项关键缺陷：
+1. **215 分 / 30 项虚高 (P0)**：父项汇总（商务 30 分、技术 45 分）与 28 项细则（100 分）重复累加，候选列表中包含父项汇总行，导致权重合计达 215.0 分，无法一键采纳（采纳要求 100 分）；
+2. **续行维度显示为破折号 `—` (P1)**：合并单元格在后续行拆分展开为续行时，未继承 Origin 单元格的有效维度名称，在 UI 上呈现破折号 `—`。
+
+### 根因与修复
+1. **父项汇总行准入过滤（采纳策略与候选流）**：
+   - 后端 `ScoreReviewAdoptionPolicy`：在 `adopt()` 评估前聚合所有候选事实的 `parentIds` 形成父项集合，在遍历候选时严格排除 `parentIds.contains(fact.id())`，彻底杜绝分类汇总行作为独立细则被采纳入库；
+   - 前端 `useScoreCandidateAdoption.js`：定义计算属性 `parentIds = new Set(candidates.map(c => c.parentId).filter(Boolean))`，在 `actionableCandidates` 与 `candidateTotalWeight` 中过滤 `parentIds.has(c.id)`，使候选集与总分精准恢复为 28 项、合计 100.0 分；
+   - 前端 `ScoreCandidateReviewCard.vue`：增加权重和不等于 100 时的告警条提醒（`candidateTotalWeight !== 100`），避免非标准分值盲目采纳。
+2. **合并单元格续行维度继承**：
+   - 后端 `DeterministicScoreFactExtractor`：提取 `resolveOriginFact` 单一辅助方法。当单元格为续行（`isContinuationRow`）且自身未提取到非空维度时，自动回填对应 `origin` 单元格提取的非空维度，消除 UI 上的破折号 `—`。
+
+### 效果与验证
+- 后端：`ScoreReviewAdoptionPolicyTest` 与 `DeterministicScoreFactExtractorTest` 全部通过；
+- 前端：`useScoreCandidateAdoption.spec.js` 与 `ScoreCandidateReviewCard.spec.js` 全部通过；
+- 项目 30 候选列表由 30 项 215 分收敛为 28 项 100.0 分，一键采纳顺畅执行，续行维度完整保留。
+
