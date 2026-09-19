@@ -150,4 +150,64 @@ describe('useScoreCandidateAdoption.js', () => {
 
     expect(isAdoptingCandidates.value).toBe(false)
   })
+
+  describe('版式继承与业务父子关系分离（三场景一致性校验）', () => {
+    it('场景1：普通未合并标签，3个末级项，合计100分', () => {
+      reviewFacts.value = [
+        { factId: 'f1', code: '1', dimension: '商务', weight: 30, sourceText: '财务状况', parentFactId: '' },
+        { factId: 'f2', code: '2', dimension: '商务', weight: 20, sourceText: '履约能力', parentFactId: '' },
+        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '' },
+      ]
+      const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
+        props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
+      })
+
+      expect(candidateFacts.value).toHaveLength(3)
+      expect(candidateTotalWeight.value).toBe(100)
+      expect(candidateFacts.value.map((f) => ({ code: f.code, weight: f.weight, dim: f.dimension }))).toEqual([
+        { code: '1', weight: 30, dim: '商务' },
+        { code: '2', weight: 20, dim: '商务' },
+        { code: '3', weight: 50, dim: '价格' },
+      ])
+    })
+
+    it('场景2：合并标签“商务”无汇总分值，正常计分明细不作为父项，仍为3个末级项，合计100分', () => {
+      reviewFacts.value = [
+        { factId: 'f1', code: '1', dimension: '商务', weight: 30, sourceText: '财务状况', parentFactId: '' },
+        { factId: 'f2', code: '2', dimension: '商务', weight: 20, sourceText: '履约能力', parentFactId: '' },
+        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '' },
+      ]
+      const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
+        props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
+      })
+
+      expect(candidateFacts.value).toHaveLength(3)
+      expect(candidateTotalWeight.value).toBe(100)
+      expect(candidateFacts.value.map((f) => ({ code: f.code, weight: f.weight, dim: f.dimension, parentFactId: f.parentFactId }))).toEqual([
+        { code: '1', weight: 30, dim: '商务', parentFactId: '' },
+        { code: '2', weight: 20, dim: '商务', parentFactId: '' },
+        { code: '3', weight: 50, dim: '价格', parentFactId: '' },
+      ])
+    })
+
+    it('场景3：合并标签“商务（50分）”存在独立汇总父事实，排除父项保留3个末级项，合计100分', () => {
+      reviewFacts.value = [
+        { factId: 'p1', code: '', dimension: '商务', weight: 50, sourceText: '商务（50分）', parentFactId: '' },
+        { factId: 'f1', code: '1', dimension: '商务', weight: 30, sourceText: '财务状况', parentFactId: 'p1' },
+        { factId: 'f2', code: '2', dimension: '商务', weight: 20, sourceText: '履约能力', parentFactId: 'p1' },
+        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '' },
+      ]
+      const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
+        props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
+      })
+
+      expect(candidateFacts.value).toHaveLength(3)
+      expect(candidateTotalWeight.value).toBe(100)
+      expect(candidateFacts.value.map((f) => ({ code: f.code, weight: f.weight, dim: f.dimension, parentFactId: f.parentFactId }))).toEqual([
+        { code: '1', weight: 30, dim: '商务', parentFactId: 'p1' },
+        { code: '2', weight: 20, dim: '商务', parentFactId: 'p1' },
+        { code: '3', weight: 50, dim: '价格', parentFactId: '' },
+      ])
+    })
+  })
 })

@@ -147,13 +147,9 @@ public final class DeterministicScoreFactExtractor {
                 resolved.add(fact);
                 continue;
             }
-            ScoreFact originFact = resolveOriginFact(
-                    row, mapping.dimCol(), grid, factByRow,
-                    parentFactByOriginRow, dimensionOriginCellIdByRow, originRowByCellId);
-            String parentFactId = originFact == null ? "" : originFact.factId();
-            String dim = !fact.dimension().isBlank() ? fact.dimension()
-                    : (originFact != null && !originFact.dimension().isBlank() ? originFact.dimension() : "");
-            resolved.add(fact.withParentFactId(parentFactId).withDimension(dim));
+            resolved.add(resolveContinuationFact(
+                    row, mapping.dimCol(), grid, fact, factByRow,
+                    parentFactByOriginRow, dimensionOriginCellIdByRow, originRowByCellId));
         }
         return List.copyOf(resolved);
     }
@@ -256,20 +252,27 @@ public final class DeterministicScoreFactExtractor {
         return raw == null ? "" : TITLE_WEIGHT.matcher(raw).replaceAll("").replaceAll("\\s+", " ").trim();
     }
 
-    private static ScoreFact resolveOriginFact(
+    private static ScoreFact resolveContinuationFact(
             int row,
             int dimCol,
             CanonicalTableGrid grid,
+            ScoreFact fact,
             Map<Integer, ScoreFact> factByRow,
             Map<Integer, ScoreFact> parentFactByOriginRow,
             Map<Integer, String> dimensionOriginCellIdByRow,
             Map<String, Integer> originRowByCellId) {
         CanonicalCell dimCell = cellAt(grid.cellsInRow(row), dimCol).orElse(null);
-        if (dimCell == null || !dimCell.isMergedContinue()) return null;
+        if (dimCell == null || !dimCell.isMergedContinue()) return fact;
         String originCellId = dimensionOriginCellIdByRow.get(row);
         Integer originRow = originRowByCellId.get(originCellId);
-        if (originRow == null) return null;
-        return parentFactByOriginRow.getOrDefault(originRow, factByRow.get(originRow));
+        if (originRow == null) return fact;
+        ScoreFact parent = parentFactByOriginRow.get(originRow);
+        ScoreFact originLeaf = factByRow.get(originRow);
+        String dim = !fact.dimension().isBlank() ? fact.dimension()
+                : (parent != null && !parent.dimension().isBlank() ? parent.dimension()
+                : (originLeaf != null && !originLeaf.dimension().isBlank() ? originLeaf.dimension() : ""));
+        String parentFactId = parent != null ? parent.factId() : "";
+        return fact.withParentFactId(parentFactId).withDimension(dim);
     }
 
     private static String factId(String tableId, int row, String code, String dimension) {
