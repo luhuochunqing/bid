@@ -230,6 +230,28 @@ class InitiationTenderTextResolverTest {
     }
 
     @Test
+    void blankTextWithoutSnapshotReportsOcrMessageInsteadOfNoTender() {
+        ProjectDocument document = ProjectDocument.builder()
+                .id(7L).name("榆林扫描件.pdf").fileUrl("doc-insight://t/scan2.pdf").fileType("pdf").build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "TENDER", null, null))
+                .thenReturn(List.of(document));
+        when(fileStorage.load("doc-insight://t/scan2.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "doc-insight://t/scan2.pdf", "/tmp/scan2.pdf", "application/pdf", "img".getBytes())));
+        when(textExtractor.extract(eq("榆林扫描件.pdf"), eq("pdf"), any()))
+                .thenReturn(new ExtractedTenderDocument("榆林扫描件.pdf", "pdf", "   ", 0, "md"));
+        when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
+                .thenReturn(Optional.empty());
+
+        TenderIntake intake = resolver.resolveIntake(PROJECT_ID);
+
+        assertThat(intake.source()).isEmpty();
+        assertThat(intake.emptyReason()).isEqualTo(InitiationTenderTextResolver.BLANK_TEXT_MESSAGE);
+        assertThat(intake.emptyReason()).isNotEqualTo(InitiationTenderTextResolver.NO_TENDER_MESSAGE);
+    }
+
+    @Test
     void hasSourceMatchesResolveWhenBothMissing() {
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
                 eq(PROJECT_ID), any(), eq(null), eq(null)))
