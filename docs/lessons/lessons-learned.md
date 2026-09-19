@@ -6399,4 +6399,41 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 - 覆盖全部 5 大核心矩阵：未合并普通行、无分值合并标签、同行拆分父项、独立汇总父项行、横纵合并跨列覆盖（金标 `syn_merge_vh_combined_span_parent_child_linkage`）；
 - 单测逐项强断言编号、分值、维度名称、父子 ID 关联与叶子节点过滤结果，杜绝仅以总分断言带来的假绿。
 
+## 386. 分表完整性校验误用整份文档正文长度，2 项独立评分表被误判 ABNORMALLY_LOW_COUNT（2026-09-19）
+
+### 问题背景
+spec 062 多表拆分后，`ScoreTableSplitPolicy` 对每张独立评分表调用 `ScoreCompletenessPolicy.evaluateCompleteness(table.facts(), tenderSectionText, ...)`，其中 `tenderSectionText` 是**整份招标文件正文**。数量启发式 `leafFacts.size() < 3 && textLength > 300` 因此用"文档级上下文"否决"表级事实"：一张只有 2 个评分项、40 分声明与合计均自洽的独立商务表，只因整份文档超过 300 字就被判 `ABNORMALLY_LOW_COUNT` 进复核；更糟的是缺陷顺序让数量缺陷抢占了 `WEIGHT_SUM_MISMATCH` 的主判因，复核人员看到的是"评分项数量异常偏低"而非"权重合计失配"。
+
+### 根因分析（5 Whys）
+1. **2 项表为何被拦？**——数量启发式是为"文档级单表兜底"设计的防漏抽护栏（正文很长但只抽到极少项 → 疑似漏抽）。
+2. **为何对独立表失效？**——拆分后校验对象从"文档"变成"表"，但 `textLength` 没跟着换范围，护栏把"本来就该只有 2 项的表"也拦了。
+3. **为什么不缺正确判据？**——独立表自带结构化总分声明（`STRUCTURED_SUMMARY_ROW`），"声明总分 vs 末级权重合计 + 证据"已经是更强的漏抽判据（漏抽必然导致合计 < 声明），数量启发式对这类表是冗余且有害的。
+4. **为何主判因被抢占？**——`resolvePrimaryFallback` 按 defects 列表顺序返回，数量缺陷先于权重缺陷加入。
+
+### 解决方案
+- 数量启发式增加范围条件：`declaredTotalResolution.source() != STRUCTURED_SUMMARY_ROW` 时才启用——有本表结构化总分声明的独立表以声明-权重一致性为准；无声明（正文兜底 TENDER_TEXT / 默认 100）的文档级校验保持原护栏。
+- 防御性测试固定三条边界：真正漏项（声明 40 抽到 20）仍报 `WEIGHT_SUM_MISMATCH`；缺证据仍报 `MISSING_EVIDENCE`；TENDER_TEXT 兜底 + 项数少的拦截不放松。
+
+### 通用教训（校验范围纪律）
+**护栏参数必须随校验对象一起换范围**：把"文档级启发式"套到"表级对象"上时，判据里每个参数都要问一遍"它描述的是文档还是表"。若对象已有更强的专属判据（声明-权重一致性），冗余的粗粒度护栏应按范围让位而不是叠加；否则会出现"强判据通过、弱护栏误杀"和"误杀抢占主判因"双重噪声。
+
+## 387. 部分表通过触发项目级全量替换，部分候选洗掉正式评分项与实际打分（2026-09-19）
+
+### 问题背景
+Evidence Pipeline 编排（`markEvidencePipelineCompleted`）在 spec 062 引入"任一表通过即落库通过表"策略：`candidates` 只聚合 AUTO_APPROVED 表的叶子候选，但落库时未区分文档级决策——文档整体 `REVIEW_REQUIRED`（如技术表通过、商务表缺项）时，仍把 3 项部分候选送进 `persistItems`，其内部 `invalidatePreviousResults` 执行项目级 `deleteByProjectId` 后重建。结果：项目原有 5 项正式评分项（30/20/10/20/20）连同关联实际打分被 3 项不完整结果洗掉，预计得分计算也基于残缺结果重跑。
+
+### 根因分析（5 Whys）
+1. **旧结果为何被删？**——`persistItems` 语义是"正式评分项全量替换"（含指纹比对保留打分），传入部分候选即按部分结果全量替换。
+2. **部分候选为何会进来？**——编排层把"存在通过表"当成了"可以发布"，落库条件只查 `!candidates.isEmpty()`，没查文档级决策。
+3. **为何 legacy 路径没这个问题？**——`ScoreParseAppService` 已有 task2 收敛纪律（仅 `AUTO_APPROVED` 覆盖旧 `score_item`，`REVIEW_REQUIRED` 走 `persistReviewCandidateFacts`），Evidence Pipeline 路径没对齐同一契约。
+4. **保存候选的方法是否安全？**——`persistFactsAndEvidence` 按 `deleteByProjectId` 清旧事实，虽然不直接删 `score_item`，但会把历史任务的复核证据链一并洗掉，与"保留正式结果"的意图冲突。
+
+### 解决方案
+- 正式发布门禁（与 legacy 路径对齐）：仅"文档级决策 AUTO_APPROVED 且正式候选非空"才调用 `persistItems` + `estimateForProject`；`REVIEW_REQUIRED`/`STRUCTURE_INCOMPLETE`/`PARSE_FAILED` 一律不进全量替换与预计得分计算。
+- 部分通过只保存本次提取事实/证据/复核候选（复核 UI 按 `parseTaskId` 读取），任务 `decisionStatus` 保持 `REVIEW_REQUIRED`（执行状态 COMPLETED 不改写业务决策）。
+- `persistFactsAndEvidence` 事实删除范围从 `deleteByProjectId` 收窄为 `deleteByParseTaskId`（与 evidence 删除口径一致）：同任务重复保存幂等，历史任务证据链保留，跨任务/跨项目不串。
+- @DataJpaTest 真实持久化验证：预置 5 项正式结果 + 打分 + 旧任务证据，执行部分通过解析后逐项断言 ID/分值/关联不变。
+
+### 通用教训（发布门禁纪律）
+**"有部分通过"不等于"可以发布"**：项目级全量替换的入口必须校验"文档级决策 = AUTO_APPROVED 且候选非空"两个条件，且多个编排路径（legacy/Evidence Pipeline）必须对齐同一份发布契约，否则新路径会绕过老路径沉淀的收敛纪律。配套的"保存候选"方法要按任务隔离删除范围，避免"保留正式结果却洗掉其证据链"的隐性破坏。
 

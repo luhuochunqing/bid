@@ -98,6 +98,7 @@ backlinks:
 - [[score-parse-optimization]] — 评分解析优化记录
 - [[score-parse-service]] — AI 评分标准解析后端服务
 - [[spec059-score-parse-evidence-pipeline]] — spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构
+- [[score-parse-split-completeness-and-partial-overwrite-fix]] — 评分解析分表完整性范围误判 + 部分通过覆盖正式结果双修复
 - [[spring-pitfalls]] — Spring Boot 陷阱集
 - [[team-and-timeline]] — 团队与排期
 - [[tender-create-upload-triage]] — 标讯人工录入"未上传"假象排障与 UX 缺陷修复

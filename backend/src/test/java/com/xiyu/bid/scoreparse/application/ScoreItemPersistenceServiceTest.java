@@ -234,7 +234,7 @@ class ScoreItemPersistenceServiceTest {
 
         verify(itemRepository, never()).deleteByProjectId(PROJECT_ID);
         verify(itemRepository, never()).saveAll(anyList());
-        verify(factRepository).deleteByProjectId(PROJECT_ID);
+        verify(factRepository).deleteByParseTaskId(PARSE_TASK_ID);
         verify(evidenceRepository).deleteByParseTaskId(PARSE_TASK_ID);
 
         @SuppressWarnings("unchecked")

@@ -67,7 +67,7 @@ class ScoreParseDualWriteTest {
 
         persistenceService.persistFactsAndEvidence(projectId, parseTaskId, List.of(fact));
 
-        verify(factRepository).deleteByProjectId(projectId);
+        verify(factRepository).deleteByParseTaskId(parseTaskId);
         verify(evidenceRepository).deleteByParseTaskId(parseTaskId);
 
         @SuppressWarnings("unchecked")
