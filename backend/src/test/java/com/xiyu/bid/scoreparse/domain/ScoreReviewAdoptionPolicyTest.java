@@ -80,4 +80,23 @@ class ScoreReviewAdoptionPolicyTest {
         assertThat(result.success()).isFalse();
         assertThat(result.errorMessage()).contains("未选出任何有效分值");
     }
+
+    @Test
+    @DisplayName("被引用的父项汇总（如商务30分）应自动被排除，仅保留末级细则叶子项")
+    void adopt_excludesParentFactsFromAdoption() {
+        var parentFact = new ScoreReviewAdoptionPolicy.CandidateInput(
+                "p1", "", "商务部分", BigDecimal.valueOf(30.0), "商务部分汇总", "");
+        var childFact1 = new ScoreReviewAdoptionPolicy.CandidateInput(
+                "c1", "1", "企业业绩", BigDecimal.valueOf(6.0), "同类项目业绩6分", "p1");
+        var childFact2 = new ScoreReviewAdoptionPolicy.CandidateInput(
+                "c2", "2", "财务状况", BigDecimal.valueOf(3.0), "财务审计报告3分", "p1");
+
+        var result = policy.adopt(List.of(parentFact, childFact1, childFact2), Set.of(), Map.of());
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.candidates()).hasSize(2);
+        assertThat(result.totalWeight()).isEqualByComparingTo("9.00");
+        assertThat(result.candidates().stream().map(ScoreCandidate::dim).toList())
+                .containsExactly("企业业绩", "财务状况");
+    }
 }

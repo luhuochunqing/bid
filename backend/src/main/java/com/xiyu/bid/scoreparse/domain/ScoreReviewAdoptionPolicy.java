@@ -4,7 +4,9 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * AI 评分解析待复核候选标准人工采纳领域策略（纯核心，无框架依赖）。
@@ -69,8 +71,14 @@ public final class ScoreReviewAdoptionPolicy {
         BigDecimal total = BigDecimal.ZERO;
         int index = 1;
 
+        Set<String> parentIds = facts.stream()
+                .filter(Objects::nonNull)
+                .map(CandidateInput::parentFactId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+
         for (CandidateInput fact : facts) {
-            if (fact == null) {
+            if (fact == null || parentIds.contains(fact.factId())) {
                 continue;
             }
             if (filterByIds && !selectedFactIds.contains(fact.factId())) {
