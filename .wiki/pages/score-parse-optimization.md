@@ -8,6 +8,7 @@ updated: 2026-09-19
 health_checked: 2026-09-19
 sources:
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
+  - docs/lessons/lessons-learned.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableRowParser.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableBlockLocator.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/CellAnchoredScoreExtractor.java
@@ -284,4 +285,22 @@ markdown 输入
    - 在 `SecurityConfig` 显式注册 `authenticationEntryPoint`，未认证请求统一返回 HTTP 401 状态码与 JSON 错误响应体，保障与前端 `client.js` 拦截器协议对齐。
 3. **前端防抖与并发控制**：
    - `ScoreParseDrawer.vue` 的重新解析按钮绑定 `:disabled="loading || scoringOverlayVisible"`，并在 Composable 中增加运行态前置守卫，彻底杜绝并发重试。
+
+## 2026-09-19 扫描版 PDF 空正文被误报"请先上传招标文件"（错误语义误导）
+
+### 问题
+生产项目 37（榆林能源）评分解析持续 FAILED，`score_parse_task.error_message` 为"请先在立项阶段上传招标文件"。但联查 `project_documents`（id=149）→ `bid_file`（id=48）确认立项招标文件完好存在（COMPLETED、OBS object_key 齐全、67.7MB）。
+
+### 根因
+1. **文件其实取到了**：`InitiationTenderTextResolver` 正确打印 `name=榆林能源招标文件--副本.pdf`，OBS 下载/SIGN 均正常。
+2. **文件是扫描件无文本层**：本地 `pdftotext` 仅提取 106 字节（几乎纯换行）；`pdfimages -list` 显示约 106 页每页 1 张扫描图，生产者 `Microsoft: Print To PDF`。Sidecar `/convert-stream` 返回 200 但正文为空。
+3. **空正文分支静默落为 NO_TENDER_MESSAGE**：`resolveExecutionSource` 在 `text.isBlank()` 时不记录原因，最终统一报"请先上传"，把"已上传但无法提取"等价成"根本没上传"。
+
+### 修复
+- 新增 `BLANK_TEXT_MESSAGE = "招标文件未识别到可提取文本，可能为扫描版 PDF，需要 OCR 识别"`，空正文分支独立赋值。
+- 失败原因优先级：`oversized > blankText > NO_TENDER`。
+- 单测 `blankTextWithoutSnapshotReportsOcrMessageInsteadOfNoTender` 锁定。
+
+### 教训
+**降级失败原因不得复用"数据缺失"类文案**：能力因内容特性（而非缺失）失败时，必须区分"没给数据"与"给了但不可用"，否则误导用户反复做无效操作。判定依据：真实链路验证（如 `pdftotext`）+ 全链路日志，再定位被哪一层吞掉并改写语义。详见 `docs/lessons/lessons-learned.md` §384。
 

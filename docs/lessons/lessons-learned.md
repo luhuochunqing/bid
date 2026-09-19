@@ -6345,7 +6345,7 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 
 ---
 
-## 358. 扫描版 PDF 空正文被误报"请先上传招标文件"（错误语义误导，2026-09-19）
+## 384. 扫描版 PDF 空正文被误报"请先上传招标文件"（错误语义误导，2026-09-19）
 
 ### 问题背景
 生产项目 37（榆林能源）评分解析任务持续 FAILED，`score_parse_task` 记录 `error_message` 为"请先在立项阶段上传招标文件"。但数据库联查确认立项招标文件（`project_documents` id=149 → `bid_file` id=48）**完好存在**：`status=COMPLETED`、OBS `object_key`/`bucket` 齐全、`file_size` 71,039,939 字节（67.7MB）。用户据此重复尝试上传，实际文件早已在系统里。
