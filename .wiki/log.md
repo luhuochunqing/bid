@@ -1047,3 +1047,8 @@
 - 触发：spec 065 废止招标侧 50MB 字节硬限，改流式落盘 + 文本量口径（约 500 万字）。
 - 结果：OBS 下载自适应 spill；超限文案拆分为上传配额 vs 文本量；立项上传前置拦截；抽屉失败态动作指引。
 - 回填：更新 [[score-parse-service]] 读取上限条目（旧 50MB 字节规则作废声明）。
+
+## [2026-09-19] compound | 分表完整性误判 + 部分通过覆盖正式结果双修复回填
+- 触发：spec 062 多表拆分后数量启发式误用整份文档正文长度；Evidence Pipeline 部分表通过触发项目级全量替换。
+- 结果：数量启发式限定文档级兜底（STRUCTURED_SUMMARY_ROW 独立表以声明-权重一致性判漏抽）；正式发布门禁 = 文档级 AUTO_APPROVED 且候选非空；事实删除按 parseTaskId 隔离。
+- 回填：新增 [[score-parse-split-completeness-and-partial-overwrite-fix]]。
