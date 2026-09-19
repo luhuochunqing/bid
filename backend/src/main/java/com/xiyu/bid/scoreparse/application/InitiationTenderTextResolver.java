@@ -33,6 +33,7 @@ public class InitiationTenderTextResolver {
 
     static final List<String> TENDER_CATEGORIES = List.of("TENDER", "TENDER_FILE");
     static final String NO_TENDER_MESSAGE = "请先在立项阶段上传招标文件";
+    static final String BLANK_TEXT_MESSAGE = "招标文件未识别到可提取文本，可能为扫描版 PDF，需要 OCR 识别";
 
     private final ProjectDocumentRepository projectDocumentRepository;
     private final BidTenderDocumentSnapshotRepository snapshotRepository;
@@ -150,6 +151,7 @@ public class InitiationTenderTextResolver {
     public TenderExecutionSource resolveExecutionSource(Long projectId) {
         Optional<ProjectDocument> document = findLatestTenderDocument(projectId);
         String oversizedReason = null;
+        String blankTextReason = null;
         if (document.isPresent()) {
             ProjectDocument doc = document.get();
             LoadedBidFile loaded = null;
@@ -159,6 +161,7 @@ public class InitiationTenderTextResolver {
                 String text = loaded == null ? null : extractLoadedTextNoRelease(loaded, doc);
                 if (text == null || text.isBlank()) {
                     log.warn("立项招标文件未能提取正文: name={}", doc.getName());
+                    blankTextReason = BLANK_TEXT_MESSAGE;
                 } else {
                     sourceAcquired = true;
                     return TenderExecutionSource.found(new TenderTextSource(doc.getName(), doc.getFileUrl(), text), loaded);
@@ -180,8 +183,9 @@ public class InitiationTenderTextResolver {
         if (snapshot.isPresent()) {
             return TenderExecutionSource.found(snapshot.get(), null);
         }
-        return TenderExecutionSource.unavailable(
-                oversizedReason != null ? oversizedReason : NO_TENDER_MESSAGE);
+        String failureReason = oversizedReason != null ? oversizedReason
+                : blankTextReason != null ? blankTextReason : NO_TENDER_MESSAGE;
+        return TenderExecutionSource.unavailable(failureReason);
     }
 
     private Optional<TenderTextSource> snapshotSource(Long projectId) {
