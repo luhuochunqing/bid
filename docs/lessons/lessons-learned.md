@@ -6343,3 +6343,24 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 - `SecurityAuthenticationEntryPointTest`: 验证匿名访问 `/api/projects`、`/api/tenders`、`/api/auth/me` 均返回 401 JSON；
 - 前端 `ScoreParseDrawer.spec.js` 与 `useScoreParseDrawer.spec.js`: 验证遮罩态与加载态下按钮 `:disabled` 及防并发拦截。
 
+---
+
+## 358. 扫描版 PDF 空正文被误报"请先上传招标文件"（错误语义误导，2026-09-19）
+
+### 问题背景
+生产项目 37（榆林能源）评分解析任务持续 FAILED，`score_parse_task` 记录 `error_message` 为"请先在立项阶段上传招标文件"。但数据库联查确认立项招标文件（`project_documents` id=149 → `bid_file` id=48）**完好存在**：`status=COMPLETED`、OBS `object_key`/`bucket` 齐全、`file_size` 71,039,939 字节（67.7MB）。用户据此重复尝试上传，实际文件早已在系统里。
+
+### 根因分析（5 Whys）
+1. **文件为什么取不到？——其实取到了**：日志 `InitiationTenderTextResolver` 正确打印 `name=榆林能源招标文件--副本.pdf`，说明已从 `project_documents` 定位到 OBS 文件，`file_url=obs-direct:fadb41b2-...` 有效，OBS 下载/SIGN 均正常（无任何下载失败日志）。
+2. **为何提取不到正文？——文件是扫描件无文本层**：本地 `pdftotext` 验证该 PDF 只提取出 106 字节（几乎全为换行符）；`pdfimages -list` 显示约 106 页每页 1 张扫描图，生产者元数据 `Microsoft: Print To PDF`。Sidecar `/convert-stream` 对图片型 PDF 返回 200 但响应体文本为空。
+3. **谁抹掉了"扫描件"与"提取空"的区别？——`resolveExecutionSource` 空正文分支不记录原因**：`InitiationTenderTextResolver` 在 `text == null || text.isBlank()` 时仅 `log.warn("未能提取正文")`，不设置任何失败原因，最终统一落到 `NO_TENDER_MESSAGE`（"请先在立项阶段上传招标文件"），把"已上传但无法提取"偷偷等价成"根本没上传"。
+4. **为何用户看不到甄别信息？**：`ScoreParseAppService` 把该默认消息直接写入 `task.error_message`，前端展示给用户，误导其反复上传本已存在的文件。
+
+### 解决方案
+- 新增独立失败原因 `BLANK_TEXT_MESSAGE = "招标文件未识别到可提取文本，可能为扫描版 PDF，需要 OCR 识别"`，在空正文分支赋值 `blankTextReason`。
+- 失败原因优先级改为：`oversizedReason > blankTextReason > NO_TENDER_MESSAGE`。
+- 单测 `blankTextWithoutSnapshotReportsOcrMessageInsteadOfNoTender`：扫描件空白 + 无快照时 `emptyReason()==BLANK_TEXT_MESSAGE` 且 `!=NO_TENDER_MESSAGE`。
+
+### 通用教训（错误语义纪律）
+**降级失败原因不得复用"数据缺失"类文案**：当某能力（如文本提取）因内容特性而非缺失而失败时，必须区分"没给数据"与"给了但不可用"，否则会把数据特性误标成数据缺失，误导使用者反复做无效操作。判定依据：走一遍真实链路（本案例为本地 `pdftotext`/`pdfimages` 验证扫描件）+ 全链路日志（下载/SIGN 成功日志证明文件存在），再定位是被哪一层吞掉并改写语义。
+
