@@ -181,4 +181,96 @@ class ScoreCompletenessPolicyTest {
         assertThat(result.decision()).isEqualTo(ScoreParseDecision.PARSE_FAILED);
         assertThat(result.fallbackReason()).isEqualTo("ZERO_VALID_ITEMS");
     }
+
+    // ===== 独立评分表完整性范围区分（分表完整性误判回归） =====
+
+    private ScoreTableSummaryPolicy.DeclaredTotalEvidence structuredTotal(String value) {
+        return new ScoreTableSummaryPolicy.DeclaredTotalEvidence(
+                new BigDecimal(value), "t1", 99, "t1-total", "满分（" + value + "分）");
+    }
+
+    @Test
+    void evaluate_structuredSummaryRowTable_belowMinItemCount_longDocumentText_autoApproved() {
+        // 独立商务表：2 项 20+20，本表结构化声明 40 分，合计自洽、证据齐全；
+        // tenderSectionText 是整份文档正文（>300 字）——文档级上下文不得否决该独立表。
+        String longDocumentText = "本项目采用综合评分法。".repeat(60);
+        assertThat(longDocumentText.trim().length()).isGreaterThan(300);
+
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(createFact("b1", null, "商务报价", 20.0),
+                        createFact("b2", null, "售后服务", 20.0)),
+                longDocumentText, true, List.of(structuredTotal("40")));
+
+        assertThat(result.complete()).isTrue();
+        assertThat(result.decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.fallbackReason())
+                .as("独立表不得因整份文档正文长而判 ABNORMALLY_LOW_COUNT")
+                .isNotEqualTo("ABNORMALLY_LOW_COUNT");
+        assertThat(result.declaredTotalSource())
+                .isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.STRUCTURED_SUMMARY_ROW);
+        assertThat(result.declaredTotalScore()).isEqualByComparingTo("40");
+        assertThat(result.leafWeightSum()).isEqualByComparingTo("40");
+    }
+
+    @Test
+    void evaluate_structuredSummaryRowTable_missingEvidence_stillReviewRequired() {
+        // 回归C：独立表合计正确（40=20+20）但其中一项缺少有效分值证据 → 仍必须复核
+        String longDocumentText = "本项目采用综合评分法。".repeat(60);
+        ScoreFact missingEvidence = new ScoreFact(
+                "b2", "t1", List.of(), "no evidence item", "2", "售后服务",
+                BigDecimal.valueOf(20.0), null, null, null,
+                "STRUCTURED_TABLE_DETERMINISTIC", 1.0, ScoreFact.ValidationStatus.AUTO_APPROVED);
+
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(createFact("b1", null, "商务报价", 20.0), missingEvidence),
+                longDocumentText, true, List.of(structuredTotal("40")));
+
+        assertThat(result.complete()).isFalse();
+        assertThat(result.decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(result.fallbackReason()).isEqualTo("MISSING_EVIDENCE");
+        assertThat(result.missingEvidenceCount()).isEqualTo(1);
+    }
+
+    @Test
+    void evaluate_structuredSummaryRowTable_declaredButUnderExtracted_stillReviewRequired() {
+        // 回归B（domain 层）：声明 40 分只抽到 20 分 → 权重失配必须复核，不得因数量保护放松而放行
+        String longDocumentText = "本项目采用综合评分法。".repeat(60);
+
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(createFact("b1", null, "商务报价", 20.0)),
+                longDocumentText, true, List.of(structuredTotal("40")));
+
+        assertThat(result.complete()).isFalse();
+        assertThat(result.decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(result.fallbackReason()).isEqualTo("WEIGHT_SUM_MISMATCH");
+    }
+
+    @Test
+    void evaluate_tenderTextFallback_belowMinItemCount_longText_stillReviewRequired() {
+        // 保护不放松：无本表结构化总分声明（正文兜底 TENDER_TEXT）时，数量启发式必须保留
+        String longText = ("第三章 评标办法前附表 评分标准及细则说明。本项目采用综合评分法，总分100分。"
+                + "商务部分满分30分，技术部分满分50分，报价部分满分20分。供应商需严格按照采购文件编制响应文件，"
+                + "并在规定时间内提交。").repeat(5);
+
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(createFact("f1", null, "商务与技术综合项", 100.0)), longText, true, List.of());
+
+        assertThat(result.complete()).isFalse();
+        assertThat(result.decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(result.fallbackReason()).isEqualTo("ABNORMALLY_LOW_COUNT");
+        assertThat(result.declaredTotalSource())
+                .isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.TENDER_TEXT);
+    }
+
+    @Test
+    void evaluate_default100Fallback_withoutTextAndDeclaration_twoItems_sourceStaysDefault100() {
+        // DEFAULT_100 不得视为"该表有明确总分证据"——无正文无声明时保持现有兜底语义
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(createFact("f1", null, "商务", 60.0),
+                        createFact("f2", null, "技术", 40.0)), null, true, List.of());
+
+        assertThat(result.declaredTotalSource())
+                .isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.DEFAULT_100);
+        assertThat(result.declaredTotalScore()).isEqualByComparingTo("100");
+    }
 }

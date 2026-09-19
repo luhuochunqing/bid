@@ -194,7 +194,10 @@ public class ScoreItemPersistenceService {
                     .build());
         }
         if (factRepository != null) {
-            factRepository.deleteByProjectId(projectId);
+            // 删除范围按 parseTaskId 隔离（与 evidence 的删除口径一致）：
+            // 复核读取走 findByParseTaskId(task)，历史任务的事实快照是旧正式评分项
+            // 的证据链，不得在保存本次候选时按 projectId 一并洗掉。
+            factRepository.deleteByParseTaskId(parseTaskId);
             factRepository.saveAll(factEntities);
         }
         if (evidenceRepository != null) {

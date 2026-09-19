@@ -17,7 +17,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 class StructuredTableExtractionMarkCompletedTest {
@@ -79,6 +82,62 @@ class StructuredTableExtractionMarkCompletedTest {
         assertThat(task.getFallbackReason()).isEqualTo("WEIGHT_SUM_MISMATCH");
     }
 
+    @Test
+    void partialApproval_reviewRequired_neverOverwritesOfficialItemsNorEstimates()
+            throws IOException, InterruptedException {
+        // 回归D 编排层：技术表通过 + 商务表缺项（声明40 实际 20）→ 文档级 REVIEW_REQUIRED
+        StructuredTableResult structured = extract(partialApprovalArtifact(),
+                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+        assertThat(structured.candidates())
+                .as("前置：技术表 3 项通过，部分候选非空")
+                .hasSize(3);
+        ScoreParseTask task = new ScoreParseTask();
+        ScoreParseTaskRepository taskRepository = mock(ScoreParseTaskRepository.class);
+        ScoreParseTaskStateService stateService = mock(ScoreParseTaskStateService.class);
+        ScoreParseProgressService progressService = mock(ScoreParseProgressService.class);
+        ScoreItemPersistenceService itemService = mock(ScoreItemPersistenceService.class);
+        EstimatedScoreService estimatedScoreService = mock(EstimatedScoreService.class);
+
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(
+                task, "task-partial", structured, taskRepository, stateService,
+                progressService, itemService, estimatedScoreService);
+
+        assertThat(task.getDecisionStatus())
+                .as("执行结束（COMPLETED）不得把业务决策改成 AUTO_APPROVED")
+                .isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
+        // 部分候选不得进入项目级全量替换与预计得分计算
+        verify(itemService, never()).persistItems(any(), any(), anyList());
+        verify(estimatedScoreService, never()).estimateForProject(any());
+        // 本次提取事实与复核候选仍须保存（供复核 UI 按任务读取）
+        verify(itemService).persistFactsAndEvidence(any(), any(), anyList());
+        verify(taskRepository).save(task);
+        verify(stateService).markCompleted("task-partial");
+    }
+
+    @Test
+    void fullApproval_persistsItemsAndTriggersEstimate()
+            throws IOException, InterruptedException {
+        // 回归F 防过度修复：两表全通过时，正式发布与预计得分计算路径必须照常工作
+        StructuredTableResult structured = extract(multiTableArtifact(),
+                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+        assertThat(structured.candidates()).hasSize(5);
+        ScoreParseTask task = new ScoreParseTask();
+        ScoreParseTaskRepository taskRepository = mock(ScoreParseTaskRepository.class);
+        ScoreParseTaskStateService stateService = mock(ScoreParseTaskStateService.class);
+        ScoreParseProgressService progressService = mock(ScoreParseProgressService.class);
+        ScoreItemPersistenceService itemService = mock(ScoreItemPersistenceService.class);
+        EstimatedScoreService estimatedScoreService = mock(EstimatedScoreService.class);
+
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(
+                task, "task-full", structured, taskRepository, stateService,
+                progressService, itemService, estimatedScoreService);
+
+        assertThat(task.getDecisionStatus()).isEqualTo(ScoreParseDecision.AUTO_APPROVED.name());
+        verify(itemService).persistItems(any(), any(), anyList());
+        verify(estimatedScoreService).estimateForProject(any());
+        verify(stateService).markCompleted("task-full");
+    }
+
     private static StructuredTableResult extract(
             DocumentArtifact artifact, String tenderText)
             throws IOException, InterruptedException {
@@ -130,6 +189,25 @@ class StructuredTableExtractionMarkCompletedTest {
         return new DocumentArtifact(
                 new DocumentArtifact.ArtifactMeta("sha256:mark-single", "mark-single", "PDF", "pdf-table-v1"),
                 List.of(buildScoreTable("m3-t0101", rows)),
+                List.of());
+    }
+
+    private static DocumentArtifact partialApprovalArtifact() {
+        // 技术表完整（3 项 60 分声明）；商务表真实缺项：声明 40 分，仅抽到 1 项 20 分
+        List<List<String>> technicalRows = List.of(
+                List.of("序号", "评分因素", "评分标准"),
+                List.of("1", "技术方案\n（30分）", "方案优秀得满分30分。"),
+                List.of("2", "技术团队\n（20分）", "团队优秀得满分20分。"),
+                List.of("3", "技术培训\n（10分）", "培训完整得满分10分。"),
+                List.of("合计\n得分", "满分\n（60分）", ""));
+        List<List<String>> commercialRows = List.of(
+                List.of("序号", "评分因素", "评分标准"),
+                List.of("1", "商务报价\n（20分）", "报价合理得满分20分。"),
+                List.of("合计\n得分", "满分\n（40分）", ""));
+        return new DocumentArtifact(
+                new DocumentArtifact.ArtifactMeta("sha256:mark-partial", "mark-partial", "PDF", "pdf-table-v1"),
+                List.of(buildScoreTable("m3-t0001", technicalRows),
+                        buildScoreTable("m3-t0002", commercialRows)),
                 List.of());
     }
 

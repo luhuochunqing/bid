@@ -231,16 +231,22 @@ final class StructuredTableExtractionHandler {
             progressService.clearProgress(taskId);
             return;
         }
-        // spec 062：任一表通过即落库通过表（决策保持文档级聚合值，不阻塞按表落库）
-        if (!candidates.isEmpty()) {
+        // 正式发布门禁：只有"文档级决策 AUTO_APPROVED 且正式候选非空"才允许项目级全量替换
+        // score_item 及后续预计得分计算；REVIEW_REQUIRED（部分表通过）的候选只保留在
+        // score_parse_fact/score_parse_evidence 供复核按任务读取，绝不 deleteByProjectId
+        // 洗掉已有正式评分项与实际打分。STRUCTURE_INCOMPLETE / PARSE_FAILED 在上游
+        // markIncomplete / failTask 收口，同样不进入本发布路径。
+        if (decision == ScoreParseDecision.AUTO_APPROVED && !candidates.isEmpty()) {
             updateProgress(taskId, 90, "Evidence Pipeline 评分项落库", stateService, progressService);
             itemPersistenceService.persistItems(task.getProjectId(), task.getId(), candidates);
             updateProgress(taskId, 95, "阶段 1 预计得分计算", stateService, progressService);
             estimatedScoreService.estimateForProject(task.getProjectId());
-            if (decision != ScoreParseDecision.AUTO_APPROVED) {
-                log.warn("Evidence Pipeline 部分表判定需复核，已落库通过表评分项: taskId={}, decision={}, fallback={}",
-                        taskId, decision, fallbackReason);
-            }
+        } else if (!candidates.isEmpty()) {
+            // 部分表通过：本次提取事实/证据/复核候选已由 persistFactsAndEvidence 按任务保存，
+            // 复核 UI 按 parseTaskId 读取；正式评分项与预计得分保持原状。
+            log.warn("Evidence Pipeline 部分表判定需复核，已保存复核候选事实且保留现有评分项不覆盖: "
+                            + "taskId={}, 通过表候选={}, decision={}, fallback={}",
+                    taskId, candidates.size(), decision, fallbackReason);
         } else {
             log.warn("Evidence Pipeline 判定需复核，保留现有评分项不覆盖: taskId={}, decision={}, fallback={}",
                     taskId, decision, fallbackReason);
