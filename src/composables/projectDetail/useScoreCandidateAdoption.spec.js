@@ -209,5 +209,26 @@ describe('useScoreCandidateAdoption.js', () => {
         { code: '3', weight: 50, dim: '价格', parentFactId: '' },
       ])
     })
+
+    it('场景4：独立商务汇总行50分，下属明细30分和20分，另有价格50分，采纳精准排除独立汇总父项，为3个末级项100分', () => {
+      reviewFacts.value = [
+        { factId: 'p_standalone', code: '一', dimension: '商务部分', weight: 50, sourceText: '商务部分（50分）', parentFactId: '' },
+        { factId: 'f1', code: '1', dimension: '商务部分', weight: 30, sourceText: '财务状况', parentFactId: 'p_standalone' },
+        { factId: 'f2', code: '2', dimension: '商务部分', weight: 20, sourceText: '履约能力', parentFactId: 'p_standalone' },
+        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '' },
+      ]
+      const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
+        props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
+      })
+
+      expect(candidateFacts.value).toHaveLength(3)
+      expect(candidateTotalWeight.value).toBe(100)
+      expect(candidateFacts.value.map((f) => ({ code: f.code, weight: f.weight, dim: f.dimension, parentFactId: f.parentFactId }))).toEqual([
+        { code: '1', weight: 30, dim: '商务部分', parentFactId: 'p_standalone' },
+        { code: '2', weight: 20, dim: '商务部分', parentFactId: 'p_standalone' },
+        { code: '3', weight: 50, dim: '价格', parentFactId: '' },
+      ])
+    })
   })
 })
+

@@ -671,4 +671,82 @@ class DeterministicScoreFactExtractorTest {
         assertEquals("3", result.candidates().get(2).code());
         assertEquals(0, result.candidates().get(2).weight().compareTo(new BigDecimal("50")));
     }
+
+    @Test
+    void extraction_and_adoption_chain_standalone_summary_origin_three_leaves_100_points() {
+        // 独立商务汇总行50分，下面两条明细30分、20分，另有价格明细50分。
+        // 正确结果必须是3个末级项、100分，而不是4项150分。
+        CanonicalTableGrid grid = gridWithMergedRegions(List.of(
+                cell("t-0001-r0-c0", 0, 0, "编号"),
+                cell("t-0001-r0-c1", 0, 1, "评分因素"),
+                cell("t-0001-r0-c2", 0, 2, "评分标准"),
+                cell("t-0001-r0-c3", 0, 3, "分值"),
+                // 行1：独立商务汇总行（评分标准列为空，分值列为50分，评分因素纵向合并跨3行覆盖行1/2/3）
+                cellWithMerge("t-0001-r1-c0", 1, 0, "一", 1, 1, false),
+                cellWithMerge("t-0001-r1-c1", 1, 1, "商务部分（50分）", 3, 1, false),
+                cell("t-0001-r1-c2", 1, 2, ""),
+                cell("t-0001-r1-c3", 1, 3, "50"),
+                // 行2：明细1（30分）
+                cellWithMerge("t-0001-r2-c0", 2, 0, "1", 1, 1, false),
+                cellWithMerge("t-0001-r2-c1", 2, 1, "", 1, 1, true),
+                cell("t-0001-r2-c2", 2, 2, "财务状况"),
+                cell("t-0001-r2-c3", 2, 3, "30"),
+                // 行3：明细2（20分）
+                cellWithMerge("t-0001-r3-c0", 3, 0, "2", 1, 1, false),
+                cellWithMerge("t-0001-r3-c1", 3, 1, "", 1, 1, true),
+                cell("t-0001-r3-c2", 3, 2, "履约能力"),
+                cell("t-0001-r3-c3", 3, 3, "20"),
+                // 行4：价格明细（50分）
+                cell("t-0001-r4-c0", 4, 0, "3"),
+                cell("t-0001-r4-c1", 4, 1, "价格"),
+                cell("t-0001-r4-c2", 4, 2, "投标报价"),
+                cell("t-0001-r4-c3", 4, 3, "50")
+        ), List.of(
+                new MergedRegionDto("t-0001-r1-c1", 3, 1)
+        ), 5, 4);
+
+        List<ScoreFact> facts = DeterministicScoreFactExtractor.extract(grid, mapping());
+        assertEquals(4, facts.size(), "must produce 1 standalone parent summary fact + 3 leaf facts");
+
+        ScoreFact parent = facts.get(0);
+        assertEquals("一", parent.code());
+        assertEquals("商务部分", parent.dimension());
+        assertEquals(0, parent.weight().compareTo(new BigDecimal("50")));
+        assertEquals("", parent.parentFactId());
+        assertFalse(ScoreFact.isLeaf(parent, facts), "standalone summary fact must not be leaf");
+
+        ScoreFact leaf1 = facts.get(1);
+        assertEquals("1", leaf1.code());
+        assertEquals("商务部分", leaf1.dimension(), "continuation leaf inherits dimension from standalone origin");
+        assertEquals(0, leaf1.weight().compareTo(new BigDecimal("30")));
+        assertEquals(parent.factId(), leaf1.parentFactId(), "leaf1 parentFactId must point to standalone summary parent");
+        assertTrue(ScoreFact.isLeaf(leaf1, facts));
+
+        ScoreFact leaf2 = facts.get(2);
+        assertEquals("2", leaf2.code());
+        assertEquals("商务部分", leaf2.dimension(), "continuation leaf inherits dimension from standalone origin");
+        assertEquals(0, leaf2.weight().compareTo(new BigDecimal("20")));
+        assertEquals(parent.factId(), leaf2.parentFactId(), "leaf2 parentFactId must point to standalone summary parent");
+        assertTrue(ScoreFact.isLeaf(leaf2, facts));
+
+        ScoreFact leaf3 = facts.get(3);
+        assertEquals("3", leaf3.code());
+        assertEquals("价格", leaf3.dimension());
+        assertEquals(0, leaf3.weight().compareTo(new BigDecimal("50")));
+        assertEquals("", leaf3.parentFactId());
+        assertTrue(ScoreFact.isLeaf(leaf3, facts));
+
+        ScoreReviewAdoptionPolicy policy = new ScoreReviewAdoptionPolicy();
+        AdoptionResult result = policy.adopt(toCandidateInputs(facts), Set.of(), Map.of());
+        assertTrue(result.success());
+        assertEquals(3, result.candidates().size(), "adoption must retain exactly 3 leaves, not 4");
+        assertEquals(0, result.totalWeight().compareTo(new BigDecimal("100")), "total weight must be 100, not 150");
+        assertEquals("1", result.candidates().get(0).code());
+        assertEquals(0, result.candidates().get(0).weight().compareTo(new BigDecimal("30")));
+        assertEquals("2", result.candidates().get(1).code());
+        assertEquals(0, result.candidates().get(1).weight().compareTo(new BigDecimal("20")));
+        assertEquals("3", result.candidates().get(2).code());
+        assertEquals(0, result.candidates().get(2).weight().compareTo(new BigDecimal("50")));
+    }
 }
+
