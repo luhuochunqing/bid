@@ -60,6 +60,26 @@ describe('useScoreCandidateAdoption.js', () => {
     expect(candidateTotalWeight.value).toBe(40)
   })
 
+  it('candidateFacts 应排除被引用的父项汇总，仅保留末级细则叶子项且总分不含父项', () => {
+    reviewFacts.value = [
+      { factId: 'p1', code: '', dimension: '商务部分', weight: 30, sourceText: '商务部分汇总' },
+      { factId: 'c1', code: '1', dimension: '企业业绩', weight: 6, sourceText: '业绩细则', parentFactId: 'p1' },
+      { factId: 'c2', code: '2', dimension: '财务状况', weight: 3, sourceText: '财务细则', parentFactId: 'p1' },
+    ]
+    const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
+      props,
+      reviewFacts,
+      reviewSnapshot,
+      reviewSubmitted,
+      currentStage,
+      fetchAnalysisData,
+    })
+
+    expect(candidateFacts.value).toHaveLength(2)
+    expect(candidateFacts.value.map((f) => f.factId)).toEqual(['c1', 'c2'])
+    expect(candidateTotalWeight.value).toBe(9)
+  })
+
   it('adoptCandidateFacts 默认调用 submitReview 一键采纳所有候选并刷新数据', async () => {
     scoreParseApi.submitReview.mockResolvedValue({
       data: {

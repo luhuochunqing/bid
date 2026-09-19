@@ -100,6 +100,8 @@ class DeterministicScoreFactExtractorTest {
         assertEquals(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, firstLeaf.weightEvidence().kind());
         assertEquals(parent.factId(), firstLeaf.parentFactId());
         assertEquals(parent.factId(), continuationLeaf.parentFactId());
+        assertEquals("履约保障", firstLeaf.dimension());
+        assertEquals("履约保障", continuationLeaf.dimension(), "continuation leaf must inherit dimension from origin");
         assertNotEquals(parent.factId(), firstLeaf.factId());
         assertEquals(facts, DeterministicScoreFactExtractor.extract(grid, mapping()),
                 "repeated extraction must keep role-aware fact IDs stable");

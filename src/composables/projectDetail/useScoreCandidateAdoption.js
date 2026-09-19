@@ -17,8 +17,14 @@ export function useScoreCandidateAdoption({
 }) {
   const isAdoptingCandidates = ref(false)
 
+  const parentIds = computed(() => {
+    return new Set(reviewFacts.value.map((f) => f.parentFactId).filter(Boolean))
+  })
+
   const candidateFacts = computed(() => {
-    return reviewFacts.value.filter((f) => Number(f.weight) > 0)
+    return reviewFacts.value.filter(
+      (f) => Number(f.weight) > 0 && !parentIds.value.has(f.factId)
+    )
   })
 
   const candidateTotalWeight = computed(() => {

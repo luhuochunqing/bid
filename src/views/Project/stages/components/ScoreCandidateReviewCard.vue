@@ -15,6 +15,14 @@
         文档中包含多个表格或参考模板，系统未自动入库。请核对下方候选细则列表，确认无误后可一键采纳：
       </div>
     </div>
+    <el-alert
+      v-if="candidateTotalWeight !== 100"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="candidate-weight-alert"
+      :title="`候选评分项合计为 ${candidateTotalWeight} 分（非 100 分满分制），采纳前请仔细核实！`"
+    />
     <div class="candidate-table-wrapper">
       <table class="candidate-table">
         <thead>
@@ -97,6 +105,9 @@ defineEmits(['adopt', 'reparse'])
   font-size: 12px;
   color: var(--text-muted);
   margin-top: 4px;
+}
+.candidate-weight-alert {
+  margin-bottom: 12px;
 }
 .candidate-table-wrapper {
   max-height: 280px;
