@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  *   <li>末级权重合计 (leafWeightSum)：末级叶子事实权重总和必须精确等于声明总分</li>
  *   <li>父子重复 (parentChildOverlap)：被引用为父项的事实不得同时作为末级项计入总权重</li>
  *   <li>按大类声明的子项合计 (dimensionCategorySumMatch)：父项声明的分值必须精确等于其直接子项之和</li>
- *   <li>异常低候选数 (abnormallyLowItemCount)：末级项数过少（<3 项）且正文字数较长时拦截</li>
+ *   <li>异常低候选数 (abnormallyLowItemCount)：文档级兜底时拦截（&lt;3 项且正文较长）；自带结构化总分声明的独立表不适用本条</li>
  *   <li>缺失证据数 (missingEvidenceCount)：必须具备单元格引用且权重证据在原文中精确定位</li>
  *   <li>结构状态 (structureStatus)：底层网格存在破损或未闭合单元格时直接阻断</li>
  * </ol>
@@ -34,8 +34,7 @@ public final class ScoreCompletenessPolicy {
     private static final Pattern DECLARED_TOTAL_PATTERN = Pattern.compile(
             "(?:总分|满分|分值构成|合计|总得分)[：:\\s\\n\\r（(]*?(\\d+(?:\\.\\d+)?)\\s*分"
     );
-    private ScoreCompletenessPolicy() {
-    }
+    private ScoreCompletenessPolicy() { }
     public static ScoreCompletenessResult evaluateCompleteness(List<ScoreFact> facts, String tenderSectionText) {
         return evaluateCompleteness(facts, tenderSectionText, true);
     }
@@ -124,9 +123,11 @@ public final class ScoreCompletenessPolicy {
             }
         }
 
-        // 3. 异常低候选数校验
+        // 3. 异常低候选数校验（仅文档级兜底适用）：textLength 是整份文档正文；有本表结构化总分声明的独立表以声明-权重一致性判漏抽。
         int textLength = tenderSectionText == null ? 0 : tenderSectionText.trim().length();
-        if (leafFacts.size() < MIN_REASONABLE_ITEM_COUNT && textLength > LONG_SECTION_TEXT_THRESHOLD) {
+        if (leafFacts.size() < MIN_REASONABLE_ITEM_COUNT
+                && declaredTotalResolution.source() != DeclaredTotalSource.STRUCTURED_SUMMARY_ROW
+                && textLength > LONG_SECTION_TEXT_THRESHOLD) {
             defects.add(String.format("评分项数量异常偏低: 末级项仅 %d 项，但正文包含 %d 字长评分章节",
                     leafFacts.size(), textLength));
         }
@@ -255,11 +256,7 @@ public final class ScoreCompletenessPolicy {
         DEFAULT_100
     }
 
-    private record DeclaredTotalResolution(
-            BigDecimal value,
-            DeclaredTotalSource source,
-            List<String> defects
-    ) {
+    private record DeclaredTotalResolution(BigDecimal value, DeclaredTotalSource source, List<String> defects) {
     }
     public record ScoreCompletenessResult(
             boolean complete,
