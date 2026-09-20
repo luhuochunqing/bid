@@ -15,6 +15,8 @@ export function useQualityCheckDrawer(props, emit) {
   const report = ref(null)
   const activeStatusFilter = ref('ALL')
   const errorMessage = ref('')
+  // 前端等待窗口到顶后任务仍在后端执行（大文件核查），此态不得误报失败（spec 066 FR-008）
+  const backgroundRunning = ref(false)
   // 客观项实际得分合计（来自 AI 评分标准解析阶段 2），null = 尚未打分，得分链接不展示
   const objectiveScore = ref(null)
   // 详情弹窗当前选中项
@@ -28,7 +30,9 @@ export function useQualityCheckDrawer(props, emit) {
   let pollTimer = null
   let pollStartTime = 0
   const POLL_INTERVAL_MS = 2000
-  const MAX_POLL_TIMEOUT_MS = 600000 // 10分钟超时上限（300 × 2s，与系统 AI 异步长任务标准对齐）
+  // 30 分钟等待窗口：大文件核查 = 解析 3~20 分钟 + 招标要求提取 + LLM 语义裁决，
+  // 到顶仅转入"后台执行中"提示态，不再误报失败（spec 066 FR-008）
+  const MAX_POLL_TIMEOUT_MS = 1800000
 
   const categoryDefinitions = [
     { category: 'BASIC_INFO', title: '基本信息检查', label: '基本信息' },
@@ -95,6 +99,7 @@ export function useQualityCheckDrawer(props, emit) {
   }
 
   async function loadLatestReport() {
+    backgroundRunning.value = false
     try {
       const res = await complianceApi.getBidQualityReport(props.projectId)
       if (res?.data) {
@@ -161,6 +166,7 @@ export function useQualityCheckDrawer(props, emit) {
 
   function markTriggerRejected(e) {
     polling.value = false
+    backgroundRunning.value = false
     progressPercent.value = 0
     progressStatus.value = 'exception'
     const msg = e.response?.data?.msg || e.response?.data?.message
@@ -175,6 +181,7 @@ export function useQualityCheckDrawer(props, emit) {
 
   async function triggerCheck(force = false) {
     stopPolling()
+    backgroundRunning.value = false
     errorMessage.value = ''
     if (force) report.value = null
     polling.value = true
@@ -219,11 +226,11 @@ export function useQualityCheckDrawer(props, emit) {
 
     pollTimer = setInterval(async () => {
       if (Date.now() - pollStartTime > MAX_POLL_TIMEOUT_MS) {
+        // 窗口到顶：任务仍在后端执行，转入后台执行态（可刷新查看），不得误报失败
         stopPolling()
         polling.value = false
-        progressStatus.value = 'exception'
-        errorMessage.value = '核查任务超时，请稍后刷新重试'
-        ElMessage.error(errorMessage.value)
+        progressStatus.value = ''
+        backgroundRunning.value = true
         return
       }
 
@@ -238,6 +245,7 @@ export function useQualityCheckDrawer(props, emit) {
         if (task.status === 'COMPLETED') {
           stopPolling()
           polling.value = false
+          backgroundRunning.value = false
           progressPercent.value = 100
           errorMessage.value = ''
           await loadLatestReport()
@@ -245,6 +253,7 @@ export function useQualityCheckDrawer(props, emit) {
         } else if (task.status === 'FAILED') {
           stopPolling()
           polling.value = false
+          backgroundRunning.value = false
           progressStatus.value = 'exception'
           errorMessage.value = task.errorMessage || '核查任务执行失败'
           ElMessage.error(errorMessage.value)
@@ -269,7 +278,7 @@ export function useQualityCheckDrawer(props, emit) {
   }
 
   return {
-    visible, polling, errorMessage, progressPercent, currentStepText, progressStatus,
+    visible, polling, errorMessage, backgroundRunning, progressPercent, currentStepText, progressStatus,
     report, activeStatusFilter, collapsedCategories, categoryTabs, filteredCategories,
     objectiveScore, detailItem, detailVisible, toggleCategory, registerCategoryAnchor,
     scrollToCategory, openDetail, closeDetail, open, loadLatestReport,
