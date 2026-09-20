@@ -94,21 +94,22 @@ public class SidecarStreamDocumentAdapter {
             outcome = classify(response, fileName, rawContentHash, originalSizeBytes, limitSeconds, startedAtNanos);
         } catch (HttpConnectTimeoutException e) {
             outcome = loggedFailure(SidecarParseOutcome.serviceError("连接解析服务超时（10s）"),
-                    fileName, originalSizeBytes, limitSeconds);
+                    fileName, originalSizeBytes, limitSeconds, startedAtNanos);
         } catch (HttpTimeoutException e) {
             outcome = loggedFailure(SidecarParseOutcome.timeout(
-                            "文件 " + sizeMbOf(originalSizeBytes) + "MB 未在 " + limitSeconds + "s 内完成"),
-                    fileName, originalSizeBytes, limitSeconds);
+                            sizeLabelOf(originalSizeBytes) + "未在 " + limitSeconds + "s 内完成"),
+                    fileName, originalSizeBytes, limitSeconds, startedAtNanos);
         } catch (IOException e) {
-            outcome = loggedFailure(SidecarParseOutcome.serviceError("连接解析服务失败：" + e.getMessage()),
-                    fileName, originalSizeBytes, limitSeconds);
+            outcome = loggedFailure(SidecarParseOutcome.serviceError(
+                            "连接解析服务失败：" + messageOf(e)),
+                    fileName, originalSizeBytes, limitSeconds, startedAtNanos);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             outcome = loggedFailure(SidecarParseOutcome.serviceError("解析调用被中断"),
-                    fileName, originalSizeBytes, limitSeconds);
+                    fileName, originalSizeBytes, limitSeconds, startedAtNanos);
         } catch (RuntimeException e) {
-            outcome = loggedFailure(SidecarParseOutcome.serviceError("解析调用异常：" + e.getMessage()),
-                    fileName, originalSizeBytes, limitSeconds);
+            outcome = loggedFailure(SidecarParseOutcome.serviceError("解析调用异常：" + messageOf(e)),
+                    fileName, originalSizeBytes, limitSeconds, startedAtNanos);
         } finally {
             if (needsCleanup && uploadFilePath != null) {
                 deleteQuietly(uploadFilePath);
@@ -219,11 +220,27 @@ public class SidecarStreamDocumentAdapter {
         return sizeBytes <= 0 ? -1 : sizeBytes / BYTES_PER_MB;
     }
 
+    /** 用户可见的规模措辞：未知大小不渲染为 "-1MB"/"0MB". */
+    private static String sizeLabelOf(final long sizeBytes) {
+        if (sizeBytes <= 0) {
+            return "文件（大小未知）";
+        }
+        return sizeBytes < BYTES_PER_MB ? "文件 <1MB " : "文件 " + sizeMbOf(sizeBytes) + "MB ";
+    }
+
+    /** 异常消息兜底：message 为 null 时回退类名，避免用户文案出现 "null". */
+    private static String messageOf(final Exception e) {
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+    }
+
     /** 失败路径统一 WARN 日志（R11：超时/连接失败等生产主失败形态必须可观测）. */
     private SidecarParseOutcome loggedFailure(final SidecarParseOutcome outcome, final String fileName,
-                                              final long originalSizeBytes, final long limitSeconds) {
-        log.warn("Sidecar 解析未成功（file={}, sizeMB={}, limit={}s, kind={}, detail={}）",
-                fileName, sizeMbOf(originalSizeBytes), limitSeconds, outcome.kind(), outcome.detail());
+                                              final long originalSizeBytes, final long limitSeconds,
+                                              final long startedAtNanos) {
+        long durationMs = (System.nanoTime() - startedAtNanos) / 1_000_000L;
+        log.warn("Sidecar 解析未成功（file={}, sizeMB={}, limit={}s, duration={}ms, kind={}, detail={}）",
+                fileName, sizeMbOf(originalSizeBytes), limitSeconds, durationMs,
+                outcome.kind(), outcome.detail());
         return outcome;
     }
 

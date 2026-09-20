@@ -234,5 +234,16 @@ describe('useQualityCheckDrawer', () => {
     expect(drawer.errorMessage.value).toBe('后台比对异常')
     expect(ElMessage.error).toHaveBeenCalledWith('后台比对异常')
   })
-})
 
+  it('后台执行态刷新失败时保持后台态（不闪回空白态）', async () => {
+    const drawer = useQualityCheckDrawer(props, emit)
+    drawer.backgroundRunning.value = true
+
+    vi.mocked(complianceApi.getBidQualityReport).mockRejectedValueOnce(new Error('network down'))
+
+    await drawer.loadLatestReport()
+
+    expect(drawer.backgroundRunning.value).toBe(true)
+    expect(drawer.report.value).toBeNull()
+  })
+})
