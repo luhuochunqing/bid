@@ -1064,3 +1064,9 @@
 - 决策：页面图像、表格网格和原始单元格一次交给多模态模型召回；Java 规则只负责确定性验证；全通过自动落库，异常才审核。
 - 边界：多表声明总分未知时禁止采纳且不得伪装成100分；证书和业绩必须返回逐记录、逐条件证据。
 - 回填：新增 [[scoreparse-multimodal-primary]]。
+
+## [2026-09-20] compound | AI 标书质量核查解析失败误报修复（spec 066）
+- 触发：生产 22/35/46/580 核查 100% 失败，报「请确认文件可正常打开后重新上传」。
+- 根因：适配器吞错返回空文档哨兵 + 等待上限与规模错配（300s 档 vs 441MB 需 1133s）+ Sidecar 10 页分块重开成本占 90% + 580 为纯扫描件（无 OCR 不可核查）。
+- 修复：五分类 SidecarParseOutcome、按原始大小线性分档（上限 1800s）、文案契约、Sidecar 分块 100、前端 30 分钟窗口 + 后台执行态。
+- 回填：[[bid-quality-check-parse-timeout-fix]]（并关联 [[bid-quality-check-realization]] / [[bid-quality-multifile-check]]）。

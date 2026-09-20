@@ -173,6 +173,21 @@
       </el-result>
     </div>
 
+    <!-- 后台执行中：前端等待窗口到顶，任务仍在后端运行（spec 066 FR-008） -->
+    <div v-else-if="backgroundRunning" class="background-running-container">
+      <el-result
+        icon="info"
+        title="核查任务仍在后台执行"
+        sub-title="大文件核查耗时较长，任务仍在后台运行；可点击刷新查看最新进度，或稍后再来查看结果。"
+      >
+        <template #extra>
+          <el-button type="primary" :icon="Refresh" @click="loadLatestReport">
+            刷新查看
+          </el-button>
+        </template>
+      </el-result>
+    </div>
+
     <!-- 空白状态 -->
     <div v-else class="empty-state-container">
       <el-empty description="当前项目尚未执行标书质量核查">
@@ -212,6 +227,7 @@ const {
   visible,
   polling,
   errorMessage,
+  backgroundRunning,
   progressPercent,
   currentStepText,
   progressStatus,
@@ -228,6 +244,7 @@ const {
   scrollToCategory,
   openDetail,
   open,
+  loadLatestReport,
   handleRecheckConfirm,
   goToScoreParse,
   triggerCheck

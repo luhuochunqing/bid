@@ -87,7 +87,7 @@ public class BidQualityCheckAsyncExecutor {
             DocumentContent bidDoc = targetLoader.loadBidDocument(projectId);
             if (bidDoc == null || bidDoc.fullText() == null || bidDoc.fullText().isBlank()) {
                 log.warn("Bid document for project {} is empty or unparsable", projectId);
-                progressUpdater.markFailed(resultId, "无法执行核查：投标文件解析失败，请确认文件可正常打开后重新上传");
+                progressUpdater.markFailed(resultId, "投标文件解析失败：未提取到可核查的文本内容，请稍后重试或联系管理员");
                 return;
             }
 

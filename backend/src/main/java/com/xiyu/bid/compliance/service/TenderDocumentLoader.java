@@ -5,6 +5,7 @@
 package com.xiyu.bid.compliance.service;
 
 import com.xiyu.bid.compliance.domain.DocumentContent;
+import com.xiyu.bid.compliance.domain.SidecarParseOutcome;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
@@ -86,7 +87,14 @@ public class TenderDocumentLoader {
                 ? doc.getName() : "tender_document.pdf";
         Path physicalFile = storageResolver.resolvePhysicalFile(doc.getFileUrl(), fileName, "招标文件");
         try {
-            return sidecarAdapter.convertDocument(physicalFile, fileName);
+            SidecarParseOutcome outcome = sidecarAdapter.convertDocument(physicalFile, fileName);
+            if (!outcome.isOk()) {
+                // 招标文件链路容忍降级：非 OK 返回空文档（下游提取环节按 missing 哨兵处理），不阻断评分解析
+                log.warn("招标文件解析未成功（项目 {}，文件 {}，kind={}，detail={}），按空文档降级",
+                        projectId, fileName, outcome.kind(), outcome.detail());
+                return DocumentContent.empty();
+            }
+            return outcome.content();
         } finally {
             deleteQuietly(physicalFile);
         }

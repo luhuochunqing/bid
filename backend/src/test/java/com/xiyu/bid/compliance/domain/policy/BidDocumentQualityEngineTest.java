@@ -916,8 +916,8 @@ class BidDocumentQualityEngineTest {
     }
 
     @Test
-    @DisplayName("电子标CA证书核查：知识库台账中存在有效在库 CA 证书时直通 PASS")
-    void testEvaluateAll_WhenCaCertificateInStockInKb_PassesDirectly() {
+    @DisplayName("电子标CA证书核查：通用电子标未指定平台时，台账在库证书安全降级为 MANUAL_REVIEW（防跨省误用）")
+    void testEvaluateAll_WhenCaCertificateInStockInKb_ReturnsManualReviewForGenericBid() {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_ca_real", "正常投标文件正文内容");
         CaCertificateEvidence ca = new CaCertificateEvidence(
                 301L, "ENTITY_CA", "公章+法人章", "CFCA",
@@ -933,8 +933,9 @@ class BidDocumentQualityEngineTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(caResult.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(caResult.conclusion()).contains("在库可用");
+        assertThat(caResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(caResult.conclusion()).contains("待确认");
+        assertThat(caResult.conclusion()).contains("请人工复核");
         assertThat(caResult.evidences()).isNotEmpty();
     }
 

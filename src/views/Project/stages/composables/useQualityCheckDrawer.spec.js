@@ -120,7 +120,7 @@ describe('useQualityCheckDrawer', () => {
     expect(drawer.progressPercent.value).toBe(10)
   })
 
-  it('轮询超过 10 分钟（600000ms）后才提示超时', async () => {
+  it('轮询窗口到顶（30 分钟）后转入后台执行态，不误报失败', async () => {
     const runningTask = {
       id: 1,
       taskId: 'task_timeout_001',
@@ -137,16 +137,61 @@ describe('useQualityCheckDrawer', () => {
 
     expect(drawer.polling.value).toBe(true)
 
-    // 快进 2 分钟（120000ms，旧逻辑会在此超时），新逻辑应保持轮询中
-    await vi.advanceTimersByTimeAsync(120000)
+    // 快进 10 分钟：旧逻辑在此误报超时，新逻辑保持轮询（大文件核查需要更久）
+    await vi.advanceTimersByTimeAsync(600000)
     expect(drawer.polling.value).toBe(true)
-    expect(ElMessage.error).not.toHaveBeenCalledWith('核查任务超时，请稍后刷新重试')
 
-    // 快进到满 10 分钟（600000ms）
-    await vi.advanceTimersByTimeAsync(482000)
+    // 快进越过 30 分钟窗口（多推一个 2s 轮询周期）：转入后台执行态，不设置 errorMessage、不弹错误
+    await vi.advanceTimersByTimeAsync(1202000)
     expect(drawer.polling.value).toBe(false)
-    expect(drawer.errorMessage.value).toBe('核查任务超时，请稍后刷新重试')
-    expect(ElMessage.error).toHaveBeenCalledWith('核查任务超时，请稍后刷新重试')
+    expect(drawer.backgroundRunning.value).toBe(true)
+    expect(drawer.errorMessage.value).toBe('')
+    expect(ElMessage.error).not.toHaveBeenCalled()
+  })
+
+  it('后台执行态刷新后恢复轮询（任务仍在运行）', async () => {
+    const drawer = useQualityCheckDrawer(props, emit)
+    drawer.backgroundRunning.value = true
+
+    vi.mocked(complianceApi.getBidQualityReport).mockResolvedValueOnce({
+      data: { id: 1, taskId: 'task_bg', status: 'CHECKING', progress: 70 }
+    })
+
+    await drawer.loadLatestReport()
+
+    expect(drawer.backgroundRunning.value).toBe(false)
+    expect(drawer.polling.value).toBe(true)
+  })
+
+  it('后台执行态重新触发核查时清除后台态', async () => {
+    const drawer = useQualityCheckDrawer(props, emit)
+    drawer.backgroundRunning.value = true
+
+    vi.mocked(complianceApi.triggerBidQualityCheck).mockResolvedValueOnce({
+      data: { taskId: 'task_new_bg', status: 'INIT', progress: 0 }
+    })
+
+    await drawer.triggerCheck(true)
+
+    expect(drawer.backgroundRunning.value).toBe(false)
+    expect(drawer.polling.value).toBe(true)
+  })
+
+  it('轮询中任务完成时清除后台态并加载报告', async () => {
+    const completedReport = { id: 1, taskId: 'task_bg_done', status: 'COMPLETED', items: [] }
+    vi.mocked(complianceApi.getBidQualityReport)
+      .mockResolvedValueOnce({ data: { id: 1, taskId: 'task_bg_done', status: 'CHECKING', progress: 90 } })
+      .mockResolvedValueOnce({ data: completedReport })
+    vi.mocked(complianceApi.getBidQualityProgress).mockResolvedValueOnce({
+      data: { taskId: 'task_bg_done', status: 'COMPLETED', progress: 100 }
+    })
+
+    const drawer = useQualityCheckDrawer(props, emit)
+    await drawer.open()
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(drawer.backgroundRunning.value).toBe(false)
+    expect(drawer.report.value).toEqual(completedReport)
   })
 
   it('拉取到 FAILED 状态报告时记录 errorMessage 且 report 为 null', async () => {
@@ -189,5 +234,16 @@ describe('useQualityCheckDrawer', () => {
     expect(drawer.errorMessage.value).toBe('后台比对异常')
     expect(ElMessage.error).toHaveBeenCalledWith('后台比对异常')
   })
-})
 
+  it('后台执行态刷新失败时保持后台态（不闪回空白态）', async () => {
+    const drawer = useQualityCheckDrawer(props, emit)
+    drawer.backgroundRunning.value = true
+
+    vi.mocked(complianceApi.getBidQualityReport).mockRejectedValueOnce(new Error('network down'))
+
+    await drawer.loadLatestReport()
+
+    expect(drawer.backgroundRunning.value).toBe(true)
+    expect(drawer.report.value).toBeNull()
+  })
+})
