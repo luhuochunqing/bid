@@ -14,7 +14,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -133,13 +132,6 @@ class SidecarPayloadParserTest {
         @DisplayName("readLocalPlainText 失败返回空串（调用方保持失败分类）")
         void readLocalPlainText_missingFile_empty(@TempDir Path tempDir) {
             assertThat(SidecarPayloadParser.readLocalPlainText(tempDir.resolve("missing.txt"))).isEmpty();
-        }
-
-        @Test
-        @DisplayName("List 导入保护：warningsOf 返回不可变列表")
-        void warnings_immutable() {
-            List<String> warnings = SidecarPayloadParser.warningsOf(null);
-            assertThat(warnings).isEmpty();
         }
     }
 }

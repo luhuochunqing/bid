@@ -150,7 +150,7 @@ public class ComplianceTargetLoader {
                     + "。该文件为图片扫描件或无可复制文本（无文本层），当前 AI 质量核查不支持此类文件，"
                     + "请提供可复制文字的版本后重新核查。";
             case UNPARSEABLE -> "投标文件无法解析：" + fileName + "，请确认文件可正常打开后重新上传。";
-            default -> "投标文件解析失败：" + fileName + "，请稍后重试。";
+            case OK -> "投标文件解析失败：" + fileName + "，请稍后重试。";
         };
     }
 
