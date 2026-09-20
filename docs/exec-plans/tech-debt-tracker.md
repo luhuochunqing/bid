@@ -241,3 +241,50 @@
 > **风险**：①文本未提金额的合规案例只能降级到 tier2（品类命中）；②文本含无关金额时可能误判；③金额门槛无法作为强一致门禁。
 > **补验动作**：为 `knowledge_case` 增加 `performance_category` / `contract_amount`（万元）字段与 Flyway 迁移（注意并行迁移锁）；沉淀链路从项目合同/发票数据回填，导入脚本补齐历史切片；准入策略优先采用结构化字段、文本作为兜底。
 > **状态**：open（优先级 medium，依赖业务确认金额数据来源与回填口径）。
+
+### AI 标书质量核查解析链路残余债（spec 066，2026-09-20）
+
+> **来源**：spec 066 修复（生产 22/35/46/580 核查失败）与 S6 三轮独立评审。
+> **背景**：解析失败误报已修复（五分类 + 按原始大小分档 + 分块 100），以下为记录不修的残余项。
+
+- area: `document-converter-sidecar/app.py`（ProcessPoolExecutor max_workers=1）
+  type: dependency-debt
+  severity: medium
+  status: open
+  source: spec 066 R0 证据（项目 30 连续 6 次 ~183s 重试期间小文件解析也超时）
+  note: 单 Worker 串行导致解析饥饿；建议引入有界并发（按内存标定）或队列+截止时间，并对上游重试加单飞/退避。
+
+- area: `backend/src/main/java/com/xiyu/bid/scoreparse`（SidecarDocumentArtifactExtractor / ScoreScoringAppService）
+  type: test-gap
+  severity: medium
+  status: open
+  source: spec 066 R0 证据（441MB 评分链路 600s/1800s 超时同样按固定档）
+  note: 评分链路与质量核查共用 Sidecar，但超时预算未按文档规模分档；建议复用 `SidecarTimeoutBudget` 口径并做规模标定。
+
+- area: `backend/src/main/java/com/xiyu/bid/compliance`
+  type: dependency-debt
+  severity: medium
+  status: open
+  source: spec 066 D7（记录不修）
+  note: 解析产物无按内容哈希缓存；重试/多特性（质量核查+评分）会重复解析 19 分钟级文档。建议解析产物按 SHA-256 缓存复用（本地磁盘或 DB + TTL）。
+
+- area: `backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java`
+  type: test-gap
+  severity: low
+  status: open
+  source: spec 066 S6 评审（Round 2/3）
+  note: ①连接建立超时（HttpConnectTimeoutException）分类由异常类型优先级保障，无自动化测试（10s 连接超时无法快速触发）；②失败路径 WARN 日志无断言。建议后续以可注入超时的 HTTP 客户端补测。
+
+- area: `backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutor.java`
+  type: test-gap
+  severity: low
+  status: open
+  source: spec 066 S6 生产风险评审（预存在）
+  note: `catch (IOException | RuntimeException)` 不含 Error；若解析线程抛 Error，任务将永留 CHECKING。建议兜底 `catch (Throwable)` 并 markFailed（需与 FP 纪律确认）。
+
+- area: `document-converter-sidecar`（无 OCR）
+  type: dependency-debt
+  severity: medium
+  status: open
+  source: spec 066 用户决策（本方案不引入 OCR）
+  note: 纯图片扫描件（无文本层）不可核查，只能给能力边界提示；是否接入 OCR 由产品决策（另立项）。
