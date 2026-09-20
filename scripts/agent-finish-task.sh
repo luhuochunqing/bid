@@ -409,8 +409,11 @@ hdr "Step 7: 删除本地任务分支"
 if git branch --list "$TASK_BRANCH" | grep -q .; then
   if [[ "$DRY_RUN" == "1" ]]; then
     echo "  [DRY RUN] git branch -D $TASK_BRANCH"
+  elif git worktree list --porcelain 2>/dev/null | grep -qF "branch refs/heads/$TASK_BRANCH"; then
+    # git 拒删被 worktree 检出的分支（"Cannot delete branch ... checked out at"）——
+    # 延迟到 Step 8 回收 worktree 后补删（Step 8.5），避免假报成功留下残留分支
+    info "本地分支 $TASK_BRANCH 仍被 worktree 检出，将在 worktree 回收后删除"
   else
-    # 分支可能仍被临时 worktree 检出，强制删除即可（worktree 随后由 Step 8 回收）
     git branch -D "$TASK_BRANCH" 2>/dev/null || true
     info "已删除本地分支: $TASK_BRANCH"
   fi
@@ -420,6 +423,19 @@ fi
 
 # ─── Step 8: 清理对应临时 worktree（先于分支删除，解除分支占用） ────────────────
 hdr "Step 8: 清理对应 worktree"
+
+# 当前 cwd 可能就在待回收的 worktree 内：先切到主 worktree，否则删除后所有 git
+# 命令会因 "Unable to read current working directory" 静默失败（Step 8.5/9/10 全受影响）
+MAIN_WORKTREE_PATH=""
+while IFS= read -r _wt_line; do
+  case "$_wt_line" in
+    worktree\ *) MAIN_WORKTREE_PATH="${_wt_line#worktree }"; break ;;
+  esac
+done < <(git worktree list --porcelain 2>/dev/null || true)
+if [[ -n "$MAIN_WORKTREE_PATH" && "$(git rev-parse --show-toplevel 2>/dev/null || true)" == "$WORKTREE_PATH" ]]; then
+  cd "$MAIN_WORKTREE_PATH"
+  info "当前位于待回收 worktree 内，已切换到主 worktree: $MAIN_WORKTREE_PATH"
+fi
 
 if [[ -d "$WORKTREE_PATH" ]] && git worktree list 2>/dev/null | grep -qF "$WORKTREE_PATH"; then
   if [[ "$DRY_RUN" == "1" ]]; then
@@ -442,6 +458,22 @@ if [[ -d "$WORKTREE_PATH" ]] && git worktree list 2>/dev/null | grep -qF "$WORKT
   fi
 else
   info "无 worktree 需要清理"
+fi
+
+# ─── Step 8.5: 补删本地任务分支（worktree 回收后 git 才允许 -D） ────────────────
+hdr "Step 8.5: 补删本地任务分支"
+
+if [[ "$DRY_RUN" == "1" ]]; then
+  echo "  [DRY RUN] git branch -D $TASK_BRANCH（若 Step 7 因 worktree 占用而延迟）"
+elif git branch --list "$TASK_BRANCH" | grep -q .; then
+  git branch -D "$TASK_BRANCH" 2>/dev/null || warn "本地分支 $TASK_BRANCH 删除失败，请手动执行: git branch -D $TASK_BRANCH"
+  if git branch --list "$TASK_BRANCH" | grep -q .; then
+    warn "本地分支仍存在: $TASK_BRANCH"
+  else
+    info "已删除本地分支: $TASK_BRANCH"
+  fi
+else
+  info "本地分支 $TASK_BRANCH 不存在（Step 7 已删除）"
 fi
 
 # ─── Step 9: 删除远端任务分支 ───────────────────────────────────────────────────
