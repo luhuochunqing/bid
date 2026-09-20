@@ -98,6 +98,7 @@ backlinks:
 - [[score-item-select-short-label]] — 评分项下拉短标签（ScoreItemSelect：短标签契约 / filterable 原文搜索陷阱 / 测试 stub 反模式）
 - [[score-parse-optimization]] — 评分解析优化记录
 - [[score-parse-service]] — AI 评分标准解析后端服务
+- [[scoreparse-performance-evidence-clarity]] — 业绩预计得分证据可信度、保守计分与中文解释契约
 - [[scoreparse-multimodal-primary]] — 评分标准多模态主召回、确定性验证与异常审核契约
 - [[spec059-score-parse-evidence-pipeline]] — spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构
 - [[score-parse-split-completeness-and-partial-overwrite-fix]] — 评分解析分表完整性范围误判 + 部分通过覆盖正式结果双修复

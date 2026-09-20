@@ -49,6 +49,15 @@ public class KnowledgeCategoryPolicy {
             "([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\\.[0-9]+)?)\\s*(万)?\\s*(㎡|平方米|平米|平方|m²|m2)",
             Pattern.CASE_INSENSITIVE);
 
+    private static final Pattern CONTRACT_AMOUNT_PATTERN = Pattern.compile(
+            "(?:合同|协议)?金额(?:在|为|达到|需达到|要求)?\\s*"
+                    + "(?:人民币\\s*)?"
+                    + "([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\\.[0-9]+)?)\\s*"
+                    + "(万|亿)?\\s*元?\\s*(?:[（(]含[）)]\\s*)?(?:以上|及以上|不少于|不低于|大于等于|≥)");
+    private static final Pattern CONTRACT_AMOUNT_PREFIX_PATTERN = Pattern.compile(
+            "(?:合同|协议)?金额\\s*(?:不少于|不低于|大于等于|≥)\\s*"
+                    + "(?:人民币\\s*)?([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\\.[0-9]+)?)\\s*(万|亿)?\\s*元?");
+
     /**
      * 知识库类别判定：只看评分因素名 {@code dim}，不扫细则 {@code detail}。
      * <p>细则里的「人员配置 / 品牌覆盖 / 授权」是打分说明，不能决定匹配哪张知识库。
@@ -93,6 +102,40 @@ public class KnowledgeCategoryPolicy {
             return null;
         }
         return value;
+    }
+
+    /** 提取业绩合同金额下限，统一换算为元；未识别到明确下限时返回 null。 */
+    public BigDecimal extractMinContractAmount(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Matcher matcher = CONTRACT_AMOUNT_PATTERN.matcher(text);
+        if (!matcher.find()) {
+            matcher = CONTRACT_AMOUNT_PREFIX_PATTERN.matcher(text);
+            if (!matcher.find()) {
+                return null;
+            }
+        }
+        BigDecimal value;
+        try {
+            value = new BigDecimal(matcher.group(1).replace(",", ""));
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+        if ("万".equals(matcher.group(2))) {
+            value = value.multiply(new BigDecimal("10000"));
+        } else if ("亿".equals(matcher.group(2))) {
+            value = value.multiply(new BigDecimal("100000000"));
+        }
+        return value.compareTo(BigDecimal.ZERO) > 0 ? value : null;
+    }
+
+    /** 判断条款是否明确提出合同金额门槛，用于区分“没有金额要求”和“有要求但解析失败”。 */
+    public boolean hasContractAmountThreshold(String text) {
+        return text != null
+                && (text.contains("合同金额") || text.contains("协议金额"))
+                && (text.contains("以上") || text.contains("不少于") || text.contains("不低于")
+                || text.contains("大于等于") || text.contains("≥"));
     }
 
     /** 提取要求资质等级：如 "甲级" / "一级" / "CMMI 3" / "特级"。 */
@@ -198,11 +241,10 @@ public class KnowledgeCategoryPolicy {
         if (text == null || text.isBlank()) {
             return null;
         }
-        // 模式 1: "每增加/提供/具备 1 个...得 X 分，最高/满分得 Y 分"
-        Matcher perMatch = Pattern.compile("每(?:增加|提供|具备)?\\s*(\\d+)\\s*(?:个|项|份)[^，。；;\\n]*?得\\s*(\\d+(?:\\.\\d+)?)\\s*分(?:[^，。；;\\n]*?(?:最高|满分|最多)[^，。；;\\n]*?得?\\s*(\\d+(?:\\.\\d+)?)\\s*分)?").matcher(text);
+        Matcher perMatch = Pattern.compile("每(?:增加|提供|具备)?\\s*(\\d+|[一二两三四五六七八九十]+)\\s*(?:个|项|份)[^，。；;\\n]*?得\\s*(\\d+(?:\\.\\d+)?)\\s*分(?:[^，。；;\\n]*?(?:最高|满分|最多)[^，。；;\\n]*?得?\\s*(\\d+(?:\\.\\d+)?)\\s*分)?").matcher(text);
         if (perMatch.find()) {
             try {
-                int unitCount = Integer.parseInt(perMatch.group(1));
+                int unitCount = parseSmallCount(perMatch.group(1));
                 BigDecimal perScore = new BigDecimal(perMatch.group(2));
                 String maxScoreStr = perMatch.group(3);
                 BigDecimal maxScore = (maxScoreStr != null) ? new BigDecimal(maxScoreStr) : weight;
@@ -213,13 +255,24 @@ public class KnowledgeCategoryPolicy {
             } catch (NumberFormatException | ArithmeticException ignored) {
             }
         }
-        // 模式 2: "不少于/提供/具备 X 个/项/份"
         Matcher minMatch = Pattern.compile("(?:不少于|提供|具备|具有|完成)\\s*(\\d+)\\s*(?:个|项|份)").matcher(text);
         if (minMatch.find()) {
             return Integer.valueOf(minMatch.group(1));
         }
-        // 模式 3: 通用 extractCount
         return extractCount(text, "个|项|份");
+    }
+
+    private int parseSmallCount(String value) {
+        if (value.matches("\\d+")) {
+            return Integer.parseInt(value);
+        }
+        return switch (value) {
+            case "一" -> 1; case "二", "两" -> 2; case "三" -> 3;
+            case "四" -> 4; case "五" -> 5; case "六" -> 6;
+            case "七" -> 7; case "八" -> 8; case "九" -> 9;
+            case "十" -> 10;
+            default -> throw new NumberFormatException("无法识别数量");
+        };
     }
 
     /** 提取业务关键词：按非字母数字汉字切分，过滤停用词/短 token/纯数字，去重保序。 */

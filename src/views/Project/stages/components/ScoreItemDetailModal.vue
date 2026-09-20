@@ -21,7 +21,7 @@
 
       <div v-if="item?.location" class="detail-row">
         <div class="detail-label">招标文件位置出处</div>
-        <div class="detail-value detail-location-text">📄 {{ item.location }}</div>
+        <div class="detail-value detail-location-text">📄 {{ locationText }}</div>
       </div>
 
       <div class="detail-row">
@@ -48,7 +48,7 @@
         <div class="detail-label">{{ mode === 'actual' ? '评分依据' : '得分依据' }}</div>
         <div class="detail-quote">
           <div v-if="mode === 'est' && item?.kbHit" class="kb-hit-badge">
-            <span class="pill kb-pill">知识库命中</span>
+            <span class="pill kb-pill">{{ evidenceSourceLabel }}</span>
           </div>
           <div>{{ basisText }}</div>
         </div>
@@ -158,9 +158,40 @@ const scoreClass = computed(() => {
 })
 
 const basisText = computed(() => {
-  if (props.mode === 'actual') return props.result?.basis || props.result?.evidence || props.item?.estBasis || '暂无评分依据'
-  return props.item?.estBasis || '需评标专家根据标书描述人工评审'
+  if (props.mode === 'actual') return translateInternalTerms(props.result?.basis || props.result?.evidence || props.item?.estBasis || '暂无评分依据')
+  return translateInternalTerms(props.item?.estBasis || '需评标专家根据标书描述人工评审')
 })
+
+const locationText = computed(() => {
+  const labels = {
+    STRUCTURED_TABLE_DETERMINISTIC: '招标文件评分表（系统识别）',
+    STRUCTURED_TABLE: '招标文件评分表',
+    LEGACY_FALLBACK: '招标文件正文（兼容识别）',
+  }
+  const location = props.item?.location || ''
+  if (labels[location]) return labels[location]
+  return /^[A-Z0-9_]+$/.test(location) ? '招标文件' : location
+})
+
+const evidenceSourceLabel = computed(() => {
+  return /业绩|案例/.test(props.item?.dim || '') ? '业绩库候选资料' : '知识库资料'
+})
+
+function translateInternalTerms(text) {
+  return String(text)
+    .replace(/tier=FULL/g, '完全匹配')
+    .replace(/tier=PARTIAL/g, '部分匹配')
+    .replace(/tier=NONE/g, '未匹配')
+    .replace(/STRUCTURED_TABLE_DETERMINISTIC/g, '招标文件评分表（系统识别）')
+    .replace(/AUTO_APPROVED/g, '系统自动校验通过')
+    .replace(/MISSING_EVIDENCE/g, '缺少资料')
+    .replace(/expired=true/g, '已过期')
+    .replace(/expireSoon=true/g, '即将到期')
+    .replace(/LEGACY_FALLBACK/g, '招标文件正文（兼容识别）')
+    .replace(/STRUCTURED_TABLE/g, '招标文件评分表')
+    .replace(/\bPASS\b/g, '已核验')
+    .replace(/\bFAIL\b/g, '未通过')
+}
 
 // R065: 仅阶段 2 且仅不满足/待确认；禁止阶段 1 出建议、禁止硬编码兜底句
 const suggestionText = computed(() => {

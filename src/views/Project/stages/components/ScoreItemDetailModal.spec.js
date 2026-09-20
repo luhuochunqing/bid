@@ -127,4 +127,60 @@ describe('ScoreItemDetailModal.vue', () => {
     expect(wrapper.text()).not.toContain('单元格：T1-R2-C3')
     expect(wrapper.text()).not.toContain('表格结构化提取')
   })
+
+  it('translates extraction source and internal match terms into clear Chinese', () => {
+    const wrapper = mount(ScoreItemDetailModal, {
+      props: {
+        visible: true,
+        mode: 'est',
+        item: {
+          ...mockItem,
+          dim: '公司业绩',
+          location: 'STRUCTURED_TABLE_DETERMINISTIC',
+          kbHit: true,
+          estBasis: '知识库匹配（业绩，tier=FULL，比例=100%）：命中业绩 131/1',
+        },
+      },
+      global: { stubs: globalStubs },
+    })
+
+    expect(wrapper.text()).toContain('招标文件评分表（系统识别）')
+    expect(wrapper.text()).toContain('业绩库候选资料')
+    expect(wrapper.text()).toContain('完全匹配')
+    expect(wrapper.text()).not.toContain('STRUCTURED_TABLE_DETERMINISTIC')
+    expect(wrapper.text()).not.toContain('tier=FULL')
+    expect(wrapper.text()).not.toContain('知识库命中')
+  })
+
+  it('keeps a human-readable document location unchanged', () => {
+    const wrapper = mount(ScoreItemDetailModal, {
+      props: {
+        visible: true,
+        mode: 'est',
+        item: { ...mockItem, location: '第 42 页评分表第 2 行' },
+      },
+      global: { stubs: globalStubs },
+    })
+
+    expect(wrapper.text()).toContain('第 42 页评分表第 2 行')
+  })
+
+  it('translates internal terms in actual-score evidence too', () => {
+    const wrapper = mount(ScoreItemDetailModal, {
+      props: {
+        visible: true,
+        mode: 'actual',
+        item: { ...mockItem, dim: '品牌授权合同', kbHit: true },
+        result: { basis: '检查结果 PASS，expireSoon=true，来源 LEGACY_FALLBACK' },
+      },
+      global: { stubs: globalStubs },
+    })
+
+    expect(wrapper.text()).toContain('已核验')
+    expect(wrapper.text()).toContain('即将到期')
+    expect(wrapper.text()).toContain('招标文件正文（兼容识别）')
+    expect(wrapper.text()).not.toContain('PASS')
+    expect(wrapper.text()).not.toContain('expireSoon=true')
+    expect(wrapper.text()).not.toContain('LEGACY_FALLBACK')
+  })
 })

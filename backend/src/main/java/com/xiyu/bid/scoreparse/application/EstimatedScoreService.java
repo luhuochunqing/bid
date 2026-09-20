@@ -11,6 +11,7 @@ import com.xiyu.bid.scoreparse.application.match.ProjectMatchService;
 import com.xiyu.bid.scoreparse.application.match.WarehouseMatchService;
 import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
 import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
+import com.xiyu.bid.scoreparse.domain.ProjectEvidenceRequirementPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreRangeGuard;
 import com.xiyu.bid.scoreparse.domain.ScoreStatusPolicy;
 import com.xiyu.bid.scoreparse.dto.BrandMatchRequest;
@@ -62,6 +63,8 @@ public class EstimatedScoreService {
     private final PartialScorePolicy partialScorePolicy = new PartialScorePolicy();
     private final ScoreStatusPolicy scoreStatusPolicy = new ScoreStatusPolicy();
     private final ScoreRangeGuard scoreRangeGuard = new ScoreRangeGuard();
+    private final ProjectEvidenceRequirementPolicy projectEvidencePolicy = new ProjectEvidenceRequirementPolicy();
+    private final EstimatedScoreBasisFormatter basisFormatter = new EstimatedScoreBasisFormatter();
 
     /** 对项目全部评分项执行预计得分计算（挂入解析编排链尾）。 */
     @Transactional
@@ -74,7 +77,9 @@ public class EstimatedScoreService {
                 log.warn("评分项预计得分计算失败，保持待确认: itemId={}, code={}",
                         item.getId(), item.getCode(), exception);
                 item.setEstScore(null);
+                item.setKbHit(false);
                 item.setStatusStage1(ScoreStatusPolicy.PENDING);
+                item.setEstBasis("预计得分计算失败，未沿用历史匹配结果，待人工确认");
             }
         }
         itemRepository.saveAll(items);
@@ -106,8 +111,32 @@ public class EstimatedScoreService {
             item.setEstBasis("未抽取到可执行的仓库匹配约束（面积），禁止按在用仓存在性给满分，待人工确认预计得分");
             return;
         }
+        if (KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
+                && categoryPolicy.hasContractAmountThreshold(item.getDetail())
+                && categoryPolicy.extractMinContractAmount(item.getDetail()) == null) {
+            item.setEstScore(null);
+            item.setKbHit(false);
+            item.setStatusStage1(ScoreStatusPolicy.PENDING);
+            item.setEstBasis("条款包含合同金额门槛，但系统未能可靠识别具体金额，待人工确认");
+            return;
+        }
 
         KnowledgeMatchResult match = dispatchMatch(category, item);
+        ProjectEvidenceRequirementPolicy.Assessment evidenceAssessment =
+                KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
+                        ? projectEvidencePolicy.assess(item.getDetail())
+                        : new ProjectEvidenceRequirementPolicy.Assessment(List.of());
+        if (evidenceAssessment.requiresManualReview()) {
+            item.setEstScore(null);
+            item.setKbHit(false);
+            item.setStatusStage1(ScoreStatusPolicy.PENDING);
+            item.setEstBasis(basisFormatter.manualReviewBasis(
+                    match,
+                    evidenceAssessment,
+                    categoryPolicy.extractSignedAfter(item.getDetail()) != null,
+                    categoryPolicy.extractMinContractAmount(item.getDetail()) != null));
+            return;
+        }
         boolean flagged = hasFlaggedItems(match.matched());
         BigDecimal estScore = partialScorePolicy.compute(
                 item.getWeight(), match.tier(), match.matchRatio(), TYPE_OBJECTIVE);
@@ -121,7 +150,7 @@ public class EstimatedScoreService {
         item.setKbHit(!"NONE".equals(match.tier()));
         item.setStatusStage1(scoreStatusPolicy.evaluate(
                 guarded.score(), item.getWeight(), item.getScoreType(), flagged));
-        item.setEstBasis(buildBasis(category, match, flagged));
+        item.setEstBasis(basisFormatter.matchBasis(category, match, flagged));
     }
 
     private KnowledgeMatchResult dispatchMatch(String category, ScoreItem item) {
@@ -134,7 +163,8 @@ public class EstimatedScoreService {
             case KnowledgeCategoryPolicy.CATEGORY_PERSON -> personMatchService.match(new PersonMatchRequest(
                     keywords, null, categoryPolicy.extractCount(detail, "人")));
             case KnowledgeCategoryPolicy.CATEGORY_PROJECT -> projectMatchService.match(new ProjectMatchRequest(
-                    keywords, categoryPolicy.extractSignedAfter(detail), null,
+                    keywords, categoryPolicy.extractSignedAfter(detail),
+                    categoryPolicy.extractMinContractAmount(detail),
                     categoryPolicy.extractProjectRequiredCount(detail, item.getWeight())));
             case KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE -> warehouseMatchService.match(
                     new WarehouseMatchRequest(null, null, categoryPolicy.extractMinArea(detail), null));
@@ -160,35 +190,4 @@ public class EstimatedScoreService {
         return false;
     }
 
-    private String buildBasis(String category, KnowledgeMatchResult match, boolean flagged) {
-        if (flagged && KnowledgeCategoryPolicy.CATEGORY_CERT.equals(category)) {
-            return "证书已过期，标书需补充说明或更新证书";
-        }
-        String label = switch (category) {
-            case KnowledgeCategoryPolicy.CATEGORY_CERT -> "资质证书";
-            case KnowledgeCategoryPolicy.CATEGORY_PERSON -> "人员";
-            case KnowledgeCategoryPolicy.CATEGORY_PROJECT -> "业绩";
-            case KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE -> "仓库";
-            case KnowledgeCategoryPolicy.CATEGORY_BRAND -> "品牌授权";
-            default -> "知识库";
-        };
-        StringBuilder basis = new StringBuilder("知识库匹配（")
-                .append(label).append("，tier=").append(match.tier())
-                .append("，比例=").append(match.matchRatio()).append("%）：")
-                .append(match.matchDetail());
-        if (!match.proofs().isEmpty()) {
-            basis.append("；逐记录证明：");
-            match.proofs().forEach(proof -> {
-                basis.append("[").append(proof.recordType()).append("#").append(proof.recordId())
-                        .append(" ").append(proof.recordName()).append(": ");
-                proof.conditions().forEach(condition -> basis.append(condition.condition()).append("=")
-                        .append(condition.status()).append("(").append(condition.evidence()).append(");"));
-                basis.append("]");
-            });
-        }
-        if (flagged) {
-            basis.append("；命中记录含过期/即将到期标记，需更新证书或人工补充说明");
-        }
-        return basis.toString();
-    }
 }

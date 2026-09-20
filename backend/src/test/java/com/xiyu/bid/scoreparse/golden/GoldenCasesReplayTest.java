@@ -45,6 +45,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-3col-embedded-bracket-weight"),
                 Arguments.of("case-1381-pdf-preliminary-and-summary"),
                 Arguments.of("case-pdf-cert-list-single-item"),
+                Arguments.of("case-1117-performance-evidence"),
                 Arguments.of("case-multi-table-tech-commercial"),
                 Arguments.of("case-category-weight-noise-before-score"),
                 Arguments.of("case-sidecar-stream-failure"));
