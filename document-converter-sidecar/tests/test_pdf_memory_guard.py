@@ -16,12 +16,20 @@ import tempfile
 import pytest
 
 N_PAGES = 100
+# spec 066 D4: the production default chunk is now 100 pages (reopen cost
+# dominated 90% of a 1133s conversion). This bench pins a small chunk on
+# purpose: its job is the O(chunk) residency guard, not the default value
+# (pinned by test_pdf_chunk_default_is_100_and_env_overridable). At 100 pages
+# with the default, a single open would make chunked == whole-document.
 # Budget rationale (measured on this fixture): legacy single-open peaked at
 # 189MB and scaled with document size (production 428MB PDF hit ~2.98GB RSS
-# and OOM-killed the 3GB worker); chunked open/close peaks at ~74MB here and
-# stays O(chunk) regardless of page count. 100MB trips on any residency
-# regression while leaving headroom for heavier production pages.
+# and OOM-killed the 3GB worker); chunked open/close (10 pages) peaks at
+# ~74MB here and stays O(chunk) regardless of page count. Measured with
+# 100-page chunks: 182MB @100 pages, 238MB @400 pages vs 734MB whole-doc —
+# still bounded, but heavier than this bench needs. 100MB trips on any
+# residency regression while leaving headroom for heavier production pages.
 PDF_PEAK_BUDGET_BYTES = 100 * 1024 * 1024
+BENCH_CHUNK_PAGES = "10"
 
 
 @pytest.fixture()
@@ -67,15 +75,18 @@ def _synth_large_pdf(path: str, n_pages: int = N_PAGES) -> None:
     doc.close()
 
 
-def test_pdf_large_file_memory_bench(converter_module):
+def test_pdf_large_file_memory_bench(converter_module, monkeypatch):
     """Memory guard: 100-page ruled-table PDF must convert within budget.
 
     Regression guard for project 1373 (428MB bid PDF OOM-killed the 3GB
     sidecar worker at ~2.98GB RSS): convert_pdf_document held every page's
     parsed structures at once. Chunked open/close must keep the peak near
-    O(chunk) instead of O(document).
+    O(chunk) instead of O(document). Chunk pinned small (see module notes)
+    so this bench keeps exercising multiple open/close cycles.
     """
     import tracemalloc
+
+    monkeypatch.setenv("SIDECAR_PDF_CHUNK_PAGES", BENCH_CHUNK_PAGES)
 
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         path = tmp.name

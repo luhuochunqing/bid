@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 
+import converter
 from converter import convert_pdf_document, convert_pdf_to_markdown, convert_pdf_to_pages
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "sample_multipage.pdf")
@@ -54,3 +55,15 @@ def test_pages_text_is_subset_of_merged_markdown():
         first_line = page["text"].splitlines()[0]
         assert first_line in result["markdown"]
     assert len(joined) <= len(result["markdown"]) + 8  # \x0c→\n\n 替换可能引入少量差异
+
+
+def test_pdf_chunk_default_is_100_and_env_overridable(monkeypatch):
+    """spec 066 D4：默认分块 100 页（重开成本占解析 90%），环境变量可覆盖。"""
+    monkeypatch.delenv("SIDECAR_PDF_CHUNK_PAGES", raising=False)
+    assert converter._pdf_chunk_pages() == 100
+
+    monkeypatch.setenv("SIDECAR_PDF_CHUNK_PAGES", "7")
+    assert converter._pdf_chunk_pages() == 7
+
+    monkeypatch.setenv("SIDECAR_PDF_CHUNK_PAGES", "not-a-number")
+    assert converter._pdf_chunk_pages() == 100

@@ -18,6 +18,7 @@ import re
 import secrets
 import subprocess
 import tempfile
+import time
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from typing import Any
@@ -43,6 +44,29 @@ _MD_IMG_PATTERN = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _log_conversion(
+    file_name: str,
+    size_bytes: int,
+    started_at: float,
+    markdown: str,
+    page_count: int,
+    warnings: list[str],
+) -> None:
+    """Structured per-conversion observability log (spec 066 D6/FR-009).
+
+    Empty text is the scanned-document signature; log it at WARN so the
+    production signal is visible without turning on debug logging.
+    """
+    duration_ms = int((time.perf_counter() - started_at) * 1000)
+    chars = len(markdown)
+    message = "convert file=%s size=%d duration_ms=%d chars=%d pages=%d warnings=%s"
+    args = (file_name, size_bytes, duration_ms, chars, page_count, warnings)
+    if chars == 0:
+        logger.warning(message, *args)
+    else:
+        logger.info(message, *args)
 
 # ---------------------------------------------------------------------------
 # Configuration (env-var driven)
@@ -436,6 +460,7 @@ async def convert_document(
             except Exception:
                 logger.warning("textutil .doc→.docx conversion failed; falling back to original")
 
+        started_at = time.perf_counter()
         result = await _convert_document(processing_path)
         markdown_text: str = result.text_content
 
@@ -448,6 +473,14 @@ async def convert_document(
         # Structured physical pages (PDF via pdfplumber); empty for docx — the Java
         # compliance pipeline falls back to virtual pagination when absent.
         result_pages = getattr(result, "pages", None)
+        _log_conversion(
+            file.filename,
+            total_read,
+            started_at,
+            markdown_text,
+            len(result_pages) if isinstance(result_pages, list) else 0,
+            warnings,
+        )
 
         return {
             "documentId": file.filename,
@@ -523,6 +556,7 @@ async def convert_document_stream(
             except Exception:
                 logger.warning("textutil .doc→.docx conversion failed; falling back to original")
 
+        started_at = time.perf_counter()
         try:
             result = await _convert_document(processing_path)
         except HTTPException:
@@ -532,6 +566,19 @@ async def convert_document_stream(
             return JSONResponse(status_code=422, content={"error": "文档无法解析：格式不支持或已损坏"})
 
         markdown_text: str = result.text_content or ""
+
+        stream_pages = getattr(result, "pages", None)
+        stream_warnings: list[str] = []
+        if len(markdown_text.strip()) < 100:
+            stream_warnings.append("low_text_density")
+        _log_conversion(
+            file.filename,
+            total_read,
+            started_at,
+            markdown_text,
+            len(stream_pages) if isinstance(stream_pages, list) else 0,
+            stream_warnings,
+        )
 
         # Conversion already produced the full text; temp files can be removed now
         # (finally block below). Yield as a chunked text/plain body without JSON.

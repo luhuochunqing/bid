@@ -36,11 +36,16 @@ def _row_has_price_param(row: str) -> bool:
 
 
 def _pdf_chunk_pages() -> int:
-    """Pages per open/close chunk (env-overridable for tests/ops tuning)."""
+    """Pages per open/close chunk (env-overridable for tests/ops tuning).
+
+    Default 100 (spec 066 D4): reopening a 441MB PDF costs ~2.5s per open —
+    411 opens of 10 pages dominated ~90% of a 1133s conversion. 100-page
+    chunks cut that to ~42 opens while keeping peak residency O(chunk).
+    """
     try:
-        return max(1, int(os.environ.get("SIDECAR_PDF_CHUNK_PAGES", "10")))
+        return max(1, int(os.environ.get("SIDECAR_PDF_CHUNK_PAGES", "100")))
     except (TypeError, ValueError):
-        return 10
+        return 100
 
 
 def _convert_pdf_chunk(pdf_path: str, start: int, end: int) -> list[dict]:

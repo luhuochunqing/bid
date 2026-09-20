@@ -382,3 +382,65 @@ async def test_convert_response_pages_defaults_to_empty_list(no_key_app):
             )
     assert response.status_code == 200
     assert response.json()["pages"] == []
+
+
+# ---------------------------------------------------------------------------
+# spec 066 D6/FR-009: structured per-conversion observability log
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_convert_logs_structured_observability_line(no_key_app, caplog):
+    """每次转换记录 file/size/duration_ms/chars/pages/warnings（INFO）。"""
+    import app as sidecar_app
+
+    mock_result = MagicMock()
+    mock_result.text_content = "# Heading\n\n" + "正文内容" * 60
+    mock_result.pages = [{"pageNumber": 1, "text": "正文内容"}]
+
+    with caplog.at_level(logging.INFO, logger="app"):
+        with patch.object(sidecar_app, "_convert_document", new=AsyncMock(return_value=mock_result)):
+            async with AsyncClient(
+                transport=ASGITransport(app=sidecar_app.app), base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    "/convert",
+                    files={"file": ("obs.pdf", io.BytesIO(b"obs-bytes"), "application/pdf")},
+                )
+
+    assert response.status_code == 200
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("convert file=")]
+    assert lines, "missing structured conversion log line"
+    assert "duration_ms=" in lines[0]
+    assert "chars=" in lines[0]
+    assert "pages=1" in lines[0]
+    assert "warnings=" in lines[0]
+
+
+@pytest.mark.asyncio
+async def test_convert_empty_text_logs_warning(no_key_app, caplog):
+    """空文本（扫描件形态）必须以 WARN 记录，便于生产可见。"""
+    import app as sidecar_app
+
+    mock_result = MagicMock()
+    mock_result.text_content = ""
+    mock_result.pages = []
+
+    with caplog.at_level(logging.WARNING, logger="app"):
+        with patch.object(sidecar_app, "_convert_document", new=AsyncMock(return_value=mock_result)):
+            async with AsyncClient(
+                transport=ASGITransport(app=sidecar_app.app), base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    "/convert",
+                    files={"file": ("scan.pdf", io.BytesIO(b"scan-bytes"), "application/pdf")},
+                )
+
+    assert response.status_code == 200
+    warns = [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelno == logging.WARNING and r.getMessage().startswith("convert file=")
+    ]
+    assert warns, "missing WARN for empty conversion"
+    assert "chars=0" in warns[0]
+    assert "low_text_density" in warns[0]
