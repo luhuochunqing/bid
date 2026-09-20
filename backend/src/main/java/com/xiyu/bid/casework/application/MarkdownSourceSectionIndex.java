@@ -14,9 +14,14 @@ import java.util.regex.Pattern;
  *
  * <p>构建章节层级树与祖先路径（" > " 分隔），并支持对应答片段做空白归一化精确匹配：
  * <ul>
- *   <li>唯一命中：写五个来源字段（标题、路径、文档名、页码、序号）</li>
- *   <li>零命中 / 跨章节多命中 / 解析失败 / 仅命中评分项标题：返回 null（调用方写 NULL）</li>
+ *   <li>唯一命中且命中章节是<b>已验证章节</b>：写五个来源字段（标题、路径、文档名、页码、序号）</li>
+ *   <li>零命中 / 跨章节多命中 / 解析失败 / 仅命中评分项标题 / <b>命中章节无章节号</b>：返回 null（调用方写 NULL）</li>
  * </ul>
+ *
+ * <p><b>已验证章节</b>由 {@link MarkdownTitleRules#isChapterTitle(String)} 把门：层级树仍接受无编号的
+ * 加粗小标题（它们可能是真实排版层级，用于构建 path），但只有"章节号 + 标题文字"形式的标题才可充当
+ * 对外展示/写回的「原文所在标题」。无编号标题没有序号可核对，不足以自证是标书真实章节，宁可不给来源
+ * （调用方展示为「暂无来源标题」），也不拿评分项标题或正文句子冒充。</p>
  */
 public final class MarkdownSourceSectionIndex {
 
@@ -135,6 +140,11 @@ public final class MarkdownSourceSectionIndex {
 
         // 跨章节多命中 -> 返回 null
         if (distinctPaths.size() != 1 || firstMatchedSection == null) {
+            return null;
+        }
+
+        // 命中章节无章节号 -> 不是可核对的真实章节，返回 null（宁可不给来源）
+        if (!MarkdownTitleRules.isChapterTitle(firstMatchedSection.title())) {
             return null;
         }
 

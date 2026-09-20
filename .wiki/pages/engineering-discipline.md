@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [工程纪律, 根因分析, bug修复, 反复修复, 开发规范, 经验积累, 预防, SOP]
 created: 2026-07-10
-updated: 2026-09-18
+updated: 2026-09-20
 health_checked: 2026-09-18
 sources:
   - .wiki/pages/lessons-learned.md
@@ -300,6 +300,21 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 测试用例要包含"应该失败"的场景 | 确认 bug 被修复 |
 | 跨系统 bug 必须用真实外部系统场景验证 | 同源场景会掩盖问题 |
 | E2E 选择器优先用 role > testid > label > text | text 会随 UI 变更失效 |
+| 验证命令集必须来自仓库门禁脚本，不得自拟 | 自拟集合"全绿"≠ 门禁通过，漏掉的常是本次改动命中的项（见 5.2.1） |
+
+#### 5.2.1 验证命令集必须等于门禁契约（2026-09-20）
+
+门禁集合定义在 `scripts/check-testing-standards.sh`（pre-commit 架构集、关联测试、ESLint）与
+`scripts/pre-push-gate.sh`（全量 + 专项）里。自行挑选测试类跑"全绿"会漏项。2026-09-20
+「案例摘要打平文本 + 章节溯源」任务实例（两轮验证全绿，真实缺陷由 pre-commit 反查出）：
+
+| 自拟命令集漏掉的项 | 后果 |
+|---|---|
+| `ProjectAccessGuardCoverageTest`（pre-commit 架构集三项之一，不属于 `ArchitectureTest` 家族） | 新增 `*AppService` 触及 `projectId` 却未走统一守卫链、也未登记基线 → `git commit` 直接 BUILD FAILURE |
+| `npm run lint`（**不在** `npm run build` 链内；在 pre-commit 内但**非阻断**） | 3 个 ESLint error 随提交进入分支，只有通读提交输出才发现 |
+
+**做法**：S5 验证前先读门禁脚本，按脚本里的命令集逐条复跑；`npm run build` 通过 ≠ 门禁通过。
+**Why**：门禁集合是仓库契约（随治理演进），自拟集合是记忆（必然滞后）。
 
 ### 5.3 部署规范
 
@@ -412,6 +427,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 
 ```
 [ ] 在真实环境验证
+[ ] 按门禁脚本的命令集复跑（不是自拟命令集，见 5.2.1）
 [ ] 检查外部配置是否覆盖
 [ ] 沉淀教训到本文件
 [ ] 加 pre-push 拦截脚本（如果根因可检测）
@@ -458,3 +474,4 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 2026-07-17 | 新增 "仓库全量导出超时（@Async 自调用）" 案例到 §6.3；根因 6（框架理解偏差）；修复方式：提取 @Async 方法到独立 Bean，参考 `WarehouseExportAsyncExecutor`；同时覆盖 Export/Ledger/Import 三处同源问题 | spec 039 沉淀，PR !2110 |
 | 2026-08-02 | 新增 "后端 OOM（exit 137）" 案例；根因：裸 `mvn spring-boot:run` 时 JVM 默认堆 = 物理内存 1/4，macOS 内存紧张时触发系统级 OOM Killer；规范：禁止 裸 mvn 启动、必须显式 -Xmx；§5.1 编码规范新增"分页 size 必须上限保护（MAX_PAGE_SIZE=100）"，补齐 TenderController 遗漏 | OOM 根因修复，PR !2245 |
 | 2026-08-25 | 新增 Code Review 三透镜纪律（行为正确性/结构健康/交付就绪）：PR !2399 四轮审查全在行为平面，依赖方向/影响面/交付就绪从未进入检查面；工程化落点：`check-keyword-sync.mjs`（跨语言关键词契约）、pre-push §5.7（仓库卫生）、`gitee-pr-helper.sh merge` mergeable 断言、`agent-finish-task.sh` 冲突预警；技能落点：`xiyu-code-review` 新增第 0 步状态快照 + §7 结构健康 + §8 交付就绪（本地 `.agents/skills/`，未入库） | PR !2399 审查复盘 |
+| 2026-09-20 | 新增 §5.2.1「验证命令集必须等于门禁契约」：两轮 S5 自拟命令集全绿，真实缺陷均由 pre-commit 反查——漏 `ProjectAccessGuardCoverageTest`（新增 `*AppService` 未登记项目访问守卫基线 → BUILD FAILURE）与 `npm run lint`（3 个 ESLint error 随提交入库，`npm run build` 链不含 lint 且 pre-commit lint 非阻断）；§7.3 checklist 增补对应项 | 案例摘要改造任务复盘 |

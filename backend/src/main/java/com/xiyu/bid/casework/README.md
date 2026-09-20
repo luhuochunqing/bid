@@ -19,6 +19,10 @@
 | `application/service/CasePromotionAppService.java` | AppService | 从项目快照晋升案例 |
 | `application/service/CaseShareAppService.java` | AppService | 案例分享记录 |
 | `application/service/CaseReferenceAppService.java` | AppService | 案例引用记录 |
+| `application/service/CaseProvenanceBackfillAppService.java` | AppService | 存量案例来源章节重算（幂等；判据为「现有来源标题不是已验证章节」；定位成功写回真实章节，失败清空） |
+| `application/MarkdownHeadingParser.java` | Domain Util | Markdown 标题解析与章节扫描（构建层级树与祖先路径） |
+| `application/MarkdownTitleRules.java` | Domain Util | 标题分类契约（`isSentenceLikeTitle` 句子门 + `isChapterTitle` 章节号契约——编号在串首**且编号后有标题文字**，字母列表标记不算章节号，前后端同规则，由共享夹具双向锚定） |
+| `application/MarkdownSourceSectionIndex.java` | Domain Util | Markdown 来源章节索引与定位器（唯一命中且命中章节为已验证章节才写来源字段，其余一律返回 null） |
 | `repository/` | 子目录 | 案例记录数据访问边界 |
 | `repository/CaseReferenceRecordRepository.java` | Repository | 案例引用记录访问 |
 | `repository/CaseShareRecordRepository.java` | Repository | 案例分享记录访问 |

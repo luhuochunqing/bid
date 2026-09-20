@@ -13,6 +13,13 @@ import java.util.regex.Pattern;
  *
  * <p>按行解析 Markdown 中的标题层级（#~###### 及「第X章/节、数字编号」），
  * 构建章节层级树与祖先路径（" > " 分隔）。</p>
+ *
+ * <p>所有候选标题统一经过 {@link MarkdownTitleRules#isSentenceLikeTitle(String)} 门控：PDF→markdown 转换器
+ * 会把加粗正文句输出成 {@code ## 正文句子}，若不拒绝会让整个片段归属到伪章节。</p>
+ *
+ * <p>层级树仍接受无编号的加粗小标题（它们可能是真实的排版层级），但<b>来源标识</b>另由
+ * {@link MarkdownTitleRules#isChapterTitle(String)} 把门：只有"章节号 + 标题文字"形式的标题才可作为对外展示的
+ * 章节来源，无编号标题一律不给来源（见 {@link MarkdownSourceSectionIndex#locate}）。</p>
  */
 public final class MarkdownHeadingParser {
 
@@ -144,11 +151,14 @@ public final class MarkdownHeadingParser {
             int level = mdMatcher.group(1).length();
             String titleText = cleanTitle(mdMatcher.group(2));
             if (!titleText.isEmpty()) {
-                return new ParsedHeading(level, titleText);
+                return MarkdownTitleRules.isSentenceLikeTitle(titleText) ? null : new ParsedHeading(level, titleText);
             }
         }
 
         if (trimmed.length() > 120 || trimmed.length() < 2) {
+            return null;
+        }
+        if (MarkdownTitleRules.isSentenceLikeTitle(trimmed)) {
             return null;
         }
         if (trimmed.startsWith("|") || trimmed.startsWith("- ") || trimmed.startsWith("* ")

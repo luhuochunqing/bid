@@ -11,6 +11,8 @@ public interface KnowledgeCaseRepository extends JpaRepository<KnowledgeCase, Lo
 
     List<KnowledgeCase> findBySourceProjectId(Long sourceProjectId);
 
+    List<KnowledgeCase> findByStatus(String status);
+
     boolean existsBySourceProjectIdAndScoringPointTitle(Long sourceProjectId, String scoringPointTitle);
 }
 

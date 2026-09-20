@@ -153,7 +153,7 @@ public class ProjectClosedEventListener {
                 return;
             }
 
-            BidDocumentLoader.BidDocument bidDoc = bidDocumentLoader.loadBidDocument(event, projectId);
+            BidDocumentLoader.BidDocument bidDoc = bidDocumentLoader.loadBidDocument(event.getProjectName(), projectId);
             String markdown = bidDoc != null ? bidDoc.markdown() : null;
 
             List<CaseAiMatcher.AiMatchedSlice> matchedSlices = caseAiMatcher.extractSlicesWithAi(markdown, scoreItemsForGate);

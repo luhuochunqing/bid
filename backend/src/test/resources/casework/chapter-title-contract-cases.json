@@ -1,0 +1,41 @@
+{
+  "rule": "章节标题契约（Java MarkdownTitleRules.isChapterTitle ↔ JS caseDetailFormatter.isVerifiedChapterTitle 同一契约）：只有「章节号 + 标题文字」形式的标题才是已验证章节，可作为对外展示/写回的「原文所在标题」。判定 = 先过句子型门（含句读 。！？!?；; → 否；长度 > 80 → 否；含逗号且长度 > 30 → 否）；再剥掉首尾空白与分隔符噪声，要求开头即编号（第X章/节/篇/卷/部/分/条、1.2.3、1.、一、、（1）、①）且编号位于串首；**字母列表标记不算章节号**（A. 附录清单、B、服务方案、a. 投标函——字母枚举与正文里的字母列表无从区分）；最后要求编号之后仍有标题文字——只有编号没有文字的串（1.、第一章、（1）、①、A.）同样不是章节。两侧的空白/分隔符字符类必须逐字一致（Java \\s 与 JS \\s 的 Unicode 范围不同，故全角空格 U+3000 与不换行空格 U+00A0 两侧都显式列出）。",
+  "why": "「原文所在标题」必须显示标书里的真实章节（序号 + 标题文字，如 13.2.1. 对接成功案例清单）。无编号的加粗小标题（PDF→markdown 转换器产物，如 ## 项目实施）可能只是排版层级，没有序号可核对，不足以自证是真实章节——两侧必须同判，否则后端写回的标题会被前端拒绝（或反之），或前端把评分项标题/正文句子冒充成章节。",
+  "consumers": [
+    "backend/src/test/java/com/xiyu/bid/casework/application/ChapterTitleContractTest.java",
+    "src/views/Knowledge/views/components/__tests__/caseDetailFormatter.spec.js"
+  ],
+  "cases": [
+    {"title": "13.2.1. 对接成功案例清单", "chapter": true, "note": "验收原文示例：点分编号 + 标题文字"},
+    {"title": "第一章 项目背景", "chapter": true, "note": "中文章节号"},
+    {"title": "第三节 商务要求", "chapter": true, "note": "中文节号"},
+    {"title": "一、总体要求", "chapter": true, "note": "中文数字 + 顿号"},
+    {"title": "3. 交付清单", "chapter": true, "note": "阿拉伯数字 + 点号"},
+    {"title": "1.2 建设目标，思路与路径", "chapter": true, "note": "含逗号但长度 <= 30，句子门放行后仍需编号"},
+    {"title": "（1）项目概述", "chapter": true, "note": "括号编号"},
+    {"title": "①总体架构", "chapter": true, "note": "圈号"},
+    {"title": "A. 附录清单", "chapter": false, "note": "字母列表标记不是章节号：与正文里的字母枚举无从区分"},
+    {"title": "B、服务方案", "chapter": false, "note": "字母列表标记（顿号）不是章节号"},
+    {"title": "a. 投标函", "chapter": false, "note": "小写字母列表标记不是章节号"},
+    {"title": "项目实施", "chapter": false, "note": "无编号的加粗小标题：可能是真实排版层级，但无序号可核对，不得充当「原文所在标题」"},
+    {"title": "应答片段摘要", "chapter": false, "note": "无编号小标题"},
+    {"title": "技术方案 1.2 先进性", "chapter": false, "note": "编号不在串首：正文提及，非章节标题"},
+    {"title": "因投标文件篇幅有限，如下仅展示部分西域成功对接案例188个以及部分系统对接。", "chapter": false, "note": "截图事故原文：正文句（句子门优先于编号门）"},
+    {"title": "双方需严格按期交付！", "chapter": false, "note": "感叹号句子"},
+    {"title": "13.2 建设计划，分三期推进；同时包含后续说明", "chapter": false, "note": "以编号开头但含分号：句子门先否决，证明两道门有先后"},
+    {"title": null, "chapter": false, "note": "空值不是章节"},
+    {"title": "", "chapter": false, "note": "空串不是章节"},
+    {"title": "   ", "chapter": false, "note": "空白不是章节"},
+    {"title": "1.", "chapter": false, "note": "只有编号没有标题文字：剥掉尾部点号后仅剩数字，指不到具体内容"},
+    {"title": "3、", "chapter": false, "note": "只有编号没有标题文字（顿号）"},
+    {"title": "13.2.1.", "chapter": false, "note": "点分编号但无标题文字"},
+    {"title": "第一章", "chapter": false, "note": "只有章节号没有标题文字"},
+    {"title": "第一节", "chapter": false, "note": "只有节号没有标题文字"},
+    {"title": "一、", "chapter": false, "note": "中文数字编号无标题文字"},
+    {"title": "（1）", "chapter": false, "note": "括号编号无标题文字"},
+    {"title": "①", "chapter": false, "note": "圈号无标题文字"},
+    {"title": "A.", "chapter": false, "note": "字母编号无标题文字"},
+    {"title": "第一章　", "chapter": false, "note": "全角空格边界（U+3000）：剥掉首尾分隔符后只剩编号"},
+    {"title": "　第一章 项目背景", "chapter": true, "note": "全角空格边界（U+3000）：首部全角空格剥掉后仍是「章节号 + 标题文字」——两侧字符类不一致会在此用例上分叉"}
+  ]
+}

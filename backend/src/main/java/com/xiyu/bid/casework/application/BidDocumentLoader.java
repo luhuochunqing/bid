@@ -30,7 +30,18 @@ import java.util.Optional;
 @Slf4j
 public class BidDocumentLoader {
 
-    public record BidDocument(String markdown, String documentName, Integer pageNumber) {}
+    /**
+     * 标书装载结果。
+     *
+     * @param markdown     标书正文；内容语义与既有实现一致（取不到正文时为占位文本或空串），
+     *                     既有调用方无需因 {@code available} 而改动
+     * @param documentName 标书文件名（可能为 null）
+     * @param pageNumber   逻辑页码（可能为 null）
+     * @param available    是否真的取到了标书正文（false = 无归档/无 BID 文件/读取失败/解析为空）。
+     *                     仅对需要判断"是否具证据价值"的调用方有意义（如存量来源回填）：
+     *                     false 时 markdown 不能作为"标书里没有这一节"的证据。
+     */
+    public record BidDocument(String markdown, String documentName, Integer pageNumber, boolean available) {}
 
     private final ProjectArchiveRepository archiveRepository;
     private final ArchiveFileRepository fileRepository;
@@ -40,7 +51,16 @@ public class BidDocumentLoader {
     private final SidecarStreamTextExtractor streamTextExtractor;
     private final TempBidFileStore tempBidFileStore;
 
-    public BidDocument loadBidDocument(ProjectClosedEvent event, Long projectId) {
+    /**
+     * 按项目 ID 装载标书正文（projectName 仅用于无标书文件时的占位文本）。
+     *
+     * @return 标书正文；<b>项目无归档时返回 null</b>；归档存在但取不到正文（无 BID 文件、读取失败、
+     *         解析为空）时返回 {@code available() == false} 的结果，其 {@code markdown} 为占位文本
+     *         或空串（内容与既有实现一致，未变更主链路语义）。需要判断来源是否可查证的调用方
+     *         （存量来源回填）必须看 {@code available()}：false 只说明来源不可查证，不等于
+     *         "标书里没有这一节"。
+     */
+    public BidDocument loadBidDocument(String projectName, Long projectId) {
         Optional<ProjectArchive> archiveOpt = archiveRepository.findByProjectId(projectId);
         if (archiveOpt.isEmpty()) {
             log.warn("No archive found for closed project: {}", projectId);
@@ -55,10 +75,10 @@ public class BidDocumentLoader {
                 .orElse(null);
 
         String fileName = bidFile != null ? bidFile.getFileName() : null;
-        String fallback = "# " + event.getProjectName() + "\n暂无标书正文。";
+        String fallback = "# " + projectName + "\n暂无标书正文。";
         String filePath = bidFile == null ? null : bidFile.getFilePath();
         if (filePath == null) {
-            return new BidDocument(fallback, fileName, null);
+            return new BidDocument(fallback, fileName, null, false);
         }
         String taskId = "case-" + projectId;
         try {
@@ -90,12 +110,12 @@ public class BidDocumentLoader {
                 ExtractedDocument doc = docTextExtractor.extract(mem.fileName(), mem.contentType(), mem.content());
                 String text = doc != null && doc.text() != null ? doc.text() : "";
                 Integer page = extractLogicalPageNumber(doc);
-                return new BidDocument(text, bidFile.getFileName(), page);
+                return new BidDocument(text, bidFile.getFileName(), page, hasText(text));
             }
             case LoadedBidFile.OnDisk disk -> {
                 try {
                     String text = streamTextExtractor.extract(disk.tempFile(), disk.fileName());
-                    return new BidDocument(text, bidFile.getFileName(), null);
+                    return new BidDocument(text, bidFile.getFileName(), null, hasText(text));
                 } catch (IOException | InterruptedException e) {
                     if (e instanceof InterruptedException) {
                         Thread.currentThread().interrupt();
@@ -114,13 +134,23 @@ public class BidDocumentLoader {
             byte[] fileBytes = Files.readAllBytes(Paths.get(filePath));
             ExtractedDocument doc = docTextExtractor.extract(
                     bidFile.getFileName(), "application/octet-stream", fileBytes);
+            // 正文取值与既有实现一致（null → 占位文本），不因本次新增 available 分量而改变主链路拿到的内容：
+            // 事件驱动的案例沉淀会把 markdown 交给 AI 提取，喂占位文本比喂空值更糟
             String text = doc != null && doc.text() != null ? doc.text() : fallback;
-            Integer page = extractLogicalPageNumber(doc);
-            return new BidDocument(text, bidFile.getFileName(), page);
+            // available 只看解析结果，不看最终 text——占位文本不是正文
+            boolean available = doc != null && hasText(doc.text());
+            if (!available) {
+                log.warn("本地标书解析为空，按文档不可用处理: {}", filePath);
+            }
+            return new BidDocument(text, bidFile.getFileName(), extractLogicalPageNumber(doc), available);
         } catch (RuntimeException | IOException e) {
-            log.error("读取本地标书失败，回退占位文本: {}", filePath, e);
-            return new BidDocument(fallback, bidFile.getFileName(), null);
+            log.error("读取本地标书失败，按文档不可用处理: {}", filePath, e);
+            return new BidDocument(fallback, bidFile.getFileName(), null, false);
         }
+    }
+
+    private static boolean hasText(String text) {
+        return text != null && !text.isBlank();
     }
 
     private Integer extractLogicalPageNumber(ExtractedDocument doc) {
