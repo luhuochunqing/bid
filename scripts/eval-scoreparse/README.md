@@ -35,7 +35,9 @@ backend/src/test/resources/scoreparse-golden/
 ├── case-misaligned-summary-row.md            错位合计行：多个纯数字单元格时仍识别整表总分
 ├── case-misaligned-summary-row.expected.json 对应金标标注（threshold 0.95，strictDim，expectTotal 100）
 ├── case-multi-table-tech-commercial.md       两张独立评分表（技术60/商务40）多表输入形态（spec 062）
-└── case-multi-table-tech-commercial.expected.json  对应金标标注（threshold 0.95，expectTotal 100）
+├── case-multi-table-tech-commercial.expected.json  对应金标标注（threshold 0.95，expectTotal 100）
+├── case-category-weight-noise-before-score.md 报价品类权重表前置噪声 + 正式评分表完整召回（spec 066）
+└── case-category-weight-noise-before-score.expected.json 对应金标标注（threshold 0.95，strictDim，expectTotal 100）
 ```
 
 ## 两层执行说明
