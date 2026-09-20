@@ -99,10 +99,11 @@ export function useQualityCheckDrawer(props, emit) {
   }
 
   async function loadLatestReport() {
-    backgroundRunning.value = false
     try {
       const res = await complianceApi.getBidQualityReport(props.projectId)
       if (res?.data) {
+        // 仅在拿到确定状态后才退出后台态：刷新等待期间保持提示，避免闪回"尚未执行"空白态
+        backgroundRunning.value = false
         if (res.data.status && res.data.status !== 'COMPLETED' && res.data.status !== 'FAILED') {
           errorMessage.value = ''
           startPolling(res.data.taskId)
@@ -119,6 +120,7 @@ export function useQualityCheckDrawer(props, emit) {
           await loadObjectiveScore()
         }
       } else {
+        backgroundRunning.value = false
         errorMessage.value = ''
         await triggerCheck(false)
       }

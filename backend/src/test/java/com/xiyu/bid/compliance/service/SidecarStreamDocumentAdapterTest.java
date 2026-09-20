@@ -166,7 +166,7 @@ class SidecarStreamDocumentAdapterTest {
             SidecarParseOutcome outcome = adapterFor(url, 1).convertDocument(file, "bid.pdf");
 
             assertThat(outcome.kind()).isEqualTo(SidecarParseOutcome.Kind.TIMEOUT);
-            assertThat(outcome.detail()).contains("等待上限");
+            assertThat(outcome.detail()).contains("未在").contains("MB");
             assertThat(outcome.retrySuggested()).isTrue();
         }
 
@@ -268,6 +268,51 @@ class SidecarStreamDocumentAdapterTest {
 
             assertThat(outcome.kind()).isEqualTo(SidecarParseOutcome.Kind.SERVICE_ERROR);
             assertThat(outcome.detail()).contains("临时文件不存在");
+        }
+    }
+
+    @Nested
+    @DisplayName("契约边界补强（S6 评审轮）")
+    class ContractEdgeTests {
+
+        @Test
+        @DisplayName("200 + 空响应体 → SERVICE_ERROR（R12：响应为空不是无文本层）")
+        void emptyBody_serviceError(@TempDir Path tempDir) throws IOException {
+            String url = startStub(200, "", 0);
+            Path file = writeFile(tempDir, "bid.pdf", "pdf-bytes");
+
+            SidecarParseOutcome outcome = adapterFor(url, 5).convertDocument(file, "bid.pdf");
+
+            assertThat(outcome.kind()).isEqualTo(SidecarParseOutcome.Kind.SERVICE_ERROR);
+            assertThat(outcome.detail()).contains("响应为空");
+        }
+
+        @Test
+        @DisplayName("401 → SERVICE_ERROR（R12 明列，认证失败不归因文档）")
+        void unauthorized_serviceError(@TempDir Path tempDir) throws IOException {
+            String url = startStub(401, "{\"detail\":\"auth\"}", 0);
+            Path file = writeFile(tempDir, "bid.pdf", "pdf-bytes");
+
+            SidecarParseOutcome outcome = adapterFor(url, 5).convertDocument(file, "bid.pdf");
+
+            assertThat(outcome.kind()).isEqualTo(SidecarParseOutcome.Kind.SERVICE_ERROR);
+            assertThat(outcome.retrySuggested()).isTrue();
+        }
+
+        @Test
+        @DisplayName("等待上限按原始文件路径判定（瘦身不降档锚点）且重复调用确定")
+        void limitSecondsFor_originalFileAndDeterministic(@TempDir Path tempDir) throws IOException {
+            Path small = writeFile(tempDir, "small.pdf", "small");
+            Path huge = tempDir.resolve("huge.pdf");
+            try (RandomAccessFile raf = new RandomAccessFile(huge.toFile(), "rw")) {
+                raf.setLength(60L * 1024 * 1024);
+            }
+            SidecarStreamDocumentAdapter adapter = adapterFor("http://127.0.0.1:1", 60);
+
+            assertThat(adapter.limitSecondsFor(small)).isEqualTo(60);
+            assertThat(adapter.limitSecondsFor(huge)).isEqualTo(330);
+            assertThat(adapter.limitSecondsFor(huge)).isEqualTo(adapter.limitSecondsFor(huge));
+            assertThat(adapter.limitSecondsFor(tempDir.resolve("missing.pdf"))).isEqualTo(300);
         }
     }
 }

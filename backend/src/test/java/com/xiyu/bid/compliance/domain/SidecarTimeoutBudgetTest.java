@@ -62,4 +62,11 @@ class SidecarTimeoutBudgetTest {
             previous = current;
         }
     }
+
+    @Test
+    @DisplayName("确定性：同一输入重复调用结果一致")
+    void deterministic() {
+        assertThat(SidecarTimeoutBudget.secondsFor(60, 441 * MB))
+                .isEqualTo(SidecarTimeoutBudget.secondsFor(60, 441 * MB));
+    }
 }

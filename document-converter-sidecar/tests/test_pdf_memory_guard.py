@@ -30,6 +30,10 @@ N_PAGES = 100
 # residency regression while leaving headroom for heavier production pages.
 PDF_PEAK_BUDGET_BYTES = 100 * 1024 * 1024
 BENCH_CHUNK_PAGES = "10"
+# Default-chunk profile budget (measured 182MB @100 pages on this fixture; spec 066 D4).
+# Guards the production default's residency; the O(chunk) mechanism guard above
+# stays pinned to a small chunk so it keeps exercising multiple open/close cycles.
+DEFAULT_CHUNK_PEAK_BUDGET_BYTES = 300 * 1024 * 1024
 
 
 @pytest.fixture()
@@ -103,6 +107,19 @@ def test_pdf_large_file_memory_bench(converter_module, monkeypatch):
         assert peak < PDF_PEAK_BUDGET_BYTES, (
             f"Peak memory {peak / (1024 * 1024):.2f}MB exceeded "
             f"{PDF_PEAK_BUDGET_BYTES / (1024 * 1024):.0f}MB budget"
+        )
+
+        # Production default (100 pages): residency must stay bounded and output identical.
+        monkeypatch.delenv("SIDECAR_PDF_CHUNK_PAGES", raising=False)
+        tracemalloc.start()
+        default_result = converter_module.convert_pdf_document(path)
+        _, default_peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        assert default_result["pages"] == result["pages"]
+        assert default_peak < DEFAULT_CHUNK_PEAK_BUDGET_BYTES, (
+            f"Default-chunk peak {default_peak / (1024 * 1024):.2f}MB exceeded "
+            f"{DEFAULT_CHUNK_PEAK_BUDGET_BYTES / (1024 * 1024):.0f}MB budget"
         )
     finally:
         if os.path.exists(path):
