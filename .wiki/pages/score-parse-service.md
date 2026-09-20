@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-09-18
-health_checked: 2026-09-18
+updated: 2026-09-20
+health_checked: 2026-09-20
 sources:
   - specs/065-tender-large-file-parse/spec.md
   - specs/041-ai-score-parse-backend/spec.md
@@ -28,6 +28,9 @@ sources:
   - backend/src/test/resources/scoreparse-golden/merged-parent-first-leaf-table-v2.json
   - backend/src/test/resources/scoreparse-golden/case-multi-table-tech-commercial.md
   - document-converter-sidecar/converter.py
+  - document-converter-sidecar/app.py
+  - document-converter-sidecar/README.md
+  - backend/src/main/resources/application.yml
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/GoldenCasesReplaySupport.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/ScoreParseRealCorpusRecorderTest.java
   - scripts/eval-scoreparse/record-real-corpus.sh
@@ -143,7 +146,8 @@ trigger（同步<1s，互斥校验+建任务）
   - **@Async 线程事务缺失（2026-08-17 T025 终验修复）**：打分成功/失败路径的 DELETE+INSERT 落库原直接调 `resultRepository`，在 `@Async` 线程（无事务上下文）抛 `TransactionRequiredException`。修复：抽 `ScoreResultOverwriter` 组件（`@Transactional replaceAtomically`），`ScoreScoringAppService` 只编排不落库——顺带满足行预算 300 拆分。陷阱细节见 spring-pitfalls §10.7。
 - **prompt 模板是 Formatter 格式串**：`ScoreParsePrompts` 的 text block 配 `.formatted()`，模板内字面 `%` 必须写 `%%`（如示例文案 `占30%%`），否则 `UnknownFormatConversionException` 且与输入无关 100% 必炸（2026-08-17 项目 225 线上事故，详见 lessons-learned §117；回归测试 `ScoreParsePromptsTest`）
 - **toCandidate 对 null section 必须降级**：召回一/三以 `null` section 调用 `toCandidate`，裸访问 `section.sectionTitle()` 即 NPE 全任务终止（2026-08-17 项目 226 事故，详见 §118；回归测试 `OpenAiScoreAnalyzerTest`）；新召回路或转换方法允许"无此数据"语义时必须显式处理 null 分支
-- **扫描件输入的失败文案**：sidecar 提取文本 <10 字符（`low_text_density` 警告）时四路召回必然空手，最终报"未识别到评分标准章节"——文案有误导性，真实原因是文件无文本层（扫描件/图片型 docx）；排查时先看 `markdownLength` 而不是怀疑解析逻辑
+  - **扫描件输入的失败文案**：sidecar 提取文本 <10 字符（`low_text_density` 警告）时四路召回必然空手，最终报"未识别到评分标准章节"——文案有误导性，真实原因是文件无文本层（扫描件/图片型 docx）；排查时先看 `markdownLength` 而不是怀疑解析逻辑
+- **生产大文件配额边界（2026-09-20，项目 1120）**：评分处理在 OBS 下载预检阶段按 `Content-Length` 拒绝 1,039,096,020 字节投标文件，生产默认 `512MiB` 小于文件约 `990.96MiB`，因此任务进入 FAILED，尚未进入解析算法。修复将 Java `app.score-parse.bid-file.max-file-bytes` 默认值提升为 `1GiB`（`1073741824`），并将 Sidecar 默认 `SIDECAR_MAX_UPLOAD_MB` 对齐为 `1024`；生产部署脚本当前显式使用 `3072MB`，两端配置必须保持兼容。`ram-buffer=50MiB`、临时文件总配额 `4GiB`、下载/提取超时 `600s`、异步任务超时 `30min` 保持不变。容量评估必须同时核对 JVM 可用内存、临时磁盘、Sidecar worker/cgroup 和超时，不能只提升单一字节阈值。
 - **前端抽屉：导入评分草稿/导出报告已下线（2026-08-17）**：`ScoreParseDrawer` 顶部操作栏（阶段标签 + 重新解析/导入评分草稿/导出报告）随功能取消整体删除。`useScoreParseDrawer` 的 `importToDrafts()`/`exportReport()`、`projects.js` 的 `importScoreDraftsFromAnalysis()`、`imported` emit 一并清理。重新解析入口保留三处：「招标文件解析」标题栏 / 错误重试 / 空态占位。注意：别再按 `importToDrafts` / `exportReport()` 这两个已删函数名检索。
 - **前端抽屉：两节副标题与打分范围单选已删（2026-08-18 客户验收反馈）**：「（规则提取与满足预判）」「（标书对标打分与引用建议）」副标题及重新打分左侧「全部/仅不满足/勾选」单选删除，`useScoreParseDrawer` 的 `scoringScope`/`selectedItemIds` 死状态一并清理，打分固定 `scope=ALL`（`runScoring` 仍支持 options 透传 scope/itemIds）。合计栏「客观项/主观项」标签改为「客观项权重/主观项权重」澄清语义——客户反馈"合计得分不对"实为权重合计被误读为得分，得分合计以高亮分值为准（阶段1 预计/阶段2 实际）。
 - **幽灵项三重根因与治理（2026-08-18 spec 046，project 212 权重 200 事故）**：LLM 把表头/汇总行当评分项召回（如 dim=detail="得分"、weight=100），去重不滤、权重校验只补漏不剔除，三项叠加导致落库权重合计 200。治理（三个 domain 纯函数，TDD 全覆盖）：
@@ -671,4 +675,3 @@ trigger（同步<1s，互斥校验+建任务）
 3. **前端人机协同交互（`ScoreCandidateReviewCard.vue` + `useScoreCandidateAdoption.js`）**：
    - 抽屉在 `scoreItems.length === 0 && candidateFacts.length > 0` 时，呈现候选细则卡片与 `[ ⚡ 一键采纳为正式评分标准 ]` 按钮；
    - 满足 300 行 line-budget 预算拆分。
-
