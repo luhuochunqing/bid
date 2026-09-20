@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// Input: document-converter-sidecar/{converter.py,app.py} + backend compliance SidecarStreamDocumentAdapter.java
+// Input: document-converter-sidecar/{converter.py,app.py} + backend compliance SidecarPayloadParser.java
 // Output: 同步比对报告到 stdout，exit 0 = 契约成立 / 1 = 漂移
 // Pos: scripts/ - Sidecar /convert 结构化 pages 字段跨语言契约守卫（PR !2492 防复发）
 // 维护声明: 若两侧字段改名/移位，同步更新本脚本的 PY_FILES / JAVA_FILE 与字段字面量表。
 //
 // check-pages-contract.mjs — /convert 响应 pages 字段跨语言契约守卫
 //
-// 背景: Java SidecarStreamDocumentAdapter 优先消费 /convert 响应的结构化 pages
+// 背景: Java SidecarPayloadParser（spec 066 自 SidecarStreamDocumentAdapter 拆出）优先消费 /convert 响应的结构化 pages
 // （[{pageNumber, text}]，PDF 物理页），缺省静默降级到虚拟分页兜底。降级是
 // 不报错的静默行为——若 Python 端字段改名/漏发，质量核查将无声退回"整篇 1 页"
 // 的旧行为（lessons #198 同源坑）。本脚本断言两端契约字面量同现。
@@ -28,7 +28,7 @@ const PY_FILES = [
 ];
 const JAVA_FILE = join(
   ROOT,
-  "backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java",
+  "backend/src/main/java/com/xiyu/bid/compliance/service/SidecarPayloadParser.java",
 );
 
 // 生产端（Python）：converter.py 产出 pages 元素键，app.py 响应字段
@@ -37,11 +37,11 @@ const PRODUCER_FIELDS = [
   { file: "converter.py", field: '"text"', label: "pages[].text 键" },
   { file: "app.py", field: '"pages"', label: "/convert 响应 pages 字段" },
 ];
-// 消费端（Java）：adapter 解析字段（JsonNode path 调用）
+// 消费端（Java）：SidecarPayloadParser 解析字段（JsonNode path 调用；spec 066 拆分后扫描目标随移）
 const CONSUMER_FIELDS = [
-  { file: "SidecarStreamDocumentAdapter.java", field: 'path("pages")', label: "pages 字段解析" },
-  { file: "SidecarStreamDocumentAdapter.java", field: 'path("pageNumber")', label: "pageNumber 解析" },
-  { file: "SidecarStreamDocumentAdapter.java", field: 'path("text")', label: "text 解析" },
+  { file: "SidecarPayloadParser.java", field: 'path("pages")', label: "pages 字段解析" },
+  { file: "SidecarPayloadParser.java", field: 'path("pageNumber")', label: "pageNumber 解析" },
+  { file: "SidecarPayloadParser.java", field: 'path("text")', label: "text 解析" },
 ];
 
 function readIfExists(path) {
@@ -66,7 +66,7 @@ function checkSide(name, fields, readFn) {
 const producerTextCache = new Map();
 const consumerTextCache = new Map();
 for (const f of PY_FILES) producerTextCache.set(f, readIfExists(f));
-consumerTextCache.set("SidecarStreamDocumentAdapter.java", readIfExists(JAVA_FILE));
+consumerTextCache.set("SidecarPayloadParser.java", readIfExists(JAVA_FILE));
 
 const producerMissing = checkSide(
   "生产端(Python)",
@@ -92,5 +92,5 @@ if (consumerMissing.length > 0) {
   console.error("[pages-contract] FAIL — 消费端(Java) 契约字段缺失:");
   for (const m of consumerMissing) console.error(`  - ${m}`);
 }
-console.error("修复: 恢复字段名，或两侧同步改名（ SidecarStreamDocumentAdapter.java + document-converter-sidecar/{converter.py,app.py} ）");
+console.error("修复: 恢复字段名，或两侧同步改名（ SidecarPayloadParser.java + document-converter-sidecar/{converter.py,app.py} ）");
 process.exit(1);
