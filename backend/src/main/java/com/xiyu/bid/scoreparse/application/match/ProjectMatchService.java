@@ -24,8 +24,7 @@ import java.util.Objects;
  * 项目业绩匹配（POST /api/knowledge/project/match，FR-010）。
  *
  * <p>规则：project_type/industry 命中 AND（signedAfter 空 OR signing_date ≥）
- * AND 金额条件（contract_amount 为 NULL 的存量行跳过金额比对不失配——research R7，
- * 金额语义在 Java 侧二次守卫保证可测）。
+ * AND 金额条件。要求金额时，缺失金额不能作为合格证据。
  */
 @Service
 @RequiredArgsConstructor
@@ -64,13 +63,16 @@ public class ProjectMatchService {
         List<ProjectMatchedItem> matched = repository.findAll(spec).stream()
                 .filter(row -> amountMatches(row.getContractAmount(), request.minContractAmount()))
                 .map(row -> new ProjectMatchedItem(row.getId(), row.getContractName(),
-                        displayName(row), row.getSigningDate(), row.getContractAmount()))
+                        displayName(row), row.getGroupCompany(),
+                        row.getCustomerType() == null ? null : row.getCustomerType().displayName(),
+                        row.getSigningDate(), row.getContractAmount()))
                 .toList();
         MatchTierPolicy.Outcome outcome = MatchTierPolicy.evaluate(
                 matched.size(), request.requiredCount(), false, false);
         return new KnowledgeMatchResult(outcome.tier(), outcome.matchRatio(), matched,
                 matched.isEmpty() ? "未命中符合条件的业绩"
-                        : "命中业绩 " + matched.size() + "/" + effectiveRequired(request.requiredCount()));
+                        : "命中业绩 " + matched.size() + "/" + effectiveRequired(request.requiredCount()),
+                matched.stream().map(row -> projectProof(row, request)).toList());
     }
 
     private static final java.util.Set<String> GENERIC_PROJECT_KEYWORDS = java.util.Set.of(
@@ -127,10 +129,33 @@ public class ProjectMatchService {
         };
     }
 
-    /** NULL 金额跳过比对不失配（存量数据）；非 NULL 时需 ≥ 下限。 */
+    /** 明确要求金额时，缺失金额不可证明满足条件。 */
     private static boolean amountMatches(BigDecimal contractAmount, BigDecimal minContractAmount) {
-        return minContractAmount == null || contractAmount == null
-                || contractAmount.compareTo(minContractAmount) >= 0;
+        return minContractAmount == null
+                || (contractAmount != null && contractAmount.compareTo(minContractAmount) >= 0);
+    }
+
+    private static KnowledgeMatchResult.RecordProof projectProof(ProjectMatchedItem row, ProjectMatchRequest request) {
+        List<KnowledgeMatchResult.ConditionProof> conditions = new ArrayList<>();
+        conditions.add(new KnowledgeMatchResult.ConditionProof("项目类型/行业",
+                row.projectType() == null ? "MISSING_EVIDENCE" : "PASS",
+                row.projectType() == null ? "业绩记录未提供项目类型或行业" : row.projectType()));
+        if (request.signedAfter() != null) {
+            conditions.add(new KnowledgeMatchResult.ConditionProof("签约日期不早于 " + request.signedAfter(),
+                    row.signingDate() != null && !row.signingDate().isBefore(request.signedAfter()) ? "PASS" : "FAIL",
+                    row.signingDate() == null ? "业绩记录未提供签约日期" : row.signingDate().toString()));
+        }
+        if (request.minContractAmount() != null) {
+            conditions.add(new KnowledgeMatchResult.ConditionProof("合同金额不少于 " + request.minContractAmount(),
+                    row.contractAmount() != null && row.contractAmount().compareTo(request.minContractAmount()) >= 0
+                            ? "PASS" : "FAIL",
+                    row.contractAmount() == null ? "业绩记录未提供合同金额" : row.contractAmount().toPlainString()));
+        }
+        conditions.add(new KnowledgeMatchResult.ConditionProof("客户",
+                row.customerName() == null && row.customerType() == null ? "MISSING_EVIDENCE" : "PASS",
+                row.customerName() != null ? row.customerName()
+                        : row.customerType() != null ? row.customerType() : "业绩记录未提供客户信息"));
+        return new KnowledgeMatchResult.RecordProof("PROJECT", String.valueOf(row.id()), row.contractName(), conditions);
     }
 
     private static final java.util.Set<String> CENTRAL_SOE_TERMS = java.util.Set.of("央企", "中央企业", "中央金融企业");

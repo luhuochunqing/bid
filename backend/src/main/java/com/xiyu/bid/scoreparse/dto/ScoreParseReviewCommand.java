@@ -14,7 +14,15 @@ public record ScoreParseReviewCommand(
             String factId,
             String action,
             BigDecimal adjustedWeight,
-            String reason
+            String reason,
+            String adjustedCode,
+            String adjustedDimension,
+            String adjustedSourceText,
+            String adjustedParentFactId,
+            String adjustedScoreType
     ) {
+        public Action(String factId, String action, BigDecimal adjustedWeight, String reason) {
+            this(factId, action, adjustedWeight, reason, null, null, null, null, null);
+        }
     }
 }

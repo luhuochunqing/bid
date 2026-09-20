@@ -1,5 +1,7 @@
 package com.xiyu.bid.scoreparse.application;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.scoreparse.dto.ScoreParseReviewCommand;
 import com.xiyu.bid.scoreparse.dto.ScoreParseReviewDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseEvidence;
@@ -36,6 +38,7 @@ public class ScoreParseReviewAppService {
     private static final List<String> ANY_STATUS = List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED");
     private static final Set<String> ALLOWED_ACTIONS = Set.of(
             "RETAIN_ORIGINAL", "MANUAL_ADJUST", "EXCLUDE", "ADOPT_CANDIDATES");
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreParseFactRepository factRepository;
@@ -67,6 +70,7 @@ public class ScoreParseReviewAppService {
                 task.getReviewReason(),
                 task.getPipelineVersion(),
                 task.getArtifactSha256(),
+                declaredTotal(task),
                 facts.stream()
                         .sorted(Comparator.comparing(ScoreParseFact::getId))
                         .map(fact -> toFactDTO(fact, evidenceByFactId.getOrDefault(fact.getFactId(), List.of())))
@@ -136,11 +140,13 @@ public class ScoreParseReviewAppService {
     ) {
         java.util.Set<String> selectedFactIds = new java.util.LinkedHashSet<>();
         java.util.Map<String, BigDecimal> adjustedWeights = new java.util.LinkedHashMap<>();
+        java.util.Map<String, ScoreParseReviewCommand.Action> edits = new java.util.LinkedHashMap<>();
 
         for (ScoreParseReviewCommand.Action a : actions) {
             if (a == null) continue;
             if (a.factId() != null && !a.factId().isBlank()) {
                 selectedFactIds.add(a.factId().trim());
+                edits.put(a.factId().trim(), a);
                 if (a.adjustedWeight() != null) {
                     adjustedWeights.put(a.factId().trim(), a.adjustedWeight());
                 }
@@ -148,14 +154,19 @@ public class ScoreParseReviewAppService {
         }
 
         List<com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput> inputs = facts.stream()
-                .map(f -> new com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput(
-                        f.getFactId(), f.getCode(), f.getDimension(), f.getWeight(), f.getSourceText(), f.getParentFactId()))
+                .map(f -> toCandidateInput(f, edits.get(f.getFactId())))
                 .toList();
 
         com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.AdoptionResult result =
                 adoptionPolicy.adopt(inputs, selectedFactIds, adjustedWeights);
         if (!result.success()) {
             throw new IllegalStateException(result.errorMessage());
+        }
+        BigDecimal declaredTotal = declaredTotal(task);
+        if (declaredTotal == null) throw new IllegalStateException("招标文件存在多个冲突的声明总分，请人工确认分表后再采纳");
+        if (result.totalWeight().compareTo(declaredTotal) != 0) {
+            throw new IllegalStateException("修正后的叶子评分项合计必须为" + declaredTotal
+                    + "分，当前为" + result.totalWeight() + "分");
         }
 
         if (itemPersistenceService != null) {
@@ -186,21 +197,64 @@ public class ScoreParseReviewAppService {
                 .operatorName(normalizeOperatorName(operatorName))
                 .build());
     }
-
+    private com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput toCandidateInput(
+            ScoreParseFact fact, ScoreParseReviewCommand.Action edit) {
+        return new com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput(
+                fact.getFactId(), prefer(edit == null ? null : edit.adjustedCode(), fact.getCode()),
+                prefer(edit == null ? null : edit.adjustedDimension(), fact.getDimension()), fact.getWeight(),
+                prefer(edit == null ? null : edit.adjustedSourceText(), fact.getSourceText()),
+                prefer(edit == null ? null : edit.adjustedParentFactId(), fact.getParentFactId()),
+                edit == null ? null : edit.adjustedScoreType());
+    }
+    private String prefer(String adjusted, String original) {
+        return adjusted == null ? original : adjusted;
+    }
+    static BigDecimal declaredTotal(ScoreParseTask task) {
+        if (task != null && task.getRunSummary() != null && !task.getRunSummary().isBlank()) {
+            try {
+                JsonNode splits = JSON.readTree(task.getRunSummary()).path("tableSplits");
+                if (splits.isArray() && !splits.isEmpty()) {
+                    if (splits.size() == 1) return numericTotal(splits.get(0));
+                    BigDecimal total = BigDecimal.ZERO;
+                    for (JsonNode split : splits) {
+                        if ("NO_DECLARED_TOTAL".equals(split.path("tableId").asText())) {
+                            return null;
+                        }
+                        JsonNode value = split.get("declaredTotal");
+                        if (value == null || !value.isNumber()) {
+                            return null;
+                        }
+                        total = total.add(value.decimalValue());
+                    }
+                    return total;
+                }
+            } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) {
+                log.warn("解析任务声明总分失败，按100分闭合: taskId={}", task.getTaskId());
+            }
+        }
+        return BigDecimal.valueOf(100);
+    }
+    private static BigDecimal numericTotal(JsonNode split) {
+        JsonNode value = split.get("declaredTotal");
+        return value != null && value.isNumber() ? value.decimalValue() : null;
+    }
     private ScoreParseTask latestParseTask(Long projectId) {
         return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, TASK_TYPE_PARSE, ANY_STATUS)
                 .stream()
                 .max(Comparator.comparing(ScoreParseTask::getId))
                 .orElseThrow(() -> new IllegalStateException("项目无解析任务: " + projectId));
     }
-
     private ScoreParseReviewDTO.Fact toFactDTO(ScoreParseFact fact, List<ScoreParseEvidence> evidences) {
         return new ScoreParseReviewDTO.Fact(
                 fact.getFactId(),
                 fact.getCode(),
                 fact.getDimension(),
                 fact.getWeight(),
+                new com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy().classify(fact.getSourceText()),
                 fact.getValidationStatus(),
+                evidences.stream().map(ScoreParseEvidence::getExplanation)
+                        .filter(java.util.Objects::nonNull).filter(message -> !message.isBlank())
+                        .distinct().collect(Collectors.joining("；")),
                 fact.getSourceText(),
                 fact.getSourceCellIds(),
                 fact.getWeightEvidence(),
@@ -218,7 +272,6 @@ public class ScoreParseReviewAppService {
                                 evidence.getExplanation()))
                         .toList());
     }
-
     private ScoreParseReviewDTO.Audit toAuditDTO(ScoreParseReview review) {
         return new ScoreParseReviewDTO.Audit(
                 review.getFactId(),
@@ -230,21 +283,17 @@ public class ScoreParseReviewAppService {
                 review.getOperatorName(),
                 review.getCreatedAt());
     }
-
     private String normalizeAction(String action) {
         return action == null ? "" : action.trim().toUpperCase();
     }
-
     private String normalizeReason(String reason, String fallback) {
         String value = reason == null ? "" : reason.trim();
         return value.isEmpty() ? fallback : value;
     }
-
     private String normalizeOperatorName(String operatorName) {
         String value = operatorName == null ? "" : operatorName.trim();
         return value.isEmpty() ? "unknown" : value;
     }
-
     private BigDecimal normalizeWeight(BigDecimal weight) {
         return weight == null ? null : weight.stripTrailingZeros();
     }

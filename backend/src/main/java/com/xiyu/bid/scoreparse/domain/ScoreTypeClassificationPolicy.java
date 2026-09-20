@@ -20,21 +20,17 @@ import java.util.regex.Pattern;
  */
 public class ScoreTypeClassificationPolicy {
 
-    /** 报价类关键词（价格分由评标基准价公式计算，非知识库可预计） */
-    private static final Pattern PRICE_PATTERN = Pattern.compile(
-            "投标报价|报价|评标基准价|价格分|偏离率");
-
     /** 量化条件特征：证书/认证/资质门槛、每单位计分、年限/面积门槛 */
     private static final Pattern QUANTIFIED_PATTERN = Pattern.compile(
             "(认证|证书|资质)"                                  // 证书/资质门槛
             + "|每(提供|人|个|项|套)"                           // 每单位计分
-            + "|[0-9０-９]+\\s*(年以上|㎡以上|平方米以上|千瓦以上|台以上)" // 数量门槛
-            + "|持有"                                           // 持证类
+            + "|[0-9０-９]+\\s*(年以上|㎡以上|平方米以上|千瓦以上|台以上|万元以上|亿元以上|日前|日后)"
+            + "|持有|销售额|金额|数量|有效期|日期|公式|基准价|偏离率|折扣率|起订额|信用额度"
     );
 
     /** 描述性要求特征 */
     private static final Pattern DESCRIPTIVE_PATTERN = Pattern.compile(
-            "先进|合理|可行|酌情|视情况|可操作|完整性强|科学性|优[良秀]的|一般的|较强|完好|理解深刻|贴合");
+            "横向比较|综合比较|先进|合理|可行|酌情|视情况|可操作|完整性强|科学性|优[良秀]?|中等|一般|较强|完好|理解深刻|贴合");
 
     public String classify(String detail) {
         return classify(detail, null);
@@ -44,28 +40,21 @@ public class ScoreTypeClassificationPolicy {
         if (detail == null || detail.isBlank()) {
             return "SUBJECTIVE";
         }
-        // 1. 报价类强制覆盖为主观（PRD 业务规则优先：基准价公式计算，知识库不可预测）
-        if (PRICE_PATTERN.matcher(detail).find()) {
+        // 明确主观评价措辞优先，数字区间本身不能把横向评价改判为客观。
+        if (DESCRIPTIVE_PATTERN.matcher(detail).find()) {
             return "SUBJECTIVE";
         }
-        // 2. AI 结构化判定优先（R025）
+        // 明确可验证条件优先于模型猜测；报价公式属于可计算客观项。
+        if (QUANTIFIED_PATTERN.matcher(detail).find()
+                || Pattern.compile("(具备|提供|满足|达到).{0,40}[0-9０-９]+").matcher(detail).find()) {
+            return "OBJECTIVE";
+        }
+        // 模型值仅用于没有明确规则信号的文本。
         if (scoreTypeGuess != null && !scoreTypeGuess.isBlank()) {
             String normalized = scoreTypeGuess.trim().toUpperCase();
             if ("OBJECTIVE".equals(normalized) || "SUBJECTIVE".equals(normalized)) {
                 return normalized;
             }
-        }
-        // 3. 量化条件规则兜底 → 客观
-        if (QUANTIFIED_PATTERN.matcher(detail).find()) {
-            return "OBJECTIVE";
-        }
-        // 4. 描述性要求规则兜底 → 主观
-        if (DESCRIPTIVE_PATTERN.matcher(detail).find()) {
-            return "SUBJECTIVE";
-        }
-        // 5. 条件式给分兜底（具备/提供/满足 + 数字 + 分）→ 客观
-        if (Pattern.compile("(具备|提供|满足|达到).{0,40}[0-9０-９]+").matcher(detail).find()) {
-            return "OBJECTIVE";
         }
         return "SUBJECTIVE";
     }

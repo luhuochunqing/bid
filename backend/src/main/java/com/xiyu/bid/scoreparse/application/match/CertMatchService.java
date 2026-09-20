@@ -31,6 +31,9 @@ public class CertMatchService {
     private final BusinessQualificationJpaRepository repository;
 
     public KnowledgeMatchResult match(CertMatchRequest request) {
+        if (request == null) {
+            return KnowledgeMatchResult.empty("请求参数为空");
+        }
         LocalDate today = LocalDate.now();
         LocalDate validCheckDate = request.requireValidUntil() != null ? request.requireValidUntil() : today;
         List<CertMatchedItem> matched = repository.findAll(specificationOf(request)).stream()
@@ -38,10 +41,30 @@ public class CertMatchService {
                         row.getExpiryDate(), isExpired(row, validCheckDate)))
                 .toList();
         boolean anyExpired = matched.stream().anyMatch(CertMatchedItem::expired);
+        boolean anyMissingExpiry = matched.stream().anyMatch(row -> row.expiryDate() == null);
         MatchTierPolicy.Outcome outcome = MatchTierPolicy.evaluate(
-                matched.size(), request.requiredCount(), anyExpired, false);
+                matched.size(), request.requiredCount(), anyExpired || anyMissingExpiry, false);
         return new KnowledgeMatchResult(outcome.tier(), outcome.matchRatio(), matched,
-                buildDetail(matched.size(), anyExpired));
+                buildDetail(matched.size(), anyExpired),
+                matched.stream().map(row -> certProof(row, request, validCheckDate)).toList());
+    }
+
+    private static KnowledgeMatchResult.RecordProof certProof(
+            CertMatchedItem row, CertMatchRequest request, LocalDate validCheckDate) {
+        List<KnowledgeMatchResult.ConditionProof> conditions = new ArrayList<>();
+        conditions.add(new KnowledgeMatchResult.ConditionProof("证书名称关键词",
+                StringUtils.hasText(row.name()) ? "PASS" : "MISSING_EVIDENCE",
+                StringUtils.hasText(row.name()) ? row.name() : "证书记录未提供名称"));
+        if (StringUtils.hasText(request.requiredLevel())) {
+            conditions.add(new KnowledgeMatchResult.ConditionProof("证书等级包含 " + request.requiredLevel().trim(),
+                    StringUtils.hasText(row.level()) && row.level().contains(request.requiredLevel().trim()) ? "PASS" : "FAIL",
+                    StringUtils.hasText(row.level()) ? row.level() : "证书记录未提供等级"));
+        }
+        conditions.add(new KnowledgeMatchResult.ConditionProof("有效期不少于 " + validCheckDate,
+                row.expired() ? "FAIL" : row.expiryDate() == null ? "MISSING_EVIDENCE" : "PASS",
+                row.expiryDate() == null ? "证书记录未提供到期日"
+                        : row.expiryDate().toString()));
+        return new KnowledgeMatchResult.RecordProof("CERT", String.valueOf(row.id()), row.name(), conditions);
     }
 
     private Specification<BusinessQualificationEntity> specificationOf(CertMatchRequest request) {

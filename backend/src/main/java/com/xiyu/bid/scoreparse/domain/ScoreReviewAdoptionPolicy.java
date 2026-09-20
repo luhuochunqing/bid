@@ -19,14 +19,20 @@ public final class ScoreReviewAdoptionPolicy {
             String dimension,
             BigDecimal weight,
             String sourceText,
-            String parentFactId
+            String parentFactId,
+            String scoreType
     ) {
+        public CandidateInput(String factId, String code, String dimension, BigDecimal weight,
+                              String sourceText, String parentFactId) {
+            this(factId, code, dimension, weight, sourceText, parentFactId, null);
+        }
         public CandidateInput {
             factId = factId == null ? "" : factId.trim();
             code = code == null ? "" : code.trim();
             dimension = dimension == null ? "" : dimension.trim();
             sourceText = sourceText == null ? "" : sourceText.trim();
             parentFactId = parentFactId == null ? "" : parentFactId.trim();
+            scoreType = scoreType == null ? "" : scoreType.trim().toUpperCase();
         }
     }
 
@@ -107,7 +113,8 @@ public final class ScoreReviewAdoptionPolicy {
                     dim,
                     detail,
                     effectiveWeight,
-                    "OBJECTIVE",
+                    "OBJECTIVE".equals(fact.scoreType()) || "SUBJECTIVE".equals(fact.scoreType())
+                            ? fact.scoreType() : new ScoreTypeClassificationPolicy().classify(detail),
                     "",
                     fact.sourceText(),
                     "",

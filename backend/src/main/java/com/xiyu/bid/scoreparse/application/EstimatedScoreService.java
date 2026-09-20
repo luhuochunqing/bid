@@ -176,6 +176,16 @@ public class EstimatedScoreService {
                 .append(label).append("，tier=").append(match.tier())
                 .append("，比例=").append(match.matchRatio()).append("%）：")
                 .append(match.matchDetail());
+        if (!match.proofs().isEmpty()) {
+            basis.append("；逐记录证明：");
+            match.proofs().forEach(proof -> {
+                basis.append("[").append(proof.recordType()).append("#").append(proof.recordId())
+                        .append(" ").append(proof.recordName()).append(": ");
+                proof.conditions().forEach(condition -> basis.append(condition.condition()).append("=")
+                        .append(condition.status()).append("(").append(condition.evidence()).append(");"));
+                basis.append("]");
+            });
+        }
         if (flagged) {
             basis.append("；命中记录含过期/即将到期标记，需更新证书或人工补充说明");
         }

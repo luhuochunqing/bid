@@ -557,7 +557,7 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.reviewRequired.value).toBe(false)
   })
 
-  it('filters candidateFacts with weight > 0 and calculates candidateTotalWeight', async () => {
+  it('keeps the complete candidate fact set and calculates leaf total weight', async () => {
     scoreParseApi.getItems.mockResolvedValue({
       data: {
         items: [],
@@ -578,7 +578,7 @@ describe('useScoreParseDrawer.js', () => {
     const drawer = useScoreParseDrawer(props, emit)
     await drawer.open({ stage: 1, autoScore: false, autoParse: false })
 
-    expect(drawer.candidateFacts.value).toHaveLength(2)
+    expect(drawer.candidateFacts.value).toHaveLength(3)
     expect(drawer.candidateTotalWeight.value).toBe(100)
   })
 

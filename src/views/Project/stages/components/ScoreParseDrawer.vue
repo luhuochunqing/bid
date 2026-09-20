@@ -77,9 +77,10 @@
               v-if="scoreItems.length === 0 && candidateFacts.length > 0"
               :candidate-facts="candidateFacts"
               :candidate-total-weight="candidateTotalWeight"
+              :declared-total-weight="declaredTotalWeight"
               :is-adopting-candidates="isAdoptingCandidates"
               :reparse-disabled="loading || scoringOverlayVisible"
-              @adopt="adoptCandidateFacts()"
+              @adopt="adoptCandidateFacts"
               @reparse="reparse"
             />
 
@@ -215,7 +216,7 @@ const {
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
   decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason,
-  candidateFacts, candidateTotalWeight, isAdoptingCandidates, adoptCandidateFacts,
+  candidateFacts, candidateTotalWeight, declaredTotalWeight, isAdoptingCandidates, adoptCandidateFacts,
 } = useScoreParseDrawer(props, emit)
 
 defineExpose({ open, runScoring, scoringOverlayVisible, loading })

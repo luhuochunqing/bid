@@ -17,27 +17,31 @@ export function useScoreCandidateAdoption({
 }) {
   const isAdoptingCandidates = ref(false)
 
-  const parentIds = computed(() => {
-    return new Set(reviewFacts.value.map((f) => f.parentFactId).filter(Boolean))
-  })
-
-  const candidateFacts = computed(() => {
-    return reviewFacts.value.filter(
-      (f) => Number(f.weight) > 0 && !parentIds.value.has(f.factId)
-    )
-  })
+  const candidateFacts = computed(() => reviewFacts.value)
 
   const candidateTotalWeight = computed(() => {
-    const sum = candidateFacts.value.reduce((acc, f) => acc + (Number(f.weight) || 0), 0)
+    const parentIds = new Set(reviewFacts.value.map((f) => f.parentFactId).filter(Boolean))
+    const sum = reviewFacts.value
+      .filter((f) => !parentIds.has(f.factId))
+      .reduce((acc, f) => acc + (Number(f.weight) || 0), 0)
     return Math.round(sum * 100) / 100
   })
 
-  async function adoptCandidateFacts(selectedFactIds = []) {
+  async function adoptCandidateFacts(editedFacts = []) {
     if (isAdoptingCandidates.value) return
     isAdoptingCandidates.value = true
     try {
-      const actions = selectedFactIds.length > 0
-        ? selectedFactIds.map((id) => ({ factId: id, action: 'ADOPT_CANDIDATES' }))
+      const actions = editedFacts.length > 0
+        ? editedFacts.map((fact) => ({
+            factId: fact.factId,
+            action: 'ADOPT_CANDIDATES',
+            adjustedWeight: Number(fact.weight),
+            adjustedCode: fact.code,
+            adjustedDimension: fact.dimension,
+            adjustedSourceText: fact.sourceText,
+            adjustedParentFactId: fact.parentFactId || '',
+            adjustedScoreType: fact.scoreType,
+          }))
         : [{ action: 'ADOPT_CANDIDATES', reason: '一键采纳所有候选有效评分项' }]
 
       const res = await scoreParseApi.submitReview(props.projectId, {
@@ -61,6 +65,12 @@ export function useScoreCandidateAdoption({
   return {
     candidateFacts,
     candidateTotalWeight,
+    declaredTotalWeight: computed(() => {
+      const raw = reviewSnapshot.value?.declaredTotal
+      if (raw === null || raw === undefined || raw === '') return null
+      const parsed = Number(raw)
+      return Number.isFinite(parsed) ? parsed : null
+    }),
     isAdoptingCandidates,
     adoptCandidateFacts,
   }

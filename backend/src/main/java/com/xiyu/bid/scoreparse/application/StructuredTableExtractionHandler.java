@@ -26,10 +26,8 @@ import java.util.Optional;
 
 @Slf4j
 final class StructuredTableExtractionHandler {
-
     private StructuredTableExtractionHandler() {
     }
-
     static StructuredTableResult extract(TenderTextSource source,
                                           LoadedBidFile loaded,
                                           SidecarDocumentArtifactExtractor artifactExtractor,
@@ -62,7 +60,14 @@ final class StructuredTableExtractionHandler {
             return StructuredTableResult.structureIncomplete("STRUCTURE_DEFECT");
         }
     }
-
+    static StructuredTableResult extract(TenderTextSource source,
+                                          LoadedBidFile loaded,
+                                          SidecarDocumentArtifactExtractor artifactExtractor,
+                                          MultimodalScoreFactExtractor multimodalExtractor,
+                                          SidecarImageExtractor imageExtractor) {
+        return MultimodalStructuredExtractionHandler.extract(source, loaded, artifactExtractor,
+                multimodalExtractor, imageExtractor);
+    }
     static StructuredTableResult extract(TenderTextSource source,
                                           InitiationTenderTextResolver textResolver,
                                           SidecarDocumentArtifactExtractor artifactExtractor,
@@ -76,7 +81,6 @@ final class StructuredTableExtractionHandler {
             }
         }
     }
-
     private static boolean supportsStructuredEvidence(String fileName) {
         if (fileName == null) {
             return false;

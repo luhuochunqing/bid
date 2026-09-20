@@ -10,7 +10,13 @@ public record ProjectMatchedItem(
         Long id,
         String contractName,
         String projectType,
+        String customerName,
+        String customerType,
         LocalDate signingDate,
         BigDecimal contractAmount
 ) {
+    public ProjectMatchedItem(Long id, String contractName, String projectType,
+                              LocalDate signingDate, BigDecimal contractAmount) {
+        this(id, contractName, projectType, null, null, signingDate, contractAmount);
+    }
 }

@@ -68,7 +68,12 @@ class _RawImage(NamedTuple):
     height: int
 
 
-def extract_images(path: str, max_image_bytes: int | None = None) -> dict[str, Any]:
+def extract_images(
+    path: str,
+    max_image_bytes: int | None = None,
+    render_pages: bool = False,
+    page_numbers: set[int] | None = None,
+) -> dict[str, Any]:
     """Extract images with section attribution from a document file.
 
     Returns the contract payload: {"images": [...], "truncated": bool,
@@ -88,7 +93,9 @@ def extract_images(path: str, max_image_bytes: int | None = None) -> dict[str, A
     elif extension == ".pptx":
         raw_images, warnings = _extract_pptx(path)
     elif extension == ".pdf":
-        raw_images, warnings = _extract_pdf(path)
+        raw_images, warnings = (
+            _render_pdf_pages(path, page_numbers) if render_pages else _extract_pdf(path)
+        )
     else:
         return {"images": [], "truncated": False, "warnings": []}
 
@@ -236,6 +243,30 @@ def _extract_pdf(path: str) -> tuple[list[_RawImage], list[str]]:
                     continue
                 mime, width, height = meta
                 images.append(_RawImage(data, mime, section, page_hint, width, height))
+        return images, warnings
+    finally:
+        document.close()
+
+
+def _render_pdf_pages(
+    path: str, page_numbers: set[int] | None
+) -> tuple[list[_RawImage], list[str]]:
+    """Render requested PDF pages as PNG evidence; page numbers are one-based."""
+    document = pymupdf.open(path)
+    try:
+        selected = page_numbers or set(range(1, len(document) + 1))
+        images: list[_RawImage] = []
+        warnings: list[str] = []
+        for page_number in sorted(selected):
+            if page_number < 1 or page_number > len(document):
+                warnings.append(f"跳过越界页码：{page_number}")
+                continue
+            page = document[page_number - 1]
+            pixmap = page.get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5), alpha=False)
+            images.append(_RawImage(
+                pixmap.tobytes("png"), "image/png", None, page_number,
+                pixmap.width, pixmap.height,
+            ))
         return images, warnings
     finally:
         document.close()

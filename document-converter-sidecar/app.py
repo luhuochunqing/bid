@@ -548,6 +548,8 @@ async def convert_document_stream(
 async def convert_document_images(
     file: UploadFile,
     x_sidecar_key: str | None = Header(default=None),
+    renderPages: bool = False,
+    pages: str | None = None,
 ) -> dict[str, Any]:
     """Extract embedded images with section attribution from an uploaded document (spec 048).
 
@@ -582,7 +584,13 @@ async def convert_document_images(
                 tmp.write(chunk)
 
         try:
-            return extract_images(tmp_path)
+            page_numbers = None
+            if pages:
+                try:
+                    page_numbers = {int(value) for value in pages.split(",") if value.strip()}
+                except ValueError as error:
+                    raise HTTPException(status_code=400, detail="pages 必须是逗号分隔的正整数") from error
+            return extract_images(tmp_path, render_pages=renderPages, page_numbers=page_numbers)
         except Exception:
             logger.exception("Image extraction failed for file %s", file.filename)
             return JSONResponse(status_code=422, content={"error": "文档无法解析：格式不支持或已损坏"})

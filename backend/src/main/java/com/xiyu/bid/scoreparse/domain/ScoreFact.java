@@ -99,7 +99,7 @@ public record ScoreFact(
             return Optional.empty();
         }
         return Optional.of(new ScoreCandidate(
-                code, dimension, sourceText, weight, null, null,
+                code, dimension, sourceText, weight, new ScoreTypeClassificationPolicy().classify(sourceText), null,
                 sourceText, extractionMethod, "EVIDENCE_PIPELINE"));
     }
 

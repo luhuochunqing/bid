@@ -273,6 +273,7 @@ export function useScoreParseDrawer(props, emit) {
   const {
     candidateFacts,
     candidateTotalWeight,
+    declaredTotalWeight,
     isAdoptingCandidates,
     adoptCandidateFacts,
   } = useScoreCandidateAdoption({
@@ -293,6 +294,6 @@ export function useScoreParseDrawer(props, emit) {
     decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason, fallbackReason, pipelineVersion, artifactSha256,
     reviewRequired, reviewSnapshot, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewSubmitted, reviewError,
     loadReviewSnapshotIfNeeded, submitReviewRetention,
-    candidateFacts, candidateTotalWeight, isAdoptingCandidates, adoptCandidateFacts,
+    candidateFacts, candidateTotalWeight, declaredTotalWeight, isAdoptingCandidates, adoptCandidateFacts,
   }
 }

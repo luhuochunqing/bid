@@ -67,16 +67,15 @@ public class ScoreParseAppService {
     private final ObjectProvider<LlmTableScoreExtractor> llmTableScoreExtractorProvider;
     private final ObjectProvider<ScoreTableSchemaMapper> schemaMapperProvider;
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
-
     /** 自身代理（解决 @Async 自调用失效）；@Lazy 避免循环依赖 */
     @Lazy
     @Autowired
     private ScoreParseAppService self;
-
+    @Autowired(required = false) private MultimodalScoreFactExtractor multimodalScoreFactExtractor;
+    @Autowired(required = false) private SidecarImageExtractor sidecarImageExtractor;
     public ScoreParseTriggerDTO triggerParse(Long projectId) {
         return triggerParse(projectId, "MANUAL");
     }
-
     public ScoreParseTriggerDTO triggerParse(Long projectId, String source) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         return triggerParseInternal(projectId, "AUTO".equalsIgnoreCase(source) ? "AUTO" : "MANUAL");
@@ -160,10 +159,12 @@ public class ScoreParseAppService {
             taskRepository.save(task);
             updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
 
-            var structuredCandidates = StructuredTableExtractionHandler.extract(
-                    source, intake.loaded(),
-                    artifactExtractorProvider == null ? null : artifactExtractorProvider.getIfAvailable(),
-                    sidecarTableExtractor);
+            SidecarDocumentArtifactExtractor artifactExtractor = artifactExtractorProvider == null
+                    ? null : artifactExtractorProvider.getIfAvailable();
+            var structuredCandidates = multimodalScoreFactExtractor == null
+                    ? StructuredTableExtractionHandler.extract(source, intake.loaded(), artifactExtractor, sidecarTableExtractor)
+                    : StructuredTableExtractionHandler.extract(source, intake.loaded(), artifactExtractor,
+                            multimodalScoreFactExtractor, sidecarImageExtractor);
             if (structuredCandidates.structureIncomplete()) {
                 StructuredTableExtractionHandler.markIncomplete(task, taskId, structuredCandidates.failureReason(),
                         taskRepository, stateService, progressService);

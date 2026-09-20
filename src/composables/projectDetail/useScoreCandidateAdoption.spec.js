@@ -45,7 +45,7 @@ describe('useScoreCandidateAdoption.js', () => {
     fetchAnalysisData = vi.fn().mockResolvedValue()
   })
 
-  it('candidateFacts 应正确过滤出分值大于0的有效项', () => {
+  it('candidateFacts 应展示包括零分项在内的完整候选', () => {
     const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
       props,
       reviewFacts,
@@ -55,12 +55,22 @@ describe('useScoreCandidateAdoption.js', () => {
       fetchAnalysisData,
     })
 
-    expect(candidateFacts.value).toHaveLength(2)
-    expect(candidateFacts.value.map((f) => f.factId)).toEqual(['f1', 'f2'])
+    expect(candidateFacts.value).toHaveLength(3)
+    expect(candidateFacts.value.map((f) => f.factId)).toEqual(['f1', 'f2', 'f3'])
     expect(candidateTotalWeight.value).toBe(40)
   })
 
-  it('candidateFacts 应排除被引用的父项汇总，仅保留末级细则叶子项且总分不含父项', () => {
+  it('declaredTotal 缺失时保留待确认状态，不伪装成100分', () => {
+    const { declaredTotalWeight } = useScoreCandidateAdoption({
+      props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
+    })
+
+    expect(declaredTotalWeight.value).toBeNull()
+    reviewSnapshot.value = { ...reviewSnapshot.value, declaredTotal: 80 }
+    expect(declaredTotalWeight.value).toBe(80)
+  })
+
+  it('candidateFacts 展示父子全量事实，但总分只统计叶子项', () => {
     reviewFacts.value = [
       { factId: 'p1', code: '', dimension: '商务部分', weight: 30, sourceText: '商务部分汇总' },
       { factId: 'c1', code: '1', dimension: '企业业绩', weight: 6, sourceText: '业绩细则', parentFactId: 'p1' },
@@ -75,8 +85,8 @@ describe('useScoreCandidateAdoption.js', () => {
       fetchAnalysisData,
     })
 
-    expect(candidateFacts.value).toHaveLength(2)
-    expect(candidateFacts.value.map((f) => f.factId)).toEqual(['c1', 'c2'])
+    expect(candidateFacts.value).toHaveLength(3)
+    expect(candidateFacts.value.map((f) => f.factId)).toEqual(['p1', 'c1', 'c2'])
     expect(candidateTotalWeight.value).toBe(9)
   })
 
@@ -109,7 +119,7 @@ describe('useScoreCandidateAdoption.js', () => {
     expect(isAdoptingCandidates.value).toBe(false)
   })
 
-  it('adoptCandidateFacts 支持按指定 factId 列表提交细粒度采纳动作', async () => {
+  it('adoptCandidateFacts 提交人工修正后的完整候选字段', async () => {
     scoreParseApi.submitReview.mockResolvedValue({
       data: {
         facts: reviewFacts.value,
@@ -126,11 +136,19 @@ describe('useScoreCandidateAdoption.js', () => {
       fetchAnalysisData,
     })
 
-    await adoptCandidateFacts(['f1'])
+    await adoptCandidateFacts([{
+      factId: 'f1', code: '1', dimension: '资质要求', weight: 10,
+      sourceText: '具备ISO9001', parentFactId: '', scoreType: 'OBJECTIVE',
+    }])
 
     expect(scoreParseApi.submitReview).toHaveBeenCalledWith(49, {
       reason: '人工确认采纳候选评分标准',
-      actions: [{ factId: 'f1', action: 'ADOPT_CANDIDATES' }],
+      actions: [{
+        factId: 'f1', action: 'ADOPT_CANDIDATES', adjustedWeight: 10,
+        adjustedCode: '1', adjustedDimension: '资质要求',
+        adjustedSourceText: '具备ISO9001', adjustedParentFactId: '',
+        adjustedScoreType: 'OBJECTIVE',
+      }],
     })
   })
 
@@ -201,9 +219,10 @@ describe('useScoreCandidateAdoption.js', () => {
         props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
       })
 
-      expect(candidateFacts.value).toHaveLength(3)
+      expect(candidateFacts.value).toHaveLength(4)
       expect(candidateTotalWeight.value).toBe(100)
       expect(candidateFacts.value.map((f) => ({ code: f.code, weight: f.weight, dim: f.dimension, parentFactId: f.parentFactId }))).toEqual([
+        { code: '', weight: 50, dim: '商务', parentFactId: '' },
         { code: '1', weight: 30, dim: '商务', parentFactId: 'p1' },
         { code: '2', weight: 20, dim: '商务', parentFactId: 'p1' },
         { code: '3', weight: 50, dim: '价格', parentFactId: '' },
@@ -221,9 +240,10 @@ describe('useScoreCandidateAdoption.js', () => {
         props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
       })
 
-      expect(candidateFacts.value).toHaveLength(3)
+      expect(candidateFacts.value).toHaveLength(4)
       expect(candidateTotalWeight.value).toBe(100)
       expect(candidateFacts.value.map((f) => ({ code: f.code, weight: f.weight, dim: f.dimension, parentFactId: f.parentFactId }))).toEqual([
+        { code: '一', weight: 50, dim: '商务部分', parentFactId: '' },
         { code: '1', weight: 30, dim: '商务部分', parentFactId: 'p_standalone' },
         { code: '2', weight: 20, dim: '商务部分', parentFactId: 'p_standalone' },
         { code: '3', weight: 50, dim: '价格', parentFactId: '' },
@@ -231,4 +251,3 @@ describe('useScoreCandidateAdoption.js', () => {
     })
   })
 })
-
