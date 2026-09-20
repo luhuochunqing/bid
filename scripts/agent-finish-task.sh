@@ -360,22 +360,47 @@ else
 fi
 
 # ─── Step 6: 切换到 init 分支 ───────────────────────────────────────────────────
+# 三层架构注意：锚点分支（agent/<name>-init）通常由持久 worktree 持有，
+# 当前临时 worktree 无法 checkout（"already used by worktree"）。此时改为在
+# 持有该分支的 worktree 内同步 origin/main，而不是让脚本中断（Step 7-10 会被跳过）。
 hdr "Step 6: 切换到 $INIT_BRANCH"
 
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "  [DRY RUN] git checkout $INIT_BRANCH && git pull origin main --rebase"
+  echo "  [DRY RUN] （若锚点被其他 worktree 持有，则在该 worktree 内 pull）"
 else
-  if ! git rev-parse --verify --quiet "$INIT_BRANCH" >/dev/null 2>&1; then
+  INIT_BRANCH_WORKTREE=""
+  _wt_path=""
+  while IFS= read -r _line; do
+    case "$_line" in
+      worktree\ *) _wt_path="${_line#worktree }" ;;
+      branch\ refs/heads/"$INIT_BRANCH") INIT_BRANCH_WORKTREE="$_wt_path" ;;
+    esac
+  done < <(git worktree list --porcelain 2>/dev/null || true)
+
+  CURRENT_WORKTREE_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "$INIT_BRANCH_WORKTREE" && "$INIT_BRANCH_WORKTREE" != "$CURRENT_WORKTREE_ROOT" ]]; then
+    info "锚点分支 $INIT_BRANCH 由持久 worktree 持有: $INIT_BRANCH_WORKTREE"
+    if [[ -n "$(git -C "$INIT_BRANCH_WORKTREE" status --porcelain --untracked-files=no 2>/dev/null)" ]]; then
+      warn "该 worktree 存在未提交的 tracked 变更，跳过自动同步（请在早操时手动处理）"
+    else
+      git -C "$INIT_BRANCH_WORKTREE" pull origin main --rebase 2>/dev/null \
+        || git -C "$INIT_BRANCH_WORKTREE" pull origin main
+      info "已在 $INIT_BRANCH_WORKTREE 拉取最新 origin/main"
+    fi
+  elif git rev-parse --verify --quiet "$INIT_BRANCH" >/dev/null 2>&1; then
+    git checkout "$INIT_BRANCH"
+    info "已切换到 $INIT_BRANCH"
+    git pull origin main --rebase 2>/dev/null || git pull origin main
+    info "已拉取最新 origin/main"
+  else
     warn "init 分支 $INIT_BRANCH 不存在，从 origin/main 创建"
     git fetch origin
     git checkout -b "$INIT_BRANCH" origin/main
     info "已创建并切换到 $INIT_BRANCH"
-  else
-    git checkout "$INIT_BRANCH"
-    info "已切换到 $INIT_BRANCH"
+    git pull origin main --rebase 2>/dev/null || git pull origin main
+    info "已拉取最新 origin/main"
   fi
-  git pull origin main --rebase 2>/dev/null || git pull origin main
-  info "已拉取最新 origin/main"
 fi
 
 # ─── Step 7: 删除本地任务分支 ───────────────────────────────────────────────────
