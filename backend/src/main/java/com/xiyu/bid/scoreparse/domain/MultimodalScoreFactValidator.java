@@ -1,0 +1,167 @@
+package com.xiyu.bid.scoreparse.domain;
+
+import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/** Pure validation boundary. It validates model facts but never recalls score items. */
+public final class MultimodalScoreFactValidator {
+
+    public ValidationReport validate(List<MultimodalScoreFact> input,
+                                     DocumentArtifact artifact,
+                                     BigDecimal declaredTotal) {
+        List<MultimodalScoreFact> facts = input == null ? List.of() : List.copyOf(input);
+        List<Violation> violations = new ArrayList<>();
+        if (facts.isEmpty()) {
+            violations.add(new Violation("", "facts", "EMPTY_FACTS", "模型必须返回至少一个评分项",
+                    "non-empty", 0, ""));
+        }
+        validateRequiredFields(facts, violations);
+        Map<String, CellSource> cells = indexCells(artifact);
+        validateEvidence(facts, cells, violations);
+        validateDuplicates(facts, violations);
+        validateSequences(facts, violations);
+        validateParents(facts, violations);
+        Set<String> parents = new HashSet<>();
+        facts.stream().filter(f -> !f.parentCode().isBlank())
+                .forEach(f -> parents.add(f.sectionTitle() + "\u0000" + f.parentCode()));
+        BigDecimal leafTotal = facts.stream().filter(f -> !parents.contains(f.sectionTitle() + "\u0000" + f.code()))
+                .map(MultimodalScoreFact::weight).filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (declaredTotal == null || leafTotal.compareTo(declaredTotal) != 0) {
+            violations.add(new Violation("", "weight", "WEIGHT_SUM_MISMATCH",
+                    "叶子项总分必须与原文声明总分闭合", declaredTotal, leafTotal, ""));
+        }
+        return new ValidationReport(facts, declaredTotal, leafTotal, violations.isEmpty(), violations);
+    }
+
+    private static void validateRequiredFields(List<MultimodalScoreFact> facts, List<Violation> violations) {
+        for (MultimodalScoreFact fact : facts) {
+            if (fact.dimension().isBlank()) {
+                violations.add(of(fact, "dimension", "DIMENSION_MISSING", "评分项名称不能为空", "non-empty", ""));
+            }
+            if (fact.ruleText().isBlank()) {
+                violations.add(of(fact, "ruleText", "RULE_MISSING", "评分规则不能为空", "non-empty", ""));
+            }
+            if (!"OBJECTIVE".equals(fact.scoreType()) && !"SUBJECTIVE".equals(fact.scoreType())) {
+                violations.add(of(fact, "scoreType", "SCORE_TYPE_INVALID", "主客观类型必须明确合法",
+                        "OBJECTIVE|SUBJECTIVE", fact.scoreType()));
+            }
+        }
+    }
+
+    private static void validateEvidence(List<MultimodalScoreFact> facts, Map<String, CellSource> cells,
+                                         List<Violation> violations) {
+        for (MultimodalScoreFact fact : facts) {
+            List<CellSource> sources = fact.sourceCellIds().stream().map(cells::get).filter(java.util.Objects::nonNull).toList();
+            boolean locatorValid = !fact.tableId().isBlank() && fact.sourceCellIds().size() == 1 && !sources.isEmpty()
+                    && sources.size() == fact.sourceCellIds().size()
+                    && sources.stream().allMatch(cell -> cell.tableId().equals(fact.tableId())
+                    && java.util.Objects.equals(cell.page(), fact.pageNumber()));
+            if (!locatorValid) {
+                violations.add(of(fact, "sourceCellIds", "SOURCE_LOCATOR_INVALID", "引用必须绑定输入资产中的单个页码、表和单元格", fact.sourceCellIds(), sources));
+            }
+            String exactSource = sources.stream().map(CellSource::rawText).reduce((a, b) -> a + b).orElse("");
+            if (fact.quotedText().isBlank() || !exactSource.contains(fact.quotedText())) {
+                violations.add(of(fact, "quotedText", "QUOTE_NOT_VERBATIM", "引用必须逐字存在于指定原始单元格", exactSource, fact.quotedText()));
+            }
+        }
+    }
+
+    private static void validateDuplicates(List<MultimodalScoreFact> facts, List<Violation> violations) {
+        Set<String> codes = new HashSet<>();
+        Set<String> locators = new HashSet<>();
+        for (MultimodalScoreFact fact : facts) {
+            if (!codes.add(fact.sectionTitle() + "\u0000" + fact.code())) {
+                violations.add(of(fact, "code", "DUPLICATE_CODE", "同章节序号重复", "unique", fact.code()));
+            }
+            String locator = fact.tableId() + "\u0000" + String.join(",", fact.sourceCellIds());
+            if (!locators.add(locator)) {
+                violations.add(of(fact, "sourceCellIds", "DUPLICATE_SOURCE", "多个评分项重复引用同一来源", "unique", locator));
+            }
+        }
+    }
+
+    private static void validateSequences(List<MultimodalScoreFact> facts, List<Violation> violations) {
+        Map<String, List<MultimodalScoreFact>> siblings = new LinkedHashMap<>();
+        facts.forEach(f -> siblings.computeIfAbsent(f.sectionTitle() + "\u0000" + f.parentCode(), key -> new ArrayList<>()).add(f));
+        siblings.forEach((group, rows) -> {
+            for (int i = 0; i < rows.size(); i++) {
+                Integer actual = fLocalNumber(rows.get(i));
+                int expected = i + 1;
+                if (actual == null || actual != expected) {
+                    violations.add(of(rows.get(i), "code", "SEQUENCE_GAP", "同章节同父项下序号须从1按物理顺序连续", expected, rows.get(i).code()));
+                }
+            }
+        });
+    }
+
+    private static void validateParents(List<MultimodalScoreFact> facts, List<Violation> violations) {
+        Map<String, MultimodalScoreFact> byKey = new HashMap<>();
+        facts.forEach(f -> byKey.put(f.sectionTitle() + "\u0000" + f.code(), f));
+        Map<String, BigDecimal> childTotals = new HashMap<>();
+        for (MultimodalScoreFact child : facts) {
+            if (child.parentCode().isBlank()) continue;
+            String key = child.sectionTitle() + "\u0000" + child.parentCode();
+            if (!byKey.containsKey(key)) {
+                violations.add(of(child, "parentCode", "PARENT_NOT_FOUND", "父项不存在", child.parentCode(), "missing"));
+            } else if (child.weight() != null) {
+                childTotals.merge(key, child.weight(), BigDecimal::add);
+            }
+        }
+        childTotals.forEach((key, total) -> {
+            MultimodalScoreFact parent = byKey.get(key);
+            if (parent.weight() == null || parent.weight().compareTo(total) != 0) {
+                violations.add(of(parent, "weight", "PARENT_WEIGHT_MISMATCH", "父项分值必须等于直接子项合计", total, parent.weight()));
+            }
+        });
+    }
+
+    private static Map<String, CellSource> indexCells(DocumentArtifact artifact) {
+        Map<String, CellSource> indexed = new HashMap<>();
+        if (artifact == null) return indexed;
+        artifact.tables().forEach(table -> table.cells().forEach(cell -> indexed.put(cell.cellId(),
+                new CellSource(table.tableId(), table.sourcePage(), cell.rawText() == null ? "" : cell.rawText()))));
+        return indexed;
+    }
+
+    private static Integer leadingNumber(String code) {
+        if (code == null) return null;
+        var matcher = java.util.regex.Pattern.compile("^(\\d+)").matcher(code.trim());
+        if (matcher.find()) return Integer.valueOf(matcher.group(1));
+        return switch (code.trim().replaceFirst("^[（(]", "").replaceFirst("[）)].*$", "")) {
+            case "一" -> 1; case "二" -> 2; case "三" -> 3; case "四" -> 4; case "五" -> 5;
+            case "六" -> 6; case "七" -> 7; case "八" -> 8; case "九" -> 9; case "十" -> 10;
+            default -> null;
+        };
+    }
+
+    private static Integer fLocalNumber(MultimodalScoreFact fact) {
+        if (fact.parentCode().isBlank()) return leadingNumber(fact.code());
+        String prefix = fact.parentCode() + ".";
+        return fact.code().startsWith(prefix) ? leadingNumber(fact.code().substring(prefix.length())) : null;
+    }
+
+    private static Violation of(MultimodalScoreFact fact, String field, String code, String message,
+                                Object expected, Object actual) {
+        return new Violation(fact.sectionTitle() + "/" + fact.code(), field, code, message, expected, actual,
+                fact.tableId() + ":" + String.join(",", fact.sourceCellIds()));
+    }
+
+    private record CellSource(String tableId, Integer page, String rawText) {}
+    public record Violation(String factId, String field, String code, String message,
+                            Object expected, Object actual, String evidence) {}
+    public record ValidationReport(List<MultimodalScoreFact> facts, BigDecimal declaredTotal,
+                                   BigDecimal leafTotal, boolean autoApprovable, List<Violation> violations) {
+        public ValidationReport {
+            facts = List.copyOf(facts);
+            violations = List.copyOf(violations);
+        }
+    }
+}

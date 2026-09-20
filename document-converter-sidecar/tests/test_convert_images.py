@@ -48,7 +48,7 @@ def no_key_app():
 
 
 def _post_convert_images(app, content: bytes, filename: str = "bid.pdf",
-                         headers: dict | None = None):
+                         headers: dict | None = None, params: dict | None = None):
     """Async helper: issue POST /convert-images with the given bytes."""
     async def _run():
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -56,6 +56,7 @@ def _post_convert_images(app, content: bytes, filename: str = "bid.pdf",
                 "/convert-images",
                 files={"file": (filename, io.BytesIO(content), "application/octet-stream")},
                 headers=headers or {},
+                params=params or {},
             )
     return _run()
 
@@ -200,6 +201,26 @@ async def test_pdf_with_text_layer_section_backfill(no_key_app):
     with Image.open(io.BytesIO(decoded)) as embedded:
         assert embedded.size == (40, 30)
         assert embedded.getpixel((0, 0))[:3] == (0, 128, 0)
+
+
+@pytest.mark.asyncio
+async def test_pdf_render_pages_returns_requested_full_page(no_key_app):
+    pdf = _make_pdf_bytes([
+        ("第一页正文", _png_bytes((255, 0, 0))),
+        ("第二页评分表", _png_bytes((0, 0, 255))),
+    ])
+    response = await _post_convert_images(
+        no_key_app, pdf, "bid.pdf", params={"renderPages": "true", "pages": "2"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["images"]) == 1
+    assert body["images"][0]["pageHint"] == 2
+    rendered = base64.b64decode(body["images"][0]["base64"])
+    with Image.open(io.BytesIO(rendered)) as page:
+        assert page.width > 500
+        assert page.height > 700
 
 
 # ---------------------------------------------------------------------------

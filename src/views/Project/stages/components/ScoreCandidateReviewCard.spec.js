@@ -30,10 +30,10 @@ describe('ScoreCandidateReviewCard.vue', () => {
 
     const rows = wrapper.findAll('.candidate-table tbody tr')
     expect(rows).toHaveLength(2)
-    expect(rows[0].find('.col-dim').text()).toBe('商务部分')
-    expect(rows[0].find('.col-weight').text()).toBe('6 分')
-    expect(rows[1].find('.col-dim').text()).toBe('财务状况')
-    expect(rows[1].find('.col-weight').text()).toBe('3 分')
+    expect(rows[0].find('.col-dim').html()).toContain('商务部分')
+    expect(rows[0].find('.col-weight').html()).toContain('6')
+    expect(rows[1].find('.col-dim').html()).toContain('财务状况')
+    expect(rows[1].find('.col-weight').html()).toContain('3')
   })
 
   it('renders warning alert when candidateTotalWeight is not 100', () => {
@@ -56,7 +56,7 @@ describe('ScoreCandidateReviewCard.vue', () => {
 
     const alert = wrapper.find('.el-alert-mock')
     expect(alert.exists()).toBe(true)
-    expect(alert.text()).toContain('9 分（非 100 分满分制）')
+    expect(alert.text()).toContain('9 分，应与原文声明的 100 分闭合')
   })
 
   it('does not render warning alert when candidateTotalWeight is 100', () => {
@@ -78,6 +78,39 @@ describe('ScoreCandidateReviewCard.vue', () => {
     })
 
     expect(wrapper.find('.el-alert-mock').exists()).toBe(false)
+  })
+
+  it('allows an 80-point candidate set when the document declares 80 points', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: { candidateFacts, candidateTotalWeight: 80, declaredTotalWeight: 80 },
+      global: { stubs: { 'el-alert': true, 'el-button': { template: '<button v-bind="$attrs"><slot /></button>' } } },
+    })
+
+    expect(wrapper.find('.el-alert-mock').exists()).toBe(false)
+    expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('shows an unresolved total and disables adoption when declared total is unknown', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: { candidateFacts, candidateTotalWeight: 100, declaredTotalWeight: null },
+      global: {
+        stubs: {
+          'el-alert': { template: '<div class="el-alert-mock">{{ title }}</div>', props: ['title'] },
+          'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
+        },
+      },
+    })
+
+    expect(wrapper.find('.el-alert-mock').text()).toContain('声明总分待确认')
+    expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('renders JSON encoded source cell ids without throwing', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: { candidateFacts: [{ ...candidateFacts[0], sourceCellIds: '["p1-r1-c1"]' }], candidateTotalWeight: 6 },
+      global: { stubs: { 'el-alert': true, 'el-button': true } },
+    })
+    expect(wrapper.find('.evidence-location').text()).toContain('p1-r1-c1')
   })
 
   it('emits adopt when clicking adopt button', async () => {

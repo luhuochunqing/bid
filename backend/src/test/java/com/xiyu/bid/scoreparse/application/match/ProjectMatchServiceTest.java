@@ -82,8 +82,8 @@ class ProjectMatchServiceTest {
     }
 
     @Test
-    @DisplayName("contract_amount NULL 跳过金额比对不失配（research R7）：NULL 行保留")
-    void nullContractAmount_skipsAmountCheck() {
+    @DisplayName("要求合同金额时 NULL 记录缺少证据，不能计入得分")
+    void nullContractAmount_isExcludedWhenAmountRequired() {
         when(repository.findAll(any(Specification.class))).thenReturn(List.of(
                 record(1L, "存量合同(无金额)", ProjectType.OFFICE, "信息化", null),
                 record(2L, "新合同", ProjectType.OFFICE, "信息化", new BigDecimal("5000000"))));
@@ -92,9 +92,10 @@ class ProjectMatchServiceTest {
 
         KnowledgeMatchResult result = service.match(request);
 
-        assertThat(result.matched()).hasSize(2);
-        assertThat(result.tier()).isEqualTo("FULL");
-        assertThat(((ProjectMatchedItem) result.matched().get(0)).contractAmount()).isNull();
+        assertThat(result.matched()).hasSize(1);
+        assertThat(result.tier()).isEqualTo("PARTIAL");
+        assertThat(((ProjectMatchedItem) result.matched().get(0)).contractAmount())
+                .isEqualByComparingTo("5000000");
     }
 
     @Test
@@ -110,6 +111,28 @@ class ProjectMatchServiceTest {
 
         assertThat(result.matched()).hasSize(1);
         assertThat(((ProjectMatchedItem) result.matched().get(0)).contractName()).isEqualTo("大合同");
+    }
+
+    @Test
+    @DisplayName("每条业绩返回日期、金额和客户逐条件证明")
+    void matchedProject_returnsAuditableProofs() {
+        PerformanceRecordEntity row = PerformanceRecordEntity.builder()
+                .id(9L).contractName("央企采购合同").projectType(ProjectType.INDUSTRIAL)
+                .groupCompany("某央企").customerType(CustomerType.CENTRAL_SOE)
+                .signingDate(LocalDate.of(2025, 1, 1)).contractAmount(new BigDecimal("2000000"))
+                .build();
+        when(repository.findAll(any(Specification.class))).thenReturn(List.of(row));
+
+        KnowledgeMatchResult result = service.match(new ProjectMatchRequest(
+                List.of("工业品"), LocalDate.of(2024, 1, 1), new BigDecimal("1000000"), 1));
+
+        assertThat(result.proofs()).hasSize(1);
+        assertThat(result.proofs().get(0).recordId()).isEqualTo("9");
+        assertThat(result.proofs().get(0).conditions())
+                .extracting(KnowledgeMatchResult.ConditionProof::condition)
+                .contains("签约日期不早于 2024-01-01", "合同金额不少于 1000000", "客户");
+        assertThat(result.proofs().get(0).conditions())
+                .allMatch(proof -> "PASS".equals(proof.status()));
     }
 
     @Test

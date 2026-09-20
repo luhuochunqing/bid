@@ -17,15 +17,25 @@ public record ScoreParseReviewDTO(
         String reviewReason,
         String pipelineVersion,
         String artifactSha256,
+        BigDecimal declaredTotal,
         List<Fact> facts,
         List<Audit> audits
 ) {
+    public ScoreParseReviewDTO(Long projectId, Long parseTaskId, String taskId, String status,
+                               String decisionStatus, String fallbackReason, String reviewReason,
+                               String pipelineVersion, String artifactSha256,
+                               List<Fact> facts, List<Audit> audits) {
+        this(projectId, parseTaskId, taskId, status, decisionStatus, fallbackReason, reviewReason,
+                pipelineVersion, artifactSha256, BigDecimal.valueOf(100), facts, audits);
+    }
     public record Fact(
             String factId,
             String code,
             String dimension,
             BigDecimal weight,
+            String scoreType,
             String validationStatus,
+            String validationMessage,
             String sourceText,
             String sourceCellIds,
             String weightEvidence,

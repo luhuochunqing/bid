@@ -22,8 +22,10 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -120,6 +122,66 @@ class ScoreParseReviewAppServiceTest {
         ArgumentCaptor<ScoreParseReview> reviewCaptor = ArgumentCaptor.forClass(ScoreParseReview.class);
         verify(reviewRepository).save(reviewCaptor.capture());
         assertThat(reviewCaptor.getValue().getAction()).isEqualTo("ADOPT_CANDIDATES");
+    }
+
+    @Test
+    void submitReview_adoptCandidates_closesAgainstDeclaredEightyPoints() {
+        mockLatestTask();
+        ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")).get(0);
+        task.setRunSummary("{\"tableSplits\":[{\"declaredTotal\":80}]} ");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "30"), fact("fact-2", "50")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of());
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "采纳80分制候选项")
+        ), "人工确认采纳"), "admin");
+
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+        assertThat(task.getOriginalTotalWeight()).isEqualByComparingTo("80");
+    }
+
+    @Test
+    void submitReview_adoptCandidates_rejectsConflictingDeclaredTotalsWithoutPersistence() {
+        mockLatestTask();
+        ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")).get(0);
+        task.setRunSummary("{\"tableSplits\":[{\"tableId\":\"NO_DECLARED_TOTAL\",\"declaredTotal\":60},"
+                + "{\"tableId\":\"business\",\"declaredTotal\":40}]}");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "60"), fact("fact-2", "40")));
+
+        assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "采纳冲突候选项")
+        ), "人工确认采纳"), "admin"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("声明总分")
+                .hasMessageContaining("人工确认");
+
+        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+        verify(taskRepository, never()).save(task);
+        verify(reviewRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void declaredTotal_sumsOnlyExplicitSplitTotalsAndDefaultsWhenUnknownGroupExists() {
+        ScoreParseTask explicit = ScoreParseTask.builder().taskId("explicit")
+                .runSummary("{\"tableSplits\":[{\"tableId\":\"a\",\"declaredTotal\":60},{\"tableId\":\"b\",\"declaredTotal\":40}]}")
+                .build();
+        ScoreParseTask unknown = ScoreParseTask.builder().taskId("unknown")
+                .runSummary("{\"tableSplits\":[{\"tableId\":\"NO_DECLARED_TOTAL\",\"declaredTotal\":60},{\"tableId\":\"b\",\"declaredTotal\":40}]}")
+                .build();
+
+        assertThat(ScoreParseReviewAppService.declaredTotal(explicit)).isEqualByComparingTo("100");
+        assertThat(ScoreParseReviewAppService.declaredTotal(unknown)).isNull();
+    }
+
+    @Test
+    void declaredTotal_usesTenderTextTotalForSingleUnknownTableGroup() {
+        ScoreParseTask task = ScoreParseTask.builder().taskId("text-total")
+                .runSummary("{\"tableSplits\":[{\"tableId\":\"NO_DECLARED_TOTAL\",\"declaredTotal\":80}]}")
+                .build();
+        assertThat(ScoreParseReviewAppService.declaredTotal(task)).isEqualByComparingTo("80");
     }
 
     private void mockLatestTask() {

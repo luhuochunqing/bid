@@ -290,6 +290,7 @@ describe('ScoreParseDrawer.vue', () => {
           'el-drawer': { template: '<div class="el-drawer-mock" v-if="modelValue"><slot /></div>', props: ['modelValue'] },
           'el-dialog': true,
           'el-button': true,
+          'el-input': { template: '<span>{{ modelValue }}</span>', props: ['modelValue'] },
         },
       },
     })

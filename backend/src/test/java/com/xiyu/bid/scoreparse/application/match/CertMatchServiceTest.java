@@ -59,6 +59,13 @@ class CertMatchServiceTest {
         assertThat(result.matchRatio()).isEqualTo(100);
         assertThat(result.matched()).hasSize(1);
         assertThat(((CertMatchedItem) result.matched().get(0)).expired()).isFalse();
+        assertThat(result.proofs()).hasSize(1);
+        assertThat(result.proofs().get(0).conditions())
+                .extracting(KnowledgeMatchResult.ConditionProof::condition)
+                .contains("证书名称关键词", "证书等级包含 三级")
+                .anyMatch(value -> value.startsWith("有效期不少于 "));
+        assertThat(result.proofs().get(0).conditions())
+                .allMatch(proof -> "PASS".equals(proof.status()));
     }
 
     @Test
@@ -127,6 +134,8 @@ class CertMatchServiceTest {
         KnowledgeMatchResult result = service.match(request);
 
         assertThat(result.matched()).hasSize(2);
-        assertThat(result.tier()).isEqualTo("FULL");
+        assertThat(result.tier()).isEqualTo("PARTIAL");
+        assertThat(result.proofs()).allSatisfy(proof -> assertThat(proof.conditions())
+                .anyMatch(condition -> "MISSING_EVIDENCE".equals(condition.status())));
     }
 }

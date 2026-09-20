@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 /**
@@ -69,14 +70,29 @@ public class SidecarImageExtractor {
     /** InMemory 路径：全量 byte[] 直传（ofByteArray）。 */
     public SidecarImageExtraction extract(byte[] content, String fileName)
             throws IOException, InterruptedException {
-        return post(HttpRequest.BodyPublishers.ofByteArray(content), fileName);
+        return post(HttpRequest.BodyPublishers.ofByteArray(content), fileName, "");
+    }
+
+    public SidecarImageExtraction renderPages(byte[] content, String fileName, Set<Integer> pages)
+            throws IOException, InterruptedException {
+        return post(HttpRequest.BodyPublishers.ofByteArray(content), fileName, pageQuery(pages));
+    }
+
+    public SidecarImageExtraction renderPages(Path file, String fileName, Set<Integer> pages)
+            throws IOException, InterruptedException {
+        return post(HttpRequest.BodyPublishers.ofFile(file), fileName, pageQuery(pages));
     }
 
     private SidecarImageExtraction post(HttpRequest.BodyPublisher fileBody, String fileName)
             throws IOException, InterruptedException {
+        return post(fileBody, fileName, "");
+    }
+
+    private SidecarImageExtraction post(HttpRequest.BodyPublisher fileBody, String fileName, String query)
+            throws IOException, InterruptedException {
         String boundary = "xiyu-score-parse-images-" + UUID.randomUUID().toString().replace("-", "");
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-                .uri(URI.create(sidecarUrl + "/convert-images"))
+                .uri(URI.create(sidecarUrl + "/convert-images" + query))
                 .timeout(Duration.ofSeconds(extractTimeoutSeconds))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary);
         if (!sharedKey.isBlank()) {
@@ -101,6 +117,12 @@ public class SidecarImageExtractor {
         try (InputStream body = response.body()) {
             return parseResponse(readBodyWithByteLimit(body));
         }
+    }
+
+    private static String pageQuery(Set<Integer> pages) {
+        String value = pages == null ? "" : pages.stream().filter(java.util.Objects::nonNull)
+                .sorted().map(String::valueOf).collect(Collectors.joining(","));
+        return "?renderPages=true" + (value.isBlank() ? "" : "&pages=" + value);
     }
 
     private SidecarImageExtraction parseResponse(byte[] bodyBytes) throws IOException {

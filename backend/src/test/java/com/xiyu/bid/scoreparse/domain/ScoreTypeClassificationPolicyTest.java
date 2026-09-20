@@ -46,15 +46,14 @@ class ScoreTypeClassificationPolicyTest {
     }
 
     @Test
-    void classify_priceType_subjective() {
-        // 报价类归主观项：价格分由评标基准价公式计算，非知识库可预计
+    void classify_priceFormula_objective() {
         assertThat(policy.classify("以通过符合性审查的最低有效投标报价为评标基准价得 30 分"))
-                .isEqualTo("SUBJECTIVE");
+                .isEqualTo("OBJECTIVE");
     }
 
     @Test
-    void classify_priceKeyword_subjective() {
-        assertThat(policy.classify("投标报价得分按报价偏离率计算")).isEqualTo("SUBJECTIVE");
+    void classify_priceKeyword_objective() {
+        assertThat(policy.classify("投标报价得分按报价偏离率计算")).isEqualTo("OBJECTIVE");
     }
 
     @Test
@@ -73,11 +72,18 @@ class ScoreTypeClassificationPolicyTest {
     @Test
     void classify_aiGuessPrioritized() {
         assertThat(policy.classify("方案阐述清晰", "OBJECTIVE")).isEqualTo("OBJECTIVE");
-        assertThat(policy.classify("具备某种证书", "SUBJECTIVE")).isEqualTo("SUBJECTIVE");
+        assertThat(policy.classify("具备某种证书", "SUBJECTIVE")).isEqualTo("OBJECTIVE");
     }
 
     @Test
-    void classify_priceType_alwaysSubjectiveEvenIfAiGuessedObjective() {
-        assertThat(policy.classify("投标报价得分按公式计算", "OBJECTIVE")).isEqualTo("SUBJECTIVE");
+    void classify_explicitObjectiveEvidence_overridesWrongAiGuess() {
+        assertThat(policy.classify("投标报价得分按公式计算", "SUBJECTIVE")).isEqualTo("OBJECTIVE");
+        assertThat(policy.classify("提供有效期内的认证证书", "SUBJECTIVE")).isEqualTo("OBJECTIVE");
+    }
+
+    @Test
+    void classify_horizontalComparison_subjective_evenWithNumbers() {
+        assertThat(policy.classify("横向比较各供应商方案，优良得8-10分，中等得4-7分"))
+                .isEqualTo("SUBJECTIVE");
     }
 }
