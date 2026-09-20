@@ -22,6 +22,7 @@ DRY_RUN=0
 FORCE=0
 AUTO_CONFIRM=0
 INCLUDE_REMOTE=0
+FINISH_RESIDUAL=0   # 1 = 有残余资源未清理（分支/worktree），结尾 banner 降级提示
 
 usage() {
   cat <<'USAGE'
@@ -383,23 +384,35 @@ else
     info "锚点分支 $INIT_BRANCH 由持久 worktree 持有: $INIT_BRANCH_WORKTREE"
     if [[ -n "$(git -C "$INIT_BRANCH_WORKTREE" status --porcelain --untracked-files=no 2>/dev/null)" ]]; then
       warn "该 worktree 存在未提交的 tracked 变更，跳过自动同步（请在早操时手动处理）"
+    elif ! git -C "$INIT_BRANCH_WORKTREE" pull origin main --rebase 2>/dev/null; then
+      git -C "$INIT_BRANCH_WORKTREE" pull origin main 2>/dev/null \
+        || warn "锚点 worktree 同步失败（可能被未跟踪文件或本地提交阻塞），请手动处理；继续执行 Step 7-10"
+      info "已在 $INIT_BRANCH_WORKTREE 尝试同步 origin/main"
     else
-      git -C "$INIT_BRANCH_WORKTREE" pull origin main --rebase 2>/dev/null \
-        || git -C "$INIT_BRANCH_WORKTREE" pull origin main
       info "已在 $INIT_BRANCH_WORKTREE 拉取最新 origin/main"
     fi
   elif git rev-parse --verify --quiet "$INIT_BRANCH" >/dev/null 2>&1; then
-    git checkout "$INIT_BRANCH"
-    info "已切换到 $INIT_BRANCH"
-    git pull origin main --rebase 2>/dev/null || git pull origin main
-    info "已拉取最新 origin/main"
+    if git checkout "$INIT_BRANCH" 2>/dev/null; then
+      info "已切换到 $INIT_BRANCH"
+      if ! git pull origin main --rebase 2>/dev/null; then
+        git pull origin main 2>/dev/null || warn "拉取 origin/main 失败，请手动处理；继续执行 Step 7-10"
+      fi
+      info "已拉取最新 origin/main"
+    else
+      warn "切换到 $INIT_BRANCH 失败（可能存在未提交变更），跳过锚点同步；继续执行 Step 7-10"
+    fi
   else
     warn "init 分支 $INIT_BRANCH 不存在，从 origin/main 创建"
-    git fetch origin
-    git checkout -b "$INIT_BRANCH" origin/main
-    info "已创建并切换到 $INIT_BRANCH"
-    git pull origin main --rebase 2>/dev/null || git pull origin main
-    info "已拉取最新 origin/main"
+    git fetch origin 2>/dev/null || warn "git fetch 失败（跳过）"
+    if git checkout -b "$INIT_BRANCH" origin/main 2>/dev/null; then
+      info "已创建并切换到 $INIT_BRANCH"
+      if ! git pull origin main --rebase 2>/dev/null; then
+        git pull origin main 2>/dev/null || warn "拉取 origin/main 失败，请手动处理；继续执行 Step 7-10"
+      fi
+      info "已拉取最新 origin/main"
+    else
+      warn "创建 $INIT_BRANCH 失败，跳过锚点同步；继续执行 Step 7-10"
+    fi
   fi
 fi
 
@@ -449,7 +462,8 @@ if [[ -d "$WORKTREE_PATH" ]] && git worktree list 2>/dev/null | grep -qF "$WORKT
         git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || rm -rf "$WORKTREE_PATH"
         info "已清理 worktree: $WORKTREE_PATH"
       else
-        info "跳过 worktree 清理"
+        FINISH_RESIDUAL=1
+        info "跳过 worktree 清理（残余项）"
       fi
     else
       git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || rm -rf "$WORKTREE_PATH"
@@ -464,11 +478,12 @@ fi
 hdr "Step 8.5: 补删本地任务分支"
 
 if [[ "$DRY_RUN" == "1" ]]; then
-  echo "  [DRY RUN] git branch -D $TASK_BRANCH（若 Step 7 因 worktree 占用而延迟）"
+  echo "  [DRY RUN] git branch -D ${TASK_BRANCH}（若 Step 7 因 worktree 占用而延迟）"
 elif git branch --list "$TASK_BRANCH" | grep -q .; then
   git branch -D "$TASK_BRANCH" 2>/dev/null || warn "本地分支 $TASK_BRANCH 删除失败，请手动执行: git branch -D $TASK_BRANCH"
   if git branch --list "$TASK_BRANCH" | grep -q .; then
-    warn "本地分支仍存在: $TASK_BRANCH"
+    FINISH_RESIDUAL=1
+    warn "本地分支仍存在（残余项）: $TASK_BRANCH"
   else
     info "已删除本地分支: $TASK_BRANCH"
   fi
@@ -553,7 +568,11 @@ fi
 # ─── 完成 ───────────────────────────────────────────────────────────────────────
 echo
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  ✅ 任务收尾完成                                             ║"
+if [[ "$FINISH_RESIDUAL" == "1" ]]; then
+  echo "║  ⚠ 任务收尾完成（存在残余项，见上方警告）                    ║"
+else
+  echo "║  ✅ 任务收尾完成                                             ║"
+fi
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo
 echo "  当前分支: $(git branch --show-current 2>/dev/null || echo '?')"
