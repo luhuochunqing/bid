@@ -4,8 +4,8 @@ space: engineering
 category: feature
 tags: [商机预测, 提醒, 定时任务, 通知中心, 企微, CRM事件库, OSS, 组织架构, opportunity-prediction]
 created: 2026-08-24
-updated: 2026-09-16
-health_checked: 2026-09-18
+updated: 2026-09-20
+health_checked: 2026-09-20
 sources:
   - specs/054-opportunity-prediction-reminder/spec.md
   - specs/054-opportunity-prediction-reminder/data-model.md
@@ -36,6 +36,14 @@ backlinks:
 - **事件失败可恢复**：`event_published_at=NULL` 表示 CRM 事件待重试；每日扫描只重推事件，不重复站内信或企微任务，SDK 受理后补写时间。事件先用条件 UPDATE 原子领取，多 Pod 同时扫描时只有一个实例调用 SDK；10 分钟未完成的领取可恢复。
 - **接收人**：OSS 实时确认在职的项目经理（`Project.managerId`）+ OSS 实时活动角色中的投标管理员（`/bidAdmin`）+ 投标组长（`bid-TeamLeader`），合并去重；本地用户表只负责“工号 → 站内用户 ID”映射，不再作为在职状态或角色事实源。
 - **渠道**：站内信（`NotificationApplicationService.createNotification`，企微经 `NotificationCreatedEvent` 自动镜像，按工号推送无工号 SKIP）+ 西域事件库（`OpportunityPredictionEventPublisher` → `/eventbus/publishEvent`）。
+
+## 客户类型归一化与预测窗口（2026-09-20）
+
+- **根因**：`Project.customerType` 历史数据可能保存中文值 `央企`；提醒扫描此前优先读取该值后直接交给 `OpportunityPredictionPolicy`，未经过 `InitiationFieldPolicy` 归一化，因此没有命中 `CENTRAL_SOE` 的提前 6 个月规则，错误落入提前 3 个月。
+- **统一入口**：`InitiationFieldPolicy.normalizeCustomerTypeOrKeep` 将中文/旧别名映射为规范枚举名；未知非空值保留 trim 后原值，避免静默丢失扩展值。
+- **应用边界**：项目 payload、历史项目导入在写入前归一化；商机预测提醒在读取项目值或标讯回退值后归一化，兼容既有中文历史数据。
+- **业务规则**：客户类型为 `CENTRAL_SOE`（中文“央企”）时，服务周期结束日前提前 6 个月提醒；其他类型仍按提前 3 个月处理。
+- **生产数据边界**：修复不回填历史项目、不修改已发送的提醒日志；历史数据批量回填或历史通知补发必须作为独立、经授权的数据任务执行。
 
 ## 关键决策（规范外）
 

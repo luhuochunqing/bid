@@ -246,6 +246,44 @@ class OpportunityPredictionReminderServiceTest {
     }
 
     @Test
+    @DisplayName("项目客户类型为中文央企时仍按提前6个月预测")
+    void shouldNormalizeChineseProjectCustomerTypeBeforePrediction() {
+        Project project = Project.builder()
+                .id(7L)
+                .name("测试项目7")
+                .tenderId(700L)
+                .customerType("央企")
+                .customer("客户7")
+                .managerId(90L)
+                .status(Project.Status.WON)
+                .build();
+        ProjectResult result = ProjectResult.builder()
+                .projectId(7L)
+                .resultType("WON")
+                .servicePeriodEndDate(LocalDate.of(2026, 12, 19))
+                .build();
+        Tender tender = Tender.builder()
+                .id(700L)
+                .purchaserName("客户7")
+                .build();
+
+        when(projectRepository.findAll()).thenReturn(List.of(project));
+        when(projectResultRepository.findByProjectIdIn(List.of(7L))).thenReturn(List.of(result));
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(7L))).thenReturn(List.of());
+        when(tenderRepository.findAllById(Set.of(700L))).thenReturn(List.of(tender));
+        when(transactionService.findState(7L)).thenReturn(Optional.empty());
+
+        var outcome = service.runScan(TODAY);
+
+        assertEquals(1, outcome.notified());
+        ArgumentCaptor<OpportunityPredictionEventPayload> evtCaptor =
+                ArgumentCaptor.forClass(OpportunityPredictionEventPayload.class);
+        verify(eventPublisher).publish(evtCaptor.capture());
+        assertEquals("CENTRAL_SOE", evtCaptor.getValue().customerType());
+        assertEquals(LocalDate.of(2026, 6, 19), evtCaptor.getValue().predictedBidDate());
+    }
+
+    @Test
     @DisplayName("已提醒过：不重复通知、不落日志、不发事件")
     void shouldSkipWhenAlreadyNotified() {
         Project project = reachedProject(2L, 200L, 60L);

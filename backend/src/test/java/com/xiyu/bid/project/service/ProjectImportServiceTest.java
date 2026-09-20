@@ -11,8 +11,11 @@ import com.xiyu.bid.repository.ProjectRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
@@ -50,5 +53,23 @@ class ProjectImportServiceTest {
 
         verify(projectArchiveWorkflowService, times(1))
                 .createArchive(200L, "历史项目", "ACTIVE");
+    }
+
+    @Test
+    void importProject_normalizesChineseCustomerTypeBeforeSave() {
+        when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ProjectImportRequest request = ProjectImportRequest.builder()
+                .name("历史央企项目")
+                .tenderId(88002L)
+                .managerId(2L)
+                .customerType("央企")
+                .build();
+
+        service.importProject(request);
+
+        ArgumentCaptor<Project> projectCaptor = ArgumentCaptor.forClass(Project.class);
+        verify(projectRepository).save(projectCaptor.capture());
+        assertEquals("CENTRAL_SOE", projectCaptor.getValue().getCustomerType());
     }
 }

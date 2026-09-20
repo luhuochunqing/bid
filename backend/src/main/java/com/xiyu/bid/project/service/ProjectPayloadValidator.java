@@ -5,6 +5,7 @@
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.project.core.InitiationFieldPolicy;
 import com.xiyu.bid.project.dto.ProjectDTO;
 
 import java.util.ArrayList;
@@ -42,7 +43,8 @@ final class ProjectPayloadValidator {
                 .competitorAnalysisJson(dto.getCompetitorAnalysisJson()).tasksJson(dto.getTasksJson())
                 .aiAnalysisJson(dto.getAiAnalysisJson())
                 .customer(trimToNull(dto.getCustomer())).budget(dto.getBudget())
-                .industry(trimToNull(dto.getIndustry())).customerType(trimToNull(dto.getCustomerType()))
+                .industry(trimToNull(dto.getIndustry()))
+                .customerType(InitiationFieldPolicy.normalizeCustomerTypeOrKeep(trimToNull(dto.getCustomerType())))
                 .region(trimToNull(dto.getRegion())).platform(trimToNull(dto.getPlatform()))
                 .deadline(dto.getDeadline()).description(trimToNull(dto.getDescription()))
                 .remark(trimToNull(dto.getRemark())).tagsJson(trimToNull(dto.getTagsJson()))
@@ -65,4 +67,5 @@ final class ProjectPayloadValidator {
         String t = value.trim();
         return t.isEmpty() ? null : t;
     }
+
 }
