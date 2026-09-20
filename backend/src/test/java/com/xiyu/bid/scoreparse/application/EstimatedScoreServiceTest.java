@@ -122,6 +122,23 @@ class EstimatedScoreServiceTest {
     }
 
     @Test
+    void matchFailure_clearsStaleScoreAndBasis() {
+        ScoreItem cert = item("资质", "具有 ISO9001 证书", "8", "OBJECTIVE");
+        cert.setEstScore(new BigDecimal("8"));
+        cert.setKbHit(true);
+        cert.setEstBasis("旧的满分依据");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(cert));
+        when(certMatchService.match(any(CertMatchRequest.class))).thenThrow(new IllegalStateException("test"));
+
+        service.estimateForProject(1L);
+
+        assertThat(cert.getEstScore()).isNull();
+        assertThat(cert.getKbHit()).isFalse();
+        assertThat(cert.getStatusStage1()).isEqualTo("PENDING");
+        assertThat(cert.getEstBasis()).contains("计算失败", "待人工确认").doesNotContain("旧的满分依据");
+    }
+
+    @Test
     void expiredCert_fullMatch_staysPending() {
         ScoreItem cert = item("资质", "具有 ISO9001 证书", "8", "OBJECTIVE");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(cert));
@@ -170,6 +187,44 @@ class EstimatedScoreServiceTest {
     }
 
     @Test
+    void unparsedContractAmountThreshold_staysPendingWithoutMatching() {
+        ScoreItem project = item("业绩", "合同金额不低于人民币壹仟万元的项目业绩", "6", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(project));
+
+        service.estimateForProject(1L);
+
+        verify(projectMatchService, never()).match(any());
+        assertThat(project.getEstScore()).isNull();
+        assertThat(project.getKbHit()).isFalse();
+        assertThat(project.getEstBasis()).contains("金额门槛", "待人工确认");
+    }
+
+    @Test
+    void project1117_candidatesWithoutMandatoryDocuments_stayPending() {
+        String detail = "每提供一个有效业绩得5分，最高30分。有效业绩须同时满足："
+                + "2021年1月1日起签订，合同金额在1000万元以上；"
+                + "提供合作客户名单、项目联系人及供货覆盖城市并加盖公章；"
+                + "提供付款银行流水及对应发票扫描件。";
+        ScoreItem project = item("公司业绩", detail, "30", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1117L)).thenReturn(List.of(project));
+        when(projectMatchService.match(any(ProjectMatchRequest.class)))
+                .thenReturn(new KnowledgeMatchResult("FULL", 100, List.of("候选1", "候选2"), "命中业绩 131/6"));
+
+        service.estimateForProject(1117L);
+
+        ArgumentCaptor<ProjectMatchRequest> captor = ArgumentCaptor.forClass(ProjectMatchRequest.class);
+        verify(projectMatchService).match(captor.capture());
+        assertThat(captor.getValue().minContractAmount()).isEqualByComparingTo("10000000");
+        assertThat(captor.getValue().requiredCount()).isEqualTo(6);
+        assertThat(project.getEstScore()).isNull();
+        assertThat(project.getStatusStage1()).isEqualTo("PENDING");
+        assertThat(project.getKbHit()).isFalse();
+        assertThat(project.getEstBasis())
+                .contains("业绩库", "2 条候选资料", "尚不能确认", "付款银行流水", "对应发票")
+                .doesNotContain("tier=", "FULL", "知识库命中");
+    }
+
+    @Test
     void centralSOEProjectItem_extractsKeywordsAndSignedAfter_andEstimatesScore() {
         String detail = "在满足资格条件的基础上，每增加1个有效业绩得1分，最高得5分（如多个业绩合同方为同一家公司，则算1个有效业绩）。提供业绩合同关键页复印件。 注：业绩合同内容为：中央企业（集团）全系统范围或中央金融企业的MRO工业品类交易服务。时间为2022年1月至今。";
         ScoreItem project = item("央企案例", detail, "5", "OBJECTIVE");
@@ -185,9 +240,10 @@ class EstimatedScoreServiceTest {
         assertThat(captured.projectTypeKeywords()).contains("中央企业", "央企", "MRO");
         assertThat(captured.signedAfter()).isEqualTo(LocalDate.of(2022, 1, 1));
         assertThat(captured.requiredCount()).isEqualTo(5);
-        assertThat(project.getEstScore()).isEqualByComparingTo("5");
-        assertThat(project.getStatusStage1()).isEqualTo("OK");
-        assertThat(project.getKbHit()).isTrue();
+        assertThat(project.getEstScore()).isNull();
+        assertThat(project.getStatusStage1()).isEqualTo("PENDING");
+        assertThat(project.getKbHit()).isFalse();
+        assertThat(project.getEstBasis()).contains("合同或中标证明材料");
     }
 
     @Test

@@ -197,5 +197,22 @@ class KnowledgeCategoryPolicyTest {
                 .isEqualTo(5);
         assertThat(policy.extractProjectRequiredCount("类似项目业绩不少于 3 个", new java.math.BigDecimal("6")))
                 .isEqualTo(3);
+        assertThat(policy.extractProjectRequiredCount("每提供一个有效业绩得5分，最高30分", new java.math.BigDecimal("30")))
+                .isEqualTo(6);
+    }
+
+    @Test
+    @DisplayName("提取业绩合同金额下限：1000万元以上与千分位")
+    void extractMinContractAmount_variousFormats() {
+        assertThat(policy.extractMinContractAmount("合同金额在1000万元以上（含1000万）"))
+                .isEqualByComparingTo("10000000");
+        assertThat(policy.extractMinContractAmount("单项合同金额不低于 1,000 万元"))
+                .isEqualByComparingTo("10000000");
+        assertThat(policy.extractMinContractAmount("合同金额不低于人民币 1000 万元"))
+                .isEqualByComparingTo("10000000");
+        assertThat(policy.extractMinContractAmount("合同金额在 1000 万元（含）以上"))
+                .isEqualByComparingTo("10000000");
+        assertThat(policy.extractMinContractAmount("未要求合同金额，只按业绩数量计分"))
+                .isNull();
     }
 }
