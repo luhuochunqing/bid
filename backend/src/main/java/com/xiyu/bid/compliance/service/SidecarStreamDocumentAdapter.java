@@ -1,101 +1,87 @@
-// Input: 临时文件路径 + 文件名（Sidecar 响应：markdown + 可选结构化 pages 物理页）
-// Output: 结构化 DocumentContent（Markdown、分页优先级 pages→\f→虚拟分页、SHA-256 哈希，含安全降级守卫）
-// Pos: compliance/service/ - 标书文档转换 Sidecar 流式适配器
+// Input: 临时文件路径 + 文件名（Sidecar 响应：markdown + 可选结构化 pages + warnings）
+// Output: SidecarParseOutcome 分类结果（OK/TIMEOUT/SERVICE_ERROR/EMPTY_TEXT/UNPARSEABLE，不抛异常）
+// Pos: compliance/service/ - 标书文档转换 Sidecar 流式适配器（HTTP Shell）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.common.util.StringUtils;
 import com.xiyu.bid.compliance.domain.DocumentContent;
+import com.xiyu.bid.compliance.domain.SidecarParseOutcome;
+import com.xiyu.bid.compliance.domain.SidecarTimeoutBudget;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
 /**
  * 标书文档转换 Sidecar 流式适配器.
  * 对接 Sidecar (FastAPI /convert)，提取结构化分页、Markdown 与 SHA-256 哈希.
+ *
+ * <p>契约：永不抛异常，一切失败分类为 {@link SidecarParseOutcome}（spec 066）——
+ * 超时与服务错误不再吞成空文档，调用方可据此输出准确文案.
  */
 @Component
 @Slf4j
 public class SidecarStreamDocumentAdapter {
 
     private static final String SIDECAR_KEY_HEADER = "X-Sidecar-Key";
-
-    /** 大文件阈值（字节）：超过此大小的上传走大文件超时档（静态常量，不占 collaborator 预算）. */
-    private static final long LARGE_FILE_THRESHOLD_BYTES = 50L * 1024 * 1024;
-    /** 大文件超时倍数：428MB 级标书 60s 内必然转不完（1373 根治），大文件档 = 基准档 × 5. */
-    private static final long LARGE_FILE_TIMEOUT_MULTIPLIER = 5L;
+    private static final long BYTES_PER_MB = 1024L * 1024L;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final String sidecarUrl;
     private final String sharedKey;
-    private final long timeoutSeconds;
+    private final long baseTimeoutSeconds;
 
     public SidecarStreamDocumentAdapter(
             ObjectMapper objectMapper,
             @Value("${app.score-parse.sidecar-url:${app.doc-insight.sidecar-url:http://localhost:8000}}") String sidecarUrl,
             @Value("${app.score-parse.sidecar-shared-key:${SIDECAR_SHARED_KEY:}}") String sharedKey,
-            @Value("${app.compliance.sidecar.timeout-seconds:60}") long timeoutSeconds) {
+            @Value("${app.compliance.sidecar.timeout-seconds:60}") long baseTimeoutSeconds) {
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
         this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
         this.sidecarUrl = sidecarUrl.endsWith("/")
                 ? sidecarUrl.substring(0, sidecarUrl.length() - 1)
                 : sidecarUrl;
         this.sharedKey = sharedKey == null ? "" : sharedKey.trim();
-        this.timeoutSeconds = timeoutSeconds;
+        this.baseTimeoutSeconds = baseTimeoutSeconds;
     }
 
     /**
-     * 按文件大小分档的 Sidecar 超时（纯函数）：超过大文件阈值走大文件档，否则走基准档.
+     * 将临时文件送入 Sidecar 解析，输出分类结果.
      *
-     * @param fileSizeBytes 待上传文件字节数；未知（负数）时回落基准档
-     * @return 生效的超时秒数
+     * <p>等待上限按<b>原始文件大小</b>分档（{@link SidecarTimeoutBudget}），
+     * 媒体瘦身不降档；连接建立超时归服务错误，读超时归解析超时.
      */
-    final long resolveTimeoutSeconds(final long fileSizeBytes) {
-        if (fileSizeBytes > 0 && fileSizeBytes > LARGE_FILE_THRESHOLD_BYTES) {
-            return timeoutSeconds * LARGE_FILE_TIMEOUT_MULTIPLIER;
-        }
-        return timeoutSeconds;
-    }
-
-    private static long fileSizeOf(final Path path) {
-        try {
-            return Files.size(path);
-        } catch (IOException | RuntimeException t) {
-            return -1L;
-        }
-    }
-
-    /**
-     * 将临时文件送入 Sidecar 解析，输出结构化 DocumentContent.
-     */
-    public DocumentContent convertDocument(final Path filePath, final String fileName) {
+    public SidecarParseOutcome convertDocument(final Path filePath, final String fileName) {
         if (filePath == null || !Files.exists(filePath)) {
-            return DocumentContent.empty();
+            return SidecarParseOutcome.serviceError("临时文件不存在");
         }
 
-        String rawContentHash = computeSha256(filePath);
+        String rawContentHash = SidecarPayloadParser.computeSha256(filePath);
+        long originalSizeBytes = fileSizeOf(filePath);
+        long limitSeconds = SidecarTimeoutBudget.secondsFor(baseTimeoutSeconds, originalSizeBytes);
+        long startedAtNanos = System.nanoTime();
         Path uploadFilePath = filePath;
         boolean needsCleanup = false;
 
+        SidecarParseOutcome outcome;
         try {
             if (DocxMediaFilter.shouldFilter(filePath, fileName, DocxMediaFilter.DEFAULT_THRESHOLD_BYTES)) {
                 Path slimPath = DocxMediaFilter.filterMediaToTempFile(filePath);
@@ -104,180 +90,126 @@ public class SidecarStreamDocumentAdapter {
                     needsCleanup = true;
                 }
             }
-
-            String boundary = "xiyu-compliance-" + UUID.randomUUID().toString().replace("-", "");
-            long effectiveTimeoutSeconds = resolveTimeoutSeconds(fileSizeOf(uploadFilePath));
-            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-                    .uri(URI.create(sidecarUrl + "/convert"))
-                    .timeout(Duration.ofSeconds(effectiveTimeoutSeconds))
-                    .header("Content-Type", "multipart/form-data; boundary=" + boundary);
-
-            if (!sharedKey.isBlank()) {
-                requestBuilder.header(SIDECAR_KEY_HEADER, sharedKey);
-            }
-
-            HttpRequest request = requestBuilder
-                    .POST(HttpRequest.BodyPublishers.concat(
-                            HttpRequest.BodyPublishers.ofByteArray(multipartPrefix(boundary, fileName)),
-                            HttpRequest.BodyPublishers.ofFile(uploadFilePath),
-                            HttpRequest.BodyPublishers.ofByteArray(multipartSuffix(boundary))))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                JsonNode root = objectMapper.readTree(response.body());
-                String contentHash = rawContentHash;
-                if (contentHash == null || contentHash.isBlank()) {
-                    contentHash = root.path("contentHash").asText("");
-                }
-                return documentFromSidecarPayload(fileName, contentHash, root);
-            } else {
-                log.warn("Sidecar /convert 返回状态码 {}（文件 {}，超时档 {}s）: {}, 降级使用本地哈希与文本",
-                        response.statusCode(), fileName, effectiveTimeoutSeconds, response.body());
-            }
-        } catch (Throwable t) {
-            log.warn("调用文档转换 Sidecar 异常（文件 {}），采用本地降级解析: {}",
-                    fileName, t.getMessage());
+            HttpResponse<String> response = send(uploadFilePath, fileName, limitSeconds);
+            outcome = classify(response, fileName, rawContentHash, originalSizeBytes, limitSeconds, startedAtNanos);
+        } catch (HttpConnectTimeoutException e) {
+            outcome = SidecarParseOutcome.serviceError("连接解析服务超时（10s）");
+        } catch (HttpTimeoutException e) {
+            outcome = SidecarParseOutcome.timeout("解析未在等待上限（" + limitSeconds + "s）内完成");
+        } catch (IOException e) {
+            outcome = SidecarParseOutcome.serviceError("连接解析服务失败：" + e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            outcome = SidecarParseOutcome.serviceError("解析调用被中断");
+        } catch (RuntimeException e) {
+            outcome = SidecarParseOutcome.serviceError("解析调用异常：" + e.getMessage());
         } finally {
             if (needsCleanup && uploadFilePath != null) {
-                try {
-                    Files.deleteIfExists(uploadFilePath);
-                } catch (IOException e) {
-                    log.warn("清理 Docx 瘦身临时文件失败 {}: {}", uploadFilePath, e.getMessage());
-                }
+                deleteQuietly(uploadFilePath);
             }
         }
 
-        // 降级处理：仅对纯文本且小文件（<=5MB）尝试本地读取；
-        // 对 .docx / .pdf / .zip 等二进制文件或大文件，绝不调用 Files.readString，直接返回空文本以避免堆外 DirectBuffer OOM
-        try {
-            String contentHash = (rawContentHash != null && !rawContentHash.isBlank()) ? rawContentHash : computeSha256(filePath);
-            if (isSmallPlainTextFile(fileName, filePath)) {
-                String localText = Files.readString(filePath, StandardCharsets.UTF_8);
-                return buildDocumentContent(fileName, contentHash, localText);
-            }
-            log.info("文件 ({}) 为二进制或超大文件，跳过本地文本读取降级，仅保留哈希", fileName);
-            return new DocumentContent(fileName, contentHash, "", Collections.emptyList());
-        } catch (Throwable t) {
-            log.warn("读取本地降级文件失败: {}", t.getMessage());
-            String hash = (rawContentHash != null && !rawContentHash.isBlank()) ? rawContentHash : computeSha256(filePath);
-            return new DocumentContent(fileName, hash, "", Collections.emptyList());
+        if (outcome.isOk()) {
+            return outcome;
         }
+        return withLocalPlainTextFallback(filePath, fileName, rawContentHash, outcome);
     }
 
-    private static final java.util.Set<String> PLAIN_TEXT_EXTENSIONS = java.util.Set.of(
-            ".txt", ".md", ".markdown", ".csv", ".json", ".xml", ".html", ".htm"
-    );
-    private static final long MAX_LOCAL_READ_BYTES = 5 * 1024 * 1024; // 5MB
-
-    private boolean isSmallPlainTextFile(final String fileName, final Path filePath) {
-        if (fileName == null || filePath == null) {
-            return false;
+    private HttpResponse<String> send(final Path uploadFilePath, final String fileName, final long limitSeconds)
+            throws IOException, InterruptedException {
+        String boundary = "xiyu-compliance-" + UUID.randomUUID().toString().replace("-", "");
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                .uri(URI.create(sidecarUrl + "/convert"))
+                .timeout(Duration.ofSeconds(limitSeconds))
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary);
+        if (!sharedKey.isBlank()) {
+            requestBuilder.header(SIDECAR_KEY_HEADER, sharedKey);
         }
-        String lowerName = fileName.toLowerCase();
-        boolean isPlainText = PLAIN_TEXT_EXTENSIONS.stream().anyMatch(lowerName::endsWith);
-        if (!isPlainText) {
-            return false;
-        }
-        try {
-            return Files.size(filePath) <= MAX_LOCAL_READ_BYTES;
-        } catch (Throwable t) {
-            return false;
-        }
+        HttpRequest request = requestBuilder
+                .POST(HttpRequest.BodyPublishers.concat(
+                        HttpRequest.BodyPublishers.ofByteArray(multipartPrefix(boundary, fileName)),
+                        HttpRequest.BodyPublishers.ofFile(uploadFilePath),
+                        HttpRequest.BodyPublishers.ofByteArray(multipartSuffix(boundary))))
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 
     /**
-     * 将纯文本与哈希封装为 DocumentContent.
+     * 状态码与负载分类（含可观测日志）.
      */
-    public DocumentContent buildDocumentContent(
-            final String fileName, final String fileHash, final String fullText) {
-        if (fullText == null || fullText.isBlank()) {
-            return new DocumentContent(fileName, fileHash, "", Collections.emptyList());
+    private SidecarParseOutcome classify(final HttpResponse<String> response, final String fileName,
+                                         final String rawContentHash, final long originalSizeBytes,
+                                         final long limitSeconds, final long startedAtNanos) {
+        int status = response.statusCode();
+        long durationMs = (System.nanoTime() - startedAtNanos) / 1_000_000L;
+        long sizeMb = originalSizeBytes <= 0 ? -1 : originalSizeBytes / BYTES_PER_MB;
+        if (status >= 200 && status < 300) {
+            JsonNode root;
+            try {
+                root = objectMapper.readTree(response.body());
+            } catch (JsonProcessingException e) {
+                log.warn("Sidecar 响应 JSON 非法（file={}, status=200, duration={}ms）: {}",
+                        fileName, durationMs, e.getMessage());
+                return SidecarParseOutcome.serviceError("解析服务响应格式异常");
+            }
+            List<String> warnings = SidecarPayloadParser.warningsOf(root);
+            DocumentContent content = SidecarPayloadParser.documentFromSidecarPayload(fileName, rawContentHash, root);
+            if (content.fullText().isBlank() && content.pages().isEmpty()) {
+                log.warn("Sidecar 解析结果无文本（file={}, sizeMB={}, limit={}s, duration={}ms, warnings={}）",
+                        fileName, sizeMb, limitSeconds, durationMs, warnings);
+                return SidecarParseOutcome.emptyText("warnings=" + warnings, warnings);
+            }
+            log.info("Sidecar 解析成功（file={}, sizeMB={}, limit={}s, duration={}ms, pages={}, chars={}, warnings={}）",
+                    fileName, sizeMb, limitSeconds, durationMs,
+                    content.pages().size(), content.fullText().length(), warnings);
+            return SidecarParseOutcome.ok(content, warnings);
         }
 
-        // 识别物理分页符 \f
-        String[] rawPages = fullText.split("\f");
-        List<DocumentContent.PageContent> pages = new ArrayList<>();
-        for (int i = 0; i < rawPages.length; i++) {
-            String pageText = rawPages[i].trim();
-            if (!pageText.isEmpty()) {
-                pages.add(new DocumentContent.PageContent(i + 1, pageText, Collections.emptyList()));
-            }
+        log.warn("Sidecar /convert 返回状态码 {}（file={}, sizeMB={}, limit={}s, duration={}ms）: {}",
+                status, fileName, sizeMb, limitSeconds, durationMs, StringUtils.truncate(response.body(), 300));
+        if (status == 413) {
+            return SidecarParseOutcome.oversize("文件超过解析服务大小上限（413）");
         }
-        if (pages.isEmpty()) {
-            pages.add(new DocumentContent.PageContent(1, fullText, Collections.emptyList()));
+        if (status == 400 || status == 415 || status == 422) {
+            return SidecarParseOutcome.unparseable("解析服务返回 " + status);
         }
-        // 分页缺失兜底：markitdown 输出无 \f 时整篇退化为单页，
-        // 长文本按标题/段落虚拟分页，恢复页数判断、证据定位与检索预算的有效性
-        if (pages.size() == 1 && fullText.length() > DocumentContent.VIRTUAL_PAGE_MIN_TEXT_LENGTH) {
-            pages = DocumentContent.virtualPages(fullText);
-        }
-        return new DocumentContent(fileName, fileHash, fullText, pages);
+        return SidecarParseOutcome.serviceError("解析服务返回 " + status);
     }
 
     /**
-     * 解析 Sidecar /convert 响应为 DocumentContent：
-     * 优先消费结构化 pages（PDF 物理页）；缺省时回退 {@link #buildDocumentContent}
-     * 的 \f 切分与虚拟分页兜底.
+     * 传输/服务失败时的既有降级：纯文本小文件（≤5MB）本地读取，
+     * 内容非空则视为 OK（内容完整）；其余保持原失败分类.
      */
-    DocumentContent documentFromSidecarPayload(
-            final String fileName, final String contentHash, final JsonNode payload) {
-        String markdown = payload.path("markdown").asText("");
-        JsonNode pagesNode = payload.path("pages");
-        if (pagesNode.isArray() && pagesNode.size() > 0) {
-            List<DocumentContent.PageContent> pages = new ArrayList<>();
-            for (int i = 0; i < pagesNode.size(); i++) {
-                JsonNode pageNode = pagesNode.get(i);
-                String pageText = pageNode.path("text").asText("");
-                if (pageText.isBlank()) {
-                    continue;
-                }
-                int pageNumber = Math.max(1, pageNode.path("pageNumber").asInt(pages.size() + 1));
-                pages.add(new DocumentContent.PageContent(pageNumber, pageText, Collections.emptyList()));
-            }
-            if (!pages.isEmpty()) {
-                return new DocumentContent(fileName, contentHash, markdown, pages);
-            }
+    private SidecarParseOutcome withLocalPlainTextFallback(final Path filePath, final String fileName,
+                                                           final String rawContentHash,
+                                                           final SidecarParseOutcome failure) {
+        if (!SidecarPayloadParser.isSmallPlainTextFile(fileName, filePath)) {
+            return failure;
         }
-        return buildDocumentContent(fileName, contentHash, markdown);
+        String localText = SidecarPayloadParser.readLocalPlainText(filePath);
+        if (localText.isBlank()) {
+            return failure;
+        }
+        log.info("Sidecar 不可用（{}），纯文本文件本地降级成功（file={}, chars={}）",
+                failure.kind(), fileName, localText.length());
+        return SidecarParseOutcome.ok(
+                SidecarPayloadParser.buildDocumentContent(fileName, rawContentHash, localText),
+                failure.warnings());
     }
 
-    public static String computeSha256(final Path path) {
-        if (path == null || !Files.exists(path)) {
-            return "";
-        }
-        try (InputStream is = Files.newInputStream(path)) {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = is.read(buffer)) != -1) {
-                digest.update(buffer, 0, read);
-            }
-            byte[] hash = digest.digest();
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (java.io.IOException | java.security.NoSuchAlgorithmException | RuntimeException e) {
-            return "";
-        }
-    }
-
-    public static String computeStringSha256(final String text) {
-        if (text == null) {
-            return "";
-        }
+    private static long fileSizeOf(final Path path) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(text.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (java.security.NoSuchAlgorithmException | RuntimeException e) {
-            return "";
+            return Files.size(path);
+        } catch (IOException | RuntimeException e) {
+            return -1L;
+        }
+    }
+
+    private static void deleteQuietly(final Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            log.warn("清理 Docx 瘦身临时文件失败 {}: {}", path, e.getMessage());
         }
     }
 

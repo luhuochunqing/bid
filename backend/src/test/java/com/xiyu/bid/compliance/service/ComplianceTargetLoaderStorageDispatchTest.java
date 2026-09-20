@@ -4,6 +4,7 @@
 package com.xiyu.bid.compliance.service;
 
 import com.xiyu.bid.compliance.domain.DocumentContent;
+import com.xiyu.bid.compliance.domain.SidecarParseOutcome;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.file.application.ObsShareUrlSigner;
@@ -16,6 +17,7 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -125,7 +127,8 @@ class ComplianceTargetLoaderStorageDispatchTest {
                 .thenReturn(Optional.of(new LoadedProjectDocumentFile(
                         "bid-agent://tender-documents/p100/bid.pdf", null, "application/pdf", pdfBytes)));
         DocumentContent parsed = DocumentContent.fromText("投标文件.pdf", "hash-a", "真实投标正文");
-        when(sidecarAdapter.convertDocument(any(Path.class), anyString())).thenReturn(parsed);
+        when(sidecarAdapter.convertDocument(any(Path.class), anyString()))
+                .thenReturn(SidecarParseOutcome.ok(parsed, List.of()));
 
         DocumentContent result = loader.loadBidDocument(PROJECT_ID);
 
@@ -143,7 +146,8 @@ class ComplianceTargetLoaderStorageDispatchTest {
                 .thenReturn(Optional.of(new LoadedProjectDocumentFile(
                         "doc-insight://docs/p100/bid.pdf", null, "application/pdf", pdfBytes)));
         DocumentContent parsed = DocumentContent.fromText("投标文件.pdf", "hash-b", "真实投标正文B");
-        when(sidecarAdapter.convertDocument(any(Path.class), anyString())).thenReturn(parsed);
+        when(sidecarAdapter.convertDocument(any(Path.class), anyString()))
+                .thenReturn(SidecarParseOutcome.ok(parsed, List.of()));
 
         DocumentContent result = loader.loadBidDocument(PROJECT_ID);
 
@@ -159,7 +163,8 @@ class ComplianceTargetLoaderStorageDispatchTest {
         when(obsShareUrlSigner.trySign("obs-direct:upload-123"))
                 .thenReturn(Optional.of("https://obs.example.com/presigned/bid.pdf"));
         DocumentContent parsed = DocumentContent.fromText("投标文件.pdf", "hash-c", "真实投标正文C");
-        when(sidecarAdapter.convertDocument(any(Path.class), anyString())).thenReturn(parsed);
+        when(sidecarAdapter.convertDocument(any(Path.class), anyString()))
+                .thenReturn(SidecarParseOutcome.ok(parsed, List.of()));
 
         DocumentContent result = loader.loadBidDocument(PROJECT_ID);
 
@@ -217,10 +222,10 @@ class ComplianceTargetLoaderStorageDispatchTest {
         stubFileStorage("bid-agent://tender-documents/p100/price.pdf", "price-bytes".getBytes(StandardCharsets.UTF_8));
         stubFileStorage("bid-agent://tender-documents/p100/biz.pdf", "biz-bytes".getBytes(StandardCharsets.UTF_8));
         when(sidecarAdapter.convertDocument(any(Path.class), eq("1-价格册.pdf")))
-                .thenReturn(DocumentContent.fromText("1-价格册.pdf", "hash-price",
-                        "价格第一页\f价格第二页"));
+                .thenReturn(SidecarParseOutcome.ok(DocumentContent.fromText("1-价格册.pdf", "hash-price",
+                        "价格第一页\f价格第二页"), List.of()));
         when(sidecarAdapter.convertDocument(any(Path.class), eq("2-商务册.pdf")))
-                .thenReturn(DocumentContent.fromText("2-商务册.pdf", "hash-biz", "商务第一页"));
+                .thenReturn(SidecarParseOutcome.ok(DocumentContent.fromText("2-商务册.pdf", "hash-biz", "商务第一页"), List.of()));
 
         DocumentContent result = loader.loadBidDocument(PROJECT_ID);
 
@@ -243,9 +248,9 @@ class ComplianceTargetLoaderStorageDispatchTest {
         stubFileStorage("bid-agent://tender-documents/p100/price.pdf", "p".getBytes(StandardCharsets.UTF_8));
         stubFileStorage("bid-agent://tender-documents/p100/biz.pdf", "b".getBytes(StandardCharsets.UTF_8));
         when(sidecarAdapter.convertDocument(any(Path.class), eq("1-价格册.pdf")))
-                .thenReturn(DocumentContent.fromText("1-价格册.pdf", "hash-price", "价格正文"));
+                .thenReturn(SidecarParseOutcome.ok(DocumentContent.fromText("1-价格册.pdf", "hash-price", "价格正文"), List.of()));
         when(sidecarAdapter.convertDocument(any(Path.class), eq("2-商务册.pdf")))
-                .thenReturn(DocumentContent.fromText("2-商务册.pdf", "hash-biz", "商务正文"));
+                .thenReturn(SidecarParseOutcome.ok(DocumentContent.fromText("2-商务册.pdf", "hash-biz", "商务正文"), List.of()));
 
         DocumentContent result = loader.loadBidDocument(PROJECT_ID);
 
@@ -262,14 +267,15 @@ class ComplianceTargetLoaderStorageDispatchTest {
         stubFileStorage("bid-agent://tender-documents/p100/price.pdf", "p".getBytes(StandardCharsets.UTF_8));
         stubFileStorage("bid-agent://tender-documents/p100/biz.pdf", "b".getBytes(StandardCharsets.UTF_8));
         when(sidecarAdapter.convertDocument(any(Path.class), eq("1-价格册.pdf")))
-                .thenReturn(DocumentContent.fromText("1-价格册.pdf", "hash-price", "价格正文"));
-        // SidecarStreamDocumentAdapter 失败时不抛异常，而是返回空文本+空页的 DocumentContent
+                .thenReturn(SidecarParseOutcome.ok(DocumentContent.fromText("1-价格册.pdf", "hash-price", "价格正文"), List.of()));
+        // SidecarStreamDocumentAdapter 失败时不抛异常，而是返回非 OK 分类（spec 066：空册 = EMPTY_TEXT）
         when(sidecarAdapter.convertDocument(any(Path.class), eq("2-商务册.pdf")))
-                .thenReturn(new DocumentContent("2-商务册.pdf", "hash-biz", "", List.of()));
+                .thenReturn(SidecarParseOutcome.emptyText("warnings=[low_text_density]", List.of("low_text_density")));
 
         assertThatThrownBy(() -> loader.loadBidDocument(PROJECT_ID))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("2-商务册.pdf");
+                .hasMessageContaining("2-商务册.pdf")
+                .hasMessageContaining("无文本层");
     }
 
     @Test
@@ -281,7 +287,7 @@ class ComplianceTargetLoaderStorageDispatchTest {
         stubFileStorage("bid-agent://tender-documents/p100/price.pdf", "p".getBytes(StandardCharsets.UTF_8));
         stubFileStorage("bid-agent://tender-documents/p100/biz.pdf", "b".getBytes(StandardCharsets.UTF_8));
         when(sidecarAdapter.convertDocument(any(Path.class), eq("1-价格册.pdf")))
-                .thenReturn(DocumentContent.fromText("1-价格册.pdf", "hash-price", "价格正文"));
+                .thenReturn(SidecarParseOutcome.ok(DocumentContent.fromText("1-价格册.pdf", "hash-price", "价格正文"), List.of()));
         when(sidecarAdapter.convertDocument(any(Path.class), eq("2-商务册.pdf")))
                 .thenThrow(new IllegalStateException("sidecar boom"));
 
@@ -296,7 +302,7 @@ class ComplianceTargetLoaderStorageDispatchTest {
         stubBidDocuments(bidDoc(1L, null, "bid-agent://tender-documents/p100/price.pdf"));
         stubFileStorage("bid-agent://tender-documents/p100/price.pdf", "p".getBytes(StandardCharsets.UTF_8));
         when(sidecarAdapter.convertDocument(any(Path.class), eq("bid_document.pdf")))
-                .thenReturn(DocumentContent.fromText("bid_document.pdf", "hash-price", "价格正文"));
+                .thenReturn(SidecarParseOutcome.ok(DocumentContent.fromText("bid_document.pdf", "hash-price", "价格正文"), List.of()));
 
         DocumentContent result = loader.loadBidDocument(PROJECT_ID);
 
@@ -326,12 +332,105 @@ class ComplianceTargetLoaderStorageDispatchTest {
                 bidDoc(2L, "1-价格册.pdf", "bid-agent://tender-documents/p100/price.pdf"));
         stubFileStorage("bid-agent://tender-documents/p100/price.pdf", "p".getBytes(StandardCharsets.UTF_8));
         when(sidecarAdapter.convertDocument(any(Path.class), eq("1-价格册.pdf")))
-                .thenReturn(DocumentContent.fromText("1-价格册.pdf", "hash-price", "价格正文"));
+                .thenReturn(SidecarParseOutcome.ok(DocumentContent.fromText("1-价格册.pdf", "hash-price", "价格正文"), List.of()));
 
         DocumentContent result = loader.loadBidDocument(PROJECT_ID);
 
         assertThat(result.fileName()).isEqualTo("1-价格册.pdf");
         assertThat(result.fullText()).isEqualTo("价格正文");
         verify(sidecarAdapter, never()).convertDocument(any(Path.class), eq("0-脏记录.pdf"));
+    }
+
+    @Nested
+    @DisplayName("解析失败分类文案（spec 066 契约）")
+    class ParseFailureMessageTests {
+
+        private void stubSingleBidWithOutcome(final SidecarParseOutcome outcome) {
+            stubBidDocument("bid-agent://tender-documents/p100/bid.pdf");
+            stubFileStorage("bid-agent://tender-documents/p100/bid.pdf", "b".getBytes(StandardCharsets.UTF_8));
+            when(sidecarAdapter.convertDocument(any(Path.class), anyString())).thenReturn(outcome);
+        }
+
+        @Test
+        @DisplayName("TIMEOUT：报解析超时且不引导重传")
+        void timeoutMessage() {
+            stubSingleBidWithOutcome(SidecarParseOutcome.timeout("解析未在等待上限（645s）内完成"));
+
+            assertThatThrownBy(() -> loader.loadBidDocument(PROJECT_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("解析超时")
+                    .hasMessageContaining("投标文件.pdf")
+                    .hasMessageContaining("稍后重试")
+                    .hasMessageNotContaining("请确认文件可正常打开")
+                    .hasMessageNotContaining("请重新上传");
+        }
+
+        @Test
+        @DisplayName("SERVICE_ERROR：报服务异常且不引导重传")
+        void serviceErrorMessage() {
+            stubSingleBidWithOutcome(SidecarParseOutcome.serviceError("连接解析服务失败：Connection refused"));
+
+            assertThatThrownBy(() -> loader.loadBidDocument(PROJECT_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("服务异常")
+                    .hasMessageContaining("稍后重试")
+                    .hasMessageNotContaining("请确认文件可正常打开")
+                    .hasMessageNotContaining("请重新上传");
+        }
+
+        @Test
+        @DisplayName("SERVICE_ERROR（413 超上限）：不承诺稍后重试")
+        void oversizeMessage() {
+            stubSingleBidWithOutcome(SidecarParseOutcome.oversize("文件超过解析服务大小上限（413）"));
+
+            assertThatThrownBy(() -> loader.loadBidDocument(PROJECT_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("超过解析服务大小上限")
+                    .hasMessageNotContaining("稍后重试")
+                    .hasMessageNotContaining("请重新上传");
+        }
+
+        @Test
+        @DisplayName("EMPTY_TEXT：报图片扫描件/无文本层且不引导重传")
+        void emptyTextMessage() {
+            stubSingleBidWithOutcome(SidecarParseOutcome.emptyText("warnings=[low_text_density]", List.of("low_text_density")));
+
+            assertThatThrownBy(() -> loader.loadBidDocument(PROJECT_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("图片扫描件")
+                    .hasMessageContaining("无文本层")
+                    .hasMessageNotContaining("请确认文件可正常打开")
+                    .hasMessageNotContaining("请重新上传");
+        }
+
+        @Test
+        @DisplayName("UNPARSEABLE：唯一允许引导重传的解析分类")
+        void unparseableMessage() {
+            stubSingleBidWithOutcome(SidecarParseOutcome.unparseable("解析服务返回 422"));
+
+            assertThatThrownBy(() -> loader.loadBidDocument(PROJECT_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("请确认文件可正常打开后重新上传");
+        }
+
+        @Test
+        @DisplayName("多册：失败文案指名失败册")
+        void multiVolumeNamesFailingVolume() {
+            stubBidDocuments(
+                    bidDoc(1L, "1-价格册.pdf", "bid-agent://tender-documents/p100/price.pdf"),
+                    bidDoc(2L, "2-技术册.pdf", "bid-agent://tender-documents/p100/tech.pdf"));
+            stubFileStorage("bid-agent://tender-documents/p100/price.pdf", "p".getBytes(StandardCharsets.UTF_8));
+            stubFileStorage("bid-agent://tender-documents/p100/tech.pdf", "t".getBytes(StandardCharsets.UTF_8));
+            when(sidecarAdapter.convertDocument(any(Path.class), eq("1-价格册.pdf")))
+                    .thenReturn(SidecarParseOutcome.ok(
+                            DocumentContent.fromText("1-价格册.pdf", "h1", "价格正文"), List.of()));
+            when(sidecarAdapter.convertDocument(any(Path.class), eq("2-技术册.pdf")))
+                    .thenReturn(SidecarParseOutcome.timeout("解析未在等待上限（645s）内完成"));
+
+            assertThatThrownBy(() -> loader.loadBidDocument(PROJECT_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("2-技术册.pdf")
+                    .hasMessageContaining("解析超时");
+        }
     }
 }

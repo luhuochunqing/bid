@@ -5,6 +5,7 @@
 package com.xiyu.bid.compliance.service;
 
 import com.xiyu.bid.compliance.domain.DocumentContent;
+import com.xiyu.bid.compliance.domain.SidecarParseOutcome;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.exception.BusinessException;
@@ -111,24 +112,46 @@ public class ComplianceTargetLoader {
         for (ProjectDocument bidDoc : bidDocs) {
             // 解析名走 DocumentContent.displayFileName 单点兜底，与 trigger 落库名口径天然一致
             String fileName = DocumentContent.displayFileName(bidDoc.getName());
-            String parseFailMessage = "投标文件解析失败：" + fileName + "，请确认文件可正常打开后重新上传";
             Path physicalFile = storageResolver.resolvePhysicalFile(bidDoc.getFileUrl(), fileName);
-            DocumentContent parsed;
+            SidecarParseOutcome outcome;
             try {
-                parsed = sidecarAdapter.convertDocument(physicalFile, fileName);
+                outcome = sidecarAdapter.convertDocument(physicalFile, fileName);
             } catch (RuntimeException e) {
-                throw new BusinessException(422, parseFailMessage, e);
+                throw new BusinessException(422,
+                        "投标文件解析服务异常：" + fileName + "，请稍后重试；若持续出现请联系管理员。", e);
             } finally {
                 deleteQuietly(physicalFile);
             }
-            // Sidecar 适配器内部吞异常、失败时静默返回空文本册（真实失败形态），
-            // 必须在此显式拦截：空册并入合并文档 = 用 2/3 内容出"合格"报告的假查
-            if (parsed.fullText().isBlank() && parsed.pages().isEmpty()) {
-                throw new BusinessException(422, parseFailMessage);
+            // 非 OK 即整体失败并指名该册：空册并入合并文档 = 用 2/3 内容出"合格"报告的假查；
+            // 失败文案按分类生成（超时/服务异常/无文本层/不可解析），不再一律归因"文件打不开"
+            if (!outcome.isOk()) {
+                throw new BusinessException(422, parseFailureMessage(fileName, outcome));
             }
-            parsedDocuments.add(parsed);
+            parsedDocuments.add(outcome.content());
         }
         return DocumentContent.merge(parsedDocuments);
+    }
+
+    /**
+     * 按解析分类生成用户文案（契约：specs/066-fix-quality-check-parse/contracts/parse-outcome-contract.md）.
+     *
+     * <p>「请确认文件可正常打开后重新上传」仅保留给 UNPARSEABLE（文档级错误）；
+     * 超时/服务异常/无文本层均不得引导重传文件.
+     */
+    static String parseFailureMessage(final String fileName, final SidecarParseOutcome outcome) {
+        return switch (outcome.kind()) {
+            case TIMEOUT -> "投标文件解析超时：" + fileName + "（" + outcome.detail()
+                    + "），可能因文档较大或解析服务繁忙，请稍后重试；文件本身无需重新上传。";
+            case SERVICE_ERROR -> outcome.retrySuggested()
+                    ? "投标文件解析服务异常：" + fileName + "（" + outcome.detail()
+                    + "），请稍后重试；若持续出现请联系管理员。"
+                    : "投标文件超过解析服务大小上限：" + fileName + "，当前无法解析。";
+            case EMPTY_TEXT -> "未能从投标文件提取文本内容：" + fileName
+                    + "。该文件为图片扫描件或无可复制文本（无文本层），当前 AI 质量核查不支持此类文件，"
+                    + "请提供可复制文字的版本后重新核查。";
+            case UNPARSEABLE -> "投标文件无法解析：" + fileName + "，请确认文件可正常打开后重新上传。";
+            default -> "投标文件解析失败：" + fileName + "，请稍后重试。";
+        };
     }
 
     private static void deleteQuietly(final Path path) {

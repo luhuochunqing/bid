@@ -4,6 +4,7 @@
 package com.xiyu.bid.compliance.service;
 
 import com.xiyu.bid.compliance.domain.DocumentContent;
+import com.xiyu.bid.compliance.domain.SidecarParseOutcome;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
@@ -142,6 +143,29 @@ class TenderDocumentLoaderTest {
         when(projectDocumentRepository.findByProjectIdOrderByCreatedAtDesc(projectId))
                 .thenReturn(Collections.emptyList());
         when(projectRepository.findById(projectId)).thenReturn(Optional.empty());
+
+        DocumentContent result = loader.loadTenderDocument(projectId);
+
+        assertThat(result).isEqualTo(DocumentContent.empty());
+    }
+
+    @Test
+    @DisplayName("Sidecar 解析失败（非 OK）→ 容忍降级为空文档，不抛错")
+    void testLoadTenderDocument_SidecarFailure_DegradesToEmpty() {
+        Long projectId = 104L;
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(4L)
+                .projectId(projectId)
+                .documentCategory("TENDER")
+                .name("大招标文件.pdf")
+                .fileUrl("bid-agent://tender-documents/p104/tender.pdf")
+                .build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, "TENDER", null, null))
+                .thenReturn(List.of(doc));
+        when(storageResolver.resolvePhysicalFile(doc.getFileUrl(), "大招标文件.pdf", "招标文件"))
+                .thenReturn(Path.of("/tmp/xiyu-nonexistent-tender-104.pdf"));
+        when(sidecarAdapter.convertDocument(any(Path.class), eq("大招标文件.pdf")))
+                .thenReturn(SidecarParseOutcome.timeout("解析未在等待上限（645s）内完成"));
 
         DocumentContent result = loader.loadTenderDocument(projectId);
 
