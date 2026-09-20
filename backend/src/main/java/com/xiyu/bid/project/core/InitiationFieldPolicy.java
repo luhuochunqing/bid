@@ -139,6 +139,15 @@ public final class InitiationFieldPolicy {
         return CUSTOMER_TYPE_MAPPING.get(raw.trim());
     }
 
+    /** 归一化客户类型；无法识别时保留去首尾空格后的原值。 */
+    public static String normalizeCustomerTypeOrKeep(String raw) {
+        if (raw == null) return null;
+        String trimmed = raw.trim();
+        if (trimmed.isEmpty()) return raw;
+        String normalized = normalizeCustomerType(trimmed);
+        return normalized != null ? normalized : trimmed;
+    }
+
     /**
      * 将原始 projectType 文本（中文/前端旧 value/标讯系统枚举/历史数据）归一化为
      * 后端 ProjectType 枚举名。列表展示与筛选统一以此为准。

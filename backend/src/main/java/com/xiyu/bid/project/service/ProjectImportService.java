@@ -1,7 +1,12 @@
+// Input: ProjectImportRequest（历史项目导入请求）
+// Output: 持久化后的 ProjectDTO，并按配置创建归档
+// Pos: project/service/ - 项目导入编排层
+// 维护声明: 仅维护导入校验、项目映射与归档编排；字段归一化复用 InitiationFieldPolicy。
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.project.core.InitiationFieldPolicy;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.dto.ProjectImportRequest;
 import com.xiyu.bid.repository.ProjectRepository;
@@ -58,7 +63,7 @@ public class ProjectImportService {
         project.setCustomer(request.getCustomer());
         project.setBudget(request.getBudget());
         project.setIndustry(request.getIndustry());
-        project.setCustomerType(request.getCustomerType());
+        project.setCustomerType(InitiationFieldPolicy.normalizeCustomerTypeOrKeep(request.getCustomerType()));
         project.setRegion(request.getRegion());
         project.setPlatform(request.getPlatform());
         project.setDeadline(request.getDeadline());

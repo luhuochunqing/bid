@@ -88,14 +88,11 @@ final class OpportunityPredictionReminderSupport {
      * {@code ProjectListEnrichmentSupport.populateFromTender}——保证推送值/预测规则与表格同源同口径。
      */
     static String resolveCustomerType(Project project, Tender tender) {
-        if (project.getCustomerType() != null) {
-            return project.getCustomerType();
+        String raw = project.getCustomerType();
+        if (raw == null && tender != null) {
+            raw = tender.getCustomerType();
         }
-        if (tender == null || tender.getCustomerType() == null) {
-            return null;
-        }
-        String normalized = InitiationFieldPolicy.normalizeCustomerType(tender.getCustomerType());
-        return normalized != null ? normalized : tender.getCustomerType();
+        return InitiationFieldPolicy.normalizeCustomerTypeOrKeep(raw);
     }
 
     /** 项目类型：立项详情优先，缺失时按商机列表口径从关联标讯归一化回退。 */
