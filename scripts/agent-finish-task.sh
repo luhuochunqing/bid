@@ -384,20 +384,23 @@ else
     info "锚点分支 $INIT_BRANCH 由持久 worktree 持有: $INIT_BRANCH_WORKTREE"
     if [[ -n "$(git -C "$INIT_BRANCH_WORKTREE" status --porcelain --untracked-files=no 2>/dev/null)" ]]; then
       warn "该 worktree 存在未提交的 tracked 变更，跳过自动同步（请在早操时手动处理）"
-    elif ! git -C "$INIT_BRANCH_WORKTREE" pull origin main --rebase 2>/dev/null; then
-      git -C "$INIT_BRANCH_WORKTREE" pull origin main 2>/dev/null \
-        || warn "锚点 worktree 同步失败（可能被未跟踪文件或本地提交阻塞），请手动处理；继续执行 Step 7-10"
-      info "已在 $INIT_BRANCH_WORKTREE 尝试同步 origin/main"
-    else
+    elif git -C "$INIT_BRANCH_WORKTREE" pull origin main --rebase 2>/dev/null; then
       info "已在 $INIT_BRANCH_WORKTREE 拉取最新 origin/main"
+    elif git -C "$INIT_BRANCH_WORKTREE" pull origin main 2>/dev/null; then
+      info "已在 $INIT_BRANCH_WORKTREE 拉取最新 origin/main"
+    else
+      warn "锚点 worktree 同步失败（可能被未跟踪文件或本地提交阻塞），请手动处理；继续执行 Step 7-10"
     fi
   elif git rev-parse --verify --quiet "$INIT_BRANCH" >/dev/null 2>&1; then
     if git checkout "$INIT_BRANCH" 2>/dev/null; then
       info "已切换到 $INIT_BRANCH"
-      if ! git pull origin main --rebase 2>/dev/null; then
-        git pull origin main 2>/dev/null || warn "拉取 origin/main 失败，请手动处理；继续执行 Step 7-10"
+      if git pull origin main --rebase 2>/dev/null; then
+        info "已拉取最新 origin/main"
+      elif git pull origin main 2>/dev/null; then
+        info "已拉取最新 origin/main"
+      else
+        warn "拉取 origin/main 失败，请手动处理；继续执行 Step 7-10"
       fi
-      info "已拉取最新 origin/main"
     else
       warn "切换到 $INIT_BRANCH 失败（可能存在未提交变更），跳过锚点同步；继续执行 Step 7-10"
     fi
@@ -406,10 +409,13 @@ else
     git fetch origin 2>/dev/null || warn "git fetch 失败（跳过）"
     if git checkout -b "$INIT_BRANCH" origin/main 2>/dev/null; then
       info "已创建并切换到 $INIT_BRANCH"
-      if ! git pull origin main --rebase 2>/dev/null; then
-        git pull origin main 2>/dev/null || warn "拉取 origin/main 失败，请手动处理；继续执行 Step 7-10"
+      if git pull origin main --rebase 2>/dev/null; then
+        info "已拉取最新 origin/main"
+      elif git pull origin main 2>/dev/null; then
+        info "已拉取最新 origin/main"
+      else
+        warn "拉取 origin/main 失败，请手动处理；继续执行 Step 7-10"
       fi
-      info "已拉取最新 origin/main"
     else
       warn "创建 $INIT_BRANCH 失败，跳过锚点同步；继续执行 Step 7-10"
     fi
