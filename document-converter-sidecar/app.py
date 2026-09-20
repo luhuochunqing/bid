@@ -48,11 +48,10 @@ logger = logging.getLogger(__name__)
 # Configuration (env-var driven)
 # ---------------------------------------------------------------------------
 
-# Default 512 (spec 045 T025): aligned with Java-side app.score-parse.bid-file
-# .max-file-bytes (StreamingBidFileFetcher). markitdown conversion of inputs
-# beyond ~512MB OOM-kills the sidecar (observed with a 1.62GB bid document);
-# both ends MUST keep the same value.
-_MAX_UPLOAD_MB: int = int(os.environ.get("SIDECAR_MAX_UPLOAD_MB", "512"))
+# Default 1024 (spec 045 T025): aligned with Java-side app.score-parse.bid-file
+# .max-file-bytes (StreamingBidFileFetcher). Production may raise this explicitly
+# (currently 3072MB); both ends MUST keep the configured values compatible.
+_MAX_UPLOAD_MB: int = int(os.environ.get("SIDECAR_MAX_UPLOAD_MB", "1024"))
 MAX_UPLOAD_SIZE_BYTES: int = _MAX_UPLOAD_MB * 1024 * 1024
 
 SIDECAR_HOST: str = os.environ.get("SIDECAR_HOST", "127.0.0.1")

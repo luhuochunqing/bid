@@ -1052,3 +1052,9 @@
 - 触发：spec 062 多表拆分后数量启发式误用整份文档正文长度；Evidence Pipeline 部分表通过触发项目级全量替换。
 - 结果：数量启发式限定文档级兜底（STRUCTURED_SUMMARY_ROW 独立表以声明-权重一致性判漏抽）；正式发布门禁 = 文档级 AUTO_APPROVED 且候选非空；事实删除按 parseTaskId 隔离。
 - 回填：新增 [[score-parse-split-completeness-and-partial-overwrite-fix]]。
+
+## [2026-09-20] compound | 生产项目 1120 大文件评分配额根因回填
+- 触发：生产评分任务在 OBS 下载预检阶段提示投标文件超过服务器处理配额。
+- 根因：Java 默认 512MiB 小于实际 1,039,096,020 字节文件；任务在解析前被 `StreamingBidFileFetcher` 拒绝。
+- 修复：默认配额提升至 1GiB，Sidecar 默认同步为 1024MiB，并记录 JVM、临时磁盘、Sidecar 3GiB 部署覆盖和超时容量评估。
+- 回填：更新 [[score-parse-service]]。
