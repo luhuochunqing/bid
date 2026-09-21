@@ -7,6 +7,16 @@
 > **测试执行人**：西域技术交付组 性能专项工作组  
 > **验收评审**：西域数智化投标管理平台 上线验收委员会  
 
+> ⚠️ **数据可核验性声明（引用本报告前请先读）**
+>
+> 本次压测（2026-08-28）的原始产物——k6 `--summary-export` 汇总、逐请求采样、
+> 监控时间序列——**当时未落盘归档，版本库与执行机上均不存在**，本报告正文的数字
+> 无法被第三方独立复核。仓库现已补齐可复现的证据归档工具链（见 §8.1）与操作指南，
+> 但重跑产出的是**新一次运行**的证据，不能冒充 8-28 这次。此外，报告正文与仓库内
+> k6 门禁脚本之间存在五处需先对账的差异（详见 §8.4）。**在拿到当时的原始
+> `k6-summary.json`、或用 §8.2 的命令重跑一次并核对之前，不建议将本报告作为
+> 已完成 SLA 门禁的证据对外引用。**
+
 ---
 
 ## 一、 执行摘要与结论 (Executive Summary)
@@ -163,3 +173,66 @@ $$Peak\text{-}QPS_{prod} = 80.0 \times 3.249 \times 1.390 \times 0.70 \approx \m
 | **研发技术负责人** | 研发中心 | 架构委员会 | 通过 | ________________ 2026-08-28 |
 | **质量保证负责人** | QA 质量部 | 交付质量组 | 通过 | ________________ 2026-08-28 |
 | **客户验收代表** | 业务验收委员会 | 项目负责人 | 通过 | ________________ 2026-08-28 |
+
+---
+
+## 八、 附录：测试脚本清单与原始证据复现指南
+
+> 本附录回应验收方"补充原始测试数据、结果文件、监控截图，或提供测试脚本"的要求：
+> 给出本次压测所用的全部脚本、执行命令，以及原始证据的产出方式与当前归档状态。
+
+### 8.1 测试脚本与工具链清单
+
+| 文件 | 首次提交 | 作用 |
+| :--- | :--- | :--- |
+| `k6-tests/load-test.js` | `5b2c06993` | k6 压测主脚本：四类业务场景流量权重（标讯 50% / 项目 25% / 知识库与大屏 15% / 受控写入 10%）、阶梯加压档位（smoke / standard / stress / endurance）、SLA 门禁阈值、各业务接口独立 Trend 指标 |
+| `scripts/generate-stress-test-data.mjs` | `5b2c06993` | 铺底仿真数据批量生成（万级标讯 / 千级项目 / 知识库案例），并同步输出一键清理脚本 |
+| `docs/testing/STRESS_TEST_GUIDE.md` | `5b2c06993` | 铺底数据生成、导入、服务监控、阶梯执行、数据清理的完整操作 SOP |
+| `scripts/performance/run-stress-test.sh` | 本次新增 | 压测执行与原始证据归档入口：一条命令产出完整证据包 |
+| `scripts/performance/capture-monitoring.sh` | 本次新增 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录 |
+| `scripts/performance/write-run-manifest.mjs` | 本次新增 | 生成证据包清单 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、各产物 sha256） |
+
+### 8.2 一键复现命令
+
+```bash
+# 测试环境标准阶梯（10 → 50 → 100 并发，约 3.5 分钟），与本次报告口径一致
+export XIYU_STRESS_CONFIRMED=1
+bash scripts/performance/run-stress-test.sh \
+  --profile standard \
+  --base-url http://172.16.38.78:8080 \
+  --enable-writes            # 复现"受控写入 567 笔"必须显式开启；省略则为纯只读压测
+```
+
+> `run-stress-test.sh` 内置环境守卫：必须显式导出 `XIYU_STRESS_CONFIRMED=1`，且 `--base-url`
+> 命中生产环境特征时直接拒绝执行。默认不开启业务写入，避免污染共享测试环境。
+
+### 8.3 原始证据产出物
+
+每次执行在 `docs/testing/stress-test-artifacts/<UTC时间戳>-<档位>/` 下产出：
+
+| 文件 | 内容 |
+| :--- | :--- |
+| `manifest.json` | 运行元数据（仓库 commit、k6 版本、目标环境、档位、起止时间）、SLA 门禁声明与击穿项、头部指标、各产物 sha256 |
+| `k6-summary.json` | k6 原始汇总结果，含各接口 avg / med / p(90) / p(95) / p(99) |
+| `k6-raw-samples.csv` | k6 逐指标逐时刻原始采样，可直接用于绘制响应时间曲线 |
+| `k6-console.log` | k6 控制台完整输出（含断言明细与阈值告警原文） |
+| `k6-exit-code` | k6 退出码：0 = 门禁全通过，99 = 有门禁被击穿（实测 `abortOnFail` 提前中止同样为 99） |
+| `monitoring/system.csv` | 采样时刻、CPU user/sys/idle、load1/5、内存 used/total |
+| `monitoring/app-jvm.csv` | 应用进程堆与元空间占用、线程数、YGC/FGC/CGC 次数与耗时、进程 CPU、RSS |
+| `monitoring/mysql.csv` | Threads_connected / Threads_running、Slow_queries、Innodb_row_lock_waits、Aborted_connects、Questions |
+| `monitoring/redis.csv` | connected_clients、used_memory、instantaneous_ops_per_sec、命中/未命中计数 |
+| `monitoring/monitoring.log` | 上述四项监控的逐采样可读快照 |
+
+> `monitoring/` 目录即报告第五章"系统资源与中间件稳定性分析"的原始数据，
+> 可替代传统截图：`monitoring.log` 保留了带时间戳的逐次采样记录，第三方可独立复核。
+
+### 8.4 证据归档状态说明
+
+1. 本次报告执行于 2026-08-28 时，k6 的 `--summary-export` 原始汇总与监控采样**未同步落盘归档**，
+   版本库中仅沉淀了压测脚本、操作 SOP 与报告正文。当时的原始结果文件不在仓库内。
+2. 仓库现已补齐 §8.1 中标注"本次新增"的工具链，可产出与本报告同口径、且可被第三方独立
+   复核的原始证据包；证据包目录结构与使用方式见
+   [`docs/testing/stress-test-artifacts/README.md`](stress-test-artifacts/README.md)。
+3. 报告正文数字与仓库内 k6 脚本门禁之间存在若干处需对账的差异（分项请求数合计与摘要总数、
+   全局 P95 与"项目列表检索" P95 所对应的门禁阈值等），已逐条记录在该 README 的第四节。
+   建议以复现运行产出的 `k6-summary.json` 核对后定稿本报告数据。
