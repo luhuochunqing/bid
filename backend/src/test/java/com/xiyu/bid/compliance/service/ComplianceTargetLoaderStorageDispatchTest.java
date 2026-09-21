@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -93,6 +94,9 @@ class ComplianceTargetLoaderStorageDispatchTest {
         project.setId(PROJECT_ID);
         project.setName("测试项目");
         when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.of(project));
+        // 视觉链路默认直通：页面图像抽取以入参文档原样返回，避免未打桩的 mock 返回 null 吞掉解析结果
+        lenient().when(sidecarAdapter.withPageImages(any(Path.class), anyString(), any(DocumentContent.class)))
+                .thenAnswer(invocation -> invocation.getArgument(2));
     }
 
     private void stubBidDocuments(final ProjectDocument... docs) {

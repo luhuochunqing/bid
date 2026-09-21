@@ -118,4 +118,21 @@ class BasicInfoAndAttachmentRulesTest {
         assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(result.conclusion()).contains("文本层无法确认实际盖章");
     }
+
+    @Test
+    @DisplayName("承诺书反假：落款仅有「（电子签章）」标签不得判为签章要素齐全")
+    void testCommitmentSeal_WhenESealCaptionOnly_RequiresManualReview() {
+        String bidText = """
+                廉洁投标承诺书
+                我单位郑重承诺在本次投标活动中严格遵守法律法规，绝无行贿受贿行为。
+                承诺人：西域供应链（上海）有限公司（电子签章）
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "h7", bidText);
+
+        QualityCheckItemResult result = SubItemAndAttachmentRules.checkCommitmentSeal(doc);
+
+        assertThat(result).isNotNull();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).doesNotContain("包含合规承诺书且签章要素齐全");
+    }
 }
