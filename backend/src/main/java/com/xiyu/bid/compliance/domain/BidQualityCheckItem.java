@@ -68,7 +68,7 @@ public enum BidQualityCheckItem {
             "签章完整性",
             "CRITICAL",
             9,
-            "通过 AI 图像识别检测投标文件各页签章是否存在，重点检查技术方案末尾、承诺函等需盖章页面"),
+            "结合文本层签章证据与页面图像（PDF）核验签章是否存在，重点检查技术方案末尾、承诺函等需盖章页面；非分页文档（.docx）仅做文本层核验，无法确认时转人工复核"),
     CONTACT_INFO(
             "CONTACT_INFO",
             QualityCheckCategory.BASIC_INFO,
