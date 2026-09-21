@@ -8,6 +8,27 @@
 | 文件 | 地位 | 功能 |
 |------|------|------|
 | `sales-200.k6.js` | 压测脚本 | 模拟 200 个销售在线用户访问登录、项目、看板、导出和标书上传入队链路 |
+| `run-stress-test.sh` | 执行脚本 | 压测执行与原始证据归档入口：调用 `k6-tests/load-test.js` 跑指定档位，产出完整证据包（原始 summary / 逐请求采样 / 控制台日志 / 监控数据 / `manifest.json`）。内置 `XIYU_STRESS_CONFIRMED=1` 与环境守卫，默认关闭业务写入 |
+| `capture-monitoring.sh` | 采集脚本 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录，产出 CSV 时间序列 + 可读日志，替代手工监控截图 |
+| `write-run-manifest.mjs` | 清单脚本 | 解析证据目录既有产物，生成 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、各产物 sha256） |
+
+## 压测证据归档（推荐入口）
+
+需要出具可被第三方复核的压测报告时，走证据归档入口而不是手工拼 k6 命令：
+
+```bash
+export XIYU_STRESS_CONFIRMED=1
+bash scripts/performance/run-stress-test.sh \
+  --profile standard \
+  --base-url http://172.16.38.78:8080 \
+  --enable-writes
+```
+
+产出物落在 `docs/testing/stress-test-artifacts/<UTC时间戳>-<档位>/`，
+目录结构、门禁判定口径与已知复现差异见 `docs/testing/stress-test-artifacts/README.md`。
+
+各档位时长：`smoke` 30s（1 VU 冒烟）、`standard` 3.5m（10→50→100 VU）、
+`stress` 5m（20→100→200 VU）、`endurance` 12m（50 VU 长稳）。
 
 ## 运行示例
 
