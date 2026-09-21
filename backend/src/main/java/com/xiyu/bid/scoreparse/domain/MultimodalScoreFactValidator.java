@@ -16,6 +16,12 @@ public final class MultimodalScoreFactValidator {
     public ValidationReport validate(List<MultimodalScoreFact> input,
                                      DocumentArtifact artifact,
                                      BigDecimal declaredTotal) {
+        return validate(input, artifact, null, declaredTotal);
+    }
+
+    public ValidationReport validate(List<MultimodalScoreFact> input,
+                                     DocumentArtifact artifact, String tenderText,
+                                     BigDecimal declaredTotal) {
         List<MultimodalScoreFact> facts = input == null ? List.of() : List.copyOf(input);
         List<Violation> violations = new ArrayList<>();
         if (facts.isEmpty()) {
@@ -28,17 +34,24 @@ public final class MultimodalScoreFactValidator {
         validateDuplicates(facts, violations);
         validateSequences(facts, violations);
         validateParents(facts, violations);
+        var sourceVerification = OriginalScoreEvidencePolicy.verifyModel(artifact, tenderText, facts, declaredTotal);
+        sourceVerification.problems().forEach(problem -> violations.add(new Violation(problem.factId(),
+                problem.field(), problem.code(), "模型字段缺少对应原文依据", problem.expected(),
+                problem.actual(), problem.locator())));
         Set<String> parents = new HashSet<>();
         facts.stream().filter(f -> !f.parentCode().isBlank())
                 .forEach(f -> parents.add(f.sectionTitle() + "\u0000" + f.parentCode()));
         BigDecimal leafTotal = facts.stream().filter(f -> !parents.contains(f.sectionTitle() + "\u0000" + f.code()))
                 .map(MultimodalScoreFact::weight).filter(java.util.Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (declaredTotal == null || leafTotal.compareTo(declaredTotal) != 0) {
+        BigDecimal originalTotal = sourceVerification.total().value();
+        if (originalTotal == null || leafTotal.compareTo(originalTotal) != 0) {
             violations.add(new Violation("", "weight", "WEIGHT_SUM_MISMATCH",
-                    "叶子项总分必须与原文声明总分闭合", declaredTotal, leafTotal, ""));
+                    "叶子项总分必须与已核验原文总分闭合", originalTotal, leafTotal,
+                    sourceVerification.total().locator()));
         }
-        return new ValidationReport(facts, declaredTotal, leafTotal, violations.isEmpty(), violations);
+        return new ValidationReport(facts, declaredTotal, originalTotal, leafTotal, violations.isEmpty(),
+                violations, sourceVerification);
     }
 
     private static void validateRequiredFields(List<MultimodalScoreFact> facts, List<Violation> violations) {
@@ -158,7 +171,8 @@ public final class MultimodalScoreFactValidator {
     public record Violation(String factId, String field, String code, String message,
                             Object expected, Object actual, String evidence) {}
     public record ValidationReport(List<MultimodalScoreFact> facts, BigDecimal declaredTotal,
-                                   BigDecimal leafTotal, boolean autoApprovable, List<Violation> violations) {
+                                   BigDecimal originalTotal, BigDecimal leafTotal, boolean autoApprovable,
+                                   List<Violation> violations, OriginalScoreEvidencePolicy.Verification sourceVerification) {
         public ValidationReport {
             facts = List.copyOf(facts);
             violations = List.copyOf(violations);

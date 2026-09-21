@@ -9,6 +9,10 @@ import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
+import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
+import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
+import com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository;
+import com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -60,7 +64,7 @@ class StructuredTableExtractionMarkCompletedTest {
     void singleTableWeightMismatch_emitsNormalizationWarningWithActualTotal()
             throws IOException, InterruptedException {
         StructuredTableResult structured = extract(singleTableMismatchArtifact(),
-                "投标报价得分：等于基准价的得满分30分。");
+                "本项目评分总分30分。投标报价得分：等于基准价的得满分30分。");
         ScoreParseTask task = new ScoreParseTask();
         ScoreParseTaskRepository taskRepository = mock(ScoreParseTaskRepository.class);
         ScoreParseTaskStateService stateService = mock(ScoreParseTaskStateService.class);
@@ -136,6 +140,44 @@ class StructuredTableExtractionMarkCompletedTest {
         verify(itemService).persistItems(any(), any(), anyList());
         verify(estimatedScoreService).estimateForProject(any());
         verify(stateService).markCompleted("task-full");
+    }
+
+    @Test
+    void autoDecisionWithoutOriginalProofCannotReplaceOfficialItems()
+            throws IOException, InterruptedException {
+        StructuredTableResult verified = extract(multiTableArtifact(),
+                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+        StructuredTableResult unverified = StructuredTableResult.evidencePipeline(verified.facts(),
+                verified.candidates(), verified.completeness(), verified.tableCompletenesses());
+        ScoreParseTask task = new ScoreParseTask();
+        ScoreItemPersistenceService items = mock(ScoreItemPersistenceService.class);
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(task, "task-unverified", unverified,
+                mock(ScoreParseTaskRepository.class), mock(ScoreParseTaskStateService.class),
+                mock(ScoreParseProgressService.class), items, mock(EstimatedScoreService.class));
+        assertThat(task.getDecisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
+        verify(items, never()).persistItems(any(), any(), anyList());
+        verify(items).persistFactsAndEvidence(any(), any(), anyList());
+    }
+
+    @Test
+    void rejectedParseSavesTaskFactsWithoutDeletingExistingItemsOrScores()
+            throws IOException, InterruptedException {
+        StructuredTableResult structured = extract(partialApprovalArtifact(),
+                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+        ScoreItemRepository officialItems = mock(ScoreItemRepository.class);
+        ScoreResultRepository oldScores = mock(ScoreResultRepository.class);
+        ScoreParseFactRepository reviewFacts = mock(ScoreParseFactRepository.class);
+        ScoreParseEvidenceRepository reviewEvidence = mock(ScoreParseEvidenceRepository.class);
+        ScoreItemPersistenceService persistence = new ScoreItemPersistenceService(
+                officialItems, oldScores, reviewFacts, reviewEvidence, new ObjectMapper());
+        ScoreParseTask task = new ScoreParseTask();
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(task, "task-protect", structured,
+                mock(ScoreParseTaskRepository.class), mock(ScoreParseTaskStateService.class),
+                mock(ScoreParseProgressService.class), persistence, mock(EstimatedScoreService.class));
+        assertThat(task.getDecisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
+        verify(officialItems, never()).deleteByProjectId(any());
+        verify(oldScores, never()).deleteByScoreItemIdIn(anyList());
+        verify(reviewFacts).saveAll(anyList());
     }
 
     private static StructuredTableResult extract(

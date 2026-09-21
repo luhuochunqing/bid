@@ -197,6 +197,42 @@ class ScorePartialOverwritePersistenceTest {
     }
 
     @Test
+    void autoStatusWithoutSourceProof_keepsExistingOfficialItemAndActualScore() {
+        Long projectId = 9106L;
+        ScoreParseTask previous = taskRepository.saveAndFlush(ScoreParseTask.builder()
+                .taskId("old-source-proof-task").projectId(projectId).taskType("PARSE")
+                .status("COMPLETED").build());
+        ScoreItem oldItem = itemRepository.saveAndFlush(ScoreItem.builder().projectId(projectId)
+                .parseTaskId(previous.getId()).itemIndex(1).code("1").dim("旧评分项")
+                .detail("旧规则").weight(bd("100")).scoreType("OBJECTIVE")
+                .statusStage1("OK").build());
+        ScoreResult oldScore = resultRepository.saveAndFlush(ScoreResult.builder()
+                .scoreItemId(oldItem.getId()).scoringTaskId(77L).actualScore(bd("86"))
+                .statusStage2("OK").build());
+        ScoreParseTask current = taskRepository.saveAndFlush(ScoreParseTask.builder()
+                .taskId("unverified-source-proof-task").projectId(projectId).taskType("PARSE")
+                .status("PROCESSING").build());
+        StructuredTableResult complete = extract(twoTableArtifact());
+        assertThat(complete.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        StructuredTableResult unverified = StructuredTableResult.evidencePipeline(complete.facts(),
+                complete.candidates(), complete.completeness(), complete.tableCompletenesses());
+
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(current, current.getTaskId(),
+                unverified, taskRepository, stateService, progressService, persistenceService,
+                estimatedScoreService);
+
+        assertThat(current.getDecisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
+        assertThat(itemRepository.findByProjectIdOrderByItemIndexAsc(projectId))
+                .extracting(ScoreItem::getId).containsExactly(oldItem.getId());
+        assertThat(resultRepository.findAll()).extracting(ScoreResult::getId)
+                .contains(oldScore.getId());
+        assertThat(resultRepository.findByScoreItemIdIn(List.of(oldItem.getId())))
+                .extracting(ScoreResult::getActualScore).containsExactly(bd("86"));
+        assertThat(factRepository.findByParseTaskId(current.getId())).isNotEmpty();
+        verify(estimatedScoreService, never()).estimateForProject(projectId);
+    }
+
+    @Test
     void reviewCandidateFacts_isolatedByParseTask_andIdempotentPerTask() {
         // 回归G：同项目两个复核任务互不串任务；同任务重复保存不产生重复事实；其他项目不受影响
         Long projectId = 9104L;
