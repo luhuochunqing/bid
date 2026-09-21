@@ -1,0 +1,122 @@
+{
+  "run_id": "20260921T055308Z-smoke-harness-selfcheck",
+  "started_at_utc": "2026-09-21T05:53:08Z",
+  "ended_at_utc": "2026-09-21T05:53:39Z",
+  "duration_seconds": 32,
+  "target_base_url": "http://127.0.0.1:18089",
+  "target_host": "127.0.0.1",
+  "profile": "smoke",
+  "enable_writes": false,
+  "k6_script": "k6-tests/load-test.js",
+  "k6_version": "k6 v1.8.0 (go1.25.12, darwin/arm64)",
+  "monitor_interval_seconds": 5,
+  "monitor_scope": "local-target",
+  "repository": {
+    "commit_sha": "431d0e5a1b33877ce3927ffee8f884e6921f8ef5",
+    "branch": "agent/claude/stress-test-evidence",
+    "working_tree": "clean"
+  },
+  "k6_exit_code": 0,
+  "thresholds_passed": true,
+  "thresholds_declared": [
+    {
+      "metric": "xiyu_error_rate",
+      "threshold": "rate<0.01"
+    },
+    {
+      "metric": "xiyu_project_list_duration",
+      "threshold": "p(95)<1000"
+    },
+    {
+      "metric": "xiyu_dashboard_duration",
+      "threshold": "p(95)<2000"
+    },
+    {
+      "metric": "http_req_duration",
+      "threshold": "p(95)<1500"
+    },
+    {
+      "metric": "http_req_duration",
+      "threshold": "p(99)<3000"
+    },
+    {
+      "metric": "xiyu_business_success_rate",
+      "threshold": "rate>0.99"
+    },
+    {
+      "metric": "http_req_failed",
+      "threshold": "rate<0.01"
+    },
+    {
+      "metric": "xiyu_tender_list_duration",
+      "threshold": "p(95)<1000"
+    },
+    {
+      "metric": "xiyu_auth_success_rate",
+      "threshold": "rate>0.99"
+    }
+  ],
+  "thresholds_crossed": [],
+  "evidence_complete": true,
+  "missing_artifacts": [],
+  "deliverable_ready": true,
+  "credential_redactions": 4,
+  "headline_metrics": {
+    "total_http_requests": 76,
+    "http_req_duration_avg_ms": 86.04060526315793,
+    "http_req_duration_p95_ms": 230.26849999999996,
+    "http_req_duration_p99_ms": 290.342,
+    "http_req_failed_rate": 0,
+    "xiyu_error_rate": 0,
+    "xiyu_total_requests": 76,
+    "xiyu_read_ops": 72,
+    "xiyu_write_ops": null,
+    "xiyu_login_avg_ms": 214.25,
+    "xiyu_tender_list_p95_ms": 130.79999999999998,
+    "xiyu_tender_detail_p95_ms": null,
+    "xiyu_tender_create_p95_ms": null,
+    "xiyu_project_list_p95_ms": 285,
+    "xiyu_project_detail_p95_ms": 92,
+    "xiyu_knowledge_search_p95_ms": 51.8,
+    "xiyu_dashboard_p95_ms": 61.199999999999996
+  },
+  "artifacts": {
+    "k6-summary.json": {
+      "bytes": 10034,
+      "sha256": "7de5cafe61d306721defbae004b4c5d8a6a6dd53edd9dcb882ea399e1940029a"
+    },
+    "k6-raw-samples.csv": {
+      "bytes": 130107,
+      "sha256": "745cef3ca9ff7ec33b79165b3605f9e3752b8c6b71f453d699f44fc53681f80b"
+    },
+    "k6-console.log": {
+      "bytes": 6871,
+      "sha256": "f6b2e065f46900aa87703723a7c0d1397a414ac5c0c230be3880ada1ae7f9e30"
+    },
+    "k6-exit-code": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "monitoring/system.csv": {
+      "bytes": 447,
+      "sha256": "654e274356873595c2a9aa48050eaa4361ee11bcab6a3248c8e270bcd209e304"
+    },
+    "monitoring/app-jvm.csv": {
+      "bytes": 562,
+      "sha256": "5f9e87737e0c66d5c55aeb98a33235cc27203abd17e84f6dbd4dda7b669a1b21"
+    },
+    "monitoring/mysql.csv": {
+      "bytes": 346,
+      "sha256": "d589f63539b805b6f12d5e8efc25f49f6a0a2f9860a9ec59c8f587fffed5c8f0"
+    },
+    "monitoring/redis.csv": {
+      "bytes": 333,
+      "sha256": "f1024ed3bd98897fb05ca6ccd500ae25a4de7916600c12f978437b365578fcaf"
+    },
+    "monitoring/monitoring.log": {
+      "bytes": 2166,
+      "sha256": "b34c00855f8ea5fcb0a68ba7f50156141abb8902ee920cb2445097eb578f4346"
+    }
+  },
+  "note": "原始证据包由 scripts/performance/run-stress-test.sh 生成；sha256 用于校验归档件未被替换。"
+}

@@ -1,0 +1,182 @@
+
+         /\      Grafana   /‾‾/
+    /\  /  \     |\  __   /  /
+   /  \/    \    | |/ /  /   ‾‾\
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/
+
+
+     execution: local
+        script: /Users/user/xiyu/worktrees/xiyu-claude-stress-test-evidence/k6-tests/load-test.js
+        output: csv (docs/testing/stress-test-artifacts/examples/20260921T055308Z-smoke-harness-selfcheck/k6-raw-samples.csv)
+
+     scenarios: (100.00%) 1 scenario, 1 max VUs, 1m0s max duration (incl. graceful stop):
+              * default: Up to 1 looping VUs for 30s over 2 stages (gracefulRampDown: 30s, gracefulStop: 30s)
+
+
+running (0m01.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+default   [   0% ] 1/1 VUs  00.1s/30.0s
+
+running (0m02.0s), 1/1 VUs, 0 complete and 0 interrupted iterations
+default   [   4% ] 1/1 VUs  01.1s/30.0s
+
+running (0m03.0s), 1/1 VUs, 1 complete and 0 interrupted iterations
+default   [   7% ] 1/1 VUs  02.1s/30.0s
+
+running (0m04.0s), 1/1 VUs, 2 complete and 0 interrupted iterations
+default   [  10% ] 1/1 VUs  03.1s/30.0s
+
+running (0m05.0s), 1/1 VUs, 3 complete and 0 interrupted iterations
+default   [  14% ] 1/1 VUs  04.1s/30.0s
+
+running (0m06.0s), 1/1 VUs, 4 complete and 0 interrupted iterations
+default   [  17% ] 1/1 VUs  05.1s/30.0s
+
+running (0m07.0s), 1/1 VUs, 5 complete and 0 interrupted iterations
+default   [  20% ] 1/1 VUs  06.1s/30.0s
+
+running (0m08.0s), 1/1 VUs, 6 complete and 0 interrupted iterations
+default   [  24% ] 1/1 VUs  07.1s/30.0s
+
+running (0m09.0s), 1/1 VUs, 8 complete and 0 interrupted iterations
+default   [  27% ] 1/1 VUs  08.1s/30.0s
+
+running (0m10.0s), 1/1 VUs, 9 complete and 0 interrupted iterations
+default   [  30% ] 1/1 VUs  09.1s/30.0s
+
+running (0m11.0s), 1/1 VUs, 10 complete and 0 interrupted iterations
+default   [  34% ] 1/1 VUs  10.1s/30.0s
+
+running (0m12.0s), 1/1 VUs, 11 complete and 0 interrupted iterations
+default   [  37% ] 1/1 VUs  11.1s/30.0s
+
+running (0m13.0s), 1/1 VUs, 12 complete and 0 interrupted iterations
+default   [  40% ] 1/1 VUs  12.1s/30.0s
+
+running (0m14.0s), 1/1 VUs, 13 complete and 0 interrupted iterations
+default   [  44% ] 1/1 VUs  13.1s/30.0s
+
+running (0m15.0s), 1/1 VUs, 14 complete and 0 interrupted iterations
+default   [  47% ] 1/1 VUs  14.1s/30.0s
+
+running (0m16.0s), 1/1 VUs, 15 complete and 0 interrupted iterations
+default   [  50% ] 1/1 VUs  15.1s/30.0s
+
+running (0m17.0s), 1/1 VUs, 16 complete and 0 interrupted iterations
+default   [  54% ] 1/1 VUs  16.1s/30.0s
+
+running (0m18.0s), 1/1 VUs, 17 complete and 0 interrupted iterations
+default   [  57% ] 1/1 VUs  17.1s/30.0s
+
+running (0m19.0s), 1/1 VUs, 18 complete and 0 interrupted iterations
+default   [  60% ] 1/1 VUs  18.1s/30.0s
+
+running (0m20.0s), 1/1 VUs, 19 complete and 0 interrupted iterations
+default   [  64% ] 1/1 VUs  19.1s/30.0s
+
+running (0m21.0s), 1/1 VUs, 20 complete and 0 interrupted iterations
+default   [  67% ] 1/1 VUs  20.1s/30.0s
+
+running (0m22.0s), 1/1 VUs, 21 complete and 0 interrupted iterations
+default   [  70% ] 1/1 VUs  21.1s/30.0s
+
+running (0m23.0s), 1/1 VUs, 22 complete and 0 interrupted iterations
+default   [  74% ] 1/1 VUs  22.1s/30.0s
+
+running (0m24.0s), 1/1 VUs, 23 complete and 0 interrupted iterations
+default   [  77% ] 1/1 VUs  23.1s/30.0s
+
+running (0m25.0s), 1/1 VUs, 24 complete and 0 interrupted iterations
+default   [  80% ] 1/1 VUs  24.1s/30.0s
+
+running (0m26.0s), 1/1 VUs, 24 complete and 0 interrupted iterations
+default   [  84% ] 1/1 VUs  25.1s/30.0s
+
+running (0m27.0s), 1/1 VUs, 25 complete and 0 interrupted iterations
+default   [  87% ] 1/1 VUs  26.1s/30.0s
+
+running (0m28.0s), 1/1 VUs, 26 complete and 0 interrupted iterations
+default   [  90% ] 1/1 VUs  27.1s/30.0s
+
+running (0m29.0s), 1/1 VUs, 27 complete and 0 interrupted iterations
+default   [  94% ] 1/1 VUs  28.1s/30.0s
+
+running (0m30.0s), 1/1 VUs, 28 complete and 0 interrupted iterations
+default   [  97% ] 1/1 VUs  29.1s/30.0s
+
+
+  █ THRESHOLDS
+
+    http_req_duration
+    ✓ 'p(95)<1500' p(95)=230.26ms
+    ✓ 'p(99)<3000' p(99)=290.34ms
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+    xiyu_auth_success_rate
+    ✓ 'rate>0.99' rate=100.00%
+
+    xiyu_business_success_rate
+    ✓ 'rate>0.99' rate=100.00%
+
+    xiyu_dashboard_duration
+    ✓ 'p(95)<2000' p(95)=61.2
+
+    xiyu_error_rate
+    ✓ 'rate<0.01' rate=0.00%
+
+    xiyu_project_list_duration
+    ✓ 'p(95)<1000' p(95)=285
+
+    xiyu_tender_list_duration
+    ✓ 'p(95)<1000' p(95)=130.8
+
+
+  █ TOTAL RESULTS
+
+    checks_total.......: 50      1.618538/s
+    checks_succeeded...: 100.00% 50 out of 50
+    checks_failed......: 0.00%   0 out of 50
+
+    ✓ project list status is 200
+    ✓ project detail status is 200
+    ✓ tender list status is 200
+    ✓ knowledge search ok
+    ✓ analytics overview status is 200
+    ✓ product-lines ok
+
+    CUSTOM
+    xiyu_auth_success_rate...........: 100.00% 4 out of 4
+    xiyu_business_success_rate.......: 100.00% 40 out of 40
+    xiyu_dashboard_duration..........: avg=37.2       min=19       med=38      p(90)=56.4     p(95)=61.2     p(99)=65.04    max=66
+    xiyu_error_rate..................: 0.00%   0 out of 44
+    xiyu_knowledge_search_duration...: avg=41.6       min=19       med=44      p(90)=51.6     p(95)=51.8     p(99)=51.96    max=52
+    xiyu_login_duration..............: avg=214.25     min=170      med=196     p(90)=269.8    p(95)=282.4    p(99)=292.48   max=295
+    xiyu_project_detail_duration.....: avg=70.909091  min=53       med=65      p(90)=89       p(95)=92       p(99)=94.4     max=95
+    xiyu_project_list_duration.......: avg=217.909091 min=188      med=200     p(90)=280      p(95)=285      p(99)=289      max=290
+    xiyu_read_ops....................: 72      2.330695/s
+    xiyu_tender_list_duration........: avg=79.076923  min=47       med=73      p(90)=113.6    p(95)=130.8    p(99)=148.56   max=153
+    xiyu_total_requests..............: 76      2.460178/s
+
+    HTTP
+    http_req_duration................: avg=86.04ms    min=12.64ms  med=51.78ms p(90)=197.89ms p(95)=230.26ms p(99)=290.34ms max=291.98ms
+      { expected_response:true }.....: avg=86.04ms    min=12.64ms  med=51.78ms p(90)=197.89ms p(95)=230.26ms p(99)=290.34ms max=291.98ms
+    http_req_failed..................: 0.00%   0 out of 76
+    http_reqs........................: 76      2.460178/s
+
+    EXECUTION
+    iteration_duration...............: avg=1.03s      min=736.35ms med=1s      p(90)=1.41s    p(95)=1.42s    p(99)=1.46s    max=1.48s
+    iterations.......................: 29      0.938752/s
+    vus..............................: 1       min=1        max=1
+    vus_max..........................: 1       min=1        max=1
+
+    NETWORK
+    data_received....................: 232 kB  7.5 kB/s
+    data_sent........................: 35 kB   1.1 kB/s
+
+
+
+
+running (0m30.9s), 0/1 VUs, 29 complete and 0 interrupted iterations
+default ✓ [ 100% ] 0/1 VUs  30s
