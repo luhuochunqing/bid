@@ -71,6 +71,16 @@ Content-Type: application/json; charset=utf-8
   返回 `truncated:true` + 已抽图片。Java 侧配给（`ImageAssigner`）再做二次裁剪（research R4）。
 - 默认值按 base64 ×4/3 膨胀与 Java 响应上限 25MB（`max-extract-response-bytes`）校准：15MB 二进制 ≈ 20MB
   base64，留 5MB 余量；上调任一侧须同步校验另一侧（review H1）。
+- **内存预算（2026-09-21 项目 1382 OOM 修复）**：响应预算只裁剪返回体，不约束抽取期间的驻留内存，故另设两道
+  峰值护栏：
+  - `.docx`：`SIDECAR_MAX_DOCX_MEDIA_BYTES`（默认 `67108864` = 64MB）。抽取前读 zip 中央目录统计
+    `word/media/` **未压缩**总量，超预算**不进入 markitdown**，直接返回 `images:[]` + warning
+    （mammoth 会把每张内嵌图 base64 内联进 HTML，实测峰值 ≈ 媒体体积的 14.7 倍，4GB 容器下 300MB 级媒体即可 OOM）；
+    同时在 `/convert-images` 内幂等绕过 markitdown `pre_process_docx`（与文本 worker 同款护栏）。
+  - `.pdf`（`renderPages=true` 与内嵌图两条分支）：`SIDECAR_MAX_SOURCE_IMAGE_BYTES`（默认 64MB）累计源图
+    字节超限即停止抽取并附 warning，峰值不随总页数增长。
+  - 两个预算的降级均为**有信号降级**：warning 落 sidecar 日志；Java 侧抽到空图时
+    `SidecarComplianceDocumentAdapter.withPageImages` 显式 WARN，签章视觉核验按既有语义转人工复核。
 
 ### 响应（失败）
 | 状态码 | 场景 | Body |
