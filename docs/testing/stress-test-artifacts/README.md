@@ -34,7 +34,7 @@ sha256 的 `manifest.json` 清单。
 每次运行产出 `docs/testing/stress-test-artifacts/<UTC时间戳>-<档位>[-<标签>]/`：
 
 ```
-20260921T055308Z-smoke-harness-selfcheck/   # 下面 examples/ 里保留的那次自检运行
+20260921T062456Z-smoke-harness-selfcheck/   # 下面 examples/ 里保留的那次自检运行
 ├── manifest.json          # 清单：运行元数据 + SLA 门禁声明与击穿项 + 头部指标 + 各产物 sha256
 ├── k6-summary.json        # k6 原始汇总（--summary-export），各接口 avg/med/p90/p95/p99
 ├── k6-raw-samples.csv     # k6 逐指标逐时刻原始采样（--out csv），画图/复核都用它
@@ -97,7 +97,7 @@ bash scripts/performance/run-stress-test.sh --profile smoke \
   `k6_script` 字段也不参与任何哈希。所以"改清单本身"在当前实现下**检测不到**——
   它的自校验能力只针对那 10 个文件。
 - `examples/` 下的样例包是**完整入库**的：连 `k6-raw-samples.csv` 一起提交
-  （冒烟档约 130 KB，体积可控）。因此对 clone 下来的样例包做全量 sha256 校验，
+  （冒烟档约 110 KB，体积可控）。因此对 clone 下来的样例包做全量 sha256 校验，
   正确结果是 **10/10 全部通过**；任何一项不符都确属异常。
   真实运行的证据包则落在本目录下、**不进 git**——标准档的逐请求采样可达数十 MB，
   由 `.gitignore` 排除，随交付附件单独给出（`examples/` 下另有显式例外，见该文件注释）。
