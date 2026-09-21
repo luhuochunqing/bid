@@ -37,6 +37,14 @@ archive: false
 - **.docx 能力边界**：Sidecar 对 `.docx` 只抽内嵌图片、不做页面渲染（`pageHint` 为空），无法做页面级签章覆盖判定；该格式的签章项按人工复核处理，检查项文案不得承诺「逐页图像识别」。
 - 视觉证据来源类型为 `BID_IMAGE`，包含页码、置信度与坐标。
 
+## 抽图内存护栏（项目 1382，2026-09-21）
+
+- `SIDECAR_MAX_IMAGE_BYTES`（15MB）只裁剪响应体，**不约束峰值内存**；另设两道源侧护栏：
+  - `.docx`：`SIDECAR_MAX_DOCX_MEDIA_BYTES`（64MB）读 zip 中央目录统计 `word/media/` 未压缩总量，超预算不进入 markitdown（mammoth 内联 base64 峰值 ≈ 14.7× 媒体体积）；该路径同时幂等绕过 `pre_process_docx`。
+  - `.pdf` 两分支：`SIDECAR_MAX_SOURCE_IMAGE_BYTES`（64MB）累计超限提前停止，峰值不随页数增长。
+- 降级有信号：warning 进 sidecar 日志与 Java `log.warn`，空图在 `withPageImages` 显式 WARN，UI 侧转人工复核。
+- 检查项说明已对齐能力边界（`SIGNATURE_SEAL`，含契约测试）。
+
 ## 假通过与修复（项目 1382，2026-09-21）
 
 - **现象**：未盖章标书「签章完整性」判通过，结论「已识别到合法有效的电子签章防伪验签标记，签章完备」。

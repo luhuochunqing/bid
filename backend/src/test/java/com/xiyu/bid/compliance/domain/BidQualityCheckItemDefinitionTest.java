@@ -58,6 +58,16 @@ class BidQualityCheckItemDefinitionTest {
     }
 
     @Test
+    @DisplayName("契约：签章完整性说明如实标注非分页文档（.docx）能力边界")
+    void testSignatureSealDescription_StatesNonPaginatedBoundary() {
+        String description = BidQualityCheckItem.SIGNATURE_SEAL.getDescription();
+
+        assertThat(description).contains("非分页文档");
+        assertThat(description).contains("人工复核");
+        assertThat(description).doesNotContain("通过 AI 图像识别检测投标文件各页签章");
+    }
+
+    @Test
     @DisplayName("契约：抽样检查项说明与 PRD 2.3 检查内容一致")
     void testDescriptions_SamplesAlignWithPrd() {
         assertThat(BidQualityCheckItem.AUTHORIZATION_LETTER.getDescription()).isEqualTo(

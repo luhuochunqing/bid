@@ -46,6 +46,10 @@ public class SidecarComplianceDocumentAdapter {
             Set<Integer> pages = content.pages().stream()
                     .map(DocumentContent.PageContent::pageNumber).collect(Collectors.toSet());
             List<PageImage> images = imageExtractor.extract(physicalFile, fileName, pages);
+            if (images.isEmpty()) {
+                // 空图不是异常但必须可观测：签章视觉核验会因此降级人工复核（2026-09-21 项目 1382 假通过放大器）
+                log.warn("投标文件未抽取到页面图像，签章视觉通道不可用：{}（请求页数={}）", fileName, pages.size());
+            }
             return new DocumentContent(content.fileName(), content.fileHash(), content.fullText(),
                     content.pages(), images);
         } catch (IOException | InterruptedException | RuntimeException e) {

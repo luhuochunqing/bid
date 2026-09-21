@@ -6558,7 +6558,43 @@ Evidence Pipeline 编排（`markEvidencePipelineCompleted`）在 spec 062 引入
 - 服务器日志：`14:42:09` 图像抽取失败（`HTTP/1.1 header parser received no bytes`）+ `14:42:10` 招标解析 `ConnectException`；内核 `14:36:45`/`14:48:00` OOM 杀 Sidecar。
 - 库内统计：82 条已完成质检，`BID_IMAGE` 证据 0 条，命中该假通过 1 条（即本例）。
 
-## 393. 模型改写总分或单项分值可伪造闭合：发布资格必须来自原文（PR #5，2026-09-21）
+## 393. 大标书抽图内存护栏：响应预算管不住峰值内存（项目 1382，2026-09-21）
+
+### 问题背景
+
+Lesson 392 的假通过还有一个放大器：Sidecar `/convert-images` 的 `.docx` 分支在父进程执行 `MarkItDown(keep_data_uris=True)`，mammoth 会把每张内嵌图 base64 内联进 HTML（`app.py` 抑制函数的 docstring 实测：400 张噪声 JPEG → 65.7MB HTML / 724MB 峰值 RSS，即 **≈14.7× 媒体体积**）。媒体重的标书直接把 4GB 容器打到 OOM，抽图请求中断，签章视觉通道静默降级为人工复核。
+
+### 根因
+
+1. **预算层级错配**：`SIDECAR_MAX_IMAGE_BYTES`（15MB）只在抽取**之后**裁剪响应体，对抽取期间的驻留内存零约束。
+2. **双链路护栏不对称**：文本链路（`app._convert_worker`）既有 mammoth 内联抑制、也有 `pre_process_docx` 绕过；图片链路（`image_extractor`，父进程内联）两者皆无——同一条 markitdown 依赖，护栏没继承。
+3. **降级无信号**：抽到空图既不抛异常也无 warning/日志，事故只能靠"用户看到假通过"暴露。
+
+### 修复
+
+- **docx 前置闸门**：读 zip 中央目录统计 `word/media/` **未压缩**总量（不解压、常量内存），超 `SIDECAR_MAX_DOCX_MEDIA_BYTES`（默认 64MB）直接返回 `images:[]` + warning，**不进入 markitdown**；该路径同时幂等绕过 `pre_process_docx`。
+- **PDF 两分支累计护栏**：`SIDECAR_MAX_SOURCE_IMAGE_BYTES`（默认 64MB），超限提前停止累积；因响应预算已把返回体裁到 15MB，对返回内容行为等价、只降峰值。
+- **有信号降级**：sidecar warning 落 sidecar 日志；`SidecarComplianceDocumentAdapter.withPageImages` 空图显式 WARN（"签章视觉通道不可用"），签章项按既有语义转人工复核。
+- **文案对齐**：`SIGNATURE_SEAL` 检查项说明改为"文本层签章证据 + 页面图像（PDF）核验；非分页文档（.docx）仅做文本层核验，无法确认时转人工复核"，并加契约测试防回退。
+- **文档同步**：`specs/048-score-parse-image-multimodal/contracts/sidecar-images-api.md` §预算控制、`document-converter-sidecar/README.md` 环境变量表。
+
+### 通用教训
+
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 响应预算被当成内存预算 | "截断返回体"与"约束峰值驻留"是两件事，混为一谈 | 每个大对象管道必须同时定义**响应预算**与**源侧峰值预算**，后者配 tracemalloc 基准测试 |
+| 同一能力只加固一半链路 | 文本 worker 修过两次 OOM（2026-08 媒体内联 / 383MB pre_process），图片链路复用同一库却未继承 | 修 OOM 时 grep 同一依赖的**全部调用点**，逐点确认护栏是否继承 |
+| 降级静默 | 空图/跳过既非异常也无日志 | 有信号降级：warning 字符串 + 两端日志 + UI 侧按既有语义转人工复核 |
+| 文案先于能力 | 检查项说明写"AI 图像识别逐页检测"，实际 docx 无页图 | 文案必须与实际链路能力一致；做不到的边界明示转人工，并用契约测试钉住 |
+| 为一行日志改解析包 | 顺手把抽图 warning 透传进 scoreparse 解析包，触发金标门禁（要求 fixture 同步） | 观测性改动应落在拥有该语义的包内；跨包透传先问是否值得触发解析门禁 |
+
+### 证据链
+
+- 内核 OOM：`14:36:45` / `14:48:00` 两次 `Killed process (uvicorn) anon-rss:4193932kB`（容器 `--memory=4g`）；14:35:20 用户触发 scoreparse → 14:36:45 OOM，链路吻合。
+- 代码事实：`DocxMediaFilter` 只接在文本链路（`SidecarStreamDocumentAdapter:86`），图片链路用原文件；`image_extractor._extract_docx` 无任何预算前置。
+- 验证：sidecar `pytest` **116/116** 绿（新增 3 例：超预算跳过且峰值 <20MB、预算内行为与章节归属不变、PDF 源图预算提前停止）；compliance+scoreparse **1549 例 0 新增失败**（2 例 scoreparse 为存量，纯净基线同样复现）。
+
+## 394. 模型改写总分或单项分值可伪造闭合：发布资格必须来自原文（PR #5，2026-09-21）
 
 ### 根因
 

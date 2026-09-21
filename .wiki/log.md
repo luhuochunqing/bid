@@ -1127,3 +1127,10 @@
 - 决策：强证据收紧为「动作+结果」（验签有效/防伪码/国密签名/验证通过），落款标签降级人工复核且不豁免占位符硬 FAIL；视觉融合改为必经路径，`targetPages` 为空不得维持 PASS；顺带修复视觉 PR 引入的 7 例加载器单测断裂。
 - 证据：`compliance_check_results.id=125` 12 条证据全为落款标签；82 条已完成质检 `BID_IMAGE` 证据 0 条。
 - 回填：更新 [[seal-vision-compliance]]。
+
+## [2026-09-21] fix | 签章视觉 P1：抽图内存护栏 + 能力边界文案
+- 触发：Lesson 392 的放大器——`/convert-images` docx 分支在父进程跑 `MarkItDown(keep_data_uris=True)`，mammoth 内联 base64 峰值 ≈ 14.7× 媒体体积，媒体重的标书把 4GB 容器打到 OOM（14:36:45 / 14:48:00 两次 4.19GB kill）。
+- 根因：响应预算（15MB）只裁返回体、不管峰值驻留；文本链路有 pre_process 绕过 + 媒体瘦身，图片链路两者皆无；空图降级无任何信号。
+- 决策：docx 前置读 zip 中央目录统计 `word/media/` 未压缩总量（`SIDECAR_MAX_DOCX_MEDIA_BYTES` 默认 64MB），超预算不进入 markitdown 直接返回空图 + warning；PDF 两分支加 `SIDECAR_MAX_SOURCE_IMAGE_BYTES` 累计护栏；warning 落 sidecar 日志、空图在 `withPageImages` 显式 WARN；`SIGNATURE_SEAL` 文案对齐能力边界并加契约测试（不为一行日志改 scoreparse 解析包）。
+- 验证：sidecar pytest 116/116（新增 3 例含 tracemalloc 峰值 <20MB）；compliance+scoreparse 1549 例 0 新增失败（2 例存量）。
+- 回填：更新 [[seal-vision-compliance]]。
