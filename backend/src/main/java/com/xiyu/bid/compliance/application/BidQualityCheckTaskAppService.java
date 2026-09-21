@@ -216,6 +216,7 @@ public class BidQualityCheckTaskAppService {
                 .bidFileHash(entity.getBidFileHash())
                 .tenderFileHash(entity.getTenderFileHash())
                 .checkedAt(entity.getCheckedAt())
+                .errorMessage(entity.getErrorMessage())
                 .items(items)
                 .build();
     }

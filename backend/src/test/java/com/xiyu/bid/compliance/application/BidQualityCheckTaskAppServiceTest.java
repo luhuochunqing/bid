@@ -209,4 +209,20 @@ class BidQualityCheckTaskAppServiceTest {
         assertThat(detail.bidPageNumber()).isEqualTo(15);
         assertThat(detail.remainingDays()).isEqualTo(300);
     }
+
+    @Test
+    @DisplayName("失败报告透传扫描件解析错误，供前台给出明确提示")
+    void testToReportDTO_ExposesErrorMessage() {
+        ComplianceCheckResult entity = ComplianceCheckResult.builder()
+                .id(11L)
+                .projectId(100L)
+                .taskId("scan_task")
+                .status(ComplianceCheckResult.TaskStatus.FAILED)
+                .errorMessage("未能从投标文件提取文本：投标书.pdf。该文件为图片扫描件或无可复制文本（无文本层）")
+                .build();
+
+        QualityCheckReportDTO report = BidQualityCheckTaskAppService.toReportDTO(entity);
+
+        assertThat(report.getErrorMessage()).contains("扫描件");
+    }
 }

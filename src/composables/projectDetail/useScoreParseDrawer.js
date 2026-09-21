@@ -6,6 +6,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
+import { getAiDocumentErrorPresentation } from '@/utils/aiDocumentError.js'
 import { formatTime, pollTask, normalizeScoreItem, mapScoreResults, lookupScoreResult, getDecisionBadgeType, getDecisionBadgeText } from './scoreParseTask.js'
 import { parseTriggerSource, scoringBody, scoringSkipHint, hasMeaningfulResults, circuitHintFromMeta } from './scoreParseSpendGuard.js'
 import { useScoreCandidateAdoption } from './useScoreCandidateAdoption.js'
@@ -13,7 +14,7 @@ import { useScoreCandidateAdoption } from './useScoreCandidateAdoption.js'
 export function useScoreParseDrawer(props, emit) {
   const visible = ref(false)
   const loading = ref(false)
-  const error = ref('')
+  const error = ref(''), errorPresentation = computed(() => getAiDocumentErrorPresentation(error.value, '评分标准解析失败，请重新解析'))
   const isSection1Expanded = ref(true)
   const currentStage = ref(2)
   const scored = ref(false)
@@ -286,7 +287,7 @@ export function useScoreParseDrawer(props, emit) {
   })
 
   return {
-    visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
+    visible, loading, error, errorPresentation, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
     sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
     scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult,
     totalWeight, objectiveWeight, subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount,

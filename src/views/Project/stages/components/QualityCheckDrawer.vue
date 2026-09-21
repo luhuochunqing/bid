@@ -146,7 +146,17 @@
         sub-title="核查任务执行异常，未生成有效核查报告"
       >
         <template #extra>
-          <div class="error-details-box">
+          <div v-if="errorPresentation.scanned" class="scan-document-alert">
+            <el-alert
+              :title="errorPresentation.title"
+              :description="errorPresentation.message"
+              type="error"
+              show-icon
+              :closable="false"
+            />
+            <div v-if="errorPresentation.detail" class="error-details-text">原始错误：{{ errorPresentation.detail }}</div>
+          </div>
+          <div v-else class="error-details-box">
             <div class="error-details-header">
               <el-icon><WarningFilled /></el-icon>
               <span>错误详情</span>
@@ -227,6 +237,7 @@ const {
   visible,
   polling,
   errorMessage,
+  errorPresentation,
   backgroundRunning,
   progressPercent,
   currentStepText,

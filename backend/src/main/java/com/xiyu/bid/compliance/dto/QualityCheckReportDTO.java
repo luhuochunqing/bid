@@ -33,5 +33,6 @@ public class QualityCheckReportDTO {
     private String bidFileHash;
     private String tenderFileHash;
     private LocalDateTime checkedAt;
+    private String errorMessage;
     private List<QualityCheckItemResult> items;
 }

@@ -28,8 +28,9 @@
     </div>
 
     <div v-else-if="error" class="error-state">
-      <div>⚠ {{ error }}</div>
-      <div class="error-hint">扫描大 PDF 可压缩后在立项未提交前替换文件；已提交请联系管理员</div>
+      <el-alert :title="errorPresentation.title" :description="errorPresentation.message" type="error" show-icon :closable="false" class="ai-document-error-alert" />
+      <div v-if="errorPresentation.detail && errorPresentation.scanned" class="error-detail">原始错误：{{ errorPresentation.detail }}</div>
+      <div class="error-hint">扫描大 PDF 可压缩后在立项未提交前替换文件；也可以先进行 OCR，再重新解析。</div>
       <el-button size="small" style="margin-top: 12px" :disabled="loading || scoringOverlayVisible" @click="reparse">重新解析</el-button>
     </div>
 
@@ -210,7 +211,7 @@ const props = defineProps({
 const emit = defineEmits(['parsed'])
 
 const {
-  visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
+  visible, loading, error, errorPresentation, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
   sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
@@ -227,6 +228,8 @@ defineExpose({ open, runScoring, scoringOverlayVisible, loading })
 .drawer-content-wrapper.scroll-locked { overflow-y: hidden; }
 .loading-state, .error-state { text-align: center; padding: 80px 20px; color: var(--text-muted); }
 .error-hint { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+.error-detail { margin-top: 8px; font-size: 12px; color: var(--text-muted); word-break: break-word; }
+.ai-document-error-alert { max-width: 680px; margin: 0 auto; text-align: left; }
 .loading-icon { font-size: 32px; margin-bottom: 12px; }
 .dots::after { content: '...'; animation: d 1.4s infinite; }
 @keyframes d { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }

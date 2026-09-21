@@ -3,6 +3,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { complianceApi } from '@/api/modules/ai.js'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
+import { getAiDocumentErrorPresentation } from '@/utils/aiDocumentError.js'
 import { normalizeScoreItem, mapScoreResults } from '@/composables/projectDetail/scoreParseTask.js'
 import { sumObjectiveActualScore } from './qualityCheckDetail.js'
 
@@ -15,6 +16,7 @@ export function useQualityCheckDrawer(props, emit) {
   const report = ref(null)
   const activeStatusFilter = ref('ALL')
   const errorMessage = ref('')
+  const errorPresentation = computed(() => getAiDocumentErrorPresentation(errorMessage.value, 'AI 标书质量核查失败，请重试'))
   // 前端等待窗口到顶后任务仍在后端执行（大文件核查），此态不得误报失败（spec 066 FR-008）
   const backgroundRunning = ref(false)
   // 客观项实际得分合计（来自 AI 评分标准解析阶段 2），null = 尚未打分，得分链接不展示
@@ -280,7 +282,7 @@ export function useQualityCheckDrawer(props, emit) {
   }
 
   return {
-    visible, polling, errorMessage, backgroundRunning, progressPercent, currentStepText, progressStatus,
+    visible, polling, errorMessage, errorPresentation, backgroundRunning, progressPercent, currentStepText, progressStatus,
     report, activeStatusFilter, collapsedCategories, categoryTabs, filteredCategories,
     objectiveScore, detailItem, detailVisible, toggleCategory, registerCategoryAnchor,
     scrollToCategory, openDetail, closeDetail, open, loadLatestReport,

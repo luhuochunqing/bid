@@ -42,6 +42,7 @@ backlinks:
 - [[bid-quality-check-realization]] — 标书质量核查实质化架构（spec 049）
 - [[bid-quality-multifile-check]] — AI 标书质量核查多册合并（价格/商务/技术分册 + Loader 边界合并 + Sidecar 空册陷阱）
 - [[bid-quality-check-parse-timeout-fix]] — AI 标书质量核查解析失败误报修复（超时预算 × 文档规模 + 五分类失败语义 + Sidecar 分块 100）
+- [[ai-document-scan-error-guidance]] — AI 文档扫描件不可识别提示契约（错误透传 + 前端显式告警）
 - [[business-process]] — 业务流程
 - [[case-library-prd-refine]] — 案例库按 PRD 精简重构（筛选区三字段 / 排序固定 / 详情返回招标主体）
 - [[case-precipitation-streaming]] — 案例沉淀超大标书完整链路（spec 049：流式 + 摘录化 + 三个验收坑）
