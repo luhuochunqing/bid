@@ -82,4 +82,37 @@ class SealVisionFusionPolicyTest {
         assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(result.conclusion()).contains("未识别");
     }
+
+    @Test
+    void textLayerPassWithUnavailableVision_doesNotStayPass() {
+        // 回归 1382：文本层强证据 PASS + 视觉通道未跑（抽图失败/无页图）不得直接落库为通过
+        var textResult = SealIntegrityCheckPolicy.check(DocumentContent.fromText(
+                "bid.pdf", "hash", "本文件已完成电子签章防伪码校验，验签有效。"));
+        assertThat(textResult.status()).isEqualTo(QualityCheckStatus.PASS);
+
+        var result = SealVisionFusionPolicy.merge(textResult, SealVisionResult.unavailable("未抽取到页面图像"));
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).contains("视觉");
+        assertThat(result.suggestion()).contains("未抽取到页面图像");
+    }
+
+    @Test
+    void availableVisionWithoutPageHint_cannotConfirmPageCoverage() {
+        // .docx 只抽到内嵌图片（pageHint 为空）时，视觉无法做页面级覆盖判定，不得维持 PASS
+        var textResult = SealIntegrityCheckPolicy.check(DocumentContent.fromText(
+                "bid.pdf", "hash", "本文件已完成电子签章防伪码校验，验签有效。"));
+        assertThat(textResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        var vision = SealVisionResult.available(
+                List.of(),
+                List.of(new SealVisionResult.Observation(
+                        1, SealVisionResult.SealType.COMPANY_SEAL, true, 0.93,
+                        0.5, 0.5, 0.2, 0.2)),
+                "seal-model-v1");
+
+        var result = SealVisionFusionPolicy.merge(textResult, vision);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).contains("页面级");
+    }
 }
