@@ -1,0 +1,14 @@
+{
+  "synthetic": true,
+  "desensitization": "全文合成改写，仅保留多模态首项召回、确定性表格回补和百分制闭合特征，无真实客户信息",
+  "focus": "多模态召回不完整时，只有确定性表格管道补齐并闭合到声明总分才允许 AUTO_APPROVED",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": true,
+  "laneHints": ["table"],
+  "items": [
+    { "code": "1", "dim": "技术方案", "detail": "技术方案完整、可行，覆盖实施路径、质量保障和风险控制的，得90分。", "weight": 90 },
+    { "code": "2", "dim": "服务保障", "detail": "服务响应及时、保障措施完整的，得5分。", "weight": 5 },
+    { "code": "3", "dim": "项目管理", "detail": "项目组织和进度管理安排合理的，得5分。", "weight": 5 }
+  ]
+}

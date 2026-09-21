@@ -48,7 +48,8 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-1117-performance-evidence"),
                 Arguments.of("case-multi-table-tech-commercial"),
                 Arguments.of("case-category-weight-noise-before-score"),
-                Arguments.of("case-sidecar-stream-failure"));
+                Arguments.of("case-sidecar-stream-failure"),
+                Arguments.of("case-multimodal-incomplete-recall-fallback"));
     }
 
     @ParameterizedTest(name = "{0}")
