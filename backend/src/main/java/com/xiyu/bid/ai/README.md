@@ -30,6 +30,8 @@ AI 分析能力的后端入口，负责标讯分析、项目分析与 AI Provide
 | `dto/DimensionScore.java` | DTO | 维度评分结果 |
 | `dto/ProjectAnalysisDTO.java` | DTO | 项目分析结果 |
 | `config/` | 子目录 | 包边界声明（异步线程池由顶层 `config/AsyncConfig.java` 提供） |
+| `compliance/SidecarPageImageExtractorAdapter.java` | Adapter | 复用 scoreparse Sidecar 图片客户端，为质检域提供页面图像端口 |
+| `compliance/OpenAiSealVisionDetector.java` | Adapter | 真实多模态逐页印章识别与结构化坐标输出 |
 
 ## 纯核心边界
 
