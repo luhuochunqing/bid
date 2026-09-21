@@ -32,6 +32,8 @@ backend/src/test/resources/scoreparse-golden/
 ├── case-3col-embedded-bracket-weight.expected.json  对应金标标注（threshold 0.95，strictDim）
 ├── case-1381-pdf-preliminary-and-summary.md  项目1381类PDF：初步评审表上下文 + 8项评分表 + 合计行
 ├── case-1381-pdf-preliminary-and-summary.expected.json  对应金标标注（threshold 0.95，strictDim，expectTotal 100）
+├── case-1386-score-summary-and-leaves.md     项目1386类分值构成摘要（20/45/35）与正式评分叶子项
+├── case-1386-score-summary-and-leaves.expected.json 对应合成金标（threshold 0.95，strictDim，expectTotal 100）
 ├── case-misaligned-summary-row.md            错位合计行：多个纯数字单元格时仍识别整表总分
 ├── case-misaligned-summary-row.expected.json 对应金标标注（threshold 0.95，strictDim，expectTotal 100）
 ├── case-multi-table-tech-commercial.md       两张独立评分表（技术60/商务40）多表输入形态（spec 062）
