@@ -13,11 +13,44 @@
 # 目录、curl、k6 **之前**全部跑完；和压测执行混在一个文件里时，"校验是否都排在副作用之前"
 # 这件事只能靠通读全文来确认。
 #
-# 本层不做任何有副作用的动作（不建目录、不发请求、不起进程），全部问题以 usage 错误
-# （exit 2）或拒绝执行（exit 1）结束。两个退出码的分工见 run-stress-test.sh 的头部注释。
+# 本层不做有副作用的动作：不建证据目录、不发请求、不启后台服务，全部问题以 usage 错误
+# （exit 2）或拒绝执行（exit 1）结束。唯一的例外是**有界的 node 探测**（见下），
+# 它跑一个立刻退出的 node 子进程，用来判断本机的 node 能不能用。两个退出码的分工见
+# run-stress-test.sh 的头部注释。
 
 # 校验失败一律由本函数内直接 exit —— 它是入口脚本的同一个 shell（source 进来的函数），
 # 因此不需要调用方接返回值再判断，也就没有"忘了判断返回值"这条漏检路径。
+
+# 有界地跑一次 node 探测：stdout 是探测到的错误文本，**退出码**是结论——
+#   0 跑通了；其他 = node 自己给的失败码（"找得到但跑不动"）；124 = 上界内没有返回。
+# 为什么必须有上界：这一问的职责是**区分**"node 不可用"与"账号池不合法"，而一个永不返回的
+# node（shim 按 PATH 解析回自己、包装脚本死循环、被远端文件系统的软链拖住）会让 runner
+# **一个退出码都不给**，只是挂着——那比任何一个错码都糟：本工具链的契约全部建立在"结论一定
+# 以某个码落地"之上。124 与"跑不动"分开报，因为处置不同（前者看本机进程/负载，后者修 node
+# 安装）。上界取 30s：只跑 `node -e 'process.exit(0)'`，慢宿主上也只是启动一个进程，30s 还没
+# 返回说明本机的进程启动环境本身已不可用；这与自检夹具层对超时的处置一致（那里 60s 仍未跑完
+# 记"工具链在本机不可用"，不记成用例失败）。
+# 用轮询而不是另起一个"看守进程"：看守进程到点再杀探测进程，会留下一个还在睡的 sleep，
+# 而轮询与自检夹具层的 bounded_rc / run_runner 是同一个写法（那里已被反复验证过）。
+_nodeprobe_bounded() { # <秒>
+  local _secs="$1" _pid _ticks=0 _rc=0
+  local _max=$(( _secs * 2 ))
+  node -e 'process.exit(0)' 2>&1 &
+  _pid=$!
+  while kill -0 "$_pid" 2>/dev/null; do
+    if [[ "$_ticks" -ge "$_max" ]]; then
+      kill -9 "$_pid" 2>/dev/null
+      wait "$_pid" 2>/dev/null
+      printf 'node 在 %ss 内没有返回' "$_secs"
+      return 124
+    fi
+    sleep 0.5
+    _ticks=$((_ticks + 1))
+  done
+  wait "$_pid"
+  _rc=$?
+  return "$_rc"
+}
 run_preflight_parse() {
   PROFILE="standard"
   BASE_URL=""
@@ -208,6 +241,35 @@ EOF
     exit 2
   fi
 
+  # 先探一次 node 到底能不能用，再回头看它在不在 PATH 上。`command -v node` 只回答"找得到"，
+  # 不回答"跑得动"：版本管理器卸载后残留的 shim、指向已删二进制的软链、把 node 定义成函数/
+  # 别名的 shell（本仓库的自检夹具就构造过这一种）都能让它通过，紧接着的调用才失败。若不区分，
+  # 那次失败会被归到"账号池不合法"上报 exit 2，操作者被指向去改一个本来就对的账号池。
+  # **无条件**跑（不只是带了账号池时）：node 同样是后面归档链（脱敏 → 残留扫描 → 清单）的前提，
+  # 与有没有账号池无关。整条归档链因此都落在"node 已被证明可用"之后，下面那次 JSON 解析
+  # 也不必再设上界（同一台机器、同一次运行，探测刚过）。
+  local _probe_err _probe_rc=0
+  _probe_err="$(_nodeprobe_bounded 30)"
+  _probe_rc=$?
+  if [[ "$_probe_rc" != "0" ]]; then
+    if [[ "$_probe_rc" == "124" ]]; then
+      echo "run-stress-test: 工具链不可用：${_probe_err}。" >&2
+      echo "                 探测命令是 node -e 'process.exit(0)'。本机的进程启动受限（进程数/负载限制）" >&2
+      echo "                 或 node 装成了「一调用就挂住」的形态（版本管理器 shim 按 PATH 解析回自己、包装脚本死循环）。" >&2
+      echo "                 请换机器或解除进程/负载限制后重跑——这一条不是账号池的问题。" >&2
+    elif command -v node >/dev/null 2>&1; then
+      echo "run-stress-test: 工具链不可用：node 跑不起来。" >&2
+      echo "                 PATH 上找得到 node，但调用它失败了：${_probe_err}" >&2
+    else
+      echo "run-stress-test: 工具链不可用：本机没有 node。" >&2
+    fi
+    if [[ -n "$K6_USERS_JSON" ]]; then
+      echo "                 本次还带了账号池（XIYU_K6_USERS / --users），node 不可用同样导致无法校验账号池是否合法；" >&2
+      echo "                 k6 在解析失败时会**静默回退到默认账号池**，因此宁可拒绝执行也不再放行。" >&2
+    fi
+    exit 1
+  fi
+
   # 账号池（XIYU_K6_USERS / --users）必须是**非空 JSON 数组**，且每项带字符串 username 与 password。
   # k6-tests/load-test.js 的 getUserPool() 在 JSON.parse 抛错、或者解析结果不是非空数组时，
   # 会 catch 后**静默回退到默认账号池**——于是文档里那种带省略号的模板（'[{...},…]'）会被
@@ -216,22 +278,6 @@ EOF
   # 判据与 k6 侧一致（typeof 检查是额外的：元素形状不对时 k6 只会在登录处报错，同样静默）。
   # 用 node 解析而不是自己写正则：JSON 的合法性不能靠模式匹配近似，而这个工具链本来就要 node。
   if [[ -n "$K6_USERS_JSON" ]]; then
-    # 先探一次 node 能不能真的跑起来，再回头看它在不在 PATH 上。`command -v node` 只回答
-    # "找得到"，不回答"跑得动"：版本管理器卸载后残留的 shim、指向已删二进制的软链、把 node
-    # 定义成函数/别名的 shell（本仓库的自检夹具就构造过这一种）都能让它通过，紧接着的解析
-    # 调用才失败。若不区分，那次失败会被归到"账号池不合法"上报 exit 2 —— 操作者被指向去改
-    # 账号池，而该修的是环境；这正是本文件区分 1 与 2 时要避免的那类误判。
-    local _node_probe_err
-    if ! _node_probe_err="$(node -e 'process.exit(0)' 2>&1)"; then
-      if command -v node >/dev/null 2>&1; then
-        echo "run-stress-test: node 跑不起来，无法校验账号池（XIYU_K6_USERS / --users）是否合法。" >&2
-        echo "                 PATH 上找得到 node，但调用它失败了：${_node_probe_err}" >&2
-      else
-        echo "run-stress-test: 本机没有 node，无法校验账号池（XIYU_K6_USERS / --users）是否合法。" >&2
-      fi
-      echo "                 k6 在解析失败时会**静默回退到默认账号池**，因此宁可拒绝执行也不再放行。" >&2
-      exit 1
-    fi
     local _users_err
     if ! _users_err="$(printf '%s' "$K6_USERS_JSON" | node -e '
       let s = ""

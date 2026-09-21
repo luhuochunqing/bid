@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Input: 无（纯离线：不连网络、不连数据库、不向任何环境施加负载）。
 #        外部命令全部由夹具层 self-test-fixtures.sh 换成固定输出的替身（k6 / curl / mysql /
-#        redis-cli，以及监控侧的 top / uptime / sysctl / vm_stat / uname），node 侧另有两个
-#        坏替身（**坏扫描器**：node 在、脱敏脚本崩；**坏 shim**：node"找得到但跑不动"）。
+#        redis-cli，以及监控侧的 top / uptime / sysctl / vm_stat / uname），node 侧另有三个
+#        坏替身（**坏扫描器**：node 在、脱敏脚本崩；**坏 shim**：node"找得到但跑不动"；
+#        **挂死的 shim**：node"找得到、但调用它永不返回"）。
 # Output: 逐用例 PASS/FAIL 与汇总计数；全部通过 exit 0，任一失败 exit 1
 # Pos: scripts/performance/ - runner **退出码分层**的离线回归：0 / k6 自身码 / 1（工具链不可用）/ 12（证据不齐）的边界
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -99,6 +100,14 @@ echo '== 5f. node 找得到但跑不动 → 1（不是"账号池不合法"的 2�
 RC="$(PATH="${BROKENNODE}:${PATH}" run_runner brokennode "$RUNNER" "${LOOPBACK[@]}")"
 check "坏 node 按工具链拒绝" 1 "$RC"
 check "未误报成账号池不合法" "no" "$(log_has brokennode '账号池不合法' && echo yes || echo no)"
+
+# 与 5f 是两种病：那个 node 立刻以 3 失败，这个**永不返回**。此时 runner 必须自己有上界，
+# 否则它一个退出码都不给（"挂住"比任何错码都糟：操作者拿不到任何指向"去修环境"的线索）。
+echo '== 5g. node 挂死（永不返回）→ 1（有界，不是 124）=='
+RC="$(PATH="${HANGNODE}:${PATH}" run_runner hangnode "$RUNNER" "${LOOPBACK[@]}")"
+check "挂死的 node 按工具链拒绝" 1 "$RC"
+check "报的是探测超时（上界真的生效了）" 1 "$(log_has hangnode '内没有返回' && echo 1 || echo 0)"
+check "未误报成账号池不合法" "no" "$(log_has hangnode '账号池不合法' && echo yes || echo no)"
 
 echo "== 6. 扫描器无法启动 → 1 =="
 RC="$(PATH="${BADNODE}:${PATH}" run_runner badscan "$RUNNER" "${LOOPBACK[@]}")"

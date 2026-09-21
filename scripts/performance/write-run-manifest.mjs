@@ -209,6 +209,12 @@ const manifest = {
     commit_sha: process.env.COMMIT_SHA,
     branch: process.env.BRANCH_NAME,
     working_tree: process.env.GIT_DIRTY,
+    // 代码状态指纹，与 S6 评审门禁同一个定义：sha256(git diff <merge-base origin/main HEAD>..HEAD)。
+    // 只有 commit_sha 时，"这份包由哪一份代码产出"说不全——它覆盖不了相对基线的改动。
+    // 算不出来就是 null（缺 origin/main / git 不可用 / 输出不是 64 位十六进制），不写空串、
+    // 更不编造：null 如实表达"这份包钉不到代码状态"。working_tree=dirty 时它仍只描述 HEAD。
+    diff_base: process.env.DIFF_BASE || null,
+    diff_hash: process.env.DIFF_HASH || null,
   },
   k6_exit_code: Number.isNaN(exitCode) ? null : exitCode,
   exit_code_mismatch: exitCodeMismatch,

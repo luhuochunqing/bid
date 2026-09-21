@@ -190,6 +190,11 @@ monitor_header_for redis   > "$REDIS_CSV"
 {
   echo "capture-monitoring: 开始采样"
   echo "  out=${MON_DIR}"
+  # 采集宿主必须留在证据里：采集器采的是**它自己所在这台机器**的资源，而远端场景下这份
+  # monitoring/ 是**单独**交付的（--no-monitor 的包不含它）。没有这一行，第三方无法判断
+  # 这份数据出自哪台机器，也就无法与 manifest 的 target_host 对上——"监控宿主说清楚"
+  # 这条规矩对独立交付的监控目录同样成立。hostname 取不到时写 unknown，不写空。
+  echo "  host=$(hostname 2>/dev/null || uname -n 2>/dev/null || echo unknown)  uname=$(uname -s 2>/dev/null || echo unknown)"
   echo "  interval=${INTERVAL}s duration=${DURATION}s"
   echo "  required_components=${REQUIRED_COMPONENTS}"
   echo "  app_pid=${APP_PID:-<未找到>} app_port=${APP_PORT:-<未指定>}  jcmd=${MONITOR_JCMD_READY}  mysql=${MONITOR_MYSQL_READY}  redis-cli=${MONITOR_REDIS_READY}"

@@ -77,10 +77,11 @@ read_jvm() {
     return
   fi
   local cpu_pct rss_mb
-  cpu_pct="$(ps -o %cpu= -p "$APP_PID" 2>/dev/null | tr -d ' ')"
-  # ps 拿不到值时留空，不能让它落到 awk 的 "0" 上——那会让一行"什么都采到"的记录
-  # 看起来像一次有效采样（rss=0 是合法数值）。
-  rss_mb="$(printf '%s' "$(ps -o rss= -p "$APP_PID" 2>/dev/null)" | awk 'NF {printf "%.0f", $1/1024}')"
+  # ps 拿不到值时留空，绝不能让它落到 awk 的 0 上——0 是合法数值，会让一行"只采到 RSS=0"
+  # 的记录看起来像一次有效采样。把关全在 parse_ps_pct / parse_ps_rss_mb 两个纯函数里
+  # （它们可无服务自检，见 monitor-parse.sh --self-test）。
+  cpu_pct="$(parse_ps_pct "$(ps -o %cpu= -p "$APP_PID" 2>/dev/null)")"
+  rss_mb="$(parse_ps_rss_mb "$(ps -o rss= -p "$APP_PID" 2>/dev/null)")"
 
   # 线程数走 OS 接口：比 jcmd Thread.print 便宜，压测期间不会自己成为负担
   local threads

@@ -110,6 +110,21 @@ parse_memsize_mb() {
   printf '%s\n' "$1" | awk 'NF == 1 && $1 ~ /^[0-9]+$/ { printf "%.0f", $1/1048576 }'
 }
 
+# ps 的 RSS 列（`ps -o rss=`，单位 KB）→ MB。与 parse_memsize_mb 同一条纪律：
+# **非数值一律留空**，绝不交给 awk 的隐式数值转换。这里原先写的是 `NF {printf "%.0f", $1/1024}`，
+# ps 输出 "foo" 时它照样打印 0 —— 而 0 是合法数值，read_jvm 的有效行判据（堆/线程/RSS 三者
+# 都 is_num）因此放行，于是一条 RSS 解析失败的采样被记成"RSS 0MB"并计入 USABLE_JVM。
+# 前后空白由 awk 的字段切分吞掉；KB→MB 仍按四舍五入，与改动前的口径一致。
+parse_ps_rss_mb() {
+  printf '%s\n' "$1" | awk 'NF == 1 && $1 ~ /^[0-9]+(\.[0-9]+)?$/ { printf "%.0f", $1/1024 }'
+}
+
+# ps 的 CPU 百分比列（`ps -o %cpu=`）→ 原样透出（保留小数），只把关"是不是数值"。
+# 非数值留空：写进 CSV 的 cpu 列要么是数，要么是"这次没采到"，不允许是命令的报错文本。
+parse_ps_pct() {
+  printf '%s\n' "$1" | awk 'NF == 1 && $1 ~ /^[0-9]+(\.[0-9]+)?$/ { printf "%s", $1 }'
+}
+
 # jstat -gc 输出 → "YGC,YGCT,FGC,FGCT,CGC,CGCT,GCT,堆已用MB,堆已提交MB"。
 # 按**表头名**取值而不是按列序号：G1 与 ZGC 的列含义不同（ZGC 在 Java 21 下 YGC/FGC 恒为
 # "-"，真实回收在 CGC 列），写死列号会把 ZGC 的 GC 次数全部读成空。
@@ -237,6 +252,14 @@ Pages occupied by compressor: 15000.' 16384)"
   # 多字段说明命令不是我们以为的那条（例如把键名一起打了出来），取第一个字段等于猜
   _check "parse_memsize_mb 多字段留空" "" "$(parse_memsize_mb 'hw.memsize: 34359738368')"
   _check "parse_memsize_mb 带单位留空" "" "$(parse_memsize_mb '34359738368B')"
+  # ps 的两列：取不到值时同样必须留空（`NF { $1/1024 }` 会把 "foo" 算成 0，而 RSS=0 是合法数值，
+  # read_jvm 拿堆/线程/RSS 三者判有效行 → 一条 RSS 解析失败的采样会被计入 USABLE_JVM）
+  _check "parse_ps_rss_mb" "121" "$(parse_ps_rss_mb '123456')"
+  _check "parse_ps_rss_mb 前后空白照常" "2" "$(parse_ps_rss_mb '  2048  ')"
+  _check "parse_ps_rss_mb 非数值留空" "" "$(parse_ps_rss_mb 'foo')"
+  _check "parse_ps_rss_mb 空输入留空" "" "$(parse_ps_rss_mb '')"
+  _check "parse_ps_pct" "3.5" "$(parse_ps_pct '3.5')"
+  _check "parse_ps_pct 非数值留空" "" "$(parse_ps_pct 'foo')"
   # jstat：G1 实测表头（Java 21），按表头名取 YGC/FGC；堆取 S0U+S1U+EU+OU = 3072K = 3MB，
   # 提交取 S0C+S1C+EC+OC = 14336K = 14MB
   _check "parse_jstat_gc G1" "12,1.230,3,4.560,,,5.790,3,14" \

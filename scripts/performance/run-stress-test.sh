@@ -104,6 +104,21 @@ K6_VERSION="$(k6 version 2>/dev/null || echo unknown)"
 GIT_DIRTY="clean"
 if [[ -n "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null)" ]]; then GIT_DIRTY="dirty"; fi
 
+# 代码状态指纹：与 S6 门禁（entry-gate-check.py 的 compute_diff_hash）**同一个定义** ——
+# `git diff <merge-base origin/main HEAD>..HEAD | sha256`。只有 commit_sha 时，"这份包由哪一份
+# 代码产出"这句话是不完整的：它说明不了相对基线改了什么（本仓库的评审门禁正是用这个值把
+# 工件钉到代码状态的）。算不出来就留空 → manifest 记 null，**不编造**：空值本身就如实表达
+# "这份包钉不到代码状态"（缺 origin/main、git 不可用、或输出不是合法 sha256）。
+DIFF_BASE=""
+DIFF_HASH=""
+if DIFF_BASE="$(git -C "$REPO_ROOT" merge-base origin/main HEAD 2>/dev/null)" && [[ -n "$DIFF_BASE" ]]; then
+  DIFF_HASH="$(git -C "$REPO_ROOT" diff "${DIFF_BASE}..HEAD" 2>/dev/null \
+    | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null; } | awk '{print $1}')"
+  [[ "$DIFF_HASH" =~ ^[0-9a-f]{64}$ ]] || DIFF_HASH=""
+else
+  DIFF_BASE=""
+fi
+
 RUN_DIR="${OUT_ROOT%/}/${RUN_ID}"
 # 同秒内重复运行（同档位同标签）会得到完全相同的 RUN_DIR，而 mkdir -p 对已存在目录不报错、
 # tee 默认截断——结果是上一轮的证据被静默覆盖。压测机常被多人共用，这不是纯理论风险。

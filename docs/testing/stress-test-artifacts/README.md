@@ -60,15 +60,15 @@ CSV——非空、有行数，却撑不起报告第五章的任何结论。该�
 
 `examples/` 下保留了一次**工具链自检运行**（1 VU 冒烟，本机 dev 环境），
 用于展示证据包的真实形态。**它不是 2026-08-28 报告的证据，不得引用为报告数据**，也不要
-拿它当"当前实现产出的包"的证据：它绑定的是产出它的那次运行，而 `manifest.json` 记的 commit /
-`diff_hash` 都是那次的，不是当前 HEAD 的。要引用当前实现，就重跑一次并按 §"证据包不能事后搬家"
-的规矩核对三类痕迹。
+拿它当"当前实现产出的包"的证据：它绑定的是产出它的那次运行——`manifest.json` 里
+`repository.commit_sha` 是那次的 HEAD，字段集合也是那次的（见下面的已知差异）。要引用当前
+实现，就重跑一次并按 §"证据包不能事后搬家"的规矩核对三类痕迹。
 目录名带 UTC 时间戳，每次重新生成都会变，以 `examples/` 下实际存在的那个目录为准。
 
 该自检运行同时是**采集脚本的回归样本**：`monitoring/system.csv` 的内存占用按本机真实页大小
 （Apple Silicon 16 KB）折算，`monitoring/mysql.csv` 按变量名而非返回行序取值。
 
-**示例包与当前版本的两处已知差异**（它由更早一次运行产出，字节未改动，不重跑就不会消失）：
+**示例包与当前版本的三处已知差异**（它由更早一次运行产出，字节未改动，不重跑就不会消失）：
 
 - 它没有 `monitoring/.ready`。这个空文件是采集器的**就绪握手**标记，当前版本才会写：
   采集器启动时要清掉上一轮的 `monitoring/.stop`，而 k6 若很快结束（脚本异常、目标不可达），
@@ -77,6 +77,10 @@ CSV——非空、有行数，却撑不起报告第五章的任何结论。该�
 - 它的 `manifest.json` 里没有 `delivery_blockers` / `external_monitoring_required` / `secret_scan`
   三个字段（当时尚未引入）。对这三项的判定请以当前版本产出的包为准；示例包只用于展示
   "一次真实运行的证据包长什么样"与做 sha256 全量校验。
+- 它的 `manifest.json` 里没有 `repository.diff_base` / `repository.diff_hash`（当时尚未记录代码
+  状态指纹）。**缺这两个字段不代表那次运行没核对过代码状态**，只代表这份冻结样例产出得更早：
+  当前版本每次都会写（取不到时写 `null`，不写空串）。要按"这份包由哪一份代码产出"核对，请用
+  当前版本重跑，或按 `commit_sha` 回到那次的 HEAD。
 
 **示例包必须由一次运行原子产出，不允许手工拼装或事后搬家。** 三类可核验痕迹会互相印证
 "它们来自同一次调用"：`k6-console.log` 与 `monitoring/monitoring.log` 里记录的输出路径、
@@ -87,7 +91,10 @@ CSV——非空、有行数，却撑不起报告第五章的任何结论。该�
 export XIYU_STRESS_CONFIRMED=1
 export MYSQL_PASSWORD='<本机 MySQL 口令>'   # 采集器不再内置任何默认口令，必须显式提供
 export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"}]'
-rm -rf docs/testing/stress-test-artifacts/examples/<旧目录>
+ls docs/testing/stress-test-artifacts/examples/     # 先看要替换的是哪个目录（名字带 UTC 时间戳）
+OLD=docs/testing/stress-test-artifacts/examples/20260921T062456Z-smoke-harness-selfcheck
+# 显式写全路径，不要用通配符；下面这一行同时拒绝删掉 examples/ 本身。
+[[ "$OLD" == docs/testing/stress-test-artifacts/examples/?* ]] && rm -rf -- "$OLD"
 bash scripts/performance/run-stress-test.sh --profile smoke \
   --base-url http://127.0.0.1:18089 \
   --out docs/testing/stress-test-artifacts/examples \
@@ -241,13 +248,22 @@ bash scripts/performance/run-stress-test.sh \
   口令；它还会让主机解析只取到 `user` 这一段，于是监控宿主判定与 manifest 的 `target_host`
   一起记错，全程不报错。需要认证请把凭据放进环境变量，不要写在 URL 里。
 - 远端场景的正确做法：把 `scripts/performance/capture-monitoring.sh` 放到应用宿主机上单独跑，
-  `--out` 指向同一个证据目录，并显式设 `MYSQL_PASSWORD`。
+  `--out` 指向一个**目标机本地**的目录（不要指回压测机上那个证据目录），并显式设
+  `MYSQL_PASSWORD`；产出的 `monitoring/` 与压测机上的本包**并列交付**。
 - `--no-monitor` 产出的包**不是可独立交付的完整证据**，这一点在三处一致地写明，而不是只在
   一句提示里：manifest 里 `monitor_scope: "skipped"`、`external_monitoring_required: true`、
   `evidence_complete: false`、`deliverable_ready: false`，原因写进 `delivery_blockers`；
   脚本末尾也以 **exit 12** 结束并打印同一原因。k6 侧的证据本身是完整的（退出码照常记在
-  `k6-exit-code` 与 manifest 里），缺的只是监控原始数据——交付时务必附上目标机上单独跑出来的
-  `monitoring/`。若这份包还要参与"证据齐全"的对外结论，请把两边的产物合并后重新核对一遍。
+  `k6-exit-code` 与 manifest 里），缺的只是监控原始数据。
+- **两份产物怎么核对**（不要合并成一份清单）：本包的 `manifest.json` 给出 `target_host` 与
+  `monitor_scope: "skipped"`，它因此**永远不声称监控完整**；目标机那份 `monitoring/monitoring.log`
+  的头几行给出采集宿主的 `host=` 与采集参数。第三方要确认的就是这两处指的是同一台机器——
+  一致则两份产物可以互相印证，不一致（例如 `host=` 是压测机、`target_host` 是应用机）说明
+  这份监控采错了机器，两份都不能用。
+  **本工具链不支持把远端采到的 `monitoring/` 塞回本包后重生成一份 manifest**：清单里的各产物
+  sha256、`monitoring_components` 的有效行数都是**产出那一刻**算出来的，事后合包要么 sha256 对
+  不上、要么只能手改数字——那正是本目录反复禁止的"事后搬家"，证据链会断在改动的那一步。
+  正确的动作是把两份并列交付，并按上面两条分别核对。
 
 **完整性是硬门禁。** 原始结果（`k6-summary.json` / `k6-raw-samples.csv` / `k6-console.log`）、
 监控产物（四份 CSV + `component-status.csv` + `monitoring.log`，`--no-monitor` 时除外）、
@@ -261,7 +277,7 @@ k6 返回 0 只说明门禁通过，不说明这份包能交付。k6 的原始�
 四条出口的离线回归不需要起任何服务、也不会向任何环境施压：
 
 ```bash
-bash scripts/performance/exit-code-self-test.sh   # 27 项：0 / k6 码 / 1 / 12
+bash scripts/performance/exit-code-self-test.sh   # 32 项：0 / k6 码 / 1 / 12
 ```
 
 **"哪一层坏了"要报对码，否则会把人指去改错的东西。** 典型是 `node`：`command -v node` 成功
@@ -379,8 +395,8 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | `scripts/performance/monitor-lifecycle.sh` | 采集子进程的启停（`.ready` 握手、有界等待、超时强杀） |
 | `scripts/performance/evidence-completeness.sh` | 完整性判定与交付出口（`missing_artifacts` / `delivery_blockers` / exit 1 与 exit 12 的分层） |
 | `scripts/performance/evidence-archive.sh` | 归档三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单；同时记录工具链失败状态 |
-| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（不连网络、不施压，逐用例有超时上界；共 27 项断言，含两项先自检夹具自身）。替身与子进程上界在同目录的 `self-test-fixtures.sh`（夹具层），本文件只写断言 |
-| `scripts/performance/self-test-fixtures.sh` | 上面那个自检的夹具层：k6 / curl / mysql / redis-cli 与监控侧 top / uptime / sysctl / vm_stat / uname 的固定输出替身，外加"坏扫描器""坏 node shim""无 node 的影子 PATH"三个构造；被 `source` 使用，不单独执行 |
+| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（不连网络、不施压，逐用例有超时上界；共 32 项断言，含四项先自检夹具自身）。替身与子进程上界在同目录的 `self-test-fixtures.sh`（夹具层），本文件只写断言 |
+| `scripts/performance/self-test-fixtures.sh` | 上面那个自检的夹具层：k6 / curl / mysql / redis-cli 与监控侧 top / uptime / sysctl / vm_stat / uname 的固定输出替身，外加"坏扫描器""坏 node shim""挂死的 node shim""无 node 的影子 PATH"四个构造，并自带一个能跑的 node（同时清掉宿主可能定义的 node shell 函数）；被 `source` 使用，不单独执行 |
 | `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（runner / 采集器 / 清单生成器都读它，`--self-check` 可离线自检） |
 | `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜——非数值不会被 awk 强制转换成 0，`jstat` 堆字段混进 `foo` 时整列留空而不是写一条"堆已用 0MB"） |
 | `scripts/performance/monitor-readers.sh` | 四个组件各采一次、各写一行、各记一次状态 |
