@@ -20,6 +20,10 @@
 #
 # 停止：--duration 到期自动退出，或 `touch <out>/monitoring/.stop` 立即结束采样。
 #
+# --required-components 单独运行时默认只要求 system：拿它做纯资源长稳监控时，目标机上
+# 未必有 MySQL 客户端或 Redis，缺组件不该把一次资源监控判成失败。run-stress-test.sh
+# 拉起它时会自动传入自己声称的那套（默认 system,app-jvm,mysql,redis），要求更严。
+#
 # 退出码：
 #   0  采样结束，且 required-components 里每个组件都至少有一行**有效**数据
 #   2  用法错误（缺 --out、非法数值入参、未知组件名、缺 MYSQL_PASSWORD）
@@ -69,7 +73,7 @@ while [[ $# -gt 0 ]]; do
     --redis-host) REDIS_HOST="$2"; shift 2 ;;
     --redis-port) REDIS_PORT="$2"; shift 2 ;;
     --required-components) REQUIRED_COMPONENTS="$2"; shift 2 ;;
-    -h|--help) sed -n '2,29p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "capture-monitoring: 未知参数 $1" >&2; exit 2 ;;
   esac
 done
