@@ -7,6 +7,16 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class OriginalScoreEvidencePolicyTest {
+    @Test void totalAndItemMaximumWithWeiConnectorRemainPublishable() {
+        var source = artifact("评分办法", List.of(
+                cell("n1", 0, 0, "证书"), cell("r1", 0, 1, "证书齐备，本项满分为10分")));
+        var report = OriginalScoreEvidencePolicy.verifyModel(source,
+                "本项目评分标准总分为10分。",
+                List.of(fact("1", "证书", "10", "证书齐备，本项满分为10分", "r1")),
+                new BigDecimal("10"));
+        assertThat(report.publishable()).isTrue();
+    }
+
     @Test void bodyTotalOutsideTableSupportsEightyPointPlan() {
         var source = artifact("评分办法", List.of(
                 cell("n1", 0, 0, "商务服务"), cell("r1", 0, 1, "售后保障最高得30分"), cell("w1", 0, 2, "30分"),

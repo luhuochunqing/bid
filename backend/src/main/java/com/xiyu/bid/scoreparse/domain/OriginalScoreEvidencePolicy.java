@@ -16,10 +16,10 @@ import java.util.regex.Pattern;
 
 /** Pure checks against the original artifact, never against another model claim. */
 public final class OriginalScoreEvidencePolicy {
-    private static final Pattern WHOLE_TOTAL = Pattern.compile("(?:总分|满分)\\s*[：:（(]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
+    private static final Pattern WHOLE_TOTAL = Pattern.compile("(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern SCORE_CELL = Pattern.compile("^[~≈]?\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
     private static final Pattern MAX_SCORE = Pattern.compile(
-            "(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
+            "(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern TITLE_SCORE = Pattern.compile("[（(]\\s*(\\d+(?:\\.\\d+)?)\\s*分\\s*[）)]");
     private static final Pattern AWARD_SCORE = Pattern.compile("(?:得|奖励|加)\\s*(\\d+(?:\\.\\d+)?)\\s*分");
 
