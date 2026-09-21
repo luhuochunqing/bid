@@ -19,8 +19,17 @@ public record DocumentContent(
         String fileName,
         String fileHash,
         String fullText,
-        List<PageContent> pages
+        List<PageContent> pages,
+        List<PageImage> images
 ) implements Serializable {
+
+    public DocumentContent(
+            final String fileName,
+            final String fileHash,
+            final String fullText,
+            final List<PageContent> pages) {
+        this(fileName, fileHash, fullText, pages, List.of());
+    }
 
     public DocumentContent {
         if (pages == null) {
@@ -36,6 +45,11 @@ public record DocumentContent(
         }
         if (fileName == null) {
             fileName = "";
+        }
+        if (images == null) {
+            images = Collections.emptyList();
+        } else {
+            images = Collections.unmodifiableList(new ArrayList<>(images));
         }
     }
 
@@ -118,14 +132,22 @@ public record DocumentContent(
                 .map(DocumentContent::fullText)
                 .collect(Collectors.joining("\n\n"));
         List<PageContent> mergedPages = new ArrayList<>();
+        List<PageImage> mergedImages = new ArrayList<>();
+        int pageOffset = 0;
         for (DocumentContent document : documents) {
             for (PageContent page : document.pages()) {
                 mergedPages.add(new PageContent(mergedPages.size() + 1, page.text(), page.headings()));
             }
+            for (PageImage image : document.images()) {
+                Integer pageHint = image.pageHint() == null ? null : image.pageHint() + pageOffset;
+                mergedImages.add(new PageImage(image.index(), image.mimeType(), image.section(), pageHint,
+                        image.width(), image.height(), image.base64()));
+            }
+            pageOffset += document.pages().size();
         }
         return new DocumentContent(
                 capMergedFileName(joinedNames, documents.size()),
-                aggregateFileHash(documents), mergedFullText, mergedPages);
+                aggregateFileHash(documents), mergedFullText, mergedPages, mergedImages);
     }
 
     /**

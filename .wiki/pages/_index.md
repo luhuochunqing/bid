@@ -41,6 +41,7 @@ backlinks:
 - [[bid-quality-check-pagination-fix]] — 标书质量核查分页丢失修复（\f 契约断裂 + 虚拟分页兜底 + 证据定位治理）
 - [[bid-quality-check-realization]] — 标书质量核查实质化架构（spec 049）
 - [[bid-quality-multifile-check]] — AI 标书质量核查多册合并（价格/商务/技术分册 + Loader 边界合并 + Sidecar 空册陷阱）
+- [[seal-vision-compliance]] — 标书签章完整性视觉核验（Sidecar 页面图像 + 多模态印章识别 + 页级证据）
 - [[bid-quality-check-parse-timeout-fix]] — AI 标书质量核查解析失败误报修复（超时预算 × 文档规模 + 五分类失败语义 + Sidecar 分块 100）
 - [[ai-document-scan-error-guidance]] — AI 文档扫描件不可识别提示契约（错误透传 + 前端显式告警）
 - [[business-process]] — 业务流程

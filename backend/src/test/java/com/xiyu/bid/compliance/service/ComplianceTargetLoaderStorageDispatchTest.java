@@ -4,6 +4,7 @@
 package com.xiyu.bid.compliance.service;
 
 import com.xiyu.bid.compliance.domain.DocumentContent;
+import com.xiyu.bid.compliance.domain.PageImage;
 import com.xiyu.bid.compliance.domain.SidecarParseOutcome;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.BusinessException;
@@ -54,7 +55,7 @@ class ComplianceTargetLoaderStorageDispatchTest {
     @Mock
     private ProjectDocumentRepository projectDocumentRepository;
     @Mock
-    private SidecarStreamDocumentAdapter sidecarAdapter;
+    private SidecarComplianceDocumentAdapter sidecarAdapter;
     @Mock
     private ProjectDocumentFileStorage fileStorage;
     @Mock
@@ -135,6 +136,27 @@ class ComplianceTargetLoaderStorageDispatchTest {
         assertThat(result.fullText()).isEqualTo("真实投标正文");
         verify(fileStorage).load("bid-agent://tender-documents/p100/bid.pdf");
         verify(obsShareUrlSigner, never()).trySign(anyString());
+    }
+
+    @Test
+    @DisplayName("文本解析完成后且临时文件删除前抽取页面图像并保留到质检文档")
+    void loadBidDocument_extractsPageImagesBeforeTemporaryFileDeletion() throws Exception {
+        stubBidDocument("bid-agent://tender-documents/p100/bid.pdf");
+        stubFileStorage("bid-agent://tender-documents/p100/bid.pdf", "pdf-bytes".getBytes(StandardCharsets.UTF_8));
+        DocumentContent parsed = DocumentContent.fromText("投标文件.pdf", "hash-image", "投标函正文");
+        when(sidecarAdapter.convertDocument(any(Path.class), anyString()))
+                .thenReturn(SidecarParseOutcome.ok(parsed, List.of()));
+        PageImage image = new PageImage(0, "image/png", "投标函", 1, 100, 100, "aGk=");
+        when(sidecarAdapter.withPageImages(any(Path.class), anyString(), eq(parsed))).thenAnswer(invocation -> {
+            assertThat(Files.exists(invocation.getArgument(0, Path.class))).isTrue();
+            return new DocumentContent(parsed.fileName(), parsed.fileHash(), parsed.fullText(),
+                    parsed.pages(), List.of(image));
+        });
+
+        DocumentContent result = loader.loadBidDocument(PROJECT_ID);
+
+        assertThat(result.images()).containsExactly(image);
+        verify(sidecarAdapter).withPageImages(any(Path.class), eq("投标文件.pdf"), eq(parsed));
     }
 
     @Test

@@ -30,6 +30,8 @@
 | `domain/policy/DeterministicDepositExtractor.java` | Policy | 招标投标保证金/担保及政采响应担保确定性提取与免收识别纯核心策略 |
 | `domain/policy/SemanticPageRetriever.java` | Domain Service | 60K 预算语义页面智能召回器（单页超预算硬截断） |
 | `domain/DocumentContent.java` | Domain Model | 文档结构化内容；分页优先级：Sidecar pages → \f 切分 → virtualPages 虚拟分页兜底（无分页符长文本按标题/段落切块） |
+| `domain/PageImage.java` | Domain Model | 质检任务内存中的页面图像及页码元数据，不落库 |
+| `domain/policy/SealVisionFusionPolicy.java` | Policy | 文本签章结果与逐页视觉证据融合，输出页码、坐标和置信度证据 |
 | `entity/ComplianceRule.java` | Entity | 合规规则实体 |
 | `entity/ComplianceCheckResult.java` | Entity | 合规检查与标书质量核查结果实体 |
 | `repository/ComplianceRuleRepository.java` | Repository | 合规规则数据访问 |

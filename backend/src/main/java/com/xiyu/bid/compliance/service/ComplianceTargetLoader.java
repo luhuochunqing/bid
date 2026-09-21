@@ -35,16 +35,15 @@ public class ComplianceTargetLoader {
     /** 项目文档仓库. */
     private final ProjectDocumentRepository projectDocumentRepository;
     /** Sidecar 适配器. */
-    private final SidecarStreamDocumentAdapter sidecarAdapter;
+    private final SidecarComplianceDocumentAdapter sidecarAdapter;
     /** 投标文件存储分派解析器（三前缀真实取流，spec 049 US1）. */
     private final BidDocumentStorageResolver storageResolver;
-
     @Autowired
     public ComplianceTargetLoader(
             final ProjectRepository projectRepository,
             final TenderRepository tenderRepository,
             final ProjectDocumentRepository projectDocumentRepository,
-            final SidecarStreamDocumentAdapter sidecarAdapter,
+            final SidecarComplianceDocumentAdapter sidecarAdapter,
             final BidDocumentStorageResolver storageResolver) {
         this.projectRepository = projectRepository;
         this.tenderRepository = tenderRepository;
@@ -116,6 +115,9 @@ public class ComplianceTargetLoader {
             SidecarParseOutcome outcome;
             try {
                 outcome = sidecarAdapter.convertDocument(physicalFile, fileName);
+                if (outcome.isOk()) {
+                    parsedDocuments.add(sidecarAdapter.withPageImages(physicalFile, fileName, outcome.content()));
+                }
             } catch (RuntimeException e) {
                 throw new BusinessException(422,
                         "投标文件解析服务异常：" + fileName + "，请稍后重试；若持续出现请联系管理员。", e);
@@ -127,7 +129,6 @@ public class ComplianceTargetLoader {
             if (!outcome.isOk()) {
                 throw new BusinessException(422, parseFailureMessage(fileName, outcome));
             }
-            parsedDocuments.add(outcome.content());
         }
         return DocumentContent.merge(parsedDocuments);
     }

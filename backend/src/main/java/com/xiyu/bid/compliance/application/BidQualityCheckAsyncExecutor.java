@@ -21,6 +21,8 @@ import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
 import com.xiyu.bid.compliance.domain.policy.QualificationDetailReconciler;
 import com.xiyu.bid.compliance.domain.policy.QualificationMatchPolicy;
 import com.xiyu.bid.compliance.domain.policy.SemanticRulesLane;
+import com.xiyu.bid.compliance.domain.policy.SealVisionDetector;
+import com.xiyu.bid.compliance.domain.policy.SealVisionFusionPolicy;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
@@ -31,6 +33,7 @@ import com.xiyu.bid.compliance.service.TenderDocumentLoader;
 import com.xiyu.bid.compliance.service.TenderRequirementsExtractor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
@@ -67,6 +70,10 @@ public class BidQualityCheckAsyncExecutor {
     private final TenderRequirementsExtractor requirementsExtractor;
     private final AiProvider aiProvider;
     private final BidQualityCheckProgressUpdater progressUpdater;
+
+    /** 真实视觉适配器；e2e profile 缺失时保留既有文本规则。 */
+    @Autowired(required = false)
+    private SealVisionDetector sealVisionDetector;
 
     /**
      * 后台异步执行标书质量核查.
@@ -133,6 +140,14 @@ public class BidQualityCheckAsyncExecutor {
                     new LlmAdjudicator(buildLlmPort(parseFailureCounter)),
                     (progress, step) -> progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING,
                             60 + progress * 30 / 100, "AI 语义裁决 " + progress + "%：" + step));
+
+            if (sealVisionDetector != null && !bidDoc.images().isEmpty()) {
+                var vision = sealVisionDetector.detect(bidDoc);
+                itemResults = itemResults.stream()
+                        .map(result -> BidQualityCheckItem.SIGNATURE_SEAL.getCode().equals(result.itemCode())
+                                ? SealVisionFusionPolicy.merge(result, vision) : result)
+                        .toList();
+            }
 
             // 组装资质比对结构化清单（招标要求 vs 我司证书 vs 标书页码）
             List<QualificationDetail> qualDetails = QualificationMatchPolicy.buildDetails(
