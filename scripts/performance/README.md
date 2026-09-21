@@ -24,7 +24,7 @@
 | `monitor-lifecycle.sh` | 入口-子进程层 | 监控采集子进程的启停（`.ready` 握手、有界等待、超时强杀），以及采集侧问题清单 `MONITOR_ISSUES` |
 | `evidence-archive.sh` | 归档层 | 产物落盘之后、对外交付之前的三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单。同时记录 `TOOLCHAIN_FAILURE` / `TOOLCHAIN_FAILURE_REASON`（哪一步的哪件工具没跑成），由判定层决定退出码 |
 | `evidence-completeness.sh` | 判定层 | 完整性判定与交付出口：算 `MISSING_ARTIFACTS` 与 `DELIVERY_BLOCKER_CODES`（+给人和给清单看的两份文案），决定 exit 1（工具链不可用）/ exit 12（证据不齐）还是透传 k6 退出码 |
-| `exit-code-self-test.sh` | 判定-回归 | 纯离线（替身 k6 / curl / mysql / redis-cli，不连网络、不施压）跑通 0 / k6 码 / 1 / 12 四条出口共 20 项断言，含"无 node""扫描器崩溃""文案表重复 code""账号池非法"等反例 |
+| `exit-code-self-test.sh` | 判定-回归 | 纯离线（替身 k6 / curl / mysql / redis-cli **以及监控侧的 top / uptime / sysctl / vm_stat / uname**，不连网络、不施压，逐用例有超时上界）跑通 0 / k6 码 / 1 / 12 四条出口共 23 项断言，含"无 node""扫描器崩溃""文案表重复 code""账号池非法或为空"等反例 |
 | `monitor-spec.sh` | 契约库 | 监控证据的**唯一契约源**：组件集合、各 CSV 表头、"有效采样行"判定列号。runner / 采集器 / 清单生成器都读它，`--self-check` 在无服务环境下自检三方自洽 |
 | `delivery-blockers.tsv` | 契约库 | 交付阻塞项文案的**唯一来源**（`code<TAB>文案`），shell 侧与 JS 侧共读，跨进程传递的是 **code** 而不是文案；格式违规（多 TAB/缺文案/重复 code）两侧一律硬失败（exit 1），追加新 code 时两侧都要加引用分支 |
 | `monitor-parse.sh` | 采集-解析层 | 纯解析：`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 的原始文本 → 数值字段，不碰进程、不连服务、不写文件 |
@@ -76,6 +76,12 @@ export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"}]'
 压测照跑、曲线照出、门禁照判，而实际使用的认证身份与声明的账号池无关。带省略号的模板
 （`'[{...},…]'`）正是这类输入，因此文档里的示例一律写成单个合法元素。
 
+**"没提供"与"提供了但是空串"是两件事**：`XIYU_K6_USERS` 未设置 = 操作者没打算给（这时
+k6 会用自己的默认池，行为已在本文档与证据目录 README 里写明）；设成空串（`XIYU_K6_USERS=`、
+CI secret 没注入、配置被清空）或 `--users ''` = 提供了但没提供成，同样以 **exit 2** 拒绝。
+判据是变量**存在性**（`${VAR+x}`）而不是"值非空"——`${VAR:-}` 会把这两种情况塌缩成同一个
+空串，于是配置丢失被静默读成"没打算给账号池"，接着就是上面那条静默回退。
+
 **退出码**：`0` = k6 全部门禁通过且证据完整；k6 自身码 = k6 未全通过（`99` 表示有门禁被击穿）
 但证据完整；`1` = 拒绝执行（未确认环境 / 命中生产特征 / 缺 k6 或压测脚本 / 账号池因缺 node
 无法校验 / 工具链自身不可用，例如读不到 `monitor-spec.sh` 的规格、`delivery-blockers.tsv`
@@ -90,7 +96,7 @@ export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"}]'
 这条分界有离线回归可跑，不需要起任何服务或向任何环境施压：
 
 ```bash
-bash scripts/performance/exit-code-self-test.sh   # 20 项，覆盖 0 / k6 码 / 1 / 12 四条出口
+bash scripts/performance/exit-code-self-test.sh   # 23 项，覆盖 0 / k6 码 / 1 / 12 四条出口
 ```
 
 `bash scripts/performance/run-stress-test.sh --help` 打印头部注释里的用法正文

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Input: run-stress-test.sh 的命令行参数（"$@"）、以及 SCRIPT_DIR / REPO_ROOT 等已由入口建立的上下文
 # Output: 校验通过的运行参数（PROFILE / BASE_URL / OUT_ROOT / ENABLE_WRITES / MONITOR_SCOPE /
-#         MONITOR_INTERVAL / MONITOR_REQUIRED_COMPONENTS / RUN_LABEL / K6_SCRIPT / K6_USERS_JSON / TARGET_HOST）
+#         MONITOR_INTERVAL / MONITOR_REQUIRED_COMPONENTS / RUN_LABEL / K6_SCRIPT / K6_USERS_JSON /
+#         K6_USERS_GIVEN（是否**提供过**账号池：`XIYU_K6_USERS` 设了就是 1，哪怕是空串）/ TARGET_HOST）
 # Pos: scripts/performance/ - 压测入口的**参数解析与前置校验**层：读完参数就决定"这次运行合法吗"
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 #
@@ -34,7 +35,14 @@ run_preflight_parse() {
   # 账号池默认从环境变量取，而不是只认命令行：`--users '[{...,"password":"..."}]'` 会把
   # 测试环境口令写进进程 argv，同机任何账号 `ps aux` 就能读到。文档因此无法给出一个
   # 既真实可跑、又不泄露口令的 --users 示例。XIYU_K6_USERS 让口令只存在于调用者的环境里。
+  # 必须区分"没设这个变量"与"设了但是空串"：`${XIYU_K6_USERS:-}` 把两者塌缩成同一个空串，
+  # 于是 `XIYU_K6_USERS=`（CI secret 没注入、配置被清空、上一段脚本的 export 丢了）会被
+  # 当成"操作者没打算给账号池"放行，接着 k6 静默回退到内置默认账号池——正是本节要挡的
+  # 那条路径，只是换了个入口。所以这里另记一个 presence 位（`${VAR+x}` 是唯一可靠判据，
+  # 且在 `set -u` 下安全）。
   K6_USERS_JSON="${XIYU_K6_USERS:-}"
+  K6_USERS_GIVEN=0
+  if [[ -n "${XIYU_K6_USERS+x}" ]]; then K6_USERS_GIVEN=1; fi
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -48,7 +56,7 @@ run_preflight_parse() {
       --monitor-interval) require_arg "$@"; MONITOR_INTERVAL="$2"; shift 2 ;;
       --monitor-required-components) require_arg "$@"; MONITOR_REQUIRED_COMPONENTS="$2"; shift 2 ;;
       --k6-script) require_arg "$@"; K6_SCRIPT="$2"; shift 2 ;;
-      --users) require_arg "$@"; K6_USERS_JSON="$2"; shift 2 ;;
+      --users) require_arg "$@"; K6_USERS_JSON="$2"; K6_USERS_GIVEN=1; shift 2 ;;
       # 用法正文由入口脚本持有（它才是操作者面对的那个文件），因此这里回印 $0。
       # sourced 文件里 $0 仍是入口脚本路径，不是本文件。
       # 取"第 1 行到第一个空行"而不是写死行号：头部注释增删几行时写死的区间会静默印出
@@ -188,6 +196,17 @@ EOF
       exit 1
       ;;
   esac
+
+  # 给了账号池但内容是空串：`XIYU_K6_USERS=''` 或 `--users ''`。这不是"没提供"，而是
+  # "提供了但没提供成"——放行的话 k6 会静默回退到内置默认账号池，与上面那类静默回退同源。
+  # 因此按用法错误拒绝（exit 2），并且与其余前置校验一样发生在创建证据目录 / curl / k6 之前。
+  if [[ "$K6_USERS_GIVEN" == "1" ]] && [[ -z "$K6_USERS_JSON" ]]; then
+    echo "run-stress-test: 账号池为空，拒绝执行 —— XIYU_K6_USERS / --users 已给出，但内容是空串。" >&2
+    echo "                 k6 对空账号池会**静默回退到默认账号池**（认证身份与声明无关，曲线照常出）。" >&2
+    echo "                 要压测就给出合法 JSON，例如 '[{\"username\":\"u\",\"password\":\"p\"}]'；" >&2
+    echo "                 确实不需要账号池时请**完全不设置**这个变量（而不是设成空串）。" >&2
+    exit 2
+  fi
 
   # 账号池（XIYU_K6_USERS / --users）必须是**非空 JSON 数组**，且每项带字符串 username 与 password。
   # k6-tests/load-test.js 的 getUserPool() 在 JSON.parse 抛错、或者解析结果不是非空数组时，

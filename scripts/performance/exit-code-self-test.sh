@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# Input: 无（纯离线：不连网络、不连数据库、不向任何环境施加负载；k6 / curl / mysql / redis-cli 全部是替身）
+# Input: 无（纯离线：不连网络、不连数据库、不向任何环境施加负载）
+#        **k6 / curl / mysql / redis-cli / top / uptime / sysctl / vm_stat / uname 全部是替身**——
+#        监控侧也要替身：正向用例要求"监控有有效采样行"，而 system 读取器会去调宿主真实的
+#        `top`/`uptime`/`sysctl`/`vm_stat`。只替身 k6 那一侧的话，本自检的结论就取决于跑它的
+#        那台机器与那个 shell（沙箱里 `top` 取不到、Linux 上又走 `/proc` 分支），一条"回归"
+#        会随环境变红变绿——那正是它上一版的实际缺陷（实测：受限沙箱里正向用例得到 12）。
 # Output: 逐用例 PASS/FAIL 与汇总计数；全部通过 exit 0，任一失败 exit 1
 # Pos: scripts/performance/ - runner **退出码分层**的离线回归：0 / k6 自身码 / 1（工具链不可用）/ 12（证据不齐）的边界
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -66,7 +71,49 @@ echo "     stub-k6: BASE_URL=${BASE_URL:-<unset>}"
 exit "${STUB_K6_EXIT:-0}"
 STUB_K6
 for b in curl mysql redis-cli; do printf '#!/usr/bin/env bash\nexit 0\n' > "${STUB}/${b}"; done
-chmod +x "${STUB}/k6" "${STUB}/curl" "${STUB}/mysql" "${STUB}/redis-cli"
+
+# 监控侧的替身：值全部**固定**，且形状是 monitor-parse.sh 的判据认得的那几种
+# （CPU 三元组、load 二元组、hw.memsize、vm_stat 页数），因此"这次采样算不算有效行"
+# 不再取决于跑它的机器。
+cat > "${STUB}/uname" <<'STUB_UNAME'
+#!/usr/bin/env bash
+# 固定成 Darwin：system 读取器按 uname 分叉，不固定的话同一份替身在不同平台上走不同分支。
+echo Darwin
+STUB_UNAME
+cat > "${STUB}/top" <<'STUB_TOP'
+#!/usr/bin/env bash
+echo "CPU usage: 2.5% user, 5.0% sys, 92.5% idle"
+STUB_TOP
+cat > "${STUB}/uptime" <<'STUB_UPTIME'
+#!/usr/bin/env bash
+echo "14:03  up 3 days,  2 users,  load averages: 2.11 3.02 3.41"
+STUB_UPTIME
+cat > "${STUB}/sysctl" <<'STUB_SYSCTL'
+#!/usr/bin/env bash
+# 调用形态是 `sysctl -n <key>`（见 monitor-readers.sh 的 read_system）
+case "${2:-}" in
+  hw.memsize) echo 34359738368 ;;
+  hw.pagesize) echo 16384 ;;
+esac
+STUB_SYSCTL
+cat > "${STUB}/vm_stat" <<'STUB_VMSTAT'
+#!/usr/bin/env bash
+# 三段都必须出现：parse_vm_used_mb 只命中两段时返回空串（缺的那段当 0 相加会写出一个偏小的合法数字）
+cat <<'OUT'
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages active:                          35000.
+Pages wired down:                      20000.
+Pages occupied by compressor:          15000.
+OUT
+STUB_VMSTAT
+
+chmod +x "${STUB}/k6" "${STUB}/curl" "${STUB}/mysql" "${STUB}/redis-cli" \
+         "${STUB}/uname" "${STUB}/top" "${STUB}/uptime" "${STUB}/sysctl" "${STUB}/vm_stat"
+
+# 替身目录在**最前面**，且要在建"无 node 的影子 PATH"之前生效：影子路径是从当前 PATH
+# 逐项软链出来的，先放入替身目录，用例 5/5b 才同样跑在"外部命令全是替身、只差 node"的
+# 环境里（否则那些用例会退回宿主真实的 k6 去连一个不存在的目标）。
+export PATH="${STUB}:${PATH}"
 
 # 坏扫描器：node 还在（`command -v node` 成功），但调用脱敏/扫描脚本时自身崩掉（137 = 被 kill）。
 # 这条路径对应"扫描器无法启动"，必须报 1 而不是 12。
@@ -103,12 +150,34 @@ SHADOW="$(build_shadow_path)"
 
 # ── 运行一个用例并打印退出码 ────────────────────────────────────────────────
 # 环境变量（XIYU_STRESS_CONFIRMED / PATH / STUB_* 等）由调用方在子 shell 里设置。
+#
+# 每个用例都有**上界**（CASE_TIMEOUT 秒，实测每个用例数秒，45 秒是宽松兜底）：runner 内部
+# 虽有监控子进程的有界等待，但一条挂住的回归会拖住整轮 S5，而"没有输出的等待"与"正在跑"
+# 在日志里长得一模一样。超时按 124 上报（与 `timeout(1)` 的约定一致），并打印到 stderr——
+# 让它以 [FAIL] 的形式立刻暴露，而不是让整条命令卡住。
+CASE_TIMEOUT="${CASE_TIMEOUT:-45}"
 run_runner() { # <用例名> <runner 脚本> <参数...>
   local _label="$1" _runner="$2"
   shift 2
   local _dir="${SANDBOX}/runs/${_label}"
   rm -rf "$_dir"
-  bash "$_runner" "$@" --out "$_dir" --label "$_label" > "${SANDBOX}/log-${_label}.txt" 2>&1
+  bash "$_runner" "$@" --out "$_dir" --label "$_label" > "${SANDBOX}/log-${_label}.txt" 2>&1 &
+  local _pid=$! _ticks=0 _max=$((CASE_TIMEOUT * 2))
+  while kill -0 "$_pid" 2>/dev/null; do
+    if [[ "$_ticks" -ge "$_max" ]]; then
+      # 先 TERM 给 runner 机会停掉它的监控子进程，再 KILL。直接 -9 会留下一只还在采样的孤儿。
+      kill -TERM "$_pid" 2>/dev/null
+      sleep 2
+      kill -9 "$_pid" 2>/dev/null
+      wait "$_pid" 2>/dev/null
+      echo "  [warn] 用例 ${_label} 超过 ${CASE_TIMEOUT}s 未结束，已终止（按超时上报）" >&2
+      printf '124'
+      return 0
+    fi
+    sleep 0.5
+    _ticks=$((_ticks + 1))
+  done
+  wait "$_pid"
   printf '%s' "$?"
 }
 log_has() { grep -qF "$2" "${SANDBOX}/log-$1.txt"; }
@@ -119,7 +188,6 @@ LOOPBACK=(--profile smoke --base-url http://127.0.0.1:18999 --monitor-required-c
 REMOTE=(--profile smoke --base-url http://203.0.113.7:8080)
 
 echo "== 1. 正向：证据齐全 → 0 =="
-export PATH="${STUB}:${PATH}"
 RC="$(run_runner ok "$RUNNER" "${LOOPBACK[@]}")"
 check "正向端到端" 0 "$RC"
 RUNDIR="$(run_dir_of "${SANDBOX}/runs/ok")"
@@ -165,6 +233,17 @@ echo "== 5c. 账号池含省略号模板 → 2（k6 会静默回退到默认账�
 RC="$(export XIYU_K6_USERS='[{...},…]'; run_runner badusers "$RUNNER" "${LOOPBACK[@]}")"
 check "非法账号池" 2 "$RC"
 check "非法账号池未创建证据目录" "no" "$([[ -e "${SANDBOX}/runs/badusers" ]] && echo yes || echo no)"
+
+echo "== 5d. 账号池**显式为空**（XIYU_K6_USERS 设为空串）→ 2（不许被当成「没提供」）=="
+# 与环境变量未设置是两件事：未设置 = 操作者没打算给（文档已写明这时 k6 会用自己的默认池）；
+# 设成空串 = 提供了但没提供成（CI secret 没注入、配置被清空），放行同样是静默回退。
+RC="$(export XIYU_K6_USERS=''; run_runner emptyusers "$RUNNER" "${LOOPBACK[@]}")"
+check "空环境变量" 2 "$RC"
+check "空环境变量未创建证据目录" "no" "$([[ -e "${SANDBOX}/runs/emptyusers" ]] && echo yes || echo no)"
+
+echo "== 5e. 账号池 --users 传空串 → 2（命令行侧同一条判据）=="
+RC="$(run_runner emptyflag "$RUNNER" "${LOOPBACK[@]}" --users '')"
+check "空 --users" 2 "$RC"
 
 echo "== 6. 扫描器无法启动 → 1 =="
 RC="$(PATH="${BADNODE}:${PATH}" run_runner badscan "$RUNNER" "${LOOPBACK[@]}")"
