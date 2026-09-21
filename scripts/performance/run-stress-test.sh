@@ -186,6 +186,19 @@ csv_usable_rows() {
     END { printf "%d", n + 0 }' "$file"
 }
 
+# 组件名 → `<CSV 文件名>:<可用判定列号>` 的**唯一**映射。
+# 必需产物清单与逐 CSV 复算都从这里派生：只要把组件集合写死在两处，
+# `--monitor-required-components` 就只对采集器生效、runner 照旧按四件套硬判——
+# 声明了"这台机器没有 Redis"仍会 exit 12，声明等于没声明（实测过）。
+monitor_spec_for() {
+  case "$1" in
+    system) printf 'system.csv:2,4,5,7,8' ;;
+    app-jvm) printf 'app-jvm.csv:3,6,15' ;;
+    mysql) printf 'mysql.csv:2,3,4,5,6,7' ;;
+    redis) printf 'redis.csv:2,3,4,5,6' ;;
+  esac
+}
+
 # 大小写不敏感后再匹配：只写 *prod*|*Prod*|*PROD* 会让 pRODuction-host、PrOd-host 直接放行。
 # 匹配整个 URL（含路径）而不是只匹配 host，宁可多拦也不漏拦。
 BASE_URL_LC="$(printf '%s' "$BASE_URL" | tr '[:upper:]' '[:lower:]')"
@@ -358,7 +371,15 @@ fi
 # 监控记录三样俱全，缺任何一样都不能算交付成功——所以这里 fail closed。
 REQUIRED_ARTIFACTS=(k6-summary.json k6-console.log k6-exit-code k6-raw-samples.csv)
 if [[ "$MONITOR_SCOPE" != "skipped" ]]; then
-  REQUIRED_ARTIFACTS+=(monitoring/system.csv monitoring/app-jvm.csv monitoring/mysql.csv monitoring/redis.csv monitoring/monitoring.log monitoring/component-status.csv)
+  # 这两份是无条件要求的：它们记录"采了什么、采到没有"，缺了就无法判断上面几份的成色。
+  REQUIRED_ARTIFACTS+=(monitoring/monitoring.log monitoring/component-status.csv)
+  # 逐组件 CSV 只按**声明的范围**要求 —— 声明的范围就是这份包声称覆盖的范围。
+  # （不用 ${arr[-1]} 这类负下标：macOS 自带 bash 3.2 不支持。）
+  for _c in $MONITOR_REQUIRED_COMPONENTS; do
+    _spec="$(monitor_spec_for "$_c")"
+    REQUIRED_ARTIFACTS+=("monitoring/${_spec%%:*}")
+  done
+  unset _c _spec
 fi
 MISSING_ARTIFACTS=""
 for _f in "${REQUIRED_ARTIFACTS[@]}"; do
@@ -369,7 +390,8 @@ unset _f
 # 存在且非空，不等于"有数据"。逐组件复算可用的数据行数：`<文件名>:<必需列号>`，
 # 列号与 capture-monitoring.sh 里各 read_* 判定"这次采样算不算数"的字段一一对应。
 if [[ "$MONITOR_SCOPE" != "skipped" ]]; then
-  for _spec in "system.csv:2,4,5,7,8" "app-jvm.csv:3,6,15" "mysql.csv:2,3,4,5,6,7" "redis.csv:2,3,4,5,6"; do
+  for _c in $MONITOR_REQUIRED_COMPONENTS; do
+    _spec="$(monitor_spec_for "$_c")"
     _name="${_spec%%:*}"
     _cols="${_spec#*:}"
     _rows="$(csv_usable_rows "${RUN_DIR}/monitoring/${_name}" "$_cols")"
@@ -381,7 +403,7 @@ if [[ "$MONITOR_SCOPE" != "skipped" ]]; then
       esac
     fi
   done
-  unset _spec _name _cols _rows
+  unset _c _spec _name _cols _rows
 fi
 
 MANIFEST="${RUN_DIR}/manifest.json"

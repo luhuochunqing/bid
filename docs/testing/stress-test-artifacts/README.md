@@ -35,7 +35,7 @@ sha256 的 `manifest.json` 清单。
 
 ```
 20260921T062456Z-smoke-harness-selfcheck/   # 下面 examples/ 里保留的那次自检运行
-├── manifest.json          # 清单：运行元数据 + SLA 门禁声明与击穿项 + 头部指标 + 各产物 sha256
+├── manifest.json          # 清单：运行元数据 + SLA 门禁声明与击穿项 + 头部指标 + 逐组件监控状态 + 各产物 sha256
 ├── k6-summary.json        # k6 原始汇总（--summary-export），各接口 avg/med/p90/p95/p99
 ├── k6-raw-samples.csv     # k6 逐指标逐时刻原始采样（--out csv），画图/复核都用它
 ├── k6-console.log         # k6 控制台完整输出（含 checks 明细与阈值告警原文）
@@ -140,6 +140,11 @@ bash scripts/performance/run-stress-test.sh \
   有效采样（必需字段齐备且为数值）。目标环境确实没有其中某个组件时，显式收窄范围：
   `--monitor-required-components system,app-jvm,mysql`。不声明就少一个组件 → **exit 12**，
   而不是交付一份"四份 CSV 都在、其中一份全是空值"的包。
+- **收窄就是声明范围，判定严格按声明的集合执行**：必需产物清单与逐份 CSV 的有效数据行
+  复算都只覆盖你声明的组件；范围外的组件不参与判定，因此一份"按声明范围完整"的包可以
+  正常交付（`exit 0`）。但它**不会**被顺手藏起来——实际采样情况（`usable_samples` 与原因）
+  仍逐组件记在 `manifest.json` 的 `monitoring_components` 里并标 `required=false`，
+  "这台机器没有 Redis"是事实，读者有权看到。
 
 **监控宿主必须说清楚 —— 这是本工具最容易产出"看起来对、其实无意义"数据的地方。**
 采集器采的是**它自己所在这台机器**的 CPU/内存/JVM，以及它连得到的 MySQL/Redis。
@@ -167,10 +172,11 @@ k6 返回 0 只说明门禁通过，不说明这份包能交付。k6 的原始�
 与 `manifest.json` 里。
 
 **"存在"之外还查"有数据"。** 只判文件非空，会把"只有表头"或"整列空值"的监控文件当成完整
-证据放行——那正是采集器在组件采不到数据时留下的形态。所以 runner 会**独立复算**每份监控 CSV
-里必需列齐备且为数值的行数（不复用采集器自报的状态文件，清单不给自己发合格证），
+证据放行——那正是采集器在组件采不到数据时留下的形态。所以 runner 会**独立复算**你声明范围内
+每份监控 CSV 里必需列齐备且为数值的行数（不复用采集器自报的状态文件，清单不给自己发合格证），
 任何一份为 0 行即计入 `missing_artifacts` 并 exit 12；具体到哪个组件、为什么失败，
 记在 manifest 的 `monitoring_components`（逐组件有效行数与原因）与 `monitoring_issues` 里。
+`monitoring.log` 与 `component-status.csv` 无条件必需——它们记录"采了什么、采到没有"。
 
 manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifacts` 列表记录同一判定。
 
