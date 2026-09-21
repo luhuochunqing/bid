@@ -117,15 +117,24 @@ parse_memsize_mb() {
 parse_jstat_gc() {
   printf '%s\n' "$1" | awk '
     function num(x) { return (x == "" || x == "-") ? "" : x }
-    function kb(x) { return (x == "" || x == "-") ? 0 : x + 0 }
+    # 空 / "-" 表示该代在这次采集里不存在（ZGC 下 S0C… 恒为 "-"）→ 计 0；
+    # **非数值**则是"解析不了"——绝不能 `x + 0` 兜底：那会把 "foo" 变成 0，
+    # 而 0 是合法数字、read_jvm 的 is_num 放行 → 一条解析失败的 jstat 被写成
+    # "堆已用 0MB"并计为有效采样（与 parse_memsize_mb 防的是同一件事）。
+    function bad(x) { return !(x == "" || x == "-" || x ~ /^[0-9]+(\.[0-9]+)?$/) }
+    function z(x) { return (x == "" || x == "-") ? 0 : x + 0 }
+    function sum_mb(a, b, c, d) {
+      if (bad(a) || bad(b) || bad(c) || bad(d)) return ""
+      return sprintf("%.0f", (z(a) + z(b) + z(c) + z(d)) / 1024)
+    }
     NR == 1 { for (i = 1; i <= NF; i++) h[i] = $i; next }
     NR == 2 {
       for (i = 1; i <= NF; i++) v[h[i]] = $i;
       printf "%s,%s,%s,%s,%s,%s,%s", num(v["YGC"]), num(v["YGCT"]), num(v["FGC"]), num(v["FGCT"]),
                                      num(v["CGC"]), num(v["CGCT"]), num(v["GCT"]);
-      printf ",%.0f,%.0f",
-             (kb(v["S0U"]) + kb(v["S1U"]) + kb(v["EU"]) + kb(v["OU"])) / 1024,
-             (kb(v["S0C"]) + kb(v["S1C"]) + kb(v["EC"]) + kb(v["OC"])) / 1024;
+      printf ",%s,%s",
+             sum_mb(v["S0U"], v["S1U"], v["EU"], v["OU"]),
+             sum_mb(v["S0C"], v["S1C"], v["EC"], v["OC"]);
     }' | head -1
 }
 
@@ -237,6 +246,22 @@ Pages occupied by compressor: 15000.' 16384)"
   _check "parse_jstat_gc ZGC" ",,,,7,0.890,1.230,2,8" \
     "$(parse_jstat_gc ' S0C    S1C    S0U    S1U      EC       EU        OC         OU       MC     MU    CCSC   CCSU   YGC     YGCT    FGC    FGCT    CGC    CGCT     GCT
    -      -      -      -       -        -     8192.0     2048.0   51200.0 49200.0 6144.0 5888.0     -        -      -        -     7    0.890    1.230')"
+  # 堆字段非数值时必须**整项留空**：`kb()` 里的 `x + 0` 会把 "foo" 变成 0，而 0 是合法数字、
+  # read_jvm 的 is_num 放行 → 一条解析失败的 jstat 被记成"堆已用 0MB"并计入有效采样。
+  # 前 7 个 GC 字段本来就是原样透传（由 is_num 把关），这里钉的是 heap_used / heap_committed
+  # 这两列——它们决定了 USABLE_JVM 是否自增。
+  _check "parse_jstat_gc 堆字段非数值留空" ",,,,,,,," \
+    "$(parse_jstat_gc ' S0C S1C S0U S1U EC EU OC OU YGC YGCT FGC FGCT CGC CGCT GCT
+foo foo foo foo foo foo foo foo - - - - - - -')"
+  _check "parse_jstat_gc 堆字段混入非数值留空" "1,2,3,4,5,6,7,," \
+    "$(parse_jstat_gc ' S0C S1C S0U S1U EC EU OC OU YGC YGCT FGC FGCT CGC CGCT GCT
+foo foo foo foo foo foo foo foo 1 2 3 4 5 6 7')"
+  # 求和里只要有**一项**坏，该列就整列留空（不做"跳过坏项"的部分求和——那等于把 200MB
+  # 的堆报成 100MB，比留空更危险）；两列各算各的：已用里混了 "n/a" → 留空，提交四项都好 → 照给。
+  # read_jvm 只要求 heap_used 是数值，所以留空的已用列已足以让这行不算有效采样。
+  _check "parse_jstat_gc 单个坏项整列留空" ",,,,,,,,14" \
+    "$(parse_jstat_gc ' S0C S1C S0U S1U EC EU OC OU YGC YGCT FGC FGCT CGC CGCT GCT
+1024 1024 0 0 4096 2048 8192 n/a - - - - - - -')"
   # SHOW GLOBAL STATUS 是字母序返回的：按行序取值会把 Questions 写进 slow_queries
   _check "parse_mysql_status_cols 按名取值" "5,2,7,0,1,330000" \
     "$(parse_mysql_status_cols 'Aborted_connects,1

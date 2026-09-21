@@ -59,7 +59,10 @@ CSV——非空、有行数，却撑不起报告第五章的任何结论。该�
 **exit 3** 结束，runner 随即以 **exit 12** 判证据不可交付。
 
 `examples/` 下保留了一次**工具链自检运行**（1 VU 冒烟，本机 dev 环境），
-用于展示证据包的真实形态。**它不是 2026-08-28 报告的证据，不得引用为报告数据。**
+用于展示证据包的真实形态。**它不是 2026-08-28 报告的证据，不得引用为报告数据**，也不要
+拿它当"当前实现产出的包"的证据：它绑定的是产出它的那次运行，而 `manifest.json` 记的 commit /
+`diff_hash` 都是那次的，不是当前 HEAD 的。要引用当前实现，就重跑一次并按 §"证据包不能事后搬家"
+的规矩核对三类痕迹。
 目录名带 UTC 时间戳，每次重新生成都会变，以 `examples/` 下实际存在的那个目录为准。
 
 该自检运行同时是**采集脚本的回归样本**：`monitoring/system.csv` 的内存占用按本机真实页大小
@@ -341,9 +344,12 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
      --monitor-local-target
    ```
 
-   （上面是**完整可复制**的调用：`<账号>` / `<口令>` 是占位符，执行前必须替换成真实值
-   ——JSON 里的尖括号原样提交会被入口以 **exit 2** 拒掉，这是有意的，见下条。URL 用报告
-   §2.1 的目标环境；换成别的主机时按第 226 行的表选 `--monitor-local-target` 或 `--no-monitor`。）
+   （上面是**完整可复制**的调用：`<账号>` / `<口令>` 是占位符，执行前必须替换成真实值。
+   ⚠️ **入口不会替你拦这个**：尖括号占位符本身是一段语法合法的 JSON（校验只看"非空数组 +
+   每项带字符串 username/password"），原样提交会被放行，k6 拿一个不存在的账号去登录，
+   认证成功率因此被击穿。这类"合法但业务无效"的输入入口判不出来——好在它不是静默的
+   （登录会失败、曲线会掉下来），但**只有靠执行前替换**。URL 用报告 §2.1 的目标环境；
+   换成别的主机时按第 226 行的表选 `--monitor-local-target` 或 `--no-monitor`。）
 
    **"没设置"与"设成空串"是两件事**：`export XIYU_K6_USERS=`（值为空串）或 `--users ''`
    同样以 **exit 2** 拒绝。判据是变量**存在性**而不是"值非空"——`${VAR:-}` 会把这两种情况
@@ -373,9 +379,10 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | `scripts/performance/monitor-lifecycle.sh` | 采集子进程的启停（`.ready` 握手、有界等待、超时强杀） |
 | `scripts/performance/evidence-completeness.sh` | 完整性判定与交付出口（`missing_artifacts` / `delivery_blockers` / exit 1 与 exit 12 的分层） |
 | `scripts/performance/evidence-archive.sh` | 归档三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单；同时记录工具链失败状态 |
-| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（替身 k6 / curl / mysql / redis-cli **以及监控侧的 top / uptime / sysctl / vm_stat / uname**，不连网络、不施压，逐用例有超时上界；共 27 项断言，含两项先自检夹具自身） |
+| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（不连网络、不施压，逐用例有超时上界；共 27 项断言，含两项先自检夹具自身）。替身与子进程上界在同目录的 `self-test-fixtures.sh`（夹具层），本文件只写断言 |
+| `scripts/performance/self-test-fixtures.sh` | 上面那个自检的夹具层：k6 / curl / mysql / redis-cli 与监控侧 top / uptime / sysctl / vm_stat / uname 的固定输出替身，外加"坏扫描器""坏 node shim""无 node 的影子 PATH"三个构造；被 `source` 使用，不单独执行 |
 | `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（runner / 采集器 / 清单生成器都读它，`--self-check` 可离线自检） |
-| `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜） |
+| `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜——非数值不会被 awk 强制转换成 0，`jstat` 堆字段混进 `foo` 时整列留空而不是写一条"堆已用 0MB"） |
 | `scripts/performance/monitor-readers.sh` | 四个组件各采一次、各写一行、各记一次状态 |
 | `scripts/performance/monitor-status.sh` | 采集侧的状态与结论层：`component-status.csv` 与"这次采集成不成功" |
 | `scripts/performance/delivery-blockers.tsv` | 交付阻塞项文案的**唯一来源**，shell 侧与 JS 侧共读；跨进程传递的是 code 而非文案，格式违规两侧都硬失败 |
