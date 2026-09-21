@@ -6,13 +6,16 @@
 #
 # 用途：一条命令跑完压测并把原始证据落盘，避免手工拼命令导致证据缺失。
 #
-# 示例（测试环境标准阶梯 10→50→100 VU，含受控写入，与 2026-08-28 报告口径一致）：
-#   XIYU_STRESS_CONFIRMED=1 bash scripts/performance/run-stress-test.sh \
+# 示例（在 172.16.38.78 这台应用宿主上跑标准阶梯 10→50→100 VU，含受控写入，与 2026-08-28 报告口径一致）：
+#   XIYU_STRESS_CONFIRMED=1 XIYU_K6_USERS='[...]' bash scripts/performance/run-stress-test.sh \
 #     --profile standard \
 #     --base-url http://172.16.38.78:8080 \
+#     --monitor-local-target \
 #     --enable-writes
+#   （--monitor-local-target 只有在本机就是 172.16.38.78 时才可加；压测机不是目标时改用
+#     --no-monitor，并另外在目标机上跑 capture-monitoring.sh —— 见 docs/testing/stress-test-artifacts/README.md）
 #
-# 示例（只读复现，不向环境写入业务数据）：
+# 示例（本机回环地址，只读复现，不向环境写入业务数据）：
 #   XIYU_STRESS_CONFIRMED=1 bash scripts/performance/run-stress-test.sh \
 #     --profile standard --base-url http://127.0.0.1:18089
 #
@@ -29,14 +32,23 @@
 #   k6 自身码 k6 未全通过（99 = 有门禁被击穿；其余非 0 见 k6-console.log），证据包完整
 #   1        拒绝执行（未确认环境 / 命中生产特征 / 缺 k6 或脚本）
 #   2        用法错误（未知参数、缺 --base-url、非法档位或间隔、证据目录已存在、监控宿主歧义）
-#   12       k6 已跑完但**证据包不完整**（缺原始结果/监控产物，或监控产物无有效数据行），
-#            优先于 k6 退出码上报
+#   12       k6 已跑完，但**证据包不可交付**：缺原始结果/监控产物、监控产物无有效数据行、
+#            凭证残留扫描未通过，或本次用了 --no-monitor（缺监控原始数据）。优先于 k6 退出码上报。
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 K6_SCRIPT="${REPO_ROOT}/k6-tests/load-test.js"
+
+# 监控证据的契约（组件集合 / CSV 表头 / 有效行判定列号）只存在于 monitor-spec.sh 一处：
+# 采集器写这些列、runner 复算这些列，两边各写一份时它们只是**碰巧一致**——任何一侧改了
+# 字段顺序或增删列，另一侧不会报错，只会算出不同的有效行数，而两份产物看上去都正常。
+source "${SCRIPT_DIR}/monitor-spec.sh"
+if ! monitor_assert_spec; then
+  echo "run-stress-test: 监控规格自检失败（${SCRIPT_DIR}/monitor-spec.sh），拒绝执行" >&2
+  exit 1
+fi
 
 PROFILE="standard"
 BASE_URL=""
@@ -45,10 +57,11 @@ ENABLE_WRITES=0
 RUN_MONITOR=1
 MONITOR_LOCAL_TARGET=0
 MONITOR_INTERVAL=5
-# 本包声称"监控证据完整"就必须说清完整到什么程度：这四个组件各至少要有一行有效采样。
+# 本包声称"监控证据完整"就必须说清完整到什么程度：组件集合里每个组件各至少要有一行有效采样。
 # 由调用方声明而不是采集器替它假定——目标环境确实没有 Redis 时，操作者应当显式
 # 收窄成 system,app-jvm,mysql，而不是让一份缺组件的包以"完整"的名义交付出去。
-MONITOR_REQUIRED_COMPONENTS="system,app-jvm,mysql,redis"
+# 默认值直接由 monitor-spec.sh 的组件全集派生，本文件不再另抄一份组件名单。
+MONITOR_REQUIRED_COMPONENTS="$(printf '%s' "$MONITOR_COMPONENTS" | tr ' ' ',')"
 RUN_LABEL=""
 # 账号池默认从环境变量取，而不是只认命令行：`--users '[{...,"password":"..."}]'` 会把
 # 测试环境口令写进进程 argv，同机任何账号 `ps aux` 就能读到。文档因此无法给出一个
@@ -147,10 +160,10 @@ fi
 # 找不到对应规格 —— 那本该是"这一项没采到"，却会静默退化成"没有这项要求"。
 MONITOR_REQUIRED_NORMALIZED=""
 for _c in $(printf '%s' "$MONITOR_REQUIRED_COMPONENTS" | tr ',' ' '); do
-  case " system app-jvm mysql redis " in
+  case " ${MONITOR_COMPONENTS} " in
     *" ${_c} "*) ;;
     *)
-      echo "run-stress-test: --monitor-required-components 只支持 system|app-jvm|mysql|redis（收到 '${_c}'）" >&2
+      echo "run-stress-test: --monitor-required-components 只支持 ${MONITOR_COMPONENTS// /|}（收到 '${_c}'）" >&2
       exit 2
       ;;
   esac
@@ -186,18 +199,10 @@ csv_usable_rows() {
     END { printf "%d", n + 0 }' "$file"
 }
 
-# 组件名 → `<CSV 文件名>:<可用判定列号>` 的**唯一**映射。
-# 必需产物清单与逐 CSV 复算都从这里派生：只要把组件集合写死在两处，
+# 组件名 → `<CSV 文件名>:<可用判定列号>` 的映射来自 monitor-spec.sh（本文件开头 source）。
+# 必需产物清单与逐 CSV 复算都从它派生：只要把组件集合写死在两处，
 # `--monitor-required-components` 就只对采集器生效、runner 照旧按四件套硬判——
 # 声明了"这台机器没有 Redis"仍会 exit 12，声明等于没声明（实测过）。
-monitor_spec_for() {
-  case "$1" in
-    system) printf 'system.csv:2,4,5,7,8' ;;
-    app-jvm) printf 'app-jvm.csv:3,6,15' ;;
-    mysql) printf 'mysql.csv:2,3,4,5,6,7' ;;
-    redis) printf 'redis.csv:2,3,4,5,6' ;;
-  esac
-}
 
 # 大小写不敏感后再匹配：只写 *prod*|*Prod*|*PROD* 会让 pRODuction-host、PrOd-host 直接放行。
 # 匹配整个 URL（含路径）而不是只匹配 host，宁可多拦也不漏拦。
@@ -275,23 +280,45 @@ if [[ "$MONITOR_SCOPE" != "skipped" ]]; then
   # 监督者（CI / timeout / supervisor）看到的是"成功"而非"被中止"。
   # 143 = 128 + SIGTERM，符合"被 TERM 终止"的通行约定。
   trap 'kill "$MONITOR_PID" 2>/dev/null || true; exit 143' INT TERM
+  # 必须等采集器写出 .ready 才能开始压测（见 capture-monitoring.sh 里的说明）：
+  # 它启动时要 `rm -f monitoring/.stop` 清掉上一轮的停止标记，而 k6 若很快结束
+  # （脚本异常、目标不可达），下面 touch .stop 会赶在那行 rm 之前 —— 停止标记被删掉，
+  # 采集器于是采满 900s 被强杀，component-status.csv 压根不会生成。
+  MONITOR_READY_WAIT=0
+  while [[ ! -f "${RUN_DIR}/monitoring/.ready" ]] && [[ $MONITOR_READY_WAIT -lt 30 ]]; do
+    # 采集器启动即失败（参数非法、缺依赖）时不再空等，让它下面按退出码走正常告警路径
+    if ! kill -0 "$MONITOR_PID" 2>/dev/null; then break; fi
+    sleep 1
+    MONITOR_READY_WAIT=$((MONITOR_READY_WAIT + 1))
+  done
+  if [[ ! -f "${RUN_DIR}/monitoring/.ready" ]]; then
+    echo "run-stress-test: 监控采集器未在 30s 内就绪（进程可能已退出），本次监控证据大概率不完整" >&2
+    MONITOR_ISSUES="${MONITOR_ISSUES}监控采集器未在 30s 内就绪（明细见 monitoring/monitoring.log）"$'\n'
+  fi
   echo "run-stress-test: 监控采集已启动 (pid=${MONITOR_PID}, interval=${MONITOR_INTERVAL}s, 采集口径=${MONITOR_SCOPE}, app_port=${APP_PORT:-<未解析>})"
 fi
 
-K6_ENV=(
-  "BASE_URL=${BASE_URL%/}"
-  "STRESS_PROFILE=${PROFILE}"
-  "ENABLE_WRITES=$([[ $ENABLE_WRITES == 1 ]] && echo true || echo false)"
-)
-if [[ -n "$K6_USERS_JSON" ]]; then K6_ENV+=("K6_USERS=${K6_USERS_JSON}"); fi
-
+# 传给 k6 的方式是**在受控子 shell 里导出环境变量**，而不是
+# `env "K6_USERS=..." k6 run`：env 进程在启动窗口内的 argv 对本机任何账号都可读
+# （`ps aux`），而文档承诺的正是"口令只存在于调用者的环境里、不进入任何进程的 argv"。
+# 子 shell 还有一个作用：它改的这些变量（BASE_URL 去掉尾斜杠、ENABLE_WRITES 转成
+# k6 要的 true/false）不会污染本脚本自己的变量 —— 本脚本的 ENABLE_WRITES 是 0/1，
+# 下面写进 manifest 的也是它；直接 export 会把这两个语义覆盖掉，之后 manifest 里
+# enable_writes 恒为 false，而没有任何一处会报错。
 set +e
-env "${K6_ENV[@]}" k6 run \
-  --summary-export="${RUN_DIR}/k6-summary.json" \
-  --out "csv=${RUN_DIR}/k6-raw-samples.csv" \
-  --summary-trend-stats="avg,min,med,p(90),p(95),p(99),max" \
-  "$K6_SCRIPT" 2>&1 | tee "${RUN_DIR}/k6-console.log"
-K6_EXIT="${PIPESTATUS[0]}"
+(
+  export BASE_URL="${BASE_URL%/}"
+  export STRESS_PROFILE="$PROFILE"
+  export ENABLE_WRITES=$([[ $ENABLE_WRITES == 1 ]] && echo true || echo false)
+  if [[ -n "$K6_USERS_JSON" ]]; then export K6_USERS="$K6_USERS_JSON"; fi
+  k6 run \
+    --summary-export="${RUN_DIR}/k6-summary.json" \
+    --out "csv=${RUN_DIR}/k6-raw-samples.csv" \
+    --summary-trend-stats="avg,min,med,p(90),p(95),p(99),max" \
+    "$K6_SCRIPT" 2>&1 | tee "${RUN_DIR}/k6-console.log"
+  exit "${PIPESTATUS[0]}"
+)
+K6_EXIT=$?
 # 这里**不要**再 `set -e`。本脚本开头是 `set -uo pipefail`（无 -e），若在此处打开 errexit，
 # 之后任意一条后处理命令失败都会让脚本立即退出：既吞掉下面的汇总输出，又把该命令的退出码
 # 冒充成本脚本的退出码，破坏末尾 `exit "$K6_EXIT"` 这个对外契约（实测：k6 全通过=0，
@@ -365,6 +392,37 @@ if command -v node >/dev/null 2>&1; then
   fi
 fi
 
+# 脱敏之后再扫一遍残留，且用**同一个脚本、同一组检测器**（scrub-secrets.mjs --scan）。
+# 只脱敏不扫描时，"脱敏覆盖到了哪些文件"就只是本脚本的一句声明：新增一份产物而忘了
+# 加进 SCRUB_FILES，凭证会原样留在包里——产物一个不少、sha256 也对得上，无人会发现。
+SECRET_SCAN_STATUS="not_run"
+SECRET_SCAN_DETAIL="未检测到 node，无法证明本包不含凭证残留"
+if command -v node >/dev/null 2>&1; then
+  if SCAN_OUT="$(node "${SCRIPT_DIR}/scrub-secrets.mjs" --scan "$RUN_DIR" 2>&1)"; then
+    SECRET_SCAN_STATUS="passed"
+    SECRET_SCAN_DETAIL="$(printf '%s' "$SCAN_OUT" | tr '\n' ' ')"
+    echo "run-stress-test: 凭证残留扫描通过（$(printf '%s' "$SCAN_OUT" | sed -n '1p')）"
+  else
+    SECRET_SCAN_STATUS="residue"
+    SECRET_SCAN_DETAIL="$(printf '%s' "$SCAN_OUT" | tr '\n' ' ')"
+    echo "run-stress-test: 凭证残留扫描未通过，本包不可交付：" >&2
+    printf '%s\n' "$SCAN_OUT" >&2
+  fi
+fi
+
+# ── 交付阻塞项：产物一个不少，但这份包仍然不能交付的两种情况 ─────────────
+# 与 missing_artifacts 分开：这里的每一项都不是"文件没生成"，而是"生成了也不够"。
+DELIVERY_BLOCKERS=""
+if [[ "$SECRET_SCAN_STATUS" != "passed" ]]; then
+  DELIVERY_BLOCKERS="${DELIVERY_BLOCKERS}凭证扫描未通过（status=${SECRET_SCAN_STATUS}）：${SECRET_SCAN_DETAIL}"$'\n'
+fi
+if [[ "$MONITOR_SCOPE" == "skipped" ]]; then
+  # --no-monitor 意味着本包**只有 k6 侧的证据**。README 与本脚本的头部注释都写着
+  # "监控证据是报告第五章结论的原始数据"，缺了它就不是一份完整交付物。
+  # 只把退出码留给 k6 的 0，等于告诉调用方"成功了"，而请求方要的三样里少了一样。
+  DELIVERY_BLOCKERS="${DELIVERY_BLOCKERS}本包不含监控证据（--no-monitor）：k6 侧证据完整，但监控原始数据必须另行提供——在被压目标宿主机上运行 scripts/performance/capture-monitoring.sh，并把 monitoring/ 与本目录一并交付"$'\n'
+fi
+
 # ── 完整性判定：把"跑完了"和"证据齐了"分开 ──────────────────────────────
 # 此前只是逐条告警，脚本仍以 k6 的退出码结束：k6 返回 0 时，调用方拿到的是
 # "成功" + 一份缺原始结果或缺监控的证据包。请求方要的正是原始数据、结果文件、
@@ -407,6 +465,17 @@ if [[ "$MONITOR_SCOPE" != "skipped" ]]; then
 fi
 
 MANIFEST="${RUN_DIR}/manifest.json"
+# 清单要记的「本包该有哪些监控 CSV」由声明的组件范围派生，不再由 manifest 生成器
+# 自己写死四件套：写死时收窄声明会留下一串 null 产物项，看上去像"采失败了"。
+EXPECTED_MONITORING_CSVS=""
+if [[ "$MONITOR_SCOPE" != "skipped" ]]; then
+  for _c in $MONITOR_REQUIRED_COMPONENTS; do
+    _spec="$(monitor_spec_for "$_c")"
+    EXPECTED_MONITORING_CSVS="${EXPECTED_MONITORING_CSVS} ${_spec%%:*}"
+  done
+  unset _c _spec
+  EXPECTED_MONITORING_CSVS="${EXPECTED_MONITORING_CSVS# }"
+fi
 # node 存在但执行失败（脚本自身报错、磁盘满、环境变量畸形）时，此前完全没有告警路径：
 # 脚本照常打印"压测结束"，却留下一个没有 sha256 清单、无法第三方复核的不完整证据包。
 MANIFEST_OK=0
@@ -417,6 +486,8 @@ if command -v node >/dev/null 2>&1; then
      K6_VERSION="$K6_VERSION" K6_SCRIPT="$K6_SCRIPT" MONITOR_INTERVAL="$MONITOR_INTERVAL" \
      TARGET_HOST="$TARGET_HOST" MONITOR_SCOPE="$MONITOR_SCOPE" REDACTED_COUNT="$REDACTED_COUNT" \
      MISSING_ARTIFACTS="$MISSING_ARTIFACTS" MONITOR_ISSUES="$MONITOR_ISSUES" \
+     DELIVERY_BLOCKERS="$DELIVERY_BLOCKERS" SECRET_SCAN_STATUS="$SECRET_SCAN_STATUS" \
+     SECRET_SCAN_DETAIL="$SECRET_SCAN_DETAIL" EXPECTED_MONITORING_CSVS="$EXPECTED_MONITORING_CSVS" \
      node "${SCRIPT_DIR}/write-run-manifest.mjs"; then
     MANIFEST_OK=1
     echo "run-stress-test: 已生成 ${MANIFEST}"
@@ -431,7 +502,9 @@ if [[ "$MANIFEST_OK" != "1" ]]; then MISSING_ARTIFACTS="${MISSING_ARTIFACTS} man
 echo
 echo "run-stress-test: 压测结束，k6 退出码=${K6_EXIT}"
 if [[ "$K6_EXIT" == "0" ]]; then
-  echo "  ✅ 全部门禁通过"
+  # 只说 k6 的阈值门禁——"证据包能不能交付"是另一件事，见下方 exit 12 分支。
+  # 这句若写成"全部门禁通过"，紧接着打印"不可交付"时读者容易停在第一句上。
+  echo "  ✅ k6 门禁全部通过（本包是否可交付另行判定）"
 elif [[ "$K6_EXIT" == "99" ]]; then
   # 实测 k6 v1.8.0：门禁被击穿、以及 abortOnFail 提前中止，退出码都是 99
   echo "  ⚠️ 存在阈值未达标（退出码 99），被击穿指标见 manifest.json 的 thresholds_crossed 字段"
@@ -443,13 +516,22 @@ if [[ "$MONITOR_SCOPE" == "skipped" ]]; then
   echo "  ⚠️ 本包不含监控证据（--no-monitor）：请另行提供目标机上的监控记录" >&2
 fi
 
-# 证据不完整时以 12 退出，且**优先于** k6 的退出码：k6 返回 0 只说明门禁通过，
-# 不说明这份证据包能交付。k6 的原始退出码仍完整保留在 k6-exit-code 与 manifest 里。
-if [[ -n "$MISSING_ARTIFACTS" ]]; then
-  echo "run-stress-test: 证据包不完整，以下必需产物缺失、为空或没有可用数据行：${MISSING_ARTIFACTS}" >&2
+# 证据不完整**或存在交付阻塞项**时以 12 退出，且**优先于** k6 的退出码：k6 返回 0 只说明
+# 门禁通过，不说明这份证据包能交付。k6 的原始退出码仍完整保留在 k6-exit-code 与 manifest 里。
+if [[ -n "$MISSING_ARTIFACTS" ]] || [[ -n "$DELIVERY_BLOCKERS" ]]; then
+  if [[ -n "$MISSING_ARTIFACTS" ]]; then
+    echo "run-stress-test: 证据包不完整，以下必需产物缺失、为空或没有可用数据行：${MISSING_ARTIFACTS}" >&2
+  fi
   if [[ -n "$MONITOR_ISSUES" ]]; then
     printf '  监控侧明细：\n' >&2
     printf '%s' "$MONITOR_ISSUES" | while IFS= read -r _line; do
+      [[ -n "$_line" ]] && echo "    - ${_line}" >&2
+    done
+    unset _line
+  fi
+  if [[ -n "$DELIVERY_BLOCKERS" ]]; then
+    printf '  交付阻塞项（产物齐全也不足以交付）：\n' >&2
+    printf '%s' "$DELIVERY_BLOCKERS" | while IFS= read -r _line; do
       [[ -n "$_line" ]] && echo "    - ${_line}" >&2
     done
     unset _line

@@ -1,5 +1,6 @@
 // Input: 单次压测证据目录（k6-summary.json / k6-console.log / monitoring/*）+ 由 run-stress-test.sh 注入的运行上下文环境变量
-// Output: 该证据目录的 manifest.json —— 运行元数据、SLA 门禁声明与击穿项、头部指标、各产物 sha256
+// Output: 该证据目录的 manifest.json —— 运行元数据、SLA 门禁声明与击穿项、头部指标、各产物 sha256、
+//         完整性判定（missing_artifacts / delivery_blockers / external_monitoring_required / secret_scan）
 // Pos: scripts/performance/ - 压测证据包清单生成器（只读解析既有产物，不修改原始证据）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 //
@@ -24,18 +25,25 @@ if (!dir) {
   process.exit(2)
 }
 
+// 该记哪些产物：k6 侧四份是固定的；监控侧由 run-stress-test.sh 按**本次声明的组件范围**
+// 派生后注入（EXPECTED_MONITORING_CSVS）。此前这里写死 system/app-jvm/mysql/redis 四份，
+// 于是收窄声明（目标环境确实没有 Redis）时清单里会留下一串 null 产物项，
+// 第三方看到的是"采了但没采到"，而不是"本次范围本就不含它"。
 const ARTIFACT_FILES = [
   'k6-summary.json',
   'k6-raw-samples.csv',
   'k6-console.log',
   'k6-exit-code',
-  'monitoring/system.csv',
-  'monitoring/app-jvm.csv',
-  'monitoring/mysql.csv',
-  'monitoring/redis.csv',
-  'monitoring/monitoring.log',
-  'monitoring/component-status.csv',
 ]
+const monitorCsvs = (process.env.EXPECTED_MONITORING_CSVS ?? '')
+  .split(/\s+/)
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0)
+  .map((name) => `monitoring/${name}`)
+if (process.env.MONITOR_SCOPE !== 'skipped') {
+  ARTIFACT_FILES.push('monitoring/monitoring.log', 'monitoring/component-status.csv')
+}
+ARTIFACT_FILES.push(...monitorCsvs)
 
 const artifacts = {}
 for (const rel of ARTIFACT_FILES) {
@@ -184,8 +192,41 @@ const missingArtifacts = (process.env.MISSING_ARTIFACTS ?? '')
   .split(/\s+/)
   .map((s) => s.trim())
   .filter((s) => s.length > 0)
-const evidenceComplete = missingArtifacts.length === 0
+// 与 run-stress-test.sh 里的同名文本逐字一致：同一条交付阻塞项在两处出现时必须是同一句话，
+// 否则清单会记成两条不同的原因。改这句话时两边都要改。
+const SKIPPED_MONITORING_BLOCKER =
+  '本包不含监控证据（--no-monitor）：k6 侧证据完整，但监控原始数据必须另行提供——在被压目标宿主机上运行 scripts/performance/capture-monitoring.sh，并把 monitoring/ 与本目录一并交付'
+// 交付阻塞项与"缺产物"是两回事：这里是**产物一个不少、但这份包仍然不能交付**的原因
+// （例如 --no-monitor 缺监控原始数据、凭证残留扫描未通过）。只判 missing_artifacts 时，
+// `--no-monitor` 会让这个字段天然为空，于是清单对外宣称 evidence_complete=true /
+// deliverable_ready=true —— 与 README "这类包不算证据齐全"的说法正好相反。
+const deliveryBlockers = (process.env.DELIVERY_BLOCKERS ?? '')
+  .split('\n')
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0)
+// 监控原始数据是否必须由**另一个证据包**补齐。这份包自己无论如何都补不上它：
+// 采集器只能采本机，而 --no-monitor 的前提正是"本机不是被压目标"。
+const externalMonitoringRequired = process.env.MONITOR_SCOPE === 'skipped'
+// 这一条由**本脚本自己**派生，而不是只等调用方注入。理由：清单对外回答的是"这份包能不能
+// 交付"，而"监控原始数据只能由另一份包补齐"这一事实本脚本自己就能判定。只依赖注入时，
+// 任何没把原因传进来的调用方（例如隔离只跑本脚本）都会让清单自相矛盾：
+// external_monitoring_required=true 与 evidence_complete=true 同时成立。
+// 文本与 run-stress-test.sh 中同名常量逐字一致，重复时按字符串去重，不产生两条同义项。
+if (externalMonitoringRequired && !deliveryBlockers.includes(SKIPPED_MONITORING_BLOCKER)) {
+  deliveryBlockers.push(SKIPPED_MONITORING_BLOCKER)
+}
+const evidenceComplete = missingArtifacts.length === 0 && deliveryBlockers.length === 0
 const redactionCount = Number.parseInt(process.env.REDACTED_COUNT ?? '0', 10) || 0
+// 脱敏之后的残留扫描结论。**覆盖范围要写清楚**：扫描发生在 manifest.json 写盘之前，
+// 所以被扫的是"本包内除 manifest.json 外的全部产物"——manifest.json 由本脚本按固定
+// 字段生成，不含任何来自环境的自由文本凭证，但它确实不在那次扫描的文件集合里。
+const secretScanStatus = process.env.SECRET_SCAN_STATUS ?? 'not_run'
+const secretScan = {
+  status: secretScanStatus,
+  detectors: ['jwt', 'sensitive_key_value', 'bearer'],
+  covers: '本包内除 manifest.json 外的全部产物（manifest.json 由本脚本在该次扫描之后生成）',
+  detail: (process.env.SECRET_SCAN_DETAIL ?? '').trim() || undefined,
+}
 // 采集侧的具体原因（哪个组件一行有效数据都没有、采集器为何非 0 退出）。
 // 只写 missing_artifacts 会让人以为是"文件没生成"，而真实情况多半是"文件生成了、
 // 里面没有数据"——这两件事的处置方式完全不同。
@@ -236,6 +277,7 @@ const manifest = {
   // 监控数据采自哪台机器：local-target = 本机即被压目标；local-target-asserted = 目标非回环
   // 地址、但操作者显式声明本机就是目标宿主；skipped = 本包不含监控。采集器只能采本机，
   // 这个字段是第三方判断"monitoring/*.csv 到底描述谁"的唯一依据，不能省。
+  // skipped 时 external_monitoring_required=true，本包不可独立交付（见 delivery_blockers）。
   monitor_scope: process.env.MONITOR_SCOPE ?? null,
   repository: {
     commit_sha: process.env.COMMIT_SHA,
@@ -250,9 +292,15 @@ const manifest = {
   thresholds_crossed_parse_warning: crossedParseWarning,
   thresholds_passed_caveat: evidenceComplete
     ? undefined
-    : '门禁判定仅反映 k6 退出码；本次证据包不完整（见 missing_artifacts），不可作为交付证据引用',
+    : '门禁判定仅反映 k6 退出码；本次证据包不可交付（见 missing_artifacts / delivery_blockers），不可作为交付证据引用',
   evidence_complete: evidenceComplete,
   missing_artifacts: missingArtifacts,
+  // 产物齐全但仍不可交付的原因。第三方判断"这份包能不能直接用"必须同时看这两处。
+  delivery_blockers: deliveryBlockers,
+  // true = 监控原始数据不在这份包里，必须由目标机上的 capture-monitoring.sh 单独产出、
+  // 与本包一并交付。此时 evidence_complete / deliverable_ready 均为 false。
+  external_monitoring_required: externalMonitoringRequired,
+  secret_scan: secretScan,
   // 逐组件的有效采样行数。文件存在 ≠ 有数据：采集器在 mysql 客户端缺失、Redis 不可达、
   // 应用进程找不到时会留下只有表头或整行空值的 CSV，"证据完整"的结论只能建立在这里的
   // usable_samples 上，交付前请按 required=true 的组件逐个确认。

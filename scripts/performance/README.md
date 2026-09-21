@@ -9,8 +9,10 @@
 |------|------|------|
 | `sales-200.k6.js` | 压测脚本 | 模拟 200 个销售在线用户访问登录、项目、看板、导出和标书上传入队链路 |
 | `run-stress-test.sh` | 执行脚本 | 压测执行与原始证据归档入口：调用 `k6-tests/load-test.js` 跑指定档位，产出完整证据包（原始 summary / 逐请求采样 / 控制台日志 / 监控数据 / `manifest.json`）。内置 `XIYU_STRESS_CONFIRMED=1` 与环境守卫，默认关闭业务写入；证据不全时以 exit 12 拒绝交付 |
-| `capture-monitoring.sh` | 采集脚本 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录，产出 CSV 时间序列 + 可读日志 + `component-status.csv`（逐组件有效采样行数），替代手工监控截图 |
-| `write-run-manifest.mjs` | 清单脚本 | 解析证据目录既有产物，生成 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、逐组件监控状态、各产物 sha256） |
+| `capture-monitoring.sh` | 采集脚本 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录，产出 CSV 时间序列 + 可读日志 + `component-status.csv`（逐组件有效采样行数），替代手工监控截图。只在要求 `mysql` 时才强制 `MYSQL_PASSWORD`；单独运行默认只要求 `system` |
+| `monitor-spec.sh` | 契约库 | 监控证据的**唯一契约源**：组件集合、各 CSV 表头、"有效采样行"判定列号。`run-stress-test.sh` 与 `capture-monitoring.sh` 都 source 它，`--self-check` 在无服务环境下自检三者自洽 |
+| `scrub-secrets.mjs` | 脱敏脚本 | 归档前就地替换证据包里的凭证（JWT / 敏感键值 / Bearer），并在脱敏后对整包做同组检测器的残留扫描（`--scan`，二进制产物列为未覆盖），结论写入 `manifest.json` 的 `secret_scan` |
+| `write-run-manifest.mjs` | 清单脚本 | 解析证据目录既有产物，生成 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、逐组件监控状态、各产物 sha256、完整性判定） |
 
 ## 压测证据归档（推荐入口）
 
@@ -18,9 +20,13 @@
 
 ```bash
 export XIYU_STRESS_CONFIRMED=1
+# 前提：命令跑在 172.16.38.78 这台应用宿主上（监控采集器只能采本机资源）。
+# 跑在别的压测机上时把 --monitor-local-target 换成 --no-monitor，并到目标机单独跑
+# capture-monitoring.sh —— 两者必须显式给一个，缺了会在压测开始前 exit 2。
 bash scripts/performance/run-stress-test.sh \
   --profile standard \
   --base-url http://172.16.38.78:8080 \
+  --monitor-local-target \
   --enable-writes
 ```
 
@@ -36,12 +42,20 @@ export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
 
 **退出码**：`0` = k6 全部门禁通过且证据完整；k6 自身码 = k6 未全通过（`99` 表示有门禁被击穿）
 但证据完整；`1` = 拒绝执行（未确认环境 / 命中生产特征 / 缺 k6）；`2` = 用法错误；
-**`12` = k6 已跑完但证据包不完整，优先于 k6 退出码上报**。
+**`12` = k6 已跑完但证据包不可交付，优先于 k6 退出码上报**。
 
 证据完整性是硬门禁，且查的是"有数据"而不只是"文件存在"：默认要求
 `system,app-jvm,mysql,redis` 四个监控组件各至少一行有效采样（必需字段齐备且为数值）。
 目标环境确实没有某个组件时，用 `--monitor-required-components system,app-jvm,mysql`
-显式收窄；不声明就少一个组件 → exit 12，而不是交付一份"CSV 都在、其中一份全是空值"的包。
+显式收窄（必需产物清单与逐份 CSV 的复算都只覆盖声明的集合）；不声明就少一个组件 → exit 12，
+而不是交付一份"CSV 都在、其中一份全是空值"的包。
+
+除"产物缺失/为空/无有效数据行"外，还有两条 **exit 12** 的情形记在 `manifest.json` 的
+`delivery_blockers` 里（产物一个不少，但这份包仍不能交付）：本次用了 `--no-monitor`
+（`external_monitoring_required: true`，监控原始数据需由目标机单独产出后一并交付），
+或归档前的凭证残留扫描未通过（`secret_scan.status != passed`）。
+组件集合、各 CSV 表头与"有效采样行"的判定列号定义在 `monitor-spec.sh` 一处，
+采集器与 runner 都 source 它；改动后跑 `bash scripts/performance/monitor-spec.sh --self-check` 自检。
 
 各档位时长：`smoke` 30s（1 VU 冒烟）、`standard` 3.5m（10→50→100 VU）、
 `stress` 5m（20→100→200 VU）、`endurance` 12m（50 VU 长稳）。

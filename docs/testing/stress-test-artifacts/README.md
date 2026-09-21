@@ -65,6 +65,16 @@ CSV——非空、有行数，却撑不起报告第五章的任何结论。该�
 该自检运行同时是**采集脚本的回归样本**：`monitoring/system.csv` 的内存占用按本机真实页大小
 （Apple Silicon 16 KB）折算，`monitoring/mysql.csv` 按变量名而非返回行序取值。
 
+**示例包与当前版本的两处已知差异**（它由更早一次运行产出，字节未改动，不重跑就不会消失）：
+
+- 它没有 `monitoring/.ready`。这个空文件是采集器的**就绪握手**标记，当前版本才会写：
+  采集器启动时要清掉上一轮的 `monitoring/.stop`，而 k6 若很快结束（脚本异常、目标不可达），
+  调用方的 `touch .stop` 会赶在那次清理之前，停止标记被删掉、采集器采满 900s 被强杀、
+  `component-status.csv` 压根不会生成。现在调用方必须等到 `.ready` 出现才开压。
+- 它的 `manifest.json` 里没有 `delivery_blockers` / `external_monitoring_required` / `secret_scan`
+  三个字段（当时尚未引入）。对这三项的判定请以当前版本产出的包为准；示例包只用于展示
+  "一次真实运行的证据包长什么样"与做 sha256 全量校验。
+
 **示例包必须由一次运行原子产出，不允许手工拼装或事后搬家。** 三类可核验痕迹会互相印证
 "它们来自同一次调用"：`k6-console.log` 与 `monitoring/monitoring.log` 里记录的输出路径、
 `manifest.json` 的 `k6_script` 相对路径、以及各产物的 sha256。任何一项与其余不一致，
@@ -115,21 +125,56 @@ bash scripts/performance/run-stress-test.sh --profile smoke \
   这不是"改原始产物"，而是归档前的必要脱敏：一份给第三方复核的性能证据包，
   没有任何理由携带可用身份令牌。
 
+脱敏之后**还会用同一个脚本、同一组检测器把整包扫一遍**（`scrub-secrets.mjs --scan`），
+扫的是 JWT / 敏感键值（`"password"`、`"token"` 等键名下的字符串）/ `Authorization: Bearer`
+三类文本形态。只脱敏不扫描时，"脱敏覆盖到了哪些文件"就只是脚本的一句声明——新增一份产物
+而忘了加进脱敏清单，凭证会原样留在包里，而产物一个不少、sha256 也都对得上。
+扫描结论与**覆盖范围**记在 `manifest.json` 的 `secret_scan` 字段：
+
+- `status: passed` 才允许 `evidence_complete: true`；扫出残留或文件读不开 → 记为残渣、
+  写进 `delivery_blockers`、脚本 exit 12（读不开就等于无法证明它干净，按失败处理）。
+- 覆盖范围是"本包内除 `manifest.json` 外的全部文本产物"：扫描发生在写清单之前，
+  清单自身由 `write-run-manifest.mjs` 按固定字段生成、不含来自环境的自由文本。
+- **二进制产物不扫描**（本脚本不解析二进制），但它们不会被默默略过：扫描输出会逐个列出
+  未覆盖的文件名，数量随之写进同一条结论里。若你往包里放了监控截图这类人工材料，
+  其中的凭证需要人工确认——这是本工具的能力边界，不是"已检查"。
+- 三类形态之外的自定义凭证头（例如自造的 `X-Api-Key`）不在检测范围内，同理需要人工判断。
+
 ---
 
 ## 三、如何产出报告级原始证据
 
 ```bash
-# 测试环境标准阶梯（10→50→100 VU，3.5 分钟，与 2026-08-28 报告口径一致）
+# 场景一：命令就跑在 172.16.38.78 这台应用宿主上（本机即目标，监控采得到东西）
 export XIYU_STRESS_CONFIRMED=1
 export MYSQL_PASSWORD='<采集器连接 MySQL 的口令>'   # 无默认值，必须显式提供
 bash scripts/performance/run-stress-test.sh \
   --profile standard \
   --base-url http://172.16.38.78:8080 \
-  --monitor-local-target \  # 仅当本机就是 172.16.38.78 这台应用宿主时才能加
-  --enable-writes           # 复现报告的"受控写入 567 笔"必须显式开启；不写库时省略
+  --monitor-local-target \
+  --enable-writes
 ```
 
+```bash
+# 场景二：命令跑在另一台压测机上（本机不是目标，本机资源数据无意义）
+export XIYU_STRESS_CONFIRMED=1
+bash scripts/performance/run-stress-test.sh \
+  --profile standard \
+  --base-url http://172.16.38.78:8080 \
+  --no-monitor \
+  --enable-writes
+# 再到 172.16.38.78 上单独跑一次采集器，产出这份包缺的监控原始数据：
+#   MYSQL_PASSWORD='<口令>' bash scripts/performance/capture-monitoring.sh \
+#     --out <上一步打印的证据目录> --app-port 8080 --interval 5 --duration <压测时长+余量>
+```
+
+> 两个场景**必须选一个**并显式写出来：目标不是回环地址时，脚本不会替你猜监控数据该采谁，
+> 缺 `--monitor-local-target` / `--no-monitor` 会在压测开始前直接 exit 2。
+> 注释放命令行前一行、不要写在续行反斜杠后面（`\` 后面跟 `#` 会让下一行变成独立命令，
+> 那段示例就不是可复制执行的 shell 了）。
+
+- `--enable-writes` 是复现报告"受控写入 567 笔"的必要条件；不写库时**整行省略**
+  （反斜杠只留给真正的续行）。
 - 不加 `--enable-writes` 时压测**只读**，不向环境写入业务数据，也不会触发真实的待立项通知。
 - `--profile` 只接受 `smoke` / `standard` / `stress` / `endurance` 四个档位，其余值直接拒绝。
   （k6 侧是 `STAGE_CONFIGS[PROFILE] || STAGE_CONFIGS.standard`，拼错的档位会**静默按 standard 跑**，
@@ -162,14 +207,26 @@ bash scripts/performance/run-stress-test.sh \
 
 - 远端场景的正确做法：把 `scripts/performance/capture-monitoring.sh` 放到应用宿主机上单独跑，
   `--out` 指向同一个证据目录，并显式设 `MYSQL_PASSWORD`。
-- `--no-monitor` 产出的包会在末尾打印告警、manifest 里 `monitor_scope: "skipped"`；
-  这类包按设计**不算**"证据齐全"，交付时需另行附上目标机的监控记录。
+- `--no-monitor` 产出的包**不是可独立交付的完整证据**，这一点在三处一致地写明，而不是只在
+  一句提示里：manifest 里 `monitor_scope: "skipped"`、`external_monitoring_required: true`、
+  `evidence_complete: false`、`deliverable_ready: false`，原因写进 `delivery_blockers`；
+  脚本末尾也以 **exit 12** 结束并打印同一原因。k6 侧的证据本身是完整的（退出码照常记在
+  `k6-exit-code` 与 manifest 里），缺的只是监控原始数据——交付时务必附上目标机上单独跑出来的
+  `monitoring/`。若这份包还要参与"证据齐全"的对外结论，请把两边的产物合并后重新核对一遍。
 
 **完整性是硬门禁。** 原始结果（`k6-summary.json` / `k6-raw-samples.csv` / `k6-console.log`）、
 监控产物（四份 CSV + `component-status.csv` + `monitoring.log`，`--no-monitor` 时除外）、
 `manifest.json` 任何一项缺失或为空，脚本都会以 **exit 12** 结束，且优先于 k6 的退出码上报——
 k6 返回 0 只说明门禁通过，不说明这份包能交付。k6 的原始退出码仍完整保留在 `k6-exit-code`
 与 `manifest.json` 里。
+
+**"产物齐全"之外还有两类交付阻塞项。** 它们的共同点是"文件一个不少，但这份包仍不能用"，
+因此单独记在 manifest 的 `delivery_blockers` 里，而不是混进 `missing_artifacts`：
+
+1. **凭证残留扫描未通过**（见下节）。
+2. **本次用了 `--no-monitor`**，监控原始数据不在包里。
+
+两类都让 `evidence_complete` / `deliverable_ready` 为 `false`、脚本以 exit 12 结束。
 
 **"存在"之外还查"有数据"。** 只判文件非空，会把"只有表头"或"整列空值"的监控文件当成完整
 证据放行——那正是采集器在组件采不到数据时留下的形态。所以 runner 会**独立复算**你声明范围内
@@ -213,6 +270,9 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
    | `xiaowang` | 由 e2e 栈创建，口令是 `E2eDemoDataInitializer` 的默认值 | CLAUDE.md「默认登录凭据 / e2e」一节 |
    | `xiaozhao` | **全仓无任何创建点**，只出现在 `k6-tests/load-test.js` 与 `k6-tests/security-checklist.md` | `grep -rn xiaozhao backend/src src e2e scripts` 无命中 |
 
+   （本表刻意不复述任何具体口令：文档是会被复制、转发、贴进工单的，把测试账号口令抄进来
+   等于把它们再发布一次。各环境的口令来源见"依据"列的文件与 CLAUDE.md，由操作者从环境注入。）
+
    直接用默认池时，认证成功率门禁必然被击穿，复现不出"多角色并发"。复现时用目标环境
    的真实账号显式覆盖账号池，从环境变量传入：
 
@@ -240,6 +300,8 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | :--- | :--- |
 | `scripts/performance/run-stress-test.sh` | 压测执行入口，产出本目录的证据包 |
 | `scripts/performance/capture-monitoring.sh` | 压测期间系统/JVM/MySQL/Redis 监控采样 |
+| `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（采集器与 runner 都 source 它，`--self-check` 可离线自检） |
+| `scripts/performance/scrub-secrets.mjs` | 归档前的凭证脱敏，以及脱敏后的整包残留扫描（`--scan`） |
 | `scripts/performance/write-run-manifest.mjs` | 生成 `manifest.json`（含 sha256 与门禁判定） |
 | `k6-tests/load-test.js` | k6 压测脚本本体（场景权重、门禁阈值、各接口 Trend 指标） |
 | `docs/testing/STRESS_TEST_GUIDE.md` | 铺底数据生成、导入、执行、清理的操作 SOP |

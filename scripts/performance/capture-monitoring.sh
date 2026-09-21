@@ -2,7 +2,7 @@
 # Input: 应用宿主上的 java 进程、MySQL 8.0 与 Redis 连接参数、采样间隔与时长、必需组件清单
 # Output: monitoring/ 目录下的 system/app-jvm/mysql/redis 四份 CSV 时间序列 + component-status.csv + monitoring.log 可读快照
 # Pos: scripts/performance/ - 压测期间系统资源与中间件监控采集器（替代手工截图，产出可归档的原始监控数据）
-# 维护声明: 若压测新增被监控组件（如 Nginx/Sidecar），同步更新本脚本的采集块、REQUIRED_COMPONENTS 白名单与 scripts/performance/README.md。
+# 维护声明: 若压测新增被监控组件（如 Nginx/Sidecar），同步更新本脚本的采集块、monitor-spec.sh 的组件集合与表头、以及 scripts/performance/README.md。
 #
 # 用途：在 k6 压测运行期间持续采样，产出压测报告"系统资源与中间件稳定性分析"章节的原始数据。
 # 调用：由 run-stress-test.sh 自动拉起；也可单独运行做长稳监控。
@@ -37,6 +37,15 @@ set -uo pipefail
 # 这里必须自己钉死，且必须在任何解析之前。
 export LC_ALL=C
 export LANG=C
+
+# 监控证据的契约（组件集合 / CSV 表头 / 有效行判定列号）只存在于 monitor-spec.sh 一处，
+# 本脚本写这些列、runner 复算这些列，两边都 source 它——各写一份时它们只是碰巧一致。
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/monitor-spec.sh"
+if ! monitor_assert_spec; then
+  echo "capture-monitoring: 监控规格自检失败（${SCRIPT_DIR}/monitor-spec.sh），拒绝执行" >&2
+  exit 2
+fi
 
 OUT_DIR=""
 INTERVAL=5
@@ -101,25 +110,16 @@ if [[ "$INTERVAL" -lt 1 ]]; then
   exit 2
 fi
 
-# 无口令则 MySQL 采集直接失败——与其采到一半留一份半残 CSV，不如在入口就拒绝，
-# 让调用方（run-stress-test.sh）的完整性判定走"未采集"而不是"采到了空值"。
-if [[ -z "$MYSQL_PASSWORD" ]]; then
-  echo "capture-monitoring: 必须显式提供 MYSQL_PASSWORD（本脚本不再内置任何默认口令）" >&2
-  echo "                 本地 dev 口令见 backend/start.sh / CLAUDE.md，请从环境注入：" >&2
-  echo "                 MYSQL_PASSWORD='<口令>' bash scripts/performance/capture-monitoring.sh ..." >&2
-  exit 2
-fi
-
 # 组件名必须白名单校验：写错一个名字（system 写成 sys）时，下面按名字取值的逻辑会把它
 # 当成"未知组件"永远判为未达标、或者更糟——被当成"没有这个要求"而静默放行。
 # 需要的效果是入口即拒绝，而不是让一份缺组件的证据包以成功退出码交付出去。
-_COMPONENT_NAMES="system app-jvm mysql redis"
+# 白名单与集合定义来自 monitor-spec.sh，不在本文件另抄一份。
 _NORMALIZED_REQUIRED=""
 for _c in $(printf '%s' "$REQUIRED_COMPONENTS" | tr ',' ' '); do
-  case " ${_COMPONENT_NAMES} " in
+  case " ${MONITOR_COMPONENTS} " in
     *" ${_c} "*) ;;
     *)
-      echo "capture-monitoring: --required-components 只支持 system|app-jvm|mysql|redis（收到 '${_c}'）" >&2
+      echo "capture-monitoring: --required-components 只支持 ${MONITOR_COMPONENTS// /|}（收到 '${_c}'）" >&2
       exit 2
       ;;
   esac
@@ -129,11 +129,30 @@ unset _c
 REQUIRED_COMPONENTS="${_NORMALIZED_REQUIRED# }"
 unset _NORMALIZED_REQUIRED
 
+# MySQL 口令的校验**必须在组件集合确定之后**，且只在 mysql 属于必需组件时才要求：
+# 头部注释与 README 都承诺"单独运行默认只要求 system，目标机没装 MySQL 也不该失败"，
+# 而这里的守卫原先是无条件的——那条承诺的路径在采样开始前就 exit 2，等于不存在。
+# 只在真的要求 mysql 时拒绝，才能让"只采系统资源"这条路径名副其实。
+_NEEDS_MYSQL=0
+for _c in $REQUIRED_COMPONENTS; do
+  if [[ "$_c" == "mysql" ]]; then _NEEDS_MYSQL=1; fi
+done
+unset _c
+if [[ "$_NEEDS_MYSQL" == "1" ]] && [[ -z "$MYSQL_PASSWORD" ]]; then
+  echo "capture-monitoring: 声明了 mysql 为必需组件，必须显式提供 MYSQL_PASSWORD（本脚本不内置任何默认口令）" >&2
+  echo "                 本地 dev 口令见 backend/start.sh / CLAUDE.md，请从环境注入：" >&2
+  echo "                 MYSQL_PASSWORD='<口令>' bash scripts/performance/capture-monitoring.sh ..." >&2
+  echo "                 不需要 MySQL 时请收窄声明：--required-components system,app-jvm" >&2
+  exit 2
+fi
+unset _NEEDS_MYSQL
+
 # 每个组件的"有效采样行数"与失败原因。判定标准是**数据行里的必需字段齐备且为数值**，
 # 而不是"文件非空"——采集器在 mysql 客户端缺失、Redis 不可达、应用进程找不到时，
 # 留下的正是"只有表头"或"整行空值"的文件，它们撑不起报告第五章的任何结论，
 # 却能让上一版的"非空即完整"判定把整包标成证据完整。这只是采集器侧的自报，
-# run-stress-test.sh 会独立复算一遍（见那边的 validate_monitoring_csv）。
+# run-stress-test.sh 会独立复算一遍（见那边的 csv_usable_rows）。
+# 两边判"哪些列要齐备"用的都是 monitor-spec.sh 里的 monitor_cols_for —— 不是各写一份。
 USABLE_SYSTEM=0
 USABLE_JVM=0
 USABLE_MYSQL=0
@@ -153,15 +172,35 @@ is_num() { case "$1" in ''|*[!0-9.-]*) return 1 ;; *) [[ "$1" =~ ^-?[0-9]+(\.[0-
 # 而这份文件正是给调用方与第三方读的。
 clean_reason() { printf '%s' "$1" | tr ',' ';' | tr -d '\n'; }
 
+# 组件名 → "可用|有效行数|原因"。bash 3.2 没有关联数组，这个 case 就是最小可行形式；
+# 状态表与"哪些必需组件没采到"两处判定都走它。原先这两处各写一份 dispatch，
+# 新增组件时只改一处不会报错，只会让两份产物对同一个组件给出不同的结论。
+component_state() {
+  case "$1" in
+    system)  printf '%s|%s|%s' "$AVAIL_SYSTEM" "$USABLE_SYSTEM" "$REASON_SYSTEM" ;;
+    app-jvm) printf '%s|%s|%s' "$AVAIL_JVM" "$USABLE_JVM" "$REASON_JVM" ;;
+    mysql)   printf '%s|%s|%s' "$AVAIL_MYSQL" "$USABLE_MYSQL" "$REASON_MYSQL" ;;
+    redis)   printf '%s|%s|%s' "$AVAIL_REDIS" "$USABLE_REDIS" "$REASON_REDIS" ;;
+    *) return 1 ;;
+  esac
+}
+
 MON_DIR="${OUT_DIR%/}/monitoring"
 mkdir -p "$MON_DIR"
 STOP_FILE="${MON_DIR}/.stop"
 rm -f "$STOP_FILE"
+# 就绪握手：调用方（run-stress-test.sh）等到这个标记出现才开始压测。
+# 上面那行 rm 与调用方的 touch .stop 之间存在真实竞态 —— 采集器启动慢（后面还有 lsof、
+# top、jcmd），而 k6 完全可能秒退（脚本异常 exit 107、目标不可达）。此时调用方在 rm 之前
+# 就 touch 了 .stop，rm 随即把它删掉，采集器便永远等不到停止信号：它采满 900s 被强杀，
+# component-status.csv 根本不会生成，调用方拿到的是"产物缺失"而不是"采集器没停"。
+# 实测过这条路径（探针用秒退的 k6 替身，采集器被强杀，component-status.csv 未生成）。
+touch "${MON_DIR}/.ready"
 
-SYSTEM_CSV="${MON_DIR}/system.csv"
-JVM_CSV="${MON_DIR}/app-jvm.csv"
-MYSQL_CSV="${MON_DIR}/mysql.csv"
-REDIS_CSV="${MON_DIR}/redis.csv"
+SYSTEM_CSV="${MON_DIR}/$(monitor_csv_for system)"
+JVM_CSV="${MON_DIR}/$(monitor_csv_for app-jvm)"
+MYSQL_CSV="${MON_DIR}/$(monitor_csv_for mysql)"
+REDIS_CSV="${MON_DIR}/$(monitor_csv_for redis)"
 HUMAN_LOG="${MON_DIR}/monitoring.log"
 
 # 进程定位的两种"不正常"要分别记下来，最后都要出现在 component-status.csv 的 reason 列里：
@@ -230,10 +269,12 @@ else
   REASON_JVM="应用进程不可用（${APP_PID_LOOKUP_FAILED:-app_pid=${APP_PID:-<未找到>}}）"
 fi
 
-echo "timestamp,cpu_user_pct,cpu_sys_pct,cpu_idle_pct,load1,load5,mem_used_mb,mem_total_mb" > "$SYSTEM_CSV"
-echo "timestamp,pid,heap_used_mb,heap_committed_mb,metaspace_used_mb,threads,ygc,ygct_s,fgc,fgct_s,cgc,cgct_s,gc_total_s,cpu_pct,rss_mb" > "$JVM_CSV"
-echo "timestamp,threads_connected,threads_running,slow_queries,innodb_row_lock_waits,aborted_connects,questions" > "$MYSQL_CSV"
-echo "timestamp,connected_clients,used_memory_mb,instantaneous_ops_per_sec,keyspace_hits,keyspace_misses" > "$REDIS_CSV"
+# 表头一律从 monitor-spec.sh 取：runner 复算"有效采样行"用的列号就是按这些表头定的，
+# 在这里另写一份字面量，改字段时两边只会"碰巧一致"（写多一列、写少一列都不会报错）。
+monitor_header_for system  > "$SYSTEM_CSV"
+monitor_header_for app-jvm > "$JVM_CSV"
+monitor_header_for mysql   > "$MYSQL_CSV"
+monitor_header_for redis   > "$REDIS_CSV"
 
 {
   echo "capture-monitoring: 开始采样"
@@ -515,31 +556,21 @@ done
 STATUS_CSV="${MON_DIR}/component-status.csv"
 {
   echo "component,required,available,usable_samples,total_samples,reason"
-  for _c in system app-jvm mysql redis; do
-    case "$_c" in
-      system)  _u="$USABLE_SYSTEM"; _a="$AVAIL_SYSTEM"; _r="$REASON_SYSTEM" ;;
-      app-jvm) _u="$USABLE_JVM";    _a="$AVAIL_JVM";    _r="$REASON_JVM" ;;
-      mysql)   _u="$USABLE_MYSQL";  _a="$AVAIL_MYSQL";  _r="$REASON_MYSQL" ;;
-      redis)   _u="$USABLE_REDIS";  _a="$AVAIL_REDIS";  _r="$REASON_REDIS" ;;
-    esac
+  for _c in $MONITOR_COMPONENTS; do
+    IFS='|' read -r _a _u _r <<< "$(component_state "$_c")"
     _req=0
     case " ${REQUIRED_COMPONENTS} " in *" ${_c} "*) _req=1 ;; esac
     printf '%s,%s,%s,%s,%s,%s\n' "$_c" "$_req" "$_a" "$_u" "$SAMPLE_COUNT" "$(clean_reason "$_r")"
   done
 } > "$STATUS_CSV"
-unset _c _u _a _r _req
+unset _c _a _u _r _req
 
 FAILED_COMPONENTS=""
 for _c in $REQUIRED_COMPONENTS; do
-  case "$_c" in
-    system)  _u="$USABLE_SYSTEM" ;;
-    app-jvm) _u="$USABLE_JVM" ;;
-    mysql)   _u="$USABLE_MYSQL" ;;
-    redis)   _u="$USABLE_REDIS" ;;
-  esac
+  IFS='|' read -r _a _u _r <<< "$(component_state "$_c")"
   if [[ "$_u" -eq 0 ]]; then FAILED_COMPONENTS="${FAILED_COMPONENTS} ${_c}"; fi
 done
-unset _c _u
+unset _c _a _u _r
 
 {
   echo "capture-monitoring: 采样结束（共 ${SAMPLE_COUNT} 次）"

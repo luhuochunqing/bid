@@ -95,12 +95,17 @@ STRESS_PROFILE=stress ENABLE_WRITES=false BASE_URL=http://127.0.0.1:18080 k6 run
 > **要出可被第三方复核的报告，请改走证据归档入口**（阶段三的等价替代，且自动留存原始数据）：
 > ```bash
 > export XIYU_STRESS_CONFIRMED=1
+> # 前提：命令跑在 172.16.38.78 这台应用宿主上。跑在别的压测机上时把 --monitor-local-target
+> # 换成 --no-monitor，并到目标机单独跑 capture-monitoring.sh（监控只能采本机）。
 > bash scripts/performance/run-stress-test.sh \
->   --profile standard --base-url http://172.16.38.78:8080 --enable-writes
+>   --profile standard --base-url http://172.16.38.78:8080 --monitor-local-target --enable-writes
 > ```
 > 它会一并跑完阶段二、三并落盘：k6 原始汇总、逐请求采样、控制台日志，以及压测期间的
 > 系统/JVM/MySQL/Redis 监控时间序列（即本指南阶段二手动开终端看的那些指标）。
 > 产出物在 `docs/testing/stress-test-artifacts/<时间戳>-<档位>/`，填报口径见该目录 README。
+> 缺 `--monitor-local-target` / `--no-monitor` 时脚本会在压测开始前 exit 2，而不是替你猜
+> "本机资源数据代表哪台机器"；`--no-monitor` 产出的包缺监控原始数据，脚本以 exit 12 结束，
+> 需补齐目标机的 `monitoring/` 后才能作为报告级证据。
 
 ---
 

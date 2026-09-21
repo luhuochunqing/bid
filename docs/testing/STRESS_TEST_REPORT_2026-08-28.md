@@ -190,23 +190,36 @@ $$Peak\text{-}QPS_{prod} = 80.0 \times 3.249 \times 1.390 \times 0.70 \approx \m
 | `docs/testing/STRESS_TEST_GUIDE.md` | `5b2c06993` | 铺底数据生成、导入、服务监控、阶梯执行、数据清理的完整操作 SOP |
 | `scripts/performance/run-stress-test.sh` | 本次新增 | 压测执行与原始证据归档入口：一条命令产出完整证据包 |
 | `scripts/performance/capture-monitoring.sh` | 本次新增 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录 |
-| `scripts/performance/write-run-manifest.mjs` | 本次新增 | 生成证据包清单 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、各产物 sha256） |
+| `scripts/performance/write-run-manifest.mjs` | 本次新增 | 生成证据包清单 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、各产物 sha256、完整性判定） |
+| `scripts/performance/monitor-spec.sh` | 本次新增 | 监控证据的唯一契约源：组件集合、各 CSV 表头、"有效采样行"判定列号（采集器与 runner 都 source 它，`--self-check` 可离线自检） |
+| `scripts/performance/scrub-secrets.mjs` | 本次新增 | 归档前凭证脱敏 + 脱敏后整包残留扫描（JWT / 敏感键值 / Bearer） |
 
 ### 8.2 一键复现命令
 
 ```bash
 # 测试环境标准阶梯（10 → 50 → 100 并发，约 3.5 分钟），与本次报告口径一致
+# 前提：这条命令跑在 172.16.38.78 这台应用宿主上（监控只能采本机，见下方说明）
 export XIYU_STRESS_CONFIRMED=1
 export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'   # 目标环境真实账号，勿写入命令行
 bash scripts/performance/run-stress-test.sh \
   --profile standard \
   --base-url http://172.16.38.78:8080 \
-  --enable-writes            # 复现"受控写入 567 笔"必须显式开启；省略则为纯只读压测
+  --monitor-local-target \
+  --enable-writes
+```
+
+```bash
+# 若这条命令跑在另一台压测机上（本机不是目标宿主），改用 --no-monitor，
+# 并到 172.16.38.78 上单独运行 capture-monitoring.sh 补齐监控原始数据（见 §8.3 末）。
+bash scripts/performance/run-stress-test.sh \
+  --profile standard --base-url http://172.16.38.78:8080 --no-monitor --enable-writes
 ```
 
 > `run-stress-test.sh` 内置环境守卫：必须显式导出 `XIYU_STRESS_CONFIRMED=1`，且 `--base-url`
 > 命中生产环境特征时直接拒绝执行。默认不开启业务写入，避免污染共享测试环境。
 > 账号池走环境变量而非命令行参数：`--users '…'` 会把测试环境口令留在压测机 `ps` 的 argv 里。
+> `--monitor-local-target` / `--no-monitor` 必须显式给出一个：目标不是回环地址时，
+> 脚本不肯替你猜"本机资源数据代表谁"，缺这两个参数会在压测开始前 exit 2。
 
 ### 8.3 原始证据产出物
 
@@ -231,10 +244,16 @@ bash scripts/performance/run-stress-test.sh \
 >
 > 完整性是硬门禁，且查的是"有数据"而不只是"文件存在"：默认要求
 > `system,app-jvm,mysql,redis` 四个监控组件各至少一行有效采样（必需字段齐备且为数值；
-> 目标环境确实没有某组件时用 `--monitor-required-components` 显式收窄）。
+> 目标环境确实没有某组件时用 `--monitor-required-components` 显式收窄，产物清单与逐份 CSV
+> 的复算都严格按声明的集合执行）。
 > 任一必需产物缺失、为空、或监控 CSV 一行有效数据都没有，脚本以 **exit 12** 结束并
 > 在 `manifest.json` 的 `missing_artifacts` / `monitoring_issues` 里写明原因——
 > k6 退出码 0 只说明门禁通过，不说明这份包能作为交付证据。
+> 另有两条"产物齐全但不可交付"的情形同样以 exit 12 结束并记在 `delivery_blockers`：
+> 本次用了 `--no-monitor`（缺监控原始数据，manifest 标 `external_monitoring_required: true`），
+> 或归档前的凭证残留扫描未通过（`secret_scan.status` 非 `passed`）。
+> 加了 `--no-monitor` 时请到目标宿主上单独运行 `scripts/performance/capture-monitoring.sh`，
+> 把 `monitoring/` 与 k6 侧产物一并交付——只交付一半不构成"报告级原始证据"。
 
 ### 8.4 证据归档状态说明
 
