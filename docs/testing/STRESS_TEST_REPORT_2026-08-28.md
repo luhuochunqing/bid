@@ -200,7 +200,7 @@ $$Peak\text{-}QPS_{prod} = 80.0 \times 3.249 \times 1.390 \times 0.70 \approx \m
 # 测试环境标准阶梯（10 → 50 → 100 并发，约 3.5 分钟），与本次报告口径一致
 # 前提：这条命令跑在 172.16.38.78 这台应用宿主上（监控只能采本机，见下方说明）
 export XIYU_STRESS_CONFIRMED=1
-export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'   # 目标环境真实账号，勿写入命令行
+export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"}]'   # 目标环境真实账号，勿写入命令行
 bash scripts/performance/run-stress-test.sh \
   --profile standard \
   --base-url http://172.16.38.78:8080 \
@@ -208,11 +208,16 @@ bash scripts/performance/run-stress-test.sh \
   --enable-writes
 ```
 
+> 账号池必须是一段**合法 JSON**（非空数组，每项含字符串 `username` / `password`）；多账号时在
+> 数组里继续追加同构对象。入口会用 node 校验，不合法直接 exit 2 —— 不带校验时，k6 的
+> `getUserPool()` 会 catch 掉解析失败并**静默回退到内置默认账号池**：压测照跑、曲线照出，
+> 而实际认证身份与声明的账号池无关。
+
 ```bash
 # 若这条命令跑在另一台压测机上（本机不是目标宿主），改用 --no-monitor，
 # 并到 172.16.38.78 上单独运行 capture-monitoring.sh 补齐监控原始数据（见 §8.3 末）。
 export XIYU_STRESS_CONFIRMED=1                      # 独立场景，不依赖上一段代码块的环境
-export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
+export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"}]'
 bash scripts/performance/run-stress-test.sh \
   --profile standard --base-url http://172.16.38.78:8080 --no-monitor --enable-writes
 ```

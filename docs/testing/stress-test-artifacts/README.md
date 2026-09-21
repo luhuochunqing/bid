@@ -83,7 +83,7 @@ CSV——非空、有行数，却撑不起报告第五章的任何结论。该�
 ```bash
 export XIYU_STRESS_CONFIRMED=1
 export MYSQL_PASSWORD='<本机 MySQL 口令>'   # 采集器不再内置任何默认口令，必须显式提供
-export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
+export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"}]'
 rm -rf docs/testing/stress-test-artifacts/examples/<旧目录>
 bash scripts/performance/run-stress-test.sh --profile smoke \
   --base-url http://127.0.0.1:18089 \
@@ -137,13 +137,16 @@ URL 里的 userinfo（`http://user:口令@host`）四类文本形态。只脱敏
 | :--- | :--- | :--- | :--- |
 | `passed` | 0 | 全部产物都在检测器覆盖范围内且无命中 | 放行 |
 | `failed` | 1 | 扫到残留（脱敏没覆盖到，或脱敏后又被写回） | 写进 `delivery_blockers`，exit 12 |
-| `incomplete` | 3 | 有产物**扫不了**（二进制/非 UTF-8），无法证明它干净 | 写进 `delivery_blockers`，exit 12 |
-| `unverified` | —— | 扫描器没给出可解析的结论，或退出码与它 stdout 的 `scan_status=` 对不上 | 写进 `delivery_blockers`，exit 12 |
+| `incomplete` | 3 | 有产物**扫不了**（二进制/非 UTF-8，或符号链接与其它非常规文件），无法证明它干净 | 写进 `delivery_blockers`，exit 12 |
+| `unverified` | —— | 扫描器没给出可解析的结论，或退出码与它 stdout 的 `scan_status=` 对不上 | 写进 `delivery_blockers`；**结论没算出来**，因此是 exit 1（拒绝执行），不是 exit 12 |
 
 - **"扫不了"按失败处理，不按通过处理。** 早先的版本把二进制产物列为"未覆盖"就放行，
   于是往包里丢一个 `raw-snapshot.bin` 就能让整包跳过凭证检查——覆盖不到的产物等于没检查，
   而不检查就不能自称干净。现在这类文件会让扫描以 exit 3 结束并列出文件名
-  （`secret_scan.unscanned_files`），整包判不可交付。**若你确实要交付监控截图这类二进制材料**，
+  （`secret_scan.unscanned_files`），整包判不可交付。**符号链接同理，而且它是实测的逃逸路径**：
+  目录里放一条指向目录外凭证文件的软链时，早先的扫描会给出 `scan_scanned=0`、`passed`、
+  exit 0——链接目标里的凭证可读，而扫描器连"存在这个文件"都没报告。本脚本**不跟链接**，
+  一律计入未覆盖。**若你确实要交付监控截图这类二进制材料**，
   它必须与"证据包"分开交付，或在人工确认其中不含凭证后单独说明——这是本工具的能力边界。
 - **覆盖范围是"整包"**。整包扫描（`--scan`）发生在 `manifest.json` 写盘之前，所以那次扫描
   的文件集合是"除 `manifest.json` 外的全部产物"；清单自身由 `write-run-manifest.mjs` 在写盘前
@@ -249,6 +252,15 @@ bash scripts/performance/run-stress-test.sh \
 k6 返回 0 只说明门禁通过，不说明这份包能交付。k6 的原始退出码仍完整保留在 `k6-exit-code`
 与 `manifest.json` 里。
 
+**exit 12 与 exit 1 的分界是"结论有没有被算出来"。** `12` 表示结论算出来了、结论是"本包不齐"，
+按缺件补采即可；`1` 表示工具链没能给出结论——压测机上没有 `node`、归档脚本（脱敏/扫描/清单）
+起不来、或它们的输出不可解析。这时让调用方去补采是白费力气，因此 **exit 1 优先于 exit 12**。
+四条出口的离线回归不需要起任何服务、也不会向任何环境施压：
+
+```bash
+bash scripts/performance/exit-code-self-test.sh   # 20 项：0 / k6 码 / 1 / 12
+```
+
 **"产物齐全"之外还有两类交付阻塞项。** 它们的共同点是"文件一个不少，但这份包仍不能用"，
 因此单独记在 manifest 的 `delivery_blockers` 里，而不是混进 `missing_artifacts`：
 
@@ -317,7 +329,7 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
    ```bash
    # 口令只存在于你自己的 shell 环境里；`--users '<JSON>'` 等效，但会把口令写进
    # 本机 `ps` 的 argv，共享压测机上不要那么用。
-   export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
+   export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"}]'
    bash scripts/performance/run-stress-test.sh --profile standard --base-url <目标> …
    ```
 
@@ -338,16 +350,17 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | :--- | :--- |
 | `scripts/performance/run-stress-test.sh` | 压测执行入口，产出本目录的证据包 |
 | `scripts/performance/capture-monitoring.sh` | 压测期间系统/JVM/MySQL/Redis 监控采样，产出本目录的 `monitoring/` |
-| `scripts/performance/run-preflight.sh` | 入口的参数解析与前置校验层（拓扑开关互斥、环境守卫、档位/组件白名单、监控宿主判定、`--base-url` 拒收 userinfo） |
+| `scripts/performance/run-preflight.sh` | 入口的参数解析与前置校验层（拓扑开关互斥、环境守卫、档位/组件白名单、监控宿主判定、`--base-url` 拒收 userinfo、账号池必须是合法非空 JSON 数组——k6 对非法账号池会静默回退到默认账号池） |
 | `scripts/performance/cli-guards.sh` | 两个入口共用的"带值选项缺值即 exit 2"守卫 |
 | `scripts/performance/monitor-lifecycle.sh` | 采集子进程的启停（`.ready` 握手、有界等待、超时强杀） |
-| `scripts/performance/evidence-completeness.sh` | 完整性判定与交付出口（`missing_artifacts` / `delivery_blockers` / exit 12） |
-| `scripts/performance/evidence-archive.sh` | 归档三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单 |
+| `scripts/performance/evidence-completeness.sh` | 完整性判定与交付出口（`missing_artifacts` / `delivery_blockers` / exit 1 与 exit 12 的分层） |
+| `scripts/performance/evidence-archive.sh` | 归档三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单；同时记录工具链失败状态 |
+| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（替身 k6 / curl / mysql / redis-cli，不连网络、不施压） |
 | `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（runner / 采集器 / 清单生成器都读它，`--self-check` 可离线自检） |
-| `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段） |
+| `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜） |
 | `scripts/performance/monitor-readers.sh` | 四个组件各采一次、各写一行、各记一次状态 |
 | `scripts/performance/monitor-status.sh` | 采集侧的状态与结论层：`component-status.csv` 与"这次采集成不成功" |
-| `scripts/performance/delivery-blockers.tsv` | 交付阻塞项文案的**唯一来源**，shell 侧与 JS 侧共读 |
+| `scripts/performance/delivery-blockers.tsv` | 交付阻塞项文案的**唯一来源**，shell 侧与 JS 侧共读；跨进程传递的是 code 而非文案，格式违规两侧都硬失败 |
 | `scripts/performance/scrub-secrets.mjs` | 归档前的凭证脱敏，以及脱敏后的整包残留扫描（`--scan`，退出码 0/1/3）；同时导出 `scrubText` / `DETECTORS` 给清单侧复用（清单自身也要过同一组检测器） |
 | `scripts/performance/write-run-manifest.mjs` | 装配并写出 `manifest.json`（含 sha256 与门禁判定）；写盘前用 `scrubText` 对清单自身脱敏并复验，残留即拒绝写出（exit 1） |
 | `scripts/performance/manifest-verify.mjs` | 清单侧的独立复核层（产物 / 有效采样行 / 凭证残留 / 阻塞项文案，与注入值取并集） |
