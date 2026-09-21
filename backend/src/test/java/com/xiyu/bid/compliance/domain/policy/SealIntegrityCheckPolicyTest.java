@@ -116,6 +116,68 @@ class SealIntegrityCheckPolicyTest {
     }
 
     @Test
+    @DisplayName("回归 1382：「（电子签章）」落款标签不得直通PASS，降级人工复核")
+    void testESealCaptionOnlyDowngradesToManualReview() {
+        // 真实误判案例：项目 1382（质检记录 id=125，通用技术集团投标文件-办公-0720.docx）
+        // 落款仅有「供应商（电子签章）：」格式标签，未实际盖章，旧逻辑经裸词「电子签章」直通 PASS
+        DocumentContent.PageContent p1 = new DocumentContent.PageContent(
+                1,
+                """
+                响应文件
+                供应商（电子签章）：西域智慧供应链（上海）股份公司
+                2026年7月20日
+                响应函
+                中仪国际招标有限公司（采购人名称）：
+                1.我方已仔细研究了采购文件全部内容。
+                """,
+                List.of()
+        );
+        DocumentContent doc = new DocumentContent("通用技术集团投标文件-办公-0720.docx", "h1", "", List.of(p1));
+        QualityCheckItemResult res = SealIntegrityCheckPolicy.check(doc);
+
+        assertThat(res.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(res.conclusion()).contains("落款格式文字");
+        assertThat(res.conclusion()).doesNotContain("已识别到合法有效的电子签章防伪验签标记");
+    }
+
+    @Test
+    @DisplayName("正文提及「数字签名」技术名词不得当作签章证据")
+    void testBareDigitalSignatureMentionDoesNotPass() {
+        DocumentContent.PageContent p1 = new DocumentContent.PageContent(
+                1,
+                """
+                技术方案
+                本平台采用数字签名与电子印章技术保障数据安全，接口调用使用数字证书双向认证。
+                """,
+                List.of()
+        );
+        DocumentContent doc = new DocumentContent("bid.docx", "h1", "", List.of(p1));
+        QualityCheckItemResult res = SealIntegrityCheckPolicy.check(doc);
+
+        assertThat(res.status()).isNotEqualTo(QualityCheckStatus.PASS);
+        assertThat(res.conclusion()).doesNotContain("已识别到合法有效的电子签章防伪验签标记");
+    }
+
+    @Test
+    @DisplayName("落款标签与未填占位符共存仍硬FAIL（标签不得豁免反假拦截）")
+    void testCaptionDoesNotExemptPlaceholderFail() {
+        DocumentContent.PageContent p1 = new DocumentContent.PageContent(
+                1,
+                """
+                投标函
+                投标人（电子签章）：____________________
+                【此处盖公章】
+                """,
+                List.of()
+        );
+        DocumentContent doc = new DocumentContent("bid.docx", "h2", "", List.of(p1));
+        QualityCheckItemResult res = SealIntegrityCheckPolicy.check(doc);
+
+        assertThat(res.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(res.conclusion()).contains("[UNFILLED_SEAL_PLACEHOLDER]");
+    }
+
+    @Test
     @DisplayName("仅在目录页出现签章说明正文缺失判定FAIL")
     void testCatalogDotsIgnoredAndFail() {
         DocumentContent.PageContent catalogPage = new DocumentContent.PageContent(

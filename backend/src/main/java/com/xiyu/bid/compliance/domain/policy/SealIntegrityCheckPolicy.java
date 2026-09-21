@@ -1,6 +1,7 @@
 // Input: 投标文件 DocumentContent
-// Output: 签章完备性核验结果（法定代表人印章、公章、电子签章防伪及骑缝章核验）
+// Output: 签章完备性核验结果（法定代表人印章、公章、电子签章验签标记/落款标签、骑缝章核验）
 // Pos: compliance/domain/policy/ - 签章完备性核验策略（FP-Java 纯核心，严格 <= 300 行）
+// 反假口径: 落款标签（「（电子签章）」等）仅作弱信号降级人工复核，只有验签/防伪标记才直通 PASS
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -38,9 +39,16 @@ public final class SealIntegrityCheckPolicy {
                     + "|单位公章|投标单位（盖章）"
     );
 
-    private static final Pattern E_SEAL_PATTERN = Pattern.compile(
-            "电子印章|电子签章|数字签名|数字证书防伪|国密(?:SM2|SM3)签名"
-                    + "|电子签名验证(?:通过|有效|成功)|电子签章防伪码|验签有效"
+    // 真实电子签章防伪/验签标记文本（可佐证已完成电子签章，区别于「（电子签章）」等落款标签）
+    private static final String VERIFIED_SEAL_TEXT =
+            "验签有效|防伪验签|电子签章防伪码|数字证书防伪|国密(?:SM2|SM3)签名"
+                    + "|电子(?:签名|印章|签章)验证(?:通过|有效|成功)";
+
+    private static final Pattern E_SEAL_VERIFIED_PATTERN = Pattern.compile(VERIFIED_SEAL_TEXT);
+
+    // 落款格式标签（如「供应商（电子签章）：」「（电子印章）」）：仅说明签署格式，不代表已实际签章
+    private static final Pattern E_SEAL_CAPTION_PATTERN = Pattern.compile(
+            "电子印章|电子签章|数字签名|电子签名"
     );
 
     private static final Pattern CROSS_PAGE_SEAL_PATTERN = Pattern.compile(
@@ -57,9 +65,9 @@ public final class SealIntegrityCheckPolicy {
             "_{3,}|【(?:此处|请)?(?:盖章|盖公章|签字)】|【(?:法定代表人签字|单位公章)】|（待签字）|（待盖章）"
     );
 
-    // 共享反假判定：能佐证实际完成签署/盖章的强证据文本
+    // 共享反假判定：能佐证实际完成签署/盖章的强证据文本（落款标签「（电子签章）」不算强证据）
     private static final Pattern POSITIVE_SEAL_EVIDENCE = Pattern.compile(
-            "电子印章|电子签章|数字签名|已盖章|已签署|已加盖|\\[公章\\]|\\[法人印章\\]|验签有效"
+            "已盖章|已签署|已加盖|\\[公章\\]|\\[法人印章\\]|" + VERIFIED_SEAL_TEXT
     );
 
     private SealIntegrityCheckPolicy() {
@@ -78,7 +86,8 @@ public final class SealIntegrityCheckPolicy {
     public record SealEvidenceSummary(
             boolean hasLegalRepSign,
             boolean hasCompanySeal,
-            boolean hasElectronicSeal,
+            boolean hasVerifiedESeal,
+            boolean hasESealCaption,
             boolean hasCrossPageSeal,
             boolean hasUnfilledPlaceholder,
             List<QualityEvidence> evidences) {
@@ -93,8 +102,9 @@ public final class SealIntegrityCheckPolicy {
 
         SealEvidenceSummary summary = inspectSeals(bidDoc);
 
-        // 1. 模板留白反假拦截：仅有占位符且无真实签署证据
-        if (summary.hasUnfilledPlaceholder() && !summary.hasLegalRepSign() && !summary.hasCompanySeal() && !summary.hasElectronicSeal()) {
+        // 1. 模板留白反假拦截：仅有占位符且无真实签署证据（落款标签「（电子签章）」不得豁免）
+        if (summary.hasUnfilledPlaceholder() && !summary.hasLegalRepSign() && !summary.hasCompanySeal()
+                && !summary.hasVerifiedESeal()) {
             return QualityCheckItemResult.fail(
                     item,
                     "[UNFILLED_SEAL_PLACEHOLDER] 检测到签署落款处保留未填占位符（如下划线或【待盖章】），未实际盖章或签字",
@@ -102,8 +112,8 @@ public final class SealIntegrityCheckPolicy {
                     summary.evidences());
         }
 
-        // 2. 强凭证直通：具备电子签章防伪标记，或同时具备法定代表人签署与企业公章
-        if (summary.hasElectronicSeal()) {
+        // 2. 强凭证直通：具备电子签章防伪验签标记，或同时具备法定代表人签署与企业公章
+        if (summary.hasVerifiedESeal()) {
             String crossNote = summary.hasCrossPageSeal() ? "（含骑缝章连续性覆盖）" : "";
             return QualityCheckItemResult.pass(
                     item,
@@ -119,7 +129,16 @@ public final class SealIntegrityCheckPolicy {
                     summary.evidences());
         }
 
-        // 3. 部分签章缺失场景：仅命中落款格式说明文字（如「（盖章）」占位）时，
+        // 3. 仅命中落款格式标签（如「供应商（电子签章）：」）无法证明实际签章，降级人工复核
+        if (summary.hasESealCaption()) {
+            return QualityCheckItemResult.manualReview(
+                    item,
+                    "仅检测到「电子签章/电子印章」落款格式文字，未识别到防伪验签标记，文本层无法确认实际签章",
+                    "请核对投标函、承诺书等需盖章页面是否已完成电子签章（落款「（电子签章）」等说明文字不代表已实际签章）；如为线下盖章扫描件请人工确认",
+                    summary.evidences());
+        }
+
+        // 4. 部分签章缺失场景：仅命中落款格式说明文字（如「（盖章）」占位）时，
         //    文本层无法确认实际盖章，降级人工复核而非直接 PASS
         if (summary.hasCompanySeal() && !summary.hasLegalRepSign()) {
             return QualityCheckItemResult.manualReview(
@@ -137,7 +156,7 @@ public final class SealIntegrityCheckPolicy {
                     summary.evidences());
         }
 
-        // 4. 完全未检测到签署
+        // 5. 完全未检测到签署
         return QualityCheckItemResult.fail(
                 item,
                 "未在标书核心页中检测到法定代表人印章、公章或电子防伪签章",
@@ -148,7 +167,8 @@ public final class SealIntegrityCheckPolicy {
     private static SealEvidenceSummary inspectSeals(final DocumentContent bidDoc) {
         boolean hasLegalRep = false;
         boolean hasCompany = false;
-        boolean hasESeal = false;
+        boolean hasVerifiedESeal = false;
+        boolean hasESealCaption = false;
         boolean hasCross = false;
         boolean hasPlaceholder = false;
 
@@ -167,11 +187,18 @@ public final class SealIntegrityCheckPolicy {
                         BasicInfoCheckPolicy.snippetAround(text, 150, phMatcher.group())));
             }
 
-            Matcher esMatcher = E_SEAL_PATTERN.matcher(text);
-            if (esMatcher.find()) {
-                hasESeal = true;
-                evidences.add(QualityEvidence.bid("电子防伪签章", page.pageNumber(),
-                        BasicInfoCheckPolicy.snippetAround(text, 150, esMatcher.group())));
+            Matcher evMatcher = E_SEAL_VERIFIED_PATTERN.matcher(text);
+            if (evMatcher.find()) {
+                hasVerifiedESeal = true;
+                evidences.add(QualityEvidence.bid("电子签章防伪验签标记", page.pageNumber(),
+                        BasicInfoCheckPolicy.snippetAround(text, 150, evMatcher.group())));
+            } else {
+                Matcher ecMatcher = E_SEAL_CAPTION_PATTERN.matcher(text);
+                if (ecMatcher.find()) {
+                    hasESealCaption = true;
+                    evidences.add(QualityEvidence.bid("电子签章落款标签（未验签）", page.pageNumber(),
+                            BasicInfoCheckPolicy.snippetAround(text, 150, ecMatcher.group())));
+                }
             }
 
             Matcher lrMatcher = LEGAL_REP_FILLED_PATTERN.matcher(text);
@@ -202,6 +229,7 @@ public final class SealIntegrityCheckPolicy {
             }
         }
 
-        return new SealEvidenceSummary(hasLegalRep, hasCompany, hasESeal, hasCross, hasPlaceholder, evidences);
+        return new SealEvidenceSummary(hasLegalRep, hasCompany, hasVerifiedESeal, hasESealCaption,
+                hasCross, hasPlaceholder, evidences);
     }
 }
