@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [前端, Vue3, Element Plus, reactive, ref, v-model, el-upload, el-form, 权限, E2E, scoped, teleport]
 created: 2026-07-10
-updated: 2026-09-16
-health_checked: 2026-09-18
+updated: 2026-09-21
+health_checked: 2026-09-21
 sources:
   - src/
   - .wiki/pages/lessons-learned.md
@@ -976,7 +976,25 @@ button,
 
 ---
 
-## 26. 变更记录
+## 26. 原生 `<a>` 下载吞掉后端业务错误码，需 1 字节 Range 预检透传（项目 580）
+
+### 26.1 事故现象
+
+生产项目 580（复盘阶段）点击项目文档表"商务技术评审文件.pdf"下载：站内无任何报错，浏览器下载栏显示失败（"网站出问题了"）。后端实际返回 `409 {"msg":"投标文件已进入「复盘」阶段，文件只读不可下载"}`（CO-442 阶段门禁，按设计拦截），但准确诊断被原生下载链路丢弃，用户只能看到浏览器级失败。
+
+### 26.2 根因
+
+`downloadWithFilename(url, name, { native: true })`（§347 为治 blob 大文件 OOM 引入）直接 `triggerNativeDownload`，navigation/attachment 下载的后端 JSON 错误体进不了 axios 拦截器，`showApiDownloadError` 的 409 透传（`download.spec.js` 旧用例只覆盖 axios 分支）在此路径不可达。`ProjectDocumentTable.vue:115` 与 `DraftingStage.vue:324` 同源。
+
+### 26.3 根治规则
+
+- **原生分支先预检再下载**（`src/utils/download.js#preflightNativeDownload`）：同源 `/api` 发 `Range: bytes=0-0` fetch，成功立即 `body.cancel()`（零内存驻留）；业务错读小 JSON 错误体透传后拦截；无响应（CORS/断网/10s 超时）fail-open 放行原生，避免误拦。
+- **预检不用 axios blob**：`responseType: 'blob'` 下 `error.response.data` 是 Blob 而非对象，`data.msg` 读取降级为通用文案——这是旧 axios 全量下载路径的同类潜坑（本次未动，另起跟进项）。
+- **单测必须覆盖原生分支的错误透传**：409 拦截+文案、404 拦截、无响应放行、非同源跳过预检；旧"native 不调 httpClient"断言已过时，随实现同步更新（断言保护 bug 比无测试更危险）。
+
+---
+
+## 27. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -994,6 +1012,7 @@ button,
 | 2026-09-09 | 新增 §23：文件删除接口 404 导致前端状态死锁与错误提示覆盖全局 429 |
 | 2026-09-13 | 新增 §24：静默 catch 块空语句触发 no-empty 与 E2E 临时日志污染（ESLint 基线警告治理） |
 | 2026-09-16 | 新增 §25：全局 accessibility.css 的 button min-height: 44px 导致组件内 small 按钮底部溢出错位 |
+| 2026-09-21 | 新增 §26：原生 `<a>` 下载吞掉后端业务错误码，需 1 字节 Range 预检透传（项目 580，变更记录顺延为 §27） |
 
 
 
