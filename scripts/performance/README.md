@@ -18,13 +18,13 @@
 |------|------|------|
 | `sales-200.k6.js` | 压测脚本 | 模拟 200 个销售在线用户访问登录、项目、看板、导出和标书上传入队链路 |
 | `run-stress-test.sh` | 执行入口 | 压测执行与原始证据归档入口：调用 `k6-tests/load-test.js` 跑指定档位，产出完整证据包（原始 summary / 逐请求采样 / 控制台日志 / 监控数据 / `manifest.json`）。内置 `XIYU_STRESS_CONFIRMED=1` 与环境守卫，默认关闭业务写入；证据不全时以 exit 12 拒绝交付 |
-| `capture-monitoring.sh` | 采集入口 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录，产出 CSV 时间序列 + 可读日志 + `component-status.csv`（逐组件有效采样行数），替代手工监控截图。只在要求 `mysql` 时才强制 `MYSQL_PASSWORD`；单独运行默认只要求 `system` |
+| `capture-monitoring.sh` | 采集入口 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录，产出 CSV 时间序列 + 可读日志 + `component-status.csv`（逐组件有效采样行数），替代手工监控截图。只在要求 `mysql` 时才强制 `MYSQL_PASSWORD`；单独运行默认只要求 `system`；组件集合走与 runner 同一份入口判据（拼错名字、或归一化后为空 → exit 2，且在创建 `monitoring/` 之前） |
 | `run-preflight.sh` | 入口-预检层 | 命令行解析、默认值、拓扑开关互斥、`XIYU_STRESS_CONFIRMED` 与环境守卫、档位/组件白名单、`--base-url` 拒收 userinfo 与目标主机解析、账号池非空 JSON 校验（未设置与显式空串分开判）、k6 与压测脚本存在性检查。node 校验顺序是**先探能不能跑、再看在不在 PATH 上**：找得到但跑不动的 node 按工具链拒绝（exit 1），不报成"账号池不合法"（exit 2） |
-| `cli-guards.sh` | 入口-参数守卫 | 两个入口脚本共用的"带值选项缺值即 exit 2"守卫，避免把下一个选项当成值吞掉 |
+| `cli-guards.sh` | 入口-参数守卫 | 两个入口脚本共用两件事：①"带值选项缺值即 exit 2"的守卫（避免把下一个选项当成值吞掉）；②监控组件集合的判据 `require_component_set`（白名单 + 归一化 + **归一化后不得为空**）。后者原先在两个入口各写一份，于是纯空白 / 纯逗号的集合只在其中一份上被拦——另一份归一化成空集，让"每个必需组件都至少有一行有效数据"真空成立、采集器以 0 退出 |
 | `monitor-lifecycle.sh` | 入口-子进程层 | 监控采集子进程的启停（`.ready` 握手、有界等待、超时强杀），以及采集侧问题清单 `MONITOR_ISSUES` |
 | `evidence-archive.sh` | 归档层 | 产物落盘之后、对外交付之前的三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单。同时记录 `TOOLCHAIN_FAILURE` / `TOOLCHAIN_FAILURE_REASON`（哪一步的哪件工具没跑成），由判定层决定退出码 |
 | `evidence-completeness.sh` | 判定层 | 完整性判定与交付出口：算 `MISSING_ARTIFACTS` 与 `DELIVERY_BLOCKER_CODES`（+给人和给清单看的两份文案），决定 exit 1（工具链不可用）/ exit 12（证据不齐）还是透传 k6 退出码 |
-| `exit-code-self-test.sh` | 判定-回归 | 纯离线跑通 0 / k6 码 / 1 / 12 四条出口共 40 项断言，含"无 node""坏 node shim（找得到但跑不动）""挂死的 node shim（调用它永不返回）""扫描器崩溃""只坏脱敏这一次调用（崩溃 / 机器行被吞 / 机器行重复）""经软链目录调用扫描器""文案表重复 code""账号池非法或为空"等反例；开头四项断言先自检夹具自身（夹具自带的 node 在 PATH 首位、坏扫描器替身不得自递归），否则"用例 6 挂死"会被读成环境问题。本文件只写断言，替身与子进程上界在下一行 |
+| `exit-code-self-test.sh` | 判定-回归 | 纯离线跑通 0 / k6 码 / 1 / 12 四条出口共 46 项断言，含"无 node""坏 node shim（找得到但跑不动）""挂死的 node shim（调用它永不返回）""扫描器崩溃""只坏脱敏这一次调用（崩溃 / 机器行被吞 / 机器行重复）""经软链目录调用扫描器""文案表重复 code""账号池非法或为空""组件集合归一化后为空（两个入口）"等反例；开头四项断言先自检夹具自身（夹具自带的 node 在 PATH 首位、坏扫描器替身不得自递归），否则"用例 6 挂死"会被读成环境问题。本文件只写断言，替身与子进程上界在下一行 |
 | `self-test-fixtures.sh` | 判定-回归（夹具层） | 上面那个自检的**夹具层**：把 k6 / curl / mysql / redis-cli 与监控侧的 top / uptime / sysctl / vm_stat / uname 全部换成固定输出的替身，**自带一个能跑的 node**（并清掉宿主可能定义的 node shell 函数），外加"坏扫描器""坏 node shim""挂死的 node shim""无 node 的影子 PATH"四个构造，并给出 `check` / `run_runner`（逐用例超时上界）/ `fixture_self_check`。被 `source` 使用，不单独执行（直接跑 exit 2 并提示） |
 | `monitor-spec.sh` | 契约库 | 监控证据的**唯一契约源**：组件集合、各 CSV 表头、"有效采样行"判定列号。runner / 采集器 / 清单生成器都读它，`--self-check` 在无服务环境下自检三方自洽 |
 | `delivery-blockers.tsv` | 契约库 | 交付阻塞项文案的**唯一来源**（`code<TAB>文案`），shell 侧与 JS 侧共读，跨进程传递的是 **code** 而不是文案；格式违规（多 TAB/缺文案/重复 code）两侧一律硬失败（exit 1），追加新 code 时两侧都要加引用分支 |
@@ -32,7 +32,8 @@
 | `monitor-parse-self-test.sh` | 采集-解析（自检层） | 上面那个解析层的**自检层**：43 项断言，每一项对应一次"曾经静默错过的输入"（非数值不得被折成 0、`vm_stat` 缺一段时整列留空而不是当 0 相加、`mysql` 空值与 0 不同、`top` CPU 三元组缺一不可……）。被测对象正是 `monitor-parse.sh` 里的纯函数，所以由那个文件在 `--self-test` 分支 `source`，而不是反过来依赖。被 `source` 使用，不单独执行（直接跑 exit 2 并提示） |
 | `monitor-readers.sh` | 采集-读取层 | 四个组件（system / app-jvm / mysql / redis）各采一次、各写一行、各记一次状态 |
 | `monitor-status.sh` | 采集-状态层 | 组件状态的唯一持有者，产出 `component-status.csv`，并判定"这次采集算不算成功" |
-| `scrub-secrets.mjs` | 脱敏脚本 | 归档前就地替换证据包里的凭证（JWT / 敏感键值 / Bearer / URL userinfo），并在脱敏后对整包做同组检测器的残留扫描（`--scan`），结论写入 `manifest.json` 的 `secret_scan`；同时导出 `scrubText` / `DETECTORS` 供清单侧复用 |
+| `scrub-secrets.mjs` | 脱敏脚本 | 归档前就地替换证据包里的凭证（JWT / 敏感键值 / Bearer / URL userinfo），并在脱敏后对整包做同组检测器的残留扫描（`--scan`），结论写入 `manifest.json` 的 `secret_scan`；同时导出 `scrubText` / `DETECTORS` 供清单侧复用。**敏感键值这一类认同深度的反斜杠转义**（1 层到 n 层）：日志与嵌套 JSON 里常见 `{\"password\":\"明文\"}`，只认未转义形态时它既不脱敏也不命中，整包扫描照报 `passed` |
+| `scrub-secrets-self-test.mjs` | 脱敏-回归 | 上面那个检测器的**自检层**：74 项断言，分三段——正向矩阵（四类检测器的各种形态，含转义与"JSON 当字符串记进日志"的嵌套形态，每例还要验幂等）、负向矩阵（普通指标文本 / 无 userinfo 的 URL / 邮件 / 非敏感键 / 非字符串值 / 已脱敏占位符都不许动，防"什么都改"）、成对回归（走真实 CLI：同一样本在 `--scan` 侧必须 `failed`/exit 1，脱敏后必须 `passed`；另有一个干净目录必须 `passed`，否则"一律失败"也能骗过前面几条）。独立执行：`node scripts/performance/scrub-secrets-self-test.mjs` |
 | `write-run-manifest.mjs` | 清单脚本 | 装配并写出 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、逐组件监控状态、各产物 sha256、完整性判定），写盘前对清单自身脱敏复验，并把自己的独立结论回传给 runner |
 | `manifest-verify.mjs` | 清单-复核层 | 独立复核：产物是否齐、监控 CSV 有没有数据、包内还有没有凭证残留、阻塞项文案（整表严格校验，表外 code 直接拒绝），与 runner 注入值取**并集** |
 | `k6-evidence.mjs` | 清单-解释层 | 把 k6 的三份产物读成清单字段：头部指标、声明的门禁、被击穿的门禁、退出码、脚本路径 |
@@ -103,7 +104,8 @@ CI secret 没注入、配置被清空）或 `--users ''` = 提供了但没提供
 这条分界有离线回归可跑，不需要起任何服务或向任何环境施压：
 
 ```bash
-bash scripts/performance/exit-code-self-test.sh   # 40 项，覆盖 0 / k6 码 / 1 / 12 四条出口
+bash scripts/performance/exit-code-self-test.sh          # 46 项，覆盖 0 / k6 码 / 1 / 12 四条出口
+node scripts/performance/scrub-secrets-self-test.mjs     # 74 项，覆盖凭证检测器本身（含转义形态）
 ```
 
 `bash scripts/performance/run-stress-test.sh --help` 打印头部注释里的用法正文
@@ -160,7 +162,9 @@ exit 0——链接目标里的凭证可读，而扫描器连"存在这个文件"
 脱敏后复验仍残留就**拒绝写出清单**（exit 1，工具链自身不可用）。检测器共四类：JWT / 敏感键值 /
 `Bearer` / URL userinfo（`http://user:口令@host`）——最后一类是因为 `--base-url` 的自由文本会进
 `target_base_url`，只有前三类时它能整包扫过 `passed`。入口侧另有拦截：`--base-url` 带 userinfo
-直接 exit 2。
+直接 exit 2。敏感键值这一类还认**同深度的反斜杠转义**（`{\"password\":\"明文\"}`，1 层到 n 层）：
+只认未转义形态时，日志与嵌套 JSON 里最常见的那个写法既不被脱敏也不被扫描命中，
+扫描照报 `passed`/exit 0。判据矩阵与 CLI 成对回归见 `scrub-secrets-self-test.mjs`（74 项，离线）。
 
 `manifest.json` **不照抄 runner 注入的结论**：产物是否齐、监控 CSV 有没有数据、包内还有没有
 凭证残留，都由 `write-run-manifest.mjs` 独立复算一遍，再与注入值取**并集**；清单自己判出

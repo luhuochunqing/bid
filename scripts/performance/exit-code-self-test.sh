@@ -7,7 +7,8 @@
 #        替身（崩溃 / 机器行被吞 / 机器行重复），由本文件的用例 6b–6d 自己在沙箱里构造——
 #        它们只服务那三条断言，不是每个用例都要用的通用替身。
 # Output: 逐用例 PASS/FAIL 与汇总计数；全部通过 exit 0，任一失败 exit 1
-# Pos: scripts/performance/ - runner **退出码分层**的离线回归：0 / k6 自身码 / 1（工具链不可用）/ 12（证据不齐）的边界
+# Pos: scripts/performance/ - 入口的**退出码分层**离线回归：0 / k6 自身码 / 1（工具链不可用）/ 12（证据不齐）的边界，
+#      外加两个入口共用的入口校验（组件集合归一化后为空即 exit 2，见用例 5h）
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 #
 # 为什么需要它：本节契约里最容易退化的不是"判得对不对"，而是**判错了报哪个码**。
@@ -110,6 +111,23 @@ RC="$(PATH="${HANGNODE}:${PATH}" run_runner hangnode "$RUNNER" "${LOOPBACK[@]}")
 check "挂死的 node 按工具链拒绝" 1 "$RC"
 check "报的是探测超时（上界真的生效了）" 1 "$(log_has hangnode '内没有返回' && echo 1 || echo 0)"
 check "未误报成账号池不合法" "no" "$(log_has hangnode '账号池不合法' && echo yes || echo no)"
+
+echo '== 5h. 组件集合归一化后为空 → 2（两个入口同一份判据）=='
+# `--required-components '   '`（纯空白）/ `','` / `', ,'` 能穿过"逐词白名单"那一步：`for _c in $(...)`
+# 按空白切词，一个词都切不出来，循环一次都不跑，集合就从"操作者声明了非法集合"变成**空集**。
+# 空集让结论层的判据真空成立（"每个必需组件都至少有一行有效数据"在没有必需组件时为真），
+# 采集器于是以 0 退出、留下一份四个组件全是 0 行有效采样的 monitoring/——文件都在、退出码成功、
+# 一行有效数据都没有。这条判据原先只长在两个入口中的一份实现上，因此两个入口都要钉。
+for _v in '   ' ',' ', ,'; do
+  bash "${PERF_DIR}/capture-monitoring.sh" --out "${SANDBOX}/cap-empty" --duration 1 --interval 1 \
+    --required-components "$_v" >/dev/null 2>&1
+  check "采集器 '${_v}' → 2" 2 "$?"
+done
+unset _v
+check "采集器未创建 monitoring/" "no" "$([[ -e "${SANDBOX}/cap-empty" ]] && echo yes || echo no)"
+RC="$(run_runner emptycomp "$RUNNER" "${LOOPBACK[@]}" --monitor-required-components '   ')"
+check "runner 空组件集合 → 2" 2 "$RC"
+check "runner 未创建证据目录" "no" "$([[ -e "${SANDBOX}/runs/emptycomp" ]] && echo yes || echo no)"
 
 echo "== 6. 扫描器无法启动 → 1 =="
 RC="$(PATH="${BADNODE}:${PATH}" run_runner badscan "$RUNNER" "${LOOPBACK[@]}")"

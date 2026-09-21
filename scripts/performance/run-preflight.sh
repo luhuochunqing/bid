@@ -188,23 +188,10 @@ EOF
   fi
 
   # 必需组件名同样白名单校验：拼错一个名字（sys 而不是 system）会让逐组件判定找不到对应规格 —— 那本该是"这一项没采到"，却会
-  # 静默退化成"没有这项要求"。白名单来自 monitor-spec.sh，不在本文件另抄一份。
-  local _c _normalized=""
-  for _c in $(printf '%s' "$MONITOR_REQUIRED_COMPONENTS" | tr ',' ' '); do
-    case " ${MONITOR_COMPONENTS} " in
-      *" ${_c} "*) ;;
-      *)
-        echo "run-stress-test: --monitor-required-components 只支持 ${MONITOR_COMPONENTS// /|}（收到 '${_c}'）" >&2
-        exit 2
-        ;;
-    esac
-    _normalized="${_normalized} ${_c}"
-  done
-  MONITOR_REQUIRED_COMPONENTS="${_normalized# }"
-  if [[ -z "$MONITOR_REQUIRED_COMPONENTS" ]]; then
-    echo "run-stress-test: --monitor-required-components 不能为空；不含监控证据请改用 --no-monitor" >&2
-    exit 2
-  fi
+  # 静默退化成"没有这项要求"。判据在 cli-guards.sh 的 require_component_set，与采集器入口**同一份**；纯空白/纯逗号的值会
+  # 归一化成空集，空集让"每个必需组件都至少有一行有效数据"真空成立（采集器据此以 0 退出、留下一份没有任何有效数据的
+  # monitoring/），因此那一份实现里也一并拒绝。
+  require_component_set "--monitor-required-components" "$MONITOR_REQUIRED_COMPONENTS" MONITOR_REQUIRED_COMPONENTS "不含监控证据请改用 --no-monitor"
 
   # 大小写不敏感后再匹配：只写 *prod*|*Prod*|*PROD* 会让 pRODuction-host、PrOd-host 直接放行。匹配整个 URL（含路径）而不是只
   # 匹配 host，宁可多拦也不漏拦。

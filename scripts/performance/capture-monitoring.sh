@@ -35,7 +35,7 @@
 # 退出码：
 #   0  采样结束，且 required-components 里每个组件都至少有一行**有效**数据
 #   1  规格自检失败（monitor-spec.sh 的表头与列号不自洽）
-#   2  用法错误（缺 --out、非法数值入参、未知组件名、缺 MYSQL_PASSWORD、选项缺值）
+#   2  用法错误（缺 --out、非法数值入参、未知组件名、组件集合归一化后为空、缺 MYSQL_PASSWORD、选项缺值）
 #   3  采样结束，但某个必需组件一行有效数据都没有（调用方必须据此判证据不完整）
 
 set -uo pipefail
@@ -92,7 +92,7 @@ while [[ $# -gt 0 ]]; do
     --mysql-db) require_arg "$@"; MYSQL_DB="$2"; shift 2 ;;
     --redis-host) require_arg "$@"; REDIS_HOST="$2"; shift 2 ;;
     --redis-port) require_arg "$@"; REDIS_PORT="$2"; shift 2 ;;
-    --required-components) require_arg "$@"; REQUIRED_COMPONENTS="$2"; shift 2 ;;
+    --required-components) require_arg "$@"; require_component_set "$1" "$2" REQUIRED_COMPONENTS "不需要任何组件就不必运行采集器"; shift 2 ;;
     -h|--help) sed -n '2,39p' "$0"; exit 0 ;;
     *) echo "capture-monitoring: 未知参数 $1" >&2; exit 2 ;;
   esac
@@ -121,24 +121,11 @@ if [[ "$INTERVAL" -lt 1 ]]; then
   exit 2
 fi
 
-# 组件名必须白名单校验：写错一个名字（system 写成 sys）时，下面的状态层会把它
-# 当成"未知组件"永远判为未达标、或者更糟——被当成"没有这个要求"而静默放行。
-# 需要的效果是入口即拒绝，而不是让一份缺组件的证据包以成功退出码交付出去。
-# 白名单与集合定义来自 monitor-spec.sh，不在本文件另抄一份。
-_NORMALIZED_REQUIRED=""
-for _c in $(printf '%s' "$REQUIRED_COMPONENTS" | tr ',' ' '); do
-  case " ${MONITOR_COMPONENTS} " in
-    *" ${_c} "*) ;;
-    *)
-      echo "capture-monitoring: --required-components 只支持 ${MONITOR_COMPONENTS// /|}（收到 '${_c}'）" >&2
-      exit 2
-      ;;
-  esac
-  _NORMALIZED_REQUIRED="${_NORMALIZED_REQUIRED} ${_c}"
-done
-unset _c
-REQUIRED_COMPONENTS="${_NORMALIZED_REQUIRED# }"
-unset _NORMALIZED_REQUIRED
+# 组件名与"归一化后不得为空"的判据在 cli-guards.sh 的 `require_component_set`（与 runner 入口
+# **同一份实现**，白名单来自 monitor-spec.sh）。写错一个名字（system 写成 sys）时，下面的状态层
+# 会把它当成"未知组件"永远判为未达标、或者更糟——被当成"没有这个要求"而静默放行；而纯空白 /
+# 纯逗号的值会归一化成**空集**，让"每个必需组件都有有效数据"这句话真空成立、以 0 退出。
+# 两者都必须在创建 monitoring/ 之前就 exit 2。
 
 # MySQL 口令的校验**必须在组件集合确定之后**，且只在 mysql 属于必需组件时才要求：
 # 头部注释与 README 都承诺"单独运行默认只要求 system，目标机没装 MySQL 也不该失败"，

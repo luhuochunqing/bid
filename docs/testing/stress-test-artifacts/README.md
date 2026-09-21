@@ -144,7 +144,12 @@ bash scripts/performance/run-stress-test.sh --profile smoke \
 
 脱敏之后**还会用同一个脚本、同一组检测器把整包扫一遍**（`scrub-secrets.mjs --scan`），
 扫的是 JWT / 敏感键值（`"password"`、`"token"` 等键名下的字符串）/ `Authorization: Bearer` /
-URL 里的 userinfo（`http://user:口令@host`）四类文本形态。只脱敏不扫描时，"脱敏覆盖到了哪些
+URL 里的 userinfo（`http://user:口令@host`）四类文本形态。敏感键值这一类**认同深度的反斜杠转义**
+（1 层到 n 层）：日志与嵌套 JSON 里更常见的写法是 `{\"password\":\"明文\"}`，而只认未转义形态的
+判据对它既不脱敏也不命中，整包扫描照样报 `passed`——一份带着可恢复明文口令的包拿到了"扫描通过"。
+检测器本身的判据矩阵与"扫描侧 / 脱敏侧成对"的 CLI 回归在 `scripts/performance/scrub-secrets-self-test.mjs`
+（74 项，纯离线，`node scripts/performance/scrub-secrets-self-test.mjs`）。
+只脱敏不扫描时，"脱敏覆盖到了哪些
 文件"就只是脚本的一句声明——新增一份产物而忘了加进脱敏清单，凭证会原样留在包里，
 而产物一个不少、sha256 也都对得上。
 扫描结论与**覆盖范围**记在 `manifest.json` 的 `secret_scan` 字段。状态有四种，
@@ -281,10 +286,11 @@ k6 返回 0 只说明门禁通过，不说明这份包能交付。k6 的原始�
 **exit 12 与 exit 1 的分界是"结论有没有被算出来"。** `12` 表示结论算出来了、结论是"本包不齐"，
 按缺件补采即可；`1` 表示工具链没能给出结论——压测机上没有 `node`、归档脚本（脱敏/扫描/清单）
 起不来、或它们的输出不可解析。这时让调用方去补采是白费力气，因此 **exit 1 优先于 exit 12**。
-四条出口的离线回归不需要起任何服务、也不会向任何环境施压：
+四条出口的离线回归不需要起任何服务、也不会向任何环境施压（凭证检测器那一套同样如此）：
 
 ```bash
-bash scripts/performance/exit-code-self-test.sh   # 40 项：0 / k6 码 / 1 / 12
+bash scripts/performance/exit-code-self-test.sh          # 46 项：0 / k6 码 / 1 / 12
+node scripts/performance/scrub-secrets-self-test.mjs     # 74 项：凭证检测器本身（含转义形态与 CLI 成对回归）
 ```
 
 **"哪一层坏了"要报对码，否则会把人指去改错的东西。** 典型是 `node`：`command -v node` 成功
@@ -398,11 +404,11 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | `scripts/performance/run-stress-test.sh` | 压测执行入口，产出本目录的证据包 |
 | `scripts/performance/capture-monitoring.sh` | 压测期间系统/JVM/MySQL/Redis 监控采样，产出本目录的 `monitoring/` |
 | `scripts/performance/run-preflight.sh` | 入口的参数解析与前置校验层（拓扑开关互斥、环境守卫、档位/组件白名单、监控宿主判定、`--base-url` 拒收 userinfo、账号池必须是合法非空 JSON 数组——k6 对非法账号池**以及显式空账号池**都会静默回退到默认账号池，两者都在这里 exit 2；`node` 先探能不能跑再看在不在 PATH 上，跑不动按工具链 exit 1，不报成"账号池不合法"） |
-| `scripts/performance/cli-guards.sh` | 两个入口共用的"带值选项缺值即 exit 2"守卫 |
+| `scripts/performance/cli-guards.sh` | 两个入口共用的"带值选项缺值即 exit 2"守卫，以及监控组件集合的判据（白名单 + 归一化 + **归一化后不得为空**——空集会让"每个必需组件都有有效数据"真空成立，采集器据以 0 退出） |
 | `scripts/performance/monitor-lifecycle.sh` | 采集子进程的启停（`.ready` 握手、有界等待、超时强杀） |
 | `scripts/performance/evidence-completeness.sh` | 完整性判定与交付出口（`missing_artifacts` / `delivery_blockers` / exit 1 与 exit 12 的分层） |
 | `scripts/performance/evidence-archive.sh` | 归档三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单；同时记录工具链失败状态 |
-| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（不连网络、不施压，逐用例有超时上界；共 40 项断言，含四项先自检夹具自身）。替身与子进程上界在同目录的 `self-test-fixtures.sh`（夹具层），本文件只写断言；另有三个**只坏脱敏这一次调用**的替身（崩溃 / 机器行被吞 / 机器行重复）由本文件按用例在沙箱里构造 |
+| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（不连网络、不施压，逐用例有超时上界；共 46 项断言，含四项先自检夹具自身，以及两个入口"组件集合归一化后为空即 exit 2"）。替身与子进程上界在同目录的 `self-test-fixtures.sh`（夹具层），本文件只写断言；另有三个**只坏脱敏这一次调用**的替身（崩溃 / 机器行被吞 / 机器行重复）由本文件按用例在沙箱里构造 |
 | `scripts/performance/self-test-fixtures.sh` | 上面那个自检的夹具层：k6 / curl / mysql / redis-cli 与监控侧 top / uptime / sysctl / vm_stat / uname 的固定输出替身，外加"坏扫描器""坏 node shim""挂死的 node shim""无 node 的影子 PATH"四个构造，并自带一个能跑的 node（同时清掉宿主可能定义的 node shell 函数）；被 `source` 使用，不单独执行 |
 | `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（runner / 采集器 / 清单生成器都读它，`--self-check` 可离线自检） |
 | `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜——非数值不会被 awk 强制转换成 0，`jstat` 堆字段混进 `foo` 时整列留空而不是写一条"堆已用 0MB"）。它的 43 项断言在同目录的 `monitor-parse-self-test.sh`（自检层），本文件只留解析 |
@@ -410,7 +416,8 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | `scripts/performance/monitor-readers.sh` | 四个组件各采一次、各写一行、各记一次状态 |
 | `scripts/performance/monitor-status.sh` | 采集侧的状态与结论层：`component-status.csv` 与"这次采集成不成功" |
 | `scripts/performance/delivery-blockers.tsv` | 交付阻塞项文案的**唯一来源**，shell 侧与 JS 侧共读；跨进程传递的是 code 而非文案，格式违规两侧都硬失败 |
-| `scripts/performance/scrub-secrets.mjs` | 归档前的凭证脱敏，以及脱敏后的整包残留扫描（`--scan`，退出码 0/1/3）；同时导出 `scrubText` / `DETECTORS` 给清单侧复用（清单自身也要过同一组检测器） |
+| `scripts/performance/scrub-secrets.mjs` | 归档前的凭证脱敏，以及脱敏后的整包残留扫描（`--scan`，退出码 0/1/3）；同时导出 `scrubText` / `DETECTORS` 给清单侧复用（清单自身也要过同一组检测器）。敏感键值这一类认同深度的反斜杠转义 |
+| `scripts/performance/scrub-secrets-self-test.mjs` | 上面那个检测器的自检层：74 项断言，分正向矩阵（含转义形态与幂等）、负向矩阵（不许误伤）、成对回归（真实 CLI：扫描侧 `failed`/exit 1 ↔ 脱敏侧替换后 `passed`）三段 |
 | `scripts/performance/write-run-manifest.mjs` | 装配并写出 `manifest.json`（含 sha256 与门禁判定）；写盘前用 `scrubText` 对清单自身脱敏并复验，残留即拒绝写出（exit 1） |
 | `scripts/performance/manifest-verify.mjs` | 清单侧的独立复核层（产物 / 有效采样行 / 凭证残留 / 阻塞项文案，与注入值取并集） |
 | `scripts/performance/k6-evidence.mjs` | 清单侧的 k6 产物解释层（头部指标、声明的与击穿的门禁、退出码、脚本路径） |

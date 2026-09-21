@@ -31,8 +31,14 @@ import { fileURLToPath } from 'node:url'
 // JWT 三段式（header.payload.signature，base64url）。够窄，不会误伤普通文本。
 const JWT_RE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g
 // 只认这些键名下的字符串值。不按"看起来像密钥"做启发式，避免误删正常指标名。
+// 键与值的引号允许带**同深度的反斜杠转义**（`(\\*)` 是组 2，四处引号用 `\2` 钉住同一深度）：
+// 日志与嵌套 JSON 里 `{\"password\":\"明文\"}` 这种形态很常见——服务端把请求体当字符串写进
+// 日志、或某个 JSON 字段的值本身又是一段 JSON。原先的判据只认未转义的 `"password":"…"`，
+// 于是这类文本**既不脱敏也不命中**，整包扫描仍报 `passed`/exit 0：一份带着可恢复明文口令的
+// 证据包拿到了"扫描通过"。深度用反向引用而不是把 `\\*` 写进四处引号，是为了让不成对的写法
+// （`\"password":` 这类）不被误判成凭证；深度由 1 层到 n 层都可以，越深越少见但不是漏网理由。
 const SENSITIVE_KEY_RE =
-  /("(?:token|access_token|accessToken|refresh_token|refreshToken|password|passwd|secret|client_secret|authorization|api_key|apiKey)"\s*:\s*)"(?!<redacted:)[^"]*"/g
+  /((\\*)"(?:token|access_token|accessToken|refresh_token|refreshToken|password|passwd|secret|client_secret|authorization|api_key|apiKey)\2"\s*:\s*\2")(?!<redacted:)[^"]*\2"/g
 const BEARER_RE = /\b(Bearer\s+)(?!<redacted:)[A-Za-z0-9._~+/-]{16,}=*/g
 // URL 里的 userinfo：`http://user:口令@host` / `https://令牌@host`。
 // 这一类是漏网过的真实路径：`--base-url` 带上 userinfo 时，它会逐字写进 manifest.json 的
@@ -56,7 +62,7 @@ export function scrubText(text) {
   let count = 0
   const bump = () => { count += 1 }
   let out = text.replace(JWT_RE, () => { bump(); return '<redacted:jwt>' })
-  out = out.replace(SENSITIVE_KEY_RE, (_m, head) => { bump(); return `${head}"<redacted:credential>"` })
+  out = out.replace(SENSITIVE_KEY_RE, (_m, head, esc) => { bump(); return `${head}<redacted:credential>${esc}"` })
   out = out.replace(BEARER_RE, (_m, head) => { bump(); return `${head}<redacted:credential>` })
   out = out.replace(URL_USERINFO_RE, (_m, head) => { bump(); return `${head}<redacted:userinfo>@` })
   return { out, count }
