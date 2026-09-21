@@ -211,6 +211,25 @@ describe('useQualityCheckDrawer', () => {
     expect(drawer.polling.value).toBe(false)
   })
 
+  it('扫描件失败时提供专用的前台提示语', async () => {
+    vi.mocked(complianceApi.getBidQualityReport).mockResolvedValueOnce({
+      data: {
+        id: 1,
+        taskId: 'task_scan_001',
+        status: 'FAILED',
+        errorMessage: '未能从投标文件提取文本：投标书.pdf。该文件为图片扫描件或无可复制文本（无文本层）',
+      },
+    })
+
+    const drawer = useQualityCheckDrawer(props, emit)
+    await drawer.open()
+
+    expect(drawer.errorPresentation.value).toMatchObject({
+      scanned: true,
+      title: 'PDF 扫描件暂不支持识别',
+    })
+  })
+
   it('轮询过程中遇到 FAILED 状态时记录 errorMessage 并终止轮询', async () => {
     const runningTask = {
       id: 1,
