@@ -18,7 +18,7 @@ import static org.mockito.Mockito.when;
 
 class OpenAiMultimodalScoreFactExtractorTest {
     @Test
-    void recheckSendsOnlyRawScoreCellsWithoutImages() {
+    void recheckIncludesUnmarkedTablesWithoutImages() {
         OpenAiStructuredOutputService output = mock(OpenAiStructuredOutputService.class);
         OpenAiBidAgentConfigurationResolver resolver = mock(OpenAiBidAgentConfigurationResolver.class);
         OpenAiBidAgentRequestConfig config = mock(OpenAiBidAgentRequestConfig.class);
@@ -37,7 +37,8 @@ class OpenAiMultimodalScoreFactExtractorTest {
         assertThat(result.declaredTotal()).isEqualByComparingTo("10");
         assertThat(result.imageCount()).isZero();
         assertThat(prompt.getValue()).contains("score-cell", "全部正式评分项", "quotedText");
-        assertThat(prompt.getValue()).doesNotContain("non-score-cell", "sourceXmlPath");
+        assertThat(prompt.getValue()).contains("non-score-cell");
+        assertThat(prompt.getValue()).doesNotContain("sourceXmlPath");
     }
 
     private static DocumentArtifact artifact() {

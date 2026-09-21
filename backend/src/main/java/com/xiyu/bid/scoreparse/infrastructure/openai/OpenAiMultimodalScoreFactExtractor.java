@@ -58,10 +58,8 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
     }
 
     private String buildRecheckPrompt(DocumentArtifact artifact) {
-        var scoreTables = artifact.tables().stream()
-                .filter(table -> Boolean.TRUE.equals(table.isScoreTable())).toList();
-        var tables = scoreTables.isEmpty() ? artifact.tables() : scoreTables;
-        var evidence = tables.stream().map(table -> new CompactTable(table.tableId(), table.sourcePage(),
+        // isScoreTable is heuristic: an unmarked table can contain the actual score details.
+        var evidence = artifact.tables().stream().map(table -> new CompactTable(table.tableId(), table.sourcePage(),
                 table.sourceSection(), table.cells().stream()
                         .filter(cell -> cell.rawText() != null && !cell.rawText().isBlank())
                         .map(cell -> new CompactCell(cell.cellId(), cell.row(), cell.column(), cell.rawText()))
