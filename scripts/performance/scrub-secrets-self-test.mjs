@@ -9,13 +9,18 @@
 // 脱敏、也不被扫描命中，整包扫描照报 `passed` / exit 0 —— 一份带着可恢复明文口令的证据包拿到了
 // "扫描通过"。这条路径不是推理出来的，是第十三轮审查的对手探针实际跑出来的。
 //
-// 本文件因此钉三类东西，缺一类都不算覆盖：
+// 本文件因此钉四类东西，缺一类都不算覆盖：
 //   1. **正向**：四类检测器的每一种形态都必须命中，含反斜杠转义（1 层 / 2 层）与"JSON 当字符串
 //      记进日志"的嵌套形态；
+//   1b. **值内部形态**（第十五轮审查打穿的缺口）：值里带 JSON 转义（`\"` `\\` `\n`、以反斜杠结尾）
+//      时，替换区间必须**逐字节**等于"把值换成占位符"的那份文本。既有的两头断言（"命中 ≥ 1"、
+//      "某个明文子串消失"）都挡不住旧判据：`[^"]*` 在值内第一个转义引号处截断，仍然命中、仍然
+//      让那个子串消失，却把值漏掉一半、把结构改坏。只有"逐字节等于期望"能判死它。
 //   2. **负向**：普通指标文本、无 userinfo 的 URL、邮件地址、非敏感键、非字符串值、已脱敏占位符
 //      都**不许**被改动——一个"什么都改"的检测器能通过全部正向断言，却会把证据包改烂；
 //   3. **成对**：走真实 CLI 的两条路径（`--scan` 与脱敏），断言同一个样本在扫描侧是
-//      `failed`/exit 1、在脱敏侧被替换成 `<redacted:credential>` 且**再扫一次变成 passed**。
+//      `failed`/exit 1、在脱敏侧被替换成 `<redacted:credential>` 且**再扫一次变成 passed**；
+//      值内带转义引号的那一份还要断言脱敏后仍是合法 JSON、解析出来的正是占位符。
 //      只断言纯函数等于没测文件遍历、README 里承诺的退出码与实际输出的一致性。
 //
 // 与 exit-code-self-test.sh 的分工：那个文件管 runner 的**退出码分层**（0 / k6 码 / 1 / 12），
@@ -82,6 +87,41 @@ for (const [name, text, secrets] of positives) {
   check(`${name} · 幂等（再脱敏 0 命中）`, 0, scrubText(out).count)
 }
 
+console.log('== 1b. 值**内部**带 JSON 转义的敏感键值：必须整段替换，且不改坏结构 ==')
+// 这一节是第十五轮审查用反例打穿的缺口：旧的 `[^"]*` 会在值内第一个转义引号处当成收尾，
+// 只替换前缀、留下后半段明文、并把 JSON 改坏；而残留的后半段已失去敏感键上下文，
+// 四类检测器一个都不再命中——脱敏 exit 0，紧接着的扫描也报 passed。
+// 断言里"值与期望**逐字节**相同"比"明文消失"强得多：旧判据在截断后仍能给出"命中 ≥ 1"
+// 与"某个子串消失"，而"逐个字节等于把值换成占位符的那份文本"它给不出来。
+//
+// 文本一律用 JSON.stringify 构造（逐层 stringify = 真实日志与嵌套 JSON 的层数关系），
+// 不手写反斜杠——手写层数极易出错，而"测试自己写错了"会伪装成修复通过。
+const PLACEHOLDER = '<redacted:credential>'
+const nestJson = (text, levels) => {
+  let s = text
+  for (let i = 0; i < levels; i += 1) s = JSON.stringify({ msg: s })
+  return s
+}
+const innerValues = [
+  ['值内引号', 'abc"def-SECRET'],
+  ['值内反斜杠', 'abc\\def-SECRET'],
+  ['值内换行转义', 'abc\ndef-SECRET'],
+  ['值内反斜杠+引号', 'a\\"b-SECRET'],
+  ['值以反斜杠结尾', 'abc\\'],
+]
+for (const [name, value] of innerValues) {
+  for (const levels of [0, 1, 2, 3]) {
+    const text = nestJson(JSON.stringify({ password: value }), levels)
+    const expect = nestJson(JSON.stringify({ password: PLACEHOLDER }), levels)
+    const { out, count } = scrubText(text)
+    check(`${name} · 嵌套 ${levels} 层 · 命中`, 'yes', count >= 1 ? 'yes' : 'no')
+    check(`${name} · 嵌套 ${levels} 层 · 明文已整段替换`, '无残留',
+      out.includes('-SECRET') ? `残留（${out}）` : '无残留')
+    check(`${name} · 嵌套 ${levels} 层 · 输出恰好是"值换成占位符"那份文本`, 'yes', out === expect ? 'yes' : 'no')
+    check(`${name} · 嵌套 ${levels} 层 · 幂等`, 0, scrubText(out).count)
+  }
+}
+
 console.log('== 2. 负向矩阵：不许动的文本一个字节都不许动 ==')
 const negatives = [
   ['普通指标文本', 'http_req_duration.........: avg=25.1ms  p(95)=120ms'],
@@ -118,12 +158,18 @@ try {
   fs.mkdirSync(clean, { recursive: true })
   fs.writeFileSync(path.join(dirty, 'escaped.log'), `${escJson({ password: SECRET })}\n`)
   fs.writeFileSync(path.join(dirty, 'nested.json'), `${JSON.stringify({ msg: escJson({ password: SECRET }) })}\n`)
+  // 值**内部**带转义双引号的那一份。第十五轮的反例正是走这条路径漏过去的：旧判据只替换到
+  // 值内第一个转义引号，文件留下 `…credential>"def-SECRET"}`，而这类残留后缀已无敏感键上下文，
+  // 再扫一次照样 passed。这里断言的不只是"明文没了"，还有**结构没被改坏**（能 JSON.parse、
+  // 且解析出来的正是占位符）——只查明文会让"整行截断"这种修复方式也过关。
+  const quotedPath = path.join(dirty, 'quoted.json')
+  fs.writeFileSync(quotedPath, `${JSON.stringify({ password: `abc"def-${SECRET}` })}\n`)
   fs.writeFileSync(path.join(clean, 'metrics.csv'), 'http_req_duration,p95\n25.1,120\n')
 
   const before = run(['--scan', dirty])
   check('扫描 · 转义明文被认出（exit 1）', 1, before.rc)
   check('扫描 · 结论是 failed', 'yes', before.out.includes('scan_status=failed') ? 'yes' : 'no')
-  check('扫描 · 两个样本都命中', 'yes', before.out.includes('scan_hits=2') ? 'yes' : 'no')
+  check('扫描 · 三个样本都命中', 'yes', before.out.includes('scan_hits=3') ? 'yes' : 'no')
 
   // 干净的目录必须给出 passed：否则"扫描一律失败"也能骗过上面三条。
   const okScan = run(['--scan', clean])
@@ -140,6 +186,22 @@ try {
   check('脱敏 · 留下的是转义占位符', 'yes', redText.includes(escJson({ password: '<redacted:credential>' })) ? 'yes' : 'no')
 
   run([path.join(dirty, 'nested.json')])
+  // 值内带转义双引号的那一份：走真实 CLI，断言"明文消失 + 结构仍有效 + 再扫描通过"三条一起来。
+  // 只断言前者的话，把整行截断也能满足；只断言后两条的话，一个"什么都不改"的实现也能满足。
+  const red2 = run([quotedPath])
+  check('脱敏 · quoted.json 退出 0', 0, red2.rc)
+  check('脱敏 · quoted.json 替换处数为 1', 'yes', red2.out.includes('redacted=1') ? 'yes' : 'no')
+  const quotedText = fs.readFileSync(quotedPath, 'utf8')
+  check('脱敏 · quoted.json 已无明文', 'no', quotedText.includes(SECRET) ? 'yes' : 'no')
+  let quotedParsed = null
+  try {
+    quotedParsed = JSON.parse(quotedText)
+  } catch {
+    quotedParsed = null
+  }
+  check('脱敏 · quoted.json 仍是合法 JSON', 'yes', quotedParsed ? 'yes' : 'no')
+  check('脱敏 · quoted.json 的 password 恰好是占位符', PLACEHOLDER, quotedParsed?.password)
+
   const after = run(['--scan', dirty])
   check('脱敏后再扫 · 整目录 passed', 0, after.rc)
   check('脱敏后再扫 · 0 命中', 'yes', after.out.includes('scan_hits=0') ? 'yes' : 'no')

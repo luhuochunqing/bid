@@ -31,14 +31,96 @@ import { fileURLToPath } from 'node:url'
 // JWT 三段式（header.payload.signature，base64url）。够窄，不会误伤普通文本。
 const JWT_RE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g
 // 只认这些键名下的字符串值。不按"看起来像密钥"做启发式，避免误删正常指标名。
-// 键与值的引号允许带**同深度的反斜杠转义**（`(\\*)` 是组 2，四处引号用 `\2` 钉住同一深度）：
-// 日志与嵌套 JSON 里 `{\"password\":\"明文\"}` 这种形态很常见——服务端把请求体当字符串写进
-// 日志、或某个 JSON 字段的值本身又是一段 JSON。原先的判据只认未转义的 `"password":"…"`，
-// 于是这类文本**既不脱敏也不命中**，整包扫描仍报 `passed`/exit 0：一份带着可恢复明文口令的
-// 证据包拿到了"扫描通过"。深度用反向引用而不是把 `\\*` 写进四处引号，是为了让不成对的写法
-// （`\"password":` 这类）不被误判成凭证；深度由 1 层到 n 层都可以，越深越少见但不是漏网理由。
-const SENSITIVE_KEY_RE =
-  /((\\*)"(?:token|access_token|accessToken|refresh_token|refreshToken|password|passwd|secret|client_secret|authorization|api_key|apiKey)\2"\s*:\s*\2")(?!<redacted:)[^"]*\2"/g
+// 键名、冒号、值的开引号这三段里，四处引号用**同一个反向引用** `\2` 钉住同一层反斜杠转义
+// （`(\\*)` 是组 2，值的开引号是组 3，两处都写作 `\2"`）：`{"password":"…"}` 与
+// `{\"password\":\"…\"}` 都认，不成对的写法（`\"password":`）不认。**层数不设上限**：它直接从
+// 文本里读出来（组 3 的反斜杠个数就是层数），不是枚举深度、也不是写死一个上限。
+// 这一形态很常见——服务端把请求体当字符串写进日志、或某个 JSON 字段的值本身又是一段 JSON。
+// 判据只吃到"值的开引号"为止：值的收尾位置交给下面的状态机，因为正则做不到（见 scanValueEnd）。
+const SENSITIVE_KEY_HEAD_RE =
+  /((\\*)"(?:token|access_token|accessToken|refresh_token|refreshToken|password|passwd|secret|client_secret|authorization|api_key|apiKey)\2"\s*:\s*(\2"))/g
+
+// 找出一段值文本真正的收尾位置。返回**收尾引号那个单元的起点**（不是引号本身）：替换区间恰好
+// 是值文本，收尾引号连同它那一层转义原样留在原处，脱敏后的形态与输入同层；-1 = 这一层读不出
+// 值边界（调用方按"不猜边界"处理，见 sensitiveValueEdits）。
+//
+// 为什么不能用 `[^"]*` 收尾：值里可以有 JSON 转义（`\"` `\\` `\n`）。旧判据在值内第一个转义
+// 引号处截断，只替换前半段、把结构改坏，而残留的后半段已失去敏感键上下文，四个检测器一个都
+// 不再命中——脱敏 exit 0，紧接着的整包扫描也报 `passed`（实测 `{"password":"abc\"def-S"}` 只
+// 替换到 `abc\`）。两个真实缺口都出在这一处，所以边界必须真的读出来，而不是猜。
+//
+// 在 depth 层转义下，这一层的单元只有两种：解码后的一个字面反斜杠 = unit = depth+1 个反斜杠，
+// 解码后的一个字面引号 = depth 个反斜杠 + `"`。于是"边解码边扫描"：把游程按 unit 拆成 k 个字面
+// 反斜杠，再看后面跟的是不是引号。是不是**收尾**不能靠"游程恰好等于 depth"来判（值以一个字面
+// 反斜杠结尾时，游程会把收尾引号的前缀一起并进来），判据是标准 JSON 规则：
+// **引号前面有奇数个反斜杠才是被转义的**（此处 k 就是这个个数）。
+//
+// 收尾引号**之后**紧跟的那个字符，还得是 JSON 里值后面合法的续接（`,` `}` `]` 或空白）：
+// `{"password":"abc\\"def-S"}` 这种缺一层转义的畸形文本，按 JSON 规则值在偶数个反斜杠后的引号
+// 处确实结束了，可紧接着的 `def-S` 显然还是值的尾巴，只替换前半段等于把明文漏一半。
+// 两条都成立才算读到边界；否则按读不出处理（截到行尾）——宁可毁掉一行的可读性，也不留半截凭证。
+function followerReadable(text, at) {
+  if (at >= text.length) return true // 值收尾就在文本末尾
+  const ch = text[at]
+  return ch === '\\' || ',}] \t\r\n'.includes(ch) // 反斜杠开头 = 转义序列/更内一层，不据此判违规
+}
+
+function scanValueEnd(text, from, depth) {
+  const unit = depth + 1 // 解码后一个反斜杠在该层占的字符数
+  const prefix = depth // 解码后一个引号前面的反斜杠数
+  let i = from
+  while (i < text.length) {
+    let run = 0
+    while (text[i + run] === '\\') run += 1
+    const ch = text[i + run]
+    if (ch === undefined) return -1 // 值没闭合
+    const rem = run % unit
+    if (ch === '"') {
+      if (rem !== prefix) return -1 // 引号前面的反斜杠数不是本层的形态
+      const k = (run - rem) / unit // 这个引号前面有几个解码后的反斜杠
+      if (k % 2 !== 0) {
+        i += run + 1 // 奇数 → 值内的转义引号，接着往下读
+        continue
+      }
+      const quoteStart = i + k * unit // 偶数 → 收尾引号
+      return followerReadable(text, quoteStart + unit) ? quoteStart : -1
+    }
+    if (rem !== 0) return -1 // 后面不是引号，游程就必须正好是若干个字面反斜杠
+    i += run + 1
+  }
+  return -1
+}
+
+// 收集"敏感键值"里值文本的区间，按出现顺序返回（因此互不重叠）。扫描侧与脱敏侧共用这一个函数：
+// 数的就是会被替换掉的那些值，"扫描没命中"与"脱敏不会动"在这里是同一件事。
+function sensitiveValueEdits(text) {
+  const edits = []
+  for (const m of text.matchAll(SENSITIVE_KEY_HEAD_RE)) {
+    const valueStart = m.index + m[0].length
+    if (text.startsWith('<redacted:', valueStart)) continue // 已经脱敏过：幂等
+    const depth = (m[3] ?? '"').length - 1
+    const close = scanValueEnd(text, valueStart, depth)
+    // 读不出边界时**不猜边界**：整行截掉（只截到本行，不跨行）。这是刻意的取舍——宁可毁掉这一行
+    // 的后续内容（它本来就是日志，可读性有代价），也不能把"读不出边界的文本"当成"没有凭证"。
+    // 泄出去的口令没有第二次机会，而这一行被截掉是看得见的（`redacted=<N>` 会 +1）。
+    const nl = text.indexOf('\n', valueStart)
+    const end = close >= 0 ? close : nl < 0 ? text.length : nl
+    if (end > valueStart) edits.push([valueStart, end]) // 空值（`""`）没什么可替换
+  }
+  return edits
+}
+
+// 按区间就地替换。区间是升序的，从后往前改，前面的下标才不会失效。
+function redactSensitiveKeys(text) {
+  const edits = sensitiveValueEdits(text)
+  let out = text
+  for (let k = edits.length - 1; k >= 0; k -= 1) {
+    const [start, end] = edits[k]
+    out = out.slice(0, start) + '<redacted:credential>' + out.slice(end)
+  }
+  return { out, count: edits.length }
+}
+
 const BEARER_RE = /\b(Bearer\s+)(?!<redacted:)[A-Za-z0-9._~+/-]{16,}=*/g
 // URL 里的 userinfo：`http://user:口令@host` / `https://令牌@host`。
 // 这一类是漏网过的真实路径：`--base-url` 带上 userinfo 时，它会逐字写进 manifest.json 的
@@ -51,20 +133,26 @@ const URL_USERINFO_RE = /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)(?!<redacted:)([^/?#@\s]+
 // 检测器清单**只有这一份**。扫描模式与脱敏模式都从这里取（两套判据时扫描那一侧等于没有），
 // write-run-manifest.mjs 也 import 同一个 scrubText 对清单自身做一次脱敏——manifest.json
 // 同样躺在证据包里，凭什么它就不用过这一关。
+// 计数一律走**同一个函数**（`<label> → 文本 → 命中数`）：正则那三类就是"匹配几次"，
+// 敏感键值那类数的是"会被替换掉的值"，与脱敏共用 sensitiveValueEdits。
+// 只给正则不给计数函数的话，扫描侧只能自己 `text.match(re)`——而敏感键值的匹配**必须**带状态机，
+// 那一侧就会各自退化一次（"扫描说干净、脱敏却改了文件"正是这么发生的）。
+const countMatches = (re) => (text) => (text.match(re) || []).length
 export const DETECTORS = [
-  ['JWT', JWT_RE],
-  ['敏感键值', SENSITIVE_KEY_RE],
-  ['Bearer', BEARER_RE],
-  ['URL userinfo', URL_USERINFO_RE],
+  ['JWT', countMatches(JWT_RE)],
+  ['敏感键值', (text) => sensitiveValueEdits(text).length],
+  ['Bearer', countMatches(BEARER_RE)],
+  ['URL userinfo', countMatches(URL_USERINFO_RE)],
 ]
 
 export function scrubText(text) {
   let count = 0
-  const bump = () => { count += 1 }
-  let out = text.replace(JWT_RE, () => { bump(); return '<redacted:jwt>' })
-  out = out.replace(SENSITIVE_KEY_RE, (_m, head, esc) => { bump(); return `${head}<redacted:credential>${esc}"` })
-  out = out.replace(BEARER_RE, (_m, head) => { bump(); return `${head}<redacted:credential>` })
-  out = out.replace(URL_USERINFO_RE, (_m, head) => { bump(); return `${head}<redacted:userinfo>@` })
+  let out = text.replace(JWT_RE, () => { count += 1; return '<redacted:jwt>' })
+  const keys = redactSensitiveKeys(out)
+  out = keys.out
+  count += keys.count
+  out = out.replace(BEARER_RE, (_m, head) => { count += 1; return `${head}<redacted:credential>` })
+  out = out.replace(URL_USERINFO_RE, (_m, head) => { count += 1; return `${head}<redacted:userinfo>@` })
   return { out, count }
 }
 
@@ -130,9 +218,8 @@ if (argv[0] === '--scan') {
       continue
     }
     scanned.push(rel)
-    for (const [label, re] of detectors) {
-      // 正则带 /g，match 不会像 test 那样保留 lastIndex 状态，逐文件重新计数
-      const n = (text.match(re) || []).length
+    for (const [label, count] of detectors) {
+      const n = count(text)
       if (n > 0) hits.push(`${rel}: ${n} 处 ${label} 形态残留`)
     }
   }
