@@ -1,9 +1,12 @@
 // Input: 证据目录内的产物文件路径（脱敏模式）或一个证据目录（扫描模式）
-// Output: 脱敏模式下就地替换凭证并打印 `redacted=<N>`；扫描模式用**同一组检测器**（JWT / 敏感键值 / Bearer）
+// Output: 脱敏模式下就地替换凭证并打印 `redacted=<N>`；扫描模式用**同一组检测器**（JWT / 敏感键值 / Bearer / URL userinfo）
 //         逐文件计数，打印覆盖范围与机器可读结论（scan_status / scan_scanned / scan_skipped /
 //         scan_hits / scan_unscanned_files），并按结论给退出码：0=通过、1=有文本残留、3=存在未扫描文件
 // Pos: scripts/performance/ - 压测证据包归档前的凭证脱敏与残留扫描（run-stress-test.sh 在写 manifest 前两者都跑，非通过即判本包不可交付）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+//
+// 对外除了 CLI，还导出 scrubText / DETECTORS 给 write-run-manifest.mjs 复用：
+// manifest.json 也在证据包里，也必须过同一组检测器，不能"扫描发生在它写盘之前"就免检。
 //
 // 为什么需要它：k6 的 --summary-export 会把 setup() 的返回值原样写进 setup_data，
 // 而负载脚本的 setup() 正是在那里登录并拿到一组 bearer token。于是"原始结果文件"
@@ -20,6 +23,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 // JWT 三段式（header.payload.signature，base64url）。够窄，不会误伤普通文本。
 const JWT_RE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g
@@ -27,13 +31,31 @@ const JWT_RE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g
 const SENSITIVE_KEY_RE =
   /("(?:token|access_token|accessToken|refresh_token|refreshToken|password|passwd|secret|client_secret|authorization|api_key|apiKey)"\s*:\s*)"(?!<redacted:)[^"]*"/g
 const BEARER_RE = /\b(Bearer\s+)(?!<redacted:)[A-Za-z0-9._~+/-]{16,}=*/g
+// URL 里的 userinfo：`http://user:口令@host` / `https://令牌@host`。
+// 这一类是漏网过的真实路径：`--base-url` 带上 userinfo 时，它会逐字写进 manifest.json 的
+// target_base_url，而**前三类检测器一个都不匹配它**（键名不是敏感键、没有 Bearer 前缀、
+// 不是 JWT），于是整包扫描照样报 passed，一封自称"扫描通过"的证据包里躺着一份可用口令。
+// 只匹配 `://` 之后到第一个 `/?#` 之前的 `@`，所以普通 URL（https://host/path）与
+// 邮件地址（a@b.com，前面没有 ://）都不会误伤。
+const URL_USERINFO_RE = /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)(?!<redacted:)([^/?#@\s]+)@/g
 
-function scrubText(text) {
+// 检测器清单**只有这一份**。扫描模式与脱敏模式都从这里取（两套判据时扫描那一侧等于没有），
+// write-run-manifest.mjs 也 import 同一个 scrubText 对清单自身做一次脱敏——manifest.json
+// 同样躺在证据包里，凭什么它就不用过这一关。
+export const DETECTORS = [
+  ['JWT', JWT_RE],
+  ['敏感键值', SENSITIVE_KEY_RE],
+  ['Bearer', BEARER_RE],
+  ['URL userinfo', URL_USERINFO_RE],
+]
+
+export function scrubText(text) {
   let count = 0
   const bump = () => { count += 1 }
   let out = text.replace(JWT_RE, () => { bump(); return '<redacted:jwt>' })
   out = out.replace(SENSITIVE_KEY_RE, (_m, head) => { bump(); return `${head}"<redacted:credential>"` })
   out = out.replace(BEARER_RE, (_m, head) => { bump(); return `${head}<redacted:credential>` })
+  out = out.replace(URL_USERINFO_RE, (_m, head) => { bump(); return `${head}<redacted:userinfo>@` })
   return { out, count }
 }
 
@@ -46,6 +68,10 @@ function walk(dir, files = []) {
   return files
 }
 
+// CLI 只在**被直接执行**时运行：write-run-manifest.mjs 要 import 上面的 scrubText
+// 对清单自身的序列化结果做同一组检测，若这里继续无条件跑 CLI，import 就会顺带把
+// 参数解析和 process.exit 一起执行掉（它没有参数，于是 import 即 exit 2）。
+function runCli() {
 const argv = process.argv.slice(2)
 if (argv.length === 0) {
   console.error('scrub-secrets: 用法 scrub-secrets.mjs <file...> | --scan <dir>')
@@ -62,11 +88,7 @@ if (argv[0] === '--scan') {
   // 扫描与脱敏必须用**同一组检测器**。上一版只数了 JWT：一份含
   // `"password":"明文"` 或 `Authorization: Bearer …` 的证据包会被判"无残留"并 exit 0，
   // 而同一份文件交给脱敏模式却会被改掉——同一个脚本里两套判据，扫描那一侧等于没有。
-  const detectors = [
-    ['JWT', JWT_RE],
-    ['敏感键值', SENSITIVE_KEY_RE],
-    ['Bearer', BEARER_RE],
-  ]
+  const detectors = DETECTORS
   const hits = []
   const scanned = []
   const skipped = [] // 二进制产物：本脚本不解析，必须显式声明为未覆盖，而不是默认"干净"
@@ -93,7 +115,7 @@ if (argv[0] === '--scan') {
       if (n > 0) hits.push(`${rel}: ${n} 处 ${label} 形态残留`)
     }
   }
-  console.log(`scrub-secrets: 已扫描 ${scanned.length} 个文本产物；检测 JWT / 敏感键值 / Bearer 三类文本形态`)
+  console.log(`scrub-secrets: 已扫描 ${scanned.length} 个文本产物；检测 JWT / 敏感键值 / Bearer / URL userinfo 四类文本形态`)
   for (const line of hits) console.error(`  ${line}`)
   // 机器可读结论放最后：调用方按固定键名取值，不必去 parse 上面这些供人读的句子。
   // 未扫描文件同时**逐个列出**——只说"有 1 个没扫"的话，操作者还得自己去找是哪个。
@@ -143,3 +165,10 @@ for (const rel of argv) {
 // 单行机器可读输出，供 run-stress-test.sh 取用并写进 manifest
 console.log(`redacted=${total}`)
 process.exit(failed > 0 ? 2 : 0)
+}
+
+// 直接执行才跑 CLI；被 import（write-run-manifest.mjs 复用 scrubText）时只导出函数。
+// 判据用 pathToFileURL 比字符串后缀可靠：软链接、相对路径、`node ./x.mjs` 三种调用都覆盖。
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runCli()
+}

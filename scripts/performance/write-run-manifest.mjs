@@ -21,12 +21,15 @@
 //   - 完整性判定**不照抄**调用方注入的值：产物是否齐、监控 CSV 有没有数据、包内还有没有
 //     凭证残留，都在 manifest-verify.mjs 里各复算一遍，再与注入值取并集。
 //
+//   - 凭证判定：整包扫描由 manifest-verify.mjs 独立跑一遍；**清单自身**在写盘前过同一组
+//     检测器（scrubText 从 scrub-secrets.mjs import），因为整包扫描排在它写盘之前。
+//
 // 退出码：
 //   0   清单已写出，且本脚本独立复核后判定本包可交付
 //   12  清单已写出，但本脚本独立复核后判定本包不可交付（详见 manifest.json 的
 //       missing_artifacts / delivery_blockers）。调用方必须把 0 与 12 都当成"清单已写出"
 //   2   用法错误（注入的组件声明不合法）—— 见 manifest-verify.mjs 的 UsageError
-//   1   工具链自身不可用（规格读不出来、阻塞项文案缺失）—— 见 ToolchainError
+//   1   工具链自身不可用（规格读不出来、阻塞项文案缺失、清单脱敏后仍残留凭证）—— 见 ToolchainError
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -43,6 +46,7 @@ import {
   runSecretScan,
   verifyArtifacts,
 } from './manifest-verify.mjs'
+import { scrubText } from './scrub-secrets.mjs'
 import { extractCrossedThresholds, readK6Summary, resolveExitCode, resolveK6ScriptPath } from './k6-evidence.mjs'
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
@@ -126,9 +130,10 @@ const deliveryBlockers = collectDeliveryBlockers({
 const externalMonitoringRequired = process.env.MONITOR_SCOPE === 'skipped'
 const evidenceComplete = missingArtifacts.length === 0 && deliveryBlockers.length === 0
 const redactionCount = Number.parseInt(process.env.REDACTED_COUNT ?? '0', 10) || 0
-// 脱敏之后的残留扫描结论。**覆盖范围要写清楚**：扫描发生在 manifest.json 写盘之前，
-// 所以被扫的是"本包内除 manifest.json 外的全部产物"——manifest.json 由本脚本按固定
-// 字段生成，不含任何来自环境的自由文本凭证，但它确实不在那次扫描的文件集合里。
+// 脱敏之后的残留扫描结论。**覆盖范围要写清楚**：整包扫描发生在 manifest.json 写盘之前，
+// 因此那次扫描扫的是"本包内除 manifest.json 外的全部产物"。清单自身的凭证由下面
+// scrubManifestSelf() 用**同一组检测器**（import 自 scrub-secrets.mjs，不是另写一份）
+// 补一次，次数记在 manifest_self_redactions，所以覆盖范围是"整包"而不是"整包少一个文件"。
 // status 取**本脚本自己扫出来的**那份；runner 注入的那份并列记录，两者不一致时
 // collectDeliveryBlockers 已按"不可采信"追加了阻塞项。
 const secretScan = {
@@ -138,8 +143,9 @@ const secretScan = {
   detector_agreement:
     (process.env.SECRET_SCAN_STATUS ?? 'not_run') === scan.status ? 'match' : 'mismatch（已按不可交付处理）',
   unscanned_files: scan.unscanned,
-  detectors: ['jwt', 'sensitive_key_value', 'bearer'],
-  covers: '本包内除 manifest.json 外的全部产物（manifest.json 由本脚本在该次扫描之后生成）',
+  detectors: ['jwt', 'sensitive_key_value', 'bearer', 'url_userinfo'],
+  covers: '本包全部产物：除 manifest.json 外的全部产物由 scrub-secrets.mjs --scan 逐文件扫描；manifest.json 的写盘内容由本脚本用同一组检测器再脱敏一次（见 manifest_self_redactions）',
+  manifest_self_redactions: 0,
   detail: scan.detail || (process.env.SECRET_SCAN_DETAIL ?? '').trim() || undefined,
 }
 
@@ -235,7 +241,31 @@ const manifest = {
   note: '原始证据包由 scripts/performance/run-stress-test.sh 生成；sha256 用于校验归档件未被替换。',
 }
 
-fs.writeFileSync(path.join(dir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+// ── 清单自身的凭证脱敏 ─────────────────────────────────────────────────────
+// manifest.json 也是交付物，而整包扫描排在它写盘之前——BASE_URL 这类环境输入可以带
+// userinfo（`http://user:口令@host:8080`），原样写进清单就是一份**扫描覆盖不到**的可用凭证，
+// 而且同一目录的扫描照样报 passed。所以清单在写盘前必须过同一组检测器（scrubText 从
+// scrub-secrets.mjs import，不另写一份判据），命中就地脱敏并把次数记进 credential_redactions
+// 与 secret_scan.manifest_self_redactions —— "这份包被改过"这件事本身也要可核验。
+const serialize = (m) => `${JSON.stringify(m, null, 2)}\n`
+let manifestText = serialize(manifest)
+const selfScrub = scrubText(manifestText)
+if (selfScrub.count > 0) {
+  const scrubbed = JSON.parse(selfScrub.out)
+  scrubbed.credential_redactions = redactionCount + selfScrub.count
+  scrubbed.secret_scan = { ...scrubbed.secret_scan, manifest_self_redactions: selfScrub.count }
+  manifestText = serialize(scrubbed)
+}
+// 脱敏后再验一次：检测器对已替换的占位符是幂等的（正则都带 `(?!<redacted:)`），因此这里
+// 仍命中就说明脱敏本身没生效。此时**不写盘**：一份声称"扫描通过"却自带凭证的清单，
+// 比没有清单更危险。退出码 1 = 工具链自身不可用（与 --help 里的约定一致）。
+const residual = scrubText(manifestText)
+if (residual.count > 0) {
+  console.error(`write-run-manifest: 清单脱敏后仍残留 ${residual.count} 处凭证形态，拒绝写出 manifest.json`)
+  process.exit(1)
+}
+
+fs.writeFileSync(path.join(dir, 'manifest.json'), manifestText)
 
 // 机器可读结论行：run-stress-test.sh 据此把清单侧的判断并回自己的退出码。
 // 用计数而不是让它去解析 JSON —— runner 侧没有 JSON 解析器，用 grep 抠字段是对清单

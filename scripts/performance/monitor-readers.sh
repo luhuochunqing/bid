@@ -44,7 +44,9 @@ read_system() {
     if [[ -z "$page_size" ]]; then
       page_size="$(sysctl -n hw.pagesize 2>/dev/null || true)"
     fi
-    [[ -n "$page_size" ]] || page_size=4096
+    # 页大小取不到时**不兜底成 4096**：本机是 Apple Silicon（16384），猜 4096 会让内存用量
+    # 恒定偏小 4 倍，而那一行照样是合法数值、照样被判为有效采样（这正是本文件反复在防的
+    # "静默错值"）。取不到就让 mem_used_mb 留空、这次采样判无效，原因写进 REASON_SYSTEM。
     mem_used_mb="$(parse_vm_used_mb "$vm_stat_out" "$page_size")"
   else
     mem_total_mb="$(awk '/MemTotal/ {printf "%.0f", $2/1024}' /proc/meminfo)"

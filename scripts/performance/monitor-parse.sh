@@ -26,6 +26,9 @@ has_cmd() { command -v "$1" >/dev/null 2>&1; }
 # jcmd 的 "关键字 数值单位" → MB。必须同时支持 K 与 M：G1 输出
 # "total 524288K, used 123456K"，ZGC 输出 "used 368M, capacity 512M"，
 # 只认 K 会让 ZGC 环境下的堆占用静默变成 0。
+# 单位**只认 K/M/G**（大小写都收）。此前没有兜底分支，任何别的单位都落到"按 MB 原值输出"，
+# 于是 `used 12X` 这种解析不出来的输入会安静地写出一个合法数字 12——本层的契约是
+# "不猜"，所以未知单位（含没有单位）一律返回空串，由调用方把这次采样判为无效。
 parse_size_mb() {
   local line="$1" key="$2" val unit
   [[ -n "$line" ]] || return 0
@@ -36,6 +39,10 @@ parse_size_mb() {
     { for (i = 1; i < NF; i++) if ($i == k) { print $(i + 1); exit } }')"
   [[ -n "$val" ]] || return 0
   unit="$(printf '%s' "$val" | sed -nE 's/^[0-9.]+([A-Za-z])$/\1/p')"
+  case "$unit" in
+    K|k|M|m|G|g) ;;
+    *) return 0 ;;
+  esac
   val="$(printf '%s' "$val" | sed -nE 's/^([0-9.]+).*/\1/p')"
   [[ -n "$val" ]] || return 0
   awk -v v="$val" -v u="$unit" 'BEGIN {
@@ -77,12 +84,20 @@ parse_vm_page_size() {
 }
 
 # vm_stat 全量输出 + 页大小 → 已用 MB（active + wired + compressor 的页数 × 页大小）。
-# 三段都没匹配上时**不输出**（而不是输出 0）：`sysctl`/`vm_stat` 被裁掉输出时，
-# 上一版会写出一个"内存用了 0MB"的合法数值，那行还会被判为有效采样。
+# 三段都必须是**数值**且都命中，页大小也必须是数值，缺一就返回空串：
+#   - 早先只判"至少命中一段"（seen），`vm_stat` 被裁成两行时会把缺的两段当 0 相加，
+#     写出一个偏小的合法数字，那行还会被判为有效采样；
+#   - 页大小传空（vm_stat 表头没解析出来、sysctl 也失败）时，awk 里 `ps` 空串按 0 参与
+#     乘法 → 输出 "0"，一份"内存用了 0MB"的合法数值。Apple Silicon 的页大小是 16384，
+#     猜 4096 会让内存偏小 4 倍——所以这里对页大小同样只接受数值，不给任何默认值。
 parse_vm_used_mb() {
-  printf '%s\n' "$1" | awk -v ps="$2" \
-    '/Pages active/ {a=$3; seen=1} /Pages wired/ {w=$4; seen=1} /Pages occupied by compressor/ {c=$5; seen=1}
-     END { if (seen) printf "%.0f", (a+w+c)*ps/1048576 }'
+  is_num "$2" || return 0
+  printf '%s\n' "$1" | awk -v ps="$2" '
+    function ok(x) { return x ~ /^[0-9]+\.?$/ }
+    /Pages active/ {a=$3; na=ok(a)}
+    /Pages wired/ {w=$4; nw=ok(w)}
+    /Pages occupied by compressor/ {c=$5; nc=ok(c)}
+    END { if (na && nw && nc) printf "%.0f", (a+w+c)*ps/1048576 }'
 }
 
 # sysctl -n hw.memsize 的字节数 → MB。空输入（sysctl 不可用、键不存在）时输出空串，
@@ -157,6 +172,10 @@ monitor_parse_self_test() {
   _check "parse_size_mb G1 K" "121" \
     "$(parse_size_mb ' garbage-first heap   total 524288K, used 123456K' 'used')"
   _check "parse_size_mb 空行" "" "$(parse_size_mb '' 'used')"
+  # 未知单位（jcmd 只可能给 K/M/G，出现别的就是没解析对）不按 MB 原值输出，留空不猜
+  _check "parse_size_mb 未知单位留空" "" "$(parse_size_mb ' ZHeap used 12X, capacity 20M' 'used')"
+  _check "parse_size_mb 无单位留空" "" "$(parse_size_mb ' ZHeap used 12, capacity 20M' 'used')"
+  _check "parse_size_mb G 单位" "1024" "$(parse_size_mb ' ZHeap used 1G' 'used')"
   # top 的两种平台写法
   _check "parse_cpu_triple Darwin" "2.5,5.0,92.5" \
     "$(parse_cpu_triple 'CPU usage: 2.5% user, 5.0% sys, 92.5% idle')"
@@ -181,6 +200,20 @@ Pages wired down: 20000.
 Pages occupied by compressor: 15000.' 16384)"
   # 三段都没匹配上时留空，而不是写出"用了 0MB"这种合法数值
   _check "parse_vm_used_mb 无匹配留空" "" "$(parse_vm_used_mb 'nothing here' 16384)"
+  # 只命中两段（vm_stat 输出被裁）同样留空：把缺的那段当 0 相加会得到一个偏小的合法数字
+  _check "parse_vm_used_mb 缺一段留空" "" \
+    "$(parse_vm_used_mb 'Pages active: 35000.
+Pages wired down: 20000.' 16384)"
+  # 页大小为空（vm_stat 表头没解析出来、sysctl 也失败）→ 留空。
+  # 空串在 awk 里按 0 参与乘法，会写出"内存用了 0MB"；猜 4096 则让 Apple Silicon 偏小 4 倍。
+  _check "parse_vm_used_mb 页大小为空留空" "" \
+    "$(parse_vm_used_mb 'Pages active: 35000.
+Pages wired down: 20000.
+Pages occupied by compressor: 15000.' '')"
+  _check "parse_vm_used_mb 计数非数值留空" "" \
+    "$(parse_vm_used_mb 'Pages active: -.
+Pages wired down: 20000.
+Pages occupied by compressor: 15000.' 16384)"
   _check "parse_memsize_mb" "32768" "$(parse_memsize_mb '34359738368')"
   _check "parse_memsize_mb 空输入留空" "" "$(parse_memsize_mb '')"
   # jstat：G1 实测表头（Java 21），按表头名取 YGC/FGC；堆取 S0U+S1U+EU+OU = 3072K = 3MB，

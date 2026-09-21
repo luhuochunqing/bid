@@ -84,6 +84,22 @@ EOF
     exit 2
   fi
 
+  # URL 里带 userinfo（http://user:口令@host:8080）一律拒绝，两个理由都是静默出错：
+  #   1) 它会**逐字写进 manifest.json 的 target_base_url**，而整包凭证扫描排在该文件写盘之前，
+  #      等于把一份可用凭证放进一个自称"扫描通过"的证据包里（清单自身的补扫只是第二道保险）；
+  #   2) 下面的主机解析取的是 `://` 之后到第一个 ':' 的一段，带 userinfo 时会解析出 "user"，
+  #      于是监控宿主判定、manifest 的 target_host 全部记成这个不存在的"主机"，且全程无报错。
+  local _authority
+  _authority="$(printf '%s' "$BASE_URL" | sed -nE 's#^[a-zA-Z][a-zA-Z0-9+.-]*://([^/?#]*).*#\1#p')"
+  case "$_authority" in
+    *@*)
+      echo "run-stress-test: --base-url 不能包含用户信息（user:pass@host）：$BASE_URL" >&2
+      echo "                 该口令会被写进证据包的 manifest.json，且会让主机解析取到 'user' 这一段。" >&2
+      echo "                 需要认证请把凭据放进环境变量，不要写在 URL 里。" >&2
+      exit 2
+      ;;
+  esac
+
   # 档位必须白名单校验。k6-tests/load-test.js 用的是 `STAGE_CONFIGS[PROFILE] || STAGE_CONFIGS.standard`，
   # 拼错档位不会报错，而是**静默按 standard 跑**——而 manifest 记的是操作者输入的那个错误档位，
   # 于是"实际负载曲线"和"证据里写的档位"对不上，第三方按它做容量结论就是错的。
