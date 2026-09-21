@@ -125,7 +125,7 @@ class SchemeScopePublicationTest {
                 .containsExactly(new BigDecimal("20"), new BigDecimal("80"));
     }
 
-    private static void assertNotPublished(StructuredTableResult result) {
+    static void assertNotPublished(StructuredTableResult result) {
         var task = new ScoreParseTask();
         var tasks = mock(ScoreParseTaskRepository.class);
         var state = mock(ScoreParseTaskStateService.class);
@@ -153,7 +153,7 @@ class SchemeScopePublicationTest {
         return modelExtract(source, summaryText(), facts, declaredTotal);
     }
 
-    private static StructuredTableResult modelExtract(DocumentArtifact source, String text,
+    static StructuredTableResult modelExtract(DocumentArtifact source, String text,
                                                        List<MultimodalScoreFact> facts,
                                                        String declaredTotal) throws Exception {
         var extractor = mock(SidecarDocumentArtifactExtractor.class);
@@ -207,6 +207,65 @@ class SchemeScopePublicationTest {
                 detailTable("t-technical", "本项目评分办法 / 技术", "实施方案", "30", true, true),
                 detailTable("t-price", "本项目评分办法 / 报价", "报价评议", "50", true, priceFlagged)),
                 List.of());
+    }
+
+    static DocumentArtifact itemMaximumDetails() {
+        var first = detailTable("t-business", "本项目评分办法 / 评分明细", "销售额", "10", false, true);
+        List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new ArrayList<>();
+        first.cells().forEach(c -> cells.add("t-business-r1-c2".equals(c.cellId())
+                ? new DocumentArtifact.CanonicalTable.CanonicalCellDto(c.cellId(), c.row(), c.column(),
+                        "满分10分，销售额达到1亿元得10分。", "满分10分，销售额达到1亿元得10分。",
+                        1, 1, false, "pdf:page=1;table=t-business") : c));
+        for (int col = 0; col < 4; col++) {
+            String value = List.of("2", "技术方案", "技术方案按完整性与可行性评议，最高得90分。", "90").get(col);
+            cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-business-r2-c" + col,
+                    2, col, value, value, 1, 1, false, "pdf:page=1;table=t-business"));
+        }
+        var table = new DocumentArtifact.CanonicalTable("t-business", 1,
+                "本项目评分办法 / 评分明细", 3, 4, List.of(), cells, true);
+        return new DocumentArtifact(meta(), List.of(table), List.of());
+    }
+
+    static MultimodalScoreFact itemMaximumFact() {
+        String rule = "满分10分，销售额达到1亿元得10分。";
+        return new MultimodalScoreFact("本项目评分办法", "1", "", "销售额", new BigDecimal("10"),
+                rule, "OBJECTIVE", 1, "t-business", List.of("t-business-r1-c2"), rule, 0.9);
+    }
+
+    static MultimodalScoreFact itemMaximumTechnicalFact() {
+        String rule = "技术方案按完整性与可行性评议，最高得90分。";
+        return new MultimodalScoreFact("本项目评分办法", "2", "", "技术方案", new BigDecimal("90"),
+                rule, "SUBJECTIVE", 1, "t-business", List.of("t-business-r2-c2"), rule, 0.9);
+    }
+
+    static DocumentArtifact categoryDetails(String businessSubtotal, String technicalSubtotal) {
+        return categoryDetails(businessSubtotal, technicalSubtotal, "商务", "技术");
+    }
+
+    static DocumentArtifact categoryDetails(String businessSubtotal, String technicalSubtotal,
+                                                    String businessSection, String technicalSection) {
+        return new DocumentArtifact(meta(), List.of(
+                withSubtotal(detailTable("t-business", "本项目评分办法 / " + businessSection,
+                        "履约能力", "20", true, true), businessSubtotal),
+                withSubtotal(detailTable("t-technical", "本项目评分办法 / " + technicalSection,
+                        "实施方案", "80", true, true), technicalSubtotal)), List.of());
+    }
+
+    private static DocumentArtifact.CanonicalTable withSubtotal(DocumentArtifact.CanonicalTable table, String score) {
+        var cells = table.cells().stream().map(c -> c.cellId().equals(table.tableId() + "-r2-c3")
+                ? new DocumentArtifact.CanonicalTable.CanonicalCellDto(c.cellId(), c.row(), c.column(),
+                        score, score, 1, 1, false, "pdf:page=1;table=" + table.tableId()) : c).toList();
+        return new DocumentArtifact.CanonicalTable(table.tableId(), table.sourcePage(), table.sourceSection(),
+                table.rows(), table.columns(), table.mergedRegions(), cells, table.isScoreTable());
+    }
+
+    static List<MultimodalScoreFact> categoryFacts() {
+        return List.of(modelFact("t-business", "1", "履约能力", "20"),
+                modelFact("t-technical", "2", "实施方案", "80"));
+    }
+
+    static String categoryText() {
+        return "# 本项目评分办法\n总分100分。\n商务与技术评分明细见下表。";
     }
 
     private static DocumentArtifact.ArtifactMeta meta() {

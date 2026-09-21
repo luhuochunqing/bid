@@ -71,6 +71,15 @@ public final class OriginalScoreEvidencePolicy {
                     context.scheme(), claim.tableId(), claim.tableId()));
             verifyWeight(artifact, claim, problems);
         }
+        context.subtotals().forEach((tableId, subtotal) -> {
+            BigDecimal leafSum = claims.stream().filter(claim -> tableId.equals(claim.tableId()) && !claim.parent())
+                    .map(Claim::weight).filter(java.util.Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (leafSum.compareTo(subtotal.value()) != 0) {
+                problems.add(new Problem(tableId, "subtotal", "TABLE_SUBTOTAL_MISMATCH",
+                        subtotal.value(), leafSum, subtotal.locator()));
+            }
+        });
         return new Verification(context.documentId(), context.scheme(), total, List.copyOf(problems));
     }
 

@@ -114,7 +114,9 @@ final class MultimodalStructuredExtractionHandler {
                         : ScoreCompletenessPolicy.DeclaredTotalSource.STRUCTURED_SUMMARY_ROW,
                 validation.leafTotal(),
                 leaves.size(), parents.size(), 0, validation.violations().stream()
-                .map(v -> v.code() + ": " + v.message() + " expected=" + v.expected() + " actual=" + v.actual()).toList(),
+                .map(v -> v.code() + "[fact=" + v.factId() + ",field=" + v.field()
+                        + ",source=" + v.evidence() + "] " + v.message()
+                        + " expected=" + v.expected() + " actual=" + v.actual()).toList(),
                 leaves, parents);
         List<ScoreCandidate> candidates = validation.autoApprovable()
                 ? leaves.stream().map(ScoreFact::toCandidate).flatMap(Optional::stream).toList() : List.of();

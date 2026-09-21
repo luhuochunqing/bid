@@ -74,6 +74,14 @@ final class RunSummaryAssembler {
             WeightSumCheck.Result weight, int itemCount, String llmModel,
             String pipelineVersion, String decisionStatus, String fallbackReason,
             List<Map<String, Object>> tableSplits) {
+        return assemble(recall, tableRows, merge, weight, itemCount, llmModel,
+                pipelineVersion, decisionStatus, fallbackReason, tableSplits, List.of());
+    }
+
+    static Assembled assemble(RecallOutcome recall, int tableRows, MergeView merge,
+            WeightSumCheck.Result weight, int itemCount, String llmModel,
+            String pipelineVersion, String decisionStatus, String fallbackReason,
+            List<Map<String, Object>> tableSplits, List<String> sourceDiagnostics) {
         double alignedRatio = recall.alignedTotal() > 0
                 ? (double) recall.alignedHit() / recall.alignedTotal() : -1;
         boolean warnLowAlignment = alignedRatio >= 0 && alignedRatio < ALIGNED_RATIO_FLOOR;
@@ -114,6 +122,9 @@ final class RunSummaryAssembler {
         // spec 062 US2：多表拆分明细，仅非空时透出。
         if (tableSplits != null && !tableSplits.isEmpty()) {
             root.put("tableSplits", tableSplits);
+        }
+        if (sourceDiagnostics != null && !sourceDiagnostics.isEmpty()) {
+            root.put("sourceDiagnostics", sourceDiagnostics);
         }
         return new Assembled(writeJson(root), warnLowAlignment, warnHighHallucination);
     }

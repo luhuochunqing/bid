@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -71,6 +72,47 @@ class ScorePartialOverwritePersistenceTest {
     private ScoreItemPersistenceService persistenceService;
 
     @Test
+    void itemMaximumAndConflictingSubtotalsFromRealExtractionPreserveOfficialData() throws Exception {
+        StructuredTableResult itemMaximum = SchemeScopePublicationTest.modelExtract(
+                SchemeScopePublicationTest.itemMaximumDetails(), "",
+                List.of(SchemeScopePublicationTest.itemMaximumFact()), "10");
+        StructuredTableResult conflictingModel = SchemeScopePublicationTest.modelExtract(
+                SchemeScopePublicationTest.categoryDetails("30", "70"),
+                SchemeScopePublicationTest.categoryText(), SchemeScopePublicationTest.categoryFacts(), "100");
+        StructuredTableResult conflictingFallback = SchemeScopePublicationTest.extract(
+                SchemeScopePublicationTest.categoryDetails("30", "70"),
+                SchemeScopePublicationTest.categoryText());
+        assertRejectedResultPreservesData(9120L, "item-maximum-not-total", itemMaximum);
+        assertRejectedResultPreservesData(9121L, "model-subtotal-conflict", conflictingModel);
+        assertRejectedResultPreservesData(9122L, "fallback-subtotal-conflict", conflictingFallback);
+    }
+
+    @Test
+    void conflictingSubtotalsAfterRealRecheckPreserveOfficialData() throws Exception {
+        AtomicInteger rechecks = new AtomicInteger();
+        StructuredTableResult rechecked = ThreeDefectsPublicationFlowTest.modelExtractResponses(
+                SchemeScopePublicationTest.categoryDetails("30", "70"),
+                SchemeScopePublicationTest.categoryText(), SchemeScopePublicationTest.categoryFacts(),
+                SchemeScopePublicationTest.categoryFacts(), rechecks);
+        assertThat(rechecks).hasValue(1);
+        assertRejectedResultPreservesData(9125L, "recheck-subtotal-conflict", rechecked);
+    }
+
+    @Test
+    void matchingSubtotalsFromRealExtractionStillPublish() throws Exception {
+        StructuredTableResult model = SchemeScopePublicationTest.modelExtract(
+                SchemeScopePublicationTest.categoryDetails("20", "80"),
+                SchemeScopePublicationTest.categoryText(), SchemeScopePublicationTest.categoryFacts(), "100");
+        StructuredTableResult deterministic = SchemeScopePublicationTest.extract(
+                SchemeScopePublicationTest.categoryDetails("20", "80"),
+                SchemeScopePublicationTest.categoryText());
+        assertCompleteSchemePublishes(9123L, "model-matching-subtotal", model,
+                List.of(bd("20"), bd("80")));
+        assertCompleteSchemePublishes(9124L, "fallback-matching-subtotal", deterministic,
+                List.of(bd("20"), bd("80")));
+    }
+
+    @Test
     void schemeScopeRejectionsFromRealExtractionPreserveOfficialItemsAndScores() throws Exception {
         StructuredTableResult modelMissingTable = SchemeScopePublicationTest.modelExtract(
                 SchemeScopePublicationTest.summaryAndTwoDetails(),
@@ -112,8 +154,15 @@ class ScorePartialOverwritePersistenceTest {
                 .extracting(ScoreResult::getId).containsExactly(oldScore.getId());
         assertThat(resultRepository.findByScoreItemIdIn(List.of(oldItem.getId())))
                 .extracting(ScoreResult::getActualScore).containsExactly(bd("86"));
+        assertThat(resultRepository.findByScoreItemIdIn(List.of(oldItem.getId())))
+                .extracting(ScoreResult::getScoringTaskId).containsExactly(77L);
         assertThat(factRepository.findByParseTaskId(current.getId())).isNotEmpty();
         assertThat(current.getFallbackReason()).isNotBlank();
+        if (taskName.contains("subtotal-conflict")) {
+            assertThat(taskRepository.findById(current.getId()).orElseThrow().getRunSummary())
+                    .contains("TABLE_SUBTOTAL_MISMATCH", "t-business-r2-c3", "t-technical-r2-c3",
+                            "expected=30", "actual=20", "expected=70", "actual=80");
+        }
         verify(estimatedScoreService, never()).estimateForProject(projectId);
     }
 

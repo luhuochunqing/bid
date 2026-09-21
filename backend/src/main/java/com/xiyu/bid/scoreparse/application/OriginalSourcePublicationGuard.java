@@ -31,15 +31,6 @@ final class OriginalSourcePublicationGuard {
             defects.add("WEIGHT_SUM_MISMATCH[scheme=" + context.scheme() + ",expected=" + total
                     + ",actual=" + leaves + ",source=" + original.total().locator() + "]");
         }
-        context.subtotals().forEach((tableId, subtotal) -> {
-            List<ScoreFact> tableFacts = facts.stream().filter(f -> tableId.equals(f.sourceTableId())).toList();
-            if (tableFacts.isEmpty()) return;
-            BigDecimal local = tableFacts.stream().filter(f -> ScoreFact.isLeaf(f, facts))
-                    .map(ScoreFact::weight).filter(java.util.Objects::nonNull)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-            if (local.compareTo(subtotal.value()) != 0) defects.add("TABLE_SUBTOTAL_MISMATCH[table=" + tableId
-                    + ",expected=" + subtotal.value() + ",actual=" + local + ",source=" + subtotal.locator() + "]");
-        });
         var candidates = facts.stream().filter(f -> ScoreFact.isLeaf(f, facts))
                 .map(ScoreFact::toCandidate).flatMap(java.util.Optional::stream).toList();
         var proof = defects.isEmpty() ? OriginalScoreEvidencePolicy.publicationProof(original, leaves,

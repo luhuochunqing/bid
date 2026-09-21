@@ -46,12 +46,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         for (var table : artifact.tables()) {
             if (table != null && scoringSection(table.sourceSection())) addPackage(packages, table.sourceSection());
         }
-        if (text != null) for (String line : text.split("\\R")) {
-            Matcher heading = HEADING.matcher(line);
-            if (heading.matches()) addPackage(packages, heading.group(1));
-            if (heading.matches() && SCHEME.matcher(heading.group(1)).matches()
-                    && !OTHER.matcher(heading.group(1)).matches()) namedSchemes.add(heading.group(1).trim());
-        }
+        namedSchemes.addAll(bodySchemes(text, packages));
         boolean ambiguousScopes = packages.size() > 1 || namedSchemes.stream().anyMatch(left -> namedSchemes.stream()
                 .anyMatch(right -> !left.contains(right) && !right.contains(left)));
         if (ambiguousScopes) {
@@ -70,19 +65,24 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             Map<Integer, List<DocumentArtifact.CanonicalTable.CanonicalCellDto>> rows = new LinkedHashMap<>();
             table.cells().stream().filter(c -> c.row() != null && !Boolean.TRUE.equals(c.isMergedContinue()))
                     .forEach(c -> rows.computeIfAbsent(c.row(), ignored -> new ArrayList<>()).add(c));
-            boolean detail = rows.values().stream().flatMap(List::stream).anyMatch(c -> c.rawText() != null
-                    && c.rawText().matches("(?s).*(?:评分因素|评分项目|评分项|评分规则).*"));
+            int headerRow = rows.entrySet().stream().filter(entry -> entry.getValue().stream().anyMatch(c ->
+                    c.rawText() != null && c.rawText().matches("(?s).*(?:评分因素|评分项目|评分项|评分规则).*")))
+                    .mapToInt(Map.Entry::getKey).min().orElse(Integer.MAX_VALUE);
+            boolean detail = headerRow != Integer.MAX_VALUE;
             if (detail) detailTables++;
-            for (var row : rows.values()) {
+            for (var entry : rows.entrySet()) {
+                var row = entry.getValue();
                 boolean summary = row.stream().anyMatch(c -> c.rawText() != null
                         && c.rawText().replaceAll("\\s+", "").matches("^(?:合计|总计)(?:得分)?$"));
+                // A detail row is not a scheme declaration even when OCR yields only its rule cell.
+                boolean detailRow = detail && !summary && entry.getKey() > headerRow;
                 for (var cell : row) {
                     String raw = cell.rawText() == null ? "" : cell.rawText();
                     String locator = table.tableId() + ":" + cell.cellId();
                     Matcher explicit = TOTAL.matcher(raw);
                     while (explicit.find()) {
                         String prefix = raw.substring(0, explicit.start());
-                        if (CATEGORY.matcher(prefix).matches()) continue;
+                        if (CATEGORY.matcher(prefix).matches() || detailRow) continue;
                         BigDecimal value = new BigDecimal(explicit.group(1));
                         if (summary && (detail || category(table.sourceSection()))
                                 && !raw.contains("本项目") && !raw.contains("本标包")) {
@@ -149,6 +149,29 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
 
     private static boolean scoringSection(String section) {
         return section != null && (section.contains("评分") || section.contains("评标"));
+    }
+
+    private static Set<String> bodySchemes(String text, Set<String> packages) {
+        Set<String> roots = new java.util.LinkedHashSet<>();
+        if (text == null) return roots;
+        int rootLevel = 0;
+        String root = "";
+        for (String line : text.split("\\R")) {
+            Matcher heading = HEADING.matcher(line);
+            if (!heading.matches()) continue;
+            String title = heading.group(1).trim();
+            String trimmed = line.stripLeading();
+            int level = 0;
+            while (level < trimmed.length() && trimmed.charAt(level) == '#') level++;
+            if (level <= rootLevel) root = "";
+            addPackage(packages, title);
+            if (SCHEME.matcher(title).matches() && !OTHER.matcher(title).matches() && root.isBlank()) {
+                roots.add(title);
+                root = title;
+                rootLevel = level;
+            }
+        }
+        return roots;
     }
 
     private static String schemeFrom(DocumentArtifact artifact, String text) {
