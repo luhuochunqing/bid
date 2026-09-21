@@ -30,9 +30,10 @@
         <thead>
           <tr>
             <th style="width: 60px">序号</th>
-            <th style="width: 200px">评分维度</th>
-            <th style="width: 90px">分值</th>
-            <th>完整原文、证据与校验差异</th>
+            <th style="width: 200px">评分项</th>
+            <th style="width: 90px">权重</th>
+            <th style="width: 100px">评分类别</th>
+            <th>标书原文与详情</th>
           </tr>
         </thead>
         <tbody>
@@ -40,12 +41,15 @@
             <td class="col-center"><el-input v-model="fact.code" size="small" :aria-label="`第${idx + 1}项序号`" /></td>
             <td class="col-dim">
               <el-input v-model="fact.dimension" size="small" aria-label="评分维度" />
-              <el-select v-model="fact.scoreType" size="small" placeholder="主客观" class="score-type-select">
-                <el-option label="客观" value="OBJECTIVE" />
-                <el-option label="主观" value="SUBJECTIVE" />
-              </el-select>
             </td>
             <td class="col-weight"><el-input-number v-model="fact.weight" :min="0" :precision="2" size="small" aria-label="分值" /></td>
+            <td class="col-score-type">
+              <span class="score-type-label">{{ scoreTypeLabel(fact.scoreType) }}</span>
+              <el-select v-model="fact.scoreType" size="small" placeholder="主客观" class="score-type-select" aria-label="评分类别">
+                <el-option label="客观项" value="OBJECTIVE" />
+                <el-option label="主观项" value="SUBJECTIVE" />
+              </el-select>
+            </td>
             <td class="col-detail">
               <el-input v-model="fact.sourceText" type="textarea" :autosize="{ minRows: 3, maxRows: 12 }" aria-label="完整规则" />
               <el-input v-model="fact.parentFactId" size="small" placeholder="父项 factId（无则留空）" aria-label="父项" class="parent-input" />
@@ -117,6 +121,12 @@ function sourceCellIdsOf(fact) {
     return [fact.sourceCellIds]
   }
 }
+
+function scoreTypeLabel(scoreType) {
+  if (scoreType === 'OBJECTIVE' || scoreType === '客观项') return '客观项'
+  if (scoreType === 'SUBJECTIVE' || scoreType === '主观项') return '主观项'
+  return '待确认'
+}
 </script>
 
 <style scoped>
@@ -180,6 +190,8 @@ function sourceCellIdsOf(fact) {
   font-weight: 600;
   color: var(--brand-xiyu-logo, #e02424);
 }
+.candidate-table .col-score-type { color: var(--text-primary-ui, #303133); text-align: center; }
+.score-type-label { display: block; margin-bottom: 6px; font-weight: 600; }
 .candidate-table .col-detail {
   color: var(--text-muted);
   max-width: 360px;

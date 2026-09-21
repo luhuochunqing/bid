@@ -4,8 +4,8 @@ import ScoreCandidateReviewCard from './ScoreCandidateReviewCard.vue'
 
 describe('ScoreCandidateReviewCard.vue', () => {
   const candidateFacts = [
-    { factId: 'f1', code: '1', dimension: '商务部分', weight: 6, sourceText: '业绩要求' },
-    { factId: 'f2', code: '2', dimension: '财务状况', weight: 3, sourceText: '财务指标' },
+    { factId: 'f1', code: '1', dimension: '商务部分', weight: 6, scoreType: 'OBJECTIVE', sourceText: '业绩要求' },
+    { factId: 'f2', code: '2', dimension: '财务状况', weight: 3, scoreType: 'SUBJECTIVE', sourceText: '财务指标' },
   ]
 
   it('renders candidate table with facts and displays dimension and weight', () => {
@@ -34,6 +34,30 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(rows[0].find('.col-weight').html()).toContain('6')
     expect(rows[1].find('.col-dim').html()).toContain('财务状况')
     expect(rows[1].find('.col-weight').html()).toContain('3')
+  })
+
+  it('shows score type and original detail as explicit review fields', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: { candidateFacts, candidateTotalWeight: 9 },
+      global: {
+        stubs: {
+          'el-alert': true,
+          'el-button': true,
+          'el-input': { template: '<span>{{ modelValue }}</span>', props: ['modelValue'] },
+          'el-input-number': { template: '<span>{{ modelValue }}</span>', props: ['modelValue'] },
+          'el-select': { template: '<span class="select-stub">{{ modelValue }}</span>', props: ['modelValue'] },
+          'el-option': true,
+        },
+      },
+    })
+
+    expect(wrapper.find('thead').text()).toContain('评分项')
+    expect(wrapper.find('thead').text()).toContain('权重')
+    expect(wrapper.find('thead').text()).toContain('评分类别')
+    expect(wrapper.find('thead').text()).toContain('标书原文与详情')
+    expect(wrapper.findAll('.col-score-type')[0].text()).toContain('客观项')
+    expect(wrapper.findAll('.col-score-type')[1].text()).toContain('主观项')
+    expect(wrapper.findAll('.col-detail')[0].text()).toContain('业绩要求')
   })
 
   it('renders warning alert when candidateTotalWeight is not 100', () => {
