@@ -3,7 +3,9 @@
 #        外部命令全部由夹具层 self-test-fixtures.sh 换成固定输出的替身（k6 / curl / mysql /
 #        redis-cli，以及监控侧的 top / uptime / sysctl / vm_stat / uname），node 侧另有三个
 #        坏替身（**坏扫描器**：node 在、脱敏脚本崩；**坏 shim**：node"找得到但跑不动"；
-#        **挂死的 shim**：node"找得到、但调用它永不返回"）。
+#        **挂死的 shim**：node"找得到、但调用它永不返回"）。另有三个**只坏脱敏这一次调用**的
+#        替身（崩溃 / 机器行被吞 / 机器行重复），由本文件的用例 6b–6d 自己在沙箱里构造——
+#        它们只服务那三条断言，不是每个用例都要用的通用替身。
 # Output: 逐用例 PASS/FAIL 与汇总计数；全部通过 exit 0，任一失败 exit 1
 # Pos: scripts/performance/ - runner **退出码分层**的离线回归：0 / k6 自身码 / 1（工具链不可用）/ 12（证据不齐）的边界
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -114,6 +116,49 @@ RC="$(PATH="${BADNODE}:${PATH}" run_runner badscan "$RUNNER" "${LOOPBACK[@]}")"
 check "扫描器崩溃" 1 "$RC"
 check "报的是工具链不可用" 1 "$(log_has badscan '工具链不可用' && echo 1 || echo 0)"
 
+echo '== 6b–6d. 脱敏器自己没跑成 → 1（扫描不能替代这一步的结论）=='
+# 与用例 6 是两种不同的坏：那个 node 连扫描都起不来（脱敏、扫描两处都崩），于是"归到 1"其实
+# 是被**扫描分支**兜住的——脱敏分支坏没坏，那一条看不出来。下面三条让**只有脱敏这一次调用**
+# 出问题，而扫描与清单生成照常可运行，从而把脱敏这一环单独钉住。
+# 替身按**所在目录名**选行为（一份脚本三种病）；用例专属的构造留在用例侧，与 7/8 往沙箱副本里
+# 塞畸形行同一口径——夹具层只放"每个用例都要用"的替身。
+for _mode in crash noout dupout; do
+  _d="${SANDBOX}/redact-${_mode}"
+  mkdir -p "$_d"
+  cat > "${_d}/node" <<STUB_REDACT
+#!/usr/bin/env bash
+# 只拦**脱敏**这一次调用（不带 --scan 的那次）；扫描与其余调用一律转给真实 node（绝对路径）。
+case "\$*" in *scrub-secrets.mjs*--scan*) exec "${REAL_NODE}" "\$@" ;; esac
+case "\$*" in
+  *scrub-secrets.mjs*)
+    case "${_mode}" in
+      crash) echo "scrub: 替身崩溃（自检）" >&2; exit 137 ;;
+      noout) "${REAL_NODE}" "\$@" | grep -v '^redacted='; exit 0 ;;
+      *) "${REAL_NODE}" "\$@"; echo 'redacted=0' ;;
+    esac ;;
+esac
+exec "${REAL_NODE}" "\$@"
+STUB_REDACT
+  chmod +x "${_d}/node"
+done
+
+RC="$(PATH="${SANDBOX}/redact-crash:${PATH}" run_runner redactcrash "$RUNNER" "${LOOPBACK[@]}")"
+check "脱敏器崩溃" 1 "$RC"
+check "报的是脱敏这一步没跑成" 1 "$(log_has redactcrash '凭证脱敏未完成' && echo 1 || echo 0)"
+# 这一条是本组的关键：本轮**扫描与清单生成都正常**（清单里 scan_status 仍是 passed）。
+# 没有它，上面两条也可能只是被用例 6 那条"扫描起不来"的路径顺带兜住的。
+RUNDIR_REDACT="$(run_dir_of "${SANDBOX}/runs/redactcrash")"
+check "扫描本身仍通过（证明 1 只由脱敏触发）" 1 "$(grep -c '"status": "passed"' "${RUNDIR_REDACT}/manifest.json")"
+
+RC="$(PATH="${SANDBOX}/redact-noout:${PATH}" run_runner redactnoout "$RUNNER" "${LOOPBACK[@]}")"
+check "脱敏成功但机器行被吞" 1 "$RC"
+check "报的是输出不可解析" 1 "$(log_has redactnoout '机器输出不可解析' && echo 1 || echo 0)"
+
+# 重复行与缺失行由同一条判据拦下（期望**恰好一行**）：两行说明机器输出被拼了两份，
+# 取第一行或最后一行都是猜——早先的实现取最后一行，于是这里会静默采信第二个值。
+RC="$(PATH="${SANDBOX}/redact-dupout:${PATH}" run_runner redactdup "$RUNNER" "${LOOPBACK[@]}")"
+check "脱敏机器行重复" 1 "$RC"
+
 echo "== 7. 文案表重复 code → 1（且不创建证据目录）=="
 DUP="${SANDBOX}/perf-dup"
 cp -R "$PERF_DIR" "$DUP"
@@ -135,6 +180,20 @@ RUN_DIR="$RUNDIR" MONITOR_SCOPE=local-target MONITOR_REQUIRED_COMPONENTS=system 
   node "${PERF_DIR}/write-run-manifest.mjs" > "${SANDBOX}/log-inject.txt" 2>&1
 check "表外 code 拒绝生成清单" 1 "$?"
 check "报的是表外 code" 1 "$(grep -qF '在 delivery-blockers.tsv 中没有对应文案' "${SANDBOX}/log-inject.txt" && echo 1 || echo 0)"
+
+echo "== 10. 经由**软链接目录**调用扫描器/脱敏器 → 结论不变（不许「静默不跑」）=="
+# 与 runner 内部无关，单钉工具自己的 CLI 入口判据：若它拿"调用方给出的路径"与"node 解析出的
+# 真实路径"直接比，一处软链就够让 CLI **静默不执行**——退出码 0、一行输出都没有。而扫描模式下
+# "没有任何命中"与"根本没扫描"长得一模一样，这正是本工具链最忌讳的形态。
+# 不是理论风险：macOS 上 /tmp 与 /var 都是软链，本文件的沙箱（mktemp -d）就在 /var 下，
+# 测这条路径不需要额外构造什么。
+mkdir -p "${SANDBOX}/scan-sample"
+printf 'clean\n' > "${SANDBOX}/scan-sample/a.txt"
+ln -sfn "$PERF_DIR" "${SANDBOX}/linked-perf"
+LINKED_SCAN="$(node "${SANDBOX}/linked-perf/scrub-secrets.mjs" --scan "${SANDBOX}/scan-sample" 2>&1)"
+check "软链目录下扫描器仍给出结论" 1 "$(printf '%s\n' "$LINKED_SCAN" | grep -c '^scan_status=passed$')"
+LINKED_REDACT="$(node "${SANDBOX}/linked-perf/scrub-secrets.mjs" "${SANDBOX}/scan-sample/a.txt" 2>&1)"
+check "软链目录下脱敏器仍给出机器行" 1 "$(printf '%s\n' "$LINKED_REDACT" | grep -c '^redacted=0$')"
 
 echo
 if [[ "$FAIL" == "0" ]]; then

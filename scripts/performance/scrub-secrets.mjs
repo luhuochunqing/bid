@@ -26,7 +26,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 // JWT 三段式（header.payload.signature，base64url）。够窄，不会误伤普通文本。
 const JWT_RE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g
@@ -184,7 +184,21 @@ process.exit(failed > 0 ? 2 : 0)
 }
 
 // 直接执行才跑 CLI；被 import（write-run-manifest.mjs 复用 scrubText）时只导出函数。
-// 判据用 pathToFileURL 比字符串后缀可靠：软链接、相对路径、`node ./x.mjs` 三种调用都覆盖。
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// 判据是**两边都取 realpath 之后再比**，而不是 `pathToFileURL(argv[1]).href === import.meta.url`：
+// 后者只在"调用方给出的路径恰好等于 node 解析出的真实路径"时成立，一处软链接就够让它不成立——
+// macOS 上 `/tmp` 与 `/var` 都是指向 `/private/...` 的软链，仓库目录一旦经由它们被引用
+// （临时副本、CI 缓存目录、`mktemp -d` 造出来的沙箱），两边 URL 不等，runCli() 就**静默不跑**：
+// 退出码 0、一行输出都没有。那正是本工具链最忌讳的形态——看起来成功、其实什么都没做，
+// 而扫描模式下"没有任何命中"与"根本没扫描"长得一模一样。
+function isDirectRun() {
+  if (!process.argv[1]) return false
+  try {
+    return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (isDirectRun()) {
   runCli()
 }

@@ -134,6 +134,13 @@ bash scripts/performance/run-stress-test.sh --profile smoke \
   `<redacted:jwt>`，替换处数记在 `manifest.json` 的 `credential_redactions` 字段。
   这不是"改原始产物"，而是归档前的必要脱敏：一份给第三方复核的性能证据包，
   没有任何理由携带可用身份令牌。
+  **脱敏这一步自己没跑成，就是一次工具链失败（exit 1），不靠后面的扫描来替代**：脱敏器
+  非 0 退出、或它退出 0 却没有给出**恰好一行**合法 `redacted=<N>`（缺行、重复行、非数字
+  都算），都会被记成"本包没有结论"而不是"本包不齐"。理由：扫描只回答"现在还残留吗"，
+  回答不了"该替换的替换了吗"——一份没脱敏但恰好也不含残留的包，在扫描下与脱敏成功长得
+  一模一样。早先这里只打印一行错误就继续，替换处数被静默折成 `0`（那个 `0` 会被写进清单，
+  看起来完全合法），于是"脱敏器起不来"最多被后续扫描间接归成 12 —— 调用方会去补采一个
+  补多少次都不会变的包。
 
 脱敏之后**还会用同一个脚本、同一组检测器把整包扫一遍**（`scrub-secrets.mjs --scan`），
 扫的是 JWT / 敏感键值（`"password"`、`"token"` 等键名下的字符串）/ `Authorization: Bearer` /
@@ -277,7 +284,7 @@ k6 返回 0 只说明门禁通过，不说明这份包能交付。k6 的原始�
 四条出口的离线回归不需要起任何服务、也不会向任何环境施压：
 
 ```bash
-bash scripts/performance/exit-code-self-test.sh   # 32 项：0 / k6 码 / 1 / 12
+bash scripts/performance/exit-code-self-test.sh   # 40 项：0 / k6 码 / 1 / 12
 ```
 
 **"哪一层坏了"要报对码，否则会把人指去改错的东西。** 典型是 `node`：`command -v node` 成功
@@ -395,7 +402,7 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | `scripts/performance/monitor-lifecycle.sh` | 采集子进程的启停（`.ready` 握手、有界等待、超时强杀） |
 | `scripts/performance/evidence-completeness.sh` | 完整性判定与交付出口（`missing_artifacts` / `delivery_blockers` / exit 1 与 exit 12 的分层） |
 | `scripts/performance/evidence-archive.sh` | 归档三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单；同时记录工具链失败状态 |
-| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（不连网络、不施压，逐用例有超时上界；共 32 项断言，含四项先自检夹具自身）。替身与子进程上界在同目录的 `self-test-fixtures.sh`（夹具层），本文件只写断言 |
+| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（不连网络、不施压，逐用例有超时上界；共 40 项断言，含四项先自检夹具自身）。替身与子进程上界在同目录的 `self-test-fixtures.sh`（夹具层），本文件只写断言；另有三个**只坏脱敏这一次调用**的替身（崩溃 / 机器行被吞 / 机器行重复）由本文件按用例在沙箱里构造 |
 | `scripts/performance/self-test-fixtures.sh` | 上面那个自检的夹具层：k6 / curl / mysql / redis-cli 与监控侧 top / uptime / sysctl / vm_stat / uname 的固定输出替身，外加"坏扫描器""坏 node shim""挂死的 node shim""无 node 的影子 PATH"四个构造，并自带一个能跑的 node（同时清掉宿主可能定义的 node shell 函数）；被 `source` 使用，不单独执行 |
 | `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（runner / 采集器 / 清单生成器都读它，`--self-check` 可离线自检） |
 | `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜——非数值不会被 awk 强制转换成 0，`jstat` 堆字段混进 `foo` 时整列留空而不是写一条"堆已用 0MB"）。它的 43 项断言在同目录的 `monitor-parse-self-test.sh`（自检层），本文件只留解析 |

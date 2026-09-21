@@ -58,8 +58,16 @@ archive_normalize_console() {
 # node 缺失时这一整条链都跑不了（脱敏、扫描、写清单三件都需要它），因此记一次
 # **工具链失败**，而不是静默 return 0：早先这里无声返回，于是没有 node 的压测机上
 # 连"本包还带不带凭证"都没有结论，却照样走完判定、留下一个看似正常的证据目录。
+#
+# 脱敏**这一步自己**没跑成，同样是工具链失败，理由与上面同源：它是否覆盖到每个文件，
+# 只有它自己的输出能证明，**后续扫描不能替代**（扫描只回答"现在还残留吗"，回答不了
+# "该替换的替换了吗"——一份没脱敏但也不含残留的包在扫描下与脱敏成功一模一样）。
+# 因此：非 0 退出即记失败；退出 0 时机器行必须**恰好一行**合法 `redacted=<N>`，缺失、
+# 重复、非数字都记失败。早先这里把"取不到"静默折成 `REDACTED_COUNT=0`（那个 0 会被
+# 写进清单，看起来完全合法），于是"脱敏器起不来"只被后续扫描间接归成 12 ——
+# 调用方会去补采一个补多少次都不会变的包，而真相是这次判定根本没成立。
 archive_redact() {
-  local _run_dir="$1" _out=""
+  local _run_dir="$1" _out="" _rc=0 _lines="" _n=0
   REDACTED_COUNT=0
   if ! command -v node >/dev/null 2>&1; then
     archive_toolchain_failure "未检测到 node：无法执行凭证脱敏（k6 summary 的 setup_data 带 bearer token）、无法扫描残留、无法生成 manifest.json"
@@ -68,13 +76,29 @@ archive_redact() {
   SCRUB_FILES=("${_run_dir}/k6-summary.json" "${_run_dir}/k6-console.log")
   if [[ -f "${_run_dir}/k6-raw-samples.csv" ]]; then SCRUB_FILES+=("${_run_dir}/k6-raw-samples.csv"); fi
   if [[ -d "${_run_dir}/monitoring" ]]; then SCRUB_FILES+=("${_run_dir}/monitoring/monitoring.log"); fi
-  if _out="$(node "${SCRIPT_DIR}/scrub-secrets.mjs" "${SCRUB_FILES[@]}" 2>&1)"; then
-    REDACTED_COUNT="$(printf '%s\n' "$_out" | sed -nE 's/^redacted=([0-9]+)$/\1/p' | tail -1)"
-    REDACTED_COUNT="${REDACTED_COUNT:-0}"
-    echo "run-stress-test: 凭证脱敏完成（替换 ${REDACTED_COUNT} 处）"
-  else
-    echo "run-stress-test: 凭证脱敏失败，证据包可能含可用凭证：${_out}" >&2
+  _out="$(node "${SCRIPT_DIR}/scrub-secrets.mjs" "${SCRUB_FILES[@]}" 2>&1)"
+  _rc=$?
+  if [[ "$_rc" != "0" ]]; then
+    echo "run-stress-test: 凭证脱敏失败（退出码 ${_rc}），证据包可能含可用凭证：${_out}" >&2
+    archive_toolchain_failure "凭证脱敏未完成（scrub-secrets.mjs 退出码 ${_rc}）：无法确认本包已脱敏，后续扫描不能替代这一步的结论"
+    return 0
   fi
+  # 只认**整行**匹配（`sed -nE` 的锚定写法与扫描那侧同口径）：把 `redacted=` 混在别的
+  # 输出里（或被 echo 出来的调试文本）不算数，否则一份被截断/被重定向的输出仍能声称脱敏成功。
+  # 行数用 `sed -n '$='` 而不是 `grep -c`：后者无命中时退出码为 1，在 `set -e`/`pipefail`
+  # 的调用方里会把"没有这一行"变成一次提前退出；空串先判掉，也不吃 `printf` 补出的那个空行。
+  _lines="$(printf '%s\n' "$_out" | sed -nE 's/^redacted=([0-9]+)$/\1/p')"
+  _n=0
+  if [[ -n "$_lines" ]]; then
+    _n="$(printf '%s\n' "$_lines" | sed -n '$=')"
+  fi
+  if [[ "$_n" != "1" ]]; then
+    echo "run-stress-test: 凭证脱敏未给出可核验的结论（期望恰好一行 redacted=<N>，实际 ${_n} 行）：${_out}" >&2
+    archive_toolchain_failure "凭证脱敏的机器输出不可解析（期望恰好一行 redacted=<N>，实际 ${_n} 行）：无法确认脱敏覆盖范围"
+    return 0
+  fi
+  REDACTED_COUNT="$_lines"
+  echo "run-stress-test: 凭证脱敏完成（替换 ${REDACTED_COUNT} 处）"
 }
 
 # 脱敏之后再扫一遍残留，且用**同一个脚本、同一组检测器**（scrub-secrets.mjs --scan）。

@@ -24,7 +24,7 @@
 | `monitor-lifecycle.sh` | 入口-子进程层 | 监控采集子进程的启停（`.ready` 握手、有界等待、超时强杀），以及采集侧问题清单 `MONITOR_ISSUES` |
 | `evidence-archive.sh` | 归档层 | 产物落盘之后、对外交付之前的三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单。同时记录 `TOOLCHAIN_FAILURE` / `TOOLCHAIN_FAILURE_REASON`（哪一步的哪件工具没跑成），由判定层决定退出码 |
 | `evidence-completeness.sh` | 判定层 | 完整性判定与交付出口：算 `MISSING_ARTIFACTS` 与 `DELIVERY_BLOCKER_CODES`（+给人和给清单看的两份文案），决定 exit 1（工具链不可用）/ exit 12（证据不齐）还是透传 k6 退出码 |
-| `exit-code-self-test.sh` | 判定-回归 | 纯离线跑通 0 / k6 码 / 1 / 12 四条出口共 32 项断言，含"无 node""坏 node shim（找得到但跑不动）""挂死的 node shim（调用它永不返回）""扫描器崩溃""文案表重复 code""账号池非法或为空"等反例；开头四项断言先自检夹具自身（夹具自带的 node 在 PATH 首位、坏扫描器替身不得自递归），否则"用例 6 挂死"会被读成环境问题。本文件只写断言，替身与子进程上界在下一行 |
+| `exit-code-self-test.sh` | 判定-回归 | 纯离线跑通 0 / k6 码 / 1 / 12 四条出口共 40 项断言，含"无 node""坏 node shim（找得到但跑不动）""挂死的 node shim（调用它永不返回）""扫描器崩溃""只坏脱敏这一次调用（崩溃 / 机器行被吞 / 机器行重复）""经软链目录调用扫描器""文案表重复 code""账号池非法或为空"等反例；开头四项断言先自检夹具自身（夹具自带的 node 在 PATH 首位、坏扫描器替身不得自递归），否则"用例 6 挂死"会被读成环境问题。本文件只写断言，替身与子进程上界在下一行 |
 | `self-test-fixtures.sh` | 判定-回归（夹具层） | 上面那个自检的**夹具层**：把 k6 / curl / mysql / redis-cli 与监控侧的 top / uptime / sysctl / vm_stat / uname 全部换成固定输出的替身，**自带一个能跑的 node**（并清掉宿主可能定义的 node shell 函数），外加"坏扫描器""坏 node shim""挂死的 node shim""无 node 的影子 PATH"四个构造，并给出 `check` / `run_runner`（逐用例超时上界）/ `fixture_self_check`。被 `source` 使用，不单独执行（直接跑 exit 2 并提示） |
 | `monitor-spec.sh` | 契约库 | 监控证据的**唯一契约源**：组件集合、各 CSV 表头、"有效采样行"判定列号。runner / 采集器 / 清单生成器都读它，`--self-check` 在无服务环境下自检三方自洽 |
 | `delivery-blockers.tsv` | 契约库 | 交付阻塞项文案的**唯一来源**（`code<TAB>文案`），shell 侧与 JS 侧共读，跨进程传递的是 **code** 而不是文案；格式违规（多 TAB/缺文案/重复 code）两侧一律硬失败（exit 1），追加新 code 时两侧都要加引用分支 |
@@ -103,7 +103,7 @@ CI secret 没注入、配置被清空）或 `--users ''` = 提供了但没提供
 这条分界有离线回归可跑，不需要起任何服务或向任何环境施压：
 
 ```bash
-bash scripts/performance/exit-code-self-test.sh   # 32 项，覆盖 0 / k6 码 / 1 / 12 四条出口
+bash scripts/performance/exit-code-self-test.sh   # 40 项，覆盖 0 / k6 码 / 1 / 12 四条出口
 ```
 
 `bash scripts/performance/run-stress-test.sh --help` 打印头部注释里的用法正文
