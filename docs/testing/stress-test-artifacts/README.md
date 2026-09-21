@@ -398,7 +398,8 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（不连网络、不施压，逐用例有超时上界；共 32 项断言，含四项先自检夹具自身）。替身与子进程上界在同目录的 `self-test-fixtures.sh`（夹具层），本文件只写断言 |
 | `scripts/performance/self-test-fixtures.sh` | 上面那个自检的夹具层：k6 / curl / mysql / redis-cli 与监控侧 top / uptime / sysctl / vm_stat / uname 的固定输出替身，外加"坏扫描器""坏 node shim""挂死的 node shim""无 node 的影子 PATH"四个构造，并自带一个能跑的 node（同时清掉宿主可能定义的 node shell 函数）；被 `source` 使用，不单独执行 |
 | `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（runner / 采集器 / 清单生成器都读它，`--self-check` 可离线自检） |
-| `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜——非数值不会被 awk 强制转换成 0，`jstat` 堆字段混进 `foo` 时整列留空而不是写一条"堆已用 0MB"） |
+| `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜——非数值不会被 awk 强制转换成 0，`jstat` 堆字段混进 `foo` 时整列留空而不是写一条"堆已用 0MB"）。它的 43 项断言在同目录的 `monitor-parse-self-test.sh`（自检层），本文件只留解析 |
+| `scripts/performance/monitor-parse-self-test.sh` | 上面那个解析层的自检层：每一项断言对应一次"曾经静默错过的输入"（非数值折成 0、`vm_stat` 缺一段被当 0 相加、`mysql` 空值写成 0、CPU 三元组缺一等）；被测对象是 `monitor-parse.sh` 里的纯函数，故由那个文件在 `--self-test` 分支 `source`（不单独执行，直接跑 exit 2 并提示） |
 | `scripts/performance/monitor-readers.sh` | 四个组件各采一次、各写一行、各记一次状态 |
 | `scripts/performance/monitor-status.sh` | 采集侧的状态与结论层：`component-status.csv` 与"这次采集成不成功" |
 | `scripts/performance/delivery-blockers.tsv` | 交付阻塞项文案的**唯一来源**，shell 侧与 JS 侧共读；跨进程传递的是 code 而非文案，格式违规两侧都硬失败 |

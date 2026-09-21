@@ -28,7 +28,8 @@
 | `self-test-fixtures.sh` | 判定-回归（夹具层） | 上面那个自检的**夹具层**：把 k6 / curl / mysql / redis-cli 与监控侧的 top / uptime / sysctl / vm_stat / uname 全部换成固定输出的替身，**自带一个能跑的 node**（并清掉宿主可能定义的 node shell 函数），外加"坏扫描器""坏 node shim""挂死的 node shim""无 node 的影子 PATH"四个构造，并给出 `check` / `run_runner`（逐用例超时上界）/ `fixture_self_check`。被 `source` 使用，不单独执行（直接跑 exit 2 并提示） |
 | `monitor-spec.sh` | 契约库 | 监控证据的**唯一契约源**：组件集合、各 CSV 表头、"有效采样行"判定列号。runner / 采集器 / 清单生成器都读它，`--self-check` 在无服务环境下自检三方自洽 |
 | `delivery-blockers.tsv` | 契约库 | 交付阻塞项文案的**唯一来源**（`code<TAB>文案`），shell 侧与 JS 侧共读，跨进程传递的是 **code** 而不是文案；格式违规（多 TAB/缺文案/重复 code）两侧一律硬失败（exit 1），追加新 code 时两侧都要加引用分支 |
-| `monitor-parse.sh` | 采集-解析层 | 纯解析：`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 的原始文本 → 数值字段，不碰进程、不连服务、不写文件。**解析不出来一律留空、不猜**：非数值不会被 awk 的强制转换变成 0（`jstat` 堆字段混进 `foo` 时整列留空，而不是报一条"堆已用 0MB"的合法采样） |
+| `monitor-parse.sh` | 采集-解析层 | 纯解析：`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 的原始文本 → 数值字段，不碰进程、不连服务、不写文件。**解析不出来一律留空、不猜**：非数值不会被 awk 的强制转换变成 0（`jstat` 堆字段混进 `foo` 时整列留空，而不是报一条"堆已用 0MB"的合法采样）。断言在下一行，本文件只留解析（`--self-test` 分支 `source` 它） |
+| `monitor-parse-self-test.sh` | 采集-解析（自检层） | 上面那个解析层的**自检层**：43 项断言，每一项对应一次"曾经静默错过的输入"（非数值不得被折成 0、`vm_stat` 缺一段时整列留空而不是当 0 相加、`mysql` 空值与 0 不同、`top` CPU 三元组缺一不可……）。被测对象正是 `monitor-parse.sh` 里的纯函数，所以由那个文件在 `--self-test` 分支 `source`，而不是反过来依赖。被 `source` 使用，不单独执行（直接跑 exit 2 并提示） |
 | `monitor-readers.sh` | 采集-读取层 | 四个组件（system / app-jvm / mysql / redis）各采一次、各写一行、各记一次状态 |
 | `monitor-status.sh` | 采集-状态层 | 组件状态的唯一持有者，产出 `component-status.csv`，并判定"这次采集算不算成功" |
 | `scrub-secrets.mjs` | 脱敏脚本 | 归档前就地替换证据包里的凭证（JWT / 敏感键值 / Bearer / URL userinfo），并在脱敏后对整包做同组检测器的残留扫描（`--scan`），结论写入 `manifest.json` 的 `secret_scan`；同时导出 `scrubText` / `DETECTORS` 供清单侧复用 |
