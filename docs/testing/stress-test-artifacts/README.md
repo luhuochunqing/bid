@@ -129,16 +129,29 @@ bash scripts/performance/run-stress-test.sh --profile smoke \
 扫的是 JWT / 敏感键值（`"password"`、`"token"` 等键名下的字符串）/ `Authorization: Bearer`
 三类文本形态。只脱敏不扫描时，"脱敏覆盖到了哪些文件"就只是脚本的一句声明——新增一份产物
 而忘了加进脱敏清单，凭证会原样留在包里，而产物一个不少、sha256 也都对得上。
-扫描结论与**覆盖范围**记在 `manifest.json` 的 `secret_scan` 字段：
+扫描结论与**覆盖范围**记在 `manifest.json` 的 `secret_scan` 字段。状态有四种，
+**只有 `passed` 才允许 `evidence_complete: true`**：
 
-- `status: passed` 才允许 `evidence_complete: true`；扫出残留或文件读不开 → 记为残渣、
-  写进 `delivery_blockers`、脚本 exit 12（读不开就等于无法证明它干净，按失败处理）。
-- 覆盖范围是"本包内除 `manifest.json` 外的全部文本产物"：扫描发生在写清单之前，
+| `status` | 退出码 | 含义 | 后果 |
+| :--- | :--- | :--- | :--- |
+| `passed` | 0 | 全部产物都在检测器覆盖范围内且无命中 | 放行 |
+| `failed` | 1 | 扫到残留（脱敏没覆盖到，或脱敏后又被写回） | 写进 `delivery_blockers`，exit 12 |
+| `incomplete` | 3 | 有产物**扫不了**（二进制/非 UTF-8），无法证明它干净 | 写进 `delivery_blockers`，exit 12 |
+| `unverified` | —— | 扫描器没给出可解析的结论，或退出码与它 stdout 的 `scan_status=` 对不上 | 写进 `delivery_blockers`，exit 12 |
+
+- **"扫不了"按失败处理，不按通过处理。** 早先的版本把二进制产物列为"未覆盖"就放行，
+  于是往包里丢一个 `raw-snapshot.bin` 就能让整包跳过凭证检查——覆盖不到的产物等于没检查，
+  而不检查就不能自称干净。现在这类文件会让扫描以 exit 3 结束并列出文件名
+  （`secret_scan.unscanned_files`），整包判不可交付。**若你确实要交付监控截图这类二进制材料**，
+  它必须与"证据包"分开交付，或在人工确认其中不含凭证后单独说明——这是本工具的能力边界。
+- **覆盖范围**是"本包内除 `manifest.json` 外的全部产物"：扫描发生在写清单之前，
   清单自身由 `write-run-manifest.mjs` 按固定字段生成、不含来自环境的自由文本。
-- **二进制产物不扫描**（本脚本不解析二进制），但它们不会被默默略过：扫描输出会逐个列出
-  未覆盖的文件名，数量随之写进同一条结论里。若你往包里放了监控截图这类人工材料，
-  其中的凭证需要人工确认——这是本工具的能力边界，不是"已检查"。
-- 三类形态之外的自定义凭证头（例如自造的 `X-Api-Key`）不在检测范围内，同理需要人工判断。
+- 三类形态之外的自定义凭证头（例如自造的 `X-Api-Key`）不在检测范围内，需要人工判断。
+- 状态取**扫描器退出码与它 stdout 上 `scan_status=` 两路来源的交集**：任一路缺失或彼此
+  不一致即收敛到 `unverified`。单独一路都可能因为包装层截断（`| head`、supervisor 只记 rc）
+  或输出被重定向而给出"看上去正常"的假信号。
+- **清单会自己再扫一遍**（不采信 runner 注入的结论），两边不一致时按不可交付处理；
+  详见 `manifest.json` 的 `secret_scan.status_source` 与 `detector_agreement` 两个字段。
 
 ---
 
@@ -170,6 +183,10 @@ bash scripts/performance/run-stress-test.sh \
 
 > 两个场景**必须选一个**并显式写出来：目标不是回环地址时，脚本不会替你猜监控数据该采谁，
 > 缺 `--monitor-local-target` / `--no-monitor` 会在压测开始前直接 exit 2。
+> 但**不要两个都写**：`--no-monitor` 与 `--monitor-local-target` 是互斥的两种拓扑声明，
+> 同时给出属自相矛盾的调用，同样以 exit 2 拒绝（此前是静默让 `--no-monitor` 生效，
+> 于是操作者以为在本机采了监控、拿到的却是一个 `monitor_scope=skipped` 的包，
+> 压测照常跑完且没有任何提示）。
 > 注释放命令行前一行、不要写在续行反斜杠后面（`\` 后面跟 `#` 会让下一行变成独立命令，
 > 那段示例就不是可复制执行的 shell 了）。
 
@@ -235,7 +252,16 @@ k6 返回 0 只说明门禁通过，不说明这份包能交付。k6 的原始�
 记在 manifest 的 `monitoring_components`（逐组件有效行数与原因）与 `monitoring_issues` 里。
 `monitoring.log` 与 `component-status.csv` 无条件必需——它们记录"采了什么、采到没有"。
 
+**清单也不采信 runner 的说法。** `write-run-manifest.mjs` 会把上面这几件事各自**再算一遍**
+（产物是否齐、逐组件有效行数、包内还有没有凭证残留、阻塞项文案），与 runner 注入的结论取
+**并集**后写进 `manifest.json`；它自己判出不可交付时以 exit 12 结束，runner 再把这个判断并回
+自己的退出码。两边独立算出同一个结论，才是这份清单值得第三方信任的理由——若清单只是照抄
+调用方的说法，那么调用方漏算一样（新增一份产物却没加进它的清单、某份 CSV 只有表头、扫描被跳过）
+时，清单会**一致地**给出一个错误的 `evidence_complete: true`，且看不出任何异常。
+
 manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifacts` 列表记录同一判定。
+注意 `missing_artifacts`（该有的产物没到位）与 `delivery_blockers`（产物一个不少、但这份包仍
+不能交付）是**两类**判断，判断方式与处置方式都不同，不要合并记账。
 
 跑完后按 `manifest.json` 的 `headline_metrics` 与各接口 p95 填报告 §4.2 的表格，
 并把整个证据目录作为附件随报告交付。
@@ -299,10 +325,21 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | 文件 | 作用 |
 | :--- | :--- |
 | `scripts/performance/run-stress-test.sh` | 压测执行入口，产出本目录的证据包 |
-| `scripts/performance/capture-monitoring.sh` | 压测期间系统/JVM/MySQL/Redis 监控采样 |
-| `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（采集器与 runner 都 source 它，`--self-check` 可离线自检） |
-| `scripts/performance/scrub-secrets.mjs` | 归档前的凭证脱敏，以及脱敏后的整包残留扫描（`--scan`） |
-| `scripts/performance/write-run-manifest.mjs` | 生成 `manifest.json`（含 sha256 与门禁判定） |
+| `scripts/performance/capture-monitoring.sh` | 压测期间系统/JVM/MySQL/Redis 监控采样，产出本目录的 `monitoring/` |
+| `scripts/performance/run-preflight.sh` | 入口的参数解析与前置校验层（拓扑开关互斥、环境守卫、档位/组件白名单、监控宿主判定） |
+| `scripts/performance/cli-guards.sh` | 两个入口共用的"带值选项缺值即 exit 2"守卫 |
+| `scripts/performance/monitor-lifecycle.sh` | 采集子进程的启停（`.ready` 握手、有界等待、超时强杀） |
+| `scripts/performance/evidence-completeness.sh` | 完整性判定与交付出口（`missing_artifacts` / `delivery_blockers` / exit 12） |
+| `scripts/performance/evidence-archive.sh` | 归档三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单 |
+| `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（runner / 采集器 / 清单生成器都读它，`--self-check` 可离线自检） |
+| `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段） |
+| `scripts/performance/monitor-readers.sh` | 四个组件各采一次、各写一行、各记一次状态 |
+| `scripts/performance/monitor-status.sh` | 采集侧的状态与结论层：`component-status.csv` 与"这次采集成不成功" |
+| `scripts/performance/delivery-blockers.tsv` | 交付阻塞项文案的**唯一来源**，shell 侧与 JS 侧共读 |
+| `scripts/performance/scrub-secrets.mjs` | 归档前的凭证脱敏，以及脱敏后的整包残留扫描（`--scan`，退出码 0/1/3） |
+| `scripts/performance/write-run-manifest.mjs` | 装配并写出 `manifest.json`（含 sha256 与门禁判定） |
+| `scripts/performance/manifest-verify.mjs` | 清单侧的独立复核层（产物 / 有效采样行 / 凭证残留 / 阻塞项文案，与注入值取并集） |
+| `scripts/performance/k6-evidence.mjs` | 清单侧的 k6 产物解释层（头部指标、声明的与击穿的门禁、退出码、脚本路径） |
 | `k6-tests/load-test.js` | k6 压测脚本本体（场景权重、门禁阈值、各接口 Trend 指标） |
 | `docs/testing/STRESS_TEST_GUIDE.md` | 铺底数据生成、导入、执行、清理的操作 SOP |
 | `docs/testing/STRESS_TEST_REPORT_2026-08-28.md` | 2026-08-28 实测报告（附录八为本次补充的证据复现清单） |

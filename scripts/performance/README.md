@@ -5,14 +5,28 @@
 这里存放西域数智化投标管理平台的真实 API 压测脚本和运行说明。
 脚本只面向真实后端、MySQL 和 Redis，不使用前端 demo 或 mock 数据路径。
 
+工具链按"契约 / 入口 / 判定"三层拆开，每个文件都能单独 `bash -n`（或 `node --check`）
+并在没有服务、没有 k6 的机器上跑；判断"这份包能不能交付"的代码集中在判定层，不散落在入口里。
+
 | 文件 | 地位 | 功能 |
 |------|------|------|
 | `sales-200.k6.js` | 压测脚本 | 模拟 200 个销售在线用户访问登录、项目、看板、导出和标书上传入队链路 |
-| `run-stress-test.sh` | 执行脚本 | 压测执行与原始证据归档入口：调用 `k6-tests/load-test.js` 跑指定档位，产出完整证据包（原始 summary / 逐请求采样 / 控制台日志 / 监控数据 / `manifest.json`）。内置 `XIYU_STRESS_CONFIRMED=1` 与环境守卫，默认关闭业务写入；证据不全时以 exit 12 拒绝交付 |
-| `capture-monitoring.sh` | 采集脚本 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录，产出 CSV 时间序列 + 可读日志 + `component-status.csv`（逐组件有效采样行数），替代手工监控截图。只在要求 `mysql` 时才强制 `MYSQL_PASSWORD`；单独运行默认只要求 `system` |
-| `monitor-spec.sh` | 契约库 | 监控证据的**唯一契约源**：组件集合、各 CSV 表头、"有效采样行"判定列号。`run-stress-test.sh` 与 `capture-monitoring.sh` 都 source 它，`--self-check` 在无服务环境下自检三者自洽 |
-| `scrub-secrets.mjs` | 脱敏脚本 | 归档前就地替换证据包里的凭证（JWT / 敏感键值 / Bearer），并在脱敏后对整包做同组检测器的残留扫描（`--scan`，二进制产物列为未覆盖），结论写入 `manifest.json` 的 `secret_scan` |
-| `write-run-manifest.mjs` | 清单脚本 | 解析证据目录既有产物，生成 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、逐组件监控状态、各产物 sha256、完整性判定） |
+| `run-stress-test.sh` | 执行入口 | 压测执行与原始证据归档入口：调用 `k6-tests/load-test.js` 跑指定档位，产出完整证据包（原始 summary / 逐请求采样 / 控制台日志 / 监控数据 / `manifest.json`）。内置 `XIYU_STRESS_CONFIRMED=1` 与环境守卫，默认关闭业务写入；证据不全时以 exit 12 拒绝交付 |
+| `capture-monitoring.sh` | 采集入口 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录，产出 CSV 时间序列 + 可读日志 + `component-status.csv`（逐组件有效采样行数），替代手工监控截图。只在要求 `mysql` 时才强制 `MYSQL_PASSWORD`；单独运行默认只要求 `system` |
+| `run-preflight.sh` | 入口-预检层 | 命令行解析、默认值、拓扑开关互斥、`XIYU_STRESS_CONFIRMED` 与环境守卫、档位/组件白名单、`--base-url` 与目标主机解析、k6 与压测脚本存在性检查 |
+| `cli-guards.sh` | 入口-参数守卫 | 两个入口脚本共用的"带值选项缺值即 exit 2"守卫，避免把下一个选项当成值吞掉 |
+| `monitor-lifecycle.sh` | 入口-子进程层 | 监控采集子进程的启停（`.ready` 握手、有界等待、超时强杀），以及采集侧问题清单 `MONITOR_ISSUES` |
+| `evidence-archive.sh` | 归档层 | 产物落盘之后、对外交付之前的三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单 |
+| `evidence-completeness.sh` | 判定层 | 完整性判定与交付出口：算 `MISSING_ARTIFACTS` 与 `DELIVERY_BLOCKERS`，决定 exit 12 还是透传 k6 退出码 |
+| `monitor-spec.sh` | 契约库 | 监控证据的**唯一契约源**：组件集合、各 CSV 表头、"有效采样行"判定列号。runner / 采集器 / 清单生成器都读它，`--self-check` 在无服务环境下自检三方自洽 |
+| `delivery-blockers.tsv` | 契约库 | 交付阻塞项文案的**唯一来源**（`code<TAB>文案`），shell 侧与 JS 侧共读；追加新 code 时两侧都要加引用分支，缺文案即硬失败 |
+| `monitor-parse.sh` | 采集-解析层 | 纯解析：`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 的原始文本 → 数值字段，不碰进程、不连服务、不写文件 |
+| `monitor-readers.sh` | 采集-读取层 | 四个组件（system / app-jvm / mysql / redis）各采一次、各写一行、各记一次状态 |
+| `monitor-status.sh` | 采集-状态层 | 组件状态的唯一持有者，产出 `component-status.csv`，并判定"这次采集算不算成功" |
+| `scrub-secrets.mjs` | 脱敏脚本 | 归档前就地替换证据包里的凭证（JWT / 敏感键值 / Bearer），并在脱敏后对整包做同组检测器的残留扫描（`--scan`），结论写入 `manifest.json` 的 `secret_scan` |
+| `write-run-manifest.mjs` | 清单脚本 | 装配并写出 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、逐组件监控状态、各产物 sha256、完整性判定），并把自己的独立结论回传给 runner |
+| `manifest-verify.mjs` | 清单-复核层 | 独立复核：产物是否齐、监控 CSV 有没有数据、包内还有没有凭证残留、阻塞项文案，与 runner 注入值取**并集** |
+| `k6-evidence.mjs` | 清单-解释层 | 把 k6 的三份产物读成清单字段：头部指标、声明的门禁、被击穿的门禁、退出码、脚本路径 |
 
 ## 压测证据归档（推荐入口）
 
@@ -20,9 +34,7 @@
 
 ```bash
 export XIYU_STRESS_CONFIRMED=1
-# 前提：命令跑在 172.16.38.78 这台应用宿主上（监控采集器只能采本机资源）。
-# 跑在别的压测机上时把 --monitor-local-target 换成 --no-monitor，并到目标机单独跑
-# capture-monitoring.sh —— 两者必须显式给一个，缺了会在压测开始前 exit 2。
+# 前提：命令跑在 172.16.38.78 这台应用宿主上（监控采集器只能采本机资源，见下面"监控宿主"一节）。
 bash scripts/performance/run-stress-test.sh \
   --profile standard \
   --base-url http://172.16.38.78:8080 \
@@ -33,6 +45,17 @@ bash scripts/performance/run-stress-test.sh \
 产出物落在 `docs/testing/stress-test-artifacts/<UTC时间戳>-<档位>/`，
 目录结构、门禁判定口径与已知复现差异见 `docs/testing/stress-test-artifacts/README.md`。
 
+**监控宿主（`--no-monitor` / `--monitor-local-target`）**：两个开关**互斥**，同时给出是自相矛盾的
+调用（一个说"本包不含监控"、一个说"本机就是目标、就地采集"），一律以 exit 2 拒绝，而不是让其中
+一个静默生效。都**不给**时按 `--base-url` 的主机判定，只有三种结果：
+
+| `--base-url` 主机 | 给的开关 | `monitor_scope` | 结果 |
+|---|---|---|---|
+| 回环地址（`127.0.0.1` / `localhost` / `::1` / `0.0.0.0`） | 不给 | `local-target` | 跑。回环在定义上就是本机，这是机器可核验的事实，不是替操作者猜 |
+| 非回环主机 | `--monitor-local-target` | `local-target-asserted` | 跑。操作者显式声明"本机就是这台目标宿主机" |
+| 非回环主机 | `--no-monitor` | `skipped` | 跑，但本包**不可独立交付**（见 exit 12），需在目标机另跑采集器 |
+| 非回环主机 | 不给 | —— | **exit 2**。目标不在本机、监控采不了它，把本机数据写进这个包等于拿压测机的负载冒充目标机的负载 |
+
 账号池从环境变量 `XIYU_K6_USERS` 传入（JSON 数组，格式同 `--users`）。别用命令行传口令：
 `--users '[{"username":…,"password":…}]'` 会把测试环境口令留在本机 `ps` 的 argv 里。
 
@@ -41,8 +64,13 @@ export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
 ```
 
 **退出码**：`0` = k6 全部门禁通过且证据完整；k6 自身码 = k6 未全通过（`99` 表示有门禁被击穿）
-但证据完整；`1` = 拒绝执行（未确认环境 / 命中生产特征 / 缺 k6）；`2` = 用法错误；
+但证据完整；`1` = 拒绝执行（未确认环境 / 命中生产特征 / 缺 k6 或压测脚本 / 工具链自身不可用，
+例如读不到 `monitor-spec.sh` 的规格或 `delivery-blockers.tsv` 的文案）；`2` = 用法错误
+（未知参数、带值选项缺值、拓扑开关矛盾、档位或组件名拼错、监控宿主不明确）；
 **`12` = k6 已跑完但证据包不可交付，优先于 k6 退出码上报**。
+
+`bash scripts/performance/run-stress-test.sh --help` 打印头部注释里的用法正文
+（取"第 1 行到第一个空行"，因此**头部注释内不得插入空行**——写死行号时增删几行会静默印出半截用法）。
 
 证据完整性是硬门禁，且查的是"有数据"而不只是"文件存在"：默认要求
 `system,app-jvm,mysql,redis` 四个监控组件各至少一行有效采样（必需字段齐备且为数值）。
@@ -50,12 +78,36 @@ export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
 显式收窄（必需产物清单与逐份 CSV 的复算都只覆盖声明的集合）；不声明就少一个组件 → exit 12，
 而不是交付一份"CSV 都在、其中一份全是空值"的包。
 
-除"产物缺失/为空/无有效数据行"外，还有两条 **exit 12** 的情形记在 `manifest.json` 的
+除"产物缺失/为空/无有效数据行"外，还有几条 **exit 12** 的情形记在 `manifest.json` 的
 `delivery_blockers` 里（产物一个不少，但这份包仍不能交付）：本次用了 `--no-monitor`
 （`external_monitoring_required: true`，监控原始数据需由目标机单独产出后一并交付），
 或归档前的凭证残留扫描未通过（`secret_scan.status != passed`）。
+
+判定分两类、不能合并记账：`missing_artifacts`（该有的产物没到位）与 `delivery_blockers`
+（产物一个不少、但这份包仍不能交付）。两者的处置方式不同——前者补跑或补采，后者要换一种
+交付方式——混在一张清单里会让读者以为只差文件。
+
 组件集合、各 CSV 表头与"有效采样行"的判定列号定义在 `monitor-spec.sh` 一处，
 采集器与 runner 都 source 它；改动后跑 `bash scripts/performance/monitor-spec.sh --self-check` 自检。
+
+**凭证残留扫描的口径**（`scrub-secrets.mjs --scan`，结论写入 `manifest.json` 的 `secret_scan`）：
+
+| `scan.status` | 退出码 | 含义 |
+|---|---|---|
+| `passed` | 0 | 全部产物都在检测器的覆盖范围内，且没有命中 |
+| `failed` | 1 | 扫到了残留（脱敏没覆盖到，或脱敏后又被写回） |
+| `incomplete` | 3 | 有产物**扫不了**（二进制/非 UTF-8 文本），无法证明它干净。这是失败关闭：不把"扫不了"当成"没问题" |
+| `unverified` | —— | 扫描器没输出可解析的结论，或退出码与它自己 stdout 的 `scan_status=` 对不上 |
+
+状态取**退出码与 stdout 两路来源的交集**，任一路缺失或彼此不一致就收敛到 `unverified`：
+单独一路都可能因为包装层截断（`| head`、只记 rc）或输出被重定向而给出"看上去正常"的假信号。
+`incomplete` / `unverified` 都进 `delivery_blockers`，同样是 exit 12。
+
+`manifest.json` **不照抄 runner 注入的结论**：产物是否齐、监控 CSV 有没有数据、包内还有没有
+凭证残留，都由 `write-run-manifest.mjs` 独立复算一遍，再与注入值取**并集**；清单自己判出
+不可交付时以 exit 12 结束，runner 把这份判断并回自己的退出码（清单侧的 0 与 12 都表示"清单已写出"）。
+runner 少算的（例如某份产物是二进制、扫描根本没覆盖到它）只有清单会先发现，所以是清单的判断
+并回 runner，而不是反过来。
 
 各档位时长：`smoke` 30s（1 VU 冒烟）、`standard` 3.5m（10→50→100 VU）、
 `stress` 5m（20→100→200 VU）、`endurance` 12m（50 VU 长稳）。
