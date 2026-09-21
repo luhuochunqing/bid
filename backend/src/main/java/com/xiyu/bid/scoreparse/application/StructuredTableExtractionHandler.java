@@ -7,6 +7,7 @@ import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.ScoreParsePipeline;
 import com.xiyu.bid.scoreparse.domain.StructuredTableCandidateExtractor;
@@ -89,6 +90,7 @@ final class StructuredTableExtractionHandler {
             case LoadedBidFile.InMemory inMem -> artifactExtractor.extract(inMem.content(), fileName);
             case LoadedBidFile.OnDisk onDisk -> artifactExtractor.extract(onDisk.tempFile(), fileName);
         };
+        var originalContext = OriginalScoringContext.resolve(artifact, tenderSectionText);
         if (StructuredTableSourceSupport.shouldFallbackPdfToLegacy(fileName, artifact)) {
             log.warn("PDF 未抽取到结构化评分表，回落 legacy markdown 召回: file={}", fileName);
             return StructuredTableResult.ok(List.of());
@@ -105,13 +107,14 @@ final class StructuredTableExtractionHandler {
         List<ScoreFact> facts = shadow.tables().stream()
                 .flatMap(table -> table.facts().stream())
                 .toList();
-        var originalCheck = OriginalSourcePublicationGuard.verify(artifact, tenderSectionText, facts,
-                shadow.tableCompletenesses().size());
+        var originalCheck = OriginalSourcePublicationGuard.verify(originalContext, artifact, facts);
         List<String> sourceDefects = originalCheck.defects();
         boolean originalVerified = sourceDefects.isEmpty();
         if (!originalVerified) {
-            completeness = OriginalSourcePublicationGuard.review(completeness, sourceDefects);
+            completeness = OriginalSourcePublicationGuard.review(completeness, sourceDefects, originalCheck);
             facts = facts.stream().map(f -> f.withValidationStatus(ScoreFact.ValidationStatus.REVIEW_REQUIRED)).toList();
+        } else if (completeness != null && completeness.decision() == ScoreParseDecision.AUTO_APPROVED) {
+            completeness = OriginalSourcePublicationGuard.verified(completeness, originalCheck);
         }
         // spec 062：聚合所有 AUTO_APPROVED 表的 AUTO_APPROVED 叶子候选（不再要求整份文档 AUTO_APPROVED）
         List<ScoreCandidate> leafCandidates = shadow.tableCompletenesses().stream()

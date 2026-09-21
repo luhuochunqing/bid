@@ -16,11 +16,17 @@ public final class MultimodalScoreFactValidator {
     public ValidationReport validate(List<MultimodalScoreFact> input,
                                      DocumentArtifact artifact,
                                      BigDecimal declaredTotal) {
-        return validate(input, artifact, null, declaredTotal);
+        return validate(input, artifact, (String) null, declaredTotal);
     }
 
     public ValidationReport validate(List<MultimodalScoreFact> input,
                                      DocumentArtifact artifact, String tenderText,
+                                     BigDecimal declaredTotal) {
+        return validate(input, artifact, OriginalScoringContext.resolve(artifact, tenderText), declaredTotal);
+    }
+
+    public ValidationReport validate(List<MultimodalScoreFact> input,
+                                     DocumentArtifact artifact, OriginalScoringContext context,
                                      BigDecimal declaredTotal) {
         List<MultimodalScoreFact> facts = input == null ? List.of() : List.copyOf(input);
         List<Violation> violations = new ArrayList<>();
@@ -34,7 +40,7 @@ public final class MultimodalScoreFactValidator {
         validateDuplicates(facts, violations);
         validateSequences(facts, violations);
         validateParents(facts, violations);
-        var sourceVerification = OriginalScoreEvidencePolicy.verifyModel(artifact, tenderText, facts, declaredTotal);
+        var sourceVerification = OriginalScoreEvidencePolicy.verifyModel(context, artifact, facts, declaredTotal);
         sourceVerification.problems().forEach(problem -> violations.add(new Violation(problem.factId(),
                 problem.field(), problem.code(), "模型字段缺少对应原文依据", problem.expected(),
                 problem.actual(), problem.locator())));

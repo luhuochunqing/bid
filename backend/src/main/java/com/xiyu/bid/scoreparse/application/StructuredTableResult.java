@@ -21,7 +21,8 @@ record StructuredTableResult(List<ScoreCandidate> candidates,
                              List<OriginalScoreEvidencePolicy.PublicationProof> originalProofs) {
 
     boolean originalVerified() {
-        return originalProofs != null && !originalProofs.isEmpty();
+        return originalProofs != null && originalProofs.size() == 1
+                && originalProofs.get(0).matches(facts, candidates);
     }
 
     static StructuredTableResult ok(List<ScoreCandidate> candidates) {

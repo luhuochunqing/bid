@@ -33,7 +33,7 @@ class StructuredTableExtractionMarkCompletedTest {
     void multiTableAllSelfConsistent_noFalseNormalizationWarningAndTableSplitsInRunSummary()
             throws IOException, InterruptedException {
         StructuredTableResult structured = extract(multiTableArtifact(),
-                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+                "本项目评分总分100分。评分标准由技术评分表和商务评分表两张独立评分表组成。");
         ScoreParseTask task = new ScoreParseTask();
         ScoreParseTaskRepository taskRepository = mock(ScoreParseTaskRepository.class);
         ScoreParseTaskStateService stateService = mock(ScoreParseTaskStateService.class);
@@ -91,7 +91,7 @@ class StructuredTableExtractionMarkCompletedTest {
             throws IOException, InterruptedException {
         // 回归D 编排层：技术表通过 + 商务表缺项（声明40 实际 20）→ 文档级 REVIEW_REQUIRED
         StructuredTableResult structured = extract(partialApprovalArtifact(),
-                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+                "本项目评分总分100分。评分标准由技术评分表和商务评分表两张独立评分表组成。");
         assertThat(structured.candidates())
                 .as("前置：技术表 3 项通过，部分候选非空")
                 .hasSize(3);
@@ -123,7 +123,7 @@ class StructuredTableExtractionMarkCompletedTest {
             throws IOException, InterruptedException {
         // 回归F 防过度修复：两表全通过时，正式发布与预计得分计算路径必须照常工作
         StructuredTableResult structured = extract(multiTableArtifact(),
-                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+                "本项目评分总分100分。评分标准由技术评分表和商务评分表两张独立评分表组成。");
         assertThat(structured.candidates()).hasSize(5);
         ScoreParseTask task = new ScoreParseTask();
         ScoreParseTaskRepository taskRepository = mock(ScoreParseTaskRepository.class);

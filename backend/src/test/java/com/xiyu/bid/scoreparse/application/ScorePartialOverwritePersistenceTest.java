@@ -71,6 +71,82 @@ class ScorePartialOverwritePersistenceTest {
     private ScoreItemPersistenceService persistenceService;
 
     @Test
+    void schemeScopeRejectionsFromRealExtractionPreserveOfficialItemsAndScores() throws Exception {
+        StructuredTableResult modelMissingTable = SchemeScopePublicationTest.modelExtract(
+                SchemeScopePublicationTest.summaryAndTwoDetails(),
+                List.of(SchemeScopePublicationTest.modelFact("t-business", "1", "履约能力", "20")), "20");
+        StructuredTableResult fallbackMissingTable = SchemeScopePublicationTest.extract(
+                SchemeScopePublicationTest.threeDetailTables(false),
+                "## 本项目评分办法\n总分100分。\n商务评分20分，技术评分30分，报价评分50分。");
+        assertRejectedResultPreservesData(9110L, "model-missing-table", modelMissingTable);
+        assertRejectedResultPreservesData(9111L, "fallback-missing-table", fallbackMissingTable);
+    }
+
+    private void assertRejectedResultPreservesData(Long projectId, String taskName,
+                                                   StructuredTableResult extracted) {
+        ScoreParseTask previous = taskRepository.saveAndFlush(ScoreParseTask.builder()
+                .taskId(taskName + "-old").projectId(projectId).taskType("PARSE")
+                .status("COMPLETED").build());
+        ScoreItem oldItem = itemRepository.saveAndFlush(ScoreItem.builder().projectId(projectId)
+                .parseTaskId(previous.getId()).itemIndex(1).code("1").dim("旧评分项")
+                .detail("旧规则").weight(bd("100")).scoreType("OBJECTIVE").statusStage1("OK").build());
+        ScoreResult oldScore = resultRepository.saveAndFlush(ScoreResult.builder()
+                .scoreItemId(oldItem.getId()).scoringTaskId(77L).actualScore(bd("86"))
+                .statusStage2("OK").build());
+        ScoreParseTask current = taskRepository.saveAndFlush(ScoreParseTask.builder()
+                .taskId(taskName).projectId(projectId).taskType("PARSE")
+                .status("PROCESSING").build());
+
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(current, current.getTaskId(),
+                extracted, taskRepository, stateService, progressService, persistenceService,
+                estimatedScoreService);
+
+        assertThat(current.getDecisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
+        assertThat(itemRepository.findByProjectIdOrderByItemIndexAsc(projectId))
+                .extracting(ScoreItem::getId).containsExactly(oldItem.getId());
+        assertThat(itemRepository.findByProjectIdOrderByItemIndexAsc(projectId))
+                .extracting(ScoreItem::getWeight).containsExactly(bd("100"));
+        assertThat(itemRepository.findByProjectIdOrderByItemIndexAsc(projectId))
+                .extracting(ScoreItem::getParseTaskId).containsExactly(previous.getId());
+        assertThat(resultRepository.findByScoreItemIdIn(List.of(oldItem.getId())))
+                .extracting(ScoreResult::getId).containsExactly(oldScore.getId());
+        assertThat(resultRepository.findByScoreItemIdIn(List.of(oldItem.getId())))
+                .extracting(ScoreResult::getActualScore).containsExactly(bd("86"));
+        assertThat(factRepository.findByParseTaskId(current.getId())).isNotEmpty();
+        assertThat(current.getFallbackReason()).isNotBlank();
+        verify(estimatedScoreService, never()).estimateForProject(projectId);
+    }
+
+    @Test
+    void completeSchemeResultsFromModelAndDeterministicPathsReachPersistence() throws Exception {
+        StructuredTableResult model = SchemeScopePublicationTest.modelExtract(
+                SchemeScopePublicationTest.summaryAndTwoDetails(),
+                List.of(SchemeScopePublicationTest.modelFact("t-business", "1", "履约能力", "20"),
+                        SchemeScopePublicationTest.modelFact("t-technical", "2", "实施方案", "80")), "100");
+        StructuredTableResult deterministic = SchemeScopePublicationTest.extract(
+                SchemeScopePublicationTest.threeDetailTables(true),
+                "## 本项目评分办法\n总分100分。\n商务评分20分，技术评分30分，报价评分50分。");
+        assertCompleteSchemePublishes(9112L, "complete-model-scheme", model, List.of(bd("20"), bd("80")));
+        assertCompleteSchemePublishes(9113L, "complete-fallback-scheme", deterministic,
+                List.of(bd("20"), bd("30"), bd("50")));
+    }
+
+    private void assertCompleteSchemePublishes(Long projectId, String taskName, StructuredTableResult extracted,
+                                               List<BigDecimal> expectedWeights) {
+        ScoreParseTask task = taskRepository.saveAndFlush(ScoreParseTask.builder()
+                .taskId(taskName).projectId(projectId).taskType("PARSE")
+                .status("PROCESSING").build());
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(task, taskName, extracted,
+                taskRepository, stateService, progressService, persistenceService, estimatedScoreService);
+        assertThat(task.getDecisionStatus()).isEqualTo(ScoreParseDecision.AUTO_APPROVED.name());
+        assertThat(itemRepository.findByProjectIdOrderByItemIndexAsc(projectId))
+                .extracting(item -> item.getWeight().stripTrailingZeros().toPlainString())
+                .containsExactlyElementsOf(expectedWeights.stream()
+                        .map(weight -> weight.stripTrailingZeros().toPlainString()).toList());
+        verify(estimatedScoreService, times(1)).estimateForProject(projectId);
+    }
+
+    @Test
     void partialApproval_withExistingOfficialItems_keepsItemsResultsAndOldEvidenceIntact() {
         // 回归D：预置完整 60+40 正式结果与实际打分，新解析技术表通过、商务表缺项 → 需要复核
         Long projectId = 9101L;
@@ -292,7 +368,8 @@ class ScorePartialOverwritePersistenceTest {
     private static StructuredTableResult extract(DocumentArtifact artifact) {
         byte[] pdfBytes = "%PDF-1.4 partial-overwrite".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         TenderTextSource source = new TenderTextSource(
-                "partial-overwrite.pdf", "memory://partial-overwrite.pdf", "评分标准由两张独立评分表组成。");
+                "partial-overwrite.pdf", "memory://partial-overwrite.pdf",
+                "本项目评分总分100分。评分标准由两张独立评分表组成。");
         InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
                 null, null, null, null, null, null, null, null, null, 5000000L) {
             @Override

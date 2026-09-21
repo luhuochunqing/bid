@@ -1134,3 +1134,9 @@
 - 决策：docx 前置读 zip 中央目录统计 `word/media/` 未压缩总量（`SIDECAR_MAX_DOCX_MEDIA_BYTES` 默认 64MB），超预算不进入 markitdown 直接返回空图 + warning；PDF 两分支加 `SIDECAR_MAX_SOURCE_IMAGE_BYTES` 累计护栏；warning 落 sidecar 日志、空图在 `withPageImages` 显式 WARN；`SIGNATURE_SEAL` 文案对齐能力边界并加契约测试（不为一行日志改 scoreparse 解析包）。
 - 验证：sidecar pytest 116/116（新增 3 例含 tracemalloc 峰值 <20MB）；compliance+scoreparse 1549 例 0 新增失败（2 例存量）。
 - 回填：更新 [[seal-vision-compliance]]。
+
+## [2026-09-21] fix | PR #5 原文评分方案范围与多表发布门禁
+- 根因：原文总分曾由模型引用的表集合决定；多表确定性回补丢弃正文并以分表通过代替方案闭合；逗号及标题换行造成上下文丢失。
+- 决策：首次、复核、回补共享原文方案上下文；局部小计与方案总分分开，当前事实和候选必须持有对应原文证明，缺方案总分或多标包目标不明转人工。
+- 证据：A/B/C 合成反例旧代码业务失败、新代码通过；JPA 证实拒绝路径保留旧项和旧打分，完整模型与确定性回补仍发布。真实 1386 未验证。
+- 回填：更新 [[scoreparse-multimodal-primary]]。

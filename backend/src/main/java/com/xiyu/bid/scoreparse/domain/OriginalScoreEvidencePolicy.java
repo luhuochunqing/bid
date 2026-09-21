@@ -6,17 +6,14 @@ package com.xiyu.bid.scoreparse.domain;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Pure checks against the original artifact, never against another model claim. */
 public final class OriginalScoreEvidencePolicy {
-    private static final Pattern WHOLE_TOTAL = Pattern.compile("(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern SCORE_CELL = Pattern.compile("^[~≈]?\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
     private static final Pattern MAX_SCORE = Pattern.compile(
             "(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
@@ -27,27 +24,40 @@ public final class OriginalScoreEvidencePolicy {
 
     public static Verification verifyModel(DocumentArtifact artifact, String tenderText,
                                            List<MultimodalScoreFact> facts, BigDecimal modelTotal) {
+        return verifyModel(OriginalScoringContext.resolve(artifact, tenderText), artifact, facts, modelTotal);
+    }
+
+    public static Verification verifyModel(OriginalScoringContext context, DocumentArtifact artifact,
+                                           List<MultimodalScoreFact> facts, BigDecimal modelTotal) {
         Set<String> parentKeys = new LinkedHashSet<>();
         facts.stream().filter(f -> !f.parentCode().isBlank())
                 .forEach(f -> parentKeys.add(f.sectionTitle() + "/" + f.parentCode()));
         List<Claim> claims = facts.stream().map(f -> new Claim(f.sectionTitle() + "/" + f.code(),
                 f.tableId(), f.dimension(), f.sourceCellIds(), f.weight(),
                 parentKeys.contains(f.sectionTitle() + "/" + f.code()))).toList();
-        return verify(artifact, tenderText, claims, modelTotal, true);
+        return verify(context, artifact, claims, modelTotal, true);
     }
 
     public static Verification verifyFacts(DocumentArtifact artifact, String tenderText, List<ScoreFact> facts) {
+        return verifyFacts(OriginalScoringContext.resolve(artifact, tenderText), artifact, facts);
+    }
+
+    public static Verification verifyFacts(OriginalScoringContext context, DocumentArtifact artifact,
+                                           List<ScoreFact> facts) {
         Set<String> parentIds = ScoreFact.parentIds(facts);
         List<Claim> claims = facts.stream().map(f -> new Claim(f.factId(), f.sourceTableId(),
                 f.dimension(), f.weightEvidence() == null ? f.sourceCellIds()
                 : List.of(f.weightEvidence().cellId()), f.weight(), parentIds.contains(f.factId()))).toList();
-        return verify(artifact, tenderText, claims, null, false);
+        return verify(context, artifact, claims, null, false);
     }
 
-    private static Verification verify(DocumentArtifact artifact, String tenderText, List<Claim> claims,
+    private static Verification verify(OriginalScoringContext context, DocumentArtifact artifact, List<Claim> claims,
                                        BigDecimal modelTotal, boolean requireModelTotal) {
-        Total total = resolveTotal(artifact, tenderText, claims, requireModelTotal);
+        Total total = context.total();
         List<Problem> problems = new ArrayList<>(total.problems());
+        problems.addAll(context.problems());
+        if (claims.isEmpty()) problems.add(new Problem("", "facts", "ORIGINAL_FACTS_MISSING",
+                "non-empty scoring facts", 0, total.locator()));
         if (requireModelTotal && modelTotal == null) {
             problems.add(new Problem("", "declaredTotal", "MODEL_TOTAL_MISSING", total.value(), null, total.locator()));
         } else if (requireModelTotal && total.value() != null && modelTotal.compareTo(total.value()) != 0) {
@@ -55,81 +65,13 @@ public final class OriginalScoreEvidencePolicy {
                     total.value(), modelTotal, total.locator()));
         }
         for (Claim claim : claims) {
+            boolean inScheme = artifact != null && artifact.tables().stream()
+                    .anyMatch(table -> table.tableId().equals(claim.tableId()) && context.owns(table));
+            if (!inScheme) problems.add(new Problem(claim.id(), "tableId", "ITEM_SCHEME_SCOPE_MISMATCH",
+                    context.scheme(), claim.tableId(), claim.tableId()));
             verifyWeight(artifact, claim, problems);
         }
-        return new Verification(total, List.copyOf(problems));
-    }
-
-    private static Total resolveTotal(DocumentArtifact artifact, String tenderText, List<Claim> claims,
-                                      boolean modelResult) {
-        if (artifact == null || claims.isEmpty()) {
-            return unknown("ORIGINAL_TOTAL_UNKNOWN", "no original scoring scope");
-        }
-        Set<String> tableIds = new LinkedHashSet<>();
-        claims.forEach(claim -> tableIds.add(claim.tableId()));
-        List<Candidate> candidates = new ArrayList<>();
-        for (DocumentArtifact.CanonicalTable table : artifact.tables()) {
-            if (!tableIds.contains(table.tableId())) continue;
-            Map<Integer, List<DocumentArtifact.CanonicalTable.CanonicalCellDto>> rows = new LinkedHashMap<>();
-            table.cells().stream().filter(c -> !Boolean.TRUE.equals(c.isMergedContinue()) && c.row() != null)
-                    .forEach(c -> rows.computeIfAbsent(c.row(), unused -> new ArrayList<>()).add(c));
-            rows.forEach((rowNumber, row) -> {
-                boolean summary = row.stream().anyMatch(c -> c.rawText() != null
-                        && c.rawText().replaceAll("\\s+", "").matches("^(?:合计|总计)(?:得分)?$"));
-                boolean explicitWholeInRow = row.stream().anyMatch(c -> c.rawText() != null
-                        && WHOLE_TOTAL.matcher(c.rawText()).find());
-                for (var cell : row) {
-                    String raw = cell.rawText() == null ? "" : cell.rawText();
-                    Matcher matcher = WHOLE_TOTAL.matcher(raw);
-                    while (matcher.find()) {
-                        if (summary && modelResult && tableIds.size() > 1
-                                && !raw.matches("(?s).*(?:本项目|本标包|评分方案).*")) continue;
-                        if (!summary && !raw.strip().matches(
-                                "(?s)^(?:本项目|本标包|评分方案|评标办法|评分标准|总分).*")) continue;
-                        String prefix = raw.substring(0, matcher.start());
-                        if (isCategoryOrOtherScope(prefix)) continue;
-                        add(candidates, matcher.group(1), "TABLE", table.sourceSection(),
-                                table.tableId() + ":" + cell.cellId());
-                    }
-                }
-                // A single score table's summary row is a scheme total; in a multi-table
-                // model response it is only a table subtotal, not a document total.
-                if (summary && !explicitWholeInRow && (!modelResult || tableIds.size() == 1)) {
-                    for (var cell : row) {
-                        Matcher numeric = SCORE_CELL.matcher(cell.rawText() == null ? "" : cell.rawText());
-                        if (numeric.matches() && cell.column() != null && cell.column() > 0) {
-                            add(candidates, numeric.group(1), "TABLE_SUMMARY", table.sourceSection(),
-                                    table.tableId() + ":" + cell.cellId());
-                        }
-                    }
-                }
-            });
-        }
-        if (tenderText != null) {
-            String[] clauses = tenderText.split("[。；;，\\n\\r]");
-            for (int clauseIndex = 0; clauseIndex < clauses.length; clauseIndex++) {
-                String clause = clauses[clauseIndex];
-                Matcher matcher = WHOLE_TOTAL.matcher(clause);
-                while (matcher.find()) {
-                    String prefix = clause.substring(0, matcher.start());
-                    if (isCategoryOrOtherScope(prefix)) continue;
-                    if (!prefix.contains("评分") && !prefix.contains("评标")
-                            && !prefix.contains("本项目") && !prefix.contains("本标包")) continue;
-                    add(candidates, matcher.group(1), "TENDER_TEXT", prefix.trim(),
-                            "text:clause[" + clauseIndex + "]");
-                }
-            }
-        }
-        if (candidates.isEmpty()) return unknown("ORIGINAL_TOTAL_UNKNOWN", "no scoped original total");
-        Candidate first = candidates.get(0);
-        boolean conflict = candidates.stream().anyMatch(c -> c.value().compareTo(first.value()) != 0);
-        if (conflict) {
-            return new Total(null, "CONFLICT", first.scope(), first.locator(),
-                    List.of(new Problem("", "declaredTotal", "ORIGINAL_TOTAL_CONFLICT",
-                            candidates.stream().map(c -> c.value() + "@" + c.locator()).toList(), null,
-                            first.locator())));
-        }
-        return new Total(first.value(), first.source(), first.scope(), first.locator(), List.of());
+        return new Verification(context.documentId(), context.scheme(), total, List.copyOf(problems));
     }
 
     private static void verifyWeight(DocumentArtifact artifact, Claim claim, List<Problem> problems) {
@@ -212,41 +154,39 @@ public final class OriginalScoreEvidencePolicy {
         while (matcher.find()) values.add(new BigDecimal(matcher.group(1)));
     }
 
-    private static boolean isCategoryOrOtherScope(String prefix) {
-        return prefix.matches("(?s).*(?:商务|技术|报价|价格|小计|其他标包|其它标包|示例|样例|参考).*?");
-    }
-
-    private static void add(List<Candidate> values, String number, String source, String scope, String locator) {
-        BigDecimal value = new BigDecimal(number);
-        if (value.compareTo(BigDecimal.ZERO) > 0) values.add(new Candidate(value, source, scope, locator));
-    }
-
-    private static Total unknown(String code, String reason) {
-        return new Total(null, "UNKNOWN", "", "", List.of(
-                new Problem("", "declaredTotal", code, "original document total", reason, "")));
-    }
-
     private record Claim(String id, String tableId, String dimension, List<String> sourceCellIds,
                          BigDecimal weight, boolean parent) {}
-    private record Candidate(BigDecimal value, String source, String scope, String locator) {}
     public record Problem(String factId, String field, String code, Object expected, Object actual, String locator) {}
     public record Total(BigDecimal value, String source, String scope, String locator, List<Problem> problems) {}
-    public record Verification(Total total, List<Problem> problems) {
+    public record Verification(String documentId, String scheme, Total total, List<Problem> problems) {
         public boolean publishable() { return problems.isEmpty(); }
     }
 
     /** Created only after the original-source checks and leaf sum both close. */
     public static final class PublicationProof {
         private final Verification verification;
-        private PublicationProof(Verification verification) { this.verification = verification; }
+        private final List<ScoreFact> facts;
+        private final List<ScoreCandidate> candidates;
+        private PublicationProof(Verification verification, List<ScoreFact> facts, List<ScoreCandidate> candidates) {
+            this.verification = verification;
+            this.facts = List.copyOf(facts);
+            this.candidates = List.copyOf(candidates);
+        }
         public Verification verification() { return verification; }
+        public boolean matches(List<ScoreFact> currentFacts, List<ScoreCandidate> currentCandidates) {
+            return facts.equals(currentFacts) && candidates.equals(currentCandidates);
+        }
     }
 
-    public static PublicationProof publicationProof(Verification verification, BigDecimal leafTotal) {
+    public static PublicationProof publicationProof(Verification verification, BigDecimal leafTotal,
+                                                     List<ScoreFact> facts, List<ScoreCandidate> candidates) {
         if (verification == null || !verification.publishable() || verification.total().value() == null
-                || leafTotal == null || leafTotal.compareTo(verification.total().value()) != 0) {
+                || leafTotal == null || leafTotal.compareTo(verification.total().value()) != 0
+                || facts == null || facts.isEmpty() || candidates == null || candidates.isEmpty()
+                || !facts.stream().filter(f -> ScoreFact.isLeaf(f, facts)).map(ScoreFact::toCandidate)
+                        .flatMap(java.util.Optional::stream).toList().equals(candidates)) {
             return null;
         }
-        return new PublicationProof(verification);
+        return new PublicationProof(verification, facts, candidates);
     }
 }
