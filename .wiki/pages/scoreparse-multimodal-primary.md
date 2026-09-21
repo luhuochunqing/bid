@@ -8,6 +8,7 @@ sources:
   - specs/066-scoreparse-multimodal-primary/contracts/multimodal-score-facts.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalStructuredExtractionHandler.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/MultimodalScoreFactValidator.java
+  - backend/src/test/java/com/xiyu/bid/scoreparse/application/MultimodalStructuredExtractionHandlerTest.java
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-09-20
@@ -32,6 +33,13 @@ archive: false
 - `declaredTotal=null` 必须在任何正式项、任务状态和审核记录写入前阻断采纳。
 - 前端显示“声明总分待确认”并禁用采纳，禁止回退成 100 分造成伪闭合。
 
+## 不完整多模态召回的安全回补
+
+- 多模态模型返回的事实不完整时，不得把候选事实直接当作正式评分项，也不得把候选合计强行归一化到 100 分。
+- `MultimodalStructuredExtractionHandler` 会把同一份 `DocumentArtifact` 和标书评分章节文本交给 `ScoreFactShadowPipeline`；只有确定性管道产出 `AUTO_APPROVED`、叶子项非空且声明总分闭合时，才用完整回补结果继续正式入库链路。
+- 确定性回补仍未闭合时保留 `REVIEW_REQUIRED`，前端候选复核卡必须同时展示序号、评分项、权重、评分类别、标书原文与详情，避免审核者只能看到总分或摘要。
+- 回归夹具：`backend/src/test/resources/scoreparse-golden/case-multimodal-incomplete-recall-fallback.{md,expected.json}`，并在 `GoldenCasesReplayTest#cases()` 注册。
+
 ## 主客观分类
 
 - 客观：明确阶梯、证书、数量、金额、日期或计算公式。
@@ -49,3 +57,4 @@ archive: false
 - 解析决策影响正式评分项写入和复核 DTO。
 - 证书/业绩匹配 DTO 变化影响预计得分展示与审计。
 - UI 编辑后的序号、维度、规则、父项和主客观类型必须原样回传采纳接口。
+- 多模态召回与确定性回补的差异必须记录为可审计日志；生产问题排查需同时核对页面、候选/正式接口和解析决策状态。

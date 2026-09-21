@@ -1,12 +1,13 @@
 package com.xiyu.bid.scoreparse.application;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
-import org.junit.jupiter.api.Test;
-
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.List;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -55,6 +56,28 @@ class MultimodalStructuredExtractionHandlerTest {
         assertThat(result.candidates()).isEmpty();
     }
 
+    @Test
+    void incompleteModelRecallFallsBackToCompleteDeterministicTableFacts() throws Exception {
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        DocumentArtifact artifact = loadCompleteArtifact();
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(artifact);
+        MultimodalScoreFactExtractor model = (input, images) -> new MultimodalScoreFactExtractor.ExtractionResult(
+                new BigDecimal("100"), List.of(new MultimodalScoreFact(
+                        "方案能力", "A1", "", "方案能力", new BigDecimal("90"),
+                        "整体方案完整可行", "SUBJECTIVE", null, "t-sanitized-merged-origin",
+                        List.of("t-sanitized-r1-c2"), "整体方案完整可行", 0.99)),
+                "test-model", images.size());
+
+        StructuredTableResult result = MultimodalStructuredExtractionHandler.extract(
+                new TenderTextSource("bid.pdf", "obs://bid.pdf", "评分总分100分"),
+                new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "application/pdf"),
+                artifactExtractor, model, null);
+
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.candidates()).extracting(candidate -> candidate.weight())
+                .containsExactly(new BigDecimal("90"), new BigDecimal("5"), new BigDecimal("5"));
+    }
+
     private static StructuredTableResult extract(SidecarDocumentArtifactExtractor artifactExtractor,
                                                   MultimodalScoreFactExtractor model) {
         return MultimodalStructuredExtractionHandler.extract(
@@ -76,5 +99,12 @@ class MultimodalStructuredExtractionHandlerTest {
                 "t1", 1, "商务", 2, 2, List.of(), List.of(cell), true);
         return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.pdf", "sha", "pdf", "2.0"),
                 List.of(table), List.of());
+    }
+
+    private static DocumentArtifact loadCompleteArtifact() throws Exception {
+        try (InputStream input = MultimodalStructuredExtractionHandlerTest.class.getResourceAsStream(
+                "/scoreparse-golden/merged-parent-first-leaf-table-v2.json")) {
+            return new ObjectMapper().readValue(input, DocumentArtifact.class);
+        }
     }
 }

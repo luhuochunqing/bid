@@ -33,7 +33,7 @@ final class MultimodalStructuredExtractionHandler {
                     "MULTIMODAL_MODEL_UNAVAILABLE");
         }
         try {
-            return run(loaded, source.fileName(), artifactExtractor, extractor, imageExtractor);
+            return run(loaded, source.fileName(), source.text(), artifactExtractor, extractor, imageExtractor);
         } catch (RuntimeException | IOException exception) {
             log.warn("多模态评分事实提取失败，进入异常复核且禁止正则自动发布: file={}, msg={}",
                     source.fileName(), exception.getMessage());
@@ -46,7 +46,7 @@ final class MultimodalStructuredExtractionHandler {
         }
     }
 
-    private static StructuredTableResult run(LoadedBidFile loaded, String fileName,
+    private static StructuredTableResult run(LoadedBidFile loaded, String fileName, String tenderSectionText,
                                               SidecarDocumentArtifactExtractor artifactExtractor,
                                               MultimodalScoreFactExtractor extractor,
                                               SidecarImageExtractor imageExtractor)
@@ -63,6 +63,13 @@ final class MultimodalStructuredExtractionHandler {
         var extracted = extractor.extract(artifact, images);
         var validation = new MultimodalScoreFactValidator().validate(
                 extracted.facts(), artifact, extracted.declaredTotal());
+        if (!validation.autoApprovable()) {
+            StructuredTableResult deterministicFallback = completeDeterministicFallback(
+                    artifact, tenderSectionText, validation);
+            if (deterministicFallback != null) {
+                return deterministicFallback;
+            }
+        }
         List<ScoreFact> facts = validation.facts().stream().map(f -> toScoreFact(f, artifact, validation)).toList();
         var decision = validation.autoApprovable() ? ScoreParseDecision.AUTO_APPROVED : ScoreParseDecision.REVIEW_REQUIRED;
         List<ScoreFact> leaves = facts.stream().filter(f -> ScoreFact.isLeaf(f, facts)).toList();
@@ -80,6 +87,31 @@ final class MultimodalStructuredExtractionHandler {
         log.info("多模态评分事实完成: facts={}, images={}, model={}, decision={}, violations={}",
                 facts.size(), extracted.imageCount(), extracted.model(), decision, validation.violations().size());
         return StructuredTableResult.evidencePipeline(facts, candidates, completeness, tables);
+    }
+
+    private static StructuredTableResult completeDeterministicFallback(
+            DocumentArtifact artifact, String tenderSectionText,
+            MultimodalScoreFactValidator.ValidationReport modelValidation) {
+        var shadow = ScoreFactShadowPipeline.run(artifact, tenderSectionText);
+        var completeness = shadow.completeness();
+        if (completeness == null || completeness.decision() != ScoreParseDecision.AUTO_APPROVED) {
+            return null;
+        }
+        List<ScoreFact> facts = shadow.tables().stream()
+                .flatMap(table -> table.facts().stream()).toList();
+        List<ScoreCandidate> candidates = facts.stream()
+                .filter(fact -> ScoreFact.isLeaf(fact, facts))
+                .map(ScoreFact::toCandidate)
+                .flatMap(Optional::stream)
+                .toList();
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        log.warn("多模态召回未闭合，确定性表格管道已完整回补: modelFacts={}, fallbackFacts={}, declaredTotal={}, leafTotal={}",
+                modelValidation.facts().size(), facts.size(), completeness.declaredTotalScore(),
+                completeness.leafWeightSum());
+        return StructuredTableResult.evidencePipeline(facts, candidates, completeness,
+                shadow.tableCompletenesses());
     }
 
     private static StructuredTableResult reviewOnly(LoadedBidFile loaded, String fileName, String text,
