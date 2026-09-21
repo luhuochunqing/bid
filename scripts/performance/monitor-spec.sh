@@ -18,6 +18,10 @@
 #   monitor_header_for redis      -> timestamp,connected_clients,...（**含结尾换行**，可直接重定向为 CSV 表头）
 #   monitor_assert_spec           -> 规格自检，不一致时非 0 退出
 #
+# 非 shell 调用方（write-run-manifest.mjs）读**同一份数据**的机器可读形态：
+#   bash scripts/performance/monitor-spec.sh --print-json
+#   -> {"system":{"csv":"system.csv","cols":[2,4,5,7,8]},...}
+#
 # 列号从 1 起，第 1 列固定是 timestamp。判定"有效采样行"的含义是：
 # 这些列在该行里**齐备且为数值**——这正是采集器在 mysql 客户端缺失、Redis 不可达、
 # 应用进程找不到时留下的那类"有行数、没数据"文件的反面。
@@ -89,6 +93,23 @@ monitor_assert_spec() {
   return 0
 }
 
+# 机器可读形态，供**非 shell 调用方**读取：清单生成器要自己复算监控完整性，
+# 而它没有 shell 的函数可用。两条路都通不过去：让 JS 去 parse 本文件的 shell 语法
+# （语法一改就静默失效），或由 runner 把列号当环境变量透传（调用方一漏传，清单就
+# 少一层校验）。由本文件自己吐 JSON，则 shell 侧与 JS 侧读到的**必然**是同一份规格。
+monitor_spec_json() {
+  local _c _csv _cols _first=1
+  printf '{'
+  for _c in $MONITOR_COMPONENTS; do
+    _csv="$(monitor_csv_for "$_c")" || return 1
+    _cols="$(monitor_cols_for "$_c")" || return 1
+    [[ "$_first" == "1" ]] || printf ','
+    _first=0
+    printf '"%s":{"csv":"%s","cols":[%s]}' "$_c" "$_csv" "$_cols"
+  done
+  printf '}\n'
+}
+
 # 直接执行本文件时跑自检，供门禁/CI 在无服务环境下调用：
 #   bash scripts/performance/monitor-spec.sh --self-check
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -100,6 +121,11 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
       fi
       exit 1
       ;;
-    *) echo "monitor-spec: 用法 monitor-spec.sh [--self-check]" >&2; exit 2 ;;
+    --print-json)
+      monitor_assert_spec || exit 1
+      monitor_spec_json
+      exit 0
+      ;;
+    *) echo "monitor-spec: 用法 monitor-spec.sh [--self-check|--print-json]" >&2; exit 2 ;;
   esac
 fi

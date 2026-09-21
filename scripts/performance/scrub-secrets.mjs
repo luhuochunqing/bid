@@ -1,7 +1,8 @@
 // Input: 证据目录内的产物文件路径（脱敏模式）或一个证据目录（扫描模式）
 // Output: 脱敏模式下就地替换凭证并打印 `redacted=<N>`；扫描模式用**同一组检测器**（JWT / 敏感键值 / Bearer）
-//         逐文件计数并打印覆盖范围，发现文本残留或读不到的文件时以 1 退出（二进制产物记为未覆盖，需人工确认）
-// Pos: scripts/performance/ - 压测证据包归档前的凭证脱敏与残留扫描（run-stress-test.sh 在写 manifest 前两者都跑，残留即判本包不可交付）
+//         逐文件计数，打印覆盖范围与机器可读结论（scan_status / scan_scanned / scan_skipped /
+//         scan_hits / scan_unscanned_files），并按结论给退出码：0=通过、1=有文本残留、3=存在未扫描文件
+// Pos: scripts/performance/ - 压测证据包归档前的凭证脱敏与残留扫描（run-stress-test.sh 在写 manifest 前两者都跑，非通过即判本包不可交付）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 //
 // 为什么需要它：k6 的 --summary-export 会把 setup() 的返回值原样写进 setup_data，
@@ -9,6 +10,13 @@
 // 里必然带着可直接使用的身份令牌——一份给第三方复核的证据包不该包含任何可用凭证。
 // 本脚本在**归档前**就地脱敏，且只改凭证文本本身，不做 parse/重新序列化：
 // 重排 JSON 会把"原始产物"变成"我们的产物"，逐字节保真是这个目录的唯一卖点。
+//
+// 扫描的**能力边界**：只扫文本。含 NUL 或 UTF-8 替换字符的文件（截图、压缩包等）无法按
+// 文本解析，本脚本不假装覆盖它们——但也不把它们当成"干净"：只要有这类文件，扫描结论就是
+// `incomplete`（exit 3），调用方必须判本包不可交付。把它们列为"未覆盖"而不阻断交付，
+// 等于留了一条可交付包内含可读凭证的路径（实测：`credential\0Bearer …` 的文件曾被跳过、
+// 其余文本干净时整包以"扫描通过"交付）。要让包可交付，就把二进制产物移出证据目录。
+
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -41,6 +49,7 @@ function walk(dir, files = []) {
 const argv = process.argv.slice(2)
 if (argv.length === 0) {
   console.error('scrub-secrets: 用法 scrub-secrets.mjs <file...> | --scan <dir>')
+  console.error('              扫描模式退出码：0=通过 1=有文本残留 3=存在未扫描（二进制）文件 2=用法错误')
   process.exit(2)
 }
 
@@ -85,16 +94,30 @@ if (argv[0] === '--scan') {
     }
   }
   console.log(`scrub-secrets: 已扫描 ${scanned.length} 个文本产物；检测 JWT / 敏感键值 / Bearer 三类文本形态`)
-  if (skipped.length > 0) {
-    console.log(`scrub-secrets: ${skipped.length} 个二进制产物未扫描（本脚本不解析二进制）：${skipped.join(', ')}`)
-    console.log('scrub-secrets: 若这些产物是截图等人工材料，请单独确认其中不含凭证')
-  }
+  for (const line of hits) console.error(`  ${line}`)
+  // 机器可读结论放最后：调用方按固定键名取值，不必去 parse 上面这些供人读的句子。
+  // 未扫描文件同时**逐个列出**——只说"有 1 个没扫"的话，操作者还得自己去找是哪个。
+  console.log(`scan_status=${hits.length > 0 ? 'failed' : skipped.length > 0 ? 'incomplete' : 'passed'}`)
+  console.log(`scan_scanned=${scanned.length}`)
+  console.log(`scan_skipped=${skipped.length}`)
+  console.log(`scan_hits=${hits.length}`)
+  console.log(`scan_unscanned_files=${skipped.join(',')}`)
   if (hits.length > 0) {
-    console.error('scrub-secrets: 归档产物中仍存在疑似凭证残留：')
-    for (const line of hits) console.error(`  ${line}`)
+    console.error('scrub-secrets: 归档产物中仍存在疑似凭证残留（详见上方逐条命中）')
     process.exit(1)
   }
-  console.log('scrub-secrets: 扫描通过，未发现凭证残留')
+  if (skipped.length > 0) {
+    // 这一类**不能**以 0 退出。二进制文件里可能存在可读凭证（例如误放进证据包的截图、
+    // 压缩包、带 NUL 的日志片段），而本脚本无法证明它干净；"未覆盖"只能等于"不可交付"，
+    // 不能等于"通过"。要让包可交付，就把这些文件移出证据目录（monitoring.log 与四份 CSV
+    // 已经覆盖了监控证据本身，截图不是必需件）。
+    console.error(
+      `scrub-secrets: ${skipped.length} 个二进制产物无法按文本扫描，本包不宣称凭证扫描通过：${skipped.join(', ')}`,
+    )
+    console.error('scrub-secrets: 请把无法扫描的产物移出证据目录后重跑，或由人工确认后另行出具结论。')
+    process.exit(3)
+  }
+  console.log('scrub-secrets: 扫描通过，未发现凭证残留，且全部产物都属可扫描的文本形态')
   process.exit(0)
 }
 
