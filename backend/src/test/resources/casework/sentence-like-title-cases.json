@@ -1,0 +1,24 @@
+{
+  "rule": "句子型伪标题识别（Java MarkdownTitleRules.isSentenceLikeTitle ↔ JS caseDetailFormatter.isSentenceLikeTitle 同一契约）：含句读 。！？!?；; → 伪标题；长度 > 80 → 伪标题；含逗号且长度 > 30 → 伪标题；null 与空白 → 不可用作标题（true）。",
+  "why": "PDF→markdown 转换器会把加粗正文句输出为 ## 标题，两侧必须同判，否则后端入库的标题会被前端再次拒绝（或反之），来源标题展示不一致。",
+  "consumers": [
+    "backend/src/test/java/com/xiyu/bid/casework/application/SentenceLikeTitleContractTest.java",
+    "src/views/Knowledge/views/components/__tests__/caseDetailFormatter.spec.js"
+  ],
+  "cases": [
+    {"title": "因投标文件篇幅有限，如下仅展示自 2023 年 1 月 1 日至本次投标截止日部分西域成功对接案例188个以及部分系统对接。", "sentenceLike": true, "note": "截图事故原文：正文句被当成章节标题"},
+    {"title": "双方需严格按期交付！", "sentenceLike": true, "note": "感叹号"},
+    {"title": "本项目采用国密算法？", "sentenceLike": true, "note": "问号"},
+    {"title": "3.5 建设计划，分三期推进；同时包含后续说明", "sentenceLike": true, "note": "分号（即便长度未超阈值也拒绝）"},
+    {"title": "13.2.1. 对接成功案例清单", "sentenceLike": false, "note": "真实章节：序号 + 标题文字"},
+    {"title": "第一章 项目背景", "sentenceLike": false, "note": "真实章节"},
+    {"title": "1.2 建设目标，思路与路径", "sentenceLike": false, "note": "含逗号但长度 <= 30，放行"},
+    {"title": "本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交", "sentenceLike": false, "note": "恰好 80 字且无句读：边界内放行"},
+    {"title": "本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交付本项目严格按期交付", "sentenceLike": true, "note": "81 字：超长拒绝"},
+    {"title": "建设目标，思路建设目标，思路建设目标，思路建设目标，思路建设", "sentenceLike": false, "note": "恰好 30 字含逗号：边界内放行"},
+    {"title": "建设目标，思路建设目标，思路建设目标，思路建设目标，思路建设目", "sentenceLike": true, "note": "31 字含逗号：拒绝"},
+    {"title": null, "sentenceLike": true, "note": "空值不可用作标题"},
+    {"title": "", "sentenceLike": true, "note": "空串不可用作标题"},
+    {"title": "   ", "sentenceLike": true, "note": "空白不可用作标题"}
+  ]
+}

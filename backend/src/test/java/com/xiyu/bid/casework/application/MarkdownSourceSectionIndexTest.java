@@ -230,4 +230,185 @@ class MarkdownSourceSectionIndexTest {
         assertThat(sections.get(4).path())
                 .isEqualTo("第一章 > 第2节 服务 > 1.1 数字 > （1）条目");
     }
+
+    @Test
+    @DisplayName("句子型伪标题：# 正文句子不作为章节，片段归入前一个真实章节")
+    void testSentenceLikeHashHeadingRejected() {
+        String md = """
+                # 13.2. 对接平台对接成功案例及证明材料
+                本章节说明平台对接情况。
+
+                ## 13.2.1. 对接成功案例清单
+                序号客户名称所属集团名称企业类型1启明信息技术股份有限公司启明集团API大型企业
+
+                ## 因投标文件篇幅有限，如下仅展示自 2023 年 1 月 1 日至本次投标截止日部分西域成功对接案例 188 个以及部分系统对接。
+                2河北省公共资源交易中心内部网API大型企业3中盐常州化工股份有限公司内部网API大型企业
+                """;
+
+        MarkdownSourceSectionIndex index = MarkdownSourceSectionIndex.parse(md);
+        MarkdownSourceSectionIndex.Provenance prov = index.locate(
+                "2河北省公共资源交易中心内部网API大型企业3中盐常州化工股份有限公司内部网API大型企业");
+
+        assertThat(prov).isNotNull();
+        assertThat(prov.title()).isEqualTo("13.2.1. 对接成功案例清单");
+        assertThat(prov.path()).isEqualTo("13.2. 对接平台对接成功案例及证明材料 > 13.2.1. 对接成功案例清单");
+    }
+
+    @Test
+    @DisplayName("句子型伪标题：无 # 的正文句（含句读）不作为章节边界")
+    void testSentenceLikePlainHeadingRejected() {
+        String md = """
+                第一章 技术要求
+                1.2 概述，本节说明实施要点
+                高可用架构至关重要。
+
+                3.4 建设目标，涵盖内容如下所述
+                3.5 建设计划，分三期推进；同时包含后续说明
+                1启明信息技术股份有限公司API大型企业
+                """;
+
+        List<MarkdownSourceSectionIndex.Section> sections = MarkdownSourceSectionIndex.parse(md).getSections();
+
+        assertThat(sections).extracting(MarkdownSourceSectionIndex.Section::title)
+                .containsExactly("第一章 技术要求", "1.2 概述，本节说明实施要点", "3.4 建设目标，涵盖内容如下所述");
+    }
+
+    @Test
+    @DisplayName("句子型伪标题：超长标题（>80 字）不作为章节边界")
+    void testOverlongHeadingRejected() {
+        String md = """
+                # 第一章 总体方案
+                ## 本项目实施团队将严格按照招标文件要求的工期节点组织施工并在各个阶段安排专职人员对接客户需求确保交付质量与进度可控且全过程接受甲方监督检查并定期提交阶段性成果报告以便于双方及时核对实施效果
+                实施保障措施说明文字。
+                """;
+
+        MarkdownSourceSectionIndex index = MarkdownSourceSectionIndex.parse(md);
+        List<MarkdownSourceSectionIndex.Section> sections = index.getSections();
+
+        assertThat(sections).hasSize(1);
+        assertThat(sections.get(0).title()).isEqualTo("第一章 总体方案");
+
+        MarkdownSourceSectionIndex.Provenance prov = index.locate("实施保障措施说明文字");
+        assertThat(prov).isNotNull();
+        assertThat(prov.title()).isEqualTo("第一章 总体方案");
+    }
+
+    @Test
+    @DisplayName("章节契约：命中无编号小标题（## 项目实施）时不给来源，返回 null")
+    void testUnnumberedHeadingGivesNoProvenance() {
+        String md = """
+                # 13.2. 对接平台对接成功案例及证明材料
+                本章节说明平台对接情况。
+
+                ## 项目实施
+                1启明信息技术股份有限公司API大型企业
+                """;
+
+        MarkdownSourceSectionIndex index = MarkdownSourceSectionIndex.parse(md);
+
+        // 层级树仍接受无编号小标题（它可能是真实排版层级），故它确实是一个 section
+        assertThat(index.getSections()).extracting(MarkdownSourceSectionIndex.Section::title)
+                .containsExactly("13.2. 对接平台对接成功案例及证明材料", "项目实施");
+        assertThat(index.getSections().get(1).path())
+                .isEqualTo("13.2. 对接平台对接成功案例及证明材料 > 项目实施");
+
+        // 但它无章节号（无序号可核对），不足以自证是标书真实章节 —— 宁可无来源
+        assertThat(index.locate("1启明信息技术股份有限公司API大型企业")).isNull();
+    }
+
+    @Test
+    @DisplayName("章节契约：只有编号没有标题文字的章节（## 第一章）不给来源，返回 null")
+    void testNumberOnlyHeadingGivesNoProvenance() {
+        String md = """
+                # 13.2. 对接平台对接成功案例及证明材料
+                本章节说明平台对接情况。
+
+                ## 第一章
+                1启明信息技术股份有限公司API大型企业
+                """;
+
+        MarkdownSourceSectionIndex index = MarkdownSourceSectionIndex.parse(md);
+
+        // 层级树同样接受它（有编号、无句读），故它确实是一个 section
+        assertThat(index.getSections()).extracting(MarkdownSourceSectionIndex.Section::title)
+                .containsExactly("13.2. 对接平台对接成功案例及证明材料", "第一章");
+
+        // 但「章节号 + 标题文字」缺了标题文字，指不到具体内容 —— 宁可无来源
+        assertThat(index.locate("1启明信息技术股份有限公司API大型企业")).isNull();
+    }
+
+    @Test
+    @DisplayName("章节契约：已有可核对的编号章节，回归为不因严格化而误伤")
+    void testNumberedHeadingStillGivesProvenance() {
+        String md = """
+                # 13.2. 对接平台对接成功案例及证明材料
+                ## 13.2.1. 对接成功案例清单
+                1启明信息技术股份有限公司API大型企业
+                """;
+
+        MarkdownSourceSectionIndex.Provenance prov =
+                MarkdownSourceSectionIndex.parse(md).locate("1启明信息技术股份有限公司API大型企业");
+
+        assertThat(prov).isNotNull();
+        assertThat(prov.title()).isEqualTo("13.2.1. 对接成功案例清单");
+        assertThat(prov.index()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("章节标题契约规则：编号在串首且过句子门才放行，无编号一律拒绝")
+    void testIsChapterTitleRule() {
+        assertThat(MarkdownTitleRules.isChapterTitle("13.2.1. 对接成功案例清单")).isTrue();
+        assertThat(MarkdownTitleRules.isChapterTitle("第一章 项目背景")).isTrue();
+        assertThat(MarkdownTitleRules.isChapterTitle("一、总体要求")).isTrue();
+        assertThat(MarkdownTitleRules.isChapterTitle("（1）项目概述")).isTrue();
+
+        assertThat(MarkdownTitleRules.isChapterTitle("项目实施")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("技术方案 1.2 先进性")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("13.2 建设计划，分三期推进；同时包含后续说明")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle(null)).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("   ")).isFalse();
+    }
+
+    @Test
+    @DisplayName("「章节号 + 标题文字」：只有编号没有标题文字的串不是已验证章节")
+    void testChapterTitleRequiresTitleText() {
+        assertThat(MarkdownTitleRules.isChapterTitle("1.")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("3、")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("13.2.1.")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("第一章")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("第一节")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("一、")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("（1）")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("①")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("A.")).isFalse();
+        // 全角空格（U+3000）：Java 的 trim/\s 与 JS 不同，两侧字符类必须显式覆盖，否则会在此处与前端分叉
+        assertThat(MarkdownTitleRules.isChapterTitle("第一章　")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("　第一章 项目背景")).isTrue();
+    }
+
+    @Test
+    @DisplayName("字母列表标记不是章节号：A. 附录清单 / B、服务方案 / a. 投标函 一律不给来源")
+    void testLetterMarkerIsNotChapterTitle() {
+        assertThat(MarkdownTitleRules.isChapterTitle("A. 附录清单")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("B、服务方案")).isFalse();
+        assertThat(MarkdownTitleRules.isChapterTitle("a. 投标函")).isFalse();
+    }
+
+    @Test
+    @DisplayName("句子型伪标题识别规则：句读/超长拒绝，序号+短标题放行")
+    void testIsSentenceLikeTitleRule() {
+        assertThat(MarkdownTitleRules.isSentenceLikeTitle(
+                "因投标文件篇幅有限，如下仅展示自 2023 年 1 月 1 日至本次投标截止日部分西域成功对接案例188个以及部分系统对接。"))
+                .isTrue();
+        assertThat(MarkdownTitleRules.isSentenceLikeTitle("双方需严格按期交付！")).isTrue();
+        assertThat(MarkdownTitleRules.isSentenceLikeTitle(
+                "本项目实施团队将严格按照招标文件要求的工期节点组织施工并在各个阶段安排专职人员对接客户需求确保交付质量与进度可控且全过程接受甲方监督检查并定期提交阶段性成果报告以便于双方及时核对实施效果与偏差情况"))
+                .isTrue();
+        assertThat(MarkdownTitleRules.isSentenceLikeTitle(null)).isTrue();
+        assertThat(MarkdownTitleRules.isSentenceLikeTitle("   ")).isTrue();
+
+        assertThat(MarkdownTitleRules.isSentenceLikeTitle("13.2.1. 对接成功案例清单")).isFalse();
+        assertThat(MarkdownTitleRules.isSentenceLikeTitle("第一章 项目背景")).isFalse();
+        assertThat(MarkdownTitleRules.isSentenceLikeTitle("1.2 建设目标，思路与路径")).isFalse();
+    }
 }

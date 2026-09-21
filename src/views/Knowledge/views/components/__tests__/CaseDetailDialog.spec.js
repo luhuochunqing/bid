@@ -57,22 +57,29 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     const wrapper = mountDialog({
       caseData: {
         ...caseData,
-        sourceSectionTitle: '仅标题',
-        sourceSectionPath: '第一章 > 服务方案',
+        sourceSectionTitle: '9.9 另一个章节',
+        sourceSectionPath: '第一章 项目背景 > 1.2 实施周期',
         sourceDocumentName: '技术标.docx',
         sourcePageNumber: 12
       }
     })
-    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：第一章 > 服务方案')
+    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：第一章 项目背景 > 1.2 实施周期')
     expect(sourceLocation(wrapper).text()).not.toContain('来源文档')
     expect(sourceLocation(wrapper).text()).toContain('页码：12')
-    expect(sourceLocation(wrapper).text()).not.toContain('仅标题')
+    expect(sourceLocation(wrapper).text()).not.toContain('9.9 另一个章节')
   })
 
-  it('只有来源标题时直接显示标题且非下载按钮', () => {
-    const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionTitle: '项目实施' } })
-    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：项目实施')
+  it('只有已验证章节标题时直接显示标题且非下载按钮', () => {
+    const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionTitle: '13.2.1. 对接成功案例清单' } })
+    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：13.2.1. 对接成功案例清单')
     expect(sourceLocation(wrapper).element.tagName).toBe('DIV')
+  })
+
+  it('无编号标题不是可核对的章节：显示「暂无来源标题」且非下载按钮', () => {
+    const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionTitle: '项目实施' } })
+    expect(sourceLocation(wrapper).exists()).toBe(false)
+    expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
+    expect(wrapper.find('.source-location-fallback').element.tagName).toBe('DIV')
   })
 
   it('来源路径和标题均为空时显示降级文案且信息行不可点击', () => {
@@ -83,46 +90,71 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
   })
 
-  it('来源路径和标题为空但有评分项标题时智能兜底展示且非下载按钮', () => {
+  it('来源缺失时不再拿评分项标题兜底（评分项标题仍在自己的字段展示）', () => {
     const wrapper = mountDialog({
       caseData: { ...caseData, scoringPointTitle: '项目实施', sourceSectionTitle: null, sourceSectionPath: null, responseText: '纯正文内容' }
     })
-    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：项目实施')
-    expect(sourceLocation(wrapper).element.tagName).toBe('DIV')
+    expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
+    expect(wrapper.find('.scoring-point-title').text()).toContain('评分项标题：项目实施')
   })
 
-  it('智能从应答正文提取章节标题、详见引用与方案书名', () => {
-    // 1. Markdown 章节列表开头（保留原始章节序号）
-    const w1 = mountDialog({
-      caseData: { ...caseData, scoringPointTitle: null, sourceSectionTitle: null, sourceSectionPath: null, responseText: '* 1. 质量管理方案\n     1. 商品安全溯源\n\n为全面保障质量安全...' }
-    })
-    expect(sourceLocation(w1).text()).toContain('原文所在标题：1. 质量管理方案 > 1. 商品安全溯源')
-
-    // 2. 详见引用
-    const w2 = mountDialog({
-      caseData: { ...caseData, scoringPointTitle: null, sourceSectionTitle: null, sourceSectionPath: null, responseText: '**西域承诺物流配送... 详见七、服务方案-（二）、供货方案**' }
-    })
-    expect(sourceLocation(w2).text()).toContain('原文所在标题：七、服务方案 > （二） > 供货方案')
-
-    // 3. 书名号规范方案
-    const w3 = mountDialog({
-      caseData: { ...caseData, scoringPointTitle: null, sourceSectionTitle: null, sourceSectionPath: null, responseText: '我司针对三峡集团业务特性，制定了完备的《突发事件防汛防灾及双活容灾应急预案》。建立三级应急联动...' }
-    })
-    expect(sourceLocation(w3).text()).toContain('原文所在标题：突发事件防汛防灾及双活容灾应急预案')
+  it('不再从应答正文启发式推断来源（章节列表/详见引用/方案书名一律不给）', () => {
+    const cases = [
+      '* 1. 质量管理方案\n     1. 商品安全溯源\n\n为全面保障质量安全...',
+      '**西域承诺物流配送... 详见七、服务方案-（二）、供货方案**',
+      '我司针对三峡集团业务特性，制定了完备的《突发事件防汛防灾及双活容灾应急预案》。建立三级应急联动...'
+    ]
+    for (const responseText of cases) {
+      const wrapper = mountDialog({
+        caseData: { ...caseData, scoringPointTitle: null, sourceSectionTitle: null, sourceSectionPath: null, responseText }
+      })
+      expect(sourceLocation(wrapper).exists()).toBe(false)
+      expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
+    }
   })
 
-  it('来源标题与评分项标题同名时仍保留两个不同 label', () => {
+  it('来源标题与评分项标题分属两个字段，互不覆盖', () => {
     const wrapper = mountDialog({
-      caseData: { ...caseData, sourceSectionTitle: caseData.scoringPointTitle }
+      caseData: { ...caseData, sourceSectionTitle: '13.2.1. 对接成功案例清单' }
     })
     expect(wrapper.text()).toContain(`评分项标题：${caseData.scoringPointTitle}`)
-    expect(sourceLocation(wrapper).text()).toContain(`原文所在标题：${caseData.scoringPointTitle}`)
+    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：13.2.1. 对接成功案例清单')
   })
 
   it('来源标题为展示文本，点击不触发 open-bid 下载事件', async () => {
-    const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionPath: '第二章 > 售后服务' } })
+    const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionPath: '第二章 商务要求 > 第二节 售后服务' } })
     await sourceLocation(wrapper).trigger('click')
     expect(wrapper.emitted('open-bid')).toBeFalsy()
+  })
+
+  it('路径含无编号祖先时只渲染章节自身标题，字段内不出现无编号文本', () => {
+    const wrapper = mountDialog({
+      caseData: {
+        ...caseData,
+        sourceSectionPath: '项目实施 > 13.2.1. 对接成功案例清单',
+        sourceSectionTitle: '13.2.1. 对接成功案例清单'
+      }
+    })
+    const text = sourceLocation(wrapper).text()
+    expect(text).toContain('原文所在标题：13.2.1. 对接成功案例清单')
+    expect(text).not.toContain('项目实施')
+    expect(wrapper.find('.source-location-fallback').exists()).toBe(false)
+  })
+
+  it('只有编号没有标题文字的来源渲染为「暂无来源标题」', () => {
+    const wrapper = mountDialog({
+      caseData: { ...caseData, sourceSectionPath: '第一章 > 第一节', sourceSectionTitle: '第一章' }
+    })
+    expect(sourceLocation(wrapper).exists()).toBe(false)
+    expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
+  })
+
+  it('字母列表标记来源（A. 附录清单）渲染为「暂无来源标题」', () => {
+    const wrapper = mountDialog({
+      caseData: { ...caseData, sourceSectionPath: 'A. 附录清单', sourceSectionTitle: 'A. 附录清单' }
+    })
+    expect(sourceLocation(wrapper).exists()).toBe(false)
+    expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
   })
 
   it('底部操作栏仅保留「复用」按钮', () => {
