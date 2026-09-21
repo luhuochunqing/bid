@@ -16,11 +16,16 @@
 //      时，替换区间必须**逐字节**等于"把值换成占位符"的那份文本。既有的两头断言（"命中 ≥ 1"、
 //      "某个明文子串消失"）都挡不住旧判据：`[^"]*` 在值内第一个转义引号处截断，仍然命中、仍然
 //      让那个子串消失，却把值漏掉一半、把结构改坏。只有"逐字节等于期望"能判死它。
+//   1c. **键名的等价编码**（第十六轮打穿的缺口）：合法 JSON 可以把 ASCII 写成 `\uXXXX`，
+//      `{"password":"明文"}` 解析出来的键**就是** `password`。只在文本层枚举键名的字面拼写，
+//      这类文本既不被脱敏、也不被扫描命中——明文完整留在包里而扫描照报 `passed`（实测 exit 1）。
+//      这一节先 `JSON.parse` 证明样本语义上确实是敏感键（否则断言本身就是"为错误理由而绿"），
+//      再断言整段替换、逐字节保真、输出仍是合法 JSON、幂等；
 //   2. **负向**：普通指标文本、无 userinfo 的 URL、邮件地址、非敏感键、非字符串值、已脱敏占位符
 //      都**不许**被改动——一个"什么都改"的检测器能通过全部正向断言，却会把证据包改烂；
 //   3. **成对**：走真实 CLI 的两条路径（`--scan` 与脱敏），断言同一个样本在扫描侧是
 //      `failed`/exit 1、在脱敏侧被替换成 `<redacted:credential>` 且**再扫一次变成 passed**；
-//      值内带转义引号的那一份还要断言脱敏后仍是合法 JSON、解析出来的正是占位符。
+//      值内带转义引号与键名带等价编码的那两份还要断言脱敏后仍是合法 JSON、解析出来的正是占位符。
 //      只断言纯函数等于没测文件遍历、README 里承诺的退出码与实际输出的一致性。
 //
 // 与 exit-code-self-test.sh 的分工：那个文件管 runner 的**退出码分层**（0 / k6 码 / 1 / 12），
@@ -122,6 +127,36 @@ for (const [name, value] of innerValues) {
   }
 }
 
+console.log('== 1c. 键名用等价编码写（`\\uXXXX`）：第十六轮打穿的缺口 ==')
+// 合法 JSON 允许把 ASCII 写成 `\uXXXX`，所以 `{"password":"明文"}` 经 JSON.parse 后的键**就是**
+// `password`。生产判据只在文本层枚举键名的字面拼写时，这类文本既不被脱敏、也不被扫描命中——
+// 明文完整留在包里，紧接着的 `--scan` 仍报 `passed`/exit 0（第十六轮审查者的反例，修复前实测 exit 1）。
+// 这类样本**不能**由 JSON.stringify 产生（它不会把 ASCII 键写成转义），只能手写，所以它与 1b 的
+// 生成器是两套：一套管值与层数，一套管键的等价编码。
+const escKeysDoc = '{"pass\\u0077ord":"K1-secret","to\\u006ben":"K2-secret","client_\\u0073ecret":"K3-secret"}'
+const escKeysRedacted =
+  '{"pass\\u0077ord":"<redacted:credential>","to\\u006ben":"<redacted:credential>","client_\\u0073ecret":"<redacted:credential>"}'
+for (const levels of [0, 1, 2, 3]) {
+  const text = nestJson(escKeysDoc, levels)
+  // 先证明样本在**语义上**确实是敏感键：手写错了（例如把 `w` 写成别的码位）而判据照绿，
+  // 就是这一节最该避免的"为错误理由而绿"。
+  let inner = JSON.parse(text)
+  for (let i = 0; i < levels; i += 1) inner = JSON.parse(inner.msg)
+  check(`等价编码键 · 嵌套 ${levels} 层 · 样本语义键确为敏感键`, 'password,token,client_secret', Object.keys(inner).join(','))
+  const { out, count } = scrubText(text)
+  check(`等价编码键 · 嵌套 ${levels} 层 · 三处都命中`, 3, count)
+  check(`等价编码键 · 嵌套 ${levels} 层 · 明文已整段替换`, '无残留',
+    /K[123]-secret/.test(out) ? `残留（${out}）` : '无残留')
+  check(`等价编码键 · 嵌套 ${levels} 层 · 输出恰好是"值换成占位符"那份文本`, 'yes',
+    out === nestJson(escKeysRedacted, levels) ? 'yes' : 'no')
+  check(`等价编码键 · 嵌套 ${levels} 层 · 幂等`, 0, scrubText(out).count)
+}
+// 大小写：策略**明说键名不敏感**（见 scrub-secrets.mjs 的 SENSITIVE_KEYS 注释）——漏掉一个真凭证的
+// 代价远大于多脱敏一行日志，所以 `Password` 也必须命中，这条断言把该策略钉住。
+const caseHits = scrubText('{"Password":"Case-secret"}')
+check('等价编码键 · 大小写不敏感（Password）命中且明文消失', 'yes',
+  caseHits.count === 1 && !caseHits.out.includes('Case-secret') ? 'yes' : 'no')
+
 console.log('== 2. 负向矩阵：不许动的文本一个字节都不许动 ==')
 const negatives = [
   ['普通指标文本', 'http_req_duration.........: avg=25.1ms  p(95)=120ms'],
@@ -164,12 +199,16 @@ try {
   // 且解析出来的正是占位符）——只查明文会让"整行截断"这种修复方式也过关。
   const quotedPath = path.join(dirty, 'quoted.json')
   fs.writeFileSync(quotedPath, `${JSON.stringify({ password: `abc"def-${SECRET}` })}\n`)
+  // 键名用等价编码写的那一份（手写：JSON.stringify 不会把 ASCII 键写成 `\uXXXX`）。第 16 轮的反例
+  // 走的就是这条路径：脱敏 `redacted=0`、`--scan` 报 `passed`，而明文完整躺在文件里。
+  const unicodeKeyPath = path.join(dirty, 'unicode-key.json')
+  fs.writeFileSync(unicodeKeyPath, '{"pass\\u0077ord":"R16-UNICODE-KEY-secret"}\n')
   fs.writeFileSync(path.join(clean, 'metrics.csv'), 'http_req_duration,p95\n25.1,120\n')
 
   const before = run(['--scan', dirty])
   check('扫描 · 转义明文被认出（exit 1）', 1, before.rc)
   check('扫描 · 结论是 failed', 'yes', before.out.includes('scan_status=failed') ? 'yes' : 'no')
-  check('扫描 · 三个样本都命中', 'yes', before.out.includes('scan_hits=3') ? 'yes' : 'no')
+  check('扫描 · 四个样本都命中', 'yes', before.out.includes('scan_hits=4') ? 'yes' : 'no')
 
   // 干净的目录必须给出 passed：否则"扫描一律失败"也能骗过上面三条。
   const okScan = run(['--scan', clean])
@@ -201,6 +240,23 @@ try {
   }
   check('脱敏 · quoted.json 仍是合法 JSON', 'yes', quotedParsed ? 'yes' : 'no')
   check('脱敏 · quoted.json 的 password 恰好是占位符', PLACEHOLDER, quotedParsed?.password)
+
+  // 键名等价编码的那一份：断言"明文消失 + 解析后键就是 password + 值恰好是占位符 + 再扫描通过"。
+  // 只断言后者的话，一个把整行删掉的实现也能满足；只断言前者的话，一个什么也不改的实现照样过关。
+  const red3 = run([unicodeKeyPath])
+  check('脱敏 · unicode-key.json 退出 0', 0, red3.rc)
+  check('脱敏 · unicode-key.json 替换处数为 1', 'yes', red3.out.includes('redacted=1') ? 'yes' : 'no')
+  const ukText = fs.readFileSync(unicodeKeyPath, 'utf8')
+  check('脱敏 · unicode-key.json 已无明文', 'no', ukText.includes('R16-UNICODE-KEY-secret') ? 'yes' : 'no')
+  let ukParsed = null
+  try {
+    ukParsed = JSON.parse(ukText)
+  } catch {
+    ukParsed = null
+  }
+  check('脱敏 · unicode-key.json 仍是合法 JSON', 'yes', ukParsed ? 'yes' : 'no')
+  check('脱敏 · unicode-key.json 解析出来的键就是 password', 'password', Object.keys(ukParsed ?? {}).join(','))
+  check('脱敏 · unicode-key.json 的值恰好是占位符', PLACEHOLDER, ukParsed?.password)
 
   const after = run(['--scan', dirty])
   check('脱敏后再扫 · 整目录 passed', 0, after.rc)

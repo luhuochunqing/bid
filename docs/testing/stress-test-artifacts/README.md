@@ -144,15 +144,18 @@ bash scripts/performance/run-stress-test.sh --profile smoke \
 
 脱敏之后**还会用同一个脚本、同一组检测器把整包扫一遍**（`scrub-secrets.mjs --scan`），
 扫的是 JWT / 敏感键值（`"password"`、`"token"` 等键名下的字符串）/ `Authorization: Bearer` /
-URL 里的 userinfo（`http://user:口令@host`）四类文本形态。敏感键值这一类的**值边界由状态机读**：
-认同深度的反斜杠转义（1 层到 n 层，层数从文本里读出来，不枚举也不设上限），值里允许出现 JSON
-转义（`\"` `\\` `\n`）。两个真实缺口都出在这里——只认未转义形态时，日志与嵌套 JSON 里更常见的
-`{\"password\":\"明文\"}` 既不脱敏也不命中，整包扫描照样报 `passed`；用 `[^"]*` 收尾时，值内的
-转义引号被当成值的结束，只替换前半段、改坏结构，而残留的后半段已失去敏感键上下文，同一份含
-可恢复明文口令的包同样拿到"扫描通过"。边界读不出来时（畸形转义、收尾引号后面跟着不像值续接的
-字符）**不猜**，整行截到行尾：宁可毁掉一行的可读性，也不把读不出的文本当成"没有凭证"。
+URL 里的 userinfo（`http://user:口令@host`）四类文本形态。敏感键值这一类的**键名按解码后的结果判**
+（合法 JSON 可以把 ASCII 写成 `\uXXXX`，`pass` + `w` + `ord` 解析出来的键就是 `password`），大小写
+不敏感；**值的边界由状态机读**：认同深度的反斜杠转义（1 层到 n 层，层数从文本里读出来，不枚举也不
+设上限），值里允许出现 JSON 转义（`\"` `\\` `\n`）。三个真实缺口都出在这里——只认未转义形态时，
+日志与嵌套 JSON 里更常见的 `{\"password\":\"明文\"}` 既不脱敏也不命中，整包扫描照样报 `passed`；
+用 `[^"]*` 收尾时，值内的转义引号被当成值的结束，只替换前半段、改坏结构，而残留的后半段已失去
+敏感键上下文，同一份含可恢复明文口令的包同样拿到"扫描通过"；只在文本层枚举键名的字面拼写时，
+键名写成等价转义的那一份（把 `w` 写成 `\uXXXX` 转义后解析出来的键仍然是 `password`）既不被脱敏也不被
+扫描命中，明文完整留在包里而扫描照报 `passed`。边界读不出来时（畸形转义、收尾引号后面跟着不像
+值续接的字符）**不猜**，整行截到行尾：宁可毁掉一行的可读性，也不把读不出的文本当成"没有凭证"。
 检测器本身的判据矩阵与"扫描侧 / 脱敏侧成对"的 CLI 回归在 `scripts/performance/scrub-secrets-self-test.mjs`
-（159 项，纯离线，`node scripts/performance/scrub-secrets-self-test.mjs`）。
+（186 项，纯离线，`node scripts/performance/scrub-secrets-self-test.mjs`）。
 只脱敏不扫描时，"脱敏覆盖到了哪些
 文件"就只是脚本的一句声明——新增一份产物而忘了加进脱敏清单，凭证会原样留在包里，
 而产物一个不少、sha256 也都对得上。
@@ -294,7 +297,7 @@ k6 返回 0 只说明门禁通过，不说明这份包能交付。k6 的原始�
 
 ```bash
 bash scripts/performance/exit-code-self-test.sh          # 46 项：0 / k6 码 / 1 / 12
-node scripts/performance/scrub-secrets-self-test.mjs     # 159 项：凭证检测器本身（含转义形态、值内部形态与 CLI 成对回归）
+node scripts/performance/scrub-secrets-self-test.mjs     # 186 项：凭证检测器本身（含转义形态、值内部形态、键名等价编码与 CLI 成对回归）
 ```
 
 **"哪一层坏了"要报对码，否则会把人指去改错的东西。** 典型是 `node`：`command -v node` 成功
@@ -420,8 +423,8 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | `scripts/performance/monitor-readers.sh` | 四个组件各采一次、各写一行、各记一次状态 |
 | `scripts/performance/monitor-status.sh` | 采集侧的状态与结论层：`component-status.csv` 与"这次采集成不成功" |
 | `scripts/performance/delivery-blockers.tsv` | 交付阻塞项文案的**唯一来源**，shell 侧与 JS 侧共读；跨进程传递的是 code 而非文案，格式违规两侧都硬失败 |
-| `scripts/performance/scrub-secrets.mjs` | 归档前的凭证脱敏，以及脱敏后的整包残留扫描（`--scan`，退出码 0/1/3）；同时导出 `scrubText` / `DETECTORS` 给清单侧复用（清单自身也要过同一组检测器）。敏感键值这一类的值边界由状态机读，认同深度的反斜杠转义与值内 JSON 转义，读不出边界时整行截断 |
-| `scripts/performance/scrub-secrets-self-test.mjs` | 上面那个检测器的自检层：159 项断言，分正向矩阵（含转义形态与幂等）、**值内部形态矩阵**（值内引号 / 反斜杠 / 换行转义 / 反斜杠+引号 / 以反斜杠结尾 × 真实 `JSON.stringify` 嵌套 0–3 层，断言输出逐字节等于"把值换成占位符"的那份文本）、负向矩阵（不许误伤）、成对回归（真实 CLI：扫描侧 `failed`/exit 1 ↔ 脱敏侧替换后 `passed`，且带转义引号的那份脱敏后仍是合法 JSON）四段 |
+| `scripts/performance/scrub-secrets.mjs` | 归档前的凭证脱敏，以及脱敏后的整包残留扫描（`--scan`，退出码 0/1/3）；同时导出 `scrubText` / `DETECTORS` 给清单侧复用（清单自身也要过同一组检测器）。敏感键值这一类的键名按解码后的结果判（合法 JSON 的等价转义也算同一个键，大小写不敏感），值边界由状态机读，认同深度的反斜杠转义与值内 JSON 转义，读不出边界时整行截断 |
+| `scripts/performance/scrub-secrets-self-test.mjs` | 上面那个检测器的自检层：186 项断言，分正向矩阵（含转义形态与幂等）、**值内部形态矩阵**（值内引号 / 反斜杠 / 换行转义 / 反斜杠+引号 / 以反斜杠结尾 × 真实 `JSON.stringify` 嵌套 0–3 层，断言输出逐字节等于"把值换成占位符"的那份文本）、**键名等价编码矩阵**（手写的 Unicode 转义键 × 嵌套 0–3 层，先证明样本语义上确实是敏感键）、负向矩阵（不许误伤）、成对回归（真实 CLI：扫描侧 `failed`/exit 1 ↔ 脱敏侧替换后 `passed`，且带转义引号与等价编码键的那两份脱敏后仍是合法 JSON）五段 |
 | `scripts/performance/write-run-manifest.mjs` | 装配并写出 `manifest.json`（含 sha256 与门禁判定）；写盘前用 `scrubText` 对清单自身脱敏并复验，残留即拒绝写出（exit 1） |
 | `scripts/performance/manifest-verify.mjs` | 清单侧的独立复核层（产物 / 有效采样行 / 凭证残留 / 阻塞项文案，与注入值取并集） |
 | `scripts/performance/k6-evidence.mjs` | 清单侧的 k6 产物解释层（头部指标、声明的与击穿的门禁、退出码、脚本路径） |
