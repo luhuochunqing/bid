@@ -176,6 +176,13 @@ export function runSecretScan(dir, scriptDir) {
 
 // 交付阻塞项文案的唯一来源。shell 侧（evidence-completeness.sh）读的是同一个文件，
 // 因此"同一件事在两处各写一句话"这种漂移不可能发生（§7.4 跨语言契约）。
+//
+// 格式违规一律 ToolchainError（调用方 → exit 1），**不跳过、不兜底**：本文件是"本包为何
+// 不可交付"这句话的唯一来源，跳过一行就等于让一条交付阻塞静默消失，而清单照样写
+// evidence_complete=true。此前这里是 lenient 的（`tab <= 0 → continue`、重复 code 后写覆盖前），
+// 于是"少一个 TAB"或"重复一个 code"这类**可见的格式破坏**会静默降级成跨语言契约漂移：
+// 同一份 TSV，shell 的 awk 取第一行、JS 的 Map 取最后一行，两侧给出不同文案而都不报错。
+// 判据必须与 shell 侧 blocker_catalog_assert() 逐条一致，否则又变成"两套判据"。
 export function readBlockerTexts(scriptDir) {
   const file = path.join(scriptDir, 'delivery-blockers.tsv')
   let raw
@@ -185,11 +192,31 @@ export function readBlockerTexts(scriptDir) {
     throw new ToolchainError(`读不到交付阻塞项文案表 ${file}：${String(error)}`)
   }
   const texts = new Map()
-  for (const line of raw.split('\n')) {
+  const lines = raw.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line.includes('\r')) {
+      throw new ToolchainError(`delivery-blockers.tsv 第 ${i + 1} 行含 CR（行尾必须是 LF）`)
+    }
     if (line === '' || line.startsWith('#')) continue
-    const tab = line.indexOf('\t')
-    if (tab <= 0) continue
-    texts.set(line.slice(0, tab), line.slice(tab + 1))
+    const tabs = line.split('\t').length - 1
+    if (tabs !== 1) {
+      throw new ToolchainError(`delivery-blockers.tsv 第 ${i + 1} 行不是恰好一个 TAB 分隔的 <code><TAB><文案>（实测 ${tabs} 个）`)
+    }
+    const [code, text] = line.split('\t')
+    if (!/^[a-z][a-z0-9_]*$/.test(code)) {
+      throw new ToolchainError(`delivery-blockers.tsv 第 ${i + 1} 行的 code '${code}' 不合规（只允许小写字母、数字与下划线，且以字母开头）`)
+    }
+    if (text === '' || text !== text.trim()) {
+      throw new ToolchainError(`delivery-blockers.tsv 第 ${i + 1} 行（${code}）的文案为空或含首尾空白`)
+    }
+    if (texts.has(code)) {
+      throw new ToolchainError(`delivery-blockers.tsv 第 ${i + 1} 行的 code '${code}' 重复（文案表必须是一对一映射）`)
+    }
+    texts.set(code, text)
+  }
+  if (texts.size === 0) {
+    throw new ToolchainError('delivery-blockers.tsv 没有任何有效条目（每行 <code><TAB><文案>）')
   }
   return texts
 }
@@ -208,12 +235,20 @@ export function blockerText(texts, code) {
 // 并集而不是覆盖：调用方可能知道本模块判不出的原因（例如它自己观察到的采集器异常），
 // 本模块也可能发现调用方漏算的原因（例如某份产物是二进制、扫描根本没覆盖到它）。
 // 取交集会让双方各自的发现都失效，取并集才是"两边都同意才叫可交付"。
+//
+// 注入的是 **code**，不是文案。文案一律由本模块拿 code 回查 TSV 得到：
+//   1. 早先注入的是文案本身，于是调用方可以塞进任意一串**表外文本**直通清单
+//      （实测 `DELIVERY_BLOCKERS=表外文本` 会原样进入 delivery_blockers），
+//      单一来源名存实亡，而且表里没有的句子照样在对外交付物里出现；
+//   2. 表外 code 现在会抛 ToolchainError → 调用方 exit 1：调用方与文案表对不上号，
+//      说明两侧不是同一个版本，这时既不该写清单也不该判"可交付"，只能拒绝收尾。
 export function collectDeliveryBlockers({ texts, injected, monitorScope, scan, runnerScanStatus }) {
-  const blockers = [...injected]
+  const blockers = []
   const push = (code) => {
     const text = blockerText(texts, code)
     if (!blockers.includes(text)) blockers.push(text)
   }
+  for (const code of injected) push(code)
   // 本模块自己判出的扫描结论优先；它非 passed 时用它的状态选文案。
   if (scan.status !== 'passed') {
     push({ failed: 'secret_scan_residue', incomplete: 'secret_scan_incomplete' }[scan.status] ?? 'secret_scan_unverified')

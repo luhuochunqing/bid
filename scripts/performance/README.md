@@ -5,8 +5,14 @@
 这里存放西域数智化投标管理平台的真实 API 压测脚本和运行说明。
 脚本只面向真实后端、MySQL 和 Redis，不使用前端 demo 或 mock 数据路径。
 
-工具链按"契约 / 入口 / 判定"三层拆开，每个文件都能单独 `bash -n`（或 `node --check`）
+工具链按"契约 / 入口 / 采集 / 归档 / 判定"分层，每个文件都能单独 `bash -n`（或 `node --check`）
 并在没有服务、没有 k6 的机器上跑；判断"这份包能不能交付"的代码集中在判定层，不散落在入口里。
+
+依赖方向是**单向**的：入口按 `契约 → 守卫 → 前置 → 生命周期 → 判定 → 归档` 的顺序 source，
+判定层在**调用时**读取归档层设置的 `TOOLCHAIN_FAILURE` / `TOOLCHAIN_FAILURE_REASON`
+（所以顺序不影响取值，单独 source 判定层做单测时按"工具链正常"兜底）。反向调用只有一处：
+归档层在清单自判不可交付时调用判定层的 `add_delivery_blocker`——`evidence-archive.sh`
+的文件头已声明这条依赖，改动任一层的 source 顺序前请先看那里。
 
 | 文件 | 地位 | 功能 |
 |------|------|------|
@@ -16,16 +22,17 @@
 | `run-preflight.sh` | 入口-预检层 | 命令行解析、默认值、拓扑开关互斥、`XIYU_STRESS_CONFIRMED` 与环境守卫、档位/组件白名单、`--base-url` 拒收 userinfo 与目标主机解析、k6 与压测脚本存在性检查 |
 | `cli-guards.sh` | 入口-参数守卫 | 两个入口脚本共用的"带值选项缺值即 exit 2"守卫，避免把下一个选项当成值吞掉 |
 | `monitor-lifecycle.sh` | 入口-子进程层 | 监控采集子进程的启停（`.ready` 握手、有界等待、超时强杀），以及采集侧问题清单 `MONITOR_ISSUES` |
-| `evidence-archive.sh` | 归档层 | 产物落盘之后、对外交付之前的三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单 |
-| `evidence-completeness.sh` | 判定层 | 完整性判定与交付出口：算 `MISSING_ARTIFACTS` 与 `DELIVERY_BLOCKERS`，决定 exit 12 还是透传 k6 退出码 |
+| `evidence-archive.sh` | 归档层 | 产物落盘之后、对外交付之前的三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单。同时记录 `TOOLCHAIN_FAILURE` / `TOOLCHAIN_FAILURE_REASON`（哪一步的哪件工具没跑成），由判定层决定退出码 |
+| `evidence-completeness.sh` | 判定层 | 完整性判定与交付出口：算 `MISSING_ARTIFACTS` 与 `DELIVERY_BLOCKER_CODES`（+给人和给清单看的两份文案），决定 exit 1（工具链不可用）/ exit 12（证据不齐）还是透传 k6 退出码 |
+| `exit-code-self-test.sh` | 判定-回归 | 纯离线（替身 k6 / curl / mysql / redis-cli，不连网络、不施压）跑通 0 / k6 码 / 1 / 12 四条出口共 20 项断言，含"无 node""扫描器崩溃""文案表重复 code""账号池非法"等反例 |
 | `monitor-spec.sh` | 契约库 | 监控证据的**唯一契约源**：组件集合、各 CSV 表头、"有效采样行"判定列号。runner / 采集器 / 清单生成器都读它，`--self-check` 在无服务环境下自检三方自洽 |
-| `delivery-blockers.tsv` | 契约库 | 交付阻塞项文案的**唯一来源**（`code<TAB>文案`），shell 侧与 JS 侧共读；追加新 code 时两侧都要加引用分支，缺文案即硬失败 |
+| `delivery-blockers.tsv` | 契约库 | 交付阻塞项文案的**唯一来源**（`code<TAB>文案`），shell 侧与 JS 侧共读，跨进程传递的是 **code** 而不是文案；格式违规（多 TAB/缺文案/重复 code）两侧一律硬失败（exit 1），追加新 code 时两侧都要加引用分支 |
 | `monitor-parse.sh` | 采集-解析层 | 纯解析：`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 的原始文本 → 数值字段，不碰进程、不连服务、不写文件 |
 | `monitor-readers.sh` | 采集-读取层 | 四个组件（system / app-jvm / mysql / redis）各采一次、各写一行、各记一次状态 |
 | `monitor-status.sh` | 采集-状态层 | 组件状态的唯一持有者，产出 `component-status.csv`，并判定"这次采集算不算成功" |
 | `scrub-secrets.mjs` | 脱敏脚本 | 归档前就地替换证据包里的凭证（JWT / 敏感键值 / Bearer / URL userinfo），并在脱敏后对整包做同组检测器的残留扫描（`--scan`），结论写入 `manifest.json` 的 `secret_scan`；同时导出 `scrubText` / `DETECTORS` 供清单侧复用 |
 | `write-run-manifest.mjs` | 清单脚本 | 装配并写出 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、逐组件监控状态、各产物 sha256、完整性判定），写盘前对清单自身脱敏复验，并把自己的独立结论回传给 runner |
-| `manifest-verify.mjs` | 清单-复核层 | 独立复核：产物是否齐、监控 CSV 有没有数据、包内还有没有凭证残留、阻塞项文案，与 runner 注入值取**并集** |
+| `manifest-verify.mjs` | 清单-复核层 | 独立复核：产物是否齐、监控 CSV 有没有数据、包内还有没有凭证残留、阻塞项文案（整表严格校验，表外 code 直接拒绝），与 runner 注入值取**并集** |
 | `k6-evidence.mjs` | 清单-解释层 | 把 k6 的三份产物读成清单字段：头部指标、声明的门禁、被击穿的门禁、退出码、脚本路径 |
 
 ## 压测证据归档（推荐入口）
@@ -60,15 +67,31 @@ bash scripts/performance/run-stress-test.sh \
 `--users '[{"username":…,"password":…}]'` 会把测试环境口令留在本机 `ps` 的 argv 里。
 
 ```bash
-export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
+export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"}]'
 ```
 
+必须是一段**合法 JSON**：非空数组，每项含字符串 `username` / `password`。入口用 node 校验，
+不合法 → exit 2，本机没有 node → exit 1。这不是形式主义：`k6-tests/load-test.js` 的
+`getUserPool()` 在解析失败（或解析出空数组）时会 catch 并**静默回退到内置默认账号池**——
+压测照跑、曲线照出、门禁照判，而实际使用的认证身份与声明的账号池无关。带省略号的模板
+（`'[{...},…]'`）正是这类输入，因此文档里的示例一律写成单个合法元素。
+
 **退出码**：`0` = k6 全部门禁通过且证据完整；k6 自身码 = k6 未全通过（`99` 表示有门禁被击穿）
-但证据完整；`1` = 拒绝执行（未确认环境 / 命中生产特征 / 缺 k6 或压测脚本 / 工具链自身不可用，
-例如读不到 `monitor-spec.sh` 的规格、`delivery-blockers.tsv` 的文案，或清单脱敏后仍残留凭证）；
-`2` = 用法错误（未知参数、带值选项缺值、拓扑开关矛盾、档位或组件名拼错、监控宿主不明确、
-`--base-url` 带 userinfo）；
+但证据完整；`1` = 拒绝执行（未确认环境 / 命中生产特征 / 缺 k6 或压测脚本 / 账号池因缺 node
+无法校验 / 工具链自身不可用，例如读不到 `monitor-spec.sh` 的规格、`delivery-blockers.tsv`
+的文案格式违规或某个 code 缺文案，或清单脱敏后仍残留凭证）；
+`2` = 用法错误（未知参数、带值选项缺值、拓扑开关矛盾、档位或组件名拼错、账号池不是合法 JSON、
+监控宿主不明确、`--base-url` 带 userinfo）；
 **`12` = k6 已跑完但证据包不可交付，优先于 k6 退出码上报**。
+
+`1` 与 `12` 的分界是**结论有没有被算出来**，不是"坏得有多严重"：`12` 表示结论算出来了、
+结论是"本包不齐"，按缺件补采即可；`1` 表示工具链没能给出结论（没有 node、扫描器或清单
+生成器起不来、它们的输出不可解析），补采多少次都不会有变化。因此 `1` 优先于 `12`。
+这条分界有离线回归可跑，不需要起任何服务或向任何环境施压：
+
+```bash
+bash scripts/performance/exit-code-self-test.sh   # 20 项，覆盖 0 / k6 码 / 1 / 12 四条出口
+```
 
 `bash scripts/performance/run-stress-test.sh --help` 打印头部注释里的用法正文
 （取"第 1 行到第一个空行"，因此**头部注释内不得插入空行**——写死行号时增删几行会静默印出半截用法）。
@@ -88,6 +111,13 @@ export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
 （产物一个不少、但这份包仍不能交付）。两者的处置方式不同——前者补跑或补采，后者要换一种
 交付方式——混在一张清单里会让读者以为只差文件。
 
+`delivery_blockers` 里的每一句话都出自 `delivery-blockers.tsv`（`<code><TAB><文案>`），
+shell 侧与清单生成器读同一份，**runner 传给清单生成器的是 code、不是文案**——传文案时调用方
+可以塞进任意表外句子直通对外交付物，单一来源就名存实亡了。两侧都必须整表校验：非注释非空行
+恰好一个 TAB、`code` 形如 `[a-z][a-z0-9_]*`、文案非空且无首尾空白、`code` 不重复；任一项
+不满足即 **exit 1**（shell 在创建证据目录之前就拒绝，JS 在读表时抛 `ToolchainError`）。
+重复 code 尤其要拦：不拦的话 awk 取首行、`Map` 取末行，两侧各自"正常"地给出不同文案。
+
 组件集合、各 CSV 表头与"有效采样行"的判定列号定义在 `monitor-spec.sh` 一处，
 采集器与 runner 都 source 它；改动后跑 `bash scripts/performance/monitor-spec.sh --self-check` 自检。
 
@@ -97,12 +127,19 @@ export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
 |---|---|---|
 | `passed` | 0 | 全部产物都在检测器的覆盖范围内，且没有命中 |
 | `failed` | 1 | 扫到了残留（脱敏没覆盖到，或脱敏后又被写回） |
-| `incomplete` | 3 | 有产物**扫不了**（二进制/非 UTF-8 文本），无法证明它干净。这是失败关闭：不把"扫不了"当成"没问题" |
+| `incomplete` | 3 | 有产物**扫不了**（二进制/非 UTF-8 文本，或符号链接与其它非常规文件——本脚本不跟链接），无法证明它干净。这是失败关闭：不把"扫不了"当成"没问题" |
 | `unverified` | —— | 扫描器没输出可解析的结论，或退出码与它自己 stdout 的 `scan_status=` 对不上 |
 
 状态取**退出码与 stdout 两路来源的交集**，任一路缺失或彼此不一致就收敛到 `unverified`：
 单独一路都可能因为包装层截断（`| head`、只记 rc）或输出被重定向而给出"看上去正常"的假信号。
-`incomplete` / `unverified` 都进 `delivery_blockers`，同样是 exit 12。
+`failed` / `incomplete` 进 `delivery_blockers`，同样是 exit 12；而 `unverified`（含扫描器
+根本起不来、node 缺失）属于"结论没算出来"，按 exit 1 上报——那时让调用方去补采是白费力气。
+
+符号链接单独点名，因为它是**真实逃逸路径**而不是理论风险：`walk` 早先只收普通文件，于是
+一个目录里放一条指向目录外凭证文件的软链，整包扫描会给出 `scan_scanned=0 / status=passed`、
+exit 0——链接目标里的凭证可读，而扫描器连"存在这个文件"都没报告。现在符号链接与其余非常规
+文件一律计入"未覆盖"，`scan_unscanned_files` 逐个列出路径。证据包要可交付，就把这些文件移出去
+（`monitoring/monitoring.log` 与四份 CSV 已经覆盖了监控证据本身，截图不是必需件）。
 
 **覆盖范围是整包**：`--scan` 跑在 `manifest.json` 写盘之前，所以它逐文件扫的是"除 `manifest.json`
 外的全部产物"；清单自身由 `write-run-manifest.mjs` 在写盘前用**同一组检测器**（`scrubText` 从

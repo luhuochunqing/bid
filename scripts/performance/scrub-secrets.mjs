@@ -14,11 +14,14 @@
 // 本脚本在**归档前**就地脱敏，且只改凭证文本本身，不做 parse/重新序列化：
 // 重排 JSON 会把"原始产物"变成"我们的产物"，逐字节保真是这个目录的唯一卖点。
 //
-// 扫描的**能力边界**：只扫文本。含 NUL 或 UTF-8 替换字符的文件（截图、压缩包等）无法按
-// 文本解析，本脚本不假装覆盖它们——但也不把它们当成"干净"：只要有这类文件，扫描结论就是
-// `incomplete`（exit 3），调用方必须判本包不可交付。把它们列为"未覆盖"而不阻断交付，
-// 等于留了一条可交付包内含可读凭证的路径（实测：`credential\0Bearer …` 的文件曾被跳过、
-// 其余文本干净时整包以"扫描通过"交付）。要让包可交付，就把二进制产物移出证据目录。
+// 扫描的**能力边界**：只扫普通文件的文本内容。含 NUL 或 UTF-8 替换字符的文件（截图、压缩包等）
+// 无法按文本解析，本脚本不假装覆盖它们——但也不把它们当成"干净"：只要有这类文件，扫描结论就是
+// `incomplete`（exit 3），调用方必须判本包不可交付。**符号链接与其它非常规文件同样计入这一类**：
+// 早先 walk 只收集 `isFile()`，一条指向目录外凭证文件的软链就能让整包 `scan_scanned=0 /
+// status=passed`、exit 0——链接目标里的凭证可读，而扫描器连"存在这个文件"都没报告。
+// 把它们列为"未覆盖"而不阻断交付，等于留了一条可交付包内含可读凭证的路径
+// （实测：`credential\0Bearer …` 的文件曾被跳过、其余文本干净时整包以"扫描通过"交付）。
+// 要让包可交付，就把二进制产物与符号链接移出证据目录。
 
 
 import fs from 'node:fs'
@@ -59,13 +62,20 @@ export function scrubText(text) {
   return { out, count }
 }
 
-function walk(dir, files = []) {
+// 枚举待扫描文件。符号链接与其它非常规文件（FIFO/设备/套接字）**不算普通文件**：
+// 早先只收集 isFile()，一个目录里放一条指向目录外凭证文件的软链就能让整包
+// `scan_scanned=0 / scan_status=passed`（实测 exit 0）——链接目标里的凭证可读，
+// 而扫描器连"有这个文件"都没报告。所以它们单独归一类，交由调用方判为未覆盖。
+function walk(dir, files = [], links = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const abs = path.join(dir, entry.name)
-    if (entry.isDirectory()) walk(abs, files)
+    if (entry.isSymbolicLink()) links.push(abs)
+    else if (entry.isDirectory()) walk(abs, files, links)
     else if (entry.isFile()) files.push(abs)
+    // dirent 报不出来的类型（例如某些挂载点上的条目）同样按"无法证明干净"处理
+    else links.push(abs)
   }
-  return files
+  return { files, links }
 }
 
 // CLI 只在**被直接执行**时运行：write-run-manifest.mjs 要 import 上面的 scrubText
@@ -91,8 +101,13 @@ if (argv[0] === '--scan') {
   const detectors = DETECTORS
   const hits = []
   const scanned = []
-  const skipped = [] // 二进制产物：本脚本不解析，必须显式声明为未覆盖，而不是默认"干净"
-  for (const abs of walk(dir)) {
+  // 无法按文本扫描的产物：二进制/非 UTF-8 文本（截图、压缩包、带 NUL 的日志片段）
+  // 与符号链接/非常规文件（本脚本不跟链接、也不解析 FIFO）。它们必须显式声明为未覆盖，
+  // 而不是默认"干净"——"未覆盖"只能等于"不可交付"。
+  const skipped = []
+  const { files, links } = walk(dir)
+  for (const abs of links) skipped.push(path.relative(dir, abs))
+  for (const abs of files) {
     const rel = path.relative(dir, abs)
     let buf
     try {
@@ -129,12 +144,13 @@ if (argv[0] === '--scan') {
     process.exit(1)
   }
   if (skipped.length > 0) {
-    // 这一类**不能**以 0 退出。二进制文件里可能存在可读凭证（例如误放进证据包的截图、
-    // 压缩包、带 NUL 的日志片段），而本脚本无法证明它干净；"未覆盖"只能等于"不可交付"，
-    // 不能等于"通过"。要让包可交付，就把这些文件移出证据目录（monitoring.log 与四份 CSV
-    // 已经覆盖了监控证据本身，截图不是必需件）。
+    // 这一类**不能**以 0 退出。二进制产物里可能存在可读凭证（例如误放进证据包的截图、
+    // 压缩包、带 NUL 的日志片段），符号链接更是可以指向目录外的任意凭证文件——两者本脚本
+    // 都无法证明干净；"未覆盖"只能等于"不可交付"，不能等于"通过"。要让包可交付，
+    // 就把这些文件移出证据目录（monitoring.log 与四份 CSV 已经覆盖了监控证据本身，
+    // 截图不是必需件）。
     console.error(
-      `scrub-secrets: ${skipped.length} 个二进制产物无法按文本扫描，本包不宣称凭证扫描通过：${skipped.join(', ')}`,
+      `scrub-secrets: ${skipped.length} 个产物无法按文本扫描（二进制 / 符号链接 / 非常规文件），本包不宣称凭证扫描通过：${skipped.join(', ')}`,
     )
     console.error('scrub-secrets: 请把无法扫描的产物移出证据目录后重跑，或由人工确认后另行出具结论。')
     process.exit(3)

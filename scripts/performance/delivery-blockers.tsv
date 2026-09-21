@@ -6,9 +6,20 @@
 # 比较，字符串不同就失效），而且没有任何门禁能发现。跨语言契约只靠注释约束，本身就是缺陷
 # （xiyu-code-review §7.4）。
 #
-# 格式：每行 `<code><TAB><文案>`；`#` 开头为注释，空行忽略。文案中不得包含 TAB。
-# 读取方：scripts/performance/evidence-completeness.sh 的 add_delivery_blocker()（awk）
-#         scripts/performance/write-run-manifest.mjs 的 readBlockerTexts()（fs 读取）
+# 格式：每行 `<code><TAB><文案>`；`#` 开头为注释，空行忽略（空行就是**空行**，不要写只有空格的
+# "空行"——它会被当成格式违规，因为这正是"多了一个看不见的字符"这类破坏的典型形态）。
+# code 形如 [a-z][a-z0-9_]* 且**不重复**；文案非空、不得含 TAB、不得有首尾空白。
+# 两侧读取器都**整表校验**，任一项不满足即以 exit 1 拒绝执行（shell 在创建证据目录之前就拦，
+# JS 在读表时抛 ToolchainError）。不校验时的退化形态是静默的：重复 code 时 shell 的 awk 取
+# 首行、JS 的 Map 取末行，同一份表两侧给出不同文案，而两边都"正常"。
+#
+# 跨进程传递的是 **code，不是文案**：runner 通过 DELIVERY_BLOCKER_CODES 把 code 交给清单
+# 生成器，由它回查本表取文案。传文案时调用方可以塞进任意表外句子直通清单的 delivery_blockers
+# （实测过），单一来源就名存实亡了；而清单是对外交付物。
+#
+# 读取方：scripts/performance/evidence-completeness.sh 的 blocker_catalog_assert() 与
+#         add_delivery_blocker()（awk）、scripts/performance/manifest-verify.mjs 的
+#         readBlockerTexts()（fs 读取，判据与前者逐条对应）
 # 新增一条时两处解析器都不用改；改文案只改这里。
 # 注意：**新增 code** 时解析器不用改，但两侧的判定分支要各加一处引用（shell 在
 # evidence-completeness.sh 的 evidence_collect_blockers、JS 在 manifest-verify.mjs 的

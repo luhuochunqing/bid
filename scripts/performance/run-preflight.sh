@@ -7,7 +7,8 @@
 #
 # 为什么单独一层：这一层里每一条校验都对应一次**静默出错**的实测——拼错档位会被 k6 静默
 # 降级成 standard、--monitor-interval abc 会产出一包 null 产物、组件名拼错会把"没采到"
-# 退化成"没这项要求"、非回环目标会把压测机的负载冒充成目标机的负载。它们必须在创建证据
+# 退化成"没这项要求"、非回环目标会把压测机的负载冒充成目标机的负载、账号池不是合法 JSON 时
+# k6 会静默回退到默认账号池（认证身份与声明的账号池无关，而曲线照常出）。它们必须在创建证据
 # 目录、curl、k6 **之前**全部跑完；和压测执行混在一个文件里时，"校验是否都排在副作用之前"
 # 这件事只能靠通读全文来确认。
 #
@@ -187,6 +188,38 @@ EOF
       exit 1
       ;;
   esac
+
+  # 账号池（XIYU_K6_USERS / --users）必须是**非空 JSON 数组**，且每项带字符串 username 与 password。
+  # k6-tests/load-test.js 的 getUserPool() 在 JSON.parse 抛错、或者解析结果不是非空数组时，
+  # 会 catch 后**静默回退到默认账号池**——于是文档里那种带省略号的模板（'[{...},…]'）会被
+  # "压测跑起来了"这件事完全掩盖：曲线照常出、门禁照常判，而实际的认证身份与操作者声明的
+  # 账号池毫无关系。这类静默回退只能在入口挡掉，靠文档写一句"记得替换省略号"是挡不住的。
+  # 判据与 k6 侧一致（typeof 检查是额外的：元素形状不对时 k6 只会在登录处报错，同样静默）。
+  # 用 node 解析而不是自己写正则：JSON 的合法性不能靠模式匹配近似，而这个工具链本来就要 node。
+  if [[ -n "$K6_USERS_JSON" ]]; then
+    if ! command -v node >/dev/null 2>&1; then
+      echo "run-stress-test: 本机没有 node，无法校验账号池（XIYU_K6_USERS / --users）是否合法。" >&2
+      echo "                 k6 在解析失败时会**静默回退到默认账号池**，因此宁可拒绝执行也不再放行。" >&2
+      exit 1
+    fi
+    local _users_err
+    if ! _users_err="$(printf '%s' "$K6_USERS_JSON" | node -e '
+      let s = ""
+      process.stdin.on("data", (d) => { s += d }).on("end", () => {
+        let a
+        try { a = JSON.parse(s) } catch (e) { console.error(`不是合法 JSON：${e.message}`); process.exit(1) }
+        if (!Array.isArray(a) || a.length === 0) { console.error("必须是非空 JSON 数组（k6 对空数组同样会静默回退到默认账号池）"); process.exit(1) }
+        a.forEach((u, i) => {
+          if (u === null || typeof u !== "object" || typeof u.username !== "string" || typeof u.password !== "string") {
+            console.error(`第 ${i + 1} 项缺少字符串 username/password`); process.exit(1)
+          }
+        })
+      })' 2>&1)"; then
+      echo "run-stress-test: 账号池不合法，拒绝执行：${_users_err}" >&2
+      echo "                 期望形如 '[{\"username\":\"u\",\"password\":\"p\"}]'；带省略号的模板不算合法输入。" >&2
+      exit 2
+    fi
+  fi
 
   if ! command -v k6 >/dev/null 2>&1; then
     echo "run-stress-test: 未安装 k6（macOS: brew install k6）" >&2

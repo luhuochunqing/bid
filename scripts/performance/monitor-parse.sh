@@ -102,7 +102,13 @@ parse_vm_used_mb() {
 
 # sysctl -n hw.memsize 的字节数 → MB。空输入（sysctl 不可用、键不存在）时输出空串，
 # 而不是让 awk 把空记录当 0 算出一个"总内存 0MB"。
-parse_memsize_mb() { printf '%s' "$1" | awk 'NF {printf "%.0f", $1/1048576}'; }
+# 只接受**单个纯十进制整数**：`NF { $1/1048576 }` 这种写法会把 "foo" 算成 0 并输出 "0"，
+# 而 0 是合法数字——调用方的 is_num 放行它，于是一份解析失败的 `sysctl hw.memsize`
+# 会被当成"总内存 0MB"写进证据包，而且是有效采样行。多字段（"123 abc"）同样拒绝：
+# 那说明命令根本不是我们以为的那条，取第一个字段等于猜。
+parse_memsize_mb() {
+  printf '%s\n' "$1" | awk 'NF == 1 && $1 ~ /^[0-9]+$/ { printf "%.0f", $1/1048576 }'
+}
 
 # jstat -gc 输出 → "YGC,YGCT,FGC,FGCT,CGC,CGCT,GCT,堆已用MB,堆已提交MB"。
 # 按**表头名**取值而不是按列序号：G1 与 ZGC 的列含义不同（ZGC 在 Java 21 下 YGC/FGC 恒为
@@ -216,6 +222,12 @@ Pages wired down: 20000.
 Pages occupied by compressor: 15000.' 16384)"
   _check "parse_memsize_mb" "32768" "$(parse_memsize_mb '34359738368')"
   _check "parse_memsize_mb 空输入留空" "" "$(parse_memsize_mb '')"
+  # 非数值输入必须留空。`NF { $1/1048576 }` 会把 "foo" 算成 0 并输出 "0"，而 0 是合法数字、
+  # is_num 放行 → 一份解析失败的 sysctl 被记成"总内存 0MB"且算有效采样。
+  _check "parse_memsize_mb 非数值留空" "" "$(parse_memsize_mb 'foo')"
+  # 多字段说明命令不是我们以为的那条（例如把键名一起打了出来），取第一个字段等于猜
+  _check "parse_memsize_mb 多字段留空" "" "$(parse_memsize_mb 'hw.memsize: 34359738368')"
+  _check "parse_memsize_mb 带单位留空" "" "$(parse_memsize_mb '34359738368B')"
   # jstat：G1 实测表头（Java 21），按表头名取 YGC/FGC；堆取 S0U+S1U+EU+OU = 3072K = 3MB，
   # 提交取 S0C+S1C+EC+OC = 14336K = 14MB
   _check "parse_jstat_gc G1" "12,1.230,3,4.560,,,5.790,3,14" \

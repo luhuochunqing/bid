@@ -120,9 +120,10 @@ const missingArtifacts = [...new Set([...injectMissing, ...verified.missing])]
 // （例如 --no-monitor 缺监控原始数据、凭证残留扫描未通过）。只判 missing_artifacts 时，
 // `--no-monitor` 会让这个字段天然为空，于是清单对外宣称 evidence_complete=true —— 与
 // README"这类包不算证据齐全"的说法正好相反。
+// 注入的是 code（与 shell 侧同一个词汇表），文案由 collectDeliveryBlockers 回查 TSV 得到。
 const deliveryBlockers = collectDeliveryBlockers({
   texts: blockerTexts,
-  injected: splitLines(process.env.DELIVERY_BLOCKERS),
+  injected: splitLines(process.env.DELIVERY_BLOCKER_CODES),
   monitorScope: process.env.MONITOR_SCOPE ?? '',
   scan,
   runnerScanStatus: process.env.SECRET_SCAN_STATUS,
