@@ -19,12 +19,12 @@
 | `sales-200.k6.js` | 压测脚本 | 模拟 200 个销售在线用户访问登录、项目、看板、导出和标书上传入队链路 |
 | `run-stress-test.sh` | 执行入口 | 压测执行与原始证据归档入口：调用 `k6-tests/load-test.js` 跑指定档位，产出完整证据包（原始 summary / 逐请求采样 / 控制台日志 / 监控数据 / `manifest.json`）。内置 `XIYU_STRESS_CONFIRMED=1` 与环境守卫，默认关闭业务写入；证据不全时以 exit 12 拒绝交付 |
 | `capture-monitoring.sh` | 采集入口 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录，产出 CSV 时间序列 + 可读日志 + `component-status.csv`（逐组件有效采样行数），替代手工监控截图。只在要求 `mysql` 时才强制 `MYSQL_PASSWORD`；单独运行默认只要求 `system` |
-| `run-preflight.sh` | 入口-预检层 | 命令行解析、默认值、拓扑开关互斥、`XIYU_STRESS_CONFIRMED` 与环境守卫、档位/组件白名单、`--base-url` 拒收 userinfo 与目标主机解析、k6 与压测脚本存在性检查 |
+| `run-preflight.sh` | 入口-预检层 | 命令行解析、默认值、拓扑开关互斥、`XIYU_STRESS_CONFIRMED` 与环境守卫、档位/组件白名单、`--base-url` 拒收 userinfo 与目标主机解析、账号池非空 JSON 校验（未设置与显式空串分开判）、k6 与压测脚本存在性检查。node 校验顺序是**先探能不能跑、再看在不在 PATH 上**：找得到但跑不动的 node 按工具链拒绝（exit 1），不报成"账号池不合法"（exit 2） |
 | `cli-guards.sh` | 入口-参数守卫 | 两个入口脚本共用的"带值选项缺值即 exit 2"守卫，避免把下一个选项当成值吞掉 |
 | `monitor-lifecycle.sh` | 入口-子进程层 | 监控采集子进程的启停（`.ready` 握手、有界等待、超时强杀），以及采集侧问题清单 `MONITOR_ISSUES` |
 | `evidence-archive.sh` | 归档层 | 产物落盘之后、对外交付之前的三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单。同时记录 `TOOLCHAIN_FAILURE` / `TOOLCHAIN_FAILURE_REASON`（哪一步的哪件工具没跑成），由判定层决定退出码 |
 | `evidence-completeness.sh` | 判定层 | 完整性判定与交付出口：算 `MISSING_ARTIFACTS` 与 `DELIVERY_BLOCKER_CODES`（+给人和给清单看的两份文案），决定 exit 1（工具链不可用）/ exit 12（证据不齐）还是透传 k6 退出码 |
-| `exit-code-self-test.sh` | 判定-回归 | 纯离线（替身 k6 / curl / mysql / redis-cli **以及监控侧的 top / uptime / sysctl / vm_stat / uname**，不连网络、不施压，逐用例有超时上界）跑通 0 / k6 码 / 1 / 12 四条出口共 23 项断言，含"无 node""扫描器崩溃""文案表重复 code""账号池非法或为空"等反例 |
+| `exit-code-self-test.sh` | 判定-回归 | 纯离线（替身 k6 / curl / mysql / redis-cli **以及监控侧的 top / uptime / sysctl / vm_stat / uname**，不连网络、不施压，逐用例有超时上界）跑通 0 / k6 码 / 1 / 12 四条出口共 27 项断言，含"无 node""坏 node shim（找得到但跑不动）""扫描器崩溃""文案表重复 code""账号池非法或为空"等反例；开头两项断言先自检夹具自身（坏扫描器替身不得自递归），否则"用例 6 挂死"会被读成环境问题 |
 | `monitor-spec.sh` | 契约库 | 监控证据的**唯一契约源**：组件集合、各 CSV 表头、"有效采样行"判定列号。runner / 采集器 / 清单生成器都读它，`--self-check` 在无服务环境下自检三方自洽 |
 | `delivery-blockers.tsv` | 契约库 | 交付阻塞项文案的**唯一来源**（`code<TAB>文案`），shell 侧与 JS 侧共读，跨进程传递的是 **code** 而不是文案；格式违规（多 TAB/缺文案/重复 code）两侧一律硬失败（exit 1），追加新 code 时两侧都要加引用分支 |
 | `monitor-parse.sh` | 采集-解析层 | 纯解析：`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 的原始文本 → 数值字段，不碰进程、不连服务、不写文件 |
@@ -96,7 +96,7 @@ CI secret 没注入、配置被清空）或 `--users ''` = 提供了但没提供
 这条分界有离线回归可跑，不需要起任何服务或向任何环境施压：
 
 ```bash
-bash scripts/performance/exit-code-self-test.sh   # 23 项，覆盖 0 / k6 码 / 1 / 12 四条出口
+bash scripts/performance/exit-code-self-test.sh   # 27 项，覆盖 0 / k6 码 / 1 / 12 四条出口
 ```
 
 `bash scripts/performance/run-stress-test.sh --help` 打印头部注释里的用法正文

@@ -258,8 +258,13 @@ k6 返回 0 只说明门禁通过，不说明这份包能交付。k6 的原始�
 四条出口的离线回归不需要起任何服务、也不会向任何环境施压：
 
 ```bash
-bash scripts/performance/exit-code-self-test.sh   # 23 项：0 / k6 码 / 1 / 12
+bash scripts/performance/exit-code-self-test.sh   # 27 项：0 / k6 码 / 1 / 12
 ```
+
+**"哪一层坏了"要报对码，否则会把人指去改错的东西。** 典型是 `node`：`command -v node` 成功
+不等于 `node` 能跑（版本管理器卸载后残留的 shim、指向已删二进制的软链、把 `node` 定义成 shell
+函数的环境都能通过这一问）。跑不动却按"账号池不合法"上报 exit 2，操作者会去改一个本来就对的
+账号池。因此预检里 `node` 是**先探能不能跑、再看在不在 PATH 上**：跑不动 = 工具链不可用 = exit 1。
 
 **"产物齐全"之外还有两类交付阻塞项。** 它们的共同点是"文件一个不少，但这份包仍不能用"，
 因此单独记在 manifest 的 `delivery_blockers` 里，而不是混进 `missing_artifacts`：
@@ -363,12 +368,12 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | :--- | :--- |
 | `scripts/performance/run-stress-test.sh` | 压测执行入口，产出本目录的证据包 |
 | `scripts/performance/capture-monitoring.sh` | 压测期间系统/JVM/MySQL/Redis 监控采样，产出本目录的 `monitoring/` |
-| `scripts/performance/run-preflight.sh` | 入口的参数解析与前置校验层（拓扑开关互斥、环境守卫、档位/组件白名单、监控宿主判定、`--base-url` 拒收 userinfo、账号池必须是合法非空 JSON 数组——k6 对非法账号池**以及显式空账号池**都会静默回退到默认账号池，两者都在这里 exit 2） |
+| `scripts/performance/run-preflight.sh` | 入口的参数解析与前置校验层（拓扑开关互斥、环境守卫、档位/组件白名单、监控宿主判定、`--base-url` 拒收 userinfo、账号池必须是合法非空 JSON 数组——k6 对非法账号池**以及显式空账号池**都会静默回退到默认账号池，两者都在这里 exit 2；`node` 先探能不能跑再看在不在 PATH 上，跑不动按工具链 exit 1，不报成"账号池不合法"） |
 | `scripts/performance/cli-guards.sh` | 两个入口共用的"带值选项缺值即 exit 2"守卫 |
 | `scripts/performance/monitor-lifecycle.sh` | 采集子进程的启停（`.ready` 握手、有界等待、超时强杀） |
 | `scripts/performance/evidence-completeness.sh` | 完整性判定与交付出口（`missing_artifacts` / `delivery_blockers` / exit 1 与 exit 12 的分层） |
 | `scripts/performance/evidence-archive.sh` | 归档三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单；同时记录工具链失败状态 |
-| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（替身 k6 / curl / mysql / redis-cli **以及监控侧的 top / uptime / sysctl / vm_stat / uname**，不连网络、不施压，逐用例有超时上界；共 23 项断言） |
+| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（替身 k6 / curl / mysql / redis-cli **以及监控侧的 top / uptime / sysctl / vm_stat / uname**，不连网络、不施压，逐用例有超时上界；共 27 项断言，含两项先自检夹具自身） |
 | `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（runner / 采集器 / 清单生成器都读它，`--self-check` 可离线自检） |
 | `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜） |
 | `scripts/performance/monitor-readers.sh` | 四个组件各采一次、各写一行、各记一次状态 |

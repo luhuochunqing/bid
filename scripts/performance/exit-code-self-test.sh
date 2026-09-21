@@ -5,6 +5,8 @@
 #        `top`/`uptime`/`sysctl`/`vm_stat`。只替身 k6 那一侧的话，本自检的结论就取决于跑它的
 #        那台机器与那个 shell（沙箱里 `top` 取不到、Linux 上又走 `/proc` 分支），一条"回归"
 #        会随环境变红变绿——那正是它上一版的实际缺陷（实测：受限沙箱里正向用例得到 12）。
+#        node 侧同样有两种坏法，各有一个替身目录：**坏扫描器**（node 在、脱敏脚本崩 → 1）
+#        与**坏 shim**（node"找得到但跑不动" → 1，且不得报成"账号池不合法"的 2）。
 # Output: 逐用例 PASS/FAIL 与汇总计数；全部通过 exit 0，任一失败 exit 1
 # Pos: scripts/performance/ - runner **退出码分层**的离线回归：0 / k6 自身码 / 1（工具链不可用）/ 12（证据不齐）的边界
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -115,16 +117,73 @@ chmod +x "${STUB}/k6" "${STUB}/curl" "${STUB}/mysql" "${STUB}/redis-cli" \
 # 环境里（否则那些用例会退回宿主真实的 k6 去连一个不存在的目标）。
 export PATH="${STUB}:${PATH}"
 
-# 坏扫描器：node 还在（`command -v node` 成功），但调用脱敏/扫描脚本时自身崩掉（137 = 被 kill）。
+# 坏扫描器：node 还在（替身自己就是 node），但调用脱敏/扫描脚本时自身崩掉（137 = 被 kill）。
 # 这条路径对应"扫描器无法启动"，必须报 1 而不是 12。
+#
+# 替身里的"真实 node"必须是**绝对路径**，不能写成 `exec "$(command -v node)"`：
+# `command -v` 对 shell 函数/别名返回的是**裸名**，一旦宿主把 node 定义成函数（某些沙箱与
+# 版本管理器会这么做），这行就退化成 `exec node`，而此时的 PATH 首选正是替身自己 —— 变成
+# 无限 exec 自身，整条用例挂死到超时（实测：`node(){ … }; export -f node` 之后构造替身，
+# 替身内容为 `exec "node" "$@"`，调用它 8s 后仍不返回、按 124 上报）。
+# 因此这里直接扫 PATH 上的可执行文件，绕开函数/别名/builtin，只认真正的程序。
+find_real_node() {
+  local d
+  local old_ifs="$IFS"
+  IFS=:
+  for d in $PATH; do
+    # 空段在 PATH 里表示当前目录，这里不认它（与"必须能找到真正的 node"这一前提不符）。
+    if [[ -n "$d" && -x "${d}/node" && ! -d "${d}/node" ]]; then
+      IFS="$old_ifs"
+      printf '%s' "${d}/node"
+      return 0
+    fi
+  done
+  IFS="$old_ifs"
+  return 1
+}
+
 BADNODE="${SANDBOX}/badnode"
+REAL_NODE="$(find_real_node || true)"
+if [[ -z "$REAL_NODE" ]]; then
+  # 不静默退化：没有真实 node 时，"扫描器崩掉"与"根本没有 node"两种失败无法区分，
+  # 用例 6 会变成一条看不出所以然的失败。直接拒绝执行，把前提说清楚。
+  echo "exit-code-self-test: 宿主 PATH 上找不到可执行的 node 程序，无法构造「扫描器崩溃」用例。" >&2
+  echo "                    本回归需要真实 node 来跑脱敏/清单脚本；缺少它时用例 6 无法成立。" >&2
+  exit 1
+fi
 mkdir -p "${BADNODE}"
 cat > "${BADNODE}/node" <<STUB_NODE
 #!/usr/bin/env bash
+# 只拦脱敏/扫描脚本；其余调用转给真实 node（绝对路径，理由见创建处的注释）。
 case "\$*" in *scrub-secrets.mjs*) exit 137 ;; esac
-exec "$(command -v node)" "\$@"
+exec "${REAL_NODE}" "\$@"
 STUB_NODE
 chmod +x "${BADNODE}/node"
+
+# 替身自身要健全，否则"扫描器崩掉"这条用例会以挂死（124）而不是 1 的形式失败，
+# 而 124 看上去像环境问题、不像缺陷。两条断言分别钉住：内嵌的是绝对路径，
+# 且它在**与用例 6 相同的调用环境**（替身目录在 PATH 最前）下真的有界返回 ——
+# 换成裸名的替身时，第一条报 not-absolute，第二条会在这里拿到 <TIMEOUT>。
+echo "== 0. 自检夹具自身的健全性（坏扫描器替身不得自递归）=="
+check "坏扫描器替身内嵌绝对路径（不依赖 command -v 的裸名）" "yes" \
+  "$(grep -qE '^exec "/' "${BADNODE}/node" && echo yes || echo no)"
+STUB_PROBE_OUT="${SANDBOX}/stub-probe-out.txt"
+PATH="${BADNODE}:${PATH}" "${BADNODE}/node" -e 'process.stdout.write("stub-ok")' > "$STUB_PROBE_OUT" 2>&1 &
+STUB_PROBE_PID=$!
+_probe_ticks=0
+while kill -0 "$STUB_PROBE_PID" 2>/dev/null && [[ "$_probe_ticks" -lt 20 ]]; do
+  sleep 0.5
+  _probe_ticks=$((_probe_ticks + 1))
+done
+if kill -0 "$STUB_PROBE_PID" 2>/dev/null; then
+  kill -9 "$STUB_PROBE_PID" 2>/dev/null
+  wait "$STUB_PROBE_PID" 2>/dev/null
+  STUB_PROBE_OUT_VALUE="<TIMEOUT：替身在 10s 内没有返回，很可能是 exec 回了自己>"
+else
+  wait "$STUB_PROBE_PID" 2>/dev/null
+  STUB_PROBE_OUT_VALUE="$(cat "$STUB_PROBE_OUT")"
+fi
+check "坏扫描器替身能把非扫描调用转给真实 node" "stub-ok" "$STUB_PROBE_OUT_VALUE"
 
 # 无 node 的 PATH：把真实 PATH 里的每一项都软链过去，唯独漏掉 node。
 # 不用"删掉某个目录"的做法——node 所在的目录里还住着几百个 runner 需要的工具。
@@ -151,11 +210,16 @@ SHADOW="$(build_shadow_path)"
 # ── 运行一个用例并打印退出码 ────────────────────────────────────────────────
 # 环境变量（XIYU_STRESS_CONFIRMED / PATH / STUB_* 等）由调用方在子 shell 里设置。
 #
-# 每个用例都有**上界**（CASE_TIMEOUT 秒，实测每个用例数秒，45 秒是宽松兜底）：runner 内部
-# 虽有监控子进程的有界等待，但一条挂住的回归会拖住整轮 S5，而"没有输出的等待"与"正在跑"
-# 在日志里长得一模一样。超时按 124 上报（与 `timeout(1)` 的约定一致），并打印到 stderr——
-# 让它以 [FAIL] 的形式立刻暴露，而不是让整条命令卡住。
-CASE_TIMEOUT="${CASE_TIMEOUT:-45}"
+# 每个用例都有**上界**（CASE_TIMEOUT 秒）：一条挂住的回归会拖住整轮 S5，而"没有输出的等待"
+# 与"正在跑"在日志里长得一模一样。超时按 124 上报（与 `timeout(1)` 的约定一致），并打印到
+# stderr —— 让它以 [FAIL] 的形式立刻暴露，而不是让整条命令卡住。
+#
+# 取值必须**大于 runner 自己的合法上界**，否则会把"慢"误报成"挂"：
+# runner 内部有两处各 30s 的有界等待（等采集器 .ready 30s + 等采集器退出 30s，
+# 见 monitor-lifecycle.sh），合计可达 60s；再叠上 k6 与归档的正常耗时。
+# 45s（上一版的取值）落在 60s 之内 —— 沙箱/负载下进程启动慢一点就会稳定误报 124，
+# 那正是"回归随环境变红变绿"的另一种形态。120s ≈ 两倍余量。
+CASE_TIMEOUT="${CASE_TIMEOUT:-120}"
 run_runner() { # <用例名> <runner 脚本> <参数...>
   local _label="$1" _runner="$2"
   shift 2
@@ -244,6 +308,27 @@ check "空环境变量未创建证据目录" "no" "$([[ -e "${SANDBOX}/runs/empt
 echo "== 5e. 账号池 --users 传空串 → 2（命令行侧同一条判据）=="
 RC="$(run_runner emptyflag "$RUNNER" "${LOOPBACK[@]}" --users '')"
 check "空 --users" 2 "$RC"
+
+# node"找得到"与"跑得动"是两件事：版本管理器卸载后残留的 shim、指向已删二进制的软链、
+# 把 node 定义成函数/别名的 shell 都能让 `command -v node` 通过，而调用它随即失败。
+# 那次失败必须报 1（去修环境），不能报 2（去改账号池）——否则操作者会拿着一条
+# "账号池不合法"去改一个本来就对的账号池，而真正的坏 node 一直在那儿。
+BROKENNODE="${SANDBOX}/brokennode"
+mkdir -p "${BROKENNODE}"
+cat > "${BROKENNODE}/node" <<'STUB_BROKEN_NODE'
+#!/usr/bin/env bash
+# 只模拟"能被执行、但一跑就失败"的 node。刻意**不做**任何转发：转发会引入"exec 回自己"
+# 的递归（坏扫描器替身踩过这个坑，见上面 BADNODE 的注释）。这里退出码取 3，
+# 与 runner 自己的 1/2/12 都不同，万一被透传出来一眼能认出来。
+echo "node: 这是一个坏掉的 shim（自检替身）" >&2
+exit 3
+STUB_BROKEN_NODE
+chmod +x "${BROKENNODE}/node"
+
+echo '== 5f. node 找得到但跑不动 → 1（不是"账号池不合法"的 2）=='
+RC="$(PATH="${BROKENNODE}:${PATH}" run_runner brokennode "$RUNNER" "${LOOPBACK[@]}")"
+check "坏 node 按工具链拒绝" 1 "$RC"
+check "未误报成账号池不合法" "no" "$(log_has brokennode '账号池不合法' && echo yes || echo no)"
 
 echo "== 6. 扫描器无法启动 → 1 =="
 RC="$(PATH="${BADNODE}:${PATH}" run_runner badscan "$RUNNER" "${LOOPBACK[@]}")"

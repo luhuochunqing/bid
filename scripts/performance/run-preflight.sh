@@ -216,8 +216,19 @@ EOF
   # 判据与 k6 侧一致（typeof 检查是额外的：元素形状不对时 k6 只会在登录处报错，同样静默）。
   # 用 node 解析而不是自己写正则：JSON 的合法性不能靠模式匹配近似，而这个工具链本来就要 node。
   if [[ -n "$K6_USERS_JSON" ]]; then
-    if ! command -v node >/dev/null 2>&1; then
-      echo "run-stress-test: 本机没有 node，无法校验账号池（XIYU_K6_USERS / --users）是否合法。" >&2
+    # 先探一次 node 能不能真的跑起来，再回头看它在不在 PATH 上。`command -v node` 只回答
+    # "找得到"，不回答"跑得动"：版本管理器卸载后残留的 shim、指向已删二进制的软链、把 node
+    # 定义成函数/别名的 shell（本仓库的自检夹具就构造过这一种）都能让它通过，紧接着的解析
+    # 调用才失败。若不区分，那次失败会被归到"账号池不合法"上报 exit 2 —— 操作者被指向去改
+    # 账号池，而该修的是环境；这正是本文件区分 1 与 2 时要避免的那类误判。
+    local _node_probe_err
+    if ! _node_probe_err="$(node -e 'process.exit(0)' 2>&1)"; then
+      if command -v node >/dev/null 2>&1; then
+        echo "run-stress-test: node 跑不起来，无法校验账号池（XIYU_K6_USERS / --users）是否合法。" >&2
+        echo "                 PATH 上找得到 node，但调用它失败了：${_node_probe_err}" >&2
+      else
+        echo "run-stress-test: 本机没有 node，无法校验账号池（XIYU_K6_USERS / --users）是否合法。" >&2
+      fi
       echo "                 k6 在解析失败时会**静默回退到默认账号池**，因此宁可拒绝执行也不再放行。" >&2
       exit 1
     fi
