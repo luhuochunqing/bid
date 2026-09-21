@@ -18,6 +18,56 @@ import static org.mockito.Mockito.when;
 class MultimodalStructuredExtractionHandlerTest {
 
     @Test
+    void modelFailureRechecksWithModelBeforeShowingIncompleteFallback() throws Exception {
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(artifact());
+        int[] rechecks = {0};
+        MultimodalScoreFactExtractor model = new MultimodalScoreFactExtractor() {
+            @Override
+            public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
+                throw new IllegalStateException("Request failed");
+            }
+
+            @Override
+            public ExtractionResult recheck(DocumentArtifact input) {
+                rechecks[0]++;
+                return new ExtractionResult(BigDecimal.TEN, List.of(fact()), "recheck-model", 0);
+            }
+        };
+
+        StructuredTableResult result = extract(artifactExtractor, model);
+
+        assertThat(rechecks[0]).isEqualTo(1);
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.candidates()).hasSize(1);
+    }
+
+    @Test
+    void incompleteModelRecallUsesCompleteRecheckResult() throws Exception {
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(artifact());
+        int[] rechecks = {0};
+        MultimodalScoreFactExtractor model = new MultimodalScoreFactExtractor() {
+            @Override
+            public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
+                return new ExtractionResult(new BigDecimal("100"), List.of(fact()), "first", 0);
+            }
+
+            @Override
+            public ExtractionResult recheck(DocumentArtifact input) {
+                rechecks[0]++;
+                return new ExtractionResult(BigDecimal.TEN, List.of(fact()), "recheck", 0);
+            }
+        };
+
+        StructuredTableResult result = extract(artifactExtractor, model);
+
+        assertThat(rechecks[0]).isEqualTo(1);
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.candidates()).hasSize(1);
+    }
+
+    @Test
     void validModelFactsAreAutoApproved() throws Exception {
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(artifact());

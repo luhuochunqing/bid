@@ -12,8 +12,8 @@ sources:
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-09-20
-updated: 2026-09-20
-health_checked: 2026-09-20
+updated: 2026-09-21
+health_checked: 2026-09-21
 archive: false
 ---
 
@@ -35,6 +35,8 @@ archive: false
 
 ## 不完整多模态召回的安全回补
 
+- 首次多模态请求失败，或返回事实未通过证据及总分校验时，最多增加一次模型独立复核。复核输入仅包含评分表的原始单元格、页码和表格标识，不重复发送大批页面图片与完整 Artifact JSON；模型必须从零输出全部正式项而非只补差额。
+- 复核结果仍走同一个 `MultimodalScoreFactValidator`。只有其完整通过才能自动发布；复核失败或不完整继续保留异常复核，禁止伪造分值闭合。
 - 多模态模型返回的事实不完整时，不得把候选事实直接当作正式评分项，也不得把候选合计强行归一化到 100 分。
 - `MultimodalStructuredExtractionHandler` 会把同一份 `DocumentArtifact` 和标书评分章节文本交给 `ScoreFactShadowPipeline`；只有确定性管道产出 `AUTO_APPROVED`、叶子项非空且声明总分闭合时，才用完整回补结果继续正式入库链路。
 - 确定性回补仍未闭合时保留 `REVIEW_REQUIRED`，前端候选复核卡必须同时展示序号、评分项、权重、评分类别、标书原文与详情，避免审核者只能看到总分或摘要。

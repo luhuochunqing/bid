@@ -10,6 +10,10 @@ import java.util.List;
 public interface MultimodalScoreFactExtractor {
     ExtractionResult extract(DocumentArtifact artifact, List<DocumentImage> pageImages);
 
+    default ExtractionResult recheck(DocumentArtifact artifact) {
+        return extract(artifact, List.of());
+    }
+
     record ExtractionResult(BigDecimal declaredTotal, List<MultimodalScoreFact> facts,
                             String model, int imageCount) {
         public ExtractionResult {

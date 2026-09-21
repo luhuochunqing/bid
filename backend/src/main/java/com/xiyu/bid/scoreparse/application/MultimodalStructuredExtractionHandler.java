@@ -60,9 +60,33 @@ final class MultimodalStructuredExtractionHandler {
                     case LoadedBidFile.InMemory inMem -> imageExtractor.renderPages(inMem.content(), fileName, scorePages).images();
                     case LoadedBidFile.OnDisk onDisk -> imageExtractor.renderPages(onDisk.tempFile(), fileName, scorePages).images();
                 };
-        var extracted = extractor.extract(artifact, images);
-        var validation = new MultimodalScoreFactValidator().validate(
-                extracted.facts(), artifact, extracted.declaredTotal());
+        MultimodalScoreFactExtractor.ExtractionResult extracted;
+        boolean alreadyRechecked = false;
+        try {
+            extracted = extractor.extract(artifact, images);
+        } catch (RuntimeException firstFailure) {
+            log.warn("多模态首次请求失败，尝试紧凑模型复核: file={}, cause={}", fileName,
+                    firstFailure.getClass().getSimpleName());
+            extracted = extractor.recheck(artifact);
+            alreadyRechecked = true;
+        }
+        var validator = new MultimodalScoreFactValidator();
+        var validation = validator.validate(extracted.facts(), artifact, extracted.declaredTotal());
+        if (!alreadyRechecked && !validation.autoApprovable()) {
+            try {
+                var rechecked = extractor.recheck(artifact);
+                var recheckValidation = validator.validate(rechecked.facts(), artifact, rechecked.declaredTotal());
+                if (recheckValidation.autoApprovable()) {
+                    extracted = rechecked;
+                    validation = recheckValidation;
+                    log.info("紧凑模型复核通过: file={}, facts={}, declaredTotal={}", fileName,
+                            rechecked.facts().size(), rechecked.declaredTotal());
+                }
+            } catch (RuntimeException recheckFailure) {
+                log.warn("紧凑模型复核失败，保留首次提取结果: file={}, cause={}", fileName,
+                        recheckFailure.getClass().getSimpleName());
+            }
+        }
         if (!validation.autoApprovable()) {
             StructuredTableResult deterministicFallback = completeDeterministicFallback(
                     artifact, tenderSectionText, validation);
@@ -70,7 +94,8 @@ final class MultimodalStructuredExtractionHandler {
                 return deterministicFallback;
             }
         }
-        List<ScoreFact> facts = validation.facts().stream().map(f -> toScoreFact(f, artifact, validation)).toList();
+        var finalValidation = validation;
+        List<ScoreFact> facts = validation.facts().stream().map(f -> toScoreFact(f, artifact, finalValidation)).toList();
         var decision = validation.autoApprovable() ? ScoreParseDecision.AUTO_APPROVED : ScoreParseDecision.REVIEW_REQUIRED;
         List<ScoreFact> leaves = facts.stream().filter(f -> ScoreFact.isLeaf(f, facts)).toList();
         List<ScoreFact> parents = facts.stream().filter(f -> !ScoreFact.isLeaf(f, facts)).toList();
