@@ -258,7 +258,7 @@ k6 返回 0 只说明门禁通过，不说明这份包能交付。k6 的原始�
 四条出口的离线回归不需要起任何服务、也不会向任何环境施压：
 
 ```bash
-bash scripts/performance/exit-code-self-test.sh   # 20 项：0 / k6 码 / 1 / 12
+bash scripts/performance/exit-code-self-test.sh   # 23 项：0 / k6 码 / 1 / 12
 ```
 
 **"产物齐全"之外还有两类交付阻塞项。** 它们的共同点是"文件一个不少，但这份包仍不能用"，
@@ -330,8 +330,21 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
    # 口令只存在于你自己的 shell 环境里；`--users '<JSON>'` 等效，但会把口令写进
    # 本机 `ps` 的 argv，共享压测机上不要那么用。
    export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"}]'
-   bash scripts/performance/run-stress-test.sh --profile standard --base-url <目标> …
+   bash scripts/performance/run-stress-test.sh \
+     --profile standard \
+     --base-url http://172.16.38.78:8080 \
+     --monitor-local-target
    ```
+
+   （上面是**完整可复制**的调用：`<账号>` / `<口令>` 是占位符，执行前必须替换成真实值
+   ——JSON 里的尖括号原样提交会被入口以 **exit 2** 拒掉，这是有意的，见下条。URL 用报告
+   §2.1 的目标环境；换成别的主机时按第 226 行的表选 `--monitor-local-target` 或 `--no-monitor`。）
+
+   **"没设置"与"设成空串"是两件事**：`export XIYU_K6_USERS=`（值为空串）或 `--users ''`
+   同样以 **exit 2** 拒绝。判据是变量**存在性**而不是"值非空"——`${VAR:-}` 会把这两种情况
+   塌缩成同一个空串，于是"CI secret 没注入""上一段脚本的 export 丢了"被静默读成"操作者
+   没打算给账号池"，接着就是上面那条静默回退（压测照跑、曲线照出、认证身份与声明无关）。
+   只有**完全不设置**这个变量才走 k6 的内置默认账号池，那是操作者的明确选择。
 
    本文档不写任何环境的具体口令——本机 dev 环境的账号与口令以仓库 `CLAUDE.md`
    「默认登录凭据」一节为准（那是给本地联调用的，不是给文档复制的）。
@@ -350,12 +363,12 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | :--- | :--- |
 | `scripts/performance/run-stress-test.sh` | 压测执行入口，产出本目录的证据包 |
 | `scripts/performance/capture-monitoring.sh` | 压测期间系统/JVM/MySQL/Redis 监控采样，产出本目录的 `monitoring/` |
-| `scripts/performance/run-preflight.sh` | 入口的参数解析与前置校验层（拓扑开关互斥、环境守卫、档位/组件白名单、监控宿主判定、`--base-url` 拒收 userinfo、账号池必须是合法非空 JSON 数组——k6 对非法账号池会静默回退到默认账号池） |
+| `scripts/performance/run-preflight.sh` | 入口的参数解析与前置校验层（拓扑开关互斥、环境守卫、档位/组件白名单、监控宿主判定、`--base-url` 拒收 userinfo、账号池必须是合法非空 JSON 数组——k6 对非法账号池**以及显式空账号池**都会静默回退到默认账号池，两者都在这里 exit 2） |
 | `scripts/performance/cli-guards.sh` | 两个入口共用的"带值选项缺值即 exit 2"守卫 |
 | `scripts/performance/monitor-lifecycle.sh` | 采集子进程的启停（`.ready` 握手、有界等待、超时强杀） |
 | `scripts/performance/evidence-completeness.sh` | 完整性判定与交付出口（`missing_artifacts` / `delivery_blockers` / exit 1 与 exit 12 的分层） |
 | `scripts/performance/evidence-archive.sh` | 归档三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单；同时记录工具链失败状态 |
-| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（替身 k6 / curl / mysql / redis-cli，不连网络、不施压） |
+| `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（替身 k6 / curl / mysql / redis-cli **以及监控侧的 top / uptime / sysctl / vm_stat / uname**，不连网络、不施压，逐用例有超时上界；共 23 项断言） |
 | `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（runner / 采集器 / 清单生成器都读它，`--self-check` 可离线自检） |
 | `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜） |
 | `scripts/performance/monitor-readers.sh` | 四个组件各采一次、各写一行、各记一次状态 |
