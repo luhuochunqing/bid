@@ -141,7 +141,9 @@ public class BidQualityCheckAsyncExecutor {
                     (progress, step) -> progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING,
                             60 + progress * 30 / 100, "AI 语义裁决 " + progress + "%：" + step));
 
-            if (sealVisionDetector != null && !bidDoc.images().isEmpty()) {
+            // 视觉通道必须始终参与融合：抽图失败/无页图时由检测器返回不可用，交由融合策略降级人工复核，
+            // 不得因 images 为空而短路（项目 1382 假通过根因：短路后文本层 PASS 直接落库）
+            if (sealVisionDetector != null) {
                 var vision = sealVisionDetector.detect(bidDoc);
                 itemResults = itemResults.stream()
                         .map(result -> BidQualityCheckItem.SIGNATURE_SEAL.getCode().equals(result.itemCode())

@@ -9,7 +9,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** 将文本层签章结论与页面视觉证据融合为唯一 signature_seal 结果。 */
+/**
+ * 将文本层签章结论与页面视觉证据融合为唯一 signature_seal 结果。
+ *
+ * <p>反假边界：视觉不可用、无正向观察或无法定位页面时，文本层 PASS 一律降级人工复核
+ * （项目 1382 假通过根因：视觉兜底被调用侧前置条件短路）。
+ */
 public final class SealVisionFusionPolicy {
 
     private static final double MIN_CONFIDENCE = 0.70;
@@ -55,6 +60,15 @@ public final class SealVisionFusionPolicy {
                     com.xiyu.bid.compliance.domain.BidQualityCheckItem.SIGNATURE_SEAL,
                     "视觉检测未在目标盖章页发现印章：" + formatPages(missingPages),
                     "请人工核对目标页是否实际盖章，必要时重新上传清晰扫描件", evidences);
+        }
+
+        // 无页面级定位（如 .docx 仅抽到内嵌图片、无页码线索）时无法确认页面覆盖，不得维持 PASS
+        if (vision.targetPages().isEmpty()) {
+            return QualityCheckItemResult.manualReview(
+                    com.xiyu.bid.compliance.domain.BidQualityCheckItem.SIGNATURE_SEAL,
+                    "视觉通道未能定位需核验页面，无法确认页面级签章覆盖",
+                    "请人工核对投标函、技术方案末尾、承诺函等需盖章页面；非分页文档（.docx）暂不提供页面图像，签章需人工确认",
+                    evidences);
         }
 
         boolean legalRep = hasType(vision, SealVisionResult.SealType.LEGAL_REP_SEAL);
