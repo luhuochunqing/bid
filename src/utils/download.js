@@ -54,6 +54,46 @@ export function triggerNativeDownload(url, filename) {
 }
 
 /**
+ * 原生下载前的轻量预检（1 字节 Range + 成功即取消 body）。
+ *
+ * 背景（项目 580）：原生 <a> 下载会吞掉后端业务错误——如 409 阶段门禁——浏览器只显示
+ * 下载失败，用户无法看到真实原因。预检先探路：业务错（409/404 等）读小体积 JSON
+ * 错误体透传文案并拦截；成功（200/206/302 跟随）立即 cancel body，零内存开销；
+ * 无响应（CORS/断网/超时）则放行原生下载，保持既有行为，避免误拦。
+ * 内存边界：成功路径不保留任何 body；错误路径只读小 JSON（后端错误体约百字节）。
+ *
+ * @param {string} apiUrl - 归一化后的同源 API 路径
+ * @returns {Promise<boolean>} 是否允许继续原生下载
+ */
+async function preflightNativeDownload(apiUrl) {
+  let response
+  const controller = typeof AbortController === 'function' ? new AbortController() : null
+  const timer = controller ? setTimeout(() => controller.abort(), 10000) : null
+  try {
+    response = await fetch(apiUrl, {
+      headers: { Range: 'bytes=0-0' },
+      credentials: 'include',
+      ...(controller ? { signal: controller.signal } : {})
+    })
+  } catch {
+    return true
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+  if (response.ok) {
+    try { await response.body?.cancel() } catch { /* 忽略取消异常 */ }
+    return true
+  }
+  let backendMsg = ''
+  try {
+    const body = await response.json()
+    if (body && typeof body.msg === 'string') backendMsg = body.msg
+  } catch { /* 非 JSON 错误体，走通用文案 */ }
+  showApiDownloadError({ response: { status: response.status, data: backendMsg ? { msg: backendMsg } : {} } })
+  return false
+}
+
+/**
  * 通过 fetch + blob 方式下载文件，支持从响应头获取文件名
  *
  * 适用场景：需要从 Content-Disposition 头读取真实文件名的下载。
@@ -69,6 +109,11 @@ export async function downloadWithFilename(url, fallbackName, options = {}) {
   if (!url) return
 
   if (options?.native) {
+    const nativeApiUrl = normalizeApiDownloadUrl(url)
+    if (nativeApiUrl) {
+      const allowed = await preflightNativeDownload(nativeApiUrl)
+      if (!allowed) return
+    }
     triggerNativeDownload(url, fallbackName)
     return
   }
