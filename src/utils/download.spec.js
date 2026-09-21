@@ -278,7 +278,9 @@ describe('downloadWithFilename', () => {
     expect(ElMessage.error).toHaveBeenCalledWith('登录已过期或访问入口不一致，请刷新页面并重新登录后下载')
   })
 
-  it('当 options.native 为 true 时应走原生 <a> 标签下载，避免 blob 占用内存', async () => {
+  it('当 options.native 为 true 时应先预检再走原生 <a> 标签下载，避免 blob 占用内存', async () => {
+    const cancelSpy = vi.fn()
+    vi.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 206, body: { cancel: cancelSpy } })
     const clickSpy = vi.fn()
     const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => {})
     const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => {})
@@ -289,17 +291,83 @@ describe('downloadWithFilename', () => {
       return document.createElement(tag)
     })
 
-    const fetchSpy = vi.spyOn(global, 'fetch')
-
     await downloadWithFilename('/api/projects/1374/documents/100/download', 'big_tender.docx', { native: true })
 
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/projects/1374/documents/100/download',
+      expect.objectContaining({ headers: expect.objectContaining({ Range: 'bytes=0-0' }) })
+    )
+    expect(cancelSpy).toHaveBeenCalled()
     expect(mockAnchor.href).toBe('/api/projects/1374/documents/100/download')
     expect(mockAnchor.download).toBe('big_tender.docx')
     expect(clickSpy).toHaveBeenCalled()
     expect(appendSpy).toHaveBeenCalledWith(mockAnchor)
     expect(removeSpy).toHaveBeenCalledWith(mockAnchor)
     expect(httpClient.get).not.toHaveBeenCalled()
+  })
+
+  it('原生下载预检遇 409 阶段门禁应透传后端文案并拦截（项目 580）', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: () => Promise.resolve({ success: false, code: 409, msg: '投标文件已进入「复盘」阶段，文件只读不可下载' })
+    })
+    const clickSpy = vi.fn()
+    vi.spyOn(document, 'createElement').mockReturnValue({
+      href: '', download: '', style: {}, click: clickSpy
+    })
+
+    await downloadWithFilename('/api/projects/580/documents/261/download', '商务技术评审文件.pdf', { native: true })
+
+    expect(ElMessage.error).toHaveBeenCalledWith('投标文件已进入「复盘」阶段，文件只读不可下载')
+    expect(clickSpy).not.toHaveBeenCalled()
+  })
+
+  it('原生下载预检遇 404 应提示并拦截', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({ success: false, code: 404 })
+    })
+    const clickSpy = vi.fn()
+    vi.spyOn(document, 'createElement').mockReturnValue({
+      href: '', download: '', style: {}, click: clickSpy
+    })
+
+    await downloadWithFilename('/api/projects/580/documents/999/download', 'missing.pdf', { native: true })
+
+    expect(ElMessage.error).toHaveBeenCalled()
+    expect(clickSpy).not.toHaveBeenCalled()
+  })
+
+  it('原生下载预检无响应（CORS/断网）应放行原生下载，避免误拦', async () => {
+    vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
+    const clickSpy = vi.fn()
+    vi.spyOn(document, 'createElement').mockReturnValue({
+      href: '', download: '', style: {}, click: clickSpy
+    })
+    vi.spyOn(document.body, 'appendChild').mockImplementation(() => {})
+    vi.spyOn(document.body, 'removeChild').mockImplementation(() => {})
+
+    await downloadWithFilename('/api/projects/580/documents/261/download', '商务技术评审文件.pdf', { native: true })
+
+    expect(ElMessage.error).not.toHaveBeenCalled()
+    expect(clickSpy).toHaveBeenCalled()
+  })
+
+  it('原生下载非同源 URL 应跳过预检直接原生下载', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch')
+    const clickSpy = vi.fn()
+    vi.spyOn(document, 'createElement').mockReturnValue({
+      href: '', download: '', style: {}, click: clickSpy
+    })
+    vi.spyOn(document.body, 'appendChild').mockImplementation(() => {})
+    vi.spyOn(document.body, 'removeChild').mockImplementation(() => {})
+
+    await downloadWithFilename('https://widbid-obs.ehsy.com/bids/x.pdf?sig=abc', 'x.pdf', { native: true })
+
     expect(fetchSpy).not.toHaveBeenCalled()
+    expect(clickSpy).toHaveBeenCalled()
   })
 
   it('当 options.native 为 false 或未指定时应走标准 API 下载流程', async () => {
