@@ -21,13 +21,16 @@
 #   - 必须显式导出 XIYU_STRESS_CONFIRMED=1，且 BASE_URL 命中生产特征时直接拒绝执行。
 #   - 证据目录内的产物在归档前会做凭证脱敏（scrub-secrets.mjs）：k6 summary 的 setup_data
 #     带着登录得到的 bearer token，不能原样交付给第三方。
+#   - 账号池优先取环境变量 XIYU_K6_USERS（JSON 数组，格式同 --users）；--users 是等效的显式形式。
+#     命令行参数会出现在本机 `ps` 的 argv 里，共享压测机上请用环境变量，不要把口令写进命令行。
 #
 # 退出码：
 #   0        k6 全部门禁通过，且证据包完整
 #   k6 自身码 k6 未全通过（99 = 有门禁被击穿；其余非 0 见 k6-console.log），证据包完整
 #   1        拒绝执行（未确认环境 / 命中生产特征 / 缺 k6 或脚本）
 #   2        用法错误（未知参数、缺 --base-url、非法档位或间隔、证据目录已存在、监控宿主歧义）
-#   12       k6 已跑完但**证据包不完整**（缺原始结果/监控产物），优先于 k6 退出码上报
+#   12       k6 已跑完但**证据包不完整**（缺原始结果/监控产物，或监控产物无有效数据行），
+#            优先于 k6 退出码上报
 
 set -uo pipefail
 
@@ -42,8 +45,15 @@ ENABLE_WRITES=0
 RUN_MONITOR=1
 MONITOR_LOCAL_TARGET=0
 MONITOR_INTERVAL=5
+# 本包声称"监控证据完整"就必须说清完整到什么程度：这四个组件各至少要有一行有效采样。
+# 由调用方声明而不是采集器替它假定——目标环境确实没有 Redis 时，操作者应当显式
+# 收窄成 system,app-jvm,mysql，而不是让一份缺组件的包以"完整"的名义交付出去。
+MONITOR_REQUIRED_COMPONENTS="system,app-jvm,mysql,redis"
 RUN_LABEL=""
-K6_USERS_JSON=""
+# 账号池默认从环境变量取，而不是只认命令行：`--users '[{...,"password":"..."}]'` 会把
+# 测试环境口令写进进程 argv，同机任何账号 `ps aux` 就能读到。文档因此无法给出一个
+# 既真实可跑、又不泄露口令的 --users 示例。XIYU_K6_USERS 让口令只存在于调用者的环境里。
+K6_USERS_JSON="${XIYU_K6_USERS:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -55,9 +65,10 @@ while [[ $# -gt 0 ]]; do
     --no-monitor) RUN_MONITOR=0; shift ;;
     --monitor-local-target) MONITOR_LOCAL_TARGET=1; shift ;;
     --monitor-interval) MONITOR_INTERVAL="$2"; shift 2 ;;
+    --monitor-required-components) MONITOR_REQUIRED_COMPONENTS="$2"; shift 2 ;;
     --k6-script) K6_SCRIPT="$2"; shift 2 ;;
     --users) K6_USERS_JSON="$2"; shift 2 ;;
-    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,33p' "$0"; exit 0 ;;
     *) echo "run-stress-test: 未知参数 $1" >&2; exit 2 ;;
   esac
 done
@@ -132,6 +143,49 @@ if [[ ! "$MONITOR_INTERVAL" =~ ^[0-9]+$ ]] || [[ "$MONITOR_INTERVAL" -lt 1 ]]; t
   exit 2
 fi
 
+# 必需组件名同样白名单校验：拼错一个名字（sys 而不是 system）会让下面的逐组件判定
+# 找不到对应规格 —— 那本该是"这一项没采到"，却会静默退化成"没有这项要求"。
+MONITOR_REQUIRED_NORMALIZED=""
+for _c in $(printf '%s' "$MONITOR_REQUIRED_COMPONENTS" | tr ',' ' '); do
+  case " system app-jvm mysql redis " in
+    *" ${_c} "*) ;;
+    *)
+      echo "run-stress-test: --monitor-required-components 只支持 system|app-jvm|mysql|redis（收到 '${_c}'）" >&2
+      exit 2
+      ;;
+  esac
+  MONITOR_REQUIRED_NORMALIZED="${MONITOR_REQUIRED_NORMALIZED} ${_c}"
+done
+unset _c
+MONITOR_REQUIRED_COMPONENTS="${MONITOR_REQUIRED_NORMALIZED# }"
+unset MONITOR_REQUIRED_NORMALIZED
+if [[ -z "$MONITOR_REQUIRED_COMPONENTS" ]]; then
+  echo "run-stress-test: --monitor-required-components 不能为空；不含监控证据请改用 --no-monitor" >&2
+  exit 2
+fi
+
+# 独立复算监控 CSV 里"有效采样行"的条数 —— **不复用采集器自报的 component-status.csv**。
+# 采集器的退出码和状态文件都是它自己的说法；"这份包能不能交付"必须由交付方自己算一遍，
+# 否则就退回到"清单自己声明自己完整"那个被审查否掉的形态。
+# 判据与该 CSV 里下游分析真正要用的列一致（列号从 1 起，第 1 列是 timestamp）。
+# 只查 -s 是不够的：采集器在 mysql 客户端缺失、Redis 不可达、应用进程找不到时留下的
+# 正是"只有表头"或"整行空值"的文件，非空、有行数、却撑不起报告第五章的任何结论。
+csv_usable_rows() {
+  local file="$1" cols="$2"
+  if [[ ! -f "$file" ]]; then printf '0'; return; fi
+  awk -v cols="$cols" -F',' '
+    NR == 1 { want = split(cols, w, ","); next }
+    {
+      ok = 1
+      for (i = 1; i <= want; i++) {
+        v = $(w[i] + 0)
+        if ($(w[i]) == "" || $(w[i]) !~ /^-?[0-9]+(\.[0-9]+)?$/) { ok = 0; break }
+      }
+      if (ok) n++
+    }
+    END { printf "%d", n + 0 }' "$file"
+}
+
 # 大小写不敏感后再匹配：只写 *prod*|*Prod*|*PROD* 会让 pRODuction-host、PrOd-host 直接放行。
 # 匹配整个 URL（含路径）而不是只匹配 host，宁可多拦也不漏拦。
 BASE_URL_LC="$(printf '%s' "$BASE_URL" | tr '[:upper:]' '[:lower:]')"
@@ -189,11 +243,16 @@ echo "run-stress-test: 目标=$BASE_URL 档位=$PROFILE 写入=$([[ $ENABLE_WRIT
 echo "run-stress-test: 证据目录=$RUN_DIR"
 
 MONITOR_PID=""
+# 采集侧问题（组件一行有效数据都没有、采集器非 0 退出）都追加到这里，最后写进
+# manifest.json 的 monitoring_issues —— 光说"缺 monitoring/mysql.csv"不解释为什么，
+# 拿包的人无从判断是环境没有这个组件，还是采集器坏了。
+MONITOR_ISSUES=""
 if [[ "$MONITOR_SCOPE" != "skipped" ]]; then
   # 走到这里意味着"本机就是被压的目标宿主机"（回环地址，或操作者用 --monitor-local-target 声明）。
   # 按监听端口反查本机应用进程；同机多 java 进程时端口是最准的线索。
   APP_PORT="$(printf '%s' "$BASE_URL" | sed -nE 's#^[a-z]+://[^:/]+:([0-9]+).*#\1#p')"
-  MONITOR_ARGS=(--out "$RUN_DIR" --interval "$MONITOR_INTERVAL" --duration 900)
+  MONITOR_ARGS=(--out "$RUN_DIR" --interval "$MONITOR_INTERVAL" --duration 900
+                --required-components "$MONITOR_REQUIRED_COMPONENTS")
   if [[ -n "$APP_PORT" ]]; then MONITOR_ARGS+=(--app-port "$APP_PORT"); fi
   bash "${SCRIPT_DIR}/capture-monitoring.sh" "${MONITOR_ARGS[@]}" &
   MONITOR_PID=$!
@@ -255,9 +314,15 @@ if [[ -n "$MONITOR_PID" ]]; then
   # 实测过这条路径（--monitor-interval abc）：5 个监控产物全为 null，runner 不告警。
   # 被强制结束的那次非 0 退出已在上面单独说明过，不重复告警。
   if [[ "$MONITOR_FORCED" != "1" ]] && [[ "$MONITOR_EXIT" != "0" ]]; then
-    echo "run-stress-test: 监控采集器以退出码 ${MONITOR_EXIT} 结束，证据包缺少监控数据" >&2
+    echo "run-stress-test: 监控采集器以退出码 ${MONITOR_EXIT} 结束，证据包缺少可用的监控数据" >&2
+    if [[ "$MONITOR_EXIT" == "3" ]]; then
+      MONITOR_ISSUES="${MONITOR_ISSUES}采集器判定必需组件未采到有效数据（exit 3），明细见 monitoring/component-status.csv"$'\n'
+    else
+      MONITOR_ISSUES="${MONITOR_ISSUES}监控采集器以退出码 ${MONITOR_EXIT} 结束（非组件判定失败），明细见 monitoring/monitoring.log"$'\n'
+    fi
   fi
-  # 缺哪些监控文件不在这里报——统一由下面的完整性判定汇总，避免同一件事告警两遍。
+  # 缺哪些监控文件、哪些监控文件没有有效数据行，不在这里报——统一由下面的完整性判定汇总，
+  # 避免同一件事告警两遍。
 fi
 
 # 归档前先规范化 k6 控制台日志的行尾空白。k6 自己输出的横幅与指标行带行尾空格，
@@ -293,13 +358,31 @@ fi
 # 监控记录三样俱全，缺任何一样都不能算交付成功——所以这里 fail closed。
 REQUIRED_ARTIFACTS=(k6-summary.json k6-console.log k6-exit-code k6-raw-samples.csv)
 if [[ "$MONITOR_SCOPE" != "skipped" ]]; then
-  REQUIRED_ARTIFACTS+=(monitoring/system.csv monitoring/app-jvm.csv monitoring/mysql.csv monitoring/redis.csv monitoring/monitoring.log)
+  REQUIRED_ARTIFACTS+=(monitoring/system.csv monitoring/app-jvm.csv monitoring/mysql.csv monitoring/redis.csv monitoring/monitoring.log monitoring/component-status.csv)
 fi
 MISSING_ARTIFACTS=""
 for _f in "${REQUIRED_ARTIFACTS[@]}"; do
   if [[ ! -s "${RUN_DIR}/${_f}" ]]; then MISSING_ARTIFACTS="${MISSING_ARTIFACTS} ${_f}"; fi
 done
 unset _f
+
+# 存在且非空，不等于"有数据"。逐组件复算可用的数据行数：`<文件名>:<必需列号>`，
+# 列号与 capture-monitoring.sh 里各 read_* 判定"这次采样算不算数"的字段一一对应。
+if [[ "$MONITOR_SCOPE" != "skipped" ]]; then
+  for _spec in "system.csv:2,4,5,7,8" "app-jvm.csv:3,6,15" "mysql.csv:2,3,4,5,6,7" "redis.csv:2,3,4,5,6"; do
+    _name="${_spec%%:*}"
+    _cols="${_spec#*:}"
+    _rows="$(csv_usable_rows "${RUN_DIR}/monitoring/${_name}" "$_cols")"
+    if [[ "${_rows:-0}" -lt 1 ]]; then
+      MONITOR_ISSUES="${MONITOR_ISSUES}monitoring/${_name} 没有一行可用采样（第 ${_cols} 列需齐备且为数值，实测 ${_rows:-0} 行）"$'\n'
+      case " ${MISSING_ARTIFACTS} " in
+        *" monitoring/${_name} "*) ;;
+        *) MISSING_ARTIFACTS="${MISSING_ARTIFACTS} monitoring/${_name}" ;;
+      esac
+    fi
+  done
+  unset _spec _name _cols _rows
+fi
 
 MANIFEST="${RUN_DIR}/manifest.json"
 # node 存在但执行失败（脚本自身报错、磁盘满、环境变量畸形）时，此前完全没有告警路径：
@@ -311,7 +394,7 @@ if command -v node >/dev/null 2>&1; then
      DURATION_SEC="$DURATION_SEC" COMMIT_SHA="$COMMIT_SHA" BRANCH_NAME="$BRANCH_NAME" GIT_DIRTY="$GIT_DIRTY" \
      K6_VERSION="$K6_VERSION" K6_SCRIPT="$K6_SCRIPT" MONITOR_INTERVAL="$MONITOR_INTERVAL" \
      TARGET_HOST="$TARGET_HOST" MONITOR_SCOPE="$MONITOR_SCOPE" REDACTED_COUNT="$REDACTED_COUNT" \
-     MISSING_ARTIFACTS="$MISSING_ARTIFACTS" \
+     MISSING_ARTIFACTS="$MISSING_ARTIFACTS" MONITOR_ISSUES="$MONITOR_ISSUES" \
      node "${SCRIPT_DIR}/write-run-manifest.mjs"; then
     MANIFEST_OK=1
     echo "run-stress-test: 已生成 ${MANIFEST}"
@@ -341,7 +424,14 @@ fi
 # 证据不完整时以 12 退出，且**优先于** k6 的退出码：k6 返回 0 只说明门禁通过，
 # 不说明这份证据包能交付。k6 的原始退出码仍完整保留在 k6-exit-code 与 manifest 里。
 if [[ -n "$MISSING_ARTIFACTS" ]]; then
-  echo "run-stress-test: 证据包不完整，以下必需产物缺失或为空：${MISSING_ARTIFACTS}" >&2
+  echo "run-stress-test: 证据包不完整，以下必需产物缺失、为空或没有可用数据行：${MISSING_ARTIFACTS}" >&2
+  if [[ -n "$MONITOR_ISSUES" ]]; then
+    printf '  监控侧明细：\n' >&2
+    printf '%s' "$MONITOR_ISSUES" | while IFS= read -r _line; do
+      [[ -n "$_line" ]] && echo "    - ${_line}" >&2
+    done
+    unset _line
+  fi
   echo "                 k6 退出码 ${K6_EXIT}（已记录在 k6-exit-code / manifest.json），但本包不可交付。" >&2
   exit 12
 fi

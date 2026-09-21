@@ -34,6 +34,7 @@ const ARTIFACT_FILES = [
   'monitoring/mysql.csv',
   'monitoring/redis.csv',
   'monitoring/monitoring.log',
+  'monitoring/component-status.csv',
 ]
 
 const artifacts = {}
@@ -185,6 +186,39 @@ const missingArtifacts = (process.env.MISSING_ARTIFACTS ?? '')
   .filter((s) => s.length > 0)
 const evidenceComplete = missingArtifacts.length === 0
 const redactionCount = Number.parseInt(process.env.REDACTED_COUNT ?? '0', 10) || 0
+// 采集侧的具体原因（哪个组件一行有效数据都没有、采集器为何非 0 退出）。
+// 只写 missing_artifacts 会让人以为是"文件没生成"，而真实情况多半是"文件生成了、
+// 里面没有数据"——这两件事的处置方式完全不同。
+const monitorIssues = (process.env.MONITOR_ISSUES ?? '')
+  .split('\n')
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0)
+
+// 逐组件状态：直接读采集器写的 component-status.csv，但**只作为记录**，不作为判定。
+// 判定（这份包能不能交付）由 run-stress-test.sh 独立复算 CSV 数据行得出并注入
+// missing_artifacts；两边都算一遍是刻意的，清单不给自己发合格证。
+const componentStatus = []
+const statusPath = path.join(dir, 'monitoring/component-status.csv')
+if (fs.existsSync(statusPath)) {
+  const lines = fs.readFileSync(statusPath, 'utf8').split('\n').filter((l) => l.trim() !== '')
+  const header = (lines.shift() ?? '').split(',')
+  for (const line of lines) {
+    // reason 列可能为空，且采集器已把原因里的逗号替换成 ';'，所以定长切分是安全的
+    const cells = line.split(',')
+    const row = {}
+    header.forEach((key, i) => {
+      row[key] = cells[i] ?? ''
+    })
+    componentStatus.push({
+      component: row.component,
+      required: row.required === '1',
+      available: row.available === '1',
+      usable_samples: Number.parseInt(row.usable_samples ?? '', 10) || 0,
+      total_samples: Number.parseInt(row.total_samples ?? '', 10) || 0,
+      reason: row.reason || undefined,
+    })
+  }
+}
 
 const manifest = {
   run_id: process.env.RUN_ID,
@@ -219,6 +253,11 @@ const manifest = {
     : '门禁判定仅反映 k6 退出码；本次证据包不完整（见 missing_artifacts），不可作为交付证据引用',
   evidence_complete: evidenceComplete,
   missing_artifacts: missingArtifacts,
+  // 逐组件的有效采样行数。文件存在 ≠ 有数据：采集器在 mysql 客户端缺失、Redis 不可达、
+  // 应用进程找不到时会留下只有表头或整行空值的 CSV，"证据完整"的结论只能建立在这里的
+  // usable_samples 上，交付前请按 required=true 的组件逐个确认。
+  monitoring_components: componentStatus,
+  monitoring_issues: monitorIssues,
   deliverable_ready: evidenceComplete,
   // 归档前被替换掉的凭证个数（k6 summary 的 setup_data 带着登录得到的 bearer token）。
   // 记下来是为了让"这份包被改过"这件事本身也是可核验的，而不是一个只有工具知道的隐式步骤。

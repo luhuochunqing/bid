@@ -37,7 +37,7 @@ sha256 的 `manifest.json` 清单。
 20260921T055308Z-smoke-harness-selfcheck/   # 下面 examples/ 里保留的那次自检运行
 ├── manifest.json          # 清单：运行元数据 + SLA 门禁声明与击穿项 + 头部指标 + 各产物 sha256
 ├── k6-summary.json        # k6 原始汇总（--summary-export），各接口 avg/med/p90/p95/p99
-├── k6-raw-samples.csv     # k6 逐指标逐时刻原始采样（--out csv），画图/复核都用它（不入库，见下）
+├── k6-raw-samples.csv     # k6 逐指标逐时刻原始采样（--out csv），画图/复核都用它
 ├── k6-console.log         # k6 控制台完整输出（含 checks 明细与阈值告警原文）
 ├── k6-exit-code           # k6 退出码：0=门禁全过，99=有门禁被击穿（abortOnFail 提前中止实测也是 99）
 └── monitoring/
@@ -45,11 +45,18 @@ sha256 的 `manifest.json` 清单。
     ├── app-jvm.csv        # 应用进程堆/元空间/线程数/YGC/FGC/CGC/进程 CPU/RSS
     ├── mysql.csv          # Threads_connected / running、Slow_queries、Innodb_row_lock_waits、Aborted_connects、Questions
     ├── redis.csv          # connected_clients、used_memory、instantaneous_ops_per_sec、命中率计数
+    ├── component-status.csv # 逐组件状态：required / available / **有效采样行数** / 失败原因
     └── monitoring.log     # 上述四项的可读快照行（需要"截图"时直接截这里，或据此作图）
 ```
 
 `monitoring.log` 就是监控截图的**可复核替代品**：它是压测期间逐采样的真实文本记录，
 比一张无法校验时间戳的截图更硬。
+
+`monitoring/component-status.csv` 回答的是"这份监控到底有没有数据"，而不是"文件在不在"：
+采集器在 mysql 客户端缺失、Redis 不可达、应用进程找不到时，留下的正是只有表头或整行空值的
+CSV——非空、有行数，却撑不起报告第五章的任何结论。该文件逐组件记录**必需字段齐备且为数值的
+行数**（`usable_samples`）与失败原因，`required=1` 的组件只要一行都没有，采集器就以
+**exit 3** 结束，runner 随即以 **exit 12** 判证据不可交付。
 
 `examples/` 下保留了一次**工具链自检运行**（1 VU 冒烟，本机 dev 环境），
 用于展示证据包的真实形态。**它不是 2026-08-28 报告的证据，不得引用为报告数据。**
@@ -66,11 +73,12 @@ sha256 的 `manifest.json` 清单。
 ```bash
 export XIYU_STRESS_CONFIRMED=1
 export MYSQL_PASSWORD='<本机 MySQL 口令>'   # 采集器不再内置任何默认口令，必须显式提供
+export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
 rm -rf docs/testing/stress-test-artifacts/examples/<旧目录>
 bash scripts/performance/run-stress-test.sh --profile smoke \
   --base-url http://127.0.0.1:18089 \
   --out docs/testing/stress-test-artifacts/examples \
-  --label harness-selfcheck --users '<目标环境真实账号 JSON>'
+  --label harness-selfcheck
 ```
 
 `--out` 指向 `examples/` 时，证据包会**直接**生成在该目录下，`monitoring/monitoring.log`
@@ -85,13 +93,15 @@ bash scripts/performance/run-stress-test.sh --profile smoke \
 
 两点关于"改了就坏"的准确边界（别高估也别低估）：
 
-- `manifest.json` 的 `artifacts` 覆盖 9 个产物，**不含 `manifest.json` 自身**，
+- `manifest.json` 的 `artifacts` 覆盖 10 个产物，**不含 `manifest.json` 自身**，
   `k6_script` 字段也不参与任何哈希。所以"改清单本身"在当前实现下**检测不到**——
-  它的自校验能力只针对那 9 个文件。
-- 这 9 个里 `k6-raw-samples.csv` 按设计**不入库**（标准档可达数十 MB，见同目录 `.gitignore`），
-  随交付附件单独给出。因此对**仓库内**的产物做全量 sha256 校验，正确结果是
-  **8/9 通过、1 项文件不存在**——这是预期，不是证据包被改动。拿不到该附件时，
-  请把这 1 项标为"未校验"，而不是"校验失败"。其余 8 项任一不符则确属异常。
+  它的自校验能力只针对那 10 个文件。
+- `examples/` 下的样例包是**完整入库**的：连 `k6-raw-samples.csv` 一起提交
+  （冒烟档约 130 KB，体积可控）。因此对 clone 下来的样例包做全量 sha256 校验，
+  正确结果是 **10/10 全部通过**；任何一项不符都确属异常。
+  真实运行的证据包则落在本目录下、**不进 git**——标准档的逐请求采样可达数十 MB，
+  由 `.gitignore` 排除，随交付附件单独给出（`examples/` 下另有显式例外，见该文件注释）。
+  也就是说："仓库里没有某次真实运行的 raw samples"是预期；"样例包里缺"才是异常。
 
 归档前工具链会做两处**有记录**的规范化，它们发生在 sha256 计算**之前**，
 所以清单里记的就是规范化后的字节，自校验不受影响：
@@ -126,6 +136,10 @@ bash scripts/performance/run-stress-test.sh \
   而 manifest 记的是你输入的那个值——两边对不上，容量结论就是错的，所以在入口挡掉。）
 - 压测机上需能连到 MySQL 8.0 与 Redis（默认 `127.0.0.1:3306` / `6379`，可用
   `MYSQL_HOST`/`MYSQL_PORT`/`MYSQL_USER`/`MYSQL_PASSWORD`/`REDIS_HOST`/`REDIS_PORT` 覆盖）。
+- **监控组件必须真的采到数据**，默认要求 `system,app-jvm,mysql,redis` 四个组件各至少一行
+  有效采样（必需字段齐备且为数值）。目标环境确实没有其中某个组件时，显式收窄范围：
+  `--monitor-required-components system,app-jvm,mysql`。不声明就少一个组件 → **exit 12**，
+  而不是交付一份"四份 CSV 都在、其中一份全是空值"的包。
 
 **监控宿主必须说清楚 —— 这是本工具最容易产出"看起来对、其实无意义"数据的地方。**
 采集器采的是**它自己所在这台机器**的 CPU/内存/JVM，以及它连得到的 MySQL/Redis。
@@ -147,9 +161,17 @@ bash scripts/performance/run-stress-test.sh \
   这类包按设计**不算**"证据齐全"，交付时需另行附上目标机的监控记录。
 
 **完整性是硬门禁。** 原始结果（`k6-summary.json` / `k6-raw-samples.csv` / `k6-console.log`）、
-监控产物（四份 CSV + `monitoring.log`，`--no-monitor` 时除外）、`manifest.json` 任何一项
-缺失或为空，脚本都会以 **exit 12** 结束，且优先于 k6 的退出码上报——k6 返回 0 只说明门禁通过，
-不说明这份包能交付。k6 的原始退出码仍完整保留在 `k6-exit-code` 与 `manifest.json` 里。
+监控产物（四份 CSV + `component-status.csv` + `monitoring.log`，`--no-monitor` 时除外）、
+`manifest.json` 任何一项缺失或为空，脚本都会以 **exit 12** 结束，且优先于 k6 的退出码上报——
+k6 返回 0 只说明门禁通过，不说明这份包能交付。k6 的原始退出码仍完整保留在 `k6-exit-code`
+与 `manifest.json` 里。
+
+**"存在"之外还查"有数据"。** 只判文件非空，会把"只有表头"或"整列空值"的监控文件当成完整
+证据放行——那正是采集器在组件采不到数据时留下的形态。所以 runner 会**独立复算**每份监控 CSV
+里必需列齐备且为数值的行数（不复用采集器自报的状态文件，清单不给自己发合格证），
+任何一份为 0 行即计入 `missing_artifacts` 并 exit 12；具体到哪个组件、为什么失败，
+记在 manifest 的 `monitoring_components`（逐组件有效行数与原因）与 `monitoring_issues` 里。
+
 manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifacts` 列表记录同一判定。
 
 跑完后按 `manifest.json` 的 `headline_metrics` 与各接口 p95 填报告 §4.2 的表格，
@@ -157,9 +179,9 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 
 ---
 
-## 四、复现 2026-08-28 报告前必须核对的四项
+## 四、复现 2026-08-28 报告前必须核对的五项
 
-这四项是"用仓库里的脚本能否复现报告数字"的差异点。**在核对清楚前，不建议把该报告
+这五项是"用仓库里的脚本能否复现报告数字"的差异点。**在核对清楚前，不建议把该报告
 当作已完成 SLA 门禁的证据对外引用。** 它们需要原始 `k6-summary.json` 才能定论。
 
 1. **请求总数对不上**：报告 §1.1 称 11,092 次请求，§4.2 分项加总为 10,844 次，差 248 次。
@@ -185,12 +207,18 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
    | `xiaowang` | 由 e2e 栈创建，口令是 `E2eDemoDataInitializer` 的默认值 | CLAUDE.md「默认登录凭据 / e2e」一节 |
    | `xiaozhao` | **全仓无任何创建点**，只出现在 `k6-tests/load-test.js` 与 `k6-tests/security-checklist.md` | `grep -rn xiaozhao backend/src src e2e scripts` 无命中 |
 
-   直接用默认池时，认证成功率门禁必然被击穿，复现不出"多角色并发"。复现时用 `--users`
-   显式传目标环境真实账号，例如本机 dev 环境：
+   直接用默认池时，认证成功率门禁必然被击穿，复现不出"多角色并发"。复现时用目标环境
+   的真实账号显式覆盖账号池，从环境变量传入：
 
    ```bash
-   --users '[{"username":"bid_admin","password":"<口令>"},{"username":"bid_lead","password":"<口令>"},{"username":"sales","password":"<口令>"},{"username":"bid_specialist","password":"<口令>"}]'
+   # 口令只存在于你自己的 shell 环境里；`--users '<JSON>'` 等效，但会把口令写进
+   # 本机 `ps` 的 argv，共享压测机上不要那么用。
+   export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
+   bash scripts/performance/run-stress-test.sh --profile standard --base-url <目标> …
    ```
+
+   本文档不写任何环境的具体口令——本机 dev 环境的账号与口令以仓库 `CLAUDE.md`
+   「默认登录凭据」一节为准（那是给本地联调用的，不是给文档复制的）。
 
 5. **裸跑 `k6 run` 与本目录的工具链，默认写入行为相反**：`k6-tests/load-test.js:27` 是
    `__ENV.ENABLE_WRITES || 'true'`，即**裸跑 k6 默认开写**（10% 流量 `POST /api/tenders` 落库）；

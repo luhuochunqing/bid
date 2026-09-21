@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Input: 应用宿主上的 java 进程、MySQL 8.0 与 Redis 连接参数、采样间隔与时长
-# Output: monitoring/ 目录下的 system/app-jvm/mysql/redis 四份 CSV 时间序列 + monitoring.log 可读快照
+# Input: 应用宿主上的 java 进程、MySQL 8.0 与 Redis 连接参数、采样间隔与时长、必需组件清单
+# Output: monitoring/ 目录下的 system/app-jvm/mysql/redis 四份 CSV 时间序列 + component-status.csv + monitoring.log 可读快照
 # Pos: scripts/performance/ - 压测期间系统资源与中间件监控采集器（替代手工截图，产出可归档的原始监控数据）
-# 维护声明: 若压测新增被监控组件（如 Nginx/Sidecar），同步更新本脚本的采集块与 scripts/performance/README.md。
+# 维护声明: 若压测新增被监控组件（如 Nginx/Sidecar），同步更新本脚本的采集块、REQUIRED_COMPONENTS 白名单与 scripts/performance/README.md。
 #
 # 用途：在 k6 压测运行期间持续采样，产出压测报告"系统资源与中间件稳定性分析"章节的原始数据。
 # 调用：由 run-stress-test.sh 自动拉起；也可单独运行做长稳监控。
@@ -10,12 +10,20 @@
 # 示例：
 #   bash scripts/performance/capture-monitoring.sh \
 #     --out docs/testing/stress-test-artifacts/20260921T110000Z-standard \
-#     --app-port 18089 --interval 5 --duration 300
+#     --app-port 18089 --interval 5 --duration 300 \
+#     --required-components system,app-jvm,mysql,redis
 #
 # 应用进程定位顺序：--app-pid > --app-port（lsof 反查监听端口）> pgrep 特征兜底。
 # 同机存在多个 java 进程时务必传 --app-port 或 --app-pid，否则可能采到别的进程。
+# 指定了 --app-port 却查不到监听进程时**不退回 pgrep**（那会静默采到另一个 JVM），
+# 而是把 app-jvm 记为未采集并让退出码报出来。
 #
 # 停止：--duration 到期自动退出，或 `touch <out>/monitoring/.stop` 立即结束采样。
+#
+# 退出码：
+#   0  采样结束，且 required-components 里每个组件都至少有一行**有效**数据
+#   2  用法错误（缺 --out、非法数值入参、未知组件名、缺 MYSQL_PASSWORD）
+#   3  采样结束，但某个必需组件一行有效数据都没有（调用方必须据此判证据不完整）
 
 set -uo pipefail
 
@@ -42,6 +50,10 @@ MYSQL_DB="${MYSQL_DB:-xiyu_bid_main}"
 REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 REDIS_DB="${REDIS_DB:-0}"
+# 哪些组件必须采到数据才算成功。默认只要求 system：单独运行本脚本的人可能只想看 CPU/内存，
+# 不该因为同机没装 mysql 客户端就判定失败。run-stress-test.sh 会显式传全四个 ——
+# "证据包声称监控完整"这件事由调用方声明，不由采集器替它假定。
+REQUIRED_COMPONENTS="system"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -56,7 +68,8 @@ while [[ $# -gt 0 ]]; do
     --mysql-db) MYSQL_DB="$2"; shift 2 ;;
     --redis-host) REDIS_HOST="$2"; shift 2 ;;
     --redis-port) REDIS_PORT="$2"; shift 2 ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    --required-components) REQUIRED_COMPONENTS="$2"; shift 2 ;;
+    -h|--help) sed -n '2,29p' "$0"; exit 0 ;;
     *) echo "capture-monitoring: 未知参数 $1" >&2; exit 2 ;;
   esac
 done
@@ -93,6 +106,49 @@ if [[ -z "$MYSQL_PASSWORD" ]]; then
   exit 2
 fi
 
+# 组件名必须白名单校验：写错一个名字（system 写成 sys）时，下面按名字取值的逻辑会把它
+# 当成"未知组件"永远判为未达标、或者更糟——被当成"没有这个要求"而静默放行。
+# 需要的效果是入口即拒绝，而不是让一份缺组件的证据包以成功退出码交付出去。
+_COMPONENT_NAMES="system app-jvm mysql redis"
+_NORMALIZED_REQUIRED=""
+for _c in $(printf '%s' "$REQUIRED_COMPONENTS" | tr ',' ' '); do
+  case " ${_COMPONENT_NAMES} " in
+    *" ${_c} "*) ;;
+    *)
+      echo "capture-monitoring: --required-components 只支持 system|app-jvm|mysql|redis（收到 '${_c}'）" >&2
+      exit 2
+      ;;
+  esac
+  _NORMALIZED_REQUIRED="${_NORMALIZED_REQUIRED} ${_c}"
+done
+unset _c
+REQUIRED_COMPONENTS="${_NORMALIZED_REQUIRED# }"
+unset _NORMALIZED_REQUIRED
+
+# 每个组件的"有效采样行数"与失败原因。判定标准是**数据行里的必需字段齐备且为数值**，
+# 而不是"文件非空"——采集器在 mysql 客户端缺失、Redis 不可达、应用进程找不到时，
+# 留下的正是"只有表头"或"整行空值"的文件，它们撑不起报告第五章的任何结论，
+# 却能让上一版的"非空即完整"判定把整包标成证据完整。这只是采集器侧的自报，
+# run-stress-test.sh 会独立复算一遍（见那边的 validate_monitoring_csv）。
+USABLE_SYSTEM=0
+USABLE_JVM=0
+USABLE_MYSQL=0
+USABLE_REDIS=0
+AVAIL_SYSTEM=1
+AVAIL_JVM=0
+AVAIL_MYSQL=0
+AVAIL_REDIS=0
+REASON_SYSTEM=""
+REASON_JVM=""
+REASON_MYSQL=""
+REASON_REDIS=""
+
+is_num() { case "$1" in ''|*[!0-9.-]*) return 1 ;; *) [[ "$1" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] ;; esac; }
+
+# 把原因里的逗号换成 ';'：component-status.csv 是逗号分隔的，原因里混进逗号会串列，
+# 而这份文件正是给调用方与第三方读的。
+clean_reason() { printf '%s' "$1" | tr ',' ';' | tr -d '\n'; }
+
 MON_DIR="${OUT_DIR%/}/monitoring"
 mkdir -p "$MON_DIR"
 STOP_FILE="${MON_DIR}/.stop"
@@ -104,13 +160,28 @@ MYSQL_CSV="${MON_DIR}/mysql.csv"
 REDIS_CSV="${MON_DIR}/redis.csv"
 HUMAN_LOG="${MON_DIR}/monitoring.log"
 
+# 进程定位的两种"不正常"要分别记下来，最后都要出现在 component-status.csv 的 reason 列里：
+# 指定了端口却查不到监听进程（此时**不兜底**）、以及没指定目标而按特征兜底（可能选错进程）。
+APP_PID_LOOKUP_FAILED=""
+APP_PID_LOOKUP_FALLBACK=""
+
 # 自动定位应用进程：优先显式 --app-pid；其次按监听端口反查（最准确）；
-# 最后按 main class / 启动脚本特征匹配（同机多 java 进程时可能误配，故仅作兜底）
+# 最后按 main class / 启动脚本特征匹配（同机多 java 进程时可能误配，故仅作兜底）。
+#
+# 关键约束：**只有在调用方没指定端口/进程时才走 pgrep 兜底**。指定了 --app-port 却没查到
+# 监听进程，不能退化成"随便挑一个 java 进程"——那会把同机另一个 JVM（例如另开的 IDE 或
+# 另一个 worktree 的后端）的堆与 GC 当成被压应用的，写进 app-jvm.csv 且看不出异常。
+# 实测过：--app-port 1（无监听）时 pgrep 兜底抓到了本机 dev 后端，usable 记为 1。
 if [[ -z "$APP_PID" ]] && [[ -n "$APP_PORT" ]] && command -v lsof >/dev/null 2>&1; then
   APP_PID="$(lsof -ti "tcp:${APP_PORT}" -sTCP:LISTEN 2>/dev/null | head -1 || true)"
-fi
-if [[ -z "$APP_PID" ]]; then
+  if [[ -z "$APP_PID" ]]; then
+    APP_PID_LOOKUP_FAILED="端口 ${APP_PORT} 上没有监听进程（lsof 未查到）"
+  fi
+elif [[ -z "$APP_PID" ]] && [[ -z "$APP_PORT" ]]; then
   APP_PID="$(pgrep -f 'bid-platform|XiyuBidApplication|spring-boot:run' | head -1 || true)"
+  if [[ -n "$APP_PID" ]]; then
+    APP_PID_LOOKUP_FALLBACK="未指定 --app-pid/--app-port，按进程特征兜底选中 pid=${APP_PID}（同机多 java 进程时可能选错）"
+  fi
 fi
 
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
@@ -144,6 +215,17 @@ if has_cmd redis-cli; then redis_ready=1; fi
 jcmd_ready=0
 if has_cmd jcmd; then jcmd_ready=1; fi
 
+AVAIL_MYSQL="$mysql_ready"
+AVAIL_REDIS="$redis_ready"
+[[ -z "$REASON_MYSQL" ]] && [[ "$mysql_ready" != "1" ]] && REASON_MYSQL="mysql 客户端不可用"
+[[ -z "$REASON_REDIS" ]] && [[ "$redis_ready" != "1" ]] && REASON_REDIS="redis-cli 不可用"
+if [[ -n "$APP_PID" ]] && kill -0 "$APP_PID" 2>/dev/null; then
+  AVAIL_JVM=1
+  [[ -n "$APP_PID_LOOKUP_FALLBACK" ]] && REASON_JVM="$APP_PID_LOOKUP_FALLBACK"
+else
+  REASON_JVM="应用进程不可用（${APP_PID_LOOKUP_FAILED:-app_pid=${APP_PID:-<未找到>}}）"
+fi
+
 echo "timestamp,cpu_user_pct,cpu_sys_pct,cpu_idle_pct,load1,load5,mem_used_mb,mem_total_mb" > "$SYSTEM_CSV"
 echo "timestamp,pid,heap_used_mb,heap_committed_mb,metaspace_used_mb,threads,ygc,ygct_s,fgc,fgct_s,cgc,cgct_s,gc_total_s,cpu_pct,rss_mb" > "$JVM_CSV"
 echo "timestamp,threads_connected,threads_running,slow_queries,innodb_row_lock_waits,aborted_connects,questions" > "$MYSQL_CSV"
@@ -153,7 +235,10 @@ echo "timestamp,connected_clients,used_memory_mb,instantaneous_ops_per_sec,keysp
   echo "capture-monitoring: 开始采样"
   echo "  out=${MON_DIR}"
   echo "  interval=${INTERVAL}s duration=${DURATION}s"
+  echo "  required_components=${REQUIRED_COMPONENTS}"
   echo "  app_pid=${APP_PID:-<未找到>} app_port=${APP_PORT:-<未指定>}  jcmd=${jcmd_ready}  mysql=${mysql_ready}  redis-cli=${redis_ready}"
+  [[ -n "$APP_PID_LOOKUP_FAILED" ]] && echo "  !! ${APP_PID_LOOKUP_FAILED}；按约束不退回 pgrep 兜底，app-jvm 记为未采集"
+  [[ -n "$APP_PID_LOOKUP_FALLBACK" ]] && echo "  !! ${APP_PID_LOOKUP_FALLBACK}"
   echo "  mysql=${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DB}  redis=${REDIS_HOST}:${REDIS_PORT} db=${REDIS_DB}"
 } | tee -a "$HUMAN_LOG"
 
@@ -211,12 +296,23 @@ read_system() {
     "$TS" "${user_pct:-}" "${sys_pct:-}" "${idle_pct:-}" "${load1:-}" "${load5:-}" \
     "${mem_used_mb:-}" "${mem_total_mb:-}" >> "$SYSTEM_CSV"
   SUMMARY+=("cpu_user=${user_pct:-?}% cpu_sys=${sys_pct:-?}% load1=${load1:-?} mem=${mem_used_mb:-?}/${mem_total_mb:-?}MB")
+
+  # 有效采样的判据：这一行里后续分析要用的字段全都取到了数值。
+  # 只判"写了行"是不够的——top/uptime/sysctl 解析失败时写出的正是一行逗号占位，
+  # 非空、有行数，却什么都说明不了。
+  if is_num "$user_pct" && is_num "$idle_pct" && is_num "$load1" \
+     && is_num "$mem_used_mb" && is_num "$mem_total_mb"; then
+    USABLE_SYSTEM=$((USABLE_SYSTEM + 1))
+  else
+    REASON_SYSTEM="系统采样字段取不到数值（top/uptime/sysctl 解析失败）"
+  fi
 }
 
 read_jvm() {
   if [[ -z "$APP_PID" ]] || ! kill -0 "$APP_PID" 2>/dev/null; then
     { printf '%s,%s' "$TS" "${APP_PID:-}"; for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13; do printf ','; done; printf '\n'; } >> "$JVM_CSV"
     SUMMARY+=("app_pid=${APP_PID:-<未找到>} (进程不可用)")
+    REASON_JVM="应用进程不可用（${APP_PID_LOOKUP_FAILED:-app_pid=${APP_PID:-<未找到>}}）"
     return
   fi
   local cpu_pct rss_mb
@@ -282,11 +378,22 @@ read_jvm() {
     "${gc_vals[4]:-}" "${gc_vals[5]:-}" "${gc_vals[6]:-}" \
     "${cpu_pct:-}" "${rss_mb:-}" >> "$JVM_CSV"
   SUMMARY+=("app_pid=${APP_PID} heap=${heap_used:-?}/${heap_committed:-?}MB meta=${metaspace_used:-?}MB threads=${threads:-?} cpu=${cpu_pct:-?}% rss=${rss_mb:-?}MB YGC=${gc_vals[0]:-.}(${gc_vals[1]:-.}s) FGC=${gc_vals[2]:-.}(${gc_vals[3]:-.}s) CGC=${gc_vals[4]:-.}(${gc_vals[5]:-.}s)")
+
+  # 进程在、但堆/线程/RSS 一个都取不到，同样不算一次有效采样：
+  # 那说明 jcmd 与 jstat 两条路径都没成，该行落到报告里只会被读成"没有数据"。
+  # GC 计数**不**参与判定：ZGC 在 Java 21 下 YGC/FGC 恒为 "-"，把它们当必需项会把
+  # 正确的 ZGC 采样判成无效（这正是本文件在别处防过的"按列号取 GC"的同一类错误）。
+  if is_num "$heap_used" && is_num "$threads" && is_num "$rss_mb"; then
+    USABLE_JVM=$((USABLE_JVM + 1))
+  else
+    REASON_JVM="堆/线程/RSS 取不到数值（jcmd 与 jstat 均失败）"
+  fi
 }
 
 read_mysql() {
   if [[ "$mysql_ready" != "1" ]]; then
     SUMMARY+=("mysql client 不可用，跳过")
+    REASON_MYSQL="mysql 客户端不可用"
     return
   fi
   # 两条查询路径都输出 "变量名,值"，最后按**变量名**取值落到固定列序。
@@ -311,6 +418,7 @@ read_mysql() {
   if [[ -z "$out" ]]; then
     # 采集不到就把错误原文留痕，而不是静默写一行空值
     SUMMARY+=("mysql 采集失败: $(printf '%s' "$raw" | head -1)")
+    REASON_MYSQL="mysql 查询失败: $(printf '%s' "$raw" | head -1)"
     printf '%s,,,,,,\n' "$TS" >> "$MYSQL_CSV"
     return
   fi
@@ -321,16 +429,31 @@ read_mysql() {
   [[ "$fallback" == "1" ]] && via=" [回退路径 SHOW GLOBAL STATUS]"
   printf '%s,%s\n' "$TS" "$cols" >> "$MYSQL_CSV"
   SUMMARY+=("mysql conn=$(printf '%s' "$cols" | cut -d, -f1) running=$(printf '%s' "$cols" | cut -d, -f2) slow=$(printf '%s' "$cols" | cut -d, -f3) lock_waits=$(printf '%s' "$cols" | cut -d, -f4)${via}")
+
+  # 查询成功但某几个变量没返回（权限不足的账号看不到 Slow_queries 等）时，
+  # 那一列会是空字符串。只判"out 非空"会让这种半残的行也算有效采样。
+  local _ok=1 _f
+  for _f in 1 2 3 4 5 6; do
+    is_num "$(printf '%s' "$cols" | cut -d, -f"$_f")" || _ok=0
+  done
+  unset _f
+  if [[ "$_ok" == "1" ]]; then
+    USABLE_MYSQL=$((USABLE_MYSQL + 1))
+  else
+    REASON_MYSQL="mysql 返回缺少必需状态变量: ${cols}"
+  fi
 }
 
 read_redis() {
   if [[ "$redis_ready" != "1" ]]; then
     SUMMARY+=("redis-cli 不可用，跳过")
+    REASON_REDIS="redis-cli 不可用"
     return
   fi
   local info
   if ! info="$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -n "$REDIS_DB" INFO 2>/dev/null)"; then
     SUMMARY+=("redis 不可达，跳过")
+    REASON_REDIS="redis 不可达（${REDIS_HOST}:${REDIS_PORT} db=${REDIS_DB}）"
     return
   fi
   local clients mem ops hits misses
@@ -342,6 +465,12 @@ read_redis() {
   printf '%s,%s,%s,%s,%s,%s\n' "$TS" \
     "${clients:-}" "${mem:-}" "${ops:-}" "${hits:-}" "${misses:-}" >> "$REDIS_CSV"
   SUMMARY+=("redis clients=${clients:-?} mem=${mem:-?}MB ops=${ops:-?}/s hits=${hits:-?} misses=${misses:-?}")
+
+  if is_num "$clients" && is_num "$mem" && is_num "$ops" && is_num "$hits" && is_num "$misses"; then
+    USABLE_REDIS=$((USABLE_REDIS + 1))
+  else
+    REASON_REDIS="redis INFO 返回缺少必需字段（客户端=${clients:-空} 内存=${mem:-空} ops=${ops:-空}）"
+  fi
 }
 
 START_EPOCH="$(date +%s)"
@@ -373,3 +502,53 @@ while true; do
   fi
   sleep "$INTERVAL"
 done
+
+# ── 组件级结论：机器可读状态 + 退出码 ───────────────────────────────────────
+# 这一块是本脚本对"监控证据到底有没有用"的唯一交代。上一版没有它，于是
+# 「mysql 客户端没装 / Redis 连不上 / 应用进程找不到」都会留下非空（只有表头或整行空值）
+# 的 CSV 并 exit 0，调用方的完整性判定只查 -s，最后交付出一份"监控完整"的空壳。
+# 判据是**有效数据行数**：必需字段齐备且为数值的行才算数（见各 read_* 末尾）。
+STATUS_CSV="${MON_DIR}/component-status.csv"
+{
+  echo "component,required,available,usable_samples,total_samples,reason"
+  for _c in system app-jvm mysql redis; do
+    case "$_c" in
+      system)  _u="$USABLE_SYSTEM"; _a="$AVAIL_SYSTEM"; _r="$REASON_SYSTEM" ;;
+      app-jvm) _u="$USABLE_JVM";    _a="$AVAIL_JVM";    _r="$REASON_JVM" ;;
+      mysql)   _u="$USABLE_MYSQL";  _a="$AVAIL_MYSQL";  _r="$REASON_MYSQL" ;;
+      redis)   _u="$USABLE_REDIS";  _a="$AVAIL_REDIS";  _r="$REASON_REDIS" ;;
+    esac
+    _req=0
+    case " ${REQUIRED_COMPONENTS} " in *" ${_c} "*) _req=1 ;; esac
+    printf '%s,%s,%s,%s,%s,%s\n' "$_c" "$_req" "$_a" "$_u" "$SAMPLE_COUNT" "$(clean_reason "$_r")"
+  done
+} > "$STATUS_CSV"
+unset _c _u _a _r _req
+
+FAILED_COMPONENTS=""
+for _c in $REQUIRED_COMPONENTS; do
+  case "$_c" in
+    system)  _u="$USABLE_SYSTEM" ;;
+    app-jvm) _u="$USABLE_JVM" ;;
+    mysql)   _u="$USABLE_MYSQL" ;;
+    redis)   _u="$USABLE_REDIS" ;;
+  esac
+  if [[ "$_u" -eq 0 ]]; then FAILED_COMPONENTS="${FAILED_COMPONENTS} ${_c}"; fi
+done
+unset _c _u
+
+{
+  echo "capture-monitoring: 采样结束（共 ${SAMPLE_COUNT} 次）"
+  echo "  组件有效采样行: system=${USABLE_SYSTEM} app-jvm=${USABLE_JVM} mysql=${USABLE_MYSQL} redis=${USABLE_REDIS}（每次采样 1 行，有效 = 必需字段齐备）"
+  echo "  组件状态明细: ${STATUS_CSV}"
+} | tee -a "$HUMAN_LOG"
+
+if [[ -n "$FAILED_COMPONENTS" ]]; then
+  echo "capture-monitoring: 以下必需组件一行有效数据都没有：${FAILED_COMPONENTS}" >&2
+  echo "                 这份 monitoring/ 不能作为压测证据交付，调用方应据此判定证据不完整。" >&2
+  echo "                 原因见 ${STATUS_CSV} 的 reason 列与 ${HUMAN_LOG}。" >&2
+  echo "                 若目标环境确实没有该组件，请显式声明范围（run-stress-test.sh 的" >&2
+  echo "                 --monitor-required-components），不要让它以「完整」的名义交付。" >&2
+  exit 3
+fi
+exit 0

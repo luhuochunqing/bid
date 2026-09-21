@@ -197,6 +197,7 @@ $$Peak\text{-}QPS_{prod} = 80.0 \times 3.249 \times 1.390 \times 0.70 \approx \m
 ```bash
 # 测试环境标准阶梯（10 → 50 → 100 并发，约 3.5 分钟），与本次报告口径一致
 export XIYU_STRESS_CONFIRMED=1
+export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'   # 目标环境真实账号，勿写入命令行
 bash scripts/performance/run-stress-test.sh \
   --profile standard \
   --base-url http://172.16.38.78:8080 \
@@ -205,6 +206,7 @@ bash scripts/performance/run-stress-test.sh \
 
 > `run-stress-test.sh` 内置环境守卫：必须显式导出 `XIYU_STRESS_CONFIRMED=1`，且 `--base-url`
 > 命中生产环境特征时直接拒绝执行。默认不开启业务写入，避免污染共享测试环境。
+> 账号池走环境变量而非命令行参数：`--users '…'` 会把测试环境口令留在压测机 `ps` 的 argv 里。
 
 ### 8.3 原始证据产出物
 
@@ -222,9 +224,17 @@ bash scripts/performance/run-stress-test.sh \
 | `monitoring/mysql.csv` | Threads_connected / Threads_running、Slow_queries、Innodb_row_lock_waits、Aborted_connects、Questions |
 | `monitoring/redis.csv` | connected_clients、used_memory、instantaneous_ops_per_sec、命中/未命中计数 |
 | `monitoring/monitoring.log` | 上述四项监控的逐采样可读快照 |
+| `monitoring/component-status.csv` | 逐组件状态：required / available / **有效采样行数** / 失败原因 |
 
 > `monitoring/` 目录即报告第五章"系统资源与中间件稳定性分析"的原始数据，
 > 可替代传统截图：`monitoring.log` 保留了带时间戳的逐次采样记录，第三方可独立复核。
+>
+> 完整性是硬门禁，且查的是"有数据"而不只是"文件存在"：默认要求
+> `system,app-jvm,mysql,redis` 四个监控组件各至少一行有效采样（必需字段齐备且为数值；
+> 目标环境确实没有某组件时用 `--monitor-required-components` 显式收窄）。
+> 任一必需产物缺失、为空、或监控 CSV 一行有效数据都没有，脚本以 **exit 12** 结束并
+> 在 `manifest.json` 的 `missing_artifacts` / `monitoring_issues` 里写明原因——
+> k6 退出码 0 只说明门禁通过，不说明这份包能作为交付证据。
 
 ### 8.4 证据归档状态说明
 
