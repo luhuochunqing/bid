@@ -192,7 +192,7 @@ $$Peak\text{-}QPS_{prod} = 80.0 \times 3.249 \times 1.390 \times 0.70 \approx \m
 | `scripts/performance/capture-monitoring.sh` | 本次新增 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录 |
 | `scripts/performance/write-run-manifest.mjs` | 本次新增 | 生成证据包清单 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、各产物 sha256、完整性判定） |
 | `scripts/performance/monitor-spec.sh` | 本次新增 | 监控证据的唯一契约源：组件集合、各 CSV 表头、"有效采样行"判定列号（采集器与 runner 都 source 它，`--self-check` 可离线自检） |
-| `scripts/performance/scrub-secrets.mjs` | 本次新增 | 归档前凭证脱敏 + 脱敏后整包残留扫描（JWT / 敏感键值 / Bearer） |
+| `scripts/performance/scrub-secrets.mjs` | 本次新增 | 归档前凭证脱敏 + 脱敏后整包残留扫描（JWT / 敏感键值 / Bearer / URL userinfo） |
 
 ### 8.2 一键复现命令
 
@@ -211,6 +211,8 @@ bash scripts/performance/run-stress-test.sh \
 ```bash
 # 若这条命令跑在另一台压测机上（本机不是目标宿主），改用 --no-monitor，
 # 并到 172.16.38.78 上单独运行 capture-monitoring.sh 补齐监控原始数据（见 §8.3 末）。
+export XIYU_STRESS_CONFIRMED=1                      # 独立场景，不依赖上一段代码块的环境
+export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
 bash scripts/performance/run-stress-test.sh \
   --profile standard --base-url http://172.16.38.78:8080 --no-monitor --enable-writes
 ```

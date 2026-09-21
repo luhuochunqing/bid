@@ -126,9 +126,10 @@ bash scripts/performance/run-stress-test.sh --profile smoke \
   没有任何理由携带可用身份令牌。
 
 脱敏之后**还会用同一个脚本、同一组检测器把整包扫一遍**（`scrub-secrets.mjs --scan`），
-扫的是 JWT / 敏感键值（`"password"`、`"token"` 等键名下的字符串）/ `Authorization: Bearer`
-三类文本形态。只脱敏不扫描时，"脱敏覆盖到了哪些文件"就只是脚本的一句声明——新增一份产物
-而忘了加进脱敏清单，凭证会原样留在包里，而产物一个不少、sha256 也都对得上。
+扫的是 JWT / 敏感键值（`"password"`、`"token"` 等键名下的字符串）/ `Authorization: Bearer` /
+URL 里的 userinfo（`http://user:口令@host`）四类文本形态。只脱敏不扫描时，"脱敏覆盖到了哪些
+文件"就只是脚本的一句声明——新增一份产物而忘了加进脱敏清单，凭证会原样留在包里，
+而产物一个不少、sha256 也都对得上。
 扫描结论与**覆盖范围**记在 `manifest.json` 的 `secret_scan` 字段。状态有四种，
 **只有 `passed` 才允许 `evidence_complete: true`**：
 
@@ -144,9 +145,16 @@ bash scripts/performance/run-stress-test.sh --profile smoke \
   而不检查就不能自称干净。现在这类文件会让扫描以 exit 3 结束并列出文件名
   （`secret_scan.unscanned_files`），整包判不可交付。**若你确实要交付监控截图这类二进制材料**，
   它必须与"证据包"分开交付，或在人工确认其中不含凭证后单独说明——这是本工具的能力边界。
-- **覆盖范围**是"本包内除 `manifest.json` 外的全部产物"：扫描发生在写清单之前，
-  清单自身由 `write-run-manifest.mjs` 按固定字段生成、不含来自环境的自由文本。
-- 三类形态之外的自定义凭证头（例如自造的 `X-Api-Key`）不在检测范围内，需要人工判断。
+- **覆盖范围是"整包"**。整包扫描（`--scan`）发生在 `manifest.json` 写盘之前，所以那次扫描
+  的文件集合是"除 `manifest.json` 外的全部产物"；清单自身由 `write-run-manifest.mjs` 在写盘前
+  用**同一组检测器**（`scrubText` 从 `scrub-secrets.mjs` import，不是另写一份判据）再脱敏一次，
+  次数记在 `secret_scan.manifest_self_redactions`，脱敏后再验一遍、仍残留就拒绝写出清单
+  （exit 1）。这一条是补上去的：早先的文档写着"清单按固定字段生成、不含来自环境的自由文本"，
+  而 `target_base_url` / `monitor_issues` 恰恰就是环境自由文本——把 `--base-url` 写成
+  `http://user:口令@host` 就能让一份可用口令躺在清单里，而同一目录的扫描照样报 `passed`。
+  入口侧另有第一道拦截：`--base-url` 带 userinfo 直接 `exit 2`（它还会让主机解析取到 `user`
+  这一段，把监控宿主判定和 `target_host` 一起记错）。
+- 四类形态之外的自定义凭证头（例如自造的 `X-Api-Key`）不在检测范围内，需要人工判断。
 - 状态取**扫描器退出码与它 stdout 上 `scan_status=` 两路来源的交集**：任一路缺失或彼此
   不一致即收敛到 `unverified`。单独一路都可能因为包装层截断（`| head`、supervisor 只记 rc）
   或输出被重定向而给出"看上去正常"的假信号。
@@ -222,6 +230,10 @@ bash scripts/performance/run-stress-test.sh \
 也不肯把压测机的负载写成目标环境的负载——那样产出的 `monitoring/*.csv` 看上去完整无缺，
 却会把报告里"目标系统资源稳定"的结论整个带偏。
 
+- `--base-url` 里**不能带 userinfo**（形如 `http://user:口令@host:8080`），入口直接 `exit 2`。
+  两个理由都是静默出错：它会逐字写进 manifest 的 `target_base_url`，等于往证据包里放一份可用
+  口令；它还会让主机解析只取到 `user` 这一段，于是监控宿主判定与 manifest 的 `target_host`
+  一起记错，全程不报错。需要认证请把凭据放进环境变量，不要写在 URL 里。
 - 远端场景的正确做法：把 `scripts/performance/capture-monitoring.sh` 放到应用宿主机上单独跑，
   `--out` 指向同一个证据目录，并显式设 `MYSQL_PASSWORD`。
 - `--no-monitor` 产出的包**不是可独立交付的完整证据**，这一点在三处一致地写明，而不是只在
@@ -326,7 +338,7 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | :--- | :--- |
 | `scripts/performance/run-stress-test.sh` | 压测执行入口，产出本目录的证据包 |
 | `scripts/performance/capture-monitoring.sh` | 压测期间系统/JVM/MySQL/Redis 监控采样，产出本目录的 `monitoring/` |
-| `scripts/performance/run-preflight.sh` | 入口的参数解析与前置校验层（拓扑开关互斥、环境守卫、档位/组件白名单、监控宿主判定） |
+| `scripts/performance/run-preflight.sh` | 入口的参数解析与前置校验层（拓扑开关互斥、环境守卫、档位/组件白名单、监控宿主判定、`--base-url` 拒收 userinfo） |
 | `scripts/performance/cli-guards.sh` | 两个入口共用的"带值选项缺值即 exit 2"守卫 |
 | `scripts/performance/monitor-lifecycle.sh` | 采集子进程的启停（`.ready` 握手、有界等待、超时强杀） |
 | `scripts/performance/evidence-completeness.sh` | 完整性判定与交付出口（`missing_artifacts` / `delivery_blockers` / exit 12） |
@@ -336,8 +348,8 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | `scripts/performance/monitor-readers.sh` | 四个组件各采一次、各写一行、各记一次状态 |
 | `scripts/performance/monitor-status.sh` | 采集侧的状态与结论层：`component-status.csv` 与"这次采集成不成功" |
 | `scripts/performance/delivery-blockers.tsv` | 交付阻塞项文案的**唯一来源**，shell 侧与 JS 侧共读 |
-| `scripts/performance/scrub-secrets.mjs` | 归档前的凭证脱敏，以及脱敏后的整包残留扫描（`--scan`，退出码 0/1/3） |
-| `scripts/performance/write-run-manifest.mjs` | 装配并写出 `manifest.json`（含 sha256 与门禁判定） |
+| `scripts/performance/scrub-secrets.mjs` | 归档前的凭证脱敏，以及脱敏后的整包残留扫描（`--scan`，退出码 0/1/3）；同时导出 `scrubText` / `DETECTORS` 给清单侧复用（清单自身也要过同一组检测器） |
+| `scripts/performance/write-run-manifest.mjs` | 装配并写出 `manifest.json`（含 sha256 与门禁判定）；写盘前用 `scrubText` 对清单自身脱敏并复验，残留即拒绝写出（exit 1） |
 | `scripts/performance/manifest-verify.mjs` | 清单侧的独立复核层（产物 / 有效采样行 / 凭证残留 / 阻塞项文案，与注入值取并集） |
 | `scripts/performance/k6-evidence.mjs` | 清单侧的 k6 产物解释层（头部指标、声明的与击穿的门禁、退出码、脚本路径） |
 | `k6-tests/load-test.js` | k6 压测脚本本体（场景权重、门禁阈值、各接口 Trend 指标） |

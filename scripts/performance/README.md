@@ -13,7 +13,7 @@
 | `sales-200.k6.js` | 压测脚本 | 模拟 200 个销售在线用户访问登录、项目、看板、导出和标书上传入队链路 |
 | `run-stress-test.sh` | 执行入口 | 压测执行与原始证据归档入口：调用 `k6-tests/load-test.js` 跑指定档位，产出完整证据包（原始 summary / 逐请求采样 / 控制台日志 / 监控数据 / `manifest.json`）。内置 `XIYU_STRESS_CONFIRMED=1` 与环境守卫，默认关闭业务写入；证据不全时以 exit 12 拒绝交付 |
 | `capture-monitoring.sh` | 采集入口 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录，产出 CSV 时间序列 + 可读日志 + `component-status.csv`（逐组件有效采样行数），替代手工监控截图。只在要求 `mysql` 时才强制 `MYSQL_PASSWORD`；单独运行默认只要求 `system` |
-| `run-preflight.sh` | 入口-预检层 | 命令行解析、默认值、拓扑开关互斥、`XIYU_STRESS_CONFIRMED` 与环境守卫、档位/组件白名单、`--base-url` 与目标主机解析、k6 与压测脚本存在性检查 |
+| `run-preflight.sh` | 入口-预检层 | 命令行解析、默认值、拓扑开关互斥、`XIYU_STRESS_CONFIRMED` 与环境守卫、档位/组件白名单、`--base-url` 拒收 userinfo 与目标主机解析、k6 与压测脚本存在性检查 |
 | `cli-guards.sh` | 入口-参数守卫 | 两个入口脚本共用的"带值选项缺值即 exit 2"守卫，避免把下一个选项当成值吞掉 |
 | `monitor-lifecycle.sh` | 入口-子进程层 | 监控采集子进程的启停（`.ready` 握手、有界等待、超时强杀），以及采集侧问题清单 `MONITOR_ISSUES` |
 | `evidence-archive.sh` | 归档层 | 产物落盘之后、对外交付之前的三步，**顺序即契约**：控制台规范化 → 凭证脱敏 → 残留扫描 → 写清单 |
@@ -23,8 +23,8 @@
 | `monitor-parse.sh` | 采集-解析层 | 纯解析：`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 的原始文本 → 数值字段，不碰进程、不连服务、不写文件 |
 | `monitor-readers.sh` | 采集-读取层 | 四个组件（system / app-jvm / mysql / redis）各采一次、各写一行、各记一次状态 |
 | `monitor-status.sh` | 采集-状态层 | 组件状态的唯一持有者，产出 `component-status.csv`，并判定"这次采集算不算成功" |
-| `scrub-secrets.mjs` | 脱敏脚本 | 归档前就地替换证据包里的凭证（JWT / 敏感键值 / Bearer），并在脱敏后对整包做同组检测器的残留扫描（`--scan`），结论写入 `manifest.json` 的 `secret_scan` |
-| `write-run-manifest.mjs` | 清单脚本 | 装配并写出 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、逐组件监控状态、各产物 sha256、完整性判定），并把自己的独立结论回传给 runner |
+| `scrub-secrets.mjs` | 脱敏脚本 | 归档前就地替换证据包里的凭证（JWT / 敏感键值 / Bearer / URL userinfo），并在脱敏后对整包做同组检测器的残留扫描（`--scan`），结论写入 `manifest.json` 的 `secret_scan`；同时导出 `scrubText` / `DETECTORS` 供清单侧复用 |
+| `write-run-manifest.mjs` | 清单脚本 | 装配并写出 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、逐组件监控状态、各产物 sha256、完整性判定），写盘前对清单自身脱敏复验，并把自己的独立结论回传给 runner |
 | `manifest-verify.mjs` | 清单-复核层 | 独立复核：产物是否齐、监控 CSV 有没有数据、包内还有没有凭证残留、阻塞项文案，与 runner 注入值取**并集** |
 | `k6-evidence.mjs` | 清单-解释层 | 把 k6 的三份产物读成清单字段：头部指标、声明的门禁、被击穿的门禁、退出码、脚本路径 |
 
@@ -65,8 +65,9 @@ export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
 
 **退出码**：`0` = k6 全部门禁通过且证据完整；k6 自身码 = k6 未全通过（`99` 表示有门禁被击穿）
 但证据完整；`1` = 拒绝执行（未确认环境 / 命中生产特征 / 缺 k6 或压测脚本 / 工具链自身不可用，
-例如读不到 `monitor-spec.sh` 的规格或 `delivery-blockers.tsv` 的文案）；`2` = 用法错误
-（未知参数、带值选项缺值、拓扑开关矛盾、档位或组件名拼错、监控宿主不明确）；
+例如读不到 `monitor-spec.sh` 的规格、`delivery-blockers.tsv` 的文案，或清单脱敏后仍残留凭证）；
+`2` = 用法错误（未知参数、带值选项缺值、拓扑开关矛盾、档位或组件名拼错、监控宿主不明确、
+`--base-url` 带 userinfo）；
 **`12` = k6 已跑完但证据包不可交付，优先于 k6 退出码上报**。
 
 `bash scripts/performance/run-stress-test.sh --help` 打印头部注释里的用法正文
@@ -102,6 +103,14 @@ export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"},…]'
 状态取**退出码与 stdout 两路来源的交集**，任一路缺失或彼此不一致就收敛到 `unverified`：
 单独一路都可能因为包装层截断（`| head`、只记 rc）或输出被重定向而给出"看上去正常"的假信号。
 `incomplete` / `unverified` 都进 `delivery_blockers`，同样是 exit 12。
+
+**覆盖范围是整包**：`--scan` 跑在 `manifest.json` 写盘之前，所以它逐文件扫的是"除 `manifest.json`
+外的全部产物"；清单自身由 `write-run-manifest.mjs` 在写盘前用**同一组检测器**（`scrubText` 从
+`scrub-secrets.mjs` import，不另写一份判据）再脱敏一次，次数记在 `secret_scan.manifest_self_redactions`，
+脱敏后复验仍残留就**拒绝写出清单**（exit 1，工具链自身不可用）。检测器共四类：JWT / 敏感键值 /
+`Bearer` / URL userinfo（`http://user:口令@host`）——最后一类是因为 `--base-url` 的自由文本会进
+`target_base_url`，只有前三类时它能整包扫过 `passed`。入口侧另有拦截：`--base-url` 带 userinfo
+直接 exit 2。
 
 `manifest.json` **不照抄 runner 注入的结论**：产物是否齐、监控 CSV 有没有数据、包内还有没有
 凭证残留，都由 `write-run-manifest.mjs` 独立复算一遍，再与注入值取**并集**；清单自己判出
