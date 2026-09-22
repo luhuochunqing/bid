@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -69,6 +70,130 @@ class ScorePartialOverwritePersistenceTest {
     private ScoreParseTaskRepository taskRepository;
     @Autowired
     private ScoreItemPersistenceService persistenceService;
+
+    @Test
+    void itemMaximumAndConflictingSubtotalsFromRealExtractionPreserveOfficialData() throws Exception {
+        StructuredTableResult itemMaximum = SchemeScopePublicationTest.modelExtract(
+                SchemeScopePublicationTest.itemMaximumDetails(), "",
+                List.of(SchemeScopePublicationTest.itemMaximumFact()), "10");
+        StructuredTableResult conflictingModel = SchemeScopePublicationTest.modelExtract(
+                SchemeScopePublicationTest.categoryDetails("30", "70"),
+                SchemeScopePublicationTest.categoryText(), SchemeScopePublicationTest.categoryFacts(), "100");
+        StructuredTableResult conflictingFallback = SchemeScopePublicationTest.extract(
+                SchemeScopePublicationTest.categoryDetails("30", "70"),
+                SchemeScopePublicationTest.categoryText());
+        assertRejectedResultPreservesData(9120L, "item-maximum-not-total", itemMaximum);
+        assertRejectedResultPreservesData(9121L, "model-subtotal-conflict", conflictingModel);
+        assertRejectedResultPreservesData(9122L, "fallback-subtotal-conflict", conflictingFallback);
+    }
+
+    @Test
+    void conflictingSubtotalsAfterRealRecheckPreserveOfficialData() throws Exception {
+        AtomicInteger rechecks = new AtomicInteger();
+        StructuredTableResult rechecked = ThreeDefectsPublicationFlowTest.modelExtractResponses(
+                SchemeScopePublicationTest.categoryDetails("30", "70"),
+                SchemeScopePublicationTest.categoryText(), SchemeScopePublicationTest.categoryFacts(),
+                SchemeScopePublicationTest.categoryFacts(), rechecks);
+        assertThat(rechecks).hasValue(1);
+        assertRejectedResultPreservesData(9125L, "recheck-subtotal-conflict", rechecked);
+    }
+
+    @Test
+    void matchingSubtotalsFromRealExtractionStillPublish() throws Exception {
+        StructuredTableResult model = SchemeScopePublicationTest.modelExtract(
+                SchemeScopePublicationTest.categoryDetails("20", "80"),
+                SchemeScopePublicationTest.categoryText(), SchemeScopePublicationTest.categoryFacts(), "100");
+        StructuredTableResult deterministic = SchemeScopePublicationTest.extract(
+                SchemeScopePublicationTest.categoryDetails("20", "80"),
+                SchemeScopePublicationTest.categoryText());
+        assertCompleteSchemePublishes(9123L, "model-matching-subtotal", model,
+                List.of(bd("20"), bd("80")));
+        assertCompleteSchemePublishes(9124L, "fallback-matching-subtotal", deterministic,
+                List.of(bd("20"), bd("80")));
+    }
+
+    @Test
+    void schemeScopeRejectionsFromRealExtractionPreserveOfficialItemsAndScores() throws Exception {
+        StructuredTableResult modelMissingTable = SchemeScopePublicationTest.modelExtract(
+                SchemeScopePublicationTest.summaryAndTwoDetails(),
+                List.of(SchemeScopePublicationTest.modelFact("t-business", "1", "履约能力", "20")), "20");
+        StructuredTableResult fallbackMissingTable = SchemeScopePublicationTest.extract(
+                SchemeScopePublicationTest.threeDetailTables(false),
+                "## 本项目评分办法\n总分100分。\n商务评分20分，技术评分30分，报价评分50分。");
+        assertRejectedResultPreservesData(9110L, "model-missing-table", modelMissingTable);
+        assertRejectedResultPreservesData(9111L, "fallback-missing-table", fallbackMissingTable);
+    }
+
+    private void assertRejectedResultPreservesData(Long projectId, String taskName,
+                                                   StructuredTableResult extracted) {
+        ScoreParseTask previous = taskRepository.saveAndFlush(ScoreParseTask.builder()
+                .taskId(taskName + "-old").projectId(projectId).taskType("PARSE")
+                .status("COMPLETED").build());
+        ScoreItem oldItem = itemRepository.saveAndFlush(ScoreItem.builder().projectId(projectId)
+                .parseTaskId(previous.getId()).itemIndex(1).code("1").dim("旧评分项")
+                .detail("旧规则").weight(bd("100")).scoreType("OBJECTIVE").statusStage1("OK").build());
+        ScoreResult oldScore = resultRepository.saveAndFlush(ScoreResult.builder()
+                .scoreItemId(oldItem.getId()).scoringTaskId(77L).actualScore(bd("86"))
+                .statusStage2("OK").build());
+        ScoreParseTask current = taskRepository.saveAndFlush(ScoreParseTask.builder()
+                .taskId(taskName).projectId(projectId).taskType("PARSE")
+                .status("PROCESSING").build());
+
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(current, current.getTaskId(),
+                extracted, taskRepository, stateService, progressService, persistenceService,
+                estimatedScoreService);
+
+        assertThat(current.getDecisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
+        assertThat(itemRepository.findByProjectIdOrderByItemIndexAsc(projectId))
+                .extracting(ScoreItem::getId).containsExactly(oldItem.getId());
+        assertThat(itemRepository.findByProjectIdOrderByItemIndexAsc(projectId))
+                .extracting(ScoreItem::getWeight).containsExactly(bd("100"));
+        assertThat(itemRepository.findByProjectIdOrderByItemIndexAsc(projectId))
+                .extracting(ScoreItem::getParseTaskId).containsExactly(previous.getId());
+        assertThat(resultRepository.findByScoreItemIdIn(List.of(oldItem.getId())))
+                .extracting(ScoreResult::getId).containsExactly(oldScore.getId());
+        assertThat(resultRepository.findByScoreItemIdIn(List.of(oldItem.getId())))
+                .extracting(ScoreResult::getActualScore).containsExactly(bd("86"));
+        assertThat(resultRepository.findByScoreItemIdIn(List.of(oldItem.getId())))
+                .extracting(ScoreResult::getScoringTaskId).containsExactly(77L);
+        assertThat(factRepository.findByParseTaskId(current.getId())).isNotEmpty();
+        assertThat(current.getFallbackReason()).isNotBlank();
+        if (taskName.contains("subtotal-conflict")) {
+            assertThat(taskRepository.findById(current.getId()).orElseThrow().getRunSummary())
+                    .contains("TABLE_SUBTOTAL_MISMATCH", "t-business-r2-c3", "t-technical-r2-c3",
+                            "expected=30", "actual=20", "expected=70", "actual=80");
+        }
+        verify(estimatedScoreService, never()).estimateForProject(projectId);
+    }
+
+    @Test
+    void completeSchemeResultsFromModelAndDeterministicPathsReachPersistence() throws Exception {
+        StructuredTableResult model = SchemeScopePublicationTest.modelExtract(
+                SchemeScopePublicationTest.summaryAndTwoDetails(),
+                List.of(SchemeScopePublicationTest.modelFact("t-business", "1", "履约能力", "20"),
+                        SchemeScopePublicationTest.modelFact("t-technical", "2", "实施方案", "80")), "100");
+        StructuredTableResult deterministic = SchemeScopePublicationTest.extract(
+                SchemeScopePublicationTest.threeDetailTables(true),
+                "## 本项目评分办法\n总分100分。\n商务评分20分，技术评分30分，报价评分50分。");
+        assertCompleteSchemePublishes(9112L, "complete-model-scheme", model, List.of(bd("20"), bd("80")));
+        assertCompleteSchemePublishes(9113L, "complete-fallback-scheme", deterministic,
+                List.of(bd("20"), bd("30"), bd("50")));
+    }
+
+    private void assertCompleteSchemePublishes(Long projectId, String taskName, StructuredTableResult extracted,
+                                               List<BigDecimal> expectedWeights) {
+        ScoreParseTask task = taskRepository.saveAndFlush(ScoreParseTask.builder()
+                .taskId(taskName).projectId(projectId).taskType("PARSE")
+                .status("PROCESSING").build());
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(task, taskName, extracted,
+                taskRepository, stateService, progressService, persistenceService, estimatedScoreService);
+        assertThat(task.getDecisionStatus()).isEqualTo(ScoreParseDecision.AUTO_APPROVED.name());
+        assertThat(itemRepository.findByProjectIdOrderByItemIndexAsc(projectId))
+                .extracting(item -> item.getWeight().stripTrailingZeros().toPlainString())
+                .containsExactlyElementsOf(expectedWeights.stream()
+                        .map(weight -> weight.stripTrailingZeros().toPlainString()).toList());
+        verify(estimatedScoreService, times(1)).estimateForProject(projectId);
+    }
 
     @Test
     void partialApproval_withExistingOfficialItems_keepsItemsResultsAndOldEvidenceIntact() {
@@ -197,6 +322,42 @@ class ScorePartialOverwritePersistenceTest {
     }
 
     @Test
+    void autoStatusWithoutSourceProof_keepsExistingOfficialItemAndActualScore() {
+        Long projectId = 9106L;
+        ScoreParseTask previous = taskRepository.saveAndFlush(ScoreParseTask.builder()
+                .taskId("old-source-proof-task").projectId(projectId).taskType("PARSE")
+                .status("COMPLETED").build());
+        ScoreItem oldItem = itemRepository.saveAndFlush(ScoreItem.builder().projectId(projectId)
+                .parseTaskId(previous.getId()).itemIndex(1).code("1").dim("旧评分项")
+                .detail("旧规则").weight(bd("100")).scoreType("OBJECTIVE")
+                .statusStage1("OK").build());
+        ScoreResult oldScore = resultRepository.saveAndFlush(ScoreResult.builder()
+                .scoreItemId(oldItem.getId()).scoringTaskId(77L).actualScore(bd("86"))
+                .statusStage2("OK").build());
+        ScoreParseTask current = taskRepository.saveAndFlush(ScoreParseTask.builder()
+                .taskId("unverified-source-proof-task").projectId(projectId).taskType("PARSE")
+                .status("PROCESSING").build());
+        StructuredTableResult complete = extract(twoTableArtifact());
+        assertThat(complete.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        StructuredTableResult unverified = StructuredTableResult.evidencePipeline(complete.facts(),
+                complete.candidates(), complete.completeness(), complete.tableCompletenesses());
+
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(current, current.getTaskId(),
+                unverified, taskRepository, stateService, progressService, persistenceService,
+                estimatedScoreService);
+
+        assertThat(current.getDecisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
+        assertThat(itemRepository.findByProjectIdOrderByItemIndexAsc(projectId))
+                .extracting(ScoreItem::getId).containsExactly(oldItem.getId());
+        assertThat(resultRepository.findAll()).extracting(ScoreResult::getId)
+                .contains(oldScore.getId());
+        assertThat(resultRepository.findByScoreItemIdIn(List.of(oldItem.getId())))
+                .extracting(ScoreResult::getActualScore).containsExactly(bd("86"));
+        assertThat(factRepository.findByParseTaskId(current.getId())).isNotEmpty();
+        verify(estimatedScoreService, never()).estimateForProject(projectId);
+    }
+
+    @Test
     void reviewCandidateFacts_isolatedByParseTask_andIdempotentPerTask() {
         // 回归G：同项目两个复核任务互不串任务；同任务重复保存不产生重复事实；其他项目不受影响
         Long projectId = 9104L;
@@ -256,7 +417,8 @@ class ScorePartialOverwritePersistenceTest {
     private static StructuredTableResult extract(DocumentArtifact artifact) {
         byte[] pdfBytes = "%PDF-1.4 partial-overwrite".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         TenderTextSource source = new TenderTextSource(
-                "partial-overwrite.pdf", "memory://partial-overwrite.pdf", "评分标准由两张独立评分表组成。");
+                "partial-overwrite.pdf", "memory://partial-overwrite.pdf",
+                "本项目评分总分100分。评分标准由两张独立评分表组成。");
         InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
                 null, null, null, null, null, null, null, null, null, 5000000L) {
             @Override

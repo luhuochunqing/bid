@@ -7,6 +7,7 @@ import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.ScoreParsePipeline;
 import com.xiyu.bid.scoreparse.domain.StructuredTableCandidateExtractor;
@@ -20,7 +21,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -33,7 +33,7 @@ final class StructuredTableExtractionHandler {
                                           SidecarDocumentArtifactExtractor artifactExtractor,
                                           SidecarTableExtractor sidecarTableExtractor) {
         String fileName = source.fileName();
-        if (!supportsStructuredEvidence(fileName) || loaded == null) {
+        if (!StructuredTableSourceSupport.supportsStructuredEvidence(fileName) || loaded == null) {
             return StructuredTableResult.ok(List.of());
         }
         try {
@@ -81,14 +81,6 @@ final class StructuredTableExtractionHandler {
             }
         }
     }
-    private static boolean supportsStructuredEvidence(String fileName) {
-        if (fileName == null) {
-            return false;
-        }
-        String lower = fileName.toLowerCase(Locale.ROOT);
-        return lower.endsWith(".docx") || lower.endsWith(".pdf");
-    }
-
     private static StructuredTableResult extractEvidencePipeline(LoadedBidFile loaded,
                                                    String fileName,
                                                    String tenderSectionText,
@@ -98,7 +90,8 @@ final class StructuredTableExtractionHandler {
             case LoadedBidFile.InMemory inMem -> artifactExtractor.extract(inMem.content(), fileName);
             case LoadedBidFile.OnDisk onDisk -> artifactExtractor.extract(onDisk.tempFile(), fileName);
         };
-        if (shouldFallbackPdfToLegacy(fileName, artifact)) {
+        var originalContext = OriginalScoringContext.resolve(artifact, tenderSectionText);
+        if (StructuredTableSourceSupport.shouldFallbackPdfToLegacy(fileName, artifact)) {
             log.warn("PDF 未抽取到结构化评分表，回落 legacy markdown 召回: file={}", fileName);
             return StructuredTableResult.ok(List.of());
         }
@@ -114,6 +107,15 @@ final class StructuredTableExtractionHandler {
         List<ScoreFact> facts = shadow.tables().stream()
                 .flatMap(table -> table.facts().stream())
                 .toList();
+        var originalCheck = OriginalSourcePublicationGuard.verify(originalContext, artifact, facts);
+        List<String> sourceDefects = originalCheck.defects();
+        boolean originalVerified = sourceDefects.isEmpty();
+        if (!originalVerified) {
+            completeness = OriginalSourcePublicationGuard.review(completeness, sourceDefects, originalCheck);
+            facts = facts.stream().map(f -> f.withValidationStatus(ScoreFact.ValidationStatus.REVIEW_REQUIRED)).toList();
+        } else if (completeness != null && completeness.decision() == ScoreParseDecision.AUTO_APPROVED) {
+            completeness = OriginalSourcePublicationGuard.verified(completeness, originalCheck);
+        }
         // spec 062：聚合所有 AUTO_APPROVED 表的 AUTO_APPROVED 叶子候选（不再要求整份文档 AUTO_APPROVED）
         List<ScoreCandidate> leafCandidates = shadow.tableCompletenesses().stream()
                 .filter(table -> table.completeness() != null
@@ -127,16 +129,8 @@ final class StructuredTableExtractionHandler {
                 fileName, facts.size(), leafCandidates.size(), completeness.declaredTotalScore(),
                 completeness.declaredTotalSource(), completeness.decision(), completeness.fallbackReason(),
                 shadow.tableCompletenesses().size());
-        return StructuredTableResult.evidencePipeline(facts, leafCandidates, completeness, shadow.tableCompletenesses());
-    }
-
-    private static boolean shouldFallbackPdfToLegacy(String fileName,
-                                                    com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact artifact) {
-        if (fileName == null || !fileName.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
-            return false;
-        }
-        return artifact == null || artifact.tables().stream()
-                .noneMatch(table -> table != null && Boolean.TRUE.equals(table.isScoreTable()));
+        return StructuredTableResult.evidencePipeline(facts, leafCandidates, completeness,
+                shadow.tableCompletenesses(), originalCheck.proofs());
     }
 
     static void markIncomplete(ScoreParseTask task,
@@ -181,7 +175,14 @@ final class StructuredTableExtractionHandler {
         ScoreParseDecision decision = completeness == null
                 ? ScoreParseDecision.PARSE_FAILED
                 : completeness.decision();
+        if (decision == ScoreParseDecision.AUTO_APPROVED && !structured.originalVerified()) {
+            decision = ScoreParseDecision.REVIEW_REQUIRED;
+        }
         String fallbackReason = completeness == null ? "COMPLETENESS_DEFECT" : completeness.fallbackReason();
+        if (decision == ScoreParseDecision.REVIEW_REQUIRED && !structured.originalVerified()
+                && completeness != null && completeness.decision() == ScoreParseDecision.AUTO_APPROVED) {
+            fallbackReason = "ORIGINAL_SOURCE_UNVERIFIED";
+        }
         // spec 062：权重合计信号基于全部表叶子候选（不以落库过滤集为准），
         // 保证文档级 REVIEW_REQUIRED 时 originalTotalWeight 仍反映全部事实权重。
         List<ScoreCandidate> allLeafCandidates = structured.tableCompletenesses().stream()
@@ -192,8 +193,7 @@ final class StructuredTableExtractionHandler {
                 .toList();
         WeightSumCheck.Result weightResult = evidenceWeightResult(allLeafCandidates, completeness, decision);
         List<Map<String, Object>> tableSplits = structured.tableCompletenesses().stream()
-                .map(StructuredTableExtractionHandler::tableSplitView)
-                .toList();
+                .map(StructuredTableExtractionHandler::tableSplitView).toList();
         task.setRunSummary(RunSummaryAssembler.assemble(
                 new RecallOutcome(List.of(), 0),
                 candidates.size(),
@@ -204,11 +204,12 @@ final class StructuredTableExtractionHandler {
                 ScoreParsePipeline.EVIDENCE_PIPELINE_V1,
                 decision.name(),
                 fallbackReason,
-                tableSplits).json());
+                tableSplits, completeness == null ? List.of() : completeness.defects().stream().filter(
+                        defect -> defect.startsWith("TABLE_SUBTOTAL_MISMATCH")).toList()).json());
         task.setPipelineVersion(ScoreParsePipeline.EVIDENCE_PIPELINE_V1);
         task.setDecisionStatus(decision.name());
         task.setFallbackReason(fallbackReason);
-        BigDecimal declaredTotal = completeness == null ? BigDecimal.valueOf(100) : completeness.declaredTotalScore();
+        BigDecimal declaredTotal = completeness == null ? null : completeness.declaredTotalScore();
         // spec 062：多表场景文档级 declaredTotal 与全表 totalWeight 无直接可比性，
         // 归一化告警以 weightWarning（leafWeightSum vs 声明总分）为唯一判据，避免多表自洽必现误报。
         if (weightResult.weightWarning() && weightResult.totalWeight() != null && declaredTotal != null) {
@@ -240,7 +241,7 @@ final class StructuredTableExtractionHandler {
         // score_parse_fact/score_parse_evidence 供复核按任务读取，绝不 deleteByProjectId
         // 洗掉已有正式评分项与实际打分。STRUCTURE_INCOMPLETE / PARSE_FAILED 在上游
         // markIncomplete / failTask 收口，同样不进入本发布路径。
-        if (decision == ScoreParseDecision.AUTO_APPROVED && !candidates.isEmpty()) {
+        if (decision == ScoreParseDecision.AUTO_APPROVED && structured.originalVerified() && !candidates.isEmpty()) {
             updateProgress(taskId, 90, "Evidence Pipeline 评分项落库", stateService, progressService);
             itemPersistenceService.persistItems(task.getProjectId(), task.getId(), candidates);
             updateProgress(taskId, 95, "阶段 1 预计得分计算", stateService, progressService);

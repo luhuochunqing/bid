@@ -5,6 +5,7 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
+import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import org.junit.jupiter.api.Test;
@@ -71,6 +72,8 @@ class PdfEvidencePipelineTest {
                 投标报价得分：等于基准价的得满分30分，办公用品得满分10分。
                 | 合计<br>得分 | 满分<br>（100分） | |
                 """);
+        assertThat(OriginalScoringContext.resolve(project1381ScoreArtifact(), source.text()).total().value())
+                .isEqualByComparingTo("100");
         InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
                 null, null, null, null, null, null, null, null, null, 5000000L) {
             @Override
@@ -177,22 +180,21 @@ class PdfEvidencePipelineTest {
     }
 
     @Test
-    void multiTableTender_eachOwnTotalSelfConsistent_allTablesAutoApproved()
+    void multiTableTender_withoutSchemeTotal_localClosuresDoNotAuthorizePublication()
             throws IOException, InterruptedException {
-        // 期望行为：两张独立评分表（技术 60 / 商务 40）各自按本表声明总分独立校验，两表全自洽
-        // → 整份文档 AUTO_APPROVED → 两表全部评分项可落库为正式 score_item。
+        // 旧夹具只声明技术 60、商务 40 的分表小计，没有原文方案总分；局部通过不能冒充方案级证明。
         StructuredTableResult result = extractMultiTable();
 
         assertThat(result.evidencePipeline()).isTrue();
         assertThat(result.facts()).hasSize(5);
         assertThat(result.candidates()).hasSize(5);
-        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
-        // spec 062 US1：文档级聚合取最差决策（两表均 AUTO_APPROVED 时取先出现的技术表）
-        assertThat(result.completeness().declaredTotalScore()).isEqualByComparingTo("60.00");
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(result.originalVerified()).isFalse();
+        assertThat(result.completeness().declaredTotalScore()).isNull();
         assertThat(result.completeness().declaredTotalSource())
-                .isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.STRUCTURED_SUMMARY_ROW);
-        assertThat(result.completeness().leafWeightSum()).isEqualByComparingTo("60.00");
-        // spec 062 US2：每张独立表各自的完整性结果，含本表声明总分与决策
+                .isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.UNKNOWN);
+        assertThat(result.completeness().leafWeightSum()).isEqualByComparingTo("100.00");
+        // 分表小计仍可分别核验，且两表事实都作为复核材料保留。
         assertThat(result.tableCompletenesses()).hasSize(2);
         assertThat(result.tableCompletenesses())
                 .allMatch(table -> table.completeness() != null

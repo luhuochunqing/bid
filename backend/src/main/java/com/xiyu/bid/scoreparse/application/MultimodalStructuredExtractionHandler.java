@@ -2,6 +2,8 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator;
+import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
+import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreEvidence;
@@ -28,30 +30,31 @@ final class MultimodalStructuredExtractionHandler {
         if (loaded == null || artifactExtractor == null) {
             return StructuredTableResult.structureIncomplete("MULTIMODAL_INPUT_UNAVAILABLE");
         }
-        if (extractor == null) {
-            return reviewOnly(loaded, source.fileName(), source.text(), artifactExtractor,
-                    "MULTIMODAL_MODEL_UNAVAILABLE");
-        }
+        DocumentArtifact artifact = null;
+        OriginalScoringContext originalContext = null;
         try {
-            return run(loaded, source.fileName(), source.text(), artifactExtractor, extractor, imageExtractor);
+            artifact = artifact(loaded, source.fileName(), artifactExtractor);
+            originalContext = OriginalScoringContext.resolve(artifact, source.text());
+            if (extractor == null) return reviewOnly(artifact, originalContext, source.text(),
+                    "MULTIMODAL_MODEL_UNAVAILABLE");
+            return run(loaded, source.fileName(), source.text(), artifact, originalContext, extractor, imageExtractor);
         } catch (RuntimeException | IOException exception) {
             log.warn("多模态评分事实提取失败，进入异常复核且禁止正则自动发布: file={}, msg={}",
                     source.fileName(), exception.getMessage());
-            return reviewOnly(loaded, source.fileName(), source.text(), artifactExtractor,
-                    "MULTIMODAL_EXTRACTION_FAILED");
+            return artifact == null ? StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_FAILED")
+                    : reviewOnly(artifact, originalContext, source.text(), "MULTIMODAL_EXTRACTION_FAILED");
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            return reviewOnly(loaded, source.fileName(), source.text(), artifactExtractor,
-                    "MULTIMODAL_EXTRACTION_INTERRUPTED");
+            return artifact == null ? StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_INTERRUPTED")
+                    : reviewOnly(artifact, originalContext, source.text(), "MULTIMODAL_EXTRACTION_INTERRUPTED");
         }
     }
 
     private static StructuredTableResult run(LoadedBidFile loaded, String fileName, String tenderSectionText,
-                                              SidecarDocumentArtifactExtractor artifactExtractor,
+                                              DocumentArtifact artifact, OriginalScoringContext originalContext,
                                               MultimodalScoreFactExtractor extractor,
                                               SidecarImageExtractor imageExtractor)
             throws IOException, InterruptedException {
-        DocumentArtifact artifact = artifact(loaded, fileName, artifactExtractor);
         var scorePages = artifact.tables().stream()
                 .filter(table -> table.sourcePage() != null)
                 .map(DocumentArtifact.CanonicalTable::sourcePage).collect(java.util.stream.Collectors.toSet());
@@ -60,37 +63,78 @@ final class MultimodalStructuredExtractionHandler {
                     case LoadedBidFile.InMemory inMem -> imageExtractor.renderPages(inMem.content(), fileName, scorePages).images();
                     case LoadedBidFile.OnDisk onDisk -> imageExtractor.renderPages(onDisk.tempFile(), fileName, scorePages).images();
                 };
-        var extracted = extractor.extract(artifact, images);
-        var validation = new MultimodalScoreFactValidator().validate(
-                extracted.facts(), artifact, extracted.declaredTotal());
+        MultimodalScoreFactExtractor.ExtractionResult extracted;
+        boolean alreadyRechecked = false;
+        try {
+            extracted = extractor.extract(artifact, images);
+        } catch (RuntimeException firstFailure) {
+            log.warn("多模态首次请求失败，尝试紧凑模型复核: file={}, cause={}", fileName,
+                    firstFailure.getClass().getSimpleName());
+            extracted = extractor.recheck(artifact);
+            alreadyRechecked = true;
+        }
+        var validator = new MultimodalScoreFactValidator();
+        var validation = validator.validate(extracted.facts(), artifact, originalContext, extracted.declaredTotal());
+        if (!alreadyRechecked && !validation.autoApprovable()) {
+            try {
+                var rechecked = extractor.recheck(artifact);
+                var recheckValidation = validator.validate(rechecked.facts(), artifact, originalContext,
+                        rechecked.declaredTotal());
+                if (!rechecked.facts().isEmpty()) {
+                    extracted = rechecked;
+                    validation = recheckValidation;
+                }
+                if (recheckValidation.autoApprovable()) {
+                    log.info("紧凑模型复核通过: file={}, facts={}, declaredTotal={}", fileName,
+                            rechecked.facts().size(), rechecked.declaredTotal());
+                }
+            } catch (RuntimeException recheckFailure) {
+                log.warn("紧凑模型复核失败，保留首次提取结果: file={}, cause={}", fileName,
+                        recheckFailure.getClass().getSimpleName());
+            }
+        }
         if (!validation.autoApprovable()) {
             StructuredTableResult deterministicFallback = completeDeterministicFallback(
-                    artifact, tenderSectionText, validation);
+                    originalContext, artifact, tenderSectionText, validation);
             if (deterministicFallback != null) {
                 return deterministicFallback;
             }
         }
-        List<ScoreFact> facts = validation.facts().stream().map(f -> toScoreFact(f, artifact, validation)).toList();
+        var finalValidation = validation;
+        List<ScoreFact> facts = validation.facts().stream().map(f -> toScoreFact(f, artifact, finalValidation)).toList();
         var decision = validation.autoApprovable() ? ScoreParseDecision.AUTO_APPROVED : ScoreParseDecision.REVIEW_REQUIRED;
         List<ScoreFact> leaves = facts.stream().filter(f -> ScoreFact.isLeaf(f, facts)).toList();
         List<ScoreFact> parents = facts.stream().filter(f -> !ScoreFact.isLeaf(f, facts)).toList();
         var completeness = new ScoreCompletenessPolicy.ScoreCompletenessResult(validation.autoApprovable(), decision,
-                validation.autoApprovable() ? null : validation.violations().get(0).code(), validation.declaredTotal(),
-                ScoreCompletenessPolicy.DeclaredTotalSource.STRUCTURED_SUMMARY_ROW, validation.leafTotal(),
+                validation.autoApprovable() ? null : validation.violations().get(0).code(), validation.originalTotal(),
+                "TENDER_TEXT".equals(validation.sourceVerification().total().source())
+                        ? ScoreCompletenessPolicy.DeclaredTotalSource.TENDER_TEXT
+                        : validation.originalTotal() == null
+                        ? ScoreCompletenessPolicy.DeclaredTotalSource.UNKNOWN
+                        : ScoreCompletenessPolicy.DeclaredTotalSource.STRUCTURED_SUMMARY_ROW,
+                validation.leafTotal(),
                 leaves.size(), parents.size(), 0, validation.violations().stream()
-                .map(v -> v.code() + ": " + v.message() + " expected=" + v.expected() + " actual=" + v.actual()).toList(),
+                .map(v -> v.code() + "[fact=" + v.factId() + ",field=" + v.field()
+                        + ",source=" + v.evidence() + "] " + v.message()
+                        + " expected=" + v.expected() + " actual=" + v.actual()).toList(),
                 leaves, parents);
         List<ScoreCandidate> candidates = validation.autoApprovable()
                 ? leaves.stream().map(ScoreFact::toCandidate).flatMap(Optional::stream).toList() : List.of();
         var tables = List.of(new TableCompleteness("MULTIMODAL", true, completeness,
                 facts.stream().map(ScoreFact::sourceTableId).distinct().toList()));
-        log.info("多模态评分事实完成: facts={}, images={}, model={}, decision={}, violations={}",
-                facts.size(), extracted.imageCount(), extracted.model(), decision, validation.violations().size());
-        return StructuredTableResult.evidencePipeline(facts, candidates, completeness, tables);
+        log.info("多模态评分事实完成: facts={}, images={}, model={}, decision={}, modelTotal={}, originalTotal={}, "
+                        + "originalSource={}, leafTotal={}, violations={}",
+                facts.size(), extracted.imageCount(), extracted.model(), decision, validation.declaredTotal(),
+                validation.originalTotal(), validation.sourceVerification().total().locator(),
+                validation.leafTotal(), validation.violations().size());
+        var proof = validation.autoApprovable() ? OriginalScoreEvidencePolicy.publicationProof(
+                validation.sourceVerification(), validation.leafTotal(), facts, candidates) : null;
+        return StructuredTableResult.evidencePipeline(facts, candidates, completeness, tables,
+                proof == null ? List.of() : List.of(proof));
     }
 
     private static StructuredTableResult completeDeterministicFallback(
-            DocumentArtifact artifact, String tenderSectionText,
+            OriginalScoringContext originalContext, DocumentArtifact artifact, String tenderSectionText,
             MultimodalScoreFactValidator.ValidationReport modelValidation) {
         var shadow = ScoreFactShadowPipeline.run(artifact, tenderSectionText);
         var completeness = shadow.completeness();
@@ -104,34 +148,46 @@ final class MultimodalStructuredExtractionHandler {
                 .map(ScoreFact::toCandidate)
                 .flatMap(Optional::stream)
                 .toList();
-        if (candidates.isEmpty()) {
+        var original = OriginalSourcePublicationGuard.verify(originalContext, artifact, facts);
+        if (candidates.isEmpty() || original.proofs().isEmpty() || !original.defects().isEmpty()) {
+            log.warn("确定性回补原文核验失败，保留模型复核事实: modelFacts={}, fallbackFacts={}, "
+                            + "problems={}", modelValidation.facts().size(), facts.size(), original.defects());
             return null;
         }
+        completeness = OriginalSourcePublicationGuard.verified(completeness, original);
         log.warn("多模态召回未闭合，确定性表格管道已完整回补: modelFacts={}, fallbackFacts={}, declaredTotal={}, leafTotal={}",
                 modelValidation.facts().size(), facts.size(), completeness.declaredTotalScore(),
                 completeness.leafWeightSum());
         return StructuredTableResult.evidencePipeline(facts, candidates, completeness,
-                shadow.tableCompletenesses());
+                shadow.tableCompletenesses(), original.proofs());
     }
 
-    private static StructuredTableResult reviewOnly(LoadedBidFile loaded, String fileName, String text,
-                                                     SidecarDocumentArtifactExtractor extractor, String reason) {
+    private static StructuredTableResult reviewOnly(DocumentArtifact original, OriginalScoringContext context,
+                                                     String text, String reason) {
         try {
-            var shadow = ScoreFactShadowPipeline.run(artifact(loaded, fileName, extractor), text);
+            var shadow = ScoreFactShadowPipeline.run(original, text);
             List<ScoreFact> facts = shadow.tables().stream().flatMap(table -> table.facts().stream())
                     .map(fact -> fact.withValidationStatus(ScoreFact.ValidationStatus.REVIEW_REQUIRED)).toList();
             List<ScoreFact> leaves = facts.stream().filter(f -> ScoreFact.isLeaf(f, facts)).toList();
             List<ScoreFact> parents = facts.stream().filter(f -> !ScoreFact.isLeaf(f, facts)).toList();
             BigDecimal sum = leaves.stream().map(ScoreFact::weight).filter(java.util.Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal originalTotal = context.total().value();
+            var totalSource = originalTotal == null ? ScoreCompletenessPolicy.DeclaredTotalSource.UNKNOWN
+                    : "TENDER_TEXT".equals(context.total().source())
+                    ? ScoreCompletenessPolicy.DeclaredTotalSource.TENDER_TEXT
+                    : ScoreCompletenessPolicy.DeclaredTotalSource.STRUCTURED_SUMMARY_ROW;
+            var defects = new java.util.ArrayList<String>();
+            defects.add(reason);
+            defects.addAll(context.total().problems().stream().map(problem -> problem.code() + ": "
+                    + problem.expected() + " actual=" + problem.actual() + " at " + problem.locator()).toList());
             var completeness = new ScoreCompletenessPolicy.ScoreCompletenessResult(false,
-                    ScoreParseDecision.REVIEW_REQUIRED, reason, BigDecimal.valueOf(100),
-                    ScoreCompletenessPolicy.DeclaredTotalSource.DEFAULT_100, sum, leaves.size(), parents.size(),
-                    0, List.of(reason), leaves, parents);
+                    ScoreParseDecision.REVIEW_REQUIRED, reason, originalTotal,
+                    totalSource, sum, leaves.size(), parents.size(),
+                    0, defects, leaves, parents);
             return StructuredTableResult.evidencePipeline(facts, List.of(), completeness,
                     List.of(new TableCompleteness("MULTIMODAL_FALLBACK", false, completeness)));
-        } catch (RuntimeException | IOException | InterruptedException failure) {
-            if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
+        } catch (RuntimeException failure) {
             return StructuredTableResult.structureIncomplete(reason);
         }
     }

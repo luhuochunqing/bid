@@ -253,7 +253,8 @@ public final class ScoreCompletenessPolicy {
     public enum DeclaredTotalSource {
         STRUCTURED_SUMMARY_ROW,
         TENDER_TEXT,
-        DEFAULT_100
+        DEFAULT_100,
+        UNKNOWN
     }
 
     private record DeclaredTotalResolution(BigDecimal value, DeclaredTotalSource source, List<String> defects) {
@@ -286,7 +287,8 @@ public final class ScoreCompletenessPolicy {
             map.put("declaredTotalScore", declaredTotalScore);
             map.put("declaredTotalSource", declaredTotalSource.name());
             map.put("leafWeightSum", leafWeightSum);
-            map.put("discrepancy", declaredTotalScore.subtract(leafWeightSum).abs());
+            map.put("discrepancy", declaredTotalScore == null || leafWeightSum == null
+                    ? null : declaredTotalScore.subtract(leafWeightSum).abs());
             map.put("leafCount", leafCount);
             map.put("parentCount", parentCount);
             map.put("missingEvidenceCount", missingEvidenceCount);

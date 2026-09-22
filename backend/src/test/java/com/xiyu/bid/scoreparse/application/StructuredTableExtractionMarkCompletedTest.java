@@ -9,6 +9,10 @@ import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
+import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
+import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
+import com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository;
+import com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -29,7 +33,7 @@ class StructuredTableExtractionMarkCompletedTest {
     void multiTableAllSelfConsistent_noFalseNormalizationWarningAndTableSplitsInRunSummary()
             throws IOException, InterruptedException {
         StructuredTableResult structured = extract(multiTableArtifact(),
-                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+                "本项目评分总分100分。评分标准由技术评分表和商务评分表两张独立评分表组成。");
         ScoreParseTask task = new ScoreParseTask();
         ScoreParseTaskRepository taskRepository = mock(ScoreParseTaskRepository.class);
         ScoreParseTaskStateService stateService = mock(ScoreParseTaskStateService.class);
@@ -60,7 +64,7 @@ class StructuredTableExtractionMarkCompletedTest {
     void singleTableWeightMismatch_emitsNormalizationWarningWithActualTotal()
             throws IOException, InterruptedException {
         StructuredTableResult structured = extract(singleTableMismatchArtifact(),
-                "投标报价得分：等于基准价的得满分30分。");
+                "本项目评分总分30分。投标报价得分：等于基准价的得满分30分。");
         ScoreParseTask task = new ScoreParseTask();
         ScoreParseTaskRepository taskRepository = mock(ScoreParseTaskRepository.class);
         ScoreParseTaskStateService stateService = mock(ScoreParseTaskStateService.class);
@@ -87,7 +91,7 @@ class StructuredTableExtractionMarkCompletedTest {
             throws IOException, InterruptedException {
         // 回归D 编排层：技术表通过 + 商务表缺项（声明40 实际 20）→ 文档级 REVIEW_REQUIRED
         StructuredTableResult structured = extract(partialApprovalArtifact(),
-                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+                "本项目评分总分100分。评分标准由技术评分表和商务评分表两张独立评分表组成。");
         assertThat(structured.candidates())
                 .as("前置：技术表 3 项通过，部分候选非空")
                 .hasSize(3);
@@ -119,7 +123,7 @@ class StructuredTableExtractionMarkCompletedTest {
             throws IOException, InterruptedException {
         // 回归F 防过度修复：两表全通过时，正式发布与预计得分计算路径必须照常工作
         StructuredTableResult structured = extract(multiTableArtifact(),
-                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+                "本项目评分总分100分。评分标准由技术评分表和商务评分表两张独立评分表组成。");
         assertThat(structured.candidates()).hasSize(5);
         ScoreParseTask task = new ScoreParseTask();
         ScoreParseTaskRepository taskRepository = mock(ScoreParseTaskRepository.class);
@@ -136,6 +140,44 @@ class StructuredTableExtractionMarkCompletedTest {
         verify(itemService).persistItems(any(), any(), anyList());
         verify(estimatedScoreService).estimateForProject(any());
         verify(stateService).markCompleted("task-full");
+    }
+
+    @Test
+    void autoDecisionWithoutOriginalProofCannotReplaceOfficialItems()
+            throws IOException, InterruptedException {
+        StructuredTableResult verified = extract(multiTableArtifact(),
+                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+        StructuredTableResult unverified = StructuredTableResult.evidencePipeline(verified.facts(),
+                verified.candidates(), verified.completeness(), verified.tableCompletenesses());
+        ScoreParseTask task = new ScoreParseTask();
+        ScoreItemPersistenceService items = mock(ScoreItemPersistenceService.class);
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(task, "task-unverified", unverified,
+                mock(ScoreParseTaskRepository.class), mock(ScoreParseTaskStateService.class),
+                mock(ScoreParseProgressService.class), items, mock(EstimatedScoreService.class));
+        assertThat(task.getDecisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
+        verify(items, never()).persistItems(any(), any(), anyList());
+        verify(items).persistFactsAndEvidence(any(), any(), anyList());
+    }
+
+    @Test
+    void rejectedParseSavesTaskFactsWithoutDeletingExistingItemsOrScores()
+            throws IOException, InterruptedException {
+        StructuredTableResult structured = extract(partialApprovalArtifact(),
+                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+        ScoreItemRepository officialItems = mock(ScoreItemRepository.class);
+        ScoreResultRepository oldScores = mock(ScoreResultRepository.class);
+        ScoreParseFactRepository reviewFacts = mock(ScoreParseFactRepository.class);
+        ScoreParseEvidenceRepository reviewEvidence = mock(ScoreParseEvidenceRepository.class);
+        ScoreItemPersistenceService persistence = new ScoreItemPersistenceService(
+                officialItems, oldScores, reviewFacts, reviewEvidence, new ObjectMapper());
+        ScoreParseTask task = new ScoreParseTask();
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(task, "task-protect", structured,
+                mock(ScoreParseTaskRepository.class), mock(ScoreParseTaskStateService.class),
+                mock(ScoreParseProgressService.class), persistence, mock(EstimatedScoreService.class));
+        assertThat(task.getDecisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
+        verify(officialItems, never()).deleteByProjectId(any());
+        verify(oldScores, never()).deleteByScoreItemIdIn(anyList());
+        verify(reviewFacts).saveAll(anyList());
     }
 
     private static StructuredTableResult extract(
