@@ -5,8 +5,10 @@
 
 import { computed, ref } from 'vue'
 import { approvalApi, projectsApi, qualificationsApi } from '@/api'
+import { contractBorrowApi } from '@/api/modules/contractBorrow.js'
 import { useSupportRequest } from '@/views/Dashboard/useSupportRequest.js'
 import {
+  buildContractBorrowPayload,
   buildQualificationBorrowPayload,
   createDefaultBorrowRequestForm,
   normalizeSupportProjects,
@@ -33,6 +35,7 @@ export function useWorkbenchQuickStart({
 } = {}) {
   const projectApi = api.projectsApi || projectsApi
   const qualificationApi = api.qualificationsApi || qualificationsApi
+  const borrowApi = api.contractBorrowApi || contractBorrowApi
 
   const support = useSupportRequest({
     approvalApi: api.approvalApi || approvalApi,
@@ -101,14 +104,16 @@ export function useWorkbenchQuickStart({
 
     borrowSubmitting.value = true
     try {
-      const result = await qualificationApi.createBorrow(
-        borrowForm.value.qualificationId,
-        buildQualificationBorrowPayload(borrowForm.value)
-      )
+      const result = borrowForm.value.mode === 'qualification'
+        ? await qualificationApi.createBorrow(
+          borrowForm.value.qualificationId,
+          buildQualificationBorrowPayload(borrowForm.value)
+        )
+        : await borrowApi.create(buildContractBorrowPayload(borrowForm.value))
 
       if (!result?.success) throw new Error(result?.msg || '借阅申请提交失败')
 
-      message.success?.('资质借阅申请已提交')
+      message.success?.(borrowForm.value.mode === 'qualification' ? '资质借阅申请已提交' : '合同借阅申请已提交')
       borrowDialogVisible.value = false
       await onSubmitted?.()
       return true

@@ -24,7 +24,9 @@ import { batchTendersApi } from './modules/tenders/batch.js'
 import { crmApi } from './modules/crm.js'
 import { projectsApi } from './modules/projects.js'
 import qualificationsApi from './modules/qualification.js'
+import { templatesApi } from './modules/templates.js'
 import knowledgeApi from './modules/knowledge.js'
+import { feesApi } from './modules/fees.js'
 import aiApi from './modules/ai.js'
 import resourcesApi from './modules/resources.js'
 import collaborationApi from './modules/collaboration.js'
@@ -35,6 +37,7 @@ import { auditApi } from './modules/audit.js'
 import { settingsApi } from './modules/settings.js'
 import { permissionMatrixApi } from './modules/permissionMatrix.js'
 import { projectGroupsApi } from './modules/projectGroups.js'
+import { bidResultsApi } from './modules/bidResults.js'
 import { workbenchApi } from './modules/workbench.js'
 import { bidAgentApi } from './modules/bidAgent.js'
 import { bidMatchScoringApi } from './modules/bidMatchScoring.js'
@@ -58,7 +61,9 @@ export {
   crmApi,
   projectsApi,
   qualificationsApi,
+  templatesApi,
   knowledgeApi,
+  feesApi,
   aiApi,
   resourcesApi,
   collaborationApi,
@@ -72,6 +77,7 @@ export {
   settingsApi,
   permissionMatrixApi,
   projectGroupsApi,
+  bidResultsApi,
   workbenchApi,
   bidAgentApi,
   bidMatchScoringApi,
@@ -96,6 +102,7 @@ export default {
   projects: () => Promise.resolve(projectsApi),
   qualifications: () => Promise.resolve(qualificationsApi),
   knowledge: () => Promise.resolve(knowledgeApi),
+  fees: () => Promise.resolve(feesApi),
   ai: () => Promise.resolve(aiApi),
   resources: () => Promise.resolve(resourcesApi),
   collaboration: () => Promise.resolve(collaborationApi),

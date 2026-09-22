@@ -1185,3 +1185,10 @@
 - 结果：补删 fees.js/ProjectDetailMainContent/ProjectExpenseSummaryCard/ProjectDetailAICheckCard/ProjectDetailAssetCheckPane 等 9 文件；修订嵌套 README 与 2 个检查脚本失效引用；spec 过程标记脱敏。
 - 证据：verify-removal 增补 6 项 expect_absent 全通过 + 368 文件/3245 用例全绿 + 构建成功。
 - 回填：更新 [[acceptance-export-feature-removal]]（新增 §6 存量死组件簇判定法、§7 交付包脱敏）。
+
+## [2026-09-22] revert | main 还原 067 导出清理（客户交付改为仅 zip 包）
+- 触发：交付负责人评估后决定 main 保持原样——代码级剔除仅为甲方源码包服务，内部部署/开发继续使用完整功能，避免为一次性交付改动主线引入风险。
+- 操作：revert 合并提交 345bcad7b；还原后工作树与合并前 ba32ac1e8 逐字节一致（git diff 为空）。
+- 保留：清理版完整保留在 git 历史（345bcad7b 及其父链），未来如需再次出包可复用；specs/067 与知识页保留作交付记录。
+- 验证：全量单测 380 文件/3275 用例全绿 + 前端构建成功。
+- 回填：更新 [[acceptance-export-feature-removal]]（新增 §8 交付形态决策）。

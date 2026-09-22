@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-22
 
-**Status**: Implemented（2026-09-22，批次 A/B/C 已交付 + 两轮独立评审修复）
+**Status**: Delivered（2026-09-22 源码包已交付；**main 已按交付决策还原**——清理仅用于导出包，main 保持完整功能，详见 `.wiki/pages/acceptance-export-feature-removal.md` §8）
 
 **Input**: User description: "将产品源代码导出给甲方客户做验收，先导出前隐藏未对甲方开放的功能，代码级剔除——路由 + 页面文件一并从导出包剔除，联动入口一并删除，死代码一并剔除，仅剔前端（后端 API 保留）"
 

@@ -58,6 +58,14 @@ const SEED_CONTRACTS = [
     specFiles: ['e2e/case-grid.spec.js'],
     description: 'CaseGrid 网格：E2E 播种案例数据并期望在 /knowledge/case 路由网格中可见',
   },
+  {
+    // 费用台账：E2E 通过 POST /api/resources/expenses 创建费用记录
+    // 然后断言在 /resource/expense 可见
+    seedApi: '/api/resources/expenses',
+    verifiedOnRoute: '/resource/expense',
+    specFiles: ['e2e/commercial-main-flow.spec.js'],
+    description: '费用台账：E2E 播种费用数据并期望在 /resource/expense 路由可见',
+  },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────

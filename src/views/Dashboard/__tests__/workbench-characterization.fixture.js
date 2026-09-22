@@ -108,6 +108,7 @@ const mockState = vi.hoisted(() => ({
   projectsGetList: vi.fn(),
   qualificationsGetList: vi.fn(),
   qualificationsCreateBorrow: vi.fn(),
+  contractBorrowCreate: vi.fn(),
   expenseCreate: vi.fn(),
   scheduleGetOverview: vi.fn(),
   tendersGetList: vi.fn(),
@@ -180,6 +181,7 @@ vi.mock('@/api/modules/dashboard.js', () => ({ tasksApi: { getMine: mockState.ta
 vi.mock('@/api/modules/alerts.js', () => ({ alertHistoryApi: { getUnresolved: mockState.alertGetUnresolved, acknowledge: mockState.alertAcknowledge } }))
 vi.mock('@/api/modules/tenders.js', () => ({ tendersApi: { getList: mockState.tendersGetList } }))
 vi.mock('@/api/modules/workbench.js', () => ({ workbenchApi: { getScheduleOverview: mockState.scheduleGetOverview, getDeadlineStats: mockState.workbenchGetDeadlineStats, getOpportunityPredictions: mockState.workbenchGetOpportunityPredictions } }))
+vi.mock('@/api/modules/contractBorrow.js', () => ({ contractBorrowApi: { create: mockState.contractBorrowCreate } }))
 // Mock usersApi 避免 UserPicker 触发真实 API 调用。
 vi.mock('@/api/modules/users.js', () => ({
   usersApi: {
@@ -258,6 +260,7 @@ export function resetApiMocks() {
   })
   mockState.qualificationsGetList.mockResolvedValue({ success: true, data: [{ id: 201, name: '高新技术企业证书' }] })
   mockState.qualificationsCreateBorrow.mockResolvedValue({ success: true, data: { id: 301 } })
+  mockState.contractBorrowCreate.mockResolvedValue({ success: true, data: { id: 401 } })
   mockState.expenseCreate.mockResolvedValue({ success: true, data: { id: 501 } })
   mockState.scheduleGetOverview.mockResolvedValue({ data: { events: [{ id: 301, eventDate: '2026-04-23', eventType: 'DEADLINE', title: '数字政府项目截标', projectId: 101, isUrgent: true }] } })
   mockState.tendersGetList.mockResolvedValue({ success: true, data: [{ id: 'B001', title: '某央企智慧办公平台采购项目', aiScore: 92 }] })

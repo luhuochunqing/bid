@@ -22,6 +22,16 @@ export function useProjectDetailCore(context) {
   const handleOpenMobileCard = () => { context.showMobileCard.value = true }
 
   const goBack = () => router.push('/project')
+  const goToExpensePage = () => router.push('/resource/expense')
+  const goToResultPage = () => router.push('/resource/bid-result')
+  const goToSiteDetail = () => { if (context.assetCheckResult.value?.site?.id) router.push(`/resource/bar/site/${context.assetCheckResult.value.site.id}`) }
+  const borrowUK = () => {
+    if (context.assetCheckResult.value?.site?.id) {
+      router.push({ path: `/resource/bar/site/${context.assetCheckResult.value.site.id}`, query: { fromProjectId: String(route.params.id || ''), fromProjectName: project.value?.name || '' } })
+    }
+  }
+  const viewSOP = () => { if (context.assetCheckResult.value?.site?.id) router.push(`/resource/bar/sop/${context.assetCheckResult.value.site.id}`) }
+  const goToAssetManagement = () => router.push('/resource/bar')
 
   return {
     isDemoMode,
@@ -43,5 +53,11 @@ export function useProjectDetailCore(context) {
     handleOpenAutoTasks,
     handleOpenMobileCard,
     goBack,
+    goToExpensePage,
+    goToResultPage,
+    goToSiteDetail,
+    borrowUK,
+    viewSOP,
+    goToAssetManagement,
   }
 }

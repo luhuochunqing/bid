@@ -1,3 +1,5 @@
+export const hiddenApiMenuNames = new Set(['CustomerOpportunityCenter', 'AuditLogs', 'BAR', 'BAR_SiteList', 'Expense', 'ContractBorrow', 'BidResult', 'Template'])
+
 export const sidebarMenuConfig = [
   {
     path: '/dashboard',
@@ -37,6 +39,11 @@ export const sidebarMenuConfig = [
         meta: { title: '案例库', permissionKeys: ['knowledge-case'] }
       },
       {
+        path: '/knowledge/template',
+        name: 'Template',
+        meta: { title: '模板库', permissionKeys: ['knowledge-template'] }
+      },
+      {
         path: '/knowledge/qualification',
         name: 'Qualification',
         meta: { title: '资质证书', permissionKeys: ['knowledge-qualification'] }
@@ -62,7 +69,8 @@ export const sidebarMenuConfig = [
         meta: { title: '品牌授权', permissionKeys: ['knowledge-brand-auth'] }
       }
     ]
-  },  {
+  },
+  {
     path: '/resource',
     name: 'Resource',
     meta: { title: '资源管理', icon: 'resource', permissionKeys: ['resource'] },
@@ -179,11 +187,13 @@ export const workbenchRoleMenuChildren = [
 ]
 
 export const roleMenuGroups = sidebarMenuConfig
+  .filter((menu) => !hiddenApiMenuNames.has(menu.name))
   .map((menu) => ({
     value: menu.meta.permissionKeys[0],
     label: menu.meta.title,
     children: menu.children && menu.children.length
       ? menu.children
+          .filter((child) => !hiddenApiMenuNames.has(child.name))
           .map((child) => ({
             value: child.meta.permissionKeys.length > 1
               ? child.meta.permissionKeys[child.meta.permissionKeys.length - 1]

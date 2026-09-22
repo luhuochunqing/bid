@@ -157,15 +157,21 @@ function mountSettings({ role = 'admin', query = {} } = {}) {
 }
 
 describe('Settings', () => {
-  it('has no audit log tab (legacy entry removed)', () => {
+  it('shows audit log tab only for privileged roles', () => {
     const adminWrapper = mountSettings({ role: 'admin' })
-    expect(adminWrapper.text()).not.toContain('审计日志')
+    expect(adminWrapper.text()).toContain('审计日志')
+    expect(adminWrapper.text()).toContain('审计日志面板')
 
     const auditorWrapper = mountSettings({ role: 'auditor' })
-    expect(auditorWrapper.text()).not.toContain('审计日志')
+    expect(auditorWrapper.text()).toContain('审计日志')
+    expect(auditorWrapper.text()).toContain('审计日志面板')
+
+    const managerWrapper = mountSettings({ role: 'manager' })
+    expect(managerWrapper.text()).not.toContain('审计日志')
+    expect(managerWrapper.text()).not.toContain('审计日志面板')
   })
 
-  it('does not keep audit log active when a legacy query requests the audit tab', () => {
+  it('does not keep audit log active when a non-privileged role requests the audit tab', () => {
     const wrapper = mountSettings({ role: 'bid-Team', query: { tab: 'audit' } })
 
     expect(wrapper.find('.settings-tabs').attributes('data-active')).toBe('departments')
