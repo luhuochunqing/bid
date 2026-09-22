@@ -10,7 +10,6 @@ describe('useProjectDetailResultActions', () => {
     const context = {
       state: { resultForm: ref({ noticeFile: '' }) },
       message: { success, error },
-      navigation: { goToResultPage: vi.fn() },
     }
     const { handleUploadSuccess } = useProjectDetailResultActions(context)
     handleUploadSuccess({ code: ApiCode.SUCCESS, data: { url: '/files/b.pdf' } })
@@ -25,7 +24,6 @@ describe('useProjectDetailResultActions', () => {
     const context = {
       state: { resultForm: ref({ noticeFile: '' }) },
       message: { success, error },
-      navigation: { goToResultPage: vi.fn() },
     }
     const { handleUploadSuccess } = useProjectDetailResultActions(context)
     handleUploadSuccess({ code: 500, msg: '失败' })

@@ -65,9 +65,6 @@
       >
         继续创建
       </el-button>
-      <el-button v-else type="primary" @click="$emit('go-to-management')">
-        前去管理资产
-      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -81,7 +78,7 @@ const props = defineProps({
   assetCheckResult: { type: Object, default: null }
 })
 
-const emit = defineEmits(['update:modelValue', 'confirm', 'go-to-management'])
+const emit = defineEmits(['update:modelValue', 'confirm'])
 
 const visible = ref(props.modelValue)
 

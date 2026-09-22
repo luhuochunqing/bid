@@ -86,9 +86,6 @@
           :rule-type-options="ruleTypeOptions"
         />
       </el-tab-pane>
-      <el-tab-pane v-if="canViewAuditLogs" label="审计日志" name="audit" lazy>
-        <AuditLogPanel mode="audit" />
-      </el-tab-pane>
       <el-tab-pane v-if="isAdmin" label="系统信息" name="system-info" lazy>
         <SystemInfoPanel />
       </el-tab-pane>
@@ -105,7 +102,6 @@ import DepartmentTreePanel from './settings/DepartmentTreePanel.vue'
 import InterfacePermissionMatrixPanel from './settings/InterfacePermissionMatrixPanel.vue'
 import RoleManagementPanel from './settings/RoleManagementPanel.vue'
 import UserOrganizationPanel from './settings/UserOrganizationPanel.vue'
-import AuditLogPanel from './settings/AuditLogPanel.vue'
 import TaskStatusDictPanel from './settings/TaskStatusDictPanel.vue'
 import TaskExtendedFieldPanel from './settings/TaskExtendedFieldPanel.vue'
 import SystemInfoPanel from './settings/SystemInfoPanel.vue'
@@ -119,7 +115,6 @@ import {
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
-const canViewAuditLogs = computed(() => userStore.hasPermission('audit-logs') || userStore.hasPermission('all'))
 const isAdmin = computed(() => userStore.hasPermission('all'))
 const settingsTabNames = new Set([
   'departments',
@@ -129,12 +124,10 @@ const settingsTabNames = new Set([
   'task-extended-fields',
   'users',
   'bid-match-scoring',
-  'audit',
   'system-info'
 ])
 const getRouteTab = () => {
   const tab = typeof route.query.tab === 'string' ? route.query.tab : ''
-  if (tab === 'audit' && !canViewAuditLogs.value) return 'departments'
   if (tab === 'task-status-dict' && !isAdmin.value) return 'departments'
   if (tab === 'task-extended-fields' && !isAdmin.value) return 'departments'
   return settingsTabNames.has(tab) ? tab : 'departments'
@@ -188,12 +181,6 @@ const loadAll = async () => {
     }
   }
 }
-
-watch(canViewAuditLogs, (allowed) => {
-  if (!allowed && activeTab.value === 'audit') {
-    activeTab.value = 'departments'
-  }
-}, { immediate: true })
 
 watch(isAdmin, (allowed) => {
   if (!allowed && activeTab.value === 'task-status-dict') {

@@ -83,6 +83,5 @@ export function useProjectDetailResultActions(context) {
     confirmAddCompetitor,
     removeCompetitor,
     handleSaveResult,
-    goToResultPage: navigation.goToResultPage,
   }
 }

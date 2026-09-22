@@ -15,36 +15,23 @@ Pos: src/views/Dashboard/components/ - Dashboard workflow components
     @retry-projects="quickStart.loadSupportRequestProjects"
   />
 
-  <el-dialog v-model="borrowDialogVisible" title="资质/合同借阅申请" width="680px" destroy-on-close>
+  <el-dialog v-model="borrowDialogVisible" title="资质借阅申请" width="680px" destroy-on-close>
     <el-form :model="borrowForm" label-width="110px">
-      <el-form-item label="借阅类型" required>
-        <el-segmented v-model="borrowForm.mode" :options="borrowModeOptions" />
-      </el-form-item>
       <el-form-item label="关联项目" required>
         <el-select v-model="borrowForm.projectId" filterable placeholder="请选择投标项目" style="width: 100%">
           <el-option v-for="project in projects" :key="project.id" :label="project.name" :value="project.id" />
         </el-select>
       </el-form-item>
 
-      <template v-if="borrowForm.mode === 'qualification'">
-        <el-form-item label="借阅资质" required>
-          <el-select v-model="borrowForm.qualificationId" filterable placeholder="请选择资质" style="width: 100%">
-            <el-option v-for="qualification in qualifications" :key="qualification.id" :label="qualification.name" :value="qualification.id" />
-          </el-select>
-        </el-form-item>
-      </template>
-
-      <template v-else>
-        <el-form-item label="合同编号" required><el-input v-model="borrowForm.contractNo" /></el-form-item>
-        <el-form-item label="合同名称" required><el-input v-model="borrowForm.contractName" /></el-form-item>
-        <el-form-item label="来源"><el-input v-model="borrowForm.sourceName" /></el-form-item>
-        <el-form-item label="客户"><el-input v-model="borrowForm.customerName" /></el-form-item>
-        <el-form-item label="借阅类型"><el-input v-model="borrowForm.borrowType" /></el-form-item>
-      </template>
+      <el-form-item label="借阅资质" required>
+        <el-select v-model="borrowForm.qualificationId" filterable placeholder="请选择资质" style="width: 100%">
+          <el-option v-for="qualification in qualifications" :key="qualification.id" :label="qualification.name" :value="qualification.id" />
+        </el-select>
+      </el-form-item>
 
       <el-form-item label="申请人" required><el-input v-model="borrowForm.borrowerName" /></el-form-item>
       <el-form-item label="部门"><el-input v-model="borrowForm.borrowerDept" /></el-form-item>
-      <el-form-item label="预计归还" :required="borrowForm.mode === 'contract'">
+      <el-form-item label="预计归还">
         <el-date-picker v-model="borrowForm.expectedReturnDate" value-format="YYYY-MM-DD" style="width: 100%" />
       </el-form-item>
       <el-form-item label="用途" required><el-input v-model="borrowForm.purpose" type="textarea" :rows="3" /></el-form-item>
@@ -73,10 +60,6 @@ const router = useRouter()
 const userStore = useUserStore()
 const currentUser = computed(() => userStore.currentUser || {})
 const Icons = markRaw({ Document, FolderOpened })
-const borrowModeOptions = [
-  { label: '资质借阅', value: 'qualification' },
-  { label: '合同借阅', value: 'contract' },
-]
 
 const quickStart = useWorkbenchQuickStart({
   currentUserRef: currentUser,
@@ -99,7 +82,7 @@ const {
 
 const actions = computed(() => [
   { key: 'support', title: '标书支持申请', desc: '申请技术/商务支持', icon: Icons.Document, iconStyle: 'background: linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%); color: #1E40AF;' },
-  { key: 'borrow', title: '资质/合同借阅', desc: '资质或合同借阅申请', icon: Icons.FolderOpened, iconStyle: 'background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%); color: var(--color-success-dark);' },
+  { key: 'borrow', title: '资质借阅', desc: '资质借阅申请', icon: Icons.FolderOpened, iconStyle: 'background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%); color: var(--color-success-dark);' },
 ])
 
 defineExpose({ quickStart })

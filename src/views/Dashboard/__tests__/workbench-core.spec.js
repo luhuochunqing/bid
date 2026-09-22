@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   approvalStatusToProcessStatus,
-  buildContractBorrowPayload,
   buildQualificationBorrowPayload,
   buildSupportRequestPayload,
   cleanDisplayText,
@@ -206,7 +205,7 @@ describe('workbench approval and support core', () => {
     expect(hasQuickStartPermission({ menuPermissions: ['dashboard'] })).toBe(false)
   })
 
-  it('builds borrow payloads for real API submission', () => {
+  it('builds borrow payloads for real API submission (已下线合同借阅回归)', () => {
     const qualificationForm = {
       mode: 'qualification',
       projectId: 9,
@@ -227,23 +226,7 @@ describe('workbench approval and support core', () => {
       remark: '原件',
     })
 
-    const contractForm = {
-      mode: 'contract',
-      contractNo: 'HT-01',
-      contractName: '框架合同',
-      sourceName: '合同库',
-      borrowerName: '小王',
-      borrowerDept: '销售部',
-      customerName: '客户A',
-      purpose: '投标证明',
-      borrowType: '复印件',
-      expectedReturnDate: '2026-05-02',
-    }
-    expect(buildContractBorrowPayload(contractForm)).toMatchObject({
-      contractNo: 'HT-01',
-      contractName: '框架合同',
-      expectedReturnDate: '2026-05-02',
-    })
+    // 合同借阅 payload 构建器已随功能移除（模块不再导出）
   })
 })
 

@@ -17,7 +17,6 @@ function createApi() {
       getList: vi.fn().mockResolvedValue({ success: true, data: [{ id: 12, name: '高新技术企业证书' }] }),
       createBorrow: vi.fn().mockResolvedValue({ success: true, data: { id: 88 } }),
     },
-    contractBorrowApi: { create: vi.fn().mockResolvedValue({ success: true, data: { id: 77 } }) },
     approvalApi: { submitApproval: vi.fn().mockResolvedValue({ success: true, data: { id: 'A1' } }) },
   }
 }
@@ -75,7 +74,7 @@ describe('useWorkbenchQuickStart', () => {
     })
   })
 
-  it('submits contract borrow requests', async () => {
+  it('submits qualification borrow requests only (已下线合同借阅回归)', async () => {
     const api = createApi()
     const quickStart = useWorkbenchQuickStart({
       currentUserRef: ref({ name: '小王', dept: '销售部' }),
@@ -86,18 +85,16 @@ describe('useWorkbenchQuickStart', () => {
     await quickStart.openBorrowDialog()
     quickStart.borrowForm.value = {
       ...quickStart.borrowForm.value,
-      mode: 'contract',
-      contractNo: 'HT-001',
-      contractName: '年度框架合同',
       purpose: '投标证明',
       expectedReturnDate: '2026-05-01',
     }
     await expect(quickStart.submitBorrow()).resolves.toBe(true)
-    expect(api.contractBorrowApi.create).toHaveBeenCalledWith(expect.objectContaining({
-      contractNo: 'HT-001',
-      contractName: '年度框架合同',
-      borrowerName: '小王',
-      expectedReturnDate: '2026-05-01',
+    expect(api.qualificationsApi.createBorrow).toHaveBeenCalledWith(12, expect.objectContaining({
+      borrower: '小王',
+      purpose: '投标证明',
+      returnDate: '2026-05-01',
     }))
+    // 合同借阅链路已整体移除
+    expect(api.contractBorrowApi).toBeUndefined()
   })
 })

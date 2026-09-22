@@ -30,7 +30,6 @@ const governedDirectories = [
   'src/views/Bidding',
   'src/views/Knowledge',
   'src/views/Resource',
-  'src/views/Resource/BAR',
   'src/views/AI',
   'src/components/ai',
   'src/components/charts',

@@ -107,7 +107,6 @@
       v-model="showAssetCheckDialog"
       :asset-check-result="assetCheckResult"
       @confirm="confirmAssetCheck"
-      @go-to-management="goToAssetManagement"
     />
   </div>
 </template>
@@ -289,11 +288,6 @@ async function handlePlatformChange(platformName) {
 function confirmAssetCheck() {
   showAssetCheckDialog.value = false
   ElMessage.success('已确认资产状态，请继续完善项目信息')
-}
-
-function goToAssetManagement() {
-  showAssetCheckDialog.value = false
-  router.push('/resource/bar')
 }
 
 onMounted(async () => {
