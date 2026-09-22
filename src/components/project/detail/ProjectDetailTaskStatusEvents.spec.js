@@ -1,9 +1,11 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { markRaw, nextTick, onMounted } from 'vue'
+import { markRaw, nextTick, onMounted, ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 
 import ProjectDetailMainColumn from './ProjectDetailMainColumn.vue'
+import ProjectDetailMainContent from './ProjectDetailMainContent.vue'
+import { projectDetailKey } from '@/composables/projectDetail/context.js'
 
 const mainColumnContext = {
   project: {
@@ -22,6 +24,7 @@ const mainColumnContext = {
   isDemoMode: false,
   handleQuickApprove: vi.fn(),
   handleQuickReject: vi.fn(),
+  goToExpensePage: vi.fn(),
   handleAddTask: vi.fn(),
   handleResetTasks: vi.fn(),
   handleTaskClick: vi.fn(),
@@ -59,6 +62,7 @@ const shallowStubs = {
     template: '<div />',
     setup(_, { emit }) { onMounted(() => { emit('snapshot', { currentStage: 'DRAFTING' }) }) },
   },
+  ProjectExpenseSummaryCard: true,
   ProjectDetailWorkflowCard: true,
   ProjectDetailDocumentsCard: true,
   ProjectTaskBoardCard: markRaw(taskBoardCardStub),
@@ -99,4 +103,47 @@ describe('ProjectDetail task status event wiring', () => {
     )
   })
 
+  it('MainContent forwards task board status changes to the injected detail handler', async () => {
+    const detail = {
+      project: ref({
+        id: 12,
+        tasks: [{ id: 601, name: '技术标：技术方案', status: 'TODO' }],
+      }),
+      approvalHistory: ref([]),
+      projectExpenses: ref([]),
+      expenseSummary: ref({}),
+      expenseLoading: ref(false),
+      expenseError: ref(''),
+      canApproveCurrent: ref(false),
+      canManageProjectTasks: ref(true),
+      isDemoMode: false,
+      handleQuickApprove: vi.fn(),
+      handleQuickReject: vi.fn(),
+      goToExpensePage: vi.fn(),
+      handleAddTask: vi.fn(),
+      handleResetTasks: vi.fn(),
+      handleTaskClick: vi.fn(),
+      handleTaskStatusChange: vi.fn(),
+      handleGenerateTasks: vi.fn(),
+      handleOpenScoreDraftDecompose: vi.fn(),
+      handleAddDeliverable: vi.fn(),
+      handleRemoveDeliverable: vi.fn(),
+      handleSubmitToDocument: vi.fn(),
+    }
+    const wrapper = mount(ProjectDetailMainContent, {
+      global: {
+        provide: {
+          [projectDetailKey]: detail,
+        },
+        stubs: shallowStubs,
+      },
+    })
+
+    await wrapper.get('[data-test="status-change"]').trigger('click')
+
+    expect(detail.handleTaskStatusChange).toHaveBeenCalledWith(
+      detail.project.value.tasks[0],
+      'review',
+    )
+  })
 })

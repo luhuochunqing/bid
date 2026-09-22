@@ -6648,28 +6648,3 @@ Lesson 392 的假通过还有一个放大器：Sidecar `/convert-images` 的 `.d
 2. **凭据安全绝对底线**：在构造和映射 `aiProviderDiagnostics` 时，严格执行 `sanitize` 正则脱敏，针对 `sk-*`、`Bearer *` 以及各类 API Token 统一替换为 `sk-***` / `Bearer ***`，坚决阻断敏感密钥泄漏进持久化 JSON 或对外透出。
 3. **RunSummary 向后兼容与键序稳定**：在 `RunSummaryAssembler` 中将 `aiProviderDiagnostics` 作为可选扩展字段在末尾透出（严格置于 `sourceDiagnostics` 之后），保持原有 11 项键的物理顺序不变，确保既有金标单测（`GoldenCasesReplayTest`）与下游回放 100% 兼容。
 4. **单文件 300 行预算守卫**：`StructuredTableExtractionHandler.java` 与相关测试紧邻 300 行红线，通过精简冗余折行代码将生产类控制在 296 行，测试类控制在 294 行。
-## 399. 验收导出代码级剔除：隐藏菜单≠已删除，共享符号白名单是防误伤关键（2026-09-22，spec 067）
-
-### 问题背景
-向甲方导出源代码验收前，需把"未对客户开放的功能"从代码包彻底移除。首轮按功能名搜索（如"双屏预览"）全仓库零命中——未开放功能不会以产品文案命名，必须按**隐藏机制**定位。
-
-### 根因与识别方法
-1. **隐藏机制识别**：`sidebar-menu.js` 的 `hiddenApiMenuNames` 集合 + `Sidebar.vue` 的 `isApiDeliveryMode`（恒真）构成"菜单隐藏但路由/页面仍在"的机制；另有路由 `redirect` 软封死、`HIDDEN_API_ROUTES` 守卫、以及无路由无引用的孤立死页面。共识别 8 个隐藏功能 + 8 个死页面。
-2. **孤立页面判定纪律**：必须用 basename 搜 `import`（相对路径 `./Xxx.vue` 会漏判），且警惕同名不同物（`views/Analytics/CompetitionIntel.vue` 死 vs `components/ai/CompetitionIntel.vue` 现役）。
-3. **共享符号白名单**：删除前对每个模块做消费方审计，任何有 ≥1 现役消费方的符号必须保留——`AuditLogPanel.vue`（日志说明页共用）、`customerOpportunity.js`（项目创建商机转化）、`knowledgeApi.templates`（项目详情/文档编辑器）、`FavoriteButton`（标讯列表收藏）等 7 项。
-4. **同对话框双模式手术**：工作台"借阅"对话框同时承载资质借阅（现役）与合同借阅（隐藏），只摘 `mode === 'contract'` 分支，保留 `qualification` 完整链路。
-5. **联动入口全量反查**：删除页面后其他页面的跳转按钮/页签/快捷项都会成死链接。grep 消费方反查发现项目详情 6 个跳转函数、资产检查 4 个死按钮、费用卡"管理"、Settings 审计页签、创建页"前往资产管理"、工作台快速发起合同模式。
-
-### 第二轮独立评审发现的盲区（教训）
-- **白名单过期**：`config/templateLibrary.js` 因消费链（templates.js API）在批次 C 被删而变成新孤儿，但白名单未同步 → 评审后补删 15 个孤儿文件（含 `components/expense/` 9 文件、`roi.js`、`scoreAnalysis.js`、`bidResults.normalizers.js`、`contractBorrow.css`、`workbench-demo-data.js`）。
-- **契约脚本豁免缺口**：`MainLayout.spec.js` 含 `audit-logs` 负向断言字面量未豁免，导致契约断言实际失败。
-- **删除型任务的测试证据范式**：专属测试随删 + 共享测试改剔除断言（`not.toContain`/`toBeUndefined`）+ 契约脚本（必须消失/必须存在双清单）。
-
-### 通用教训
-| 坑 | 对策 |
-|---|---|
-| 按功能名搜不到隐藏功能 | 按隐藏机制（菜单隐藏集合/redirect/守卫/孤立文件）定位，不按产品文案 |
-| 删除误伤共享能力 | 先做消费方审计建白名单，白名单随每批删除动态复核（消费链断了要移出白名单） |
-| 死链接遗漏 | 用 grep 反查每个被删路由/函数的消费方，不要靠人眼 |
-| 契约脚本 grep 误报 | 例外清单要精确到文件/前缀（API 路径、负向断言 spec、注释），并用负向断言字面量验证 |
-| 构建门禁连带失败 | 文档治理脚本硬编码受管目录列表，删目录要同步移除条目 |

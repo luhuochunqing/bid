@@ -11,6 +11,7 @@ const context = {
   handleEdit: vi.fn(),
   handleSubmitApproval: vi.fn(),
   handleRecordResult: vi.fn(),
+  goToResultPage: vi.fn(),
   toggleAssistantPanel: vi.fn(),
   getStatusType: () => 'success',
   getStatusText: () => '已立项',

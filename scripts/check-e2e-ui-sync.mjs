@@ -72,9 +72,9 @@ function buildRouteToSpecMap() {
           map.get(r).add(file)
         }
       }
-      // 资源管理（账户/CA/保证金）
-      if (/resource/i.test(desc)) {
-        const routes = ['/resource/margin', '/resource/account', '/resource/ca-management']
+      // 费用台账
+      if (/expense|fee|resource/i.test(desc)) {
+        const routes = ['/resource/expense']
         for (const r of routes) {
           if (!map.has(r)) map.set(r, new Set())
           map.get(r).add(file)

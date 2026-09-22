@@ -86,6 +86,7 @@ const breadcrumbItems = computed(() => {
     'inbox': '通知中心',
     'dashboard': '工作台',
     'operation-logs': '操作日志',
+    'audit-logs': '审计日志',
   }
   
   // 一级路径

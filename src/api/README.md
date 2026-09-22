@@ -32,6 +32,7 @@
 | `tenders.js` | 标讯管理 |
 | `projects.js` | 项目管理 |
 | `tasks.js` | 任务管理 |
+| `fees.js` | 费用管理 |
 | `ai.js` | AI 智能分析 |
 | `bidAgent.js` | 标书写作 Agent 的运行、状态、写入和审查调用 |
 | `bidMatchScoring.js` | 自定义投标匹配评分模型和标讯评分结果 |
