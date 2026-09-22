@@ -7,6 +7,16 @@
 > **测试执行人**：西域技术交付组 性能专项工作组  
 > **验收评审**：西域数智化投标管理平台 上线验收委员会  
 
+> ⚠️ **数据可核验性声明（引用本报告前请先读）**
+>
+> 本次压测（2026-08-28）的原始产物——k6 `--summary-export` 汇总、逐请求采样、
+> 监控时间序列——**当时未落盘归档，版本库与执行机上均不存在**，本报告正文的数字
+> 无法被第三方独立复核。仓库现已补齐可复现的证据归档工具链（见 §8.1）与操作指南，
+> 但重跑产出的是**新一次运行**的证据，不能冒充 8-28 这次。此外，报告正文与仓库内
+> k6 门禁脚本之间存在五处需先对账的差异（详见 §8.4）。**在拿到当时的原始
+> `k6-summary.json`、或用 §8.2 的命令重跑一次并核对之前，不建议将本报告作为
+> 已完成 SLA 门禁的证据对外引用。**
+
 ---
 
 ## 一、 执行摘要与结论 (Executive Summary)
@@ -163,3 +173,111 @@ $$Peak\text{-}QPS_{prod} = 80.0 \times 3.249 \times 1.390 \times 0.70 \approx \m
 | **研发技术负责人** | 研发中心 | 架构委员会 | 通过 | ________________ 2026-08-28 |
 | **质量保证负责人** | QA 质量部 | 交付质量组 | 通过 | ________________ 2026-08-28 |
 | **客户验收代表** | 业务验收委员会 | 项目负责人 | 通过 | ________________ 2026-08-28 |
+
+---
+
+## 八、 附录：测试脚本清单与原始证据复现指南
+
+> 本附录回应验收方"补充原始测试数据、结果文件、监控截图，或提供测试脚本"的要求：
+> 给出本次压测所用的全部脚本、执行命令，以及原始证据的产出方式与当前归档状态。
+
+### 8.1 测试脚本与工具链清单
+
+| 文件 | 首次提交 | 作用 |
+| :--- | :--- | :--- |
+| `k6-tests/load-test.js` | `5b2c06993` | k6 压测主脚本：四类业务场景流量权重（标讯 50% / 项目 25% / 知识库与大屏 15% / 受控写入 10%）、阶梯加压档位（smoke / standard / stress / endurance）、SLA 门禁阈值、各业务接口独立 Trend 指标 |
+| `scripts/generate-stress-test-data.mjs` | `5b2c06993` | 铺底仿真数据批量生成（万级标讯 / 千级项目 / 知识库案例），并同步输出一键清理脚本 |
+| `docs/testing/STRESS_TEST_GUIDE.md` | `5b2c06993` | 铺底数据生成、导入、服务监控、阶梯执行、数据清理的完整操作 SOP |
+| `scripts/performance/run-stress-test.sh` | 本次新增 | 压测执行与原始证据归档入口：一条命令产出完整证据包 |
+| `scripts/performance/capture-monitoring.sh` | 本次新增 | 压测期间系统 CPU/内存、应用 JVM 堆与 GC、MySQL 连接与慢查询、Redis 连接与内存的逐采样记录 |
+| `scripts/performance/write-run-manifest.mjs` | 本次新增 | 生成证据包清单 `manifest.json`（运行元数据、SLA 门禁声明与击穿项、头部指标、各产物 sha256、完整性判定） |
+| `scripts/performance/monitor-spec.sh` | 本次新增 | 监控证据的唯一契约源：组件集合、各 CSV 表头、"有效采样行"判定列号（采集器与 runner 都 source 它，`--self-check` 可离线自检） |
+| `scripts/performance/scrub-secrets.mjs` | 本次新增 | 归档前凭证脱敏 + 脱敏后整包残留扫描（JWT / 敏感键值 / Bearer / URL userinfo） |
+
+### 8.2 一键复现命令
+
+```bash
+# 测试环境标准阶梯（10 → 50 → 100 并发，约 3.5 分钟），与本次报告口径一致
+# 前提：这条命令跑在 172.16.38.78 这台应用宿主上（监控只能采本机，见下方说明）
+export XIYU_STRESS_CONFIRMED=1
+export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"}]'   # 目标环境真实账号，勿写入命令行
+bash scripts/performance/run-stress-test.sh \
+  --profile standard \
+  --base-url http://172.16.38.78:8080 \
+  --monitor-local-target \
+  --enable-writes
+```
+
+> 账号池必须是一段**合法 JSON**（非空数组，每项含字符串 `username` / `password`）；多账号时在
+> 数组里继续追加同构对象。入口会用 node 校验，不合法直接 exit 2 —— 不带校验时，k6 的
+> `getUserPool()` 会 catch 掉解析失败并**静默回退到内置默认账号池**：压测照跑、曲线照出，
+> 而实际认证身份与声明的账号池无关。
+>
+> 校验之前先探一次 **node 本身能不能跑**（`command -v node` 只说明"找得到"）：出现"能执行但
+> 一跑就失败"的 node（版本管理器卸载后残留的 shim 等）时报的是 exit 1（工具链不可用，去修
+> 环境），而不是 exit 2（账号池不合法，去改输入）——把环境问题报成输入问题，会让人反复核对
+> 一个本来就正确的账号池。
+>
+> **"没设置"与"设成空串"不是一回事**：`XIYU_K6_USERS=`（或 `--users ''`，例如 CI secret 没
+> 注入、配置被清空）同样 exit 2。只有**完全不设置**这个变量才走 k6 的默认账号池——那是操作者
+> 的明确选择；而"提供了但内容是空的"是配置丢失，放行就等于让它静默变成上一条路径。
+
+```bash
+# 若这条命令跑在另一台压测机上（本机不是目标宿主），改用 --no-monitor，
+# 并到 172.16.38.78 上单独运行 capture-monitoring.sh 补齐监控原始数据（见 §8.3 末）。
+export XIYU_STRESS_CONFIRMED=1                      # 独立场景，不依赖上一段代码块的环境
+export XIYU_K6_USERS='[{"username":"<账号>","password":"<口令>"}]'
+bash scripts/performance/run-stress-test.sh \
+  --profile standard --base-url http://172.16.38.78:8080 --no-monitor --enable-writes
+```
+
+> `run-stress-test.sh` 内置环境守卫：必须显式导出 `XIYU_STRESS_CONFIRMED=1`，且 `--base-url`
+> 命中生产环境特征时直接拒绝执行。默认不开启业务写入，避免污染共享测试环境。
+> 账号池首选环境变量而非命令行参数：`--users '…'` 会把测试环境口令留在压测机 `ps` 的 argv 里。
+> `--monitor-local-target` / `--no-monitor` 必须显式给出一个：目标不是回环地址时，
+> 脚本不肯替你猜"本机资源数据代表谁"，缺这两个参数会在压测开始前 exit 2。
+
+### 8.3 原始证据产出物
+
+每次执行在 `docs/testing/stress-test-artifacts/<UTC时间戳>-<档位>/` 下产出：
+
+| 文件 | 内容 |
+| :--- | :--- |
+| `manifest.json` | 运行元数据（仓库 commit、k6 版本、目标环境、档位、起止时间）、SLA 门禁声明与击穿项、头部指标、各产物 sha256 |
+| `k6-summary.json` | k6 原始汇总结果，含各接口 avg / med / p(90) / p(95) / p(99) |
+| `k6-raw-samples.csv` | k6 逐指标逐时刻原始采样，可直接用于绘制响应时间曲线 |
+| `k6-console.log` | k6 控制台完整输出（含断言明细与阈值告警原文） |
+| `k6-exit-code` | k6 退出码：0 = 门禁全通过，99 = 有门禁被击穿（实测 `abortOnFail` 提前中止同样为 99） |
+| `monitoring/system.csv` | 采样时刻、CPU user/sys/idle、load1/5、内存 used/total |
+| `monitoring/app-jvm.csv` | 应用进程堆与元空间占用、线程数、YGC/FGC/CGC 次数与耗时、进程 CPU、RSS |
+| `monitoring/mysql.csv` | Threads_connected / Threads_running、Slow_queries、Innodb_row_lock_waits、Aborted_connects、Questions |
+| `monitoring/redis.csv` | connected_clients、used_memory、instantaneous_ops_per_sec、命中/未命中计数 |
+| `monitoring/monitoring.log` | 上述四项监控的逐采样可读快照 |
+| `monitoring/component-status.csv` | 逐组件状态：required / available / **有效采样行数** / 失败原因 |
+
+> `monitoring/` 目录即报告第五章"系统资源与中间件稳定性分析"的原始数据，
+> 可替代传统截图：`monitoring.log` 保留了带时间戳的逐次采样记录，第三方可独立复核。
+>
+> 完整性是硬门禁，且查的是"有数据"而不只是"文件存在"：默认要求
+> `system,app-jvm,mysql,redis` 四个监控组件各至少一行有效采样（必需字段齐备且为数值；
+> 目标环境确实没有某组件时用 `--monitor-required-components` 显式收窄，产物清单与逐份 CSV
+> 的复算都严格按声明的集合执行）。
+> 任一必需产物缺失、为空、或监控 CSV 一行有效数据都没有，脚本以 **exit 12** 结束并
+> 在 `manifest.json` 的 `missing_artifacts` / `monitoring_issues` 里写明原因——
+> k6 退出码 0 只说明门禁通过，不说明这份包能作为交付证据。
+> 另有两条"产物齐全但不可交付"的情形同样以 exit 12 结束并记在 `delivery_blockers`：
+> 本次用了 `--no-monitor`（缺监控原始数据，manifest 标 `external_monitoring_required: true`），
+> 或归档前的凭证残留扫描未通过（`secret_scan.status` 非 `passed`）。
+> 加了 `--no-monitor` 时请到目标宿主上单独运行 `scripts/performance/capture-monitoring.sh`，
+> 把 `monitoring/` 与 k6 侧产物一并交付——只交付一半不构成"报告级原始证据"。
+
+### 8.4 证据归档状态说明
+
+1. 本次报告执行于 2026-08-28 时，k6 的 `--summary-export` 原始汇总与监控采样**未同步落盘归档**，
+   版本库中仅沉淀了压测脚本、操作 SOP 与报告正文。当时的原始结果文件不在仓库内。
+2. 仓库现已补齐 §8.1 中标注"本次新增"的工具链，可产出与本报告同口径、且可被第三方独立
+   复核的原始证据包；证据包目录结构与使用方式见
+   [`docs/testing/stress-test-artifacts/README.md`](stress-test-artifacts/README.md)。
+3. 报告正文数字与仓库内 k6 脚本门禁之间存在若干处需对账的差异（分项请求数合计与摘要总数、
+   全局 P95 与"项目列表检索" P95 所对应的门禁阈值等），已逐条记录在该 README 的第四节。
+   建议以复现运行产出的 `k6-summary.json` 核对后定稿本报告数据。

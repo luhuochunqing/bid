@@ -27,7 +27,7 @@ docs/
 ├── release/           # 发布相关文档
 ├── integration/       # 系统集成对接文档
 ├── issues/            # 问题排查记录
-├── testing/           # 测试用例与 UAT 记录
+├── testing/           # 测试用例、UAT 记录、压测报告与原始证据包
 └── governance/        # 治理规范
 ```
 
@@ -48,7 +48,7 @@ docs/
 | `release/` | 发布检查清单、验收文档、回滚手册 | 中 |
 | `integration/` | 外部系统对接设计文档 | 中 |
 | `issues/` | 问题排查与 Bug 修复记录 | 中 |
-| `testing/` | 测试用例（manual cases 和 UAT 记录） | 中 |
+| `testing/` | 测试用例（manual cases 和 UAT 记录）、压测报告与原始证据包（`stress-test-artifacts/`），以及压测报告的证据附录（`STRESS_TEST_EVIDENCE_APPENDIX_2026-09-21.md` 为正文源，同名 `.html` 是内嵌图片的单文件版，供整篇复制粘贴进飞书） | 中 |
 | `governance/` | 异步治理规范 | 低 |
 
 ## 文档治理

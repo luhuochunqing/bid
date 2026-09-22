@@ -1,0 +1,137 @@
+{
+  "run_id": "20260921T145125Z-standard",
+  "started_at_utc": "2026-09-21T14:51:25Z",
+  "ended_at_utc": "2026-09-21T14:54:57Z",
+  "duration_seconds": 212,
+  "target_base_url": "http://172.16.38.78:8080",
+  "target_host": "172.16.38.78",
+  "profile": "standard",
+  "enable_writes": false,
+  "k6_script": "k6-tests/load-test.js",
+  "k6_version": "k6 v1.8.0 (go1.25.12, darwin/arm64)",
+  "monitor_interval_seconds": 5,
+  "monitor_scope": "skipped",
+  "monitor_required_components": [
+    "system",
+    "app-jvm",
+    "mysql",
+    "redis"
+  ],
+  "repository": {
+    "commit_sha": "595a41a90ebdf8f837bdf1c3165ed1d7f1e0bd87",
+    "branch": "agent/claude/stress-test-evidence",
+    "working_tree": "dirty",
+    "diff_base": "442c2987cea0d8cde6207c308f8a1f1fe4869fd9",
+    "diff_hash": "79dc1761ad58ad5540ff7fd005b4e2b7c467ce32b8726ea98dc8be09620d83cd"
+  },
+  "k6_exit_code": 99,
+  "thresholds_passed": false,
+  "thresholds_declared": [
+    {
+      "metric": "xiyu_business_success_rate",
+      "threshold": "rate>0.99"
+    },
+    {
+      "metric": "http_req_failed",
+      "threshold": "rate<0.01"
+    },
+    {
+      "metric": "xiyu_project_list_duration",
+      "threshold": "p(95)<1000"
+    },
+    {
+      "metric": "xiyu_error_rate",
+      "threshold": "rate<0.01"
+    },
+    {
+      "metric": "http_req_duration",
+      "threshold": "p(95)<1500"
+    },
+    {
+      "metric": "http_req_duration",
+      "threshold": "p(99)<3000"
+    },
+    {
+      "metric": "xiyu_dashboard_duration",
+      "threshold": "p(95)<2000"
+    },
+    {
+      "metric": "xiyu_auth_success_rate",
+      "threshold": "rate>0.99"
+    },
+    {
+      "metric": "xiyu_tender_list_duration",
+      "threshold": "p(95)<1000"
+    }
+  ],
+  "thresholds_crossed": [
+    "http_req_duration",
+    "xiyu_project_list_duration",
+    "xiyu_tender_list_duration"
+  ],
+  "thresholds_passed_caveat": "门禁判定仅反映 k6 退出码；本次证据包不可交付（见 missing_artifacts / delivery_blockers），不可作为交付证据引用",
+  "evidence_complete": false,
+  "missing_artifacts": [],
+  "delivery_blockers": [
+    "本包不含监控证据（--no-monitor）：k6 侧证据完整，但监控原始数据必须另行提供——在被压目标宿主机上运行 scripts/performance/capture-monitoring.sh，并把 monitoring/ 与本目录一并交付"
+  ],
+  "external_monitoring_required": true,
+  "secret_scan": {
+    "status": "passed",
+    "status_source": "write-run-manifest.mjs 自行执行 scrub-secrets.mjs --scan",
+    "runner_reported_status": "passed",
+    "detector_agreement": "match",
+    "unscanned_files": [],
+    "detectors": [
+      "jwt",
+      "sensitive_key_value",
+      "bearer",
+      "url_userinfo"
+    ],
+    "covers": "本包全部产物：除 manifest.json 外的全部产物由 scrub-secrets.mjs --scan 逐文件扫描；manifest.json 的写盘内容由本脚本用同一组检测器再脱敏一次（见 manifest_self_redactions）",
+    "manifest_self_redactions": 0,
+    "detail": "scrub-secrets: 已扫描 4 个文本产物；检测 JWT / 敏感键值 / Bearer / URL userinfo 四类文本形态 scan_status=passed scan_scanned=4 scan_skipped=0 scan_hits=0 scan_unscanned_files= scrub-secrets: 扫描通过，未发现凭证残留，且全部产物都属可扫描的文本形态"
+  },
+  "monitoring_components": [],
+  "monitoring_issues": [],
+  "deliverable_ready": false,
+  "credential_redactions": 1,
+  "headline_metrics": {
+    "total_http_requests": 10784,
+    "http_req_duration_avg_ms": 608.0738478301186,
+    "http_req_duration_p95_ms": 1613.7384499999996,
+    "http_req_duration_p99_ms": 2128.39769,
+    "http_req_failed_rate": 0,
+    "xiyu_error_rate": 0,
+    "xiyu_total_requests": 10784,
+    "xiyu_read_ops": 10783,
+    "xiyu_write_ops": null,
+    "xiyu_login_avg_ms": 125,
+    "xiyu_tender_list_p95_ms": 1299.0999999999997,
+    "xiyu_tender_detail_p95_ms": null,
+    "xiyu_tender_create_p95_ms": null,
+    "xiyu_project_list_p95_ms": 2224.5,
+    "xiyu_project_detail_p95_ms": 1326.9999999999998,
+    "xiyu_knowledge_search_p95_ms": 1320.6,
+    "xiyu_dashboard_p95_ms": 1084.9999999999995
+  },
+  "artifacts": {
+    "k6-summary.json": {
+      "bytes": 10100,
+      "sha256": "601424ee95c7c930fde39564038116e8968410fd12e519d9ca6bf70c550d1d85"
+    },
+    "k6-raw-samples.csv": {
+      "bytes": 19221643,
+      "sha256": "0aaeef6d6af175600c697fa258710583a83da0b9ae959eb1a04b4837f0375c06"
+    },
+    "k6-console.log": {
+      "bytes": 29726,
+      "sha256": "3c4d9dbdebce83873ad11f1568c0476092a4c77fa0c3115bebc0c23b1b01e782"
+    },
+    "k6-exit-code": {
+      "bytes": 3,
+      "sha256": "7e332bcee418f7d700927c946d36341f0651d6d90997b58d3d5441dec96b2e74"
+    }
+  },
+  "note": "原始证据包由 scripts/performance/run-stress-test.sh 生成；sha256 用于校验归档件未被替换。"
+}

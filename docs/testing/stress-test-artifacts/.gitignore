@@ -1,0 +1,18 @@
+# 逐请求采样文件体积大（100 并发标准档可达数十 MB），不进 git。
+# 它的 sha256 已记录在同目录 manifest.json 中，交付时随证据包作为附件一并给出。
+k6-raw-samples.csv
+
+# 例外：examples/ 下的工具链自检包必须**整包入库**（冒烟档 raw samples 约 130 KB）。
+# 少了这一条，clone 下来的样例包会在 manifest 声称完整的 10 个产物里缺 1 个——
+# 读者无从判断"缺"是设计如此还是包被改过，样例作为回归样本的价值也就没了。
+# 真实运行的证据包落在上一级目录，仍被上面的规则排除。
+!examples/*/k6-raw-samples.csv
+
+# 监控采集器的停止信号文件，由 run-stress-test.sh 在采样结束后删除
+.stop
+
+# 覆盖仓库根 .gitignore 的 *.log：这两份日志是小体积、高价值的原始证据，必须入库
+!k6-console.log
+!monitoring.log
+
+.DS_Store

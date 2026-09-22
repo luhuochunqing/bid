@@ -1,0 +1,31 @@
+# 交付阻塞项文案的**唯一来源**（shell 与 JS 两侧共读本文件）
+#
+# 为什么单独一个文件：同一条阻塞项在 run-stress-test.sh（shell）与 write-run-manifest.mjs
+# （JS）里都会出现——runner 注入、清单侧自己也派生一份。此前这两处各写一遍字面量，靠一句
+# 注释声明"逐字一致"来维持：一旦漂移，同一件事会在清单里记成两条不同的原因（去重按字符串
+# 比较，字符串不同就失效），而且没有任何门禁能发现。跨语言契约只靠注释约束，本身就是缺陷
+# （xiyu-code-review §7.4）。
+#
+# 格式：每行 `<code><TAB><文案>`；`#` 开头为注释，空行忽略（空行就是**空行**，不要写只有空格的
+# "空行"——它会被当成格式违规，因为这正是"多了一个看不见的字符"这类破坏的典型形态）。
+# code 形如 [a-z][a-z0-9_]* 且**不重复**；文案非空、不得含 TAB、不得有首尾空白。
+# 两侧读取器都**整表校验**，任一项不满足即以 exit 1 拒绝执行（shell 在创建证据目录之前就拦，
+# JS 在读表时抛 ToolchainError）。不校验时的退化形态是静默的：重复 code 时 shell 的 awk 取
+# 首行、JS 的 Map 取末行，同一份表两侧给出不同文案，而两边都"正常"。
+#
+# 跨进程传递的是 **code，不是文案**：runner 通过 DELIVERY_BLOCKER_CODES 把 code 交给清单
+# 生成器，由它回查本表取文案。传文案时调用方可以塞进任意表外句子直通清单的 delivery_blockers
+# （实测过），单一来源就名存实亡了；而清单是对外交付物。
+#
+# 读取方：scripts/performance/evidence-completeness.sh 的 blocker_catalog_assert() 与
+#         add_delivery_blocker()（awk）、scripts/performance/manifest-verify.mjs 的
+#         readBlockerTexts()（fs 读取，判据与前者逐条对应）
+# 新增一条时两处解析器都不用改；改文案只改这里。
+# 注意：**新增 code** 时解析器不用改，但两侧的判定分支要各加一处引用（shell 在
+# evidence-completeness.sh 的 evidence_collect_blockers、JS 在 manifest-verify.mjs 的
+# collectDeliveryBlockers），否则新 code 无人触发。取不到文案时两侧都硬失败（exit 1）。
+external_monitoring_required	本包不含监控证据（--no-monitor）：k6 侧证据完整，但监控原始数据必须另行提供——在被压目标宿主机上运行 scripts/performance/capture-monitoring.sh，并把 monitoring/ 与本目录一并交付
+secret_scan_residue	归档产物中仍存在疑似凭证残留（扫描状态 failed）：脱敏未覆盖全部产物，不得交付给第三方——请核对扫描器上方逐条命中，补齐脱敏后重新归档
+secret_scan_incomplete	本包含无法按文本扫描的二进制产物（扫描状态 incomplete）：扫描结论不成立，"已确认无凭证残留"这句话在本包上没有任何依据——请把该产物移出证据目录后重新归档
+secret_scan_unverified	凭证残留扫描未能执行（未检测到 node，或扫描器与 runner 的状态判断不一致）：本包不含任何"无凭证残留"的证据，不得作为可交付证据包
+manifest_verified_nondeliverable	清单生成器对同一份证据独立复核后同样判定本包不可交付（结论与明细见 manifest.json 的 evidence_complete / missing_artifacts / delivery_blockers）

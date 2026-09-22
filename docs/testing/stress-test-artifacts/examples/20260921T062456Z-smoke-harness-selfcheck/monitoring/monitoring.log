@@ -1,0 +1,16 @@
+capture-monitoring: 开始采样
+  out=docs/testing/stress-test-artifacts/examples/20260921T062456Z-smoke-harness-selfcheck/monitoring
+  interval=5s duration=900s
+  required_components=system app-jvm mysql redis
+  app_pid=56482 app_port=18089  jcmd=1  mysql=1  redis-cli=1
+  mysql=127.0.0.1:3306/xiyu_bid_main  redis=127.0.0.1:6379 db=0
+[2026-09-21T06:24:56Z] #1 | cpu_user=34.17% cpu_sys=17.15% load1=7.01 mem=23952/32768MB | app_pid=56482 heap=362/512MB meta=177MB threads=78 cpu=190.1% rss=1546MB YGC=.(.s) FGC=.(.s) CGC=1044(0.010s) | mysql conn=11 running=2 slow=0 lock_waits=0 | redis clients=1 mem=1.3MB ops=0/s hits=1357 misses=9190
+[2026-09-21T06:25:03Z] #2 | cpu_user=32.22% cpu_sys=19.68% load1=7.57 mem=23959/32768MB | app_pid=56482 heap=412/512MB meta=177MB threads=78 cpu=36.1% rss=1567MB YGC=.(.s) FGC=.(.s) CGC=1077(0.010s) | mysql conn=11 running=2 slow=0 lock_waits=0 | redis clients=1 mem=1.3MB ops=0/s hits=1357 misses=9190
+[2026-09-21T06:25:10Z] #3 | cpu_user=21.2% cpu_sys=16.55% load1=7.34 mem=23974/32768MB | app_pid=56482 heap=372/512MB meta=177MB threads=78 cpu=80.7% rss=1553MB YGC=.(.s) FGC=.(.s) CGC=1095(0.011s) | mysql conn=11 running=2 slow=0 lock_waits=0 | redis clients=1 mem=1.3MB ops=0/s hits=1357 misses=9190
+[2026-09-21T06:25:16Z] #4 | cpu_user=27.68% cpu_sys=16.82% load1=7.08 mem=24010/32768MB | app_pid=56482 heap=416/512MB meta=177MB threads=78 cpu=228.5% rss=1585MB YGC=.(.s) FGC=.(.s) CGC=1108(0.011s) | mysql conn=11 running=2 slow=0 lock_waits=0 | redis clients=1 mem=1.3MB ops=0/s hits=1357 misses=9190
+[2026-09-21T06:25:23Z] #5 | cpu_user=27.51% cpu_sys=16.31% load1=7.39 mem=23992/32768MB | app_pid=56482 heap=362/512MB meta=177MB threads=78 cpu=170.9% rss=1595MB YGC=.(.s) FGC=.(.s) CGC=1137(0.011s) | mysql conn=11 running=2 slow=0 lock_waits=0 | redis clients=1 mem=1.3MB ops=0/s hits=1357 misses=9190
+[2026-09-21T06:25:30Z] #6 | cpu_user=18.4% cpu_sys=16.36% load1=7.10 mem=23968/32768MB | app_pid=56482 heap=396/512MB meta=177MB threads=78 cpu=0.0% rss=1595MB YGC=.(.s) FGC=.(.s) CGC=1140(0.011s) | mysql conn=11 running=2 slow=0 lock_waits=0 | redis clients=1 mem=1.3MB ops=0/s hits=1357 misses=9190
+capture-monitoring: 收到停止信号，采样结束（共 6 次）
+capture-monitoring: 采样结束（共 6 次）
+  组件有效采样行: system=6 app-jvm=6 mysql=6 redis=6（每次采样 1 行，有效 = 必需字段齐备）
+  组件状态明细: docs/testing/stress-test-artifacts/examples/20260921T062456Z-smoke-harness-selfcheck/monitoring/component-status.csv
