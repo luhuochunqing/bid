@@ -134,6 +134,10 @@ public final class OriginalScoreEvidencePolicy {
                     : !title.isEmpty() ? title : awarded;
             if (!claim.parent() && !explicit.isEmpty() && !capped.isEmpty()) authoritative = concat(explicit, capped);
             if (authoritative.isEmpty() || distinct(authoritative).size() != 1) {
+                if (!claim.parent() && distinct(title).size() == 1 && claim.weight() != null
+                        && distinct(title).iterator().next().compareTo(claim.weight()) == 0) {
+                    return;
+                }
                 problems.add(new Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
                         authoritative, claim.weight(), locator));
             } else if (claim.weight() == null || claim.weight().compareTo(authoritative.get(0)) != 0) {

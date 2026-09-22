@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  *
  * <p>职责单一：候选 → {@link ScoreItem} 落库。
  * <p>PRD §3.7：重新解析默认不影响已有打分；仅编号/数量/权重变化时才清空打分结果。
- * <p>R025：评分类别以 LLM scoreTypeGuess 优先，报价类强制主观。
+ * <p>R025：评分类别以确定性规则优先（描述性/量化信号覆盖模型猜测，模型值仅兜底无信号文本）。
  */
 @Service
 @Slf4j

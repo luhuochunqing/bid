@@ -92,24 +92,24 @@ class ScoreFactShadowPipelineTest {
 
         assertEquals(1, result.tables().size());
         assertTrue(result.tables().get(0).structurallyValid());
-        assertEquals(2, result.tables().get(0).facts().size(), "1 父 + 1 子");
+        assertEquals(2, result.tables().get(0).facts().size(), "2 个并列叶子，无汇总父项");
 
         List<ScoreFact> facts = result.tables().get(0).facts();
-        ScoreFact parent = facts.get(0);
-        ScoreFact child = facts.get(1);
-        assertEquals(parent.factId(), child.parentFactId(), "抽取管道必须自动挂父子");
-        assertFalse(ScoreFact.isLeaf(parent, facts), "父项 = 被引用");
-        assertTrue(ScoreFact.isLeaf(child, facts), "叶子 = 未被引用");
-        assertEquals(0, child.weight().compareTo(new BigDecimal("10")));
+        ScoreFact first = facts.get(0);
+        ScoreFact second = facts.get(1);
+        assertEquals("", first.parentFactId(), "无汇总分值的合并起点是计分明细，不充当父项");
+        assertEquals("", second.parentFactId(), "续行不把前序叶子当父项，版式继承与业务父子分离");
+        assertTrue(ScoreFact.isLeaf(first, facts), "起点 = 未被引用");
+        assertTrue(ScoreFact.isLeaf(second, facts), "续行 = 未被引用");
+        assertEquals(0, second.weight().compareTo(new BigDecimal("10")));
 
         // 列映射由表头文本推断：评分因素=1、评分标准=2、分值=3。
         assertEquals(1, result.tables().get(0).mapping().dimCol());
         assertEquals(3, result.tables().get(0).mapping().weightCol());
 
-        // 父项带 AUTO_APPROVED → 全池校验必须拦截（底线：父项不与子项同时计分）。
-        assertFalse(result.scoring().factsValid());
-        assertTrue(result.scoring().violations().stream()
-                .anyMatch(v -> v.contains(parent.factId()) && v.contains("parent fact")));
+        // 两叶子均可自动计分 → 全池校验通过且无父项违规。
+        assertTrue(result.scoring().factsValid());
+        assertTrue(result.scoring().violations().stream().noneMatch(v -> v.contains("parent fact")));
     }
 
     @Test
