@@ -24,7 +24,6 @@ import { batchTendersApi } from './modules/tenders/batch.js'
 import { crmApi } from './modules/crm.js'
 import { projectsApi } from './modules/projects.js'
 import qualificationsApi from './modules/qualification.js'
-import { templatesApi } from './modules/templates.js'
 import knowledgeApi from './modules/knowledge.js'
 import { feesApi } from './modules/fees.js'
 import aiApi from './modules/ai.js'
@@ -60,7 +59,6 @@ export {
   crmApi,
   projectsApi,
   qualificationsApi,
-  templatesApi,
   knowledgeApi,
   feesApi,
   aiApi,

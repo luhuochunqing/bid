@@ -109,7 +109,7 @@ import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import CommonIcon from '@/components/common/CommonIcon.vue'
 import { useUserStore } from '@/stores/user'
-import { hiddenApiMenuNames, sidebarMenuConfig } from '@/config/sidebar-menu'
+import { sidebarMenuConfig } from '@/config/sidebar-menu'
 import { hasAllPermissions } from '@/utils/permission'
 
 const props = defineProps({
@@ -168,7 +168,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
 })
 const userStore = useUserStore()
-const isApiDeliveryMode = computed(() => true)
 
 const hasPermissionAccess = (permissionKeys) => {
   return hasAllPermissions(userStore.menuPermissions, permissionKeys)
@@ -186,17 +185,10 @@ const activeMenu = computed(() => {
 const filteredMenus = computed(() => {
   return sidebarMenuConfig
     .map(menu => {
-      if (isApiDeliveryMode.value && hiddenApiMenuNames.has(menu.name)) {
-        return null
-      }
-
       // 有子菜单的父级：先过滤可见子菜单，有可见子菜单则显示父级（不强制要求父级 permissionKeys）
       if (menu.children) {
         const visibleChildren = menu.children.filter(
-          child => (
-            (!isApiDeliveryMode.value || !hiddenApiMenuNames.has(child.name)) &&
-            hasPermissionAccess(child.meta?.permissionKeys)
-          )
+          child => hasPermissionAccess(child.meta?.permissionKeys)
         )
 
         if (visibleChildren.length === 0) {
