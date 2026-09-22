@@ -84,7 +84,7 @@ class ScoreTableSplitPolicyTest {
     }
 
     @Test
-    void noTableWithOwnDeclaredTotal_mergedGroupMatchesCurrentBehavior() {
+    void multiTableWithoutOwnDeclaredTotal_staysUnknownAndRequiresReview() {
         List<ScoreTableSplitPolicy.ScoreTableInput> tables = List.of(
                 new ScoreTableSplitPolicy.ScoreTableInput("t1", true, List.of(
                         fact("t1-f1", "t1", "技术方案", "30"),
@@ -96,15 +96,17 @@ class ScoreTableSplitPolicyTest {
 
         TableSplitResult result = ScoreTableSplitPolicy.split(tables, List.of(), null);
 
-        // 现状行为：无独立总分证据 → 合并为单组走默认 100 兜底；5 个叶子合计 100 → AUTO_APPROVED
-        assertThat(result.tables()).hasSize(1);
-        assertThat(result.tables()).singleElement().satisfies(t -> {
-            assertThat(t.tableId()).isEqualTo("NO_DECLARED_TOTAL");
+        assertThat(result.tables()).hasSize(2);
+        assertThat(result.tables()).allSatisfy(t -> {
+            assertThat(t.tableId()).isIn("t1", "t2");
             assertThat(t.hasOwnDeclaredTotal()).isFalse();
-            assertThat(t.sourceTableIds()).containsExactly("t1", "t2");
-            assertThat(t.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+            assertThat(t.sourceTableIds()).containsExactly(t.tableId());
+            assertThat(t.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+            assertThat(t.completeness().declaredTotalScore()).isNull();
+            assertThat(t.completeness().declaredTotalSource())
+                    .isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.UNKNOWN);
         });
-        assertThat(result.documentLevel().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.documentLevel().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
     }
 
     @Test

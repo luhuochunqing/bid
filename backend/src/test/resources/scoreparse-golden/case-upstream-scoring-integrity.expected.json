@@ -1,0 +1,15 @@
+{
+  "synthetic": true,
+  "desensitization": "全文合成改写，保留父子评分项、叶子权重和两张独立评分表的版式特征",
+  "focus": "父子编码同表同章节、汇总项与叶子项分离、多评分表按表保持独立口径",
+  "threshold": 0.8,
+  "expectTotal": 36,
+  "laneHints": ["table"],
+  "items": [
+    { "code": "1", "dim": "技术方案", "detail": "技术方案完整、实施路径清晰的得10分。", "weight": 10 },
+    { "code": "1.1", "dim": "需求理解", "detail": "需求理解准确、重点难点识别完整的得6分。", "weight": 6 },
+    { "code": "1.2", "dim": "实施计划", "detail": "实施计划完整、进度安排合理的得4分。", "weight": 4 },
+    { "code": "1", "dim": "商务响应", "detail": "商务响应完整并提供承诺的得8分。", "weight": 8 },
+    { "code": "1.1", "dim": "服务承诺", "detail": "服务承诺清晰、保障措施可执行的得8分。", "weight": 8 }
+  ]
+}

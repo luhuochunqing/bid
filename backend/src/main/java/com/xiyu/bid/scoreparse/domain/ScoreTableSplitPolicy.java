@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * 多表评分标准自动拆分策略（spec 062 方案 A）。
  * <p>按 {@code sourceTableId} 把评分事实拆分为多个评分标准：有本表结构化总分证据的表
- * 独立调 {@link ScoreCompletenessPolicy} 校验；无证据的表合并为单组走正文/默认 100 兜底；
+ * 独立调 {@link ScoreCompletenessPolicy} 校验；单表无证据时走正文/默认 100 兜底，多表无证据时逐表保留未知口径；
  * 结构破损表按 {@code STRUCTURE_INCOMPLETE} 单独标记。文档级聚合取最差决策，
  * 但不阻塞按表落库（调用方按表聚合候选）。
  */
@@ -41,6 +41,7 @@ public final class ScoreTableSplitPolicy {
 
         List<TableCompleteness> results = new ArrayList<>();
         List<ScoreFact> noEvidenceFacts = new ArrayList<>();
+        boolean multipleTables = tablesById.size() > 1;
         for (ScoreTableInput table : tablesById.values()) {
             if (!table.structurallyValid()) {
                 results.add(new TableCompleteness(table.tableId(), false,
@@ -50,6 +51,12 @@ public final class ScoreTableSplitPolicy {
             List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> ownTotals =
                     totalsByTable.getOrDefault(table.tableId(), List.of());
             if (ownTotals.isEmpty()) {
+                if (multipleTables) {
+                    results.add(new TableCompleteness(table.tableId(), false,
+                            UnknownDeclaredTotalReviewPolicy.evaluateUnknownDeclaredTotal(table.facts(),
+                                    "MULTI_TABLE_DECLARED_TOTAL_UNKNOWN"), List.of(table.tableId())));
+                    continue;
+                }
                 noEvidenceFacts.addAll(table.facts());
                 continue;
             }
