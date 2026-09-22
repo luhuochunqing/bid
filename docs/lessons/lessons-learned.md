@@ -6703,3 +6703,17 @@ Lesson 392 的假通过还有一个放大器：Sidecar `/convert-images` 的 `.d
 - 新增 publication 门禁覆盖旧结论时，只在“门禁侧有更强证据（非 null scheme total）”才覆盖；已 REVIEW 的精确信号只追加缺陷，不降级。
 - 改分类优先级必须同步更新所有消费者测试的期望与注释（PolicyTest 改了，PersistenceTest 漏了就会漂移）；javadoc 与测试注释同属契约，一起改。
 - 合并版式继承与业务父子解耦后，影子端到端测试必须与抽取器单测契约同向更新，不得各执一词。
+
+## 402. 模型 parentCode 必须在同表同章节内解析，章节标题不能成为父项编码（scoreparse，2026-09-22）
+
+### 根因与修复
+
+多模态模型可能把评分章节标题、路径前缀或模型别名一起写入 `parentCode`，例如 `章节标题/business`。如果直接把该字符串拼入父事实 ID，明细项就无法引用真实父项；若再把父汇总行和明细行一起计入权重，会产生重复计分。修复在校验前按 `tableId + sectionTitle + code` 建立父项索引，仅对唯一命中的路径末段做标准化；无法命中或存在同名父项时保留原值并转人工复核。
+
+多评分表同样不能借用文档级总分：有表级原文小计时按表闭合；缺少表级总分时按表输出 `UNKNOWN/REVIEW_REQUIRED`，禁止默认 100 分或归一化。模型权重保持原值，权威原文不再静默改写模型输出。
+
+### 验证
+
+- `MultimodalFactParentCodeNormalizerTest` 覆盖章节前缀、无法解析、同名歧义、空输入、`null` 记录和字段透传。
+- `ScoreTableSplitPolicyTest`、`MultimodalStructuredExtractionHandlerTest` 覆盖叶子排重、多表未知总分和模型多表边界。
+- 合并 PR #2736 后全量 scoreparse 测试 962 项通过；本次定向回归、ArchitectureTest、line-budget 和文档治理门禁通过。

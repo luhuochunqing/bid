@@ -35,6 +35,7 @@ public final class ScoreCompletenessPolicy {
             "(?:总分|满分|分值构成|合计|总得分)[：:\\s\\n\\r（(]*?(\\d+(?:\\.\\d+)?)\\s*分"
     );
     private ScoreCompletenessPolicy() { }
+
     public static ScoreCompletenessResult evaluateCompleteness(List<ScoreFact> facts, String tenderSectionText) {
         return evaluateCompleteness(facts, tenderSectionText, true);
     }

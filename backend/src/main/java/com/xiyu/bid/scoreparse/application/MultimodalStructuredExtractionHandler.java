@@ -1,6 +1,7 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
+import com.xiyu.bid.scoreparse.domain.MultimodalFactParentCodeNormalizer;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator;
 import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
 import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
@@ -10,7 +11,11 @@ import com.xiyu.bid.scoreparse.domain.ScoreEvidence;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.ScoreRule;
+import com.xiyu.bid.scoreparse.domain.ScoreTableSplitPolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreTableSummaryPolicy;
 import com.xiyu.bid.scoreparse.domain.TableCompleteness;
+import com.xiyu.bid.scoreparse.domain.TableSplitResult;
+import com.xiyu.bid.scoreparse.domain.UnknownDeclaredTotalReviewPolicy;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
@@ -73,18 +78,23 @@ final class MultimodalStructuredExtractionHandler {
             extracted = extractor.recheck(artifact);
             alreadyRechecked = true;
         }
+        extracted = normalized(extracted);
         var validator = new MultimodalScoreFactValidator();
         var validation = validator.validate(extracted.facts(), artifact, originalContext, extracted.declaredTotal());
-        if (!alreadyRechecked && !validation.autoApprovable()) {
+        boolean multiTableModelScopeUnknown = hasMultipleTables(extracted.facts())
+                && !hasIndependentTableTotals(originalContext, extracted.facts());
+        if (!alreadyRechecked && (!validation.autoApprovable() || multiTableModelScopeUnknown)) {
             try {
-                var rechecked = extractor.recheck(artifact);
+                var rechecked = normalized(extractor.recheck(artifact));
                 var recheckValidation = validator.validate(rechecked.facts(), artifact, originalContext,
                         rechecked.declaredTotal());
                 if (!rechecked.facts().isEmpty()) {
                     extracted = rechecked;
                     validation = recheckValidation;
+                    multiTableModelScopeUnknown = hasMultipleTables(extracted.facts())
+                            && !hasIndependentTableTotals(originalContext, extracted.facts());
                 }
-                if (recheckValidation.autoApprovable()) {
+                if (recheckValidation.autoApprovable() && !multiTableModelScopeUnknown) {
                     log.info("紧凑模型复核通过: file={}, facts={}, declaredTotal={}", fileName,
                             rechecked.facts().size(), rechecked.declaredTotal());
                 }
@@ -93,7 +103,7 @@ final class MultimodalStructuredExtractionHandler {
                         recheckFailure.getClass().getSimpleName());
             }
         }
-        if (!validation.autoApprovable()) {
+        if (!validation.autoApprovable() || multiTableModelScopeUnknown) {
             StructuredTableResult deterministicFallback = completeDeterministicFallback(
                     originalContext, artifact, tenderSectionText, validation);
             if (deterministicFallback != null) {
@@ -102,9 +112,12 @@ final class MultimodalStructuredExtractionHandler {
         }
         var finalValidation = validation;
         List<ScoreFact> facts = validation.facts().stream().map(f -> toScoreFact(f, artifact, finalValidation)).toList();
-        var decision = validation.autoApprovable() ? ScoreParseDecision.AUTO_APPROVED : ScoreParseDecision.REVIEW_REQUIRED;
+        var decision = validation.autoApprovable() && !multiTableModelScopeUnknown
+                ? ScoreParseDecision.AUTO_APPROVED : ScoreParseDecision.REVIEW_REQUIRED;
         List<ScoreFact> leaves = facts.stream().filter(f -> ScoreFact.isLeaf(f, facts)).toList();
         List<ScoreFact> parents = facts.stream().filter(f -> !ScoreFact.isLeaf(f, facts)).toList();
+        TableSplitResult modelSplit = hasMultipleFactTables(facts)
+                ? splitModelFacts(facts, originalContext, tenderSectionText) : null;
         var completeness = new ScoreCompletenessPolicy.ScoreCompletenessResult(validation.autoApprovable(), decision,
                 validation.autoApprovable() ? null : validation.violations().get(0).code(), validation.originalTotal(),
                 "TENDER_TEXT".equals(validation.sourceVerification().total().source())
@@ -118,10 +131,18 @@ final class MultimodalStructuredExtractionHandler {
                         + ",source=" + v.evidence() + "] " + v.message()
                         + " expected=" + v.expected() + " actual=" + v.actual()).toList(),
                 leaves, parents);
-        List<ScoreCandidate> candidates = validation.autoApprovable()
+        if (modelSplit != null && multiTableModelScopeUnknown) {
+            completeness = UnknownDeclaredTotalReviewPolicy.evaluateUnknownDeclaredTotal(facts,
+                    "MULTI_TABLE_DECLARED_TOTAL_UNKNOWN", validation.violations().stream()
+                            .map(v -> v.code() + "[fact=" + v.factId() + ",field=" + v.field()
+                                    + ",source=" + v.evidence() + "] " + v.message()).toList());
+        }
+        List<ScoreCandidate> candidates = validation.autoApprovable() && !multiTableModelScopeUnknown
                 ? leaves.stream().map(ScoreFact::toCandidate).flatMap(Optional::stream).toList() : List.of();
-        var tables = List.of(new TableCompleteness("MULTIMODAL", true, completeness,
-                facts.stream().map(ScoreFact::sourceTableId).distinct().toList()));
+        List<TableCompleteness> tables = modelSplit == null
+                ? List.of(new TableCompleteness("MULTIMODAL", true, completeness,
+                facts.stream().map(ScoreFact::sourceTableId).distinct().toList()))
+                : modelSplit.tables();
         log.info("多模态评分事实完成: facts={}, images={}, model={}, decision={}, modelTotal={}, originalTotal={}, "
                         + "originalSource={}, leafTotal={}, violations={}",
                 facts.size(), extracted.imageCount(), extracted.model(), decision, validation.declaredTotal(),
@@ -210,6 +231,7 @@ final class MultimodalStructuredExtractionHandler {
         int start = raw.indexOf(fact.quotedText());
         String factId = fact.sectionTitle() + "/" + fact.code();
         String parentId = fact.parentCode().isBlank() ? "" : fact.sectionTitle() + "/" + fact.parentCode();
+
         String violations = validation.violations().stream()
                 .filter(v -> v.factId().isBlank() || v.factId().equals(factId))
                 .map(v -> v.code() + "[field=" + v.field() + ", expected=" + v.expected()
@@ -223,5 +245,47 @@ final class MultimodalStructuredExtractionHandler {
                 "page=" + fact.pageNumber() + "; scoreType=" + fact.scoreType()
                         + (violations.isBlank() ? "" : "; validationDiff=" + violations)),
                 ScoreRule.MAX_SCORE, parentId, "MULTIMODAL", fact.confidence(), status);
+    }
+
+    private static MultimodalScoreFactExtractor.ExtractionResult normalized(
+            MultimodalScoreFactExtractor.ExtractionResult extraction) {
+        return new MultimodalScoreFactExtractor.ExtractionResult(extraction.declaredTotal(),
+                MultimodalFactParentCodeNormalizer.normalize(extraction.facts()), extraction.model(),
+                extraction.imageCount());
+    }
+
+    private static boolean hasMultipleTables(List<MultimodalScoreFact> facts) {
+        return facts != null && facts.stream().map(MultimodalScoreFact::tableId)
+                .filter(tableId -> tableId != null && !tableId.isBlank()).distinct().count() > 1;
+    }
+
+    private static boolean hasMultipleFactTables(List<ScoreFact> facts) {
+        return facts != null && facts.stream().map(ScoreFact::sourceTableId)
+                .filter(tableId -> tableId != null && !tableId.isBlank()).distinct().count() > 1;
+    }
+
+    private static boolean hasIndependentTableTotals(OriginalScoringContext context,
+                                                      List<MultimodalScoreFact> facts) {
+        if (context == null || context.subtotals().isEmpty()) {
+            return false;
+        }
+        return facts.stream().map(MultimodalScoreFact::tableId).filter(tableId -> tableId != null && !tableId.isBlank())
+                .distinct().allMatch(context.subtotals()::containsKey);
+    }
+
+    private static TableSplitResult splitModelFacts(List<ScoreFact> facts, OriginalScoringContext context,
+                                                     String tenderSectionText) {
+        List<ScoreTableSplitPolicy.ScoreTableInput> inputs = facts.stream()
+                .collect(java.util.stream.Collectors.groupingBy(ScoreFact::sourceTableId,
+                        java.util.LinkedHashMap::new, java.util.stream.Collectors.toList()))
+                .entrySet().stream()
+                .map(entry -> new ScoreTableSplitPolicy.ScoreTableInput(entry.getKey(), true, entry.getValue()))
+                .toList();
+        List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> totals = context == null ? List.of()
+                : context.subtotals().entrySet().stream()
+                .map(entry -> new ScoreTableSummaryPolicy.DeclaredTotalEvidence(entry.getValue().value(),
+                        entry.getKey(), -1, entry.getValue().locator(), entry.getValue().locator()))
+                .toList();
+        return ScoreTableSplitPolicy.split(inputs, totals, tenderSectionText);
     }
 }

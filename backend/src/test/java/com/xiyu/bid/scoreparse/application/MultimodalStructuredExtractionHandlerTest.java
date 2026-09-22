@@ -351,6 +351,39 @@ class MultimodalStructuredExtractionHandlerTest {
                 .containsExactly(new BigDecimal("90"), new BigDecimal("5"), new BigDecimal("5"));
     }
 
+    @Test
+    void multiTableModelTotalCannotBeUsedAsDocumentWideDefault() throws Exception {
+        DocumentArtifact source = new DocumentArtifact(
+                new DocumentArtifact.ArtifactMeta("bid.pdf", "sha", "pdf", "2.0"),
+                List.of(
+                        new DocumentArtifact.CanonicalTable("t1", 1, "商务", 1, 2, List.of(),
+                                List.of(sourceCell("t1-rule", 0, 1, "商务服务最高得50分")), true),
+                        new DocumentArtifact.CanonicalTable("t2", 2, "技术", 1, 2, List.of(),
+                                List.of(sourceCell("t2-rule", 0, 1, "技术方案最高得50分")), true)),
+                List.of());
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
+        MultimodalScoreFactExtractor model = (input, images) -> new MultimodalScoreFactExtractor.ExtractionResult(
+                new BigDecimal("100"), List.of(
+                        new MultimodalScoreFact("商务", "1", "", "商务服务", new BigDecimal("50"),
+                                "商务服务最高得50分", "OBJECTIVE", 1, "t1", List.of("t1-rule"),
+                                "商务服务最高得50分", 0.9),
+                        new MultimodalScoreFact("技术", "1", "", "技术方案", new BigDecimal("50"),
+                                "技术方案最高得50分", "SUBJECTIVE", 2, "t2", List.of("t2-rule"),
+                                "技术方案最高得50分", 0.9)), "model", 0);
+
+        StructuredTableResult result = MultimodalStructuredExtractionHandler.extract(
+                new TenderTextSource("bid.pdf", "obs://bid.pdf", "评分办法"),
+                new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "application/pdf"),
+                artifactExtractor, model, null);
+
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(result.completeness().declaredTotalScore()).isNull();
+        assertThat(result.completeness().declaredTotalSource())
+                .isEqualTo(com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy.DeclaredTotalSource.UNKNOWN);
+        assertThat(result.candidates()).isEmpty();
+    }
+
     private static StructuredTableResult extract(SidecarDocumentArtifactExtractor artifactExtractor,
                                                   MultimodalScoreFactExtractor model) {
         return MultimodalStructuredExtractionHandler.extract(

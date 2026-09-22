@@ -119,10 +119,10 @@ class SchemeScopePublicationTest {
                 detailTable("t-business", "本项目评分办法 / 商务", "履约能力", "20", false, true),
                 detailTable("t-technical", "本项目评分办法 / 技术", "实施方案", "80", false, true)), List.of());
         var result = extract(source, "## 本项目评分办法\n总分100分。\n商务和技术评分明细如下。");
-        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
-        assertThat(result.originalVerified()).isTrue();
-        assertThat(result.candidates()).extracting(candidate -> candidate.weight())
-                .containsExactly(new BigDecimal("20"), new BigDecimal("80"));
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(result.completeness().declaredTotalScore()).isNull();
+        assertThat(result.originalVerified()).isFalse();
+        assertThat(result.candidates()).isEmpty();
     }
 
     static void assertNotPublished(StructuredTableResult result) {

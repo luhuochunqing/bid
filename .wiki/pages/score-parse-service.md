@@ -675,3 +675,9 @@ trigger（同步<1s，互斥校验+建任务）
 3. **前端人机协同交互（`ScoreCandidateReviewCard.vue` + `useScoreCandidateAdoption.js`）**：
    - 抽屉在 `scoreItems.length === 0 && candidateFacts.length > 0` 时，呈现候选细则卡片与 `[ ⚡ 一键采纳为正式评分标准 ]` 按钮；
    - 满足 300 行 line-budget 预算拆分。
+
+## 28. 上游评分完整性边界（2026-09-22）
+
+- 模型父子评分项编码只在同一评分表、同一章节内解析；章节标题不能拼入 `parentCode`，无法唯一挂接时保留原值并进入人工复核。
+- 汇总项与明细项分离，权重闭合只统计真正叶子项，避免父级汇总分被重复计入。
+- 多评分表按表建立独立总分口径；缺少表级总分证据时不默认归一化，结果保持 `REVIEW_REQUIRED`。

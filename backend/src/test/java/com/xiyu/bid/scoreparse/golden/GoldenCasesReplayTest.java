@@ -51,7 +51,8 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-sidecar-stream-failure"),
                 Arguments.of("case-multimodal-incomplete-recall-fallback"),
                 Arguments.of("case-1386-score-summary-and-leaves"),
-                Arguments.of("case-score-total-evidence-roles"));
+                Arguments.of("case-score-total-evidence-roles"),
+                Arguments.of("case-upstream-scoring-integrity"));
     }
 
     @ParameterizedTest(name = "{0}")
