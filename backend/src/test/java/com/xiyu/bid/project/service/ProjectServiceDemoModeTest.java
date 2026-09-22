@@ -43,9 +43,10 @@ class ProjectServiceDemoModeTest {
                 demoModeService,
                 new DemoDataProvider(),
                 new DemoFusionService(),
-                null,
-                null,
-                null,
+                null, // ProjectImportService
+                null, // ProjectQueryService
+                null, // ProjectListQueryService
+                null, // ProjectLeadAssignmentRepository
                 new CustomFieldsCodec(new com.fasterxml.jackson.databind.ObjectMapper())
         );
     }

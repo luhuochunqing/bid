@@ -12,6 +12,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.dto.ProjectImportRequest;
+import com.xiyu.bid.project.dto.ProjectListQuery;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
@@ -38,12 +39,24 @@ public class ProjectService {
     private final DemoFusionService demoFusionService;
     private final ProjectImportService projectImportService;
     private final ProjectQueryService projectQueryService;
+    private final ProjectListQueryService projectListQueryService;
     private final ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
     private final CustomFieldsCodec customFieldsCodec;
 
     @Transactional(readOnly = true)
     public List<ProjectDTO> getAllProjects() {
         return projectQueryService.getAllProjects();
+    }
+
+    /**
+     * 列表接口入口：由 {@link ProjectListQueryService#getProjects} 决定下推 SQL 分页还是全量内存筛选。
+     *
+     * <p>控制器只装配 {@link ProjectListQuery}，筛选与否决判据都不在控制层。取数在
+     * {@link ProjectListQueryService}（与富化链分家），本方法只做透传。</p>
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectDTO> getProjects(ProjectListQuery query) {
+        return projectListQueryService.getProjects(query);
     }
 
     @Transactional(readOnly = true)
