@@ -51,7 +51,7 @@ public class ScoreParseEvidence {
     @Column(name = "end_offset")
     private Integer endOffset;
 
-    @Column(length = 255)
+    @Column(columnDefinition = "TEXT")
     private String explanation;
 
     @Column(name = "created_at", nullable = false, updatable = false)

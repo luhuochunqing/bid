@@ -36,7 +36,6 @@ export function useScoreParseDrawer(props, emit) {
   const reviewSubmitting = ref(false)
   const reviewError = ref('')
   const reviewSubmitted = ref(false)
-
   const decisionBadgeType = computed(() => getDecisionBadgeType(decisionStatus.value, reviewSubmitted.value))
   const decisionBadgeText = computed(() => getDecisionBadgeText(decisionStatus.value, reviewSubmitted.value))
 
@@ -47,16 +46,13 @@ export function useScoreParseDrawer(props, emit) {
 
   const scoreItems = ref([])
   const scoreResults = ref({})
-
   const detailModalVisible = ref(false)
   const detailMode = ref('est')
   const selectedItem = ref(null)
   const selectedResult = ref(null)
-
   const totalWeight = computed(() => scoreItems.value.reduce((sum, item) => sum + (Number(item.weight) || 0), 0))
   const objectiveWeight = computed(() => scoreItems.value.filter((i) => i.scoreType === '客观项').reduce((sum, item) => sum + (Number(item.weight) || 0), 0))
   const subjectiveWeight = computed(() => scoreItems.value.filter((i) => i.scoreType === '主观项').reduce((sum, item) => sum + (Number(item.weight) || 0), 0))
-
   const statsOkCount = computed(() => scoreItems.value.filter((i) => i.status === 'ok').length)
   const statsDangerCount = computed(() => scoreItems.value.filter((i) => i.status === 'danger').length)
   const statsNeutralCount = computed(() => scoreItems.value.filter((i) => i.status === 'neutral').length)
@@ -106,9 +102,11 @@ export function useScoreParseDrawer(props, emit) {
       pipelineVersion.value = meta.pipelineVersion || ''
       artifactSha256.value = meta.artifactSha256 || ''
       circuitHint.value = circuitHintFromMeta(meta)
-      await loadReviewSnapshotIfNeeded()
+      if (meta.lastParseStatus && meta.lastParseStatus !== 'COMPLETED') {
+        reviewSnapshot.value = null
+        decisionStatus.value = meta.lastParseStatus === 'FAILED' ? 'PARSE_FAILED' : ''
+      } else await loadReviewSnapshotIfNeeded()
       emit('parsed', { dangerCount: statsDangerCount.value, warnCount: statsNeutralCount.value })
-
       let hasResults = false
       try {
         const resultsData = (await scoreParseApi.getResults(props.projectId))?.data
@@ -120,7 +118,6 @@ export function useScoreParseDrawer(props, emit) {
           hasResults = hasMeaningfulResults(results)
         }
       } catch { /* results 不存在时忽略 */ }
-
       const hasBidDoc = Boolean(meta.bidFileName || (bidFileName.value && bidFileName.value !== '—') || props.hasBidDocument)
       currentStage.value = options.stage !== undefined ? options.stage : ((hasResults || hasBidDoc) ? 2 : 1)
       scored.value = options.scored !== undefined ? options.scored : hasResults
@@ -213,6 +210,8 @@ export function useScoreParseDrawer(props, emit) {
         await fetchAnalysisData({ stage: currentStage.value, autoScore: false, autoParse: false })
         return
       }
+      reviewSnapshot.value = null
+      decisionStatus.value = ''
       const done = await pollTask(() => scoreParseApi.getParseStatus(props.projectId), '解析')
       if (done?.completedAt) parseTime.value = formatTime(done.completedAt)
       await fetchAnalysisData({ stage: currentStage.value, autoScore: false, autoParse: false })
@@ -221,13 +220,14 @@ export function useScoreParseDrawer(props, emit) {
       }
     } catch (e) {
       const msg = e?.response?.data?.msg || e?.message || '重新解析失败'
+      reviewSnapshot.value = null
+      decisionStatus.value = 'PARSE_FAILED'
       if (silent) error.value = msg
       else notifyErrorUnlessRateLimit(e, '重新解析失败')
     } finally {
       scoringOverlayVisible.value = false
     }
   }
-
   async function reparse() {
     if (loading.value || scoringOverlayVisible.value) return
     await startParse({ silent: false })

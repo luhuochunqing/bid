@@ -8,8 +8,12 @@ import java.util.List;
  */
 public record ScoreParseReviewCommand(
         List<Action> actions,
-        String reason
+        String reason,
+        Long parseTaskId
 ) {
+    public ScoreParseReviewCommand(List<Action> actions, String reason) {
+        this(actions, reason, null);
+    }
     public record Action(
             String factId,
             String action,

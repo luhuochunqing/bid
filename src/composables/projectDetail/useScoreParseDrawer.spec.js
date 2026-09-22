@@ -107,6 +107,27 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.error.value).toBe('立项招标文件无法读取')
   })
 
+  it('clears prior review candidates when a newer parse has failed', async () => {
+    scoreParseApi.getItems.mockResolvedValueOnce({ data: {
+      items: [], meta: { lastParseStatus: 'COMPLETED', decisionStatus: 'REVIEW_REQUIRED' },
+    } }).mockResolvedValueOnce({ data: {
+      items: [], meta: { lastParseStatus: 'FAILED', decisionStatus: 'REVIEW_REQUIRED', lastParseError: '证据说明写入失败' },
+    } })
+    scoreParseApi.getReview.mockResolvedValue({ data: {
+      parseTaskId: 222, facts: [{ factId: 'old-fact', weight: 100 }], audits: [],
+    } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1, autoParse: false })
+    expect(drawer.candidateFacts.value).toHaveLength(1)
+
+    await drawer.open({ stage: 1, autoParse: false })
+    expect(drawer.candidateFacts.value).toHaveLength(0)
+    expect(drawer.reviewRequired.value).toBe(false)
+    expect(drawer.error.value).toBe('证据说明写入失败')
+    expect(scoreParseApi.getReview).toHaveBeenCalledTimes(1)
+  })
+
   it('shows tender text-quota error when lastParseError is text-limit message', async () => {
     const textLimitMessage = '招标文件文本量超过上限（约 500 万字），无法解析，请检查是否误传或拆分文档'
     scoreParseApi.getItems.mockResolvedValue({

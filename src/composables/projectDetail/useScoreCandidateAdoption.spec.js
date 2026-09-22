@@ -39,7 +39,7 @@ describe('useScoreCandidateAdoption.js', () => {
       { factId: 'f2', code: '2', dimension: '技术方案', weight: 30, sourceText: '实施方案完整' },
       { factId: 'f3', code: '3', dimension: '占位模板', weight: 0, sourceText: 'XX~XX分' },
     ])
-    reviewSnapshot = ref({ facts: reviewFacts.value, audits: [] })
+    reviewSnapshot = ref({ parseTaskId: 9, facts: reviewFacts.value, audits: [] })
     reviewSubmitted = ref(false)
     currentStage = ref(2)
     fetchAnalysisData = vi.fn().mockResolvedValue()
@@ -110,6 +110,7 @@ describe('useScoreCandidateAdoption.js', () => {
     await adoptCandidateFacts()
 
     expect(scoreParseApi.submitReview).toHaveBeenCalledWith(49, {
+      parseTaskId: 9,
       reason: '人工确认采纳候选评分标准',
       actions: [{ action: 'ADOPT_CANDIDATES', reason: '一键采纳所有候选有效评分项' }],
     })
@@ -142,6 +143,7 @@ describe('useScoreCandidateAdoption.js', () => {
     }])
 
     expect(scoreParseApi.submitReview).toHaveBeenCalledWith(49, {
+      parseTaskId: 9,
       reason: '人工确认采纳候选评分标准',
       actions: [{
         factId: 'f1', action: 'ADOPT_CANDIDATES', adjustedWeight: 10,
@@ -167,6 +169,19 @@ describe('useScoreCandidateAdoption.js', () => {
     await adoptCandidateFacts()
 
     expect(isAdoptingCandidates.value).toBe(false)
+  })
+
+  it('刷新失败也保留原始采纳错误提示并清除旧快照', async () => {
+    scoreParseApi.submitReview.mockRejectedValue(new Error('解析任务已变化'))
+    fetchAnalysisData.mockRejectedValue(new Error('刷新失败'))
+    const { adoptCandidateFacts } = useScoreCandidateAdoption({
+      props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
+    })
+
+    await adoptCandidateFacts()
+
+    expect(ElMessage.error).toHaveBeenCalled()
+    expect(reviewSnapshot.value).toBeNull()
   })
 
   describe('版式继承与业务父子关系分离（三场景一致性校验）', () => {

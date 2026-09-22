@@ -17,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
@@ -25,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 /**
  * AI 评分解析人工复核应用服务（spec 059 Phase 5 task3）。
  */
@@ -49,7 +47,6 @@ public class ScoreParseReviewAppService {
     private final EstimatedScoreService estimatedScoreService;
     private final com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy adoptionPolicy =
             new com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy();
-
     @Transactional(readOnly = true)
     public ScoreParseReviewDTO getReviewSnapshot(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
@@ -81,26 +78,36 @@ public class ScoreParseReviewAppService {
                         .map(this::toAuditDTO)
                         .toList());
     }
-
     @Transactional
     public ScoreParseReviewDTO submitReview(Long projectId, ScoreParseReviewCommand command, String operatorName) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
-        ScoreParseTask task = latestParseTask(projectId);
-        List<ScoreParseFact> facts = factRepository.findByParseTaskId(task.getId());
-        Map<String, ScoreParseFact> factsById = facts.stream()
-                .collect(Collectors.toMap(ScoreParseFact::getFactId, Function.identity(), (a, b) -> a));
         List<ScoreParseReviewCommand.Action> actions = command == null ? List.of() : command.actions();
         if (actions == null || actions.isEmpty()) {
             throw new IllegalArgumentException("请至少提交一条复核动作");
         }
         String fallbackReason = normalizeReason(command.reason(), "人工复核");
-
         boolean isAdopt = actions.stream().anyMatch(a -> a != null && "ADOPT_CANDIDATES".equals(normalizeAction(a.action())));
+        if (isAdopt) taskRepository.lockProjectForTaskChange(projectId);
+        ScoreParseTask task = isAdopt
+                ? taskRepository.findLatestParseTaskForUpdate(projectId)
+                    .orElseThrow(() -> new IllegalArgumentException("项目没有可采纳的评分标准解析任务"))
+                : latestParseTask(projectId);
+        List<ScoreParseFact> facts = factRepository.findByParseTaskId(task.getId());
+        Map<String, ScoreParseFact> factsById = facts.stream()
+                .collect(Collectors.toMap(ScoreParseFact::getFactId, Function.identity(), (a, b) -> a));
         if (isAdopt) {
+            if (!"COMPLETED".equals(task.getStatus())) {
+                throw new IllegalArgumentException("当前评分标准解析失败或尚未完成，请重新解析后再采纳");
+            }
+            if (command.parseTaskId() == null || !command.parseTaskId().equals(task.getId())) {
+                throw new IllegalArgumentException("评分标准解析任务已变化，请刷新页面核对最新候选项");
+            }
+            if ("MANUAL_APPROVED".equals(task.getDecisionStatus())) {
+                throw new IllegalArgumentException("当前评分标准已采纳，请刷新页面查看正式评分项");
+            }
             handleAdoptCandidates(projectId, task, facts, actions, fallbackReason, operatorName);
             return getReviewSnapshot(projectId);
         }
-
         for (ScoreParseReviewCommand.Action action : actions) {
             String actionName = action == null ? null : normalizeAction(action.action());
             if (!ALLOWED_ACTIONS.contains(actionName)) {
@@ -129,7 +136,6 @@ public class ScoreParseReviewAppService {
         }
         return getReviewSnapshot(projectId);
     }
-
     private void handleAdoptCandidates(
             Long projectId,
             ScoreParseTask task,
@@ -141,7 +147,6 @@ public class ScoreParseReviewAppService {
         java.util.Set<String> selectedFactIds = new java.util.LinkedHashSet<>();
         java.util.Map<String, BigDecimal> adjustedWeights = new java.util.LinkedHashMap<>();
         java.util.Map<String, ScoreParseReviewCommand.Action> edits = new java.util.LinkedHashMap<>();
-
         for (ScoreParseReviewCommand.Action a : actions) {
             if (a == null) continue;
             if (a.factId() != null && !a.factId().isBlank()) {
@@ -152,7 +157,6 @@ public class ScoreParseReviewAppService {
                 }
             }
         }
-
         List<com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput> inputs = facts.stream()
                 .map(f -> toCandidateInput(f, edits.get(f.getFactId())))
                 .toList();
@@ -160,24 +164,21 @@ public class ScoreParseReviewAppService {
         com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.AdoptionResult result =
                 adoptionPolicy.adopt(inputs, selectedFactIds, adjustedWeights);
         if (!result.success()) {
-            throw new IllegalStateException(result.errorMessage());
+            throw new IllegalArgumentException(result.errorMessage());
         }
         BigDecimal declaredTotal = declaredTotal(task);
-        if (declaredTotal == null) throw new IllegalStateException("招标文件存在多个冲突的声明总分，请人工确认分表后再采纳");
+        if (declaredTotal == null) throw new IllegalArgumentException("招标文件存在多个冲突的声明总分，请人工确认分表后再采纳");
         if (result.totalWeight().compareTo(declaredTotal) != 0) {
-            throw new IllegalStateException("修正后的叶子评分项合计必须为" + declaredTotal
+            throw new IllegalArgumentException("修正后的叶子评分项合计必须为" + declaredTotal
                     + "分，当前为" + result.totalWeight() + "分");
         }
-
         if (itemPersistenceService != null) {
             itemPersistenceService.persistItems(projectId, task.getId(), result.candidates());
         }
-
         task.setDecisionStatus(com.xiyu.bid.scoreparse.domain.ScoreParseDecision.MANUAL_APPROVED.name());
         task.setOriginalTotalWeight(result.totalWeight());
         task.setFallbackReason(null);
         taskRepository.save(task);
-
         if (estimatedScoreService != null) {
             try {
                 estimatedScoreService.estimateForProject(projectId);
@@ -185,7 +186,6 @@ public class ScoreParseReviewAppService {
                 log.warn("预估得分计算未完成（非致命，保留采纳结果）: projectId={}", projectId, e);
             }
         }
-
         reviewRepository.save(ScoreParseReview.builder()
                 .projectId(projectId)
                 .parseTaskId(task.getId())

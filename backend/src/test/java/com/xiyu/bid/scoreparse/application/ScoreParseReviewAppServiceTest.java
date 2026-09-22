@@ -26,6 +26,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -107,9 +109,13 @@ class ScoreParseReviewAppServiceTest {
 
         ScoreParseReviewDTO result = service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
                 new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "一键采纳所有候选项")
-        ), "人工确认采纳"), "admin");
+        ), "人工确认采纳", 9L), "admin");
 
         verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+        var ordered = inOrder(taskRepository, itemPersistenceService);
+        ordered.verify(taskRepository).lockProjectForTaskChange(PROJECT_ID);
+        ordered.verify(taskRepository).findLatestParseTaskForUpdate(PROJECT_ID);
+        ordered.verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), anyList());
         verify(estimatedScoreService).estimateForProject(PROJECT_ID);
 
         ArgumentCaptor<ScoreParseTask> taskCaptor = ArgumentCaptor.forClass(ScoreParseTask.class);
@@ -136,7 +142,7 @@ class ScoreParseReviewAppServiceTest {
 
         service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
                 new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "采纳80分制候选项")
-        ), "人工确认采纳"), "admin");
+        ), "人工确认采纳", 9L), "admin");
 
         verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), anyList());
         assertThat(task.getOriginalTotalWeight()).isEqualByComparingTo("80");
@@ -153,14 +159,57 @@ class ScoreParseReviewAppServiceTest {
 
         assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
                 new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "采纳冲突候选项")
-        ), "人工确认采纳"), "admin"))
-                .isInstanceOf(IllegalStateException.class)
+        ), "人工确认采纳", 9L), "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("声明总分")
                 .hasMessageContaining("人工确认");
 
         verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
         verify(taskRepository, never()).save(task);
         verify(reviewRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void submitReview_rejectsFailedLatestParseBeforePublishingOldCandidates() {
+        ScoreParseTask failed = ScoreParseTask.builder().id(10L).taskId("new-failed")
+                .projectId(PROJECT_ID).taskType("PARSE").status("FAILED")
+                .decisionStatus("REVIEW_REQUIRED").build();
+        when(taskRepository.findLatestParseTaskForUpdate(PROJECT_ID)).thenReturn(java.util.Optional.of(failed));
+        when(factRepository.findByParseTaskId(10L)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("fact-from-old-task", "ADOPT_CANDIDATES", new BigDecimal("100"), "旧页面")
+        ), "采纳"), "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("解析失败");
+        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(10L), anyList());
+    }
+
+    @Test
+    void submitReview_rejectsOldTaskIdEvenWhenNewParseCompleted() {
+        mockLatestTask();
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("new-fact", "100")));
+
+        assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("old-fact", "ADOPT_CANDIDATES", new BigDecimal("100"), "旧页面")
+        ), "采纳", 8L), "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("任务已变化");
+        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+    }
+
+    @Test
+    void submitReview_rejectsRepeatedAdoptionWithoutRewritingItems() {
+        mockLatestTask();
+        ScoreParseTask task = taskRepository.findLatestParseTaskForUpdate(PROJECT_ID).orElseThrow();
+        task.setDecisionStatus("MANUAL_APPROVED");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "重复点击")
+        ), "重复", 9L), "admin"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("已采纳");
+        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
     }
 
     @Test
@@ -197,9 +246,11 @@ class ScoreParseReviewAppServiceTest {
                 .pipelineVersion("EVIDENCE_PIPELINE_V1")
                 .artifactSha256("sha256")
                 .build();
-        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+        lenient().when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                 eq(PROJECT_ID), eq("PARSE"), eq(List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED"))))
                 .thenReturn(List.of(task));
+        lenient().when(taskRepository.findLatestParseTaskForUpdate(PROJECT_ID))
+                .thenReturn(java.util.Optional.of(task));
     }
 
     private ScoreParseFact fact(String factId, String weight) {
