@@ -74,6 +74,10 @@ MYSQL_DB="${MYSQL_DB:-xiyu_bid_main}"
 REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 REDIS_DB="${REDIS_DB:-0}"
+# 同 MYSQL_PASSWORD：不给默认值，也不收选项——命令行上的口令会出现在 argv 里。
+# 未开认证的 Redis 留空即可；开了认证又不给口令，read_redis 会把 redis-cli 的报错原文
+# 写进 component-status.csv 的 reason 列（NOAUTH），而不是伪装成"字段缺失"。
+REDIS_PASSWORD="${REDIS_PASSWORD:-}"
 # 哪些组件必须采到数据才算成功。默认只要求 system：单独运行本脚本的人可能只想看 CPU/内存，
 # 不该因为同机没装 mysql 客户端就判定失败。run-stress-test.sh 会显式传全四个 ——
 # "证据包声称监控完整"这件事由调用方声明，不由采集器替它假定。

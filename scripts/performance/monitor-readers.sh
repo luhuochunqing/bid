@@ -200,12 +200,19 @@ read_redis() {
     REASON_REDIS="redis-cli 不可用"
     return
   fi
-  local info cols
-  if ! info="$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -n "$REDIS_DB" INFO 2>/dev/null)"; then
-    SUMMARY+=("redis 不可达，跳过")
-    REASON_REDIS="redis 不可达（${REDIS_HOST}:${REDIS_PORT} db=${REDIS_DB}）"
-    return
+  local info cols err
+  # 口令只走 stdin 的 AUTH 行。目标机上可能只有 redis-cli 3.2（实测宿主 3.2.12），它不认
+  # REDISCLI_AUTH（6.0 才有），而 -a 会把口令写进 argv 让同机 ps 看见；管道里的这一行是
+  # 3.2~7.x 都能用、且口令既不在 argv 也不在环境变量里的唯一通道。
+  # 未开认证（REDIS_PASSWORD 为空）时保持原来的 `-n "$REDIS_DB" INFO` 调用，行为不变。
+  if [[ -n "$REDIS_PASSWORD" ]]; then
+    info="$(printf 'AUTH %s\nSELECT %s\nINFO\n' "$REDIS_PASSWORD" "$REDIS_DB" | \
+      redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" 2>&1)"
+  else
+    info="$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -n "$REDIS_DB" INFO 2>&1)"
   fi
+  # `2>&1` 是故意的：连不上与 NOAUTH / WRONGPASS 是这次采样唯一的解释，把 stderr 丢掉就
+  # 只剩一句"缺少必需字段"，把"口令不对"误导成"这个 Redis 不返回这些字段"。
   cols="$(parse_redis_info_cols "$info")"
   printf '%s,%s\n' "$TS" "$cols" >> "$REDIS_CSV"
   SUMMARY+=("redis clients=$(printf '%s' "$cols" | cut -d, -f1) mem=$(printf '%s' "$cols" | cut -d, -f2)MB ops=$(printf '%s' "$cols" | cut -d, -f3)/s hits=$(printf '%s' "$cols" | cut -d, -f4) misses=$(printf '%s' "$cols" | cut -d, -f5)")
@@ -216,9 +223,21 @@ read_redis() {
   ops="$(printf '%s' "$cols" | cut -d, -f3)"
   hits="$(printf '%s' "$cols" | cut -d, -f4)"
   misses="$(printf '%s' "$cols" | cut -d, -f5)"
+  # "这次采样算不算有效"只由**五个必需字段是不是数值**决定，不由"输出里有没有我认不出的行"
+  # 决定。上一版把它交给了"滤掉我认识的行、第一条剩下的就当报错"的判定，结果 redis-cli 输出里
+  # 一行空白就把一次**已经取到全部字段**的正常采样写成空行、计为失败（实测宿主 7 次采样全废，
+  # component-status.csv 的 reason 是 `redis 采集失败:` ——冒号后面什么都没有）。判定权交回
+  # 数据本身，报错行只在**取不到字段时**用于解释原因。
   if is_num "$clients" && is_num "$mem" && is_num "$ops" && is_num "$hits" && is_num "$misses"; then
     USABLE_REDIS=$((USABLE_REDIS + 1))
   else
-    REASON_REDIS="redis INFO 返回缺少必需字段（客户端=${clients:-空} 内存=${mem:-空} ops=${ops:-空}）"
+    # err 可能是空白行（认不出但也不是报错），只在它真的有内容时才拿来当原因，
+    # 否则退回原来的话术——"原因"这一列不允许写一句看上去有解释力、其实是空的东西。
+    err="$(parse_redis_error "$info")"
+    if [[ -n "${err//[[:space:]]/}" ]]; then
+      REASON_REDIS="redis 采集失败: $err"
+    else
+      REASON_REDIS="redis INFO 返回缺少必需字段（客户端=${clients:-空} 内存=${mem:-空} ops=${ops:-空}）"
+    fi
   fi
 }

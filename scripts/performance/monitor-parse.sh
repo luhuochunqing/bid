@@ -59,17 +59,28 @@ parse_size_mb() {
 # 逗号小数 locale 下（"2,5% user"）这里会得到非数值，调用方据此把该行判为无效采样——
 # 失败方向是"不冒充有效数据"，而不是错位解析（采集器已把 LC_ALL 钉成 C，这只是第二道保险）。
 parse_cpu_triple() {
-  printf '%s\n' "$1" | awk '{
-    u=""; s=""; d="";
-    for (i = 1; i <= NF; i++) {
-      t = $i; gsub(",", "", t);
-      if (t == "user" || t == "us") u = $(i - 1);
-      else if (t == "sys" || t == "sy") s = $(i - 1);
-      else if (t == "idle" || t == "id") d = $(i - 1);
+  printf '%s\n' "$1" | awk '
+    # 数值取"标签前一个字段"。Linux 的 top 在数值达到 100.0 时会省掉分隔符后的空格
+    # （"… 0.0 ni,100.0 id"），$(i-1) 于是拿到 "ni,100.0" 这种"上一个标签+数值"的拼接串，
+    # 原样写进 CSV 会在那个逗号处裂成两列、把整行作废（实测宿主上 6 次采样废 3 次）。
+    # 只在"整体不是纯数值"时剥掉前导的非数值部分；逗号小数（"2,5%"）保持原样，
+    # 交给调用方判该行无效——不在这里把它修成一个看似合法的数值。
+    function val(x,   r) {
+      r = x
+      if (r !~ /^[-+]?[0-9]+(\.[0-9]+)?$/) sub(/^[^0-9.]*/, "", r)
+      return r
     }
-    gsub("%", "", u); gsub("%", "", s); gsub("%", "", d);
-    print u "," s "," d
-  }'
+    {
+      u=""; s=""; d="";
+      for (i = 1; i <= NF; i++) {
+        t = $i; gsub(",", "", t);
+        if (t == "user" || t == "us") u = val($(i - 1));
+        else if (t == "sys" || t == "sy") s = val($(i - 1));
+        else if (t == "idle" || t == "id") d = val($(i - 1));
+      }
+      gsub("%", "", u); gsub("%", "", s); gsub("%", "", d);
+      print u "," s "," d
+    }'
 }
 
 # uptime 的一行 → "load1 load5"（中间一个空格；两个都取不到时输出空串）
@@ -177,7 +188,22 @@ parse_redis_info_cols() {
   printf '%s,%s,%s,%s,%s' "${clients:-}" "${mem:-}" "${ops:-}" "${hits:-}" "${misses:-}"
 }
 
-# 自检（当前 43 项断言）在 monitor-parse-self-test.sh：断言的被测对象正是上面这些函数，所以那里
+# redis-cli 的**混合输出**（stdout 与 stderr 合并，见 read_redis）→ 报错原文（没有报错时空串）。
+# 这个滤法是有意的，不是"顺手 grep 一下"：
+#   - 必须滤掉 INFO 正文（`字段:值`）与 `# Server` 这类注释段，否则正常输出会被当成报错；
+#   - 键名要允许数字：Keyspace 段是 `db0:keys=1,expires=0`，只收字母下划线的写法会把一台
+#     只是"有键"的正常 Redis 每次都判成采集失败；
+#   - AUTH/SELECT 回显的 OK 也要滤掉：带口令时它们必然出现在 INFO 前面；
+#   - **空白行 / 只有空格的行**同样要滤掉。漏掉这条的代价不是"多一句废话"：调用方一旦拿它
+#     当判据，一行空白就让一次已经取到全部字段的正常采样变成失败（实测 7 次采样全废，
+#     原因列写着 `redis 采集失败:` 而冒号后什么都没有）。
+# 留下的才是 NOAUTH / WRONGPASS / "Could not connect to Redis at host:port: ..." 这类原文。
+# 本函数**只负责解释**，不负责判定——采样有效与否由 parse_redis_info_cols 的五个字段决定。
+parse_redis_error() {
+  printf '%s\n' "$1" | grep -vE '^([[:space:]]*$|OK[[:space:]]*$|#|[A-Za-z0-9_]+:)' | head -1
+}
+
+# 自检（当前 50 项断言）在 monitor-parse-self-test.sh：断言的被测对象正是上面这些函数，所以那里
 # 由本文件在 `--self-test` 分支里 source，而不是反过来依赖。单独跑那个文件会提示并 exit 2。
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

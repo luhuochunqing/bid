@@ -44,6 +44,13 @@ monitor_parse_self_test() {
     "$(parse_cpu_triple 'CPU usage: 2.5% user, 5.0% sys, 92.5% idle')"
   _check "parse_cpu_triple Linux" "1.2,0.3,98.5" \
     "$(parse_cpu_triple '%Cpu(s):  1.2 us,  0.3 sy, 98.5 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st')"
+  # Linux 的 top 在数值达到 100.0 时不补分隔符后的空格："0.0 ni,100.0 id"。
+  # 按"标签前一个字段"取值会拿到 "ni,100.0"，写进 CSV 就在那个逗号处裂成两列、整行作废
+  # （实测宿主上 6 次采样废 3 次）。这里钉住"拼接到上一位的数值仍要被取出来"。
+  _check "parse_cpu_triple Linux 100.0 紧贴上一位标签" "0.0,0.0,100.0" \
+    "$(parse_cpu_triple '%Cpu(s):  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st')"
+  _check "parse_cpu_triple Linux 首字段也紧贴" "100.0,0.0,0.0" \
+    "$(parse_cpu_triple '%Cpu(s):100.0 us,  0.0 sy,  0.0 id,  0.0 wa')"
   # 逗号小数 locale：宁可得到非数值（调用方判该次采样无效），也不能错位成 25
   _check "parse_cpu_triple 逗号小数不冒充数值" "2,5,5,0,92,5" \
     "$(parse_cpu_triple 'CPU usage: 2,5% user, 5,0% sys, 92,5% idle')"
@@ -141,6 +148,31 @@ keyspace_hits:900
 keyspace_misses:100')"
   _check "parse_redis_info_cols 缺字段留空" ",,150,," \
     "$(parse_redis_info_cols 'instantaneous_ops_per_sec:150')"
+  # 带口令时 redis-cli 的输出是"OK(AUTH) + OK(SELECT) + INFO 正文"混在一起（read_redis 用
+  # 2>&1 把 stderr 也并了进来）。这四例把"什么才算报错原文"钉死：正常输出必须空手而归，
+  # 报错必须原样透出——滤错方向决定的是"有数据却报错"还是"没数据却静默"。
+  _check "parse_redis_error 正常输出不报错" "" \
+    "$(parse_redis_error 'OK
+OK
+# Server
+redis_version:6.2.19
+connected_clients:3
+used_memory:1610864')"
+  # Keyspace 段是 db0:keys=…，键名里的数字必须算字段行；只收字母下划线的写法会把它当报错，
+  # 于是一台只是"有键"的正常 Redis 每次采样都被判失败。
+  _check "parse_redis_error Keyspace 数字键名不报错" "" \
+    "$(parse_redis_error '# Keyspace
+db0:keys=120,expires=0,avg_ttl=0')"
+  _check "parse_redis_error NOAUTH 透出" "NOAUTH Authentication required." \
+    "$(parse_redis_error 'NOAUTH Authentication required.')"
+  _check "parse_redis_error 连不上透出" "Could not connect to Redis at 10.0.0.1:6379: Connection refused" \
+    "$(parse_redis_error 'Could not connect to Redis at 10.0.0.1:6379: Connection refused')"
+  # 空白行不算报错。上一版漏了这条：调用方拿 parse_redis_error 当判据，redis-cli 输出里
+  # 一行空白就把一次**已经取到全部字段**的正常采样写成空行并计为失败（实测宿主 7 次全废，
+  # component-status.csv 的原因列写着 `redis 采集失败:`，冒号后面什么都没有）。
+  _check "parse_redis_error 空白行不报错" "" "$(parse_redis_error '
+
+')"
   _check "clean_reason 逗号转分号" "a;b" "$(clean_reason 'a,b
 
 ')"
