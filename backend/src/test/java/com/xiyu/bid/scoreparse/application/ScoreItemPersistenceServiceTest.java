@@ -135,10 +135,10 @@ class ScoreItemPersistenceServiceTest {
                 new ScoreCandidate("A2", "技术", "方案阐述清晰",
                         new BigDecimal("20"), "OBJECTIVE", null,
                         "方案阐述清晰", "P48", "SEMANTIC"),
-                // 报价类强制主观覆盖 → SUBJECTIVE
-                new ScoreCandidate("A3", "价格", "投标报价偏离率评分",
+                // 描述性规则优先于模型猜测 → SUBJECTIVE（即使猜测为 OBJECTIVE）
+                new ScoreCandidate("A3", "技术", "技术方案先进合理，专家酌情给分",
                         new BigDecimal("20"), "OBJECTIVE", null,
-                        "投标报价偏离率评分", "P49", "SEMANTIC")));
+                        "技术方案先进合理，专家酌情给分", "P49", "SEMANTIC")));
 
         ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
         assertThat(saved.getValue().get(0).getScoreType()).isEqualTo("OBJECTIVE");

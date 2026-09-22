@@ -112,9 +112,8 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         }
         parseText(text, scheme, totals);
         if (totals.isEmpty() && detailTables == 1 && subtotals.size() == 1 && localProblems.isEmpty()
-                && !scheme.isBlank()
-                && artifact.tables().stream().filter(t -> t != null && subtotals.containsKey(t.tableId()))
-                .noneMatch(t -> category(t.sourceSection()))) {
+                && (!scheme.isBlank() || artifact.tables().stream().allMatch(t -> t == null || t.sourceSection() == null || t.sourceSection().isBlank()))
+                && artifact.tables().stream().filter(t -> t != null && subtotals.containsKey(t.tableId())).noneMatch(t -> category(t.sourceSection()))) {
             Subtotal only = subtotals.values().iterator().next();
             totals.add(new Evidence(only.value(), "TABLE_SUMMARY", scheme, only.locator()));
         }

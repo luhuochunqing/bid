@@ -44,6 +44,12 @@ final class OriginalSourcePublicationGuard {
         if (current == null) return null;
         List<String> all = new ArrayList<>(current.defects());
         all.addAll(defects);
+        if (current.decision() == ScoreParseDecision.REVIEW_REQUIRED && check.originalTotal() == null) {
+            return new ScoreCompletenessPolicy.ScoreCompletenessResult(false, ScoreParseDecision.REVIEW_REQUIRED,
+                    current.fallbackReason(), current.declaredTotalScore(), current.declaredTotalSource(),
+                    check.leafTotal(), current.leafCount(), current.parentCount(),
+                    current.missingEvidenceCount(), all, current.leafFacts(), current.parentFacts());
+        }
         BigDecimal originalTotal = check.originalTotal();
         return new ScoreCompletenessPolicy.ScoreCompletenessResult(false, ScoreParseDecision.REVIEW_REQUIRED,
                 defects.get(0).split("\\[")[0], originalTotal,
