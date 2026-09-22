@@ -1179,3 +1179,9 @@
 - 结果：删除 150+ 文件（路由/页面/专属辅助/API 模块/死页面），联动入口全量手术（项目详情 6 跳转 + 资产检查 4 按钮 + 费用卡 + Settings 审计页签 + 快速发起合同模式），共享白名单零误伤（AuditLogPanel/customerOpportunity/knowledgeApi.templates 等 9 项）；经三轮独立评审闭环（NEEDS_FIXES→NEEDS_FIXES→MERGE_READY）。
 - 证据：verify-removal.sh 契约断言全通过 + 371 文件/3205 用例全绿 + 构建产物零残留。
 - 回填：新增 [[acceptance-export-feature-removal]]。
+
+## [2026-09-22] compound | 导出前终检补删存量死组件簇（spec 067 第四轮）
+- 触发：验收导出打包前终检发现项目详情存在重构遗留死组件链，携带"费用汇总/可投标能力"文案。
+- 结果：补删 fees.js/ProjectDetailMainContent/ProjectExpenseSummaryCard/ProjectDetailAICheckCard/ProjectDetailAssetCheckPane 等 9 文件；修订嵌套 README 与 2 个检查脚本失效引用；spec 过程标记脱敏。
+- 证据：verify-removal 增补 6 项 expect_absent 全通过 + 368 文件/3245 用例全绿 + 构建成功。
+- 回填：更新 [[acceptance-export-feature-removal]]（新增 §6 存量死组件簇判定法、§7 交付包脱敏）。

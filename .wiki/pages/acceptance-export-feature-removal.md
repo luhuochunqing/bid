@@ -95,3 +95,17 @@ expect(navigation.goToResultPage).toBeUndefined()
 - **hot-path 锁**：改 `src/router/index.js` 前需 `npm run agent:lock-acquire`（否则 pre-commit 拒绝）
 - **构建产物验证**：`npm run build` 后 grep `dist/assets/*.js` 确认零被删功能文案残留
 - **`Analytics/dashboard/utils/chartOptions.js` 类假共享**：注释里提到同名文件 ≠ import，必须看 `import ... from` 实际路径
+
+## 6. 导出前终检：存量死组件簇（第四轮补删教训）
+
+删除主功能后，**项目详情等大型区域常留有重构遗留的存量死组件**（仅被 spec 引用、不在生产渲染链上），它们会携带被删功能文案进入导出包：
+
+- 实例：`ProjectDetailMainContent.vue`、`ProjectExpenseSummaryCard.vue`、`ProjectDetailAICheckCard.vue`、`ProjectDetailAssetCheckPane.vue` 均不在 `ProjectDetailShell → ProjectDetailMainColumn` 渲染链上，但含"费用汇总/可投标能力"字样。
+- 判定方法：**追渲染链**（路由组件 → Shell → 实际子组件），而非只看"有没有 spec"——spec 引用会造成"非零引用"假象；`grep -rn "<组件名>"` 只命中 spec 即可疑。
+- 有界扫描技巧：对全部 `.vue` 做"零非 spec 引用"扫描可以辅助定位，但对**动态组件**（`<component :is>` + 名称映射、权限映射表）有误报，必须人工核对渲染链后再删。
+- 同步义务：删除死组件后要更新其 spec（移除用例/无用 import）、嵌套目录 README 清单、以及内部检查脚本中的失效引用。
+
+## 7. 交付包脱敏
+
+代码包给甲方前，清除内部过程标记：spec/注释中的"验收导出剔除""067"等字样改为中性回归措辞（如"已下线入口回归"），避免暴露"为验收而删"的过程叙事。
+
