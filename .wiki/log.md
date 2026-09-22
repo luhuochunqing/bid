@@ -1174,3 +1174,8 @@
 - 决策：一律不做绕过（`--no-verify`、`WIKI_CHECK_SKIP=1`、`UNIFIED_DEV_FLOW_SKIP_REVIEW=1` 均不适用于此场景）。改为真修：补 4 行头注释并以无损折行把 299 行守回 300 预算内、把被评审内容放到独立分支使两种 hash 口径合一、按 `.wiki/WIKI.md §2 触发点 1` 真回填。回填本身按铁律计一轮重评成本。
 - 证据：`scripts/lib/doc-governance-checker.mjs` 无豁免机制且 `isJavaFile` 写死 `false`；`scripts/check-line-budgets.mjs` 默认 `workingTree=true`；`scripts/pre-push-gate.sh` §16 自 2026-08-06 起默认 `error`。
 - 回填：新增 [[gate-command-scope-pitfalls]]。
+## [2026-09-22] compound | 验收导出未开放功能代码级剔除（spec 067）
+- 触发：甲方验收导出源代码前，需把"菜单隐藏但代码仍在"的 8 个功能与 8 个死页面从代码包彻底剔除（仅前端）。
+- 结果：删除 150+ 文件（路由/页面/专属辅助/API 模块/死页面），联动入口全量手术（项目详情 6 跳转 + 资产检查 4 按钮 + 费用卡 + Settings 审计页签 + 快速发起合同模式），共享白名单零误伤（AuditLogPanel/customerOpportunity/knowledgeApi.templates 等 9 项）；经三轮独立评审闭环（NEEDS_FIXES→NEEDS_FIXES→MERGE_READY）。
+- 证据：verify-removal.sh 契约断言全通过 + 371 文件/3205 用例全绿 + 构建产物零残留。
+- 回填：新增 [[acceptance-export-feature-removal]]。

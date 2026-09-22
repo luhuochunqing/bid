@@ -32,6 +32,7 @@ backlinks:
 - [[ai-case-recommend-data-source-fix]] — AI 智能案例推荐数据源修复（score_item 新契约切换 + casework 裸响应陷阱）
 - [[ai-provider-configuration]] — AI Provider 配置与陷阱指南
 - [[ai-slop-cleanup-and-composable-inlining]] — AI Slop 代码清理与单组件专属小型 Composable 内联收敛
+- [[acceptance-export-feature-removal]] — 验收导出——未开放功能代码级剔除方法论（隐藏菜单识别 + 共享符号白名单 + 删除型契约验证）
 - [[analytics-dept-virtual-root-unwrap]] — 数据分析部门筛选虚拟根组织架构解包与业务根锚定机制
 - [[api-openapi]] — OpenAPI/Swagger 接口规范
 - [[architecture]] — 架构合成
