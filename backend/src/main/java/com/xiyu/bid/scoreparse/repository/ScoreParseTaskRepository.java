@@ -2,6 +2,8 @@ package com.xiyu.bid.scoreparse.repository;
 
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -13,6 +15,13 @@ import java.util.Optional;
  */
 @Repository
 public interface ScoreParseTaskRepository extends JpaRepository<ScoreParseTask, Long> {
+
+    @Query(value = "SELECT id FROM projects WHERE id = :projectId FOR UPDATE", nativeQuery = true)
+    Long lockProjectForTaskChange(@Param("projectId") Long projectId);
+
+    @Query(value = "SELECT * FROM score_parse_task WHERE project_id = :projectId AND task_type = 'PARSE' "
+            + "ORDER BY id DESC LIMIT 1 FOR UPDATE", nativeQuery = true)
+    Optional<ScoreParseTask> findLatestParseTaskForUpdate(@Param("projectId") Long projectId);
 
     /** 按业务任务 ID（UUID）查询 */
     Optional<ScoreParseTask> findByTaskId(String taskId);

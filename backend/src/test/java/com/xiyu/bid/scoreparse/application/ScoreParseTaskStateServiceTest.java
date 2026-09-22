@@ -18,6 +18,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,6 +36,23 @@ class ScoreParseTaskStateServiceTest {
     @BeforeEach
     void setUp() {
         stateService = new ScoreParseTaskStateService(taskRepository, progressService);
+    }
+
+    @Test
+    void createTask_locksProjectBeforeInsertingTask() {
+        stateService.createTask("new-parse", 100L, "PARSE", null, null, "MANUAL");
+
+        var ordered = inOrder(taskRepository);
+        ordered.verify(taskRepository).lockProjectForTaskChange(100L);
+        ordered.verify(taskRepository).save(any(ScoreParseTask.class));
+    }
+
+    @Test
+    void createScoringTask_doesNotWaitForParseAdoptionLock() {
+        stateService.createTask("new-scoring", 100L, "SCORING", null, null, "MANUAL");
+
+        verify(taskRepository, never()).lockProjectForTaskChange(100L);
+        verify(taskRepository).save(any(ScoreParseTask.class));
     }
 
     @Test

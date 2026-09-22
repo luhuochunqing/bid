@@ -7,6 +7,7 @@ import com.xiyu.bid.scoreparse.application.ScoreParseReviewAppService;
 import com.xiyu.bid.scoreparse.application.ScoreScoringAppService;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseReviewDTO;
+import com.xiyu.bid.scoreparse.dto.ScoreParseReviewCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -96,5 +97,19 @@ class ScoreParseControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getData()).isSameAs(dto);
+    }
+
+    @Test
+    void submitReview_exposesStaleTaskMessageInsteadOfGenericConflict() {
+        ScoreParseReviewCommand command = new ScoreParseReviewCommand(java.util.List.of(
+                new ScoreParseReviewCommand.Action("old-fact", "ADOPT_CANDIDATES", null, "采纳")
+        ), "采纳", 222L);
+        when(scoreParseReviewAppService.submitReview(100L, command, null))
+                .thenThrow(new IllegalArgumentException("评分标准解析任务已变化，请刷新页面核对最新候选项"));
+
+        ResponseEntity<ApiResponse<ScoreParseReviewDTO>> response = controller.submitReview(100L, command, null);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().getMsg()).contains("任务已变化");
     }
 }

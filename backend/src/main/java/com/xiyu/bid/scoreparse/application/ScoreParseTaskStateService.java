@@ -35,6 +35,8 @@ public class ScoreParseTaskStateService {
     @Transactional
     public ScoreParseTask createTask(String taskId, Long projectId, String taskType,
                                      String fileName, String fileUrl, String triggerSource) {
+        // 与采纳共用锁，仅序列化解析任务；打分任务不依赖这份候选快照。
+        if ("PARSE".equals(taskType)) taskRepository.lockProjectForTaskChange(projectId);
         ScoreParseTask task = ScoreParseTask.builder()
                 .taskId(taskId)
                 .projectId(projectId)

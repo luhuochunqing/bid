@@ -45,6 +45,7 @@ export function useScoreCandidateAdoption({
         : [{ action: 'ADOPT_CANDIDATES', reason: '一键采纳所有候选有效评分项' }]
 
       const res = await scoreParseApi.submitReview(props.projectId, {
+        parseTaskId: reviewSnapshot.value?.parseTaskId,
         reason: '人工确认采纳候选评分标准',
         actions,
       })
@@ -57,6 +58,11 @@ export function useScoreCandidateAdoption({
       reviewSubmitted.value = true
     } catch (e) {
       notifyErrorUnlessRateLimit(e, '采纳候选评分标准失败')
+      try {
+        await fetchAnalysisData({ stage: currentStage.value, autoScore: false, autoParse: false })
+      } catch {
+        reviewSnapshot.value = null
+      }
     } finally {
       isAdoptingCandidates.value = false
     }
