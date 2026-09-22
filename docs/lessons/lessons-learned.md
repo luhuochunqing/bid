@@ -6687,3 +6687,19 @@ Lesson 392 的假通过还有一个放大器：Sidecar `/convert-images` 的 `.d
 - 校验来源任务与写入正式项之间必须处于同一锁域，避免校验后新任务插入造成 TOCTOU；锁范围应只覆盖同一业务资源。
 - Flyway 扩容回滚必须先用 `CHECK` 拒绝超长数据，再缩列，禁止静默截断或修改连接级 `sql_mode`。
 - 本次本地隔离 MySQL 与并发测试通过；Docker Testcontainers、测试服部署和项目 1385 线上验收仍需单独完成。
+
+## 401. scoreparse 全量 5 既有失败：门禁叠加后的契约漂移要修生产侧收敛而非回退（2026-09-22）
+
+### 根因与修复
+
+- PDF 总分：`OriginalScoringContext` 单表 subtotal 提升被 `!scheme.isBlank()` 一刀切拦掉，blank section 合成夹具拿不到 100；修复为“具名 scheme 或全表全 blank section 才提升”，具名子表（商务评分表）与多表仍拒绝。
+- Guard 覆盖：`OriginalSourcePublicationGuard.review` 无条件用门禁侧 total/fallback 覆盖 shadow，把已 REVIEW 的精确信号（TENDER_TEXT 30、DECLARED_TOTAL_CONFLICT）降级为 UNKNOWN/通用码；修复为仅当门禁侧 total 非 null 才覆盖，否则保留 shadow 精确信号并追加门禁缺陷。
+- 权重溯源：1381 形行（title 40 + 规则内局部 30/10）被 capped 多值判 UNKNOWN；修复为单值 title==claim 时接受（不接受错误权重）。
+- 两处 stale 测试按新契约更新：Shadow 端到端按“无汇总分值不起父”（与 DeterministicScoreFactExtractorTest 21 绿一致）；持久化 scoreType 按“规则优先、模型猜测仅兜底”（与 ScoreTypeClassificationPolicyTest 13 绿一致，报价公式现为可计算客观项）。
+- 验证：全量子 `com.xiyu.bid.scoreparse.**.*Test` 957 run / 0 failures / 2 skipped（既有 SKIP）。
+
+### 可复用纪律
+
+- 新增 publication 门禁覆盖旧结论时，只在“门禁侧有更强证据（非 null scheme total）”才覆盖；已 REVIEW 的精确信号只追加缺陷，不降级。
+- 改分类优先级必须同步更新所有消费者测试的期望与注释（PolicyTest 改了，PersistenceTest 漏了就会漂移）；javadoc 与测试注释同属契约，一起改。
+- 合并版式继承与业务父子解耦后，影子端到端测试必须与抽取器单测契约同向更新，不得各执一词。

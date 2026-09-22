@@ -1197,3 +1197,9 @@
 - 触发：revert 已合并的清理 PR 时，line-budget / duplicate-impl / 429 三项 diff 型门禁把"恢复的旧文件"误判为"新增代码"。
 - 结论：三项均无"不改文件"的逐项豁免阀；用官方逃生开关（PRE_PUSH_GATE=0 + DUPLICATE_IMPL_SKIP=1）并在 PR 描述披露，S6 仍在 PR 创建时强制校验。另：Gitee API 忽略 merge_type（squash/rebase 均产出 merge commit），还原后需紧跟纯文档提交以避免 token-delta 假阳性。
 - 回填：更新 [[acceptance-export-feature-removal]] §8。
+
+## [2026-09-22] fix | scoreparse 全量 5 既有失败修复（PDF总分/父挂接/scoreType）
+- 触发：全量子 `com.xiyu.bid.scoreparse.**.*Test` 957 run / 5 失败（PdfEvidencePipelineTest 3、ScoreFactShadowPipelineTest 1、ScoreItemPersistenceServiceTest 1），均为门禁叠加后的契约漂移。
+- 操作：分支 `agent/claude/fix-scoreparse-5-failures`；OriginalScoringContext 单表提升允许全 blank section、Guard 仅门禁 total 非 null 才覆盖、verifyWeight 单值 title==claim 免检；两处 stale 测试按新契约更新。
+- 验证：全量子 957 run / 0 failures / 2 skipped（既有 SKIP）；`git diff --check` 通过；line-budget 合规（OriginalScoringContext 回到 ≤300 行）。
+- 回填：docs/lessons/lessons-learned.md §401。
