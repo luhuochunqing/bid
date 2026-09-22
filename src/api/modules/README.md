@@ -17,7 +17,6 @@
 | `customerOpportunity.js` | API 模块 | 客户机会中心的真实接口、响应规范和转项目闭环 |
 | `dashboard.js` | API 模块 | Dashboard 总览、统计、任务和日历调用 |
 | `export.js` | API 模块 | 导出任务、导出状态和格式枚举 |
-| `fees.js` | API 模块 | 费用申请、审批、退还等调用 |
 | `knowledge.js` | API 模块 | 资质、案例、模板等知识资产调用 |
 | `permissionMatrix.js` | API 模块 | 管理员只读接口权限矩阵调用和响应标准化 |
 | `qualification.js` | API 模块 | 资质 CRUD 与借阅记录/借阅申请接线，供知识页和 store 复用 |
@@ -52,3 +51,4 @@
 - 2026-05-03: `users.js` 接入 `/api/tasks/assignment-candidates`，任务负责人改为从组织归属候选人中选择，不再手写姓名。
 - 2026-05-04: 新增 `taskActivity.js`，接入 `/api/tasks/{id}/activity` 与 `/api/tasks/{id}/comments`，任务动态仅走真实后端 API。
 - 2026-05-15: 新增 `systemIntegration.js` 组织架构运维接口，系统集成页可通过真实后端查看状态、触发窗口对账和单人/单部门重同步。
+- 2026-09-22: 清理未开放功能残留 —— 移除 `fees.js`（费用 API，零引用）；`contractBorrow.js`、`bidResults.js`、`bidResults.normalizers.js`、`templates.js`、`bar.js`、`expense.js`、`roi.js`、`scoreAnalysis.js` 已随对应页面下线一并删除。
