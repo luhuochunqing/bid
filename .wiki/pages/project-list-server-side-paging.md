@@ -31,8 +31,9 @@ backlinks:
 | 其余（`size` 缺省 / 含任一筛选 / e2e demo） | 慢路径（原样保留） | `ProjectQueryService.getAllProjects()` 全量取数 + 全量富化 |
 
 入口只有一条：控制器 → `ProjectService.getProjects(ProjectListQuery)` → `ProjectListQueryService`。
-`ProjectListQuery` 是 18 元 `record`（16 个筛选 + page/size），用 record 而不是把 13 个 boolean-veto
-平铺进方法签名——后者传错一个位置就会**静默丢掉回落**。
+`ProjectListQuery` 是 18 元 `record`（16 个筛选 + page/size）。用 record 而不是把 14 个"否决参数"
+平铺进方法签名（16 个筛选里 14 个是 `String`、走"非空白否决"，另 2 个 `Long` 走 null 否决；出处见
+`ProjectListQuery.java` 的类 javadoc）——平铺签名传错一个位置就会**静默丢掉回落**。
 
 ## 准入判据：为什么"一个筛选都不能下推"
 
@@ -40,8 +41,9 @@ backlinks:
 
 > **SQL 等值比较的语义必须与 `String.equals` 一致（空白折叠 + collation）。**
 
-- `projects` 建表 collation 是 `utf8mb4_unicode_ci`（`B73__full_schema_baseline.sql:975`，
-  `docker-compose.yml` 也把 `collation-server` 钉成它）⇒ **大小写不敏感**：`?stage=drafting`
+- `projects` 建表 collation 是 `utf8mb4_unicode_ci`（`B73__full_schema_baseline.sql:970`，
+  `create table projects` 起于 `:940`；`docker-compose.yml` 也把 `collation-server` 钉成它）
+  ⇒ **大小写不敏感**：`?stage=drafting`
   在慢路径下与 `DRAFTING` 不等（空结果），在 SQL `=` 下却会命中 ⇒ **放大可见结果**。
 - H2 测试环境（`src/test/resources/application-test.yml`）的 `VARCHAR` 比较**区分大小写**，
   对这第四条**没有任何证明力**——"全绿"不能证伪它。
