@@ -118,5 +118,8 @@ expect(navigation.goToResultPage).toBeUndefined()
 - **清理版可复用**：清理成果保留在 git 历史（本案例为合并提交 `345bcad7b`），未来如需再次出包，可从历史复用（cherry-pick / diff 应用）而不必重做。
 - **还原操作的工程细节**：revert 一个 merge commit 用 `git revert -m 1 <merge-sha>`；还原后必须验证 `git diff <合并前main> HEAD` 为空（逐字节一致才算真还原）。
 - **还原与设计令牌增量门禁的交互（陷阱）**：还原提交会把"恢复的存量硬编码颜色"计入 `check:token-governance:delta`（它只看 `git diff HEAD~1..HEAD`），形成假阳性；若落地为 merge commit，该误报会持续到下一个提交。规避：让落地后的**最新提交不含 src 变更**（如附一个 docs/wiki 提交），或在还原后紧跟一个文档提交。实际部署路径（`package-release.sh` → `build:api`）不跑该检查，不受影响。
+- **还原分支 vs 其他 diff 型门禁（陷阱）**：还原分支的 diff 会把"恢复的旧文件"呈现为"新增代码"，触发三类假阳性（存量债务被当成新债）：`check-line-budgets`（NEW_OVER_LIMIT / GREW_WHILE_OVER_LIMIT）、`check-duplicate-implementations`（恢复的函数与现役实现同名）、`check-429-error-override`（恢复的 catch 块直接 `ElMessage.error`）。这三项**均无"不改动被还原文件"即可用的逐项豁免阀**，且"修复"方式（改代码/加注解）会破坏"逐字节还原"目标；实践中使用门禁官方逃生开关（`PRE_PUSH_GATE=0` + `DUPLICATE_IMPL_SKIP=1`）并在 PR 描述中完整披露——S6 独立评审门禁在 PR 创建时仍强制校验。
+- **Gitee 合并不认 merge_type**：API 传 `squash`/`rebase` 均产出 merge commit（本案例两次验证）；因此"还原后紧跟纯文档提交"是让 main 完整构建恢复绿色的实用手法。
+
 
 
