@@ -1,0 +1,5 @@
+component,required,available,usable_samples,total_samples,reason
+system,1,1,49,49,
+app-jvm,1,1,49,49,
+mysql,1,1,49,49,
+redis,1,1,49,49,

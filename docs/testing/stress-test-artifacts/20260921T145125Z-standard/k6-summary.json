@@ -1,0 +1,314 @@
+{
+    "root_group": {
+        "checks": {},
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+                "标讯中心检索链路": {
+                    "id": "f76e165d3467a8835f8e29c09d07a6db",
+                    "groups": {},
+                    "checks": {
+                            "tender list status is 200": {
+                                "passes": 3090,
+                                "fails": 0,
+                                "name": "tender list status is 200",
+                                "path": "::标讯中心检索链路::tender list status is 200",
+                                "id": "c5554f80ee6d52320d9e24854a2669f2"
+                            }
+                        },
+                    "name": "标讯中心检索链路",
+                    "path": "::标讯中心检索链路"
+                },
+                "项目管理全链路": {
+                    "id": "ab2e49fcb204f57d9e61521ddd479210",
+                    "groups": {},
+                    "checks": {
+                            "project list status is 200": {
+                                "path": "::项目管理全链路::project list status is 200",
+                                "id": "c1857f6b12b041f8308f177cf7fbc7da",
+                                "passes": 1291,
+                                "fails": 0,
+                                "name": "project list status is 200"
+                            },
+                            "project detail status is 200": {
+                                "name": "project detail status is 200",
+                                "path": "::项目管理全链路::project detail status is 200",
+                                "id": "acd45b912e63cc4f893404aa38ce9be5",
+                                "passes": 1291,
+                                "fails": 0
+                            }
+                        },
+                    "name": "项目管理全链路",
+                    "path": "::项目管理全链路"
+                },
+                "知识库与分析大屏": {
+                    "name": "知识库与分析大屏",
+                    "path": "::知识库与分析大屏",
+                    "id": "6dbf3e1231c015918eceff19ad43363d",
+                    "groups": {},
+                    "checks": {
+                            "knowledge search ok": {
+                                "id": "867d210572043c522dc2e5840d313db5",
+                                "passes": 843,
+                                "fails": 0,
+                                "name": "knowledge search ok",
+                                "path": "::知识库与分析大屏::knowledge search ok"
+                            },
+                            "analytics overview status is 200": {
+                                "path": "::知识库与分析大屏::analytics overview status is 200",
+                                "id": "a50ad019899afe07fb126140c68ce716",
+                                "passes": 843,
+                                "fails": 0,
+                                "name": "analytics overview status is 200"
+                            },
+                            "product-lines ok": {
+                                "passes": 843,
+                                "fails": 0,
+                                "name": "product-lines ok",
+                                "path": "::知识库与分析大屏::product-lines ok",
+                                "id": "6ea5e7a908f6a82a54e69b3e3c192183"
+                            }
+                        }
+                }
+            }
+    },
+    "metrics": {
+        "http_req_duration{expected_response:true}": {
+            "avg": 608.0738478301186,
+            "min": 35.988,
+            "med": 511.99199999999996,
+            "p(90)": 1330.8639000000003,
+            "p(95)": 1613.7384499999996,
+            "p(99)": 2128.39769,
+            "max": 3077.474
+        },
+        "xiyu_business_success_rate": {
+            "passes": 6515,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "xiyu_total_requests": {
+            "count": 10784,
+            "rate": 51.18653560204868
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 10784,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_req_blocked": {
+            "max": 715.63,
+            "avg": 0.6394520586053745,
+            "min": 0,
+            "med": 0.003,
+            "p(90)": 0.005,
+            "p(95)": 0.007,
+            "p(99)": 0.07835999999999924
+        },
+        "http_req_waiting": {
+            "avg": 607.429556750744,
+            "min": 35.936,
+            "med": 511.245,
+            "p(90)": 1328.9330000000002,
+            "p(95)": 1609.5686999999998,
+            "p(99)": 2128.32829,
+            "max": 2865.715
+        },
+        "xiyu_project_list_duration": {
+            "med": 1368,
+            "p(90)": 2062,
+            "p(95)": 2224.5,
+            "p(99)": 2689.7999999999997,
+            "max": 3077,
+            "avg": 1427.0960495739737,
+            "min": 839,
+            "thresholds": {
+                "p(95)<1000": true
+            }
+        },
+        "checks": {
+            "passes": 8201,
+            "fails": 0,
+            "value": 1
+        },
+        "http_req_connecting": {
+            "p(99)": 0,
+            "max": 715.567,
+            "avg": 0.6355533197329377,
+            "min": 0,
+            "med": 0,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "xiyu_error_rate": {
+            "passes": 0,
+            "fails": 6516,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_reqs": {
+            "count": 10784,
+            "rate": 51.18653560204868
+        },
+        "http_req_sending": {
+            "min": 0.002,
+            "med": 0.01,
+            "p(90)": 0.018,
+            "p(95)": 0.025,
+            "p(99)": 0.036,
+            "max": 8.013,
+            "avg": 0.01297551928783399
+        },
+        "http_req_tls_handshaking": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0
+        },
+        "xiyu_knowledge_search_duration": {
+            "p(90)": 1148.8,
+            "p(95)": 1320.6,
+            "p(99)": 1688.22,
+            "max": 2032,
+            "avg": 495.2218268090154,
+            "min": 41,
+            "med": 408
+        },
+        "http_req_duration": {
+            "max": 3077.474,
+            "avg": 608.0738478301186,
+            "min": 35.988,
+            "med": 511.99199999999996,
+            "p(90)": 1330.8639000000003,
+            "p(95)": 1613.7384499999996,
+            "p(99)": 2128.39769,
+            "thresholds": {
+                "p(95)<1500": true,
+                "p(99)<3000": false
+            }
+        },
+        "xiyu_dashboard_duration": {
+            "avg": 436.6761565836299,
+            "min": 36,
+            "med": 367,
+            "p(90)": 974.0000000000001,
+            "p(95)": 1084.9999999999995,
+            "p(99)": 1364.6999999999998,
+            "max": 1707,
+            "thresholds": {
+                "p(95)<2000": false
+            }
+        },
+        "vus": {
+            "value": 2,
+            "min": 1,
+            "max": 100
+        },
+        "vus_max": {
+            "value": 100,
+            "min": 100,
+            "max": 100
+        },
+        "xiyu_read_ops": {
+            "count": 10783,
+            "rate": 51.18178907612119
+        },
+        "iteration_duration": {
+            "avg": 2107.555721074276,
+            "min": 643.822916,
+            "med": 1648.8080835,
+            "p(90)": 4440.463267100001,
+            "p(95)": 5248.1963312,
+            "p(99)": 6160.261434659999,
+            "max": 7300.520916
+        },
+        "data_sent": {
+            "count": 5005395,
+            "rate": 23758.237144827195
+        },
+        "data_received": {
+            "count": 29362009,
+            "rate": 139367.53700168527
+        },
+        "xiyu_login_duration": {
+            "p(95)": 125,
+            "p(99)": 125,
+            "max": 125,
+            "avg": 125,
+            "min": 125,
+            "med": 125,
+            "p(90)": 125
+        },
+        "xiyu_auth_success_rate": {
+            "passes": 1,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "http_req_receiving": {
+            "avg": 0.6313155600890261,
+            "min": 0.007,
+            "med": 0.038,
+            "p(90)": 0.106,
+            "p(95)": 0.227,
+            "p(99)": 1.8299999999999903,
+            "max": 497.502
+        },
+        "xiyu_project_detail_duration": {
+            "avg": 565.9589465530596,
+            "min": 61,
+            "med": 519,
+            "p(90)": 1194,
+            "p(95)": 1326.9999999999998,
+            "p(99)": 1760.5,
+            "max": 2296
+        },
+        "xiyu_tender_list_duration": {
+            "max": 2152,
+            "avg": 503.0514563106796,
+            "min": 41,
+            "med": 441.5,
+            "p(90)": 1115,
+            "p(95)": 1299.0999999999997,
+            "p(99)": 1695.22,
+            "thresholds": {
+                "p(95)<1000": true
+            }
+        },
+        "group_duration": {
+            "avg": 1557.5240855348336,
+            "min": 341.41375,
+            "med": 1083.0184585000002,
+            "p(90)": 3898.6151329000004,
+            "p(95)": 4706.379634949998,
+            "p(99)": 5606.728743590001,
+            "max": 6724.493333
+        },
+        "iterations": {
+            "count": 5224,
+            "rate": 24.795851445206075
+        }
+    },
+    "setup_data": {
+        "tokens": [
+            {
+                "token": "<redacted:jwt>",
+                "user": "admin"
+            }
+        ]
+    }
+}

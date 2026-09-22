@@ -18,6 +18,12 @@ sha256 的 `manifest.json` 清单。
 | 压测脚本（`k6-tests/load-test.js`、`scripts/generate-stress-test-data.mjs`） | ✅ 已在仓库中，随 `5b2c06993` 一起提交 |
 | 压测执行与证据归档工具链（本目录 + `scripts/performance/run-stress-test.sh`） | ✅ 已建立（本目录首次引入） |
 | **2026-08-28 那次实测的原始数据、结果文件、监控截图** | ❌ **仓库与开发机上均不存在** |
+| **2026-09-21 的复跑证据**（第一次真正产出原始证据包） | ✅ `20260921T145125Z-standard/`（k6 侧 5 件 + 监控 49 次采样 × 4 组件）＋ 派生监控图 `charts/20260921T145125Z-standard/`；数据对账与说明见 [`docs/testing/STRESS_TEST_EVIDENCE_APPENDIX_2026-09-21.md`](../STRESS_TEST_EVIDENCE_APPENDIX_2026-09-21.md) |
+
+> 第三行与第四行是**两件事**，不要合并阅读：8-28 那次的原始产物至今不存在；
+> 9-21 这份是**另一次运行**的证据，它对应的是 9-21 当天的代码与数据状态，
+> 因此**不能填回 8-28 报告的数字格子里**，只能作为"报告结论能否复现"的核对材料
+> （核对结果见上面那份附录的 §A.5 / §A.6，其中三处与报告不符）。
 
 `docs/testing/STRESS_TEST_REPORT_2026-08-28.md` 报告正文（11,092 请求 / 52.5 QPS / 100% 成功率等）
 **没有对应的原始产物落盘**：当时只沉淀了脚本、操作指南和报告，k6 的 `--summary-export`
@@ -51,6 +57,14 @@ sha256 的 `manifest.json` 清单。
 
 `monitoring.log` 就是监控截图的**可复核替代品**：它是压测期间逐采样的真实文本记录，
 比一张无法校验时间戳的截图更硬。
+
+**确实需要"图片形态"时**（例如贴进汇报文档），用 `scripts/performance/render-monitor-charts.mjs`
+从原始 CSV 渲染时间序列图，产物落在**与本目录平级**的 `charts/<run_id>/` 下（同名的 `.svg` 与 `.png`）。
+这样安排有三个理由：图是**派生物**，进证据包会让第三方分不清"哪份是产出那一刻的原始产物、
+哪份是事后画的"；`manifest.json` 的各产物 sha256 与有效行数都是**产出那一刻**算出来的，
+事后往包里加文件只能靠手改数字，那正是本目录反复禁止的"事后搬家"；以及二进制材料本就
+不在凭证扫描器的覆盖范围内（见下节）。图与原始 CSV **严格一致**（只读原始列，不做平滑、
+不插值、不补 0），但它**不是原始证据**——引用时请以 CSV 为准。
 
 `monitoring/component-status.csv` 回答的是"这份监控到底有没有数据"，而不是"文件在不在"：
 采集器在 mysql 客户端缺失、Redis 不可达、应用进程找不到时，留下的正是只有表头或整行空值的
@@ -216,9 +230,15 @@ bash scripts/performance/run-stress-test.sh \
   --base-url http://172.16.38.78:8080 \
   --no-monitor \
   --enable-writes
-# 再到 172.16.38.78 上单独跑一次采集器，产出这份包缺的监控原始数据：
+# 再到 172.16.38.78 上单独跑一次采集器，产出这份包缺的监控原始数据。
+# 三点注意（第 2、3 点是 2026-09-21 那次实测踩到的，写在下面 §"应用进程定位"里）：
+#   ① --out 指向**目标机本地**目录，不要指回压测机上那个证据目录（理由见本节末）；
+#   ② 该宿主没有 lsof/ss/fuser，--app-port 的端口反查**必失败**且不退回 pgrep，要用 --app-pid；
+#   ③ --app-port 若要传，传应用端口 18080 —— 8080 上监听的是 nginx。
 #   MYSQL_PASSWORD='<口令>' bash scripts/performance/capture-monitoring.sh \
-#     --out <上一步打印的证据目录> --app-port 8080 --interval 5 --duration <压测时长+余量>
+#     --out /tmp/xiyu-perf/mon-<时间戳> \
+#     --app-pid "$(pgrep -f '/opt/xiyu-bid/shared/backend/app.jar' | head -1)" \
+#     --interval 5 --duration <压测时长+余量>
 ```
 
 > 两个场景**必须选一个**并显式写出来：目标不是回环地址时，脚本不会替你猜监控数据该采谁，
@@ -237,7 +257,17 @@ bash scripts/performance/run-stress-test.sh \
   （k6 侧是 `STAGE_CONFIGS[PROFILE] || STAGE_CONFIGS.standard`，拼错的档位会**静默按 standard 跑**，
   而 manifest 记的是你输入的那个值——两边对不上，容量结论就是错的，所以在入口挡掉。）
 - 压测机上需能连到 MySQL 8.0 与 Redis（默认 `127.0.0.1:3306` / `6379`，可用
-  `MYSQL_HOST`/`MYSQL_PORT`/`MYSQL_USER`/`MYSQL_PASSWORD`/`REDIS_HOST`/`REDIS_PORT` 覆盖）。
+  `MYSQL_HOST`/`MYSQL_PORT`/`MYSQL_USER`/`MYSQL_PASSWORD`/`REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD` 覆盖）。
+  `REDIS_PASSWORD` 只在目标 Redis 开了认证时需要（不给就该组件采不到数，`component-status.csv`
+  的 reason 列会写 `NOAUTH`，而不是伪装成"字段缺失"）。采集器把它经 stdin 的 `AUTH` 行传给
+  `redis-cli`：宿主上可能只有 `redis-cli` 3.2（实测 3.2.12），它不认 `REDISCLI_AUTH`，
+  而 `-a` 会把口令写进 argv 让同机 `ps` 看见。
+- **应用进程定位（`--app-pid` / `--app-port`）**：顺序是 `--app-pid` > `--app-port`（靠 `lsof`
+  反查监听端口）> `pgrep` 特征兜底；**指定了 `--app-port` 却查不到时不退回 `pgrep`**（退回去会
+  静默采到另一个 JVM）。这条在 2026-09-21 那次实测上直接决定成败：目标宿主 **winbid-01 没有
+  装 `lsof`（`ss`/`fuser` 也没有）**，`--app-port` 的反查必然失败、app-jvm 组件一行都采不到、
+  整包判不可交付 —— 那台机器上**只能用 `--app-pid`**。另外 `--app-port` 要给**应用端口**
+  （该环境是 18080），给成 nginx 的 8080 即使能反查也是采到 nginx 进程。
 - **监控组件必须真的采到数据**，默认要求 `system,app-jvm,mysql,redis` 四个组件各至少一行
   有效采样（必需字段齐备且为数值）。目标环境确实没有其中某个组件时，显式收窄范围：
   `--monitor-required-components system,app-jvm,mysql`。不声明就少一个组件 → **exit 12**，
@@ -344,11 +374,17 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 1. **请求总数对不上**：报告 §1.1 称 11,092 次请求，§4.2 分项加总为 10,844 次，差 248 次。
    分项明细见报告 §4.2。
 
-2. **两项指标与仓库内 k6 门禁冲突**：报告 §1.1 的全局 P95 = 1.55 s，而 `k6-tests/load-test.js`
-   写的门禁是 `http_req_duration: p(95)<1500`；报告 §4.2 的"项目列表检索" P95 = 2.12 s，
-   而门禁是 `xiyu_project_list_duration: p(95)<1000`。按当前脚本，这两项都会让 k6 以
-   非 0 退出码结束（退出码 99），与报告"达标 ✅"的结论不一致。
-   可能是当时的门禁值不同，也可能是报告误填——需要原始 summary 或 console 日志。
+2. **两项指标与仓库内 k6 门禁的差异（已定论，2026-09-22）**：报告 §1.1 的全局 P95 = 1.55 s，
+   而 `k6-tests/load-test.js` 写的门禁是 `http_req_duration: p(95)<1500`；报告 §4.2 的
+   "项目列表检索" P95 = 2.12 s，而门禁是 `xiyu_project_list_duration: p(95)<1000`。按当前
+   脚本，这两项都会让 k6 以非 0 退出码结束（退出码 99），与报告"达标 ✅"的结论不一致。
+   **结论：不是报告误填，而是两个不同层级的判定基准并存。** 报告 §1.1 自己声明了
+   「上线准入 SLA 标准」（核心业务 P95 `p(95)<2000`、P99 `p(99)<3000`），1.55 s 在该标准之内，
+   故报告写"达标"成立；`k6-tests/load-test.js` 的 1,500 / 1,000 是**乙方自设的更严的运行期
+   门禁**（该文件由本仓库 2026-06-07 提交 `8173225ca` 引入，仓库内**没有任何文档把它记为甲方的
+   验收要求**）。因此对外验收判定用**报告声明的准入标准**，脚本阈值作为**研发侧自查线**。
+   2026-09-21 复测附录 §8.4 已按这两层基准分列（8.4.1 准入判定 / 8.4.2 内部门禁），
+   两处不再互相矛盾。
 
 3. **压测目标环境与脚本默认值不一致**：报告声明测试环境为 `http://172.16.38.78:8080`
    （`winbid-01.test`），而 `k6-tests/load-test.js` 与 `docs/testing/STRESS_TEST_GUIDE.md`
@@ -418,7 +454,7 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | `scripts/performance/exit-code-self-test.sh` | 退出码分层的纯离线回归（不连网络、不施压，逐用例有超时上界；共 46 项断言，含四项先自检夹具自身，以及两个入口"组件集合归一化后为空即 exit 2"）。替身与子进程上界在同目录的 `self-test-fixtures.sh`（夹具层），本文件只写断言；另有三个**只坏脱敏这一次调用**的替身（崩溃 / 机器行被吞 / 机器行重复）由本文件按用例在沙箱里构造 |
 | `scripts/performance/self-test-fixtures.sh` | 上面那个自检的夹具层：k6 / curl / mysql / redis-cli 与监控侧 top / uptime / sysctl / vm_stat / uname 的固定输出替身，外加"坏扫描器""坏 node shim""挂死的 node shim""无 node 的影子 PATH"四个构造，并自带一个能跑的 node（同时清掉宿主可能定义的 node shell 函数）；被 `source` 使用，不单独执行 |
 | `scripts/performance/monitor-spec.sh` | 监控证据的**唯一契约源**：组件集合、CSV 表头、有效行判定列号（runner / 采集器 / 清单生成器都读它，`--self-check` 可离线自检） |
-| `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜——非数值不会被 awk 强制转换成 0，`jstat` 堆字段混进 `foo` 时整列留空而不是写一条"堆已用 0MB"）。它的 43 项断言在同目录的 `monitor-parse-self-test.sh`（自检层），本文件只留解析 |
+| `scripts/performance/monitor-parse.sh` | 采集侧的纯解析层（`top`/`vm_stat`/`jstat`/`mysql`/`redis-cli` 输出 → 数值字段；取不到值一律留空，不猜——非数值不会被 awk 强制转换成 0，`jstat` 堆字段混进 `foo` 时整列留空而不是写一条"堆已用 0MB"）。它的 50 项断言在同目录的 `monitor-parse-self-test.sh`（自检层），本文件只留解析 |
 | `scripts/performance/monitor-parse-self-test.sh` | 上面那个解析层的自检层：每一项断言对应一次"曾经静默错过的输入"（非数值折成 0、`vm_stat` 缺一段被当 0 相加、`mysql` 空值写成 0、CPU 三元组缺一等）；被测对象是 `monitor-parse.sh` 里的纯函数，故由那个文件在 `--self-test` 分支 `source`（不单独执行，直接跑 exit 2 并提示） |
 | `scripts/performance/monitor-readers.sh` | 四个组件各采一次、各写一行、各记一次状态 |
 | `scripts/performance/monitor-status.sh` | 采集侧的状态与结论层：`component-status.csv` 与"这次采集成不成功" |
@@ -428,6 +464,8 @@ manifest 的 `evidence_complete` / `deliverable_ready` 字段与 `missing_artifa
 | `scripts/performance/write-run-manifest.mjs` | 装配并写出 `manifest.json`（含 sha256 与门禁判定）；写盘前用 `scrubText` 对清单自身脱敏并复验，残留即拒绝写出（exit 1） |
 | `scripts/performance/manifest-verify.mjs` | 清单侧的独立复核层（产物 / 有效采样行 / 凭证残留 / 阻塞项文案，与注入值取并集） |
 | `scripts/performance/k6-evidence.mjs` | 清单侧的 k6 产物解释层（头部指标、声明的与击穿的门禁、退出码、脚本路径） |
+| `scripts/performance/render-monitor-charts.mjs` | **展示层（非门禁）**：把证据包里的原始 CSV 渲染成时间序列 SVG，落到与本目录平级的 `charts/<run_id>/`（PNG 由宿主自带渲染器转换，macOS 用 `qlmanage`）。只读原始列、只现算已落盘的数，不做平滑与插值；**不进证据包、不写 manifest、不参与 sha256**——缺图不影响交付判定 |
 | `k6-tests/load-test.js` | k6 压测脚本本体（场景权重、门禁阈值、各接口 Trend 指标） |
 | `docs/testing/STRESS_TEST_GUIDE.md` | 铺底数据生成、导入、执行、清理的操作 SOP |
 | `docs/testing/STRESS_TEST_REPORT_2026-08-28.md` | 2026-08-28 实测报告（附录八为本次补充的证据复现清单） |
+| `docs/testing/STRESS_TEST_EVIDENCE_APPENDIX_2026-09-21.md` | 2026-09-21 复跑的证据附录：运行信息、原始产物 sha256、复现命令、**§2.1/§4.2/§5 逐条对账**、监控图清单 |
