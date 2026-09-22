@@ -37,7 +37,6 @@ import { auditApi } from './modules/audit.js'
 import { settingsApi } from './modules/settings.js'
 import { permissionMatrixApi } from './modules/permissionMatrix.js'
 import { projectGroupsApi } from './modules/projectGroups.js'
-import { bidResultsApi } from './modules/bidResults.js'
 import { workbenchApi } from './modules/workbench.js'
 import { bidAgentApi } from './modules/bidAgent.js'
 import { bidMatchScoringApi } from './modules/bidMatchScoring.js'
@@ -77,7 +76,6 @@ export {
   settingsApi,
   permissionMatrixApi,
   projectGroupsApi,
-  bidResultsApi,
   workbenchApi,
   bidAgentApi,
   bidMatchScoringApi,

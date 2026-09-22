@@ -6,7 +6,6 @@ import { hasAllPermissions } from '@/utils/permission'
 import { sidebarMenuConfig } from '@/config/sidebar-menu'
 
 const DEFAULT_AUTHENTICATED_HOME = '/dashboard'
-const HIDDEN_API_ROUTES = new Set(['CustomerOpportunityCenter', '/bidding/customer-opportunities'])
 
 const getRequiredPermissions = (to) => {
   const permissions = to.matched.flatMap((record) => record.meta?.permissionKeys || [])
@@ -43,14 +42,6 @@ const getFirstAccessiblePath = (userStore) => {
   return '/login'
 }
 
-const isHiddenApiRoute = (to) => {
-  if (!to) return false
-  if (typeof to.name === 'string' && HIDDEN_API_ROUTES.has(to.name)) {
-    return true
-  }
-  return HIDDEN_API_ROUTES.has(to.path)
-}
-
 const routes = [
   {
     path: '/login',
@@ -84,12 +75,6 @@ const routes = [
         name: 'Bidding',
         component: () => import('@/views/Bidding/List.vue'),
         meta: { title: '标讯中心' }
-      },
-      {
-        path: 'bidding/customer-opportunities',
-        name: 'CustomerOpportunityCenter',
-        redirect: '/bidding',
-        meta: { title: '客户商机中心', icon: 'bidding' }
       },
       {
         path: 'bidding/:id',
@@ -207,13 +192,6 @@ const routes = [
             component: () => import('@/views/Knowledge/views/CaseWrapper.vue'),
             meta: { title: '案例库', permissionKeys: ['knowledge', 'knowledge-case'] }
           },
-          {
-            path: 'template',
-            name: 'Template',
-            alias: '/knowledge/templates',
-            component: () => import('@/views/Knowledge/Template.vue'),
-            meta: { title: '模板库', permissionKeys: ['knowledge', 'knowledge-template'] }
-          },
         ]
       },
       {
@@ -227,12 +205,6 @@ const routes = [
         meta: { title: '保证金管理', permissionKeys: ['resource', 'resource-margin'] }
       },
       {
-        path: 'resource/expense',
-        name: 'Expense',
-        component: () => import('@/views/Resource/Expense.vue'),
-        meta: { title: '费用管理' }
-      },
-      {
         path: 'resource/account',
         name: 'Account',
         component: () => import('@/views/Resource/Account.vue'),
@@ -243,43 +215,6 @@ const routes = [
         name: 'CAManagement',
         component: () => import('@/views/Resource/CAManagement.vue'),
         meta: { title: 'CA信息管理', requiresAuth: true, permissionKeys: ['resource', 'resource-ca'] }
-      },
-      {
-        path: 'resource/contract-borrow',
-        name: 'ContractBorrow',
-        component: () => import('@/views/Resource/ContractBorrow.vue'),
-        meta: { title: '合同借阅' }
-      },
-      {
-        path: 'resource/bid-result',
-        name: 'BidResult',
-        component: () => import('@/views/Resource/BidResult.vue'),
-        meta: { title: '投标结果闭环' }
-      },
-      // BAR 投标资产台账
-      {
-        path: 'resource/bar',
-        name: 'BAR',
-        component: () => import('@/views/Resource/BAR/CheckPanel.vue'),
-        meta: { title: '可投标能力检查' }
-      },
-      {
-        path: 'resource/bar/sites',
-        name: 'BAR_SiteList',
-        component: () => import('@/views/Resource/BAR/SiteList.vue'),
-        meta: { title: '站点台账', showBack: true }
-      },
-      {
-        path: 'resource/bar/site/:id',
-        name: 'BAR_SiteDetail',
-        component: () => import('@/views/Resource/BAR/SiteDetail.vue'),
-        meta: { title: '站点详情', showBack: true }
-      },
-      {
-        path: 'resource/bar/sop/:siteId',
-        name: 'BAR_SOPDetail',
-        component: () => import('@/views/Resource/BAR/SOPDetail.vue'),
-        meta: { title: '找回SOP', showBack: true }
       },
       {
         path: 'analytics/dashboard',
@@ -302,12 +237,6 @@ const routes = [
         name: 'OperationLogs',
         component: () => import('@/views/System/OperationLogPage.vue'),
         meta: { title: '日志说明', showBack: true, permissionKeys: ['operation-logs'] }
-      },
-      {
-        path: 'audit-logs',
-        name: 'AuditLogs',
-        component: () => import('@/views/System/AuditLogPage.vue'),
-        meta: { title: '审计日志', permissionKeys: ['audit-logs'], showBack: true }
       },
       {
         path: 'settings',
@@ -420,8 +349,6 @@ router.beforeEach(async (to, from, next) => {
 
   if (isRequiresAuthRoute(to) && !hasAuthState) {
     next('/login')
-  } else if (hasAuthState && isHiddenApiRoute(to)) {
-    next('/bidding')
   } else if (to.path === '/login' && hasAuthState) {
     next(DEFAULT_AUTHENTICATED_HOME)
   } else if (hasAuthState && !hasRouteAccess(to, userStore)) {

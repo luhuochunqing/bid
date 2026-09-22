@@ -6,7 +6,6 @@
           <el-icon><Coin /></el-icon>
           <span>费用汇总</span>
         </div>
-        <el-button link type="primary" @click="$emit('manage')">费用管理</el-button>
       </div>
     </template>
 
@@ -79,7 +78,7 @@
 <script setup>
 import { Coin } from '@element-plus/icons-vue'
 
-defineEmits(['manage'])
+defineEmits([])
 
 defineProps({
   expenses: {

@@ -149,13 +149,6 @@ test.describe('commercial main flow', () => {
       // GET /api/knowledge/cases 端点不存在或返回错误（后端待补全），跳过数据验证
     }
 
-    await page.goto('/resource/expense')
-    await expect(page.locator('.card-header span').filter({ hasText: '费用台账' }).first()).toBeVisible()
-    await expect(page.getByText(seeded.projectName).first()).toBeVisible()
-
-    await page.goto('/resource/bar/sites')
-    await expect(page.getByRole('heading', { name: '站点台账' })).toBeVisible()
-
     await page.goto('/analytics/dashboard')
     await expect(page.getByRole('heading', { name: '数据分析' })).toBeVisible()
     // M0~M4 重构后的板块锚点

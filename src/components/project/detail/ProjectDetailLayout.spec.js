@@ -24,7 +24,6 @@ const context = {
   handleEdit: vi.fn(),
   handleSubmitApproval: vi.fn(),
   handleRecordResult: vi.fn(),
-  goToResultPage: vi.fn(),
   toggleAssistantPanel: vi.fn(),
   runAICheck: vi.fn(),
   handleAddDocument: vi.fn(),
