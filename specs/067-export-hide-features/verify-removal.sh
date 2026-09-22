@@ -108,6 +108,15 @@ for f in src/config/templateLibrary.js src/views/Dashboard/workbench-demo-data.j
   expect_absent "$f"
 done
 
+# 第四轮导出前清理：存量死组件与孤儿 API（含隐藏功能痕迹）
+for f in src/api/modules/fees.js src/api/modules/__tests__/fees-project.spec.js \
+         src/components/project/detail/ProjectDetailMainContent.vue \
+         src/components/project/ProjectExpenseSummaryCard.vue \
+         src/components/project/detail/ProjectDetailAICheckCard.vue \
+         src/components/project/detail/ProjectDetailAssetCheckPane.vue; do
+  expect_absent "$f"
+done
+
 # 共享调用链
 grep -q "knowledgeApi.templates" src/composables/projectDetail/useProjectDetailBoot.js \
   && pass "knowledgeApi.templates 调用链" || fail "knowledgeApi.templates 调用链断裂"

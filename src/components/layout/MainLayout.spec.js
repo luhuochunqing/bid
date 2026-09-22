@@ -1,4 +1,4 @@
-// Input: MainLayout breadcrumb mapping after 067 removal (audit-logs mapping removed)
+// Input: MainLayout breadcrumb mapping after audit-logs mapping removal
 // Output: assertion that live breadcrumbs render and removed route title is gone
 // Pos: src/components/layout/ - main layout breadcrumb spec
 import { mount } from '@vue/test-utils'
@@ -33,7 +33,7 @@ const stubs = {
 }
 
 describe('MainLayout', () => {
-  it('renders breadcrumb for live routes (067 验收导出剔除后)', async () => {
+  it('renders breadcrumb for live routes', async () => {
     routeState.value = {
       path: '/resource/margin',
       meta: {},
@@ -46,7 +46,7 @@ describe('MainLayout', () => {
     expect(wrapper.text()).toContain('保证金管理')
   })
 
-  it('no longer maps the removed audit-logs route title (067 验收导出剔除)', async () => {
+  it('no longer maps the removed audit-logs route title', async () => {
     routeState.value = {
       path: '/audit-logs/legacy',
       meta: {},
@@ -55,7 +55,7 @@ describe('MainLayout', () => {
     const { default: MainLayout } = await import('./MainLayout.vue')
     const wrapper = mount(MainLayout, { global: { stubs } })
 
-    // 067: audit-logs 一级路径映射已删除，不再渲染"审计日志"面包屑
+    // audit-logs 一级路径映射已删除，不再渲染"审计日志"面包屑
     expect(wrapper.text()).not.toContain('审计日志')
   })
 })

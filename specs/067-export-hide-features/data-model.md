@@ -78,6 +78,16 @@
 
 `api/modules/bar.js`（BAR 页面删除后零引用，现役替代为 `resources/barSites.js` + `resources/certificates.js`）、`api/modules/expense.js` + `expense.spec.js`（费用管理隐藏功能专属 API，生产零引用；现役实现为 `resources/expenses.js`，勿动）。
 
+## 第四轮导出前清理（R11：存量死组件与孤儿 API）
+
+导出包面向甲方，凡"生产不可达 + 含隐藏功能痕迹"的存量死文件一并清除：
+`api/modules/fees.js` + `__tests__/fees-project.spec.js`（费用 API 孤儿）、
+`components/project/detail/ProjectDetailMainContent.vue`、`components/project/ProjectExpenseSummaryCard.vue`、
+`components/project/detail/ProjectDetailAICheckCard.vue`、`components/project/detail/ProjectDetailAssetCheckPane.vue`
+（项目详情重构后遗留的死组件链，含"费用汇总/可投标能力"字样，生产渲染链为 `ProjectDetailShell → ProjectDetailMainColumn`，已核实零非 spec 引用）。
+同步：`ProjectDetailTaskStatusEvents.spec.js` 移除 MainContent 用例；嵌套 README（api/Resource/Knowledge/layout）与
+`scripts/check-route-e2e-compat.mjs`、`scripts/check-e2e-ui-sync.mjs` 的失效引用已修订。
+
 ## 状态流转
 
 `pending → deleted(git rm) → verified(批内 grep+test) → committed(原子提交)`

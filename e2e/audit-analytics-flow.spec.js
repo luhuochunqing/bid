@@ -143,6 +143,5 @@ test('dashboard, operation log and audit log screens render one real key operati
   await expect(qualificationAuditRow).toBeVisible()
   await expect(qualificationAuditRow).toContainText('创建资质')
 
-  // 注：/bidAdmin 权限清单仅含 operation-logs（无 audit-logs），
-  // /audit-logs 会被守卫重定向回工作台，审计页断言随权限模型收敛移除
+  // 注：/bidAdmin 权限清单仅含 operation-logs
 })

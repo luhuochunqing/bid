@@ -25,7 +25,6 @@ import { crmApi } from './modules/crm.js'
 import { projectsApi } from './modules/projects.js'
 import qualificationsApi from './modules/qualification.js'
 import knowledgeApi from './modules/knowledge.js'
-import { feesApi } from './modules/fees.js'
 import aiApi from './modules/ai.js'
 import resourcesApi from './modules/resources.js'
 import collaborationApi from './modules/collaboration.js'
@@ -60,7 +59,6 @@ export {
   projectsApi,
   qualificationsApi,
   knowledgeApi,
-  feesApi,
   aiApi,
   resourcesApi,
   collaborationApi,
@@ -98,7 +96,6 @@ export default {
   projects: () => Promise.resolve(projectsApi),
   qualifications: () => Promise.resolve(qualificationsApi),
   knowledge: () => Promise.resolve(knowledgeApi),
-  fees: () => Promise.resolve(feesApi),
   ai: () => Promise.resolve(aiApi),
   resources: () => Promise.resolve(resourcesApi),
   collaboration: () => Promise.resolve(collaborationApi),

@@ -157,7 +157,7 @@ function mountSettings({ role = 'admin', query = {} } = {}) {
 }
 
 describe('Settings', () => {
-  it('has no audit log tab (unreleased feature removed for acceptance export)', () => {
+  it('has no audit log tab (legacy entry removed)', () => {
     const adminWrapper = mountSettings({ role: 'admin' })
     expect(adminWrapper.text()).not.toContain('审计日志')
 

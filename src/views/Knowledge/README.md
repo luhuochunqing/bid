@@ -17,7 +17,6 @@
 | `views/CaseWrapper.vue` | View | 案例库路由入口，渲染 `CaseGrid.vue` |
 | `views/CaseGrid.vue` | View | AI 案例网格列表页（案例库唯一前端入口，操作 `knowledge_case` 表） |
 | `Qualification.vue` | View | 资质文件页编排层，复用 `components/qualification/` 子组件 |
-| `Template.vue` | View | 模板库页编排层，复用 `components/template/` 子组件 |
 | `Performance.vue` | View | 业绩管理页编排层，复用 `components/Performance*.vue` 子组件 |
 | `Personnel.vue` | View | 人员管理页编排层，复用 `components/personnel/` 子组件 |
 | `BrandAuth.vue` | View | 品牌授权页编排层，复用 `components/BrandAuth*.vue` 子组件 |
@@ -38,7 +37,6 @@
 
 - `components/qualification/` — 资质子组件 + composable（详见该目录 README）
 - `components/personnel/` — 人员子组件 + composable
-- `components/template/` — 模板子组件 + composable
 - `components/Performance*.vue` — 业绩管理子组件
 - `components/BrandAuth*.vue` — 品牌授权子组件
 - `views/components/Archive*.vue` — 项目档案子组件

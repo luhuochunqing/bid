@@ -74,7 +74,7 @@ describe('useWorkbenchQuickStart', () => {
     })
   })
 
-  it('submits qualification borrow requests only (067 验收导出剔除合同借阅)', async () => {
+  it('submits qualification borrow requests only (已下线合同借阅回归)', async () => {
     const api = createApi()
     const quickStart = useWorkbenchQuickStart({
       currentUserRef: ref({ name: '小王', dept: '销售部' }),
@@ -94,7 +94,7 @@ describe('useWorkbenchQuickStart', () => {
       purpose: '投标证明',
       returnDate: '2026-05-01',
     }))
-    // 067: 合同借阅链路已整体移除
+    // 合同借阅链路已整体移除
     expect(api.contractBorrowApi).toBeUndefined()
   })
 })

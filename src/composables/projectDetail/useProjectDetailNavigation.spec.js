@@ -1,4 +1,4 @@
-// Input: useProjectDetailNavigation after 067 removal (dead jump functions removed)
+// Input: useProjectDetailNavigation after dead jump functions removal
 // Output: assertion that only live navigation helpers remain
 // Pos: src/composables/projectDetail/ - project detail navigation spec
 import { describe, expect, it, vi } from 'vitest'
@@ -6,7 +6,7 @@ import { ref } from 'vue'
 import { useProjectDetailNavigation } from './useProjectDetailNavigation.js'
 
 describe('useProjectDetailNavigation', () => {
-  it('keeps only goBack/handleEdit and drops dead routes (067 验收导出剔除)', () => {
+  it('keeps only goBack/handleEdit and drops dead routes', () => {
     const push = vi.fn()
     const context = {
       route: { params: { id: '42' } },
@@ -24,7 +24,7 @@ describe('useProjectDetailNavigation', () => {
     expect(push).toHaveBeenCalledWith('/document/editor/42')
   })
 
-  it('no longer exposes jumps to removed expense/bar/bid-result routes (067 验收导出剔除)', () => {
+  it('no longer exposes jumps to removed routes', () => {
     const navigation = useProjectDetailNavigation({
       route: { params: { id: '1' } },
       router: { push: vi.fn() },
@@ -38,7 +38,7 @@ describe('useProjectDetailNavigation', () => {
     expect(navigation.viewSOP).toBeUndefined()
   })
 
-  it('does not depend on assetCheckResult anymore (067 验收导出剔除)', () => {
+  it('does not depend on assetCheckResult anymore', () => {
     // 传入已废弃字段不应影响返回值
     const navigation = useProjectDetailNavigation({
       route: { params: { id: '7' } },

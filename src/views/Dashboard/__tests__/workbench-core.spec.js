@@ -205,7 +205,7 @@ describe('workbench approval and support core', () => {
     expect(hasQuickStartPermission({ menuPermissions: ['dashboard'] })).toBe(false)
   })
 
-  it('builds borrow payloads for real API submission (067 验收导出剔除合同借阅)', () => {
+  it('builds borrow payloads for real API submission (已下线合同借阅回归)', () => {
     const qualificationForm = {
       mode: 'qualification',
       projectId: 9,
@@ -226,7 +226,7 @@ describe('workbench approval and support core', () => {
       remark: '原件',
     })
 
-    // 067: 合同借阅 payload 构建器已随功能移除（模块不再导出）
+    // 合同借阅 payload 构建器已随功能移除（模块不再导出）
   })
 })
 
