@@ -194,18 +194,14 @@ final class StructuredTableExtractionHandler {
         WeightSumCheck.Result weightResult = evidenceWeightResult(allLeafCandidates, completeness, decision);
         List<Map<String, Object>> tableSplits = structured.tableCompletenesses().stream()
                 .map(StructuredTableExtractionHandler::tableSplitView).toList();
+        List<String> subtotalDefects = completeness == null ? List.of() : completeness.defects().stream()
+                .filter(defect -> defect.startsWith("TABLE_SUBTOTAL_MISMATCH")).toList();
         task.setRunSummary(RunSummaryAssembler.assemble(
-                new RecallOutcome(List.of(), 0),
-                candidates.size(),
-                new RunSummaryAssembler.MergeView(false, false, 0, 0, 0),
-                weightResult,
-                candidates.size(),
-                "",
-                ScoreParsePipeline.EVIDENCE_PIPELINE_V1,
-                decision.name(),
-                fallbackReason,
-                tableSplits, completeness == null ? List.of() : completeness.defects().stream().filter(
-                        defect -> defect.startsWith("TABLE_SUBTOTAL_MISMATCH")).toList()).json());
+                new RecallOutcome(List.of(), 0), candidates.size(),
+                new RunSummaryAssembler.MergeView(false, false, 0, 0, 0), weightResult, candidates.size(),
+                structured.aiProviderDiagnostics() != null ? structured.aiProviderDiagnostics().model() : "",
+                ScoreParsePipeline.EVIDENCE_PIPELINE_V1, decision.name(), fallbackReason,
+                tableSplits, subtotalDefects, structured.aiProviderDiagnostics()).json());
         task.setPipelineVersion(ScoreParsePipeline.EVIDENCE_PIPELINE_V1);
         task.setDecisionStatus(decision.name());
         task.setFallbackReason(fallbackReason);

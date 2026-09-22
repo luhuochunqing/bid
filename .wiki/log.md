@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-22] feat | 评分解析透出 AI Provider 诊断元数据与调用遥测
+
+- 触发：评分解析链路中 AI Provider 实际模型、延迟及异常报错无法在任务结果中结构化追踪与审计。
+- 方案：新增不可变纯领域 Record `AiProviderDiagnostics`（含 API Token 凭据正则脱敏与多调用列表记录）；升级 `RunSummaryAssembler` 与 `StructuredTableResult` / `StructuredTableExtractionHandler`，将遥测安全持久化至 `ScoreParseTask.run_summary.aiProviderDiagnostics`，严格保证既有键序。
+- 边界：纯核心 FP-Java 设计，不依赖 Spring/JPA，单文件行预算严守 300 行红线。
+- 回填：更新 [[scoreparse-multimodal-primary]]，追加 `docs/lessons/lessons-learned.md` §398。
+
 ## [2026-09-22] compound | 项目 1385 评分标准候选采纳与解析任务一致性回填
 
 - 根因：证据说明列 255 字截断使新解析失败；旧页面候选与后端最新任务错位，异常被映射为笼统 409。

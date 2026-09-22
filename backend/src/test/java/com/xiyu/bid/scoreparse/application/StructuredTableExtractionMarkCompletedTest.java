@@ -5,6 +5,7 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.scoreparse.domain.AiProviderDiagnostics;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
@@ -266,5 +267,28 @@ class StructuredTableExtractionMarkCompletedTest {
         }
         return new DocumentArtifact.CanonicalTable(
                 tableId, 1, "", rows.size(), rows.get(0).size(), List.of(), cells, true);
+    }
+
+    @Test
+    void markEvidencePipelineCompleted_carriesAiProviderDiagnosticsInRunSummary() {
+        AiProviderDiagnostics diag = AiProviderDiagnostics.success("deepseek", "deepseek-chat", 2100L,
+                List.of(new AiProviderDiagnostics.AiCallDetail("TABLE_EXTRACTION", "deepseek", "deepseek-chat", "SUCCESS", 2100L, null, null)));
+        StructuredTableResult structured = StructuredTableResult.evidencePipeline(
+                List.of(), List.of(), null, List.of(), List.of(), diag);
+        ScoreParseTask task = new ScoreParseTask();
+        ScoreParseTaskRepository taskRepo = mock(ScoreParseTaskRepository.class);
+        ScoreParseTaskStateService stateService = mock(ScoreParseTaskStateService.class);
+        ScoreParseProgressService progressService = mock(ScoreParseProgressService.class);
+        ScoreItemPersistenceService itemService = mock(ScoreItemPersistenceService.class);
+        EstimatedScoreService estService = mock(EstimatedScoreService.class);
+
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(
+                task, "task-diag", structured, taskRepo, stateService, progressService, itemService, estService);
+
+        assertThat(task.getRunSummary())
+                .contains("\"llmModel\":\"deepseek-chat\"")
+                .contains("\"aiProviderDiagnostics\":{")
+                .contains("\"provider\":\"deepseek\"")
+                .contains("\"latencyMs\":2100");
     }
 }

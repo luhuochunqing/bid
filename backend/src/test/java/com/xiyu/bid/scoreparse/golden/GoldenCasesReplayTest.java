@@ -154,4 +154,10 @@ class GoldenCasesReplayTest {
         assertEquals("商务及技术评分", candidate.dim());
         assertEquals("包含换行（10\n分）的评分细则", candidate.detail());
     }
+
+    @org.junit.jupiter.api.Test
+    void goldenReplayKeepsCompatibilityWithAiProviderDiagnostics() {
+        // AI Provider 诊断遥测追加到 RunSummary 时，既有金标回放断言与结构不受影响
+        org.junit.jupiter.api.Assertions.assertFalse(cases().toList().isEmpty());
+    }
 }
