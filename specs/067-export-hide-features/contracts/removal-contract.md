@@ -57,8 +57,12 @@ grep -q "convertToProject" src/views/Project/create/composables/useProjectCreate
 
 ## 例外登记（允许的合法残留）
 
+> **机器真相**：豁免的精确实现以 `verify-removal.sh` 的过滤链为准（含 spec 负向断言白名单与注释行过滤），本表为口径说明。
+
 | 符号 | 允许存在的位置 | 理由 |
 |---|---|---|
 | `/api/**/audit-logs` 字符串 | `src/api/modules/audit.js`、`accounts.js`、`ca.js`、`e2e/qualification-*.spec.js` | 后端接口保留（FR-009），这些是资质/账户操作日志 API，与"审计日志页面"无关 |
+| `audit-logs` 负向断言 | `Settings.spec.js`、`MainLayout.spec.js` | 固化"审计页签/面包屑映射已剔除"的测试意图 |
 | `templates`（词根） | `knowledge.js`、`useProjectDetailBoot/Init`、`useDocumentKnowledge` | 现役模板选择能力 |
 | `borrow`（词根） | `useWorkbenchQuickStart.js`、`workbench-quick-start-core.js` | 资质借阅现役 |
+| `goToResultPage`/`contractBorrowApi`/`bidResultsApi` 负向断言 | `useProjectDetailNavigation.spec.js`、`useWorkbenchQuickStart.spec.js` | 固化"死函数/死接线已剔除"的测试意图 |

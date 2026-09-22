@@ -45,7 +45,8 @@ if [ -z "$hits" ]; then pass "路由地址 knowledge/template（API 路径豁免
 fi
 # audit-logs：豁免后端操作日志 API、角色权限键 fixture、负向断言 spec、注释说明
 hits=$(grep -rn $INC "audit-logs" $SEARCH_DIRS 2>/dev/null \
-  | grep -v "src/api/modules/audit.js\|src/api/modules/resources/accounts.js\|src/api/modules/ca.js\|e2e/qualification-.*\.spec\.js\|api/qualifications\|api/tenders\|api/knowledge\|api/platform/accounts\|qualifications/\|权限清单\|Settings.spec.js\|MainLayout.spec.js\|// " || true)
+  | grep -v "src/api/modules/audit.js\|src/api/modules/resources/accounts.js\|src/api/modules/ca.js\|e2e/qualification-.*\.spec\.js\|api/qualifications\|api/tenders\|api/knowledge\|api/platform/accounts\|qualifications/\|权限清单\|Settings.spec.js\|MainLayout.spec.js" \
+  | grep -vE ':[0-9]+:[[:space:]]*//' || true)
 if [ -z "$hits" ]; then pass "路由地址 audit-logs（白名单豁免后）"; else
   fail "路由地址 audit-logs 非法残留:"; echo "$hits" | head -10 | sed 's/^/      /'
 fi
@@ -102,7 +103,8 @@ done
 # 第二轮评审修复：这些曾列入白名单但评审后确认零引用，改为必须消失
 for f in src/config/templateLibrary.js src/views/Dashboard/workbench-demo-data.js \
          src/api/modules/roi.js src/api/modules/scoreAnalysis.js src/api/modules/bidResults.normalizers.js \
-         src/views/Resource/contractBorrow.css src/components/expense; do
+         src/views/Resource/contractBorrow.css src/components/expense \
+         src/api/modules/bar.js src/api/modules/expense.js; do
   expect_absent "$f"
 done
 

@@ -74,6 +74,10 @@
 
 `config/templateLibrary.js`（原白名单，模板链路删除后零引用）、`views/Dashboard/workbench-demo-data.js`（main 既有孤儿，含"资质/合同借阅"文案）、`api/modules/roi.js`、`api/modules/scoreAnalysis.js`、`api/modules/bidResults.normalizers.js`、`views/Resource/contractBorrow.css`、`components/expense/`（9 文件）。
 
+## 第三轮评审补删（R10：bar.js / expense.js 孤儿）
+
+`api/modules/bar.js`（BAR 页面删除后零引用，现役替代为 `resources/barSites.js` + `resources/certificates.js`）、`api/modules/expense.js` + `expense.spec.js`（费用管理隐藏功能专属 API，生产零引用；现役实现为 `resources/expenses.js`，勿动）。
+
 ## 状态流转
 
 `pending → deleted(git rm) → verified(批内 grep+test) → committed(原子提交)`
