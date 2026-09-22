@@ -65,6 +65,7 @@ backlinks:
 - [[event-library-integration-rca]] — 事件库两次集成反复失败根因复盘
 - [[flyway-migration-pitfalls]] — Flyway 迁移陷阱集
 - [[frontend-pitfalls]] — 前端 Vue3 / Element Plus 陷阱集
+- [[gate-command-scope-pitfalls]] — 门禁命令的作用域陷阱（doc-governance 默认不扫 backend / line-budget 裸调用空转 / diff_hash 两种口径与调用位置 / wiki 回填也会改 hash）
 - [[gitee-token-resolution]] — Gitee token 多源可见性与统一解析链（Agent 提 PR 找不到 token 的根因与唯一真相源规范）
 - [[glossary]] — 术语表
 - [[hibernate-string-enum-varchar-validate]] — Hibernate STRING 枚举 vs varchar 列校验陷阱
@@ -92,6 +93,7 @@ backlinks:
 - [[production-deployment-lessons]] — 生产环境首次部署实战教训
 - [[sidecar-dockerfile-dual-sync]] — Sidecar Dockerfile 双文件同步陷阱（Dockerfile.cn 为服务器实际构建源）
 - [[project-detail-toolbar-back-fix]] — 项目详情页横条返回按钮无响应修复（el-page-header back 事件未接）
+- [[project-list-server-side-paging]] — 项目列表服务端分页（快慢两路径路由、"一个筛选都不下推"的 collation 准入判据、与导出/工作台/CRM 共享的全序）
 - [[project-search-owner-unit]] — 项目搜索按招标主体（ownerUnit 数据链路与关键词过滤契约）
 - [[requirements]] — 需求追溯
 - [[result-registration-immutability]] — 项目结果登记不可变链路与二次确认

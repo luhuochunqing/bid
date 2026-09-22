@@ -9,6 +9,7 @@ import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.project.dto.ProjectRequest;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.dto.ProjectImportRequest;
+import com.xiyu.bid.project.dto.ProjectListQuery;
 import com.xiyu.bid.project.service.ProjectExportService;
 import com.xiyu.bid.project.service.ProjectService;
 import com.xiyu.bid.util.InputSanitizer;
@@ -73,33 +74,14 @@ public class ProjectController {
             @RequestParam(required = false) String bidMonth,
             @RequestParam(required = false) @Min(value = 0, message = "page 必须 >= 0") @Max(value = 100000, message = "page 超出上限") Integer page,
             @RequestParam(required = false) @Min(value = 1, message = "size 必须 >= 1") @Max(value = 200, message = "size 必须 <= 200") Integer size) {
-        log.info("GET /api/projects - Fetching all projects (page={}, size={})", page, size);
-        List<ProjectDTO> projects = projectService.getAllProjects();
-        // name 关键词同时匹配项目名、客户名与招标主体（ownerUnit），与前端 placeholder"搜索项目名称、招标主体"一致。
-        if (name != null && !name.isBlank()) projects = projects.stream().filter(p -> containsIgnoreCase(p.getName(), name) || containsIgnoreCase(p.getCustomer(), name) || containsIgnoreCase(p.getOwnerUnit(), name)).toList();
-        if (ownerUnit != null && !ownerUnit.isBlank()) projects = projects.stream().filter(p -> containsIgnoreCase(p.getOwnerUnit(), ownerUnit)).toList();
-        if (projectType != null && !projectType.isBlank()) projects = projects.stream().filter(p -> projectType.equals(p.getProjectType())).toList();
-        if (customerType != null && !customerType.isBlank()) projects = projects.stream().filter(p -> customerType.equals(p.getCustomerType())).toList();
-        if (priority != null && !priority.isBlank()) projects = projects.stream().filter(p -> priority.equals(p.getPriority())).toList();
-        if (sourceModule != null && !sourceModule.isBlank()) projects = projects.stream().filter(p -> sourceModule.equals(p.getSourceModule())).toList();
-        if (bidStatus != null && !bidStatus.isBlank()) projects = projects.stream().filter(p -> bidStatus.equals(p.getBidStatus())).toList();
-        if (stage != null && !stage.isBlank()) projects = projects.stream().filter(p -> stage.equals(p.getStage())).toList();
-        if (projectLeaderId != null) projects = projects.stream().filter(p -> projectLeaderId.equals(p.getProjectLeaderId())).toList();
-        // 投标负责人筛选只匹配主负责人，与前端 useProjectFilter 契约保持一致。
-        // 副负责人不参与筛选（避免筛 A 时主=B/副=A 的项目混入，而列表只显示主负责人姓名）。
-        if (biddingLeaderId != null) projects = projects.stream().filter(p -> biddingLeaderId.equals(p.getBiddingLeaderId())).toList();
-        if (projectLeaderName != null && !projectLeaderName.isBlank()) projects = projects.stream().filter(p -> containsIgnoreCase(p.getProjectLeaderName(), projectLeaderName)).toList();
-        if (biddingLeaderName != null && !biddingLeaderName.isBlank()) projects = projects.stream().filter(p -> containsIgnoreCase(p.getBiddingLeaderName(), biddingLeaderName)).toList();
-        if (leaderDepartment != null && !leaderDepartment.isBlank()) projects = projects.stream().filter(p -> leaderDepartment.equals(p.getLeaderDepartment())).toList();
-        if (region != null && !region.isBlank()) projects = projects.stream().filter(p -> containsIgnoreCase(p.getRegion(), region)).toList();
-        if (biddingPlatform != null && !biddingPlatform.isBlank()) projects = projects.stream().filter(p -> containsIgnoreCase(p.getBiddingPlatform(), biddingPlatform)).toList();
-        if (bidMonth != null && !bidMonth.isBlank()) projects = projects.stream().filter(p -> bidMonth.equals(p.getBidMonth())).toList();
-        if (size != null) {
-            long fromLong = (page == null ? 0L : (long) page) * (long) size;
-            int fromIndex = (int) Math.min(fromLong, (long) projects.size());
-            int toIndex = Math.min(fromIndex + size, projects.size());
-            projects = projects.subList(fromIndex, toIndex);
-        }
+        log.info("GET /api/projects - Fetching projects (page={}, size={})", page, size);
+        // 筛选与分页的语义都收在 ProjectListQueryService：一个筛选都没传时，它把排序、分页与权限
+        // 一起下推 SQL、只富化当页；只要传了筛选（哪怕只有 stage）就回落到全量内存筛选。
+        // 控制器只装配请求，不参与判据。
+        List<ProjectDTO> projects = projectService.getProjects(new ProjectListQuery(
+                name, ownerUnit, projectType, customerType, priority, sourceModule, bidStatus, stage,
+                projectLeaderId, biddingLeaderId, projectLeaderName, biddingLeaderName,
+                leaderDepartment, region, biddingPlatform, bidMonth, page, size));
         return ResponseEntity.ok(ApiResponse.success("Successfully retrieved projects", projects));
     }
 
@@ -289,9 +271,5 @@ public class ProjectController {
         if (request.getPlatform() != null) request.setPlatform(InputSanitizer.sanitizeString(request.getPlatform(), 255));
         if (request.getDescription() != null) request.setDescription(InputSanitizer.sanitizeString(request.getDescription(), 5000));
         if (request.getRemark() != null) request.setRemark(InputSanitizer.sanitizeString(request.getRemark(), 5000));
-    }
-
-    private boolean containsIgnoreCase(String source, String needle) {
-        return source != null && needle != null && source.toLowerCase().contains(needle.toLowerCase());
     }
 }

@@ -44,6 +44,7 @@ class ProjectServiceCustomFieldsTest {
     @Mock DemoFusionService demoFusionService;
     @Mock ProjectImportService projectImportService;
     @Mock ProjectQueryService projectQueryService;
+    @Mock ProjectListQueryService projectListQueryService;
     @Mock ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
 
     ProjectService service;
@@ -52,7 +53,8 @@ class ProjectServiceCustomFieldsTest {
     void setUp() {
         service = new ProjectService(projectRepository, projectAccessScopeService, demoModeService,
                 demoDataProvider, demoFusionService, projectImportService, projectQueryService,
-                projectLeadAssignmentRepository, new CustomFieldsCodec(new ObjectMapper()));
+                projectListQueryService, projectLeadAssignmentRepository,
+                new CustomFieldsCodec(new ObjectMapper()));
         lenient().when(demoModeService.isEnabled()).thenReturn(false);
     }
 

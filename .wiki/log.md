@@ -1146,3 +1146,17 @@
 - 决策：结构化行角色约束方案总分，共用原文小计校验，Markdown 标题按层级识别；具体小计差异随任务运行摘要可读。
 - 证据：A/B/C 原始输入先出现领域、编排和 JPA 业务断言失败，修后正常 100/80 分和完整回补仍通过；真实 1386 未验证。
 - 回填：更新 [[scoreparse-multimodal-primary]]。
+
+## [2026-09-22] perf | 项目列表取数改为服务端分页（不再为取一页而富化全表）
+- 触发：2026-09-21 `standard` 档压测 `GET /api/projects` P95 2,224.5 ms，门禁 `p(95)<1000` 超标 122%（交付验收 3 条未达标项中最重一条）；同次宿主 CPU 峰值 74.6%、MySQL 慢查询与行锁等待增量均为 0、缓存 263 ops/s，三层全轻载 ⇒ 瓶颈在应用内部链路，扩容解决不了。
+- 根因：该接口与查询条件无关——先 `findAll()` 拉全表、对每一行做 6 组关联富化（标讯/立项详情/负责人指派/阶段/部门/评标），最后才在控制器 `subList` 切页；为展示单页 10 行完成了全表富化。
+- 决策：仅在「一个筛选都没传 + 带 `size` + 非 e2e demo」时把排序/分页/权限过滤一起下推 SQL、只富化当页；其余情况完全走既有全量路径。不下推任何筛选（`utf8mb4_unicode_ci` 下 SQL `=` 与 `String.equals` 在大小写与空白折叠上不同源，H2 对此外无证明力）；权限分支判据用显式布尔 `currentUserHasAdminAccess()` 而非 `allowedIds` 是否为空；全序统一为 `createdAt DESC, id ASC` 并由快慢两路径共用；超 line-budget 按政策拆同包 `ProjectListQueryService` 而非加白名单。
+- 证据：4 组测试 130 条全绿（26/42/55/7，退出码全 0）；line-budget `--base` 口径 `guarded_changes=5`；独立评审 4 轮（第 1 轮 NEEDS_FIXES 的 4 条反例已逐条修复，第 2、3 轮及补头注释后的第 4 轮均为 MERGE_READY）；交付态 `--guard-pr` 退出码 0。**未部署、未复测**，不声称任何压测数字改善；前端仍一次性取全量，真实页面未提速。
+- 回填：新增 [[project-list-server-side-paging]]。
+
+## [2026-09-22] docs | 门禁命令的作用域陷阱：doc-governance / line-budget / diff_hash / wiki 检查
+- 触发：同上一次交付连续被门禁拦下——`--staged` 的 doc-governance 报 `ProjectQueryService` 缺头注释（存量缺口，非本次引入）、line-budget 报 431 行超预算、`--guard-pr` 报 S5 工件缺「验证证据」章节；而 `.wiki/` 有无变更直接决定 pre-push §16 红/绿。
+- 根因：多道门禁是"同一命令不同 flag 走不同代码路径"：`check:doc-governance` 默认只扫 `src`/`scripts`（永不含 `backend/`），只有 `--staged` 才覆盖受治理 java；`check:line-budgets` 裸调用是 `workingTree` 口径，干净工作树报 `guarded_changes=0`（等于没检查）；`compute_diff_hash` 只算**已提交**范围且依赖调用位置，与"评审的是工作树"口径跨 worktree 时数学上不可兼得。
+- 决策：一律不做绕过（`--no-verify`、`WIKI_CHECK_SKIP=1`、`UNIFIED_DEV_FLOW_SKIP_REVIEW=1` 均不适用于此场景）。改为真修：补 4 行头注释并以无损折行把 299 行守回 300 预算内、把被评审内容放到独立分支使两种 hash 口径合一、按 `.wiki/WIKI.md §2 触发点 1` 真回填。回填本身按铁律计一轮重评成本。
+- 证据：`scripts/lib/doc-governance-checker.mjs` 无豁免机制且 `isJavaFile` 写死 `false`；`scripts/check-line-budgets.mjs` 默认 `workingTree=true`；`scripts/pre-push-gate.sh` §16 自 2026-08-06 起默认 `error`。
+- 回填：新增 [[gate-command-scope-pitfalls]]。

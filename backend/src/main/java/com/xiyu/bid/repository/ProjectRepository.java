@@ -2,6 +2,7 @@ package com.xiyu.bid.repository;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.project.core.ProjectStage;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -120,4 +121,39 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     /** 底层查询：stage 在 Project 实体中以 String 存储。 */
     @Query("SELECT p FROM Project p WHERE p.stage IN :stages")
     List<Project> findByStageNameIn(@Param("stages") Collection<String> stages);
+
+    /**
+     * 列表接口的服务端分页取数（管理员/全局可见：不限制可见项目 id）。
+     *
+     * <p>只回当页 id，让调用方按 id 取实体并只富化当页——这正是本次改动的目的：
+     * 原先为了取 10 行要富化全表。</p>
+     *
+     * <p><b>这里刻意没有任何筛选条件。</b>调用方只在"一个筛选都没传"时走到这里
+     * （判据见 {@code ProjectListQuery#hasNoEffectiveFilter}）：SQL 的 {@code =} 与 Java 的
+     * {@code String.equals} 在 {@code utf8mb4_unicode_ci} 下并非同一语义（大小写不敏感），
+     * 任何值进入 SQL 比较都可能把结果放大，而 H2 测试环境对此无证明力。</p>
+     *
+     * <p>排序是全序：{@code createdAt} 降序（MySQL 在 DESC 下把 NULL 排最后，与慢路径
+     * "null 视作 MIN 再反序"相同）；并列时按 id 升序——这一条必须与
+     * {@code ProjectListQueryService#sortByCreatedAtDescIdAsc}（全序的唯一出处，全量路径也调它）
+     * **逐字一致**，否则 `created_at`
+     * 并列的两行在两条路径里会落到不同页。压测铺底数据用秒级随机时间，并列并非罕见。</p>
+     *
+     * <p>已知代价（记录不修）：{@code projects.created_at} 上没有索引，这里在 DB 侧仍是
+     * 全表扫 + filesort；本次收益是"不再把 N 行搬到应用层富化"，不是扫描量下降。</p>
+     */
+    @Query("SELECT p.id FROM Project p ORDER BY p.createdAt DESC, p.id ASC")
+    List<Long> findPageProjectIdsAll(Pageable pageable);
+
+    /**
+     * 列表接口的服务端分页取数（非管理员：限定在可见项目 id 集合内）。
+     *
+     * <p>{@code allowedIds} 必须非空——调用方在集合为空时直接返回空页，不会走到这里。
+     * 这条路径刻意不做成"可空集合"参数：Hibernate 各版本对 {@code IN :null} 的处理并不一致，
+     * 最坏的一种是静默返回空页，即"看起来正常"的错误答案。</p>
+     */
+    @Query("SELECT p.id FROM Project p WHERE p.id IN :allowedIds"
+            + " ORDER BY p.createdAt DESC, p.id ASC")
+    List<Long> findPageProjectIdsWithin(@Param("allowedIds") Collection<Long> allowedIds,
+                                        Pageable pageable);
 }

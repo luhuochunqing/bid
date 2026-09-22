@@ -1,3 +1,7 @@
+// Input: 项目列表/详情的取数请求（含权限上下文）与数据库查询；不含分页与筛选参数
+// Output: 富化后的全量 ProjectDTO 列表（分页、筛选与全序的定义都已移至 ProjectListQueryService）
+// Pos: project/service - 全量取数与富化链；导出 / 工作台 / CRM 同步的上游
+// 维护声明: 只保留全量路径；改富化链或全序时须同步 ProjectListQueryService 的当页富化与排序.
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.demo.service.DemoDataProvider;
@@ -22,7 +26,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,10 +73,8 @@ public class ProjectQueryService {
     /** 部门名回填：通过 users.department_code（OSS external_dept_id）反查 organization_departments 部门名。 */
     private final ProjectManagerDepartmentEnricher managerDepartmentEnricher;
 
-    /**
-     * Returns all accessible projects enriched with tender and
-     * initiation-detail fields, sorted by creation time descending.
-     */
+    /** Returns all accessible projects enriched with tender and initiation-detail
+     * fields, sorted by creation time descending. */
     public List<ProjectDTO> getAllProjects() {
         List<ProjectDTO> projects = projectAccessScopeService
                 .filterAccessibleProjects(
@@ -86,17 +87,16 @@ public class ProjectQueryService {
             enrichWithTenderAndDetails(projects);
         }
 
-        projects.sort(Comparator.comparing(
-                dto -> dto.getCreatedAt() != null
-                        ? dto.getCreatedAt()
-                        : java.time.LocalDateTime.MIN,
-                Comparator.reverseOrder()));
+        // 全序（createdAt 降序 + id 升序）与快路径 SQL 的 ORDER BY 同源，定义见 ProjectListQueryService
+        ProjectListQueryService.sortByCreatedAtDescIdAsc(projects);
 
         return mergeDemoProjectsIfNeeded(projects);
     }
 
+    // 包级可见（而非 private）：ProjectListQueryService 的快路径只富化当页时也要走这一条链。
+    // 拆类时没有顺手把它提成 public——列表取数是同包内的事，跨包公开等于给"绕过取数路径直接富化"开口子。
     @SuppressWarnings("deprecation") // det.getAnnualRevenue() 是 @Deprecated，立项表客户营收存储列（lessons §76）
-    private void enrichWithTenderAndDetails(
+    void enrichWithTenderAndDetails(
             final List<ProjectDTO> projects) {
         List<Long> ids = projects.stream()
                 .map(ProjectDTO::getId)
@@ -155,9 +155,8 @@ public class ProjectQueryService {
         // CO-591: 标书审核人姓名解析所需的 reviewer 用户 ID（合并到统一 userMap 减 DB round-trip）
         Set<Long> reviewerIds = stageEnricher.collectReviewerIds(stageCtx);
 
-        // CC2026072071: projectLeaderId 来源有三（pid.ownerUserId /
-        // tender.projectManagerId / project.managerId 兜底），需把前两条路径
-        // 的 user ID 也加入预加载，让 userMap 覆盖工号反查（managerIds 已含第三条）。
+        // CC2026072071: projectLeaderId 来源有三（pid.ownerUserId / tender.projectManagerId /
+        // project.managerId 兜底），需把前两条路径的 user ID 也加入预加载，让 userMap 覆盖工号反查（managerIds 已含第三条）。
         Set<Long> tenderManagerIds = tenderMap.values().stream()
                 .map(Tender::getProjectManagerId)
                 .filter(Objects::nonNull)
