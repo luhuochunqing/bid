@@ -9,6 +9,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalStructuredExtractionHandler.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/MultimodalScoreFactValidator.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/application/MultimodalStructuredExtractionHandlerTest.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/AiProviderDiagnostics.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/RunSummaryAssembler.java
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-09-20
@@ -83,3 +85,9 @@ archive: false
 - 本轮验收新增 `OriginalScoreEvidenceRoleAndHeadingTest` 与 `ScoreTotalEvidencePublicationAcceptanceTest`：未知总分保持 `REVIEW_REQUIRED`，明确正文总分与子章节可进入 `AUTO_APPROVED`；真实项目1386原文件、同配置模型响应与人工确认结果仍不可得，保持未验证。
 - UI 编辑后的序号、维度、规则、父项和主客观类型必须原样回传采纳接口。
 - 多模态召回与确定性回补的差异必须记录为可审计日志；生产问题排查需同时核对页面、候选/正式接口和解析决策状态。
+
+## AI Provider 诊断遥测与凭据安全契约
+
+- **诊断信息载体与定位**：新增不可变领域 Record `AiProviderDiagnostics`，采集激活的 Provider 代码、模型名、调用延迟（毫秒）、执行状态、异常类与脱敏异常信息，并通过 `RunSummaryAssembler` 透出至 `run_summary.aiProviderDiagnostics`。
+- **凭据脱敏安全红线**：严禁在 `errorMessage` 或诊断中透出未经脱敏的敏感凭据。所有针对 `sk-*`、`Bearer *` 或常见 Token 格式均由 `AiProviderDiagnostics.sanitize()` 正则统一脱敏为 `sk-***` / `Bearer ***`。
+- **向后兼容与键序**：RunSummary 装配严格保持原有 11 项 JSON 键物理顺序，`aiProviderDiagnostics` 仅作为可选字段置于 `sourceDiagnostics` 之后透出，且 `llmModel` 为空时自动推导回填。

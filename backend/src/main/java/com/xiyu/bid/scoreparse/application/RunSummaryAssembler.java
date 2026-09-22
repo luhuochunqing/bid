@@ -7,6 +7,7 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.scoreparse.domain.AiProviderDiagnostics;
 import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
@@ -82,6 +83,15 @@ final class RunSummaryAssembler {
             WeightSumCheck.Result weight, int itemCount, String llmModel,
             String pipelineVersion, String decisionStatus, String fallbackReason,
             List<Map<String, Object>> tableSplits, List<String> sourceDiagnostics) {
+        return assemble(recall, tableRows, merge, weight, itemCount, llmModel,
+                pipelineVersion, decisionStatus, fallbackReason, tableSplits, sourceDiagnostics, null);
+    }
+
+    static Assembled assemble(RecallOutcome recall, int tableRows, MergeView merge,
+            WeightSumCheck.Result weight, int itemCount, String llmModel,
+            String pipelineVersion, String decisionStatus, String fallbackReason,
+            List<Map<String, Object>> tableSplits, List<String> sourceDiagnostics,
+            AiProviderDiagnostics aiProviderDiagnostics) {
         double alignedRatio = recall.alignedTotal() > 0
                 ? (double) recall.alignedHit() / recall.alignedTotal() : -1;
         boolean warnLowAlignment = alignedRatio >= 0 && alignedRatio < ALIGNED_RATIO_FLOOR;
@@ -106,7 +116,10 @@ final class RunSummaryAssembler {
 
         Map<String, Object> root = new LinkedHashMap<>();
         // 旧字段保持顺序，避免破坏既有回放/审计断言。
-        root.put("llmModel", llmModel == null ? "" : llmModel);
+        String effectiveModel = (llmModel != null && !llmModel.isBlank())
+                ? llmModel
+                : (aiProviderDiagnostics != null ? aiProviderDiagnostics.model() : "");
+        root.put("llmModel", effectiveModel == null ? "" : effectiveModel);
         root.put("lanes", lanes);
         root.put("tableRows", tableRows);
         root.put("skippedChunks", recall.skippedChunks());
@@ -125,6 +138,9 @@ final class RunSummaryAssembler {
         }
         if (sourceDiagnostics != null && !sourceDiagnostics.isEmpty()) {
             root.put("sourceDiagnostics", sourceDiagnostics);
+        }
+        if (aiProviderDiagnostics != null && !aiProviderDiagnostics.isEmpty()) {
+            root.put("aiProviderDiagnostics", aiProviderDiagnostics.toMap());
         }
         return new Assembled(writeJson(root), warnLowAlignment, warnHighHallucination);
     }

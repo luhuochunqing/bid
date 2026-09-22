@@ -4,6 +4,7 @@
 
 package com.xiyu.bid.scoreparse.application;
 
+import com.xiyu.bid.scoreparse.domain.AiProviderDiagnostics;
 import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
 import org.junit.jupiter.api.Test;
@@ -76,5 +77,43 @@ class RunSummaryAssemblerTest {
         // 多项纯父级维度
         String json3 = assemble(recall(2, 4), new RunSummaryAssembler.MergeView(true, false, 5, 1, 2, 3)).json();
         assertThat(json3).contains("\"parentOnlyDimCount\":3");
+    }
+
+    @Test
+    void jsonCarriesAiProviderDiagnostics_andPreservesOrder() {
+        AiProviderDiagnostics diag = AiProviderDiagnostics.success(
+                "deepseek", "deepseek-chat", 1500L,
+                List.of(new AiProviderDiagnostics.AiCallDetail("TABLE_EXTRACTION", "deepseek", "deepseek-chat", "SUCCESS", 1500L, null, null))
+        );
+        WeightSumCheck.Result weight = new WeightSumCheck().checkCandidates(List.of());
+        String json = RunSummaryAssembler.assemble(recall(2, 4), 7, view(false, 0, 0, 0),
+                weight, 0, "", "EVIDENCE_PIPELINE_V1", "AUTO_APPROVED", "",
+                List.of(Map.of("tableId", "t1")), List.of("diag1"), diag).json();
+
+        assertThat(json)
+                .contains("\"llmModel\":\"deepseek-chat\"")
+                .contains("\"aiProviderDiagnostics\":{")
+                .contains("\"provider\":\"deepseek\"")
+                .contains("\"model\":\"deepseek-chat\"")
+                .contains("\"latencyMs\":1500");
+
+        int sourceDiagIdx = json.indexOf("\"sourceDiagnostics\"");
+        int aiDiagIdx = json.indexOf("\"aiProviderDiagnostics\"");
+        assertThat(sourceDiagIdx).isGreaterThan(0);
+        assertThat(aiDiagIdx).isGreaterThan(sourceDiagIdx);
+    }
+
+    @Test
+    void jsonOmitsAiProviderDiagnosticsWhenEmptyOrNull() {
+        WeightSumCheck.Result weight = new WeightSumCheck().checkCandidates(List.of());
+        String jsonNull = RunSummaryAssembler.assemble(recall(2, 4), 7, view(false, 0, 0, 0),
+                weight, 0, "gpt-4", "EVIDENCE_PIPELINE_V1", "AUTO_APPROVED", "",
+                List.of(), List.of(), null).json();
+        assertThat(jsonNull).doesNotContain("\"aiProviderDiagnostics\"");
+
+        String jsonEmpty = RunSummaryAssembler.assemble(recall(2, 4), 7, view(false, 0, 0, 0),
+                weight, 0, "gpt-4", "EVIDENCE_PIPELINE_V1", "AUTO_APPROVED", "",
+                List.of(), List.of(), AiProviderDiagnostics.empty()).json();
+        assertThat(jsonEmpty).doesNotContain("\"aiProviderDiagnostics\"");
     }
 }

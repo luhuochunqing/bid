@@ -6637,3 +6637,14 @@ Lesson 392 的假通过还有一个放大器：Sidecar `/convert-images` 的 `.d
 明细表评分规则单元格以“满分10分”开头时，旧方案总分解析仅凭前缀与所属评分章节就将其当作整套方案的总分；模型返回 10 分漏项因此可能伪闭合。原文分表小计虽已存入上下文，模型路径却未比较，只有回补守卫执行小计约束。正文扫描又把同一父评分办法下两个“商务/技术评分标准”子标题当作独立方案。
 
 修复应在原文行结构上区分明细与汇总，不能以非空单元格数量代替行角色：稀疏/OCR 明细行也可能只有一个“满分”规则单元格。总分未知时不从项上限推断；在模型和确定性事实共同的纯核心比较分表小计与实际叶子项，保留已确认的方案总分及 expected/actual/source 诊断；按 Markdown 标题层级和来源路径识别父子章节。不能靠禁用多表自动发布、改写原文小计或把同分值的不同标包混为同一方案。合成测试不替代真实 1386 原文件、模型响应、部署提交和正式明细验收。
+
+## 398. AI Provider 诊断遥测必须全链路透明且严格凭据脱敏（CO-scoreparse-diagnostics，2026-09-22）
+
+### 根因与收益
+在多模态与 LLM 评分解析全流程中，AI Provider 的调用状态、模型名称、耗时延迟（latencyMs）以及异常信息是定位线上解析失败、超时与模型服务波动的关键遥测数据。此前这些遥测数据仅局部存在于日志中，未作为结构化元数据持久化到 `ScoreParseTask.run_summary`，导致下游与运维排障无法即时回溯单次任务的具体 Provider 诊断。
+
+### 修复与架构约束
+1. **FP-Java 契约与不可变 Record**：引入纯领域 Record `AiProviderDiagnostics`，零 Spring/JPA/框架依赖，支持多调用记录（`calls`）、耗时统计与安全字段提取。
+2. **凭据安全绝对底线**：在构造和映射 `aiProviderDiagnostics` 时，严格执行 `sanitize` 正则脱敏，针对 `sk-*`、`Bearer *` 以及各类 API Token 统一替换为 `sk-***` / `Bearer ***`，坚决阻断敏感密钥泄漏进持久化 JSON 或对外透出。
+3. **RunSummary 向后兼容与键序稳定**：在 `RunSummaryAssembler` 中将 `aiProviderDiagnostics` 作为可选扩展字段在末尾透出（严格置于 `sourceDiagnostics` 之后），保持原有 11 项键的物理顺序不变，确保既有金标单测（`GoldenCasesReplayTest`）与下游回放 100% 兼容。
+4. **单文件 300 行预算守卫**：`StructuredTableExtractionHandler.java` 与相关测试紧邻 300 行红线，通过精简冗余折行代码将生产类控制在 296 行，测试类控制在 294 行。
