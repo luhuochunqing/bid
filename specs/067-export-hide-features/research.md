@@ -20,7 +20,7 @@
 | `AuditLogPanel.vue` | "日志说明"页 `OperationLogPage.vue` 以 `mode="operation"` 使用（现役） |
 | `customerOpportunity.js` API | 项目创建流程 `useProjectCreateSubmit.js` 的 `convertToProject`（现役） |
 | `knowledgeApi.templates`（knowledge.js 内） | `useProjectDetailBoot/Init`、`useDocumentKnowledge`（现役） |
-| `config/templateLibrary.js` | `api/modules/templates.js`、`TemplateListTable` 等（模板页删除后仅剩 templates.js 消费，见 R3） |
+| `config/templateLibrary.js` | `api/modules/templates.js`、`TemplateListTable` 等（模板页删除后经第二轮评审确认零引用，改为随删，见 R9） |
 | `components/ai/CompetitionIntel.vue`、`components/ai/ROIAnalysis.vue` | `ProjectDetailFeatureModals.vue`（现役；与被删的 `views/Analytics/*` 同名不同物） |
 | `useDocumentAssembly.js` | `views/Document/Editor.vue`（现役；只删 `DocumentAssembly.vue` 页面壳） |
 | `tenderFavorites.js` API + `FavoriteButton.vue` | 标讯列表收藏按钮（现役；只删无路由的 `Favorites.vue` 列表页） |

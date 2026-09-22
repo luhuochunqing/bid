@@ -35,7 +35,7 @@ test -e src/views/System/settings/AuditLogPanel.vue        # 日志说明页共�
 test -e src/api/modules/customerOpportunity.js             # 项目创建商机转化
 test -e src/components/ai/CompetitionIntel.vue             # 项目详情竞争情报
 test -e src/components/ai/ROIAnalysis.vue                  # 项目详情 ROI
-test -e src/composables/useDocumentAssembly.js             # 标书编辑器
+test -e src/views/Document/useDocumentAssembly.js         # 标书编辑器
 test -e src/api/modules/tenderFavorites.js                 # 标讯收藏按钮
 test -e src/views/Bidding/list/components/FavoriteButton.vue
 test -e src/views/AI/MarketTiming.vue                      # 商机时间预测
@@ -60,5 +60,5 @@ grep -q "convertToProject" src/views/Project/create/composables/useProjectCreate
 | 符号 | 允许存在的位置 | 理由 |
 |---|---|---|
 | `/api/**/audit-logs` 字符串 | `src/api/modules/audit.js`、`accounts.js`、`ca.js`、`e2e/qualification-*.spec.js` | 后端接口保留（FR-009），这些是资质/账户操作日志 API，与"审计日志页面"无关 |
-| `templates`（词根） | `knowledge.js`、`config/templateLibrary.js`、`useProjectDetailBoot/Init`、`useDocumentKnowledge` | 现役模板选择能力 |
+| `templates`（词根） | `knowledge.js`、`useProjectDetailBoot/Init`、`useDocumentKnowledge` | 现役模板选择能力 |
 | `borrow`（词根） | `useWorkbenchQuickStart.js`、`workbench-quick-start-core.js` | 资质借阅现役 |

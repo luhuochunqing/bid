@@ -68,7 +68,11 @@
 
 ## 保留白名单（任何批次不得触碰）
 
-`AuditLogPanel.vue`、`OperationLogPage.vue`、`customerOpportunity.js`、`knowledge.js`、`config/templateLibrary.js`、`components/ai/CompetitionIntel.vue`、`components/ai/ROIAnalysis.vue`、`useDocumentAssembly.js`、`tenderFavorites.js`、`FavoriteButton.vue`、`AI/MarketTiming.vue`、`backend/` 全部、`role-menu-permission-tree.js`（无被删菜单引用，已验证）
+`AuditLogPanel.vue`、`OperationLogPage.vue`、`customerOpportunity.js`、`knowledge.js`、`components/ai/CompetitionIntel.vue`、`components/ai/ROIAnalysis.vue`、`useDocumentAssembly.js`、`tenderFavorites.js`、`FavoriteButton.vue`、`AI/MarketTiming.vue`、`backend/` 全部、`role-menu-permission-tree.js`（无被删菜单引用，已验证）
+
+## 第二轮评审补删（R9：评审后确认零引用的孤儿）
+
+`config/templateLibrary.js`（原白名单，模板链路删除后零引用）、`views/Dashboard/workbench-demo-data.js`（main 既有孤儿，含"资质/合同借阅"文案）、`api/modules/roi.js`、`api/modules/scoreAnalysis.js`、`api/modules/bidResults.normalizers.js`、`views/Resource/contractBorrow.css`、`components/expense/`（9 文件）。
 
 ## 状态流转
 
