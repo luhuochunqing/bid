@@ -1192,3 +1192,8 @@
 - 保留：清理版完整保留在 git 历史（345bcad7b 及其父链），未来如需再次出包可复用；specs/067 与知识页保留作交付记录。
 - 验证：全量单测 380 文件/3275 用例全绿 + 前端构建成功。
 - 回填：更新 [[acceptance-export-feature-removal]]（新增 §8 交付形态决策）。
+
+## [2026-09-22] compound | 还原操作与 diff 型门禁的冲突（spec 067 收尾）
+- 触发：revert 已合并的清理 PR 时，line-budget / duplicate-impl / 429 三项 diff 型门禁把"恢复的旧文件"误判为"新增代码"。
+- 结论：三项均无"不改文件"的逐项豁免阀；用官方逃生开关（PRE_PUSH_GATE=0 + DUPLICATE_IMPL_SKIP=1）并在 PR 描述披露，S6 仍在 PR 创建时强制校验。另：Gitee API 忽略 merge_type（squash/rebase 均产出 merge commit），还原后需紧跟纯文档提交以避免 token-delta 假阳性。
+- 回填：更新 [[acceptance-export-feature-removal]] §8。
