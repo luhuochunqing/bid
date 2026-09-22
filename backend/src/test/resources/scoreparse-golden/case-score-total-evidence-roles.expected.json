@@ -1,0 +1,12 @@
+{
+  "synthetic": true,
+  "focus": "明确方案总分与评审因素/评审标准明细表共存时，单项满分仅用于单项校验；无总分和无关同级标题对照由调用链测试覆盖",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": true,
+  "laneHints": ["table"],
+  "items": [
+    { "code": "1", "dim": "销售额", "detail": "满分10分，销售额达到1亿元得10分。", "weight": 10 },
+    { "code": "2", "dim": "技术方案", "detail": "技术方案最高得90分。", "weight": 90 }
+  ]
+}

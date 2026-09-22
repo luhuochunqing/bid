@@ -1,6 +1,9 @@
 package com.xiyu.bid.scoreparse.domain;
 
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
+import com.xiyu.bid.scoreparse.domain.grid.HeuristicTableColumnMapper;
+import com.xiyu.bid.scoreparse.domain.grid.TableColumnMapping;
+import com.xiyu.bid.scoreparse.domain.grid.TableGrid;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -65,17 +68,16 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             Map<Integer, List<DocumentArtifact.CanonicalTable.CanonicalCellDto>> rows = new LinkedHashMap<>();
             table.cells().stream().filter(c -> c.row() != null && !Boolean.TRUE.equals(c.isMergedContinue()))
                     .forEach(c -> rows.computeIfAbsent(c.row(), ignored -> new ArrayList<>()).add(c));
-            int headerRow = rows.entrySet().stream().filter(entry -> entry.getValue().stream().anyMatch(c ->
-                    c.rawText() != null && c.rawText().matches("(?s).*(?:评分因素|评分项目|评分项|评分规则).*")))
-                    .mapToInt(Map.Entry::getKey).min().orElse(Integer.MAX_VALUE);
-            boolean detail = headerRow != Integer.MAX_VALUE;
+            TableStructure structure = tableStructure(table, rows);
+            TableColumnMapping mapping = structure.mapping();
+            boolean detail = isExplicitDetailTable(structure);
             if (detail) detailTables++;
             for (var entry : rows.entrySet()) {
                 var row = entry.getValue();
                 boolean summary = row.stream().anyMatch(c -> c.rawText() != null
                         && c.rawText().replaceAll("\\s+", "").matches("^(?:合计|总计)(?:得分)?$"));
                 // A detail row is not a scheme declaration even when OCR yields only its rule cell.
-                boolean detailRow = detail && !summary && entry.getKey() > headerRow;
+                boolean detailRow = detail && !summary && entry.getKey() >= mapping.headerRows();
                 for (var cell : row) {
                     String raw = cell.rawText() == null ? "" : cell.rawText();
                     String locator = table.tableId() + ":" + cell.cellId();
@@ -90,7 +92,8 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                         } else if (explicitWholeTotal(raw)
                                 || (!scheme.isBlank() && table.sourceSection() != null
                                 && table.sourceSection().contains(scheme)
-                                && (summary || raw.startsWith("总分") || raw.startsWith("满分")))) {
+                                && ((summary && !category(table.sourceSection()))
+                                || (!detail && raw.stripLeading().startsWith("总分"))))) {
                             totals.add(new Evidence(value, "TABLE", table.sourceSection(), locator));
                         }
                     }
@@ -205,38 +208,73 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
     private static boolean sameScheme(String first, String second) {
         return first.contains(second) || second.contains(first);
     }
-
     private static boolean category(String section) {
         if (section == null) return false;
         String[] parts = section.split("[/＞>]", 2);
         return parts.length > 1 && CATEGORY.matcher(parts[1]).matches();
     }
-
     private static void parseText(String text, String scheme, List<Evidence> totals) {
         if (text == null) return;
-        String heading = "";
+        List<Heading> headings = new ArrayList<>();
         String[] lines = text.split("\\R", -1);
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
             Matcher title = HEADING.matcher(line);
-            if (title.matches()) { heading = title.group(1).trim(); continue; }
+            if (title.matches()) {
+                String headingLine = line.stripLeading();
+                int level = 0;
+                while (level < headingLine.length() && headingLine.charAt(level) == '#') level++;
+                while (!headings.isEmpty() && headings.get(headings.size() - 1).level() >= level)
+                    headings.remove(headings.size() - 1);
+                headings.add(new Heading(level, title.group(1).trim()));
+                continue;
+            }
             if (line.stripLeading().startsWith("|") || OTHER.matcher(line).matches()) continue;
-            if (!scheme.isBlank() && !heading.isBlank() && !sameScheme(heading, scheme)) continue;
+            boolean inScheme = scheme.isBlank() || headings.isEmpty()
+                    || headings.stream().anyMatch(heading -> heading.title().equals(scheme));
+            if (!inScheme) continue;
             Matcher matcher = TOTAL.matcher(line);
             while (matcher.find()) {
                 if (CATEGORY.matcher(line.substring(0, matcher.start())).matches()) continue;
                 boolean scoped = line.contains("总分") && (SCHEME.matcher(line).matches()
                         || line.contains("本项目") || line.contains("本标包")
                         || line.stripLeading().startsWith("评分总分")
-                        || (!heading.isBlank() && sameScheme(heading, scheme)))
+                        || inScheme)
                         || line.stripLeading().matches("^(?:总分|满分).*分.*")
-                        && !heading.isBlank() && sameScheme(heading, scheme);
+                        && inScheme;
                 if (scoped) totals.add(new Evidence(new BigDecimal(matcher.group(1)), "TENDER_TEXT",
-                        heading.isBlank() ? scheme : heading, "text:line[" + i + "]"));
+                        headings.isEmpty() ? scheme : headings.get(headings.size() - 1).title(),
+                        "text:line[" + i + "]"));
             }
         }
     }
-
+    private static TableStructure tableStructure(DocumentArtifact.CanonicalTable table, Map<Integer, List<DocumentArtifact.CanonicalTable.CanonicalCellDto>> rows) {
+        int maxColumn = rows.values().stream().flatMap(List::stream)
+                .map(DocumentArtifact.CanonicalTable.CanonicalCellDto::column)
+                .filter(java.util.Objects::nonNull).mapToInt(Integer::intValue).max().orElse(-1);
+        if (maxColumn < 0) return new TableStructure(new TableGrid(List.of()),
+                new TableColumnMapping(-1, -1, -1, -1, -1, 0, false));
+        List<List<String>> values = new ArrayList<>();
+        for (int row = 0; row < table.rows(); row++) {
+            List<String> valuesAtRow = new ArrayList<>();
+            for (int column = 0; column <= maxColumn; column++) {
+                int currentColumn = column;
+                valuesAtRow.add(rows.getOrDefault(row, List.of()).stream()
+                        .filter(cell -> java.util.Objects.equals(cell.column(), currentColumn))
+                        .map(DocumentArtifact.CanonicalTable.CanonicalCellDto::rawText)
+                        .findFirst().orElse(""));
+            }
+            values.add(valuesAtRow);
+        }
+        TableGrid grid = new TableGrid(values);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+        return new TableStructure(grid, mapping);
+    }
+    private static boolean isExplicitDetailTable(TableStructure structure) {
+        TableColumnMapping mapping = structure.mapping();
+        return structure.explicitHeaders() && mapping.headerRows() > 0 && mapping.dimCol() >= 0
+                && mapping.detailCol() >= 0 && mapping.weightCol() >= 0;
+    }
     private static OriginalScoreEvidencePolicy.Total total(List<Evidence> values, String scheme) {
         if (values.isEmpty()) return unknown();
         Evidence first = values.get(0);
@@ -246,13 +284,17 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                             values.stream().map(v -> v.value() + "@" + v.locator()).toList(), null, first.locator())));
         return new OriginalScoreEvidencePolicy.Total(first.value(), first.source(), scheme, first.locator(), List.of());
     }
-
     private static OriginalScoreEvidencePolicy.Total unknown() {
         return new OriginalScoreEvidencePolicy.Total(null, "UNKNOWN", "", "", List.of(
                 new OriginalScoreEvidencePolicy.Problem("", "declaredTotal", "ORIGINAL_TOTAL_UNKNOWN",
                         "original document total", "no scoped original total", "")));
     }
-
     private record Evidence(BigDecimal value, String source, String scope, String locator) {}
+    private record TableStructure(TableGrid grid, TableColumnMapping mapping) {
+        private boolean explicitHeaders() {
+            return HeuristicTableColumnMapper.hasExplicitScoreHeaders(grid);
+        }
+    }
+    private record Heading(int level, String title) {}
     public record Subtotal(BigDecimal value, String locator) {}
 }

@@ -12,8 +12,8 @@ sources:
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-09-20
-updated: 2026-09-21
-health_checked: 2026-09-21
+updated: 2026-09-22
+health_checked: 2026-09-22
 archive: false
 ---
 
@@ -80,5 +80,6 @@ archive: false
 - 解析决策影响正式评分项写入和复核 DTO。
 - 方案总分来自原文方案范围，不来自模型返回的表集合；单项“满分”与商务/技术/报价局部小计不得升格为方案总分。首次、一次复核与确定性回补共用同一原文上下文，异常复核也保留已核验总分。不同标包评分范围不得混合，无关资格表不参与方案歧义判定。
 - 证书/业绩匹配 DTO 变化影响预计得分展示与审计。
+- 本轮验收新增 `OriginalScoreEvidenceRoleAndHeadingTest` 与 `ScoreTotalEvidencePublicationAcceptanceTest`：未知总分保持 `REVIEW_REQUIRED`，明确正文总分与子章节可进入 `AUTO_APPROVED`；真实项目1386原文件、同配置模型响应与人工确认结果仍不可得，保持未验证。
 - UI 编辑后的序号、维度、规则、父项和主客观类型必须原样回传采纳接口。
 - 多模态召回与确定性回补的差异必须记录为可审计日志；生产问题排查需同时核对页面、候选/正式接口和解析决策状态。

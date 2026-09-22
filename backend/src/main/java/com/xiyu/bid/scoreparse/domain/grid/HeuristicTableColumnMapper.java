@@ -32,6 +32,20 @@ public final class HeuristicTableColumnMapper {
     private HeuristicTableColumnMapper() {
     }
 
+    public static boolean hasExplicitScoreHeaders(TableGrid grid) {
+        if (grid == null || grid.isEmpty()) return false;
+        TableColumnMapping mapping = infer(grid);
+        if (mapping.headerRows() <= 0) {
+            return false;
+        }
+        for (int row = 0; row < mapping.headerRows(); row++) {
+            if (EXPLICIT_BID_SCORE_HEADER.matcher(String.join(" ", grid.row(row))).find()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static TableColumnMapping infer(TableGrid grid) {
         if (grid == null || grid.isEmpty()) {
             return TableColumnMapping.ofStandard(0, 1, 2, 3);
