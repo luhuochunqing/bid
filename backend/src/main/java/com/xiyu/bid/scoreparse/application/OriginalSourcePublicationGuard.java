@@ -8,6 +8,7 @@ import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
+import com.xiyu.bid.scoreparse.domain.ScoreUnitPolicy;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -23,7 +24,10 @@ final class OriginalSourcePublicationGuard {
         original.problems().forEach(p -> defects.add(p.code() + "[fact=" + p.factId()
                 + ",field=" + p.field() + ",expected=" + p.expected() + ",actual=" + p.actual()
                 + ",source=" + p.locator() + "]"));
-        BigDecimal leaves = facts.stream().filter(f -> ScoreFact.isLeaf(f, facts))
+        validateChildRelationships(artifact, facts, defects);
+        var unitIds = ScoreUnitPolicy.effectiveUnitIds(facts.stream().map(f -> new ScoreUnitPolicy.Node(
+                f.factId(), f.parentFactId(), f.weight(), f.childAggregation().name())).toList());
+        BigDecimal leaves = facts.stream().filter(f -> unitIds.contains(f.factId()))
                 .map(ScoreFact::weight).filter(java.util.Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal total = original.total().value();
@@ -31,12 +35,32 @@ final class OriginalSourcePublicationGuard {
             defects.add("WEIGHT_SUM_MISMATCH[scheme=" + context.scheme() + ",expected=" + total
                     + ",actual=" + leaves + ",source=" + original.total().locator() + "]");
         }
-        var candidates = facts.stream().filter(f -> ScoreFact.isLeaf(f, facts))
+        var candidates = facts.stream().filter(f -> unitIds.contains(f.factId()))
                 .map(ScoreFact::toCandidate).flatMap(java.util.Optional::stream).toList();
         var proof = defects.isEmpty() ? OriginalScoreEvidencePolicy.publicationProof(original, leaves,
                 facts, candidates) : null;
         return new Check(proof == null ? List.of() : List.of(proof), List.copyOf(defects), total, leaves,
                 original.total().source(), original.total().locator());
+    }
+
+    private static void validateChildRelationships(DocumentArtifact artifact, List<ScoreFact> facts,
+                                                   List<String> defects) {
+        for (ScoreFact parent : facts) {
+            List<ScoreFact> children = facts.stream()
+                    .filter(fact -> parent.factId().equals(fact.parentFactId())).toList();
+            if (children.isEmpty()) continue;
+            var citedIds = new java.util.HashSet<>(parent.sourceCellIds());
+            children.forEach(child -> citedIds.addAll(child.sourceCellIds()));
+            String evidence = artifact == null ? "" : artifact.tables().stream()
+                    .flatMap(table -> table.cells().stream())
+                    .filter(cell -> citedIds.contains(cell.cellId()))
+                    .map(cell -> cell.rawText() == null ? "" : cell.rawText())
+                    .collect(java.util.stream.Collectors.joining(" "));
+            if (!parent.childAggregation().supportedByOriginalText(evidence)) {
+                defects.add("CHILD_AGGREGATION_UNSUPPORTED_BY_SOURCE[fact=" + parent.factId()
+                        + ",relationship=" + parent.childAggregation() + "]");
+            }
+        }
     }
 
     static ScoreCompletenessPolicy.ScoreCompletenessResult review(

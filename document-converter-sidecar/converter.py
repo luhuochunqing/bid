@@ -206,6 +206,7 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                             "rowspan": 1,
                             "colspan": 1,
                             "isMergedContinue": False,
+                            "sourcePage": source_row.get("page", table["sourcePage"]),
                             "sourceXmlPath": (
                                 f"pdf:page={source_row.get('page', table['sourcePage'])};"
                                 f"table={source_row.get('table', table.get('sourceTableIndex', logical_index))};"

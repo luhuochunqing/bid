@@ -188,6 +188,7 @@ public class ScoreItemPersistenceService {
                     .weight(f.weight() == null ? BigDecimal.ZERO : f.weight())
                     .weightEvidence(evidenceJson)
                     .parentFactId(f.parentFactId())
+                    .childAggregation(f.childAggregation().name())
                     .extractionMethod(f.extractionMethod() == null ? "DETERMINISTIC" : f.extractionMethod())
                     .confidence(BigDecimal.valueOf(f.confidence()))
                     .validationStatus(f.validationStatus() == null ? "AUTO_APPROVED" : f.validationStatus().name())

@@ -7,6 +7,7 @@ import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -108,7 +109,8 @@ class MultimodalStructuredExtractionHandlerTest {
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
         assertThat(result.candidates()).isEmpty();
         assertThat(result.facts()).hasSize(1);
-        assertThat(result.facts().get(0).weightEvidence().explanation()).contains("MODEL_TOTAL_SOURCE_MISMATCH");
+        assertThat(result.facts()).hasSize(1);
+        assertThat(result.facts().get(0).weightEvidence().explanation()).contains("WEIGHT_SUM_MISMATCH");
     }
 
     @Test
@@ -125,7 +127,8 @@ class MultimodalStructuredExtractionHandlerTest {
         var result = extractSource(source, "本项目评分总分100分", model);
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
         assertThat(result.candidates()).isEmpty();
-        assertThat(result.facts().get(0).weightEvidence().explanation()).contains("ITEM_WEIGHT_SOURCE_MISMATCH");
+        assertThat(result.facts()).hasSize(1);
+        assertThat(result.facts().get(0).weightEvidence().explanation()).contains("WEIGHT_SUM_MISMATCH");
     }
 
     @Test
@@ -143,8 +146,8 @@ class MultimodalStructuredExtractionHandlerTest {
         var result = extractSource(source, "本项目评分总分100分", model);
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
         assertThat(result.candidates()).isEmpty();
-        assertThat(result.facts()).allSatisfy(f -> assertThat(f.weightEvidence().explanation())
-                .contains("ITEM_WEIGHT_SOURCE_MISMATCH"));
+        assertThat(result.facts()).hasSize(1);
+        assertThat(result.facts().get(0).weightEvidence().explanation()).contains("WEIGHT_SUM_MISMATCH");
     }
 
     @Test
@@ -164,6 +167,103 @@ class MultimodalStructuredExtractionHandlerTest {
         assertThat(calls[0]).isEqualTo(1);
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
         assertThat(result.candidates()).isEmpty();
+    }
+
+    @Test
+    void weakerNonEmptyRecheckDoesNotReplaceInitialFacts() throws Exception {
+        var source = originalHundredPointArtifact(false);
+        var model = new MultimodalScoreFactExtractor() {
+            public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
+                return new ExtractionResult(new BigDecimal("90"),
+                        List.of(sourceFact("1", "10"), sourceFact("2", "90")), "first", 0);
+            }
+            public ExtractionResult recheck(DocumentArtifact input) {
+                return new ExtractionResult(new BigDecimal("100"), List.of(sourceFact("1", "10")), "recheck", 0);
+            }
+        };
+
+        var result = extractSource(source, "本项目评分总分100分", model);
+
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(result.facts()).hasSize(2);
+        assertThat(result.facts()).extracting(fact -> fact.code()).containsExactly("1", "2");
+    }
+
+    @Test
+    void recheckUsesImagesRenderedForCellPhysicalPage() throws Exception {
+        var ruleCell = new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                "rule-p2", 0, 0, "技术方案最高得10分", "技术方案最高得10分", 1, 1, false, "pdf:p=2", 2);
+        var source = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.pdf", "sha", "PDF", "2.0"),
+                List.of(new DocumentArtifact.CanonicalTable("score", 1, "评分办法", 1, 1,
+                        List.of(), List.of(ruleCell), true)), List.of());
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
+        SidecarImageExtractor imageExtractor = mock(SidecarImageExtractor.class);
+        var image = new com.xiyu.bid.scoreparse.domain.DocumentImage(0, "image/png", null, 2, 10, 10, "page-two");
+        when(imageExtractor.renderPages(any(byte[].class), eq("bid.pdf"), eq(Set.of(2))))
+                .thenReturn(new SidecarImageExtraction(List.of(image), false),
+                        new SidecarImageExtraction(List.of(image), true));
+        List<com.xiyu.bid.scoreparse.domain.DocumentImage> initialImages = new java.util.ArrayList<>();
+        List<com.xiyu.bid.scoreparse.domain.DocumentImage> recheckImages = new java.util.ArrayList<>();
+        var model = new MultimodalScoreFactExtractor() {
+            public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
+                initialImages.addAll(images);
+                return new ExtractionResult(new BigDecimal("9"), List.of(fact()), "first", images.size());
+            }
+            public ExtractionResult recheck(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
+                recheckImages.addAll(images);
+                return new ExtractionResult(BigDecimal.TEN, List.of(fact()), "recheck", images.size());
+            }
+            private MultimodalScoreFact fact() {
+                return new MultimodalScoreFact("评分办法", "1", "", "技术方案", BigDecimal.TEN,
+                        "技术方案最高得10分", "OBJECTIVE", 2, "score", List.of("rule-p2"),
+                        "技术方案最高得10分", 0.9);
+            }
+        };
+
+        var result = MultimodalStructuredExtractionHandler.extract(
+                new TenderTextSource("bid.pdf", "obs://bid.pdf", "本项目评分总分10分"),
+                new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "application/pdf"),
+                artifactExtractor, model, imageExtractor);
+
+        assertThat(initialImages).containsExactly(image);
+        assertThat(recheckImages).containsExactly(image);
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+
+        var truncated = MultimodalStructuredExtractionHandler.extract(
+                new TenderTextSource("bid.pdf", "obs://bid.pdf", "本项目评分总分10分"),
+                new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "application/pdf"),
+                artifactExtractor, model, imageExtractor);
+        assertThat(truncated.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(truncated.candidates()).isEmpty();
+        assertThat(truncated.completeness().defects()).anyMatch(defect -> defect.contains("PAGE_IMAGE_COVERAGE_INCOMPLETE"));
+    }
+
+    @Test
+    void truncatedPageImagesCannotBeBypassedByDeterministicFallback() throws Exception {
+        DocumentArtifact complete = loadCompleteArtifact();
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(complete);
+        SidecarImageExtractor imageExtractor = mock(SidecarImageExtractor.class);
+        when(imageExtractor.renderPages(any(byte[].class), eq("bid.pdf"), any()))
+                .thenReturn(new SidecarImageExtraction(List.of(), true));
+        var model = new MultimodalScoreFactExtractor() {
+            public ExtractionResult extract(DocumentArtifact artifact, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
+                return new ExtractionResult(new BigDecimal("100"), List.of(), "first", images.size());
+            }
+            public ExtractionResult recheck(DocumentArtifact artifact, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
+                return new ExtractionResult(new BigDecimal("100"), List.of(), "recheck", images.size());
+            }
+        };
+
+        var result = MultimodalStructuredExtractionHandler.extract(
+                new TenderTextSource("bid.pdf", "obs://bid.pdf", ""),
+                new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "application/pdf"),
+                artifactExtractor, model, imageExtractor);
+
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(result.candidates()).isEmpty();
+        assertThat(result.completeness().defects()).anyMatch(defect -> defect.contains("PAGE_IMAGE_COVERAGE_INCOMPLETE"));
     }
 
     @Test

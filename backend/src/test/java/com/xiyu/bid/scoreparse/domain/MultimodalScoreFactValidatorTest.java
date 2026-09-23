@@ -39,6 +39,64 @@ class MultimodalScoreFactValidatorTest {
         assertThat(result.leafTotal()).isEqualByComparingTo("30");
     }
 
+    @Test void sharedCapCountsParentOnceAndDoesNotRequireChildrenToSumToCap() {
+        var parent = new MultimodalScoreFact("技术", "1", "", "方案", new BigDecimal("5"),
+                "方案条件共享最高得5分", "OBJECTIVE", 3, "t1", List.of("p"),
+                "方案条件共享最高得5分", 0.9, ChildAggregation.SHARED_CAP);
+        var childA = new MultimodalScoreFact("技术", "1.1", "1", "业绩", new BigDecimal("3"),
+                "满足营业额得3分", "OBJECTIVE", 3, "t1", List.of("a"), "满足营业额得3分", 0.9);
+        var childB = new MultimodalScoreFact("技术", "1.2", "1", "人员", new BigDecimal("4"),
+                "满足人员要求得4分", "OBJECTIVE", 3, "t1", List.of("b"), "满足人员要求得4分", 0.9);
+        var source = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("d", "sha", "pdf", "2.0"),
+                List.of(new DocumentArtifact.CanonicalTable("t1", 3, "技术", 1, 3, List.of(), List.of(
+                        cellAt("p", 1, "方案条件共享最高得5分"), cellAt("a", 1, "满足营业额得3分"),
+                        cellAt("b", 1, "满足人员要求得4分"), cellAt("total", 2, "本项目评分总分5分")), true)), List.of());
+
+        var result = validator.validate(List.of(parent, childA, childB), source, new BigDecimal("5"));
+
+        assertThat(result.leafTotal()).isEqualByComparingTo("5");
+        assertThat(result.violations()).extracting(MultimodalScoreFactValidator.Violation::code)
+                .doesNotContain("PARENT_WEIGHT_MISMATCH");
+    }
+
+    @Test void permitsMultipleCitedCellsWhenQuoteAndPhysicalPageAreGrounded() {
+        var fact = new MultimodalScoreFact("技术", "1", "", "方案", new BigDecimal("5"),
+                "方案最高得5分", "OBJECTIVE", 2, "t1", List.of("p1", "p2"), "方案最高得5分", 0.9);
+        var cells = List.of(cellAt("p1", 1, "方案最高得5分"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("p2", 1, 1, "补充规则", "补充规则",
+                        1, 1, false, "pdf:page=2", 2),
+                cellAt("total", 2, "本项目评分总分5分"));
+        var source = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("d", "sha", "pdf", "2.0"),
+                List.of(new DocumentArtifact.CanonicalTable("t1", 1, "技术", 1, 3, List.of(), cells, true)), List.of());
+
+        var result = validator.validate(List.of(fact), source, new BigDecimal("5"));
+
+        assertThat(result.violations()).extracting(MultimodalScoreFactValidator.Violation::code)
+                .doesNotContain("SOURCE_LOCATOR_INVALID", "QUOTE_NOT_VERBATIM");
+    }
+
+    @Test void unknownOrUnprovenAggregationCannotBeAutoApproved() {
+        var source = artifact(cell("p", "方案最高得5分"), cell("c", "实施得5分"),
+                cell("total", "本项目评分总分5分"));
+        var child = fact("技术", "1.1", "1", "实施", "5", "实施得5分", "c");
+        var unknownParent = new MultimodalScoreFact("技术", "1", "", "方案", new BigDecimal("5"),
+                "方案最高得5分", "OBJECTIVE", 3, "t1", List.of("p"), "方案最高得5分", 0.9,
+                ChildAggregation.UNKNOWN);
+        var assertedSharedCap = new MultimodalScoreFact("技术", "1", "", "方案", new BigDecimal("5"),
+                "方案最高得5分", "OBJECTIVE", 3, "t1", List.of("p"), "方案最高得5分", 0.9,
+                ChildAggregation.SHARED_CAP);
+
+        var unknown = validator.validate(List.of(unknownParent, child), source, new BigDecimal("5"));
+        var unsupported = validator.validate(List.of(assertedSharedCap, child), source, new BigDecimal("5"));
+
+        assertThat(unknown.autoApprovable()).isFalse();
+        assertThat(unknown.violations()).extracting(MultimodalScoreFactValidator.Violation::code)
+                .contains("CHILD_AGGREGATION_UNKNOWN");
+        assertThat(unsupported.autoApprovable()).isFalse();
+        assertThat(unsupported.violations()).extracting(MultimodalScoreFactValidator.Violation::code)
+                .contains("CHILD_AGGREGATION_UNSUPPORTED_BY_SOURCE");
+    }
+
     @Test void rejectsEmptyFactsEvenWhenDeclaredTotalIsZero() {
         var result = validator.validate(List.of(), artifact(), BigDecimal.ZERO);
         assertThat(result.autoApprovable()).isFalse();
@@ -126,5 +184,8 @@ class MultimodalScoreFactValidatorTest {
     }
     private static DocumentArtifact.CanonicalTable.CanonicalCellDto cell(String id, String text) {
         return new DocumentArtifact.CanonicalTable.CanonicalCellDto(id, 1, 1, text, text, 1, 1, false, "");
+    }
+    private static DocumentArtifact.CanonicalTable.CanonicalCellDto cellAt(String id, int row, String text) {
+        return new DocumentArtifact.CanonicalTable.CanonicalCellDto(id, row, 1, text, text, 1, 1, false, "");
     }
 }

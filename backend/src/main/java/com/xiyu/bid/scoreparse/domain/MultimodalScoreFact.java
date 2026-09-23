@@ -16,7 +16,8 @@ public record MultimodalScoreFact(
         String tableId,
         List<String> sourceCellIds,
         String quotedText,
-        double confidence
+        double confidence,
+        ChildAggregation childAggregation
 ) {
     public MultimodalScoreFact {
         sectionTitle = safe(sectionTitle);
@@ -28,6 +29,14 @@ public record MultimodalScoreFact(
         tableId = safe(tableId);
         sourceCellIds = sourceCellIds == null ? List.of() : List.copyOf(sourceCellIds);
         quotedText = safe(quotedText);
+        childAggregation = childAggregation == null ? ChildAggregation.UNKNOWN : childAggregation;
+    }
+
+    public MultimodalScoreFact(String sectionTitle, String code, String parentCode, String dimension,
+                               BigDecimal weight, String ruleText, String scoreType, Integer pageNumber,
+                               String tableId, List<String> sourceCellIds, String quotedText, double confidence) {
+        this(sectionTitle, code, parentCode, dimension, weight, ruleText, scoreType, pageNumber,
+                tableId, sourceCellIds, quotedText, confidence, ChildAggregation.SUM);
     }
 
     private static String safe(String value) {

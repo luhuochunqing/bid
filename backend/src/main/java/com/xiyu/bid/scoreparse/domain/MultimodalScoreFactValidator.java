@@ -39,17 +39,18 @@ public final class MultimodalScoreFactValidator {
         validateEvidence(facts, cells, violations);
         validateDuplicates(facts, violations);
         validateSequences(facts, violations);
-        validateParents(facts, violations);
+        validateParents(facts, cells, violations);
         var sourceVerification = OriginalScoreEvidencePolicy.verifyModel(context, artifact, facts, declaredTotal);
         sourceVerification.problems().forEach(problem -> violations.add(new Violation(problem.factId(),
                 problem.field(), problem.code(), "模型字段缺少对应原文依据", problem.expected(),
                 problem.actual(), problem.locator())));
-        Set<String> parents = new HashSet<>();
-        facts.stream().filter(f -> !f.parentCode().isBlank())
-                .forEach(f -> parents.add(f.sectionTitle() + "\u0000" + f.parentCode()));
-        BigDecimal leafTotal = facts.stream().filter(f -> !parents.contains(f.sectionTitle() + "\u0000" + f.code()))
-                .map(MultimodalScoreFact::weight).filter(java.util.Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<ScoreUnitPolicy.Node> scoreNodes = facts.stream().map(f -> new ScoreUnitPolicy.Node(
+                factKey(f), parentKey(f), f.weight(), f.childAggregation().name())).toList();
+        BigDecimal leafTotal = ScoreUnitPolicy.totalWeight(scoreNodes);
+        if (ScoreUnitPolicy.hasUnknownRelation(scoreNodes)) {
+            violations.add(new Violation("", "childAggregation", "CHILD_AGGREGATION_UNKNOWN",
+                    "父子计分关系无法判明", "known relationship", "UNKNOWN", "model scoring facts"));
+        }
         BigDecimal originalTotal = sourceVerification.total().value();
         if (originalTotal == null || leafTotal.compareTo(originalTotal) != 0) {
             violations.add(new Violation("", "weight", "WEIGHT_SUM_MISMATCH",
@@ -79,12 +80,12 @@ public final class MultimodalScoreFactValidator {
                                          List<Violation> violations) {
         for (MultimodalScoreFact fact : facts) {
             List<CellSource> sources = fact.sourceCellIds().stream().map(cells::get).filter(java.util.Objects::nonNull).toList();
-            boolean locatorValid = !fact.tableId().isBlank() && fact.sourceCellIds().size() == 1 && !sources.isEmpty()
+            boolean locatorValid = !fact.tableId().isBlank() && !fact.sourceCellIds().isEmpty() && !sources.isEmpty()
                     && sources.size() == fact.sourceCellIds().size()
-                    && sources.stream().allMatch(cell -> cell.tableId().equals(fact.tableId())
-                    && java.util.Objects.equals(cell.page(), fact.pageNumber()));
+                    && sources.stream().allMatch(cell -> cell.tableId().equals(fact.tableId()))
+                    && sources.stream().anyMatch(cell -> java.util.Objects.equals(cell.page(), fact.pageNumber()));
             if (!locatorValid) {
-                violations.add(of(fact, "sourceCellIds", "SOURCE_LOCATOR_INVALID", "引用必须绑定输入资产中的单个页码、表和单元格", fact.sourceCellIds(), sources));
+                violations.add(of(fact, "sourceCellIds", "SOURCE_LOCATOR_INVALID", "引用必须绑定输入资产中的页码、表和来源单元格", fact.sourceCellIds(), sources));
             }
             String exactSource = sources.stream().map(CellSource::rawText).reduce((a, b) -> a + b).orElse("");
             if (fact.quotedText().isBlank() || !exactSource.contains(fact.quotedText())) {
@@ -121,7 +122,8 @@ public final class MultimodalScoreFactValidator {
         });
     }
 
-    private static void validateParents(List<MultimodalScoreFact> facts, List<Violation> violations) {
+    private static void validateParents(List<MultimodalScoreFact> facts, Map<String, CellSource> cells,
+                                        List<Violation> violations) {
         Map<String, MultimodalScoreFact> byKey = new HashMap<>();
         facts.forEach(f -> byKey.put(f.sectionTitle() + "\u0000" + f.code(), f));
         Map<String, BigDecimal> childTotals = new HashMap<>();
@@ -134,19 +136,49 @@ public final class MultimodalScoreFactValidator {
                 childTotals.merge(key, child.weight(), BigDecimal::add);
             }
         }
-        childTotals.forEach((key, total) -> {
+        facts.stream().filter(child -> !child.parentCode().isBlank())
+                .map(child -> child.sectionTitle() + "\u0000" + child.parentCode()).distinct()
+                .forEach(key -> {
             MultimodalScoreFact parent = byKey.get(key);
-            if (parent.weight() == null || parent.weight().compareTo(total) != 0) {
+            BigDecimal total = childTotals.getOrDefault(key, BigDecimal.ZERO);
+            if (parent == null) return;
+            if (parent.childAggregation() == ChildAggregation.SUM
+                    && (parent.weight() == null || parent.weight().compareTo(total) != 0)) {
                 violations.add(of(parent, "weight", "PARENT_WEIGHT_MISMATCH", "父项分值必须等于直接子项合计", total, parent.weight()));
+            } else if (parent.childAggregation() != ChildAggregation.UNKNOWN
+                    && !relationSupported(parent, facts, cells)) {
+                violations.add(of(parent, "childAggregation", "CHILD_AGGREGATION_UNSUPPORTED_BY_SOURCE",
+                        "原文未能证明模型选择的父子计分关系", parent.childAggregation(), parent.ruleText()));
             }
         });
+    }
+
+    private static boolean relationSupported(MultimodalScoreFact parent, List<MultimodalScoreFact> facts,
+                                             Map<String, CellSource> cells) {
+        var citedCellIds = new java.util.ArrayList<>(parent.sourceCellIds());
+        facts.stream()
+                .filter(child -> child.sectionTitle().equals(parent.sectionTitle())
+                        && child.parentCode().equals(parent.code()))
+                .flatMap(child -> child.sourceCellIds().stream()).forEach(citedCellIds::add);
+        String evidence = citedCellIds.stream().map(cells::get).filter(java.util.Objects::nonNull)
+                .map(CellSource::rawText).collect(java.util.stream.Collectors.joining(" "));
+        return parent.childAggregation().supportedByOriginalText(evidence);
+    }
+
+    private static String factKey(MultimodalScoreFact fact) {
+        return fact.sectionTitle() + "/" + fact.code();
+    }
+
+    private static String parentKey(MultimodalScoreFact fact) {
+        return fact.parentCode().isBlank() ? "" : fact.sectionTitle() + "/" + fact.parentCode();
     }
 
     private static Map<String, CellSource> indexCells(DocumentArtifact artifact) {
         Map<String, CellSource> indexed = new HashMap<>();
         if (artifact == null) return indexed;
         artifact.tables().forEach(table -> table.cells().forEach(cell -> indexed.put(cell.cellId(),
-                new CellSource(table.tableId(), table.sourcePage(), cell.rawText() == null ? "" : cell.rawText()))));
+                new CellSource(table.tableId(), cell.sourcePage() == null ? table.sourcePage() : cell.sourcePage(),
+                        cell.rawText() == null ? "" : cell.rawText()))));
         return indexed;
     }
 

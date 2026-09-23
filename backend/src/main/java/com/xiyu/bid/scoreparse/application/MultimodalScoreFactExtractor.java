@@ -8,10 +8,16 @@ import java.util.List;
 
 /** Port for one-shot multimodal score fact extraction. */
 public interface MultimodalScoreFactExtractor {
+    int MAX_SCORE_PAGE_IMAGES = 24;
+
     ExtractionResult extract(DocumentArtifact artifact, List<DocumentImage> pageImages);
 
     default ExtractionResult recheck(DocumentArtifact artifact) {
         return extract(artifact, List.of());
+    }
+
+    default ExtractionResult recheck(DocumentArtifact artifact, List<DocumentImage> pageImages) {
+        return recheck(artifact);
     }
 
     record ExtractionResult(BigDecimal declaredTotal, List<MultimodalScoreFact> facts,

@@ -5,6 +5,7 @@ import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentConfigurat
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentRequestConfig;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiStructuredOutputService;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
+import com.xiyu.bid.scoreparse.domain.DocumentImage;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -18,7 +19,18 @@ import static org.mockito.Mockito.when;
 
 class OpenAiMultimodalScoreFactExtractorTest {
     @Test
-    void recheckIncludesUnmarkedTablesWithoutImages() {
+    void omittedModelAggregationBecomesUnknownAndExplicitValueIsPreserved() {
+        var omitted = new OpenAiMultimodalScoreFactExtractor.Item();
+        omitted.childAggregation = null;
+        var explicit = new OpenAiMultimodalScoreFactExtractor.Item();
+        explicit.childAggregation = "SHARED_CAP";
+
+        assertThat(omitted.toDomain().childAggregation()).isEqualTo(com.xiyu.bid.scoreparse.domain.ChildAggregation.UNKNOWN);
+        assertThat(explicit.toDomain().childAggregation()).isEqualTo(com.xiyu.bid.scoreparse.domain.ChildAggregation.SHARED_CAP);
+    }
+
+    @Test
+    void recheckIncludesScoringPageImagesAndCellPageAttribution() {
         OpenAiStructuredOutputService output = mock(OpenAiStructuredOutputService.class);
         OpenAiBidAgentConfigurationResolver resolver = mock(OpenAiBidAgentConfigurationResolver.class);
         OpenAiBidAgentRequestConfig config = mock(OpenAiBidAgentRequestConfig.class);
@@ -27,18 +39,25 @@ class OpenAiMultimodalScoreFactExtractorTest {
         var response = new OpenAiMultimodalScoreFactExtractor.Output();
         response.declaredTotal = BigDecimal.TEN;
         response.facts = List.of();
-        ArgumentCaptor<String> prompt = ArgumentCaptor.forClass(String.class);
-        when(output.request(prompt.capture(), eq(OpenAiMultimodalScoreFactExtractor.Output.class),
-                eq(config), any())).thenReturn(response);
+        ArgumentCaptor<String> imagePrompt = ArgumentCaptor.forClass(String.class);
+        when(output.request(imagePrompt.capture(), any(), eq(OpenAiMultimodalScoreFactExtractor.Output.class), eq(config), any()))
+                .thenReturn(response);
         var extractor = new OpenAiMultimodalScoreFactExtractor(output, resolver, new ObjectMapper());
 
-        var result = extractor.recheck(artifact());
+        var source = artifact();
+        var images = List.of(
+                new DocumentImage(0, "image/png", null, 1, 10, 10, "page-one"),
+                new DocumentImage(1, "image/png", null, 3, 10, 10, "page-three"));
+        var initial = extractor.extract(source, images);
+        var result = extractor.recheck(source, images);
 
         assertThat(result.declaredTotal()).isEqualByComparingTo("10");
-        assertThat(result.imageCount()).isZero();
-        assertThat(prompt.getValue()).contains("score-cell", "全部正式评分项", "quotedText");
-        assertThat(prompt.getValue()).contains("non-score-cell");
-        assertThat(prompt.getValue()).doesNotContain("sourceXmlPath");
+        assertThat(initial.imageCount()).isEqualTo(2);
+        assertThat(result.imageCount()).isEqualTo(2);
+        assertThat(imagePrompt.getAllValues()).hasSize(2);
+        assertThat(imagePrompt.getAllValues().get(0)).contains("score-cell", "sourcePage", "sourceXmlPath");
+        assertThat(imagePrompt.getAllValues().get(1)).contains("score-cell", "全部正式评分项", "quotedText")
+                .contains("sourcePage").doesNotContain("sourceXmlPath").contains("non-score-cell");
     }
 
     private static DocumentArtifact artifact() {

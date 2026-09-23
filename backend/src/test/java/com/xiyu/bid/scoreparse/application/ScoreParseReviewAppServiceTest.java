@@ -76,6 +76,22 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
+    void getReviewSnapshotReturnsPersistedChildAggregationAndLegacyDefaultsToSum() {
+        mockLatestTask();
+        ScoreParseFact sharedCap = fact("fact-1", "10");
+        sharedCap.setChildAggregation("SHARED_CAP");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(sharedCap), List.of(fact("fact-1", "10")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of());
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+
+        ScoreParseReviewDTO dto = service.getReviewSnapshot(PROJECT_ID);
+        ScoreParseReviewDTO legacyDto = service.getReviewSnapshot(PROJECT_ID);
+
+        assertThat(dto.facts().get(0).childAggregation()).isEqualTo("SHARED_CAP");
+        assertThat(legacyDto.facts().get(0).childAggregation()).isEqualTo("SUM");
+    }
+
+    @Test
     void submitReview_savesAuditOnlyAndReturnsSnapshot() {
         mockLatestTask();
         when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "10")));

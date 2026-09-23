@@ -120,7 +120,15 @@ public record DocumentArtifact(
                 Integer rowspan,
                 Integer colspan,
                 Boolean isMergedContinue,
-                String sourceXmlPath
-        ) {}
+                String sourceXmlPath,
+                Integer sourcePage
+        ) {
+            public CanonicalCellDto(String cellId, Integer row, Integer column, String rawText,
+                                    String normalizedText, Integer rowspan, Integer colspan,
+                                    Boolean isMergedContinue, String sourceXmlPath) {
+                this(cellId, row, column, rawText, normalizedText, rowspan, colspan,
+                        isMergedContinue, sourceXmlPath, null);
+            }
+        }
     }
 }

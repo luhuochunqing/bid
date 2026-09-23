@@ -42,8 +42,16 @@ public record ScoreParseReviewDTO(
             String parentFactId,
             String extractionMethod,
             BigDecimal confidence,
-            List<Evidence> evidences
+            List<Evidence> evidences,
+            String childAggregation
     ) {
+        public Fact(String factId, String code, String dimension, BigDecimal weight, String scoreType,
+                    String validationStatus, String validationMessage, String sourceText, String sourceCellIds,
+                    String weightEvidence, String parentFactId, String extractionMethod, BigDecimal confidence,
+                    List<Evidence> evidences) {
+            this(factId, code, dimension, weight, scoreType, validationStatus, validationMessage, sourceText,
+                    sourceCellIds, weightEvidence, parentFactId, extractionMethod, confidence, evidences, "SUM");
+        }
     }
 
     public record Evidence(

@@ -30,7 +30,7 @@ public final class MultimodalFactParentCodeNormalizer {
                     ? fact
                     : new MultimodalScoreFact(fact.sectionTitle(), fact.code(), canonical, fact.dimension(),
                     fact.weight(), fact.ruleText(), fact.scoreType(), fact.pageNumber(), fact.tableId(),
-                    fact.sourceCellIds(), fact.quotedText(), fact.confidence());
+                    fact.sourceCellIds(), fact.quotedText(), fact.confidence(), fact.childAggregation());
         }).toList();
     }
 
