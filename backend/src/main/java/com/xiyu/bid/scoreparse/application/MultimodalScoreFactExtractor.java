@@ -12,12 +12,32 @@ public interface MultimodalScoreFactExtractor {
 
     ExtractionResult extract(DocumentArtifact artifact, List<DocumentImage> pageImages);
 
+    /** Extract score facts from source text plus the canonical table grid. */
+    default ExtractionResult extractWithText(DocumentArtifact artifact, String sourceText) {
+        throw new UnsupportedOperationException("Text-backed score extraction is not implemented");
+    }
+
+    default ExtractionResult extractWithTextAndProgress(DocumentArtifact artifact, String sourceText,
+                                                        Runnable chunkCompleted) {
+        return extractWithText(artifact, sourceText);
+    }
+
     default ExtractionResult recheck(DocumentArtifact artifact) {
         return extract(artifact, List.of());
     }
 
     default ExtractionResult recheck(DocumentArtifact artifact, List<DocumentImage> pageImages) {
         return recheck(artifact);
+    }
+
+    /** Recheck using the same text evidence supplied to the initial extraction. */
+    default ExtractionResult recheckWithText(DocumentArtifact artifact, String sourceText) {
+        return extractWithText(artifact, sourceText);
+    }
+
+    default ExtractionResult recheckWithTextAndProgress(DocumentArtifact artifact, String sourceText,
+                                                        Runnable chunkCompleted) {
+        return recheckWithText(artifact, sourceText);
     }
 
     record ExtractionResult(BigDecimal declaredTotal, List<MultimodalScoreFact> facts,

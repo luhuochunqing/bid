@@ -72,7 +72,6 @@ public class ScoreParseAppService {
     @Autowired
     private ScoreParseAppService self;
     @Autowired(required = false) private MultimodalScoreFactExtractor multimodalScoreFactExtractor;
-    @Autowired(required = false) private SidecarImageExtractor sidecarImageExtractor;
     public ScoreParseTriggerDTO triggerParse(Long projectId) {
         return triggerParse(projectId, "MANUAL");
     }
@@ -163,8 +162,9 @@ public class ScoreParseAppService {
                     ? null : artifactExtractorProvider.getIfAvailable();
             var structuredCandidates = multimodalScoreFactExtractor == null
                     ? StructuredTableExtractionHandler.extract(source, intake.loaded(), artifactExtractor, sidecarTableExtractor)
-                    : StructuredTableExtractionHandler.extract(source, intake.loaded(), artifactExtractor,
-                            multimodalScoreFactExtractor, sidecarImageExtractor);
+                    : StructuredTableExtractionHandler.extractWithTextModelHeartbeat(source, intake.loaded(), artifactExtractor,
+                            multimodalScoreFactExtractor,
+                            () -> updateProgress(taskId, 5, "READ_DOCUMENT", "正在识别招标文件评分内容"));
             if (structuredCandidates.structureIncomplete()) {
                 StructuredTableExtractionHandler.markIncomplete(task, taskId, structuredCandidates.failureReason(),
                         taskRepository, stateService, progressService);
