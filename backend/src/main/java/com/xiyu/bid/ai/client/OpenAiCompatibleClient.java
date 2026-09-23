@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class OpenAiCompatibleClient {
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration TIMEOUT = Duration.ofSeconds(60);
     private static final int MAX_ATTEMPTS = 3;
     private static final int MAX_BID_PREVIEW_CONTENT = 3000;
     private static final String SERVICE_NAME = "API";
@@ -62,12 +62,15 @@ public class OpenAiCompatibleClient {
                 .build();
     }
 
+    /** 标书/项目分析 max_tokens：放宽至 4096，容纳多维度深度分析与 thinking 系模型内部推理（lessons #201）. */
+    static final int ANALYSIS_MAX_TOKENS = 4096;
+
     public AiAnalysisResponse analyzeTender(
             AiProviderRuntimeConfig config,
             String content,
             Map<String, Object> context) {
         String prompt = promptBuilder.buildTenderAnalysisPrompt(content, context);
-        return responseParser.parseAnalysisResponse(callChatCompletion(config, prompt, 2000, false));
+        return responseParser.parseAnalysisResponse(chatCompletionJsonObject(config, prompt, ANALYSIS_MAX_TOKENS));
     }
 
     public AiAnalysisResponse analyzeProject(
@@ -75,7 +78,7 @@ public class OpenAiCompatibleClient {
             Long projectId,
             Map<String, Object> context) {
         String prompt = promptBuilder.buildProjectAnalysisPrompt(projectId, context);
-        return responseParser.parseAnalysisResponse(callChatCompletion(config, prompt, 2000, false));
+        return responseParser.parseAnalysisResponse(chatCompletionJsonObject(config, prompt, ANALYSIS_MAX_TOKENS));
     }
 
     /** 连接测试 max_tokens：需容纳 thinking 系模型的内部推理消耗（lessons #201）. */
