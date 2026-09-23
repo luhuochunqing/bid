@@ -111,71 +111,74 @@ public class InitiationTenderTextResolver {
                 textExtractor, obsShareUrlSigner, streamingFetcher, streamTextExtractor,
                 tempFileStore, 31457280L, tenderMaxTextChars, tenderMaxFileBytes);
     }
-
     public boolean hasSource(Long projectId) {
-        return findLatestTenderDocument(projectId).isPresent()
+        return !findTenderDocuments(projectId).isEmpty()
                 || snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
                         .filter(snapshot -> snapshot.getExtractedText() != null && !snapshot.getExtractedText().isBlank())
                         .isPresent();
     }
-
     public Optional<ProjectDocument> findLatestTenderDocument(Long projectId) {
         for (String category : TENDER_CATEGORIES) {
-            List<ProjectDocument> docs = projectDocumentRepository
-                    .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, category, null, null);
-            if (!docs.isEmpty()) {
-                return docs.stream().findFirst();
-            }
+            List<ProjectDocument> docs = projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                    projectId, category, null, null);
+            if (!docs.isEmpty()) return docs.stream().findFirst();
         }
         return Optional.empty();
     }
-
-    public Optional<TenderTextSource> resolve(Long projectId) {
-        return resolveIntake(projectId).source();
+    List<ProjectDocument> findTenderDocuments(Long projectId) {
+        java.util.LinkedHashMap<String, ProjectDocument> unique = new java.util.LinkedHashMap<>();
+        for (String category : TENDER_CATEGORIES) {
+            projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, category, null, null).forEach(
+                    doc -> unique.putIfAbsent(doc.getId() == null ? doc.getName() + "\u0000" + doc.getFileUrl()
+                            : String.valueOf(doc.getId()), doc));
+        }
+        return List.copyOf(unique.values());
     }
-
+    public Optional<TenderTextSource> resolve(Long projectId) { return resolveIntake(projectId).source(); }
     public TenderIntake resolveIntake(Long projectId) {
         TenderExecutionSource exec = resolveExecutionSource(projectId);
         try {
-            if (exec.source() != null) {
-                return TenderIntake.found(exec.source());
-            }
-            return TenderIntake.unavailable(exec.emptyReason());
+            return exec.source() != null ? TenderIntake.found(exec.source()) : TenderIntake.unavailable(exec.emptyReason());
         } finally {
-            if (exec.loaded() != null) {
-                releaseTenderFile(exec.loaded());
-            }
+            exec.loadedFiles().forEach(this::releaseTenderFile);
         }
     }
-
     public TenderExecutionSource resolveExecutionSource(Long projectId) {
-        Optional<ProjectDocument> document = findLatestTenderDocument(projectId);
+        List<ProjectDocument> documents = findTenderDocuments(projectId);
         String oversizedReason = null;
         String blankTextReason = null;
-        if (document.isPresent()) {
-            ProjectDocument doc = document.get();
-            LoadedBidFile loaded = null;
-            boolean sourceAcquired = false;
-            try {
-                loaded = loadTenderFile(doc.getFileUrl(), doc.getName(), doc.getFileType());
-                String text = loaded == null ? null : extractLoadedTextNoRelease(loaded, doc);
-                if (text == null || text.isBlank()) {
-                    log.warn("立项招标文件未能提取正文: name={}", doc.getName());
-                    blankTextReason = BLANK_TEXT_MESSAGE;
-                } else {
-                    sourceAcquired = true;
-                    return TenderExecutionSource.found(new TenderTextSource(doc.getName(), doc.getFileUrl(), text), loaded);
+        if (!documents.isEmpty()) {
+            List<TenderTextSource> sources = new java.util.ArrayList<>();
+            List<LoadedBidFile> loadedFiles = new java.util.ArrayList<>();
+            for (ProjectDocument doc : documents) {
+                LoadedBidFile loaded = null;
+                boolean sourceAcquired = false;
+                try {
+                    loaded = loadTenderFile(doc.getFileUrl(), doc.getName(), doc.getFileType());
+                    String text = loaded == null ? null : extractLoadedTextNoRelease(loaded, doc);
+                    if (text == null || text.isBlank()) {
+                        log.warn("立项招标文件未能提取正文: name={}", doc.getName());
+                        blankTextReason = BLANK_TEXT_MESSAGE;
+                    } else {
+                        sourceAcquired = true;
+                        sources.add(new TenderTextSource(doc.getName(), doc.getFileUrl(), text));
+                        if (loaded != null) loadedFiles.add(loaded);
+                    }
+                } catch (OversizedTenderTextException | TenderFileQuotaException exception) {
+                    oversizedReason = exception.getMessage();
+                } catch (BidFileQuotaException exception) {
+                    oversizedReason = TenderFileQuotaException.MESSAGE;
+                } catch (RuntimeException exception) {
+                    log.warn("立项招标文件读取失败: name={}, msg={}", doc.getName(), exception.getMessage());
+                } finally {
+                    if (!sourceAcquired) {
+                        releaseTenderFile(loaded);
+                    }
                 }
-            } catch (OversizedTenderTextException | TenderFileQuotaException exception) {
-                oversizedReason = exception.getMessage();
-            } catch (BidFileQuotaException exception) {
-                oversizedReason = TenderFileQuotaException.MESSAGE;
-            } catch (RuntimeException exception) {
-                log.warn("立项招标文件读取失败: name={}, msg={}", doc.getName(), exception.getMessage());
-            } finally {
-                if (!sourceAcquired) {
-                    releaseTenderFile(loaded);
-                }
+            }
+            if (!sources.isEmpty()) {
+                log.info("立项招标文件正文合并: projectId={}, files={}", projectId, sources.size());
+                return TenderExecutionSource.found(sources, loadedFiles);
             }
             log.warn("立项招标文件不可用，回退历史底稿: projectId={}", projectId);
         }
@@ -187,13 +190,11 @@ public class InitiationTenderTextResolver {
                 : blankTextReason != null ? blankTextReason : NO_TENDER_MESSAGE;
         return TenderExecutionSource.unavailable(failureReason);
     }
-
     private Optional<TenderTextSource> snapshotSource(Long projectId) {
         return snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
                 .filter(snapshot -> snapshot.getExtractedText() != null && !snapshot.getExtractedText().isBlank())
                 .map(this::fromSnapshot);
     }
-
     private TenderTextSource fromSnapshot(BidTenderDocumentSnapshot snapshot) {
         return new TenderTextSource(snapshot.getFileName(), snapshot.getFileUrl(), snapshot.getExtractedText());
     }

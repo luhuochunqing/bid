@@ -53,6 +53,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-1386-score-summary-and-leaves"),
                 Arguments.of("case-page-split-parent-child"),
                 Arguments.of("case-long-text-scoring-table"),
+                Arguments.of("case-text-primary-multi-document"),
                 Arguments.of("case-score-total-evidence-roles"),
                 Arguments.of("case-upstream-scoring-integrity"));
     }

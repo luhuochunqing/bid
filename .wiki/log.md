@@ -1212,3 +1212,7 @@
 - 决策：评分抽取与复核完整遍历带重叠的文本分片，每次请求最多 24,000 字符（含结构化来源证据），事实合并后统一校验；分片请求失败、结构化证据占用过多或总分声明冲突均转人工复核，不采纳部分结果。每个成功分片刷新任务进度时间，防止长任务被现有超时扫描误判。评分主链路不使用页面图片，转换层网格/原始单元格仍用于来源追溯。
 - 证据：`ScoreTextChunkerTest`、`ScoreFactChunkMergerTest`、`OpenAiMultimodalScoreFactExtractorTest` 覆盖分片边界、合并、提示长度、首次/复核全覆盖及心跳；目标测试 76 项通过，GoldenCasesReplay 22 项通过。模型实际耗时、成本与生产招标文件验收仍需部署环境另行观测。
 - 回填：更新 [[scoreparse-multimodal-primary]]。
+## [2026-09-24] compound | 评分正文主链路与多文件后校验
+- 触发：完整结构化证据占满正文 prompt，多招标文件只取最新文件，导致不同项目识别结果不稳定。
+- 结论：正文分片只发送文字；全部招标文件合并；父项、子项、权重、分值按原文保存；Sidecar 后置用于回指和校验，无法回指则人工复核。
+- 回归：新增 `case-text-primary-multi-document` 金标夹具，并更新 [[scoreparse-multimodal-primary]]。

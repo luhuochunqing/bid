@@ -97,6 +97,33 @@ class OpenAiMultimodalScoreFactExtractorTest {
     }
 
     @Test
+    void textExtractionDoesNotPutTheFullStructuredArtifactIntoEveryTextChunk() {
+        OpenAiStructuredOutputService output = mock(OpenAiStructuredOutputService.class);
+        OpenAiBidAgentConfigurationResolver resolver = mock(OpenAiBidAgentConfigurationResolver.class);
+        OpenAiBidAgentRequestConfig config = mock(OpenAiBidAgentRequestConfig.class);
+        when(config.model()).thenReturn("test-model");
+        when(resolver.resolve(any())).thenReturn(config);
+        var response = new OpenAiMultimodalScoreFactExtractor.Output();
+        response.facts = List.of();
+        ArgumentCaptor<String> prompts = ArgumentCaptor.forClass(String.class);
+        when(output.request(prompts.capture(), any(), eq(OpenAiMultimodalScoreFactExtractor.Output.class),
+                eq(config), any())).thenReturn(response);
+
+        var hugeCell = new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                "huge", 1, 1, "证据".repeat(20_000), "", 1, 1, false, "xml");
+        var hugeArtifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("d", "sha", "pdf", "2.0"),
+                List.of(new DocumentArtifact.CanonicalTable("score", 1, "评分办法", 1, 1,
+                        List.of(), List.of(hugeCell), true)), List.of());
+
+        var extractor = new OpenAiMultimodalScoreFactExtractor(output, resolver, new ObjectMapper());
+        extractor.extractWithText(hugeArtifact, "正文评分规则 marker");
+
+        assertThat(prompts.getAllValues()).isNotEmpty();
+        assertThat(prompts.getAllValues()).allSatisfy(prompt -> assertThat(prompt).doesNotContain("证据".repeat(1000)));
+        assertThat(prompts.getAllValues()).allSatisfy(prompt -> assertThat(prompt).contains("正文评分规则 marker"));
+    }
+
+    @Test
     void omittedModelAggregationBecomesUnknownAndExplicitValueIsPreserved() {
         var omitted = new OpenAiMultimodalScoreFactExtractor.Item();
         omitted.childAggregation = null;

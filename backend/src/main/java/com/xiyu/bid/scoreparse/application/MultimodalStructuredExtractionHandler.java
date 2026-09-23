@@ -7,10 +7,8 @@ import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
 import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
-import com.xiyu.bid.scoreparse.domain.ScoreEvidence;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
-import com.xiyu.bid.scoreparse.domain.ScoreRule;
 import com.xiyu.bid.scoreparse.domain.ScoreUnitPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreTableSplitPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreTableSummaryPolicy;
@@ -44,51 +42,133 @@ final class MultimodalStructuredExtractionHandler {
     static StructuredTableResult extractWithChunkHeartbeat(TenderTextSource source, LoadedBidFile loaded,
                                           SidecarDocumentArtifactExtractor artifactExtractor,
                                           MultimodalScoreFactExtractor extractor, Runnable chunkCompleted) {
+        return extractWithTextModelHeartbeat(source,
+                loaded == null ? List.of() : List.of(loaded), List.of(source),
+                artifactExtractor, extractor, chunkCompleted);
+    }
+
+    static StructuredTableResult extractWithTextModelHeartbeat(TenderTextSource source,
+                                          List<LoadedBidFile> loadedFiles,
+                                          List<TenderTextSource> sources,
+                                          SidecarDocumentArtifactExtractor artifactExtractor,
+                                          MultimodalScoreFactExtractor extractor, Runnable chunkCompleted) {
+        if (extractor == null) {
+            return legacyArtifactOnly(source, loadedFiles.isEmpty() ? null : loadedFiles.get(0), artifactExtractor);
+        }
+        if (!extractor.supportsTextOnly()) {
+            return legacyModelPath(source, loadedFiles.isEmpty() ? null : loadedFiles.get(0), artifactExtractor, extractor, chunkCompleted);
+        }
+        try {
+            return runTextFirst(source.fileName(), source.text(), loadedFiles, sources,
+                    artifactExtractor, extractor, chunkCompleted);
+        } catch (RuntimeException exception) {
+            log.warn("文字评分事实提取失败，进入异常复核且禁止正则自动发布: file={}, msg={}",
+                    source.fileName(), exception.getMessage());
+            return StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_FAILED");
+        }
+    }
+
+    private static StructuredTableResult runTextFirst(String fileName, String text,
+                                                       List<LoadedBidFile> loadedFiles,
+                                                       List<TenderTextSource> sources,
+                                                       SidecarDocumentArtifactExtractor artifactExtractor,
+                                                       MultimodalScoreFactExtractor extractor,
+                                                       Runnable chunkCompleted) {
+        MultimodalScoreFactExtractor.ExtractionResult extracted;
+        boolean rechecked = false;
+        try {
+            extracted = extractor.extractTextAndProgress(text, chunkCompleted);
+        } catch (RuntimeException firstFailure) {
+            log.warn("文字证据首次提取失败，尝试独立模型复核: file={}, cause={}", fileName,
+                    firstFailure.getClass().getSimpleName());
+            extracted = extractor.recheckTextAndProgress(text, chunkCompleted);
+            rechecked = true;
+        }
+        DocumentArtifact artifact = null;
+        if (!loadedFiles.isEmpty() && artifactExtractor != null) {
+            try {
+                artifact = TextPrimaryEvidenceBinder.bundle(loadedFiles, sources, artifactExtractor);
+            } catch (IOException | InterruptedException exception) {
+                if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
+                log.warn("结构化证据后校验不可用，保留文字候选复核: file={}, msg={}", fileName, exception.getMessage());
+            }
+        }
+        OriginalScoringContext context = OriginalScoringContext.resolve(artifact, text);
+        return run(fileName, text, artifact, context, extractor, chunkCompleted, extracted, true, rechecked);
+    }
+
+    private static StructuredTableResult legacyArtifactOnly(TenderTextSource source, LoadedBidFile loaded,
+                                                             SidecarDocumentArtifactExtractor artifactExtractor) {
         if (loaded == null || artifactExtractor == null) {
             return StructuredTableResult.structureIncomplete("MULTIMODAL_INPUT_UNAVAILABLE");
         }
-        DocumentArtifact artifact = null;
-        OriginalScoringContext originalContext = null;
         try {
-            artifact = artifact(loaded, source.fileName(), artifactExtractor);
-            originalContext = OriginalScoringContext.resolve(artifact, source.text());
-            if (extractor == null) return MultimodalReviewFallback.reviewOnly(artifact, originalContext, source.text(),
-                    "MULTIMODAL_MODEL_UNAVAILABLE");
-            return run(source.fileName(), source.text(), artifact, originalContext, extractor, chunkCompleted);
-        } catch (RuntimeException | IOException exception) {
-            log.warn("文字评分事实提取失败，进入异常复核且禁止正则自动发布: file={}, msg={}",
-                    source.fileName(), exception.getMessage());
-            return artifact == null ? StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_FAILED")
-                    : MultimodalReviewFallback.reviewOnly(artifact, originalContext, source.text(), "MULTIMODAL_EXTRACTION_FAILED");
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            return artifact == null ? StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_INTERRUPTED")
-                    : MultimodalReviewFallback.reviewOnly(artifact, originalContext, source.text(), "MULTIMODAL_EXTRACTION_INTERRUPTED");
+            DocumentArtifact artifact = artifact(loaded, source.fileName(), artifactExtractor);
+            return MultimodalReviewFallback.reviewOnly(artifact, OriginalScoringContext.resolve(artifact, source.text()),
+                    source.text(), "MULTIMODAL_MODEL_UNAVAILABLE");
+        } catch (IOException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
+            return StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_FAILED");
+        }
+    }
+
+    private static StructuredTableResult legacyModelPath(TenderTextSource source, LoadedBidFile loaded,
+                                                          SidecarDocumentArtifactExtractor artifactExtractor,
+                                                          MultimodalScoreFactExtractor extractor,
+                                                          Runnable chunkCompleted) {
+        if (loaded == null || artifactExtractor == null) {
+            return StructuredTableResult.structureIncomplete("MULTIMODAL_INPUT_UNAVAILABLE");
+        }
+        try {
+            DocumentArtifact artifact = artifact(loaded, source.fileName(), artifactExtractor);
+            OriginalScoringContext context = OriginalScoringContext.resolve(artifact, source.text());
+            MultimodalScoreFactExtractor.ExtractionResult extracted;
+            boolean rechecked = false;
+            try {
+                extracted = extractor.extractWithTextAndProgress(artifact, source.text(), chunkCompleted);
+            } catch (RuntimeException firstFailure) {
+                try {
+                    extracted = extractor.recheckWithTextAndProgress(artifact, source.text(), chunkCompleted);
+                    rechecked = true;
+                } catch (RuntimeException recheckFailure) {
+                    return MultimodalReviewFallback.reviewOnly(artifact, context, source.text(),
+                            "MULTIMODAL_EXTRACTION_FAILED");
+                }
+            }
+            return run(source.fileName(), source.text(), artifact, context, extractor, chunkCompleted,
+                    extracted, false, rechecked);
+        } catch (IOException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
+            return StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_FAILED");
         }
     }
 
     private static StructuredTableResult run(String fileName, String tenderSectionText,
                                               DocumentArtifact artifact, OriginalScoringContext originalContext,
-                                              MultimodalScoreFactExtractor extractor, Runnable chunkCompleted) {
-        MultimodalScoreFactExtractor.ExtractionResult extracted;
-        boolean alreadyRechecked = false;
-        try {
-            extracted = extractor.extractWithTextAndProgress(artifact, tenderSectionText, chunkCompleted);
-        } catch (RuntimeException firstFailure) {
-            log.warn("文字证据首次提取失败，尝试独立模型复核: file={}, cause={}", fileName,
-                    firstFailure.getClass().getSimpleName());
-            extracted = extractor.recheckWithTextAndProgress(artifact, tenderSectionText, chunkCompleted);
-            alreadyRechecked = true;
-        }
+                                              MultimodalScoreFactExtractor extractor, Runnable chunkCompleted,
+                                              MultimodalScoreFactExtractor.ExtractionResult extracted,
+                                              boolean textOnly) {
+        return run(fileName, tenderSectionText, artifact, originalContext, extractor, chunkCompleted,
+                extracted, textOnly, false);
+    }
+
+    private static StructuredTableResult run(String fileName, String tenderSectionText,
+                                              DocumentArtifact artifact, OriginalScoringContext originalContext,
+                                              MultimodalScoreFactExtractor extractor, Runnable chunkCompleted,
+                                              MultimodalScoreFactExtractor.ExtractionResult extracted,
+                                              boolean textOnly, boolean alreadyRechecked) {
         extracted = normalized(extracted);
+        extracted = new MultimodalScoreFactExtractor.ExtractionResult(extracted.declaredTotal(),
+                TextPrimaryEvidenceBinder.bind(extracted.facts(), artifact), extracted.model(), extracted.imageCount());
         var validator = new MultimodalScoreFactValidator();
         var validation = validator.validate(extracted.facts(), artifact, originalContext, extracted.declaredTotal());
         boolean multiTableModelScopeUnknown = hasMultipleTables(extracted.facts())
                 && !hasIndependentTableTotals(originalContext, extracted.facts());
         if (!alreadyRechecked && (!validation.autoApprovable() || multiTableModelScopeUnknown)) {
             try {
-                var rechecked = normalized(extractor.recheckWithTextAndProgress(
-                        artifact, tenderSectionText, chunkCompleted));
+                var rechecked = normalized(textOnly
+                        ? extractor.recheckTextAndProgress(tenderSectionText, chunkCompleted)
+                        : extractor.recheckWithTextAndProgress(artifact, tenderSectionText, chunkCompleted));
                 var recheckValidation = validator.validate(rechecked.facts(), artifact, originalContext,
                         rechecked.declaredTotal());
                 boolean recheckScopeUnknown = hasMultipleTables(rechecked.facts())
@@ -112,14 +192,14 @@ final class MultimodalStructuredExtractionHandler {
                         || "PARENT_WEIGHT_MISMATCH".equals(violation.code()));
         if ((!validation.autoApprovable() || multiTableModelScopeUnknown)
                 && !scoringRelationUncertain) {
-            StructuredTableResult deterministicFallback = MultimodalReviewFallback.completeDeterministic(
+            StructuredTableResult deterministicFallback = artifact == null ? null : MultimodalReviewFallback.completeDeterministic(
                     originalContext, artifact, tenderSectionText, validation);
             if (deterministicFallback != null) {
                 return deterministicFallback;
             }
         }
         var finalValidation = validation;
-        List<ScoreFact> facts = validation.facts().stream().map(f -> toScoreFact(f, artifact, finalValidation)).toList();
+        List<ScoreFact> facts = validation.facts().stream().map(f -> TextPrimaryScoreFactMapper.map(f, artifact, finalValidation)).toList();
         var decision = validation.autoApprovable() && !multiTableModelScopeUnknown
                 ? ScoreParseDecision.AUTO_APPROVED : ScoreParseDecision.REVIEW_REQUIRED;
         List<ScoreFact> leaves = ScoreUnitPolicy.effectiveFacts(facts);
@@ -170,31 +250,6 @@ final class MultimodalStructuredExtractionHandler {
             case LoadedBidFile.InMemory inMem -> extractor.extract(inMem.content(), fileName);
             case LoadedBidFile.OnDisk onDisk -> extractor.extract(onDisk.tempFile(), fileName);
         };
-    }
-
-    private static ScoreFact toScoreFact(MultimodalScoreFact fact, DocumentArtifact artifact,
-                                         MultimodalScoreFactValidator.ValidationReport validation) {
-        String cellId = fact.sourceCellIds().isEmpty() ? "" : fact.sourceCellIds().get(0);
-        String raw = artifact.tables().stream().flatMap(table -> table.cells().stream())
-                .filter(cell -> cell.cellId().equals(cellId)).map(cell -> cell.rawText() == null ? "" : cell.rawText())
-                .findFirst().orElse("");
-        int start = raw.indexOf(fact.quotedText());
-        String factId = fact.sectionTitle() + "/" + fact.code();
-        String parentId = fact.parentCode().isBlank() ? "" : fact.sectionTitle() + "/" + fact.parentCode();
-
-        String violations = validation.violations().stream()
-                .filter(v -> v.factId().isBlank() || v.factId().equals(factId))
-                .map(v -> v.code() + "[field=" + v.field() + ", expected=" + v.expected()
-                        + ", actual=" + v.actual() + ", evidence=" + v.evidence() + "]")
-                .collect(java.util.stream.Collectors.joining("; "));
-        var status = violations.isBlank() && validation.autoApprovable()
-                ? ScoreFact.ValidationStatus.AUTO_APPROVED : ScoreFact.ValidationStatus.REVIEW_REQUIRED;
-        return new ScoreFact(factId, fact.tableId(), fact.sourceCellIds(), fact.ruleText(), fact.code(),
-                fact.dimension(), fact.weight(), new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN,
-                fact.quotedText(), cellId, start, start < 0 ? -1 : start + fact.quotedText().length(),
-                "page=" + fact.pageNumber() + "; scoreType=" + fact.scoreType()
-                        + (violations.isBlank() ? "" : "; validationDiff=" + violations)),
-                ScoreRule.MAX_SCORE, parentId, "MULTIMODAL", fact.confidence(), status, fact.childAggregation());
     }
 
     private static MultimodalScoreFactExtractor.ExtractionResult normalized(

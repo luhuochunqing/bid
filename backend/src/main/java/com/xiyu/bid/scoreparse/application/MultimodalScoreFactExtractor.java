@@ -10,6 +10,10 @@ import java.util.List;
 public interface MultimodalScoreFactExtractor {
     int MAX_SCORE_PAGE_IMAGES = 24;
 
+    default boolean supportsTextOnly() {
+        return false;
+    }
+
     ExtractionResult extract(DocumentArtifact artifact, List<DocumentImage> pageImages);
 
     /** Extract score facts from source text plus the canonical table grid. */
@@ -20,6 +24,11 @@ public interface MultimodalScoreFactExtractor {
     default ExtractionResult extractWithTextAndProgress(DocumentArtifact artifact, String sourceText,
                                                         Runnable chunkCompleted) {
         return extractWithText(artifact, sourceText);
+    }
+
+    /** Extract facts from text alone; structured evidence is bound after extraction. */
+    default ExtractionResult extractTextAndProgress(String sourceText, Runnable chunkCompleted) {
+        return extractWithTextAndProgress(null, sourceText, chunkCompleted);
     }
 
     default ExtractionResult recheck(DocumentArtifact artifact) {
@@ -38,6 +47,11 @@ public interface MultimodalScoreFactExtractor {
     default ExtractionResult recheckWithTextAndProgress(DocumentArtifact artifact, String sourceText,
                                                         Runnable chunkCompleted) {
         return recheckWithText(artifact, sourceText);
+    }
+
+    /** Recheck text facts without sending the full structured artifact. */
+    default ExtractionResult recheckTextAndProgress(String sourceText, Runnable chunkCompleted) {
+        return recheckWithTextAndProgress(null, sourceText, chunkCompleted);
     }
 
     record ExtractionResult(BigDecimal declaredTotal, List<MultimodalScoreFact> facts,
