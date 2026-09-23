@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [AI, Provider, DeepSeek, Doubao, qwen, Kimi, Reasoning, activeProvider, 降级策略, Sidecar, textutil, mock, 配置默认值陷阱, temperature]
 created: 2026-07-10
-updated: 2026-09-17
-health_checked: 2026-09-18
+updated: 2026-09-23
+health_checked: 2026-09-23
 sources:
   - backend/src/main/java/com/xiyu/bid/ai/
   - backend/src/main/resources/application.yml
@@ -364,7 +364,24 @@ curl -X POST http://localhost:18080/api/ai/test \
 
 ---
 
-## 11. 相关文档
+## 11. 大模型原生 JSON 约束与调用健壮性三位一体（2026-09-23）
+
+### 11.1 协议级结构化约束 (`response_format: {"type": "json_object"}`)
+
+- **背景与根因**：对于需要强类型结构化输出的接口（如 `analyzeTender` 标讯分析、`analyzeProject` 投标分析），纯依靠 Prompt 口头要求 JSON 输出在接入部分现代模型（如 Kimi k3、推理模型等）时容易产生前导解释文字或 Markdown 围栏（```json ... ```），引发前端/后端反序列化解析失败。
+- **加固规范**：
+  1. 调用必须显式注入 `response_format: {"type": "json_object"}`。
+  2. 根据 OpenAI 协议标准，启用 `json_object` 时 Prompt 必须显式包含 "JSON" 关键词。
+  3. **透明降级保护**：当网关或老旧代理报 `400 unsupported response_format` 时，客户端捕获错误并自动单向降级为普通 chatCompletion，避免业务硬性不可用。
+
+### 11.2 分析输出 Token 预算与超时防护
+
+- **Token 预算**：标书分析包含评分、风险等级、优势、劣势、建议及多维度打分和详细说明，原 2000 token 预算偏紧，遇到长篇或深入分析输出时会被大模型中途硬截断（Truncation），导致 JSON 结构破坏。统一常量化放宽为 `ANALYSIS_MAX_TOKENS = 4096`。
+- **超时防护**：底层 HTTP 客户端超时时间由 30s 适度放宽至 60s（`Duration.ofSeconds(60)`），有效降低偶发性长 Prompt 请求超时与网络抖动导致的 500 报错。
+
+---
+
+## 12. 相关文档
 
 - [[ai-capabilities]] — AI 能力总览（产品视角）
 - [[docinsight-engine]] — DocInsight 文档智能引擎
@@ -373,11 +390,13 @@ curl -X POST http://localhost:18080/api/ai/test \
 
 ---
 
-## 12. 变更记录
+## 13. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 AI Provider 配置陷阱 |
 | 2026-08-25 | 新增 §8 `ai.provider` 默认值陷阱（PR !2396 审计发现，默认 mock → 静默假数据 + 两处 mock 分支 NPE）；部署 checklist 升级为脚本断言 |
 | 2026-09-17 | 新增 §9 推理模型（Kimi K3 / o1 等）固定 temperature=1.0 兼容机制与客户端自适应降级设计 |
+| 2026-09-23 | 新增 §11 强制原生 JSON 协议约束、4096 Token 预算与 60s 超时健壮性加固 |
+
 
