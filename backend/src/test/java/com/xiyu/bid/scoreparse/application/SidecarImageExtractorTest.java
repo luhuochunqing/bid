@@ -4,6 +4,7 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +33,23 @@ class SidecarImageExtractorTest {
     private final AtomicReference<String> receivedContentType = new AtomicReference<>();
     private final AtomicReference<String> receivedSidecarKey = new AtomicReference<>();
     private final AtomicReference<byte[]> receivedBody = new AtomicReference<>();
+
+    @Test
+    void documentArtifactReadsOptionalCellPhysicalPageAndKeepsLegacyPayloadsValid() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        String prefix = """
+                {"artifact":{"documentId":"d","sha256":"sha","fileType":"PDF","extractionVersion":"v1"},
+                 "tables":[{"tableId":"t","sourcePage":1,"sourceSection":"","rows":1,"columns":1,
+                 "mergedRegions":[],"cells":[{"cellId":"c","row":0,"column":0,"rawText":"x","normalizedText":"x",
+                 "rowspan":1,"colspan":1,"isMergedContinue":false,"sourceXmlPath":"pdf:page=2"%s}],"isScoreTable":true}],"warnings":[]}
+                """;
+
+        var current = mapper.readValue(prefix.formatted(",\"sourcePage\":2"), DocumentArtifact.class);
+        var legacy = mapper.readValue(prefix.formatted(""), DocumentArtifact.class);
+
+        assertThat(current.tables().get(0).cells().get(0).sourcePage()).isEqualTo(2);
+        assertThat(legacy.tables().get(0).cells().get(0).sourcePage()).isNull();
+    }
 
     @BeforeEach
     void setUp() throws IOException {

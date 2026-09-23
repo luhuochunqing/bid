@@ -24,9 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-/**
- * AI 评分解析人工复核应用服务（spec 059 Phase 5 task3）。
- */
+/** AI 评分解析人工复核应用服务（spec 059 Phase 5 task3）。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -270,7 +268,8 @@ public class ScoreParseReviewAppService {
                                 evidence.getStartOffset(),
                                 evidence.getEndOffset(),
                                 evidence.getExplanation()))
-                        .toList());
+                        .toList(),
+                com.xiyu.bid.scoreparse.domain.ChildAggregation.legacyDefault(fact.getChildAggregation()).name());
     }
     private ScoreParseReviewDTO.Audit toAuditDTO(ScoreParseReview review) {
         return new ScoreParseReviewDTO.Audit(

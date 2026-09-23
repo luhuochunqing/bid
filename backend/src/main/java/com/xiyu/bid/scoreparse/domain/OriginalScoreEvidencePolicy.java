@@ -32,9 +32,14 @@ public final class OriginalScoreEvidencePolicy {
         Set<String> parentKeys = new LinkedHashSet<>();
         facts.stream().filter(f -> !f.parentCode().isBlank())
                 .forEach(f -> parentKeys.add(f.sectionTitle() + "/" + f.parentCode()));
+        List<ScoreUnitPolicy.Node> nodes = facts.stream().map(f -> new ScoreUnitPolicy.Node(
+                f.sectionTitle() + "/" + f.code(), f.parentCode().isBlank() ? ""
+                : f.sectionTitle() + "/" + f.parentCode(), f.weight(), f.childAggregation().name())).toList();
+        Set<String> units = ScoreUnitPolicy.effectiveUnitIds(nodes);
         List<Claim> claims = facts.stream().map(f -> new Claim(f.sectionTitle() + "/" + f.code(),
                 f.tableId(), f.dimension(), f.sourceCellIds(), f.weight(),
-                parentKeys.contains(f.sectionTitle() + "/" + f.code()))).toList();
+                parentKeys.contains(f.sectionTitle() + "/" + f.code()),
+                units.contains(f.sectionTitle() + "/" + f.code()))).toList();
         return verify(context, artifact, claims, modelTotal, true);
     }
 
@@ -45,9 +50,13 @@ public final class OriginalScoreEvidencePolicy {
     public static Verification verifyFacts(OriginalScoringContext context, DocumentArtifact artifact,
                                            List<ScoreFact> facts) {
         Set<String> parentIds = ScoreFact.parentIds(facts);
+        List<ScoreUnitPolicy.Node> nodes = facts.stream().map(f -> new ScoreUnitPolicy.Node(
+                f.factId(), f.parentFactId(), f.weight(), f.childAggregation().name())).toList();
+        Set<String> units = ScoreUnitPolicy.effectiveUnitIds(nodes);
         List<Claim> claims = facts.stream().map(f -> new Claim(f.factId(), f.sourceTableId(),
                 f.dimension(), f.weightEvidence() == null ? f.sourceCellIds()
-                : List.of(f.weightEvidence().cellId()), f.weight(), parentIds.contains(f.factId()))).toList();
+                : List.of(f.weightEvidence().cellId()), f.weight(), parentIds.contains(f.factId()),
+                units.contains(f.factId()))).toList();
         return verify(context, artifact, claims, null, false);
     }
 
@@ -72,7 +81,8 @@ public final class OriginalScoreEvidencePolicy {
             verifyWeight(artifact, claim, problems);
         }
         context.subtotals().forEach((tableId, subtotal) -> {
-            BigDecimal leafSum = claims.stream().filter(claim -> tableId.equals(claim.tableId()) && !claim.parent())
+            BigDecimal leafSum = claims.stream().filter(claim -> tableId.equals(claim.tableId())
+                            && claim.contributesToTotal())
                     .map(Claim::weight).filter(java.util.Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             if (leafSum.compareTo(subtotal.value()) != 0) {
@@ -84,6 +94,7 @@ public final class OriginalScoreEvidencePolicy {
     }
 
     private static void verifyWeight(DocumentArtifact artifact, Claim claim, List<Problem> problems) {
+        if (claim.weight() == null && !claim.parent()) return;
         if (artifact == null || claim.sourceCellIds().isEmpty()) {
             problems.add(new Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
                     "original item max score", claim.weight(), ""));
@@ -168,7 +179,7 @@ public final class OriginalScoreEvidencePolicy {
     }
 
     private record Claim(String id, String tableId, String dimension, List<String> sourceCellIds,
-                         BigDecimal weight, boolean parent) {}
+                         BigDecimal weight, boolean parent, boolean contributesToTotal) {}
     public record Problem(String factId, String field, String code, Object expected, Object actual, String locator) {}
     public record Total(BigDecimal value, String source, String scope, String locator, List<Problem> problems) {}
     public record Verification(String documentId, String scheme, Total total, List<Problem> problems) {
@@ -196,7 +207,9 @@ public final class OriginalScoreEvidencePolicy {
         if (verification == null || !verification.publishable() || verification.total().value() == null
                 || leafTotal == null || leafTotal.compareTo(verification.total().value()) != 0
                 || facts == null || facts.isEmpty() || candidates == null || candidates.isEmpty()
-                || !facts.stream().filter(f -> ScoreFact.isLeaf(f, facts)).map(ScoreFact::toCandidate)
+                || !facts.stream().filter(f -> ScoreUnitPolicy.effectiveUnitIds(facts.stream().map(fact ->
+                        new ScoreUnitPolicy.Node(fact.factId(), fact.parentFactId(), fact.weight(),
+                                fact.childAggregation().name())).toList()).contains(f.factId())).map(ScoreFact::toCandidate)
                         .flatMap(java.util.Optional::stream).toList().equals(candidates)) {
             return null;
         }

@@ -22,6 +22,44 @@ from docx.oxml.ns import qn
 from table_extractor import extract_tables, extract_tables_artifact, SCHEMA_VERSION
 
 
+def test_pdf_continuation_cells_expose_physical_page(monkeypatch, tmp_path):
+    from converter import extract_pdf_tables_artifact
+
+    page_tables = [
+        [["序号", "评分因素", "分值"], ["1", "技术方案", "（20分）"]],
+        [["2", "项目团队", "（10分）"]],
+    ]
+
+    class Page:
+        def __init__(self, tables):
+            self.tables = tables
+
+        def extract_tables(self):
+            return self.tables
+
+    class Pdf:
+        pages = [Page([tables]) for tables in page_tables]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    import types
+    monkeypatch.setitem(sys.modules, "pdfplumber", types.SimpleNamespace(open=lambda _path: Pdf()))
+    source = tmp_path / "continuation.pdf"
+    source.write_bytes(b"test pdf bytes")
+
+    artifact = extract_pdf_tables_artifact(str(source))
+    cells = artifact["tables"][0]["cells"]
+
+    assert {cell["rawText"]: cell.get("sourcePage") for cell in cells if cell["rawText"]} == {
+        "序号": 1, "评分因素": 1, "分值": 1, "1": 1, "技术方案": 1, "（20分）": 1,
+        "2": 2, "项目团队": 2, "（10分）": 2,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -65,6 +65,9 @@ public class ScoreParseFact {
     @Column(name = "parent_fact_id", length = 64)
     private String parentFactId;
 
+    @Column(name = "child_aggregation", length = 32)
+    private String childAggregation;
+
     @Column(name = "extraction_method", nullable = false, length = 64)
     private String extractionMethod;
 
