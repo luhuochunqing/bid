@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,7 +24,7 @@ class MultimodalStructuredExtractionHandlerTest {
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(artifact());
         int[] rechecks = {0};
-        MultimodalScoreFactExtractor model = new MultimodalScoreFactExtractor() {
+        MultimodalScoreFactExtractor model = new TextAwareScoreFactExtractorTestAdapter() {
             @Override
             public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 throw new IllegalStateException("Request failed");
@@ -49,7 +50,7 @@ class MultimodalStructuredExtractionHandlerTest {
         DocumentArtifact source = originalHundredPointArtifact(false);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
         int[] rechecks = {0};
-        MultimodalScoreFactExtractor model = new MultimodalScoreFactExtractor() {
+        MultimodalScoreFactExtractor model = new TextAwareScoreFactExtractorTestAdapter() {
             @Override
             public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 assertThat(input).isSameAs(source);
@@ -85,7 +86,7 @@ class MultimodalStructuredExtractionHandlerTest {
         DocumentArtifact source = originalHundredPointArtifact(false);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
         int[] calls = {0};
-        MultimodalScoreFactExtractor model = new MultimodalScoreFactExtractor() {
+        MultimodalScoreFactExtractor model = new TextAwareScoreFactExtractorTestAdapter() {
             @Override
             public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 assertThat(input).isSameAs(source);
@@ -116,7 +117,7 @@ class MultimodalStructuredExtractionHandlerTest {
     @Test
     void wrongItemWeightAfterRecheckCannotPublishEvenWhenTotalMatches() throws Exception {
         var source = originalHundredPointArtifact(false);
-        var model = new MultimodalScoreFactExtractor() {
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
             public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 return new ExtractionResult(new BigDecimal("100"), List.of(sourceFact("1", "10")), "first", 0);
             }
@@ -134,7 +135,7 @@ class MultimodalStructuredExtractionHandlerTest {
     @Test
     void balancedWrongItemWeightsStillCannotPublish() throws Exception {
         var source = originalHundredPointArtifact(false);
-        var model = new MultimodalScoreFactExtractor() {
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
             public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 return new ExtractionResult(new BigDecimal("100"), List.of(sourceFact("1", "10")), "first", 0);
             }
@@ -154,7 +155,7 @@ class MultimodalStructuredExtractionHandlerTest {
     void incompleteFirstAndFailedRecheckStayReviewRequired() throws Exception {
         var source = originalHundredPointArtifact(false);
         int[] calls = {0};
-        var model = new MultimodalScoreFactExtractor() {
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
             public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 return new ExtractionResult(new BigDecimal("100"), List.of(sourceFact("1", "10")), "first", 0);
             }
@@ -172,7 +173,7 @@ class MultimodalStructuredExtractionHandlerTest {
     @Test
     void weakerNonEmptyRecheckDoesNotReplaceInitialFacts() throws Exception {
         var source = originalHundredPointArtifact(false);
-        var model = new MultimodalScoreFactExtractor() {
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
             public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 return new ExtractionResult(new BigDecimal("90"),
                         List.of(sourceFact("1", "10"), sourceFact("2", "90")), "first", 0);
@@ -190,7 +191,7 @@ class MultimodalStructuredExtractionHandlerTest {
     }
 
     @Test
-    void recheckUsesImagesRenderedForCellPhysicalPage() throws Exception {
+    void initialAndRecheckUseTenderTextWithoutRenderingPageImages() throws Exception {
         var ruleCell = new DocumentArtifact.CanonicalTable.CanonicalCellDto(
                 "rule-p2", 0, 0, "技术方案最高得10分", "技术方案最高得10分", 1, 1, false, "pdf:p=2", 2);
         var source = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.pdf", "sha", "PDF", "2.0"),
@@ -199,20 +200,15 @@ class MultimodalStructuredExtractionHandlerTest {
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
         SidecarImageExtractor imageExtractor = mock(SidecarImageExtractor.class);
-        var image = new com.xiyu.bid.scoreparse.domain.DocumentImage(0, "image/png", null, 2, 10, 10, "page-two");
-        when(imageExtractor.renderPages(any(byte[].class), eq("bid.pdf"), eq(Set.of(2))))
-                .thenReturn(new SidecarImageExtraction(List.of(image), false),
-                        new SidecarImageExtraction(List.of(image), true));
-        List<com.xiyu.bid.scoreparse.domain.DocumentImage> initialImages = new java.util.ArrayList<>();
-        List<com.xiyu.bid.scoreparse.domain.DocumentImage> recheckImages = new java.util.ArrayList<>();
-        var model = new MultimodalScoreFactExtractor() {
-            public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
-                initialImages.addAll(images);
-                return new ExtractionResult(new BigDecimal("9"), List.of(fact()), "first", images.size());
+        List<String> receivedText = new java.util.ArrayList<>();
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
+            public ExtractionResult extractWithText(DocumentArtifact input, String sourceText) {
+                receivedText.add(sourceText);
+                return new ExtractionResult(new BigDecimal("9"), List.of(fact()), "first", 0);
             }
-            public ExtractionResult recheck(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
-                recheckImages.addAll(images);
-                return new ExtractionResult(BigDecimal.TEN, List.of(fact()), "recheck", images.size());
+            public ExtractionResult recheckWithText(DocumentArtifact input, String sourceText) {
+                receivedText.add(sourceText);
+                return new ExtractionResult(BigDecimal.TEN, List.of(fact()), "recheck", 0);
             }
             private MultimodalScoreFact fact() {
                 return new MultimodalScoreFact("评分办法", "1", "", "技术方案", BigDecimal.TEN,
@@ -226,28 +222,20 @@ class MultimodalStructuredExtractionHandlerTest {
                 new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "application/pdf"),
                 artifactExtractor, model, imageExtractor);
 
-        assertThat(initialImages).containsExactly(image);
-        assertThat(recheckImages).containsExactly(image);
+        assertThat(receivedText).containsExactly("本项目评分总分10分", "本项目评分总分10分");
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
-
-        var truncated = MultimodalStructuredExtractionHandler.extract(
-                new TenderTextSource("bid.pdf", "obs://bid.pdf", "本项目评分总分10分"),
-                new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "application/pdf"),
-                artifactExtractor, model, imageExtractor);
-        assertThat(truncated.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
-        assertThat(truncated.candidates()).isEmpty();
-        assertThat(truncated.completeness().defects()).anyMatch(defect -> defect.contains("PAGE_IMAGE_COVERAGE_INCOMPLETE"));
+        org.mockito.Mockito.verifyNoInteractions(imageExtractor);
     }
 
     @Test
-    void truncatedPageImagesCannotBeBypassedByDeterministicFallback() throws Exception {
+    void truncatedPageImagesDoNotBlockDeterministicTextFallback() throws Exception {
         DocumentArtifact complete = loadCompleteArtifact();
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(complete);
         SidecarImageExtractor imageExtractor = mock(SidecarImageExtractor.class);
         when(imageExtractor.renderPages(any(byte[].class), eq("bid.pdf"), any()))
                 .thenReturn(new SidecarImageExtraction(List.of(), true));
-        var model = new MultimodalScoreFactExtractor() {
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
             public ExtractionResult extract(DocumentArtifact artifact, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 return new ExtractionResult(new BigDecimal("100"), List.of(), "first", images.size());
             }
@@ -261,9 +249,9 @@ class MultimodalStructuredExtractionHandlerTest {
                 new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "application/pdf"),
                 artifactExtractor, model, imageExtractor);
 
-        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
-        assertThat(result.candidates()).isEmpty();
-        assertThat(result.completeness().defects()).anyMatch(defect -> defect.contains("PAGE_IMAGE_COVERAGE_INCOMPLETE"));
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.candidates()).isNotEmpty();
+        org.mockito.Mockito.verifyNoInteractions(imageExtractor);
     }
 
     @Test
@@ -276,7 +264,7 @@ class MultimodalStructuredExtractionHandlerTest {
                         table.cells().stream().filter(c -> c.row() < 4).toList(), true)), full.warnings());
         assertThat(ScoreFactShadowPipeline.run(noSummary, "").completeness().decision())
                 .isEqualTo(ScoreParseDecision.AUTO_APPROVED);
-        var model = new MultimodalScoreFactExtractor() {
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
             public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 throw new IllegalStateException("first failed");
             }
@@ -298,7 +286,7 @@ class MultimodalStructuredExtractionHandlerTest {
                 List.of(new DocumentArtifact.CanonicalTable("score-t1", 3, "本项目评分办法", 2, 3,
                         List.of(), cells, false)), List.of());
         int[] rechecks = {0};
-        var model = new MultimodalScoreFactExtractor() {
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
             public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 return new ExtractionResult(new BigDecimal("80"), List.of(
                         new MultimodalScoreFact("本项目评分办法", "1", "", "商务服务", new BigDecimal("30"),
@@ -340,7 +328,7 @@ class MultimodalStructuredExtractionHandlerTest {
                 table.mergedRegions(), cells, true)), full.warnings());
         assertThat(ScoreFactShadowPipeline.run(source, "评分总分110分").completeness().decision())
                 .isEqualTo(ScoreParseDecision.AUTO_APPROVED);
-        var model = new MultimodalScoreFactExtractor() {
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
             public ExtractionResult extract(DocumentArtifact input, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 throw new IllegalStateException("first failed");
             }
@@ -394,8 +382,8 @@ class MultimodalStructuredExtractionHandlerTest {
     void validModelFactsAreAutoApproved() throws Exception {
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(artifact());
-        MultimodalScoreFactExtractor model = (artifact, images) -> new MultimodalScoreFactExtractor.ExtractionResult(
-                BigDecimal.TEN, List.of(fact()), "test-model", images.size());
+        MultimodalScoreFactExtractor model = textAware((artifact, images) -> new MultimodalScoreFactExtractor.ExtractionResult(
+                BigDecimal.TEN, List.of(fact()), "test-model", images.size()));
 
         StructuredTableResult result = extract(artifactExtractor, model);
 
@@ -420,7 +408,7 @@ class MultimodalStructuredExtractionHandlerTest {
     void modelFailureProducesReviewFactsAndNeverAutoApproves() throws Exception {
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(artifact());
-        MultimodalScoreFactExtractor model = (artifact, images) -> { throw new IllegalStateException("boom"); };
+        MultimodalScoreFactExtractor model = textAware((artifact, images) -> { throw new IllegalStateException("boom"); });
 
         StructuredTableResult result = extract(artifactExtractor, model);
 
@@ -434,12 +422,12 @@ class MultimodalStructuredExtractionHandlerTest {
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         DocumentArtifact artifact = loadCompleteArtifact();
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(artifact);
-        MultimodalScoreFactExtractor model = (input, images) -> new MultimodalScoreFactExtractor.ExtractionResult(
+        MultimodalScoreFactExtractor model = textAware((input, images) -> new MultimodalScoreFactExtractor.ExtractionResult(
                 new BigDecimal("100"), List.of(new MultimodalScoreFact(
                         "方案能力", "A1", "", "方案能力", new BigDecimal("90"),
                         "整体方案完整可行", "SUBJECTIVE", null, "t-sanitized-merged-origin",
                         List.of("t-sanitized-r1-c2"), "整体方案完整可行", 0.99)),
-                "test-model", images.size());
+                "test-model", images.size()));
 
         StructuredTableResult result = MultimodalStructuredExtractionHandler.extract(
                 new TenderTextSource("bid.pdf", "obs://bid.pdf", "评分总分100分"),
@@ -463,14 +451,14 @@ class MultimodalStructuredExtractionHandlerTest {
                 List.of());
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
-        MultimodalScoreFactExtractor model = (input, images) -> new MultimodalScoreFactExtractor.ExtractionResult(
+        MultimodalScoreFactExtractor model = textAware((input, images) -> new MultimodalScoreFactExtractor.ExtractionResult(
                 new BigDecimal("100"), List.of(
                         new MultimodalScoreFact("商务", "1", "", "商务服务", new BigDecimal("50"),
                                 "商务服务最高得50分", "OBJECTIVE", 1, "t1", List.of("t1-rule"),
                                 "商务服务最高得50分", 0.9),
                         new MultimodalScoreFact("技术", "1", "", "技术方案", new BigDecimal("50"),
                                 "技术方案最高得50分", "SUBJECTIVE", 2, "t2", List.of("t2-rule"),
-                                "技术方案最高得50分", 0.9)), "model", 0);
+                                "技术方案最高得50分", 0.9)), "model", 0));
 
         StructuredTableResult result = MultimodalStructuredExtractionHandler.extract(
                 new TenderTextSource("bid.pdf", "obs://bid.pdf", "评分办法"),
@@ -490,6 +478,18 @@ class MultimodalStructuredExtractionHandlerTest {
                 new TenderTextSource("bid.pdf", "obs://bid.pdf", "评分办法，总分10分"),
                 new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "application/pdf"),
                 artifactExtractor, model, null);
+    }
+
+    private static MultimodalScoreFactExtractor textAware(
+            BiFunction<DocumentArtifact, List<com.xiyu.bid.scoreparse.domain.DocumentImage>,
+                    MultimodalScoreFactExtractor.ExtractionResult> extraction) {
+        return new TextAwareScoreFactExtractorTestAdapter() {
+            @Override
+            public ExtractionResult extract(DocumentArtifact artifact,
+                                            List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
+                return extraction.apply(artifact, images);
+            }
+        };
     }
 
     private static MultimodalScoreFact fact() {

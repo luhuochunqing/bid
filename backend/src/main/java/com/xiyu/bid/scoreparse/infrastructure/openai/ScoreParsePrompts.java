@@ -18,7 +18,7 @@ public final class ScoreParsePrompts {
     }
 
     /** 过剥后作为基于文本的 LLM 输入，避免残留 base64 占位符触发多模态解码失败（spec 048 测试环境回归）。 */
-    private static String promptSafe(String raw) {
+    static String promptSafe(String raw) {
         if (raw == null) {
             return "";
         }

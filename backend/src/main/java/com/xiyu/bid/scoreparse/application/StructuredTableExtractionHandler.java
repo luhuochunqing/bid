@@ -60,13 +60,15 @@ final class StructuredTableExtractionHandler {
             return StructuredTableResult.structureIncomplete("STRUCTURE_DEFECT");
         }
     }
-    static StructuredTableResult extract(TenderTextSource source,
-                                          LoadedBidFile loaded,
-                                          SidecarDocumentArtifactExtractor artifactExtractor,
-                                          MultimodalScoreFactExtractor multimodalExtractor,
-                                          SidecarImageExtractor imageExtractor) {
-        return MultimodalStructuredExtractionHandler.extract(source, loaded, artifactExtractor,
-                multimodalExtractor, imageExtractor);
+    static StructuredTableResult extractWithTextModel(TenderTextSource source, LoadedBidFile loaded,
+            SidecarDocumentArtifactExtractor artifactExtractor, MultimodalScoreFactExtractor multimodalExtractor) {
+        return extractWithTextModelHeartbeat(source, loaded, artifactExtractor, multimodalExtractor, () -> {});
+    }
+    static StructuredTableResult extractWithTextModelHeartbeat(TenderTextSource source, LoadedBidFile loaded,
+            SidecarDocumentArtifactExtractor artifactExtractor, MultimodalScoreFactExtractor multimodalExtractor,
+            Runnable chunkCompleted) {
+        return MultimodalStructuredExtractionHandler.extractWithChunkHeartbeat(source, loaded, artifactExtractor,
+                multimodalExtractor, chunkCompleted);
     }
     static StructuredTableResult extract(TenderTextSource source,
                                           InitiationTenderTextResolver textResolver,

@@ -25,7 +25,7 @@ class SchemeScopePublicationTest {
         var source = summaryAndTwoDetails();
         var artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
-        MultimodalScoreFactExtractor model = new MultimodalScoreFactExtractor() {
+        MultimodalScoreFactExtractor model = new TextAwareScoreFactExtractorTestAdapter() {
             public ExtractionResult extract(DocumentArtifact ignored,
                     List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 throw new IllegalStateException("first request unavailable");
@@ -158,7 +158,7 @@ class SchemeScopePublicationTest {
                                                        String declaredTotal) throws Exception {
         var extractor = mock(SidecarDocumentArtifactExtractor.class);
         when(extractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
-        MultimodalScoreFactExtractor model = new MultimodalScoreFactExtractor() {
+        MultimodalScoreFactExtractor model = new TextAwareScoreFactExtractorTestAdapter() {
             public ExtractionResult extract(DocumentArtifact input,
                     List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 assertThat(input).isSameAs(source);

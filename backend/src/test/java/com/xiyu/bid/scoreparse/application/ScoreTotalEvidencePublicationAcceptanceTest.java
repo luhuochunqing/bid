@@ -22,7 +22,7 @@ class ScoreTotalEvidencePublicationAcceptanceTest {
         var source = assessmentFactorTable();
         var extractor = mock(SidecarDocumentArtifactExtractor.class);
         when(extractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
-        var model = new MultimodalScoreFactExtractor() {
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
             @Override
             public ExtractionResult extract(DocumentArtifact ignored, List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
                 return partial();

@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
-/** Multimodal orchestration kept separate from the legacy structured-table handler. */
+/** Structured evidence orchestration kept separate from the legacy table handler. */
 @Slf4j
 final class MultimodalStructuredExtractionHandler {
     private MultimodalStructuredExtractionHandler() {}
@@ -32,6 +32,18 @@ final class MultimodalStructuredExtractionHandler {
                                           SidecarDocumentArtifactExtractor artifactExtractor,
                                           MultimodalScoreFactExtractor extractor,
                                           SidecarImageExtractor imageExtractor) {
+        return extractWithChunkHeartbeat(source, loaded, artifactExtractor, extractor, () -> {});
+    }
+
+    static StructuredTableResult extract(TenderTextSource source, LoadedBidFile loaded,
+                                          SidecarDocumentArtifactExtractor artifactExtractor,
+                                          MultimodalScoreFactExtractor extractor) {
+        return extractWithChunkHeartbeat(source, loaded, artifactExtractor, extractor, () -> {});
+    }
+
+    static StructuredTableResult extractWithChunkHeartbeat(TenderTextSource source, LoadedBidFile loaded,
+                                          SidecarDocumentArtifactExtractor artifactExtractor,
+                                          MultimodalScoreFactExtractor extractor, Runnable chunkCompleted) {
         if (loaded == null || artifactExtractor == null) {
             return StructuredTableResult.structureIncomplete("MULTIMODAL_INPUT_UNAVAILABLE");
         }
@@ -42,9 +54,9 @@ final class MultimodalStructuredExtractionHandler {
             originalContext = OriginalScoringContext.resolve(artifact, source.text());
             if (extractor == null) return MultimodalReviewFallback.reviewOnly(artifact, originalContext, source.text(),
                     "MULTIMODAL_MODEL_UNAVAILABLE");
-            return run(loaded, source.fileName(), source.text(), artifact, originalContext, extractor, imageExtractor);
+            return run(source.fileName(), source.text(), artifact, originalContext, extractor, chunkCompleted);
         } catch (RuntimeException | IOException exception) {
-            log.warn("多模态评分事实提取失败，进入异常复核且禁止正则自动发布: file={}, msg={}",
+            log.warn("文字评分事实提取失败，进入异常复核且禁止正则自动发布: file={}, msg={}",
                     source.fileName(), exception.getMessage());
             return artifact == null ? StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_FAILED")
                     : MultimodalReviewFallback.reviewOnly(artifact, originalContext, source.text(), "MULTIMODAL_EXTRACTION_FAILED");
@@ -55,56 +67,30 @@ final class MultimodalStructuredExtractionHandler {
         }
     }
 
-    private static StructuredTableResult run(LoadedBidFile loaded, String fileName, String tenderSectionText,
+    private static StructuredTableResult run(String fileName, String tenderSectionText,
                                               DocumentArtifact artifact, OriginalScoringContext originalContext,
-                                              MultimodalScoreFactExtractor extractor,
-                                              SidecarImageExtractor imageExtractor)
-            throws IOException, InterruptedException {
-        var scorePages = artifact.tables().stream().flatMap(table -> table.cells().isEmpty()
-                        ? java.util.stream.Stream.of(table.sourcePage())
-                        : table.cells().stream().map(cell -> cell.sourcePage() == null
-                                ? table.sourcePage() : cell.sourcePage()))
-                .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet());
-        SidecarImageExtraction imageExtraction = imageExtractor == null ? SidecarImageExtraction.empty()
-                : switch (loaded) {
-                    case LoadedBidFile.InMemory inMem -> imageExtractor.renderPages(inMem.content(), fileName, scorePages);
-                    case LoadedBidFile.OnDisk onDisk -> imageExtractor.renderPages(onDisk.tempFile(), fileName, scorePages);
-                };
-        var images = imageExtraction.images();
-        boolean imageCoverageIncomplete = imageExtractor != null && (imageExtraction.truncated()
-                || images.size() > MultimodalScoreFactExtractor.MAX_SCORE_PAGE_IMAGES
-                || scorePages.size() > MultimodalScoreFactExtractor.MAX_SCORE_PAGE_IMAGES
-                || !images.stream().map(com.xiyu.bid.scoreparse.domain.DocumentImage::pageHint)
-                .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet()).containsAll(scorePages));
+                                              MultimodalScoreFactExtractor extractor, Runnable chunkCompleted) {
         MultimodalScoreFactExtractor.ExtractionResult extracted;
         boolean alreadyRechecked = false;
         try {
-            extracted = extractor.extract(artifact, images);
+            extracted = extractor.extractWithTextAndProgress(artifact, tenderSectionText, chunkCompleted);
         } catch (RuntimeException firstFailure) {
-            log.warn("多模态首次请求失败，尝试紧凑模型复核: file={}, cause={}", fileName,
+            log.warn("文字证据首次提取失败，尝试独立模型复核: file={}, cause={}", fileName,
                     firstFailure.getClass().getSimpleName());
-            try {
-                extracted = extractor.recheck(artifact, images);
-            } catch (RuntimeException multimodalRecheckFailure) {
-                if (images.isEmpty()) throw multimodalRecheckFailure;
-                log.warn("多模态复核不可用，尝试原文结构复核并保留来源校验: file={}, cause={}",
-                        fileName, multimodalRecheckFailure.getClass().getSimpleName());
-                extracted = extractor.recheck(artifact);
-            }
+            extracted = extractor.recheckWithTextAndProgress(artifact, tenderSectionText, chunkCompleted);
             alreadyRechecked = true;
         }
         extracted = normalized(extracted);
         var validator = new MultimodalScoreFactValidator();
         var validation = validator.validate(extracted.facts(), artifact, originalContext, extracted.declaredTotal());
-        if (imageCoverageIncomplete) validation = MultimodalReviewFallback.withIncompletePageImages(validation);
         boolean multiTableModelScopeUnknown = hasMultipleTables(extracted.facts())
                 && !hasIndependentTableTotals(originalContext, extracted.facts());
         if (!alreadyRechecked && (!validation.autoApprovable() || multiTableModelScopeUnknown)) {
             try {
-                var rechecked = normalized(extractor.recheck(artifact, images));
+                var rechecked = normalized(extractor.recheckWithTextAndProgress(
+                        artifact, tenderSectionText, chunkCompleted));
                 var recheckValidation = validator.validate(rechecked.facts(), artifact, originalContext,
                         rechecked.declaredTotal());
-                if (imageCoverageIncomplete) recheckValidation = MultimodalReviewFallback.withIncompletePageImages(recheckValidation);
                 boolean recheckScopeUnknown = hasMultipleTables(rechecked.facts())
                         && !hasIndependentTableTotals(originalContext, rechecked.facts());
                 if (recheckValidation.autoApprovable() && !recheckScopeUnknown) {
@@ -125,7 +111,7 @@ final class MultimodalStructuredExtractionHandler {
                 violation.code().startsWith("CHILD_AGGREGATION_")
                         || "PARENT_WEIGHT_MISMATCH".equals(violation.code()));
         if ((!validation.autoApprovable() || multiTableModelScopeUnknown)
-                && !imageCoverageIncomplete && !scoringRelationUncertain) {
+                && !scoringRelationUncertain) {
             StructuredTableResult deterministicFallback = MultimodalReviewFallback.completeDeterministic(
                     originalContext, artifact, tenderSectionText, validation);
             if (deterministicFallback != null) {
@@ -166,9 +152,9 @@ final class MultimodalStructuredExtractionHandler {
                 ? List.of(new TableCompleteness("MULTIMODAL", true, completeness,
                 facts.stream().map(ScoreFact::sourceTableId).distinct().toList()))
                 : modelSplit.tables();
-        log.info("多模态评分事实完成: facts={}, images={}, model={}, decision={}, modelTotal={}, originalTotal={}, "
+        log.info("文字评分事实完成: facts={}, sourceTextChars={}, model={}, decision={}, modelTotal={}, originalTotal={}, "
                         + "originalSource={}, leafTotal={}, violations={}",
-                facts.size(), extracted.imageCount(), extracted.model(), decision, validation.declaredTotal(),
+                facts.size(), tenderSectionText == null ? 0 : tenderSectionText.length(), extracted.model(), decision, validation.declaredTotal(),
                 validation.originalTotal(), validation.sourceVerification().total().locator(),
                 validation.leafTotal(), validation.violations().size());
         var proof = validation.autoApprovable() ? OriginalScoreEvidencePolicy.publicationProof(

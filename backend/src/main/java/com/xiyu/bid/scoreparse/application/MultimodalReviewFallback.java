@@ -20,15 +20,6 @@ import java.util.Optional;
 final class MultimodalReviewFallback {
     private MultimodalReviewFallback() {}
 
-    static MultimodalScoreFactValidator.ValidationReport withIncompletePageImages(
-            MultimodalScoreFactValidator.ValidationReport report) {
-        var violations = new java.util.ArrayList<>(report.violations());
-        violations.add(new MultimodalScoreFactValidator.Violation("", "pageImages", "PAGE_IMAGE_COVERAGE_INCOMPLETE",
-                "评分页图像被截断或未完整返回", "all cited scoring pages", "partial image set", "sidecar:/convert-images"));
-        return new MultimodalScoreFactValidator.ValidationReport(report.facts(), report.declaredTotal(),
-                report.originalTotal(), report.leafTotal(), false, violations, report.sourceVerification());
-    }
-
     static StructuredTableResult completeDeterministic(
             OriginalScoringContext originalContext, DocumentArtifact artifact, String tenderSectionText,
             MultimodalScoreFactValidator.ValidationReport modelValidation) {
