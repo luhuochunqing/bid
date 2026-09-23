@@ -106,6 +106,32 @@ class InitiationTenderTextResolverTest {
     }
 
     @Test
+    void resolveExecutionSourceMergesEveryTenderDocument() {
+        ProjectDocument first = ProjectDocument.builder()
+                .id(31L).name("评分办法.pdf").fileUrl("doc-insight://t/score.pdf").fileType("pdf").build();
+        ProjectDocument second = ProjectDocument.builder()
+                .id(32L).name("补充文件.docx").fileUrl("doc-insight://t/addendum.docx").fileType("docx").build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "TENDER", null, null)).thenReturn(List.of(first, second));
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "TENDER_FILE", null, null)).thenReturn(List.of());
+        when(fileStorage.load("doc-insight://t/score.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile("score", "/tmp/score.pdf", "pdf", new byte[]{1})));
+        when(fileStorage.load("doc-insight://t/addendum.docx"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile("addendum", "/tmp/addendum.docx", "docx", new byte[]{2})));
+        when(textExtractor.extract(any(), any(), any())).thenAnswer(invocation -> {
+            String name = invocation.getArgument(0);
+            return new ExtractedTenderDocument(name, "text", name + " 原文评分规则", 1, "md");
+        });
+
+        TenderExecutionSource source = resolver.resolveExecutionSource(PROJECT_ID);
+
+        assertThat(source.sources()).hasSize(2);
+        assertThat(source.loadedFiles()).hasSize(2);
+        assertThat(source.source().text()).contains("评分办法.pdf 原文评分规则", "补充文件.docx 原文评分规则");
+    }
+
+    @Test
     void resolveFallsBackToSnapshotWhenNoInitiationFile() {
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
                 eq(PROJECT_ID), any(), eq(null), eq(null)))

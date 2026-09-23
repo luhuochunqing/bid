@@ -45,6 +45,36 @@ class MultimodalStructuredExtractionHandlerTest {
     }
 
     @Test
+    void textOnlyFactsAreBoundToStructuredEvidenceAfterExtraction() throws Exception {
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(artifact());
+        MultimodalScoreFactExtractor model = new TextAwareScoreFactExtractorTestAdapter() {
+            @Override
+            public boolean supportsTextOnly() {
+                return true;
+            }
+
+            @Override
+            public ExtractionResult extractTextAndProgress(String text, Runnable heartbeat) {
+                return new ExtractionResult(BigDecimal.TEN,
+                        List.of(new MultimodalScoreFact("商务", "1", "", "销售额", BigDecimal.TEN,
+                                "销售额达到1亿元得10分", "OBJECTIVE", 1, "", List.of(),
+                                "销售额达到1亿元得10分", 0.99)), "text", 0);
+            }
+        };
+
+        StructuredTableResult result = MultimodalStructuredExtractionHandler.extract(
+                new TenderTextSource("bid.pdf", "obs://bid.pdf", "销售额达到1亿元得10分"),
+                new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "application/pdf"), artifactExtractor, model, null);
+
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.facts()).singleElement().satisfies(fact -> {
+            assertThat(fact.sourceTableId()).isEqualTo("doc0-t1");
+            assertThat(fact.sourceCellIds()).containsExactly("doc0-c1");
+        });
+    }
+
+    @Test
     void incompleteModelRecallUsesCompleteRecheckResult() throws Exception {
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         DocumentArtifact source = originalHundredPointArtifact(false);

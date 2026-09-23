@@ -162,7 +162,7 @@ public class ScoreParseAppService {
                     ? null : artifactExtractorProvider.getIfAvailable();
             var structuredCandidates = multimodalScoreFactExtractor == null
                     ? StructuredTableExtractionHandler.extract(source, intake.loaded(), artifactExtractor, sidecarTableExtractor)
-                    : StructuredTableExtractionHandler.extractWithTextModelHeartbeat(source, intake.loaded(), artifactExtractor,
+                    : StructuredTableExtractionHandler.extractWithTextModelHeartbeat(source, intake.loadedFiles(), intake.sources(), artifactExtractor,
                             multimodalScoreFactExtractor,
                             () -> updateProgress(taskId, 5, "READ_DOCUMENT", "正在识别招标文件评分内容"));
             if (structuredCandidates.structureIncomplete()) {
@@ -220,7 +220,7 @@ public class ScoreParseAppService {
             stateService.markCompleted(taskId);
             progressService.clearProgress(taskId);
         } finally {
-            if (intake != null && intake.loaded() != null) initiationTenderTextResolver.releaseTenderFile(intake.loaded());
+            if (intake != null) intake.loadedFiles().forEach(initiationTenderTextResolver::releaseTenderFile);
         }
     }
 
