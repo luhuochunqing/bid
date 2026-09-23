@@ -18,13 +18,18 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/ScoreFactChunkMerger.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/OpenAiMultimodalScoreFactExtractor.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseAppService.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/TenderExecutionSource.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/TextPrimaryEvidenceBinder.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/TextPrimaryScoreFactMapper.java
   - backend/src/test/resources/scoreparse-golden/case-long-text-scoring-table.md
   - backend/src/test/resources/scoreparse-golden/case-long-text-scoring-table.expected.json
+  - backend/src/test/resources/scoreparse-golden/case-text-primary-multi-document.md
+  - backend/src/test/resources/scoreparse-golden/case-text-primary-multi-document.expected.json
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-09-20
-updated: 2026-09-23
-health_checked: 2026-09-23
+updated: 2026-09-24
+health_checked: 2026-09-24
 archive: false
 ---
 
@@ -33,10 +38,18 @@ archive: false
 ## 主链路
 
 1. 评分识别从招标文件完整可提取文本开始；不将页面渲染成图像。Sidecar/文档转换层提供的表格网格和原始单元格仍作为结构化来源证据。
-2. `ScoreTextChunker` 将长文本按有重叠的窗口完整切分，优先在换行处断开并保护 Unicode 代理对；每段连同结构化 `DocumentArtifact` 交给文本抽取器。每个实际模型请求限制在 24,000 字符以内，结构化证据占用额度时动态缩小文本段。
+2. `ScoreTextChunker` 将完整招标正文按有重叠的窗口切分，优先在换行处断开并保护 Unicode 代理对；文字主链路只把正文分片交给模型，不把完整 `DocumentArtifact` 放入每个 prompt。每个实际模型请求限制在 24,000 字符以内。
 3. 每段识别章节、序号、父子项、分值、完整规则、页码、表格与单元格坐标、主客观类型；`ScoreFactChunkMerger` 只合并完全相同的事实键，保留较高置信度，并拒绝互相冲突的声明总分。
-4. `MultimodalScoreFactValidator` 以同一份原文资产核验评分方案总分和每项最高分，再检查必填字段、序号、父子关系、逐字引用、重复项及类型。模型声明总分、原文总分、叶子项合计互不替代。
+4. `MultimodalScoreFactValidator` 在文字抽取完成后，以合并后的 Sidecar 原文资产核验评分方案总分和每项最高分，再检查必填字段、序号、父子关系、逐字引用、重复项及类型。模型声明总分、原文总分、叶子项合计互不替代。
 5. 首次完整分片识别、一次完整分片复核和确定性回补均须原文核验通过；发布入口再次要求核验资格、文档级 `AUTO_APPROVED` 与非空正式候选。失败时只保存复核事实/证据，不覆盖原评分项和已有打分。
+
+## 多文件正文与后校验证据
+
+- `InitiationTenderTextResolver.findTenderDocuments()` 按稳定顺序读取全部招标文件，`TenderExecutionSource` 同时保留每个正文源和全部文件句柄；解析结束统一释放所有句柄，不再只取最新文件。
+- 文字模型先识别父项、子项、原文权重、最高分、规则和 `quotedText`；不折算权重，也不把父项与子项预先合并成一个新分值。
+- `TextPrimaryEvidenceBinder` 在模型返回后才调用 Sidecar，给各文件的表格/单元格加文档前缀并按逐字引用、页码回指。无法回指时保留候选但降级人工复核。
+- 结构化证据不可用时不走确定性自动回补；原文追溯和审核保护继续生效。
+- 合成回归夹具 `case-text-primary-multi-document` 锁定多文件正文、父项组织和四个叶子计分单元完整保留。
 
 ## 审核与总分边界
 
@@ -78,7 +91,7 @@ archive: false
 
 ### 文本分片覆盖、页码溯源与评分单元
 
-- 每个文本分片都必须进入初次识别与复核；提交给模型的每次渲染请求受 24,000 字符上限约束，全部分片合并后统一校验。原始页码、表格和单元格位置继续用于证据追溯；页图覆盖不再是评分识别的完整性门槛。
+- 每个文本分片都必须进入初次识别与复核；提交给模型的每次正文请求受 24,000 字符上限约束，全部分片合并后再用 Sidecar 做结构化回指与统一校验。原始页码、表格和单元格位置继续用于证据追溯；页图覆盖不再是评分识别的完整性门槛。
 - 父项分值仅在原文明确声明“取子项之和”等聚合关系时，作为组织/校验关系；无显式规则或关系不明时禁止把父项与子项重复累加，也不把子项分值直接冒充父项分值。
 - 正式计分单元按明确规则聚合后的叶子项计算。原文引文、页码与审核保护仍然生效，但完整性与总分闭合要按该计分单元口径校验。
 - 合成回归夹具 `case-page-split-parent-child` 锁定跨页商务/技术评分组与叶子分值闭合；`case-long-text-scoring-table` 锁定长篇正文后仍完整召回末尾评分表；`ChildAggregationTest` 锁定关系策略。长文本分片与事实合并由 `ScoreTextChunkerTest`、`ScoreFactChunkMergerTest` 及抽取器测试覆盖。真实招标文件仍按既有脱敏纪律留在仓库外。
