@@ -14,4 +14,6 @@ timestamp	decision	evidence	consequence
 2026-09-23T22:30:00+08:00	Force json_object format with gateway 400 fallback in OpenAiCompatibleClient	backend/src/main/java/com/xiyu/bid/ai/client/OpenAiCompatibleClient.java:125-144	Ensures native structured JSON output from Gemini/DeepSeek/Kimi while gracefully falling back for non-compliant gateways
 2026-09-23T22:32:00+08:00	Relax ANALYSIS_MAX_TOKENS from hardcoded 2000 to 4096 in OpenAiCompatibleClient	backend/src/main/java/com/xiyu/bid/ai/client/OpenAiCompatibleClient.java:51	Prevents mid-generation truncation on comprehensive tender evaluation outputs, fulfilling lessons-learned #201
 2026-09-23T22:35:00+08:00	Increase HTTP client read timeout from 30s to 60s in OpenAiCompatibleClient	backend/src/main/java/com/xiyu/bid/ai/client/OpenAiCompatibleClient.java:49	Eliminates transient read timeout 500 errors on complex long prompts and latency spikes
+2026-09-24T05:41:00+08:00	Assert mergeable=true and verify origin/main baseline sync for PR 2743	https://gitee.com/allinai888/bid/pulls/2743	Confirmed PR is conflict-free against origin/main 959d2243e and ready for squash merge
+
 
