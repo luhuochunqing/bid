@@ -39,7 +39,9 @@ backend/src/test/resources/scoreparse-golden/
 ├── case-multi-table-tech-commercial.md       两张独立评分表（技术60/商务40）多表输入形态（spec 062）
 ├── case-multi-table-tech-commercial.expected.json  对应金标标注（threshold 0.95，expectTotal 100）
 ├── case-category-weight-noise-before-score.md 报价品类权重表前置噪声 + 正式评分表完整召回（spec 066）
-└── case-category-weight-noise-before-score.expected.json 对应金标标注（threshold 0.95，strictDim，expectTotal 100）
+├── case-category-weight-noise-before-score.expected.json 对应金标标注（threshold 0.95，strictDim，expectTotal 100）
+├── case-long-text-scoring-table.md          长篇正文前置 + 末尾评分表完整召回（超长文本回归）
+└── case-long-text-scoring-table.expected.json 对应合成金标标注（threshold 0.95，expectTotal 100）
 ```
 
 ## 两层执行说明

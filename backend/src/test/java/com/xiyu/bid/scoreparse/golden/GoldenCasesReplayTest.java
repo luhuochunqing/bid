@@ -52,6 +52,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-multimodal-incomplete-recall-fallback"),
                 Arguments.of("case-1386-score-summary-and-leaves"),
                 Arguments.of("case-page-split-parent-child"),
+                Arguments.of("case-long-text-scoring-table"),
                 Arguments.of("case-score-total-evidence-roles"),
                 Arguments.of("case-upstream-scoring-integrity"));
     }

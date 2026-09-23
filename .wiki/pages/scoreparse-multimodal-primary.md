@@ -18,6 +18,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/ScoreFactChunkMerger.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/OpenAiMultimodalScoreFactExtractor.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseAppService.java
+  - backend/src/test/resources/scoreparse-golden/case-long-text-scoring-table.md
+  - backend/src/test/resources/scoreparse-golden/case-long-text-scoring-table.expected.json
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-09-20
@@ -79,7 +81,7 @@ archive: false
 - 每个文本分片都必须进入初次识别与复核；提交给模型的每次渲染请求受 24,000 字符上限约束，全部分片合并后统一校验。原始页码、表格和单元格位置继续用于证据追溯；页图覆盖不再是评分识别的完整性门槛。
 - 父项分值仅在原文明确声明“取子项之和”等聚合关系时，作为组织/校验关系；无显式规则或关系不明时禁止把父项与子项重复累加，也不把子项分值直接冒充父项分值。
 - 正式计分单元按明确规则聚合后的叶子项计算。原文引文、页码与审核保护仍然生效，但完整性与总分闭合要按该计分单元口径校验。
-- 合成回归夹具 `case-page-split-parent-child` 锁定跨页商务/技术评分组与叶子分值闭合；`ChildAggregationTest` 锁定关系策略。长文本分片与事实合并由 `ScoreTextChunkerTest`、`ScoreFactChunkMergerTest` 及抽取器测试覆盖。真实招标文件仍按既有脱敏纪律留在仓库外。
+- 合成回归夹具 `case-page-split-parent-child` 锁定跨页商务/技术评分组与叶子分值闭合；`case-long-text-scoring-table` 锁定长篇正文后仍完整召回末尾评分表；`ChildAggregationTest` 锁定关系策略。长文本分片与事实合并由 `ScoreTextChunkerTest`、`ScoreFactChunkMergerTest` 及抽取器测试覆盖。真实招标文件仍按既有脱敏纪律留在仓库外。
 
 ## 主客观分类
 
