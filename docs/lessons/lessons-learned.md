@@ -6717,3 +6717,19 @@ Lesson 392 的假通过还有一个放大器：Sidecar `/convert-images` 的 `.d
 - `MultimodalFactParentCodeNormalizerTest` 覆盖章节前缀、无法解析、同名歧义、空输入、`null` 记录和字段透传。
 - `ScoreTableSplitPolicyTest`、`MultimodalStructuredExtractionHandlerTest` 覆盖叶子排重、多表未知总分和模型多表边界。
 - 合并 PR #2736 后全量 scoreparse 测试 962 项通过；本次定向回归、ArchitectureTest、line-budget 和文档治理门禁通过。
+
+## 403. 大模型客户端契约加固：原生 JSON 约束、Token 预算及网络超时容错三位一体（2026-09-23）
+
+### 根因与修复
+
+1. **结构化输出约束**：`OpenAiCompatibleClient` 中 `analyzeTender` 和 `analyzeProject` 历史代码硬编码 `callChatCompletion(..., false)`，未传入 `response_format: {"type": "json_object"}`，仅在 Prompt 中口头要求 JSON 格式。当接入如 Kimi k3、推理/思考系模型时，模型倾向于输出带前导思考/文字或 Markdown 围栏（```json ... ```），导致业务端 `ObjectMapper.readTree` 反序列化异常。修复为强制启用 `chatCompletionJsonObject`，并内置网关 400 降级保护（遇不兼容 response_format 的老旧代理时透明降级回普通请求，保证向前向后兼容性）。
+2. **max_tokens 预算充沛性**：标书分析包含评分、风险等级、优势、劣势、建议及多维度打分和详细说明，原 2000 token 预算偏紧，遇到长篇或深入分析输出时会被大模型中途硬截断（Truncation），导致 JSON 结构破坏。常量化放宽为 `ANALYSIS_MAX_TOKENS = 4096`。
+3. **网络超时防护**：底层 HTTP 客户端超时时间由 30s 适度放宽至 60s（`Duration.ofSeconds(60)`），有效降低偶发性长 Prompt 请求超时与网络抖动导致的 500 报错。
+
+### 可复用纪律
+
+- 任何需要强结构化 JSON 输出的 AI 核心业务接口，优先使用协议级 `response_format: {"type": "json_object"}`，严禁仅依靠 Prompt 口头约束。
+- 开启 `response_format: json_object` 时，必须确保 Prompt 文本中显式包含 "JSON" 关键词（OpenAI 协议硬性要求）。
+- 客户端协议必须具备透明降级机制：当上游反代/老网关报 400 不支持某参数时，自动且静默地单向降级为普通请求，兼顾健壮性。
+- 分析与长文本抽取场景必须充足分配 output tokens（>=4096），避免由于截断破坏格式。
+
