@@ -1,6 +1,8 @@
 package com.xiyu.bid.ai.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.ai.dto.AiAnalysisResponse;
+import com.xiyu.bid.entity.Tender;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -10,6 +12,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -382,5 +385,125 @@ class OpenAiCompatibleClientTest {
 
         // temperatureFixed 不应被置位
         assertThat(client.isTemperatureFixed()).isFalse();
+    }
+
+    // =========================================================================
+    // 4. Milestone 3: analyzeTender / analyzeProject json_object & 4096 max_tokens
+    // =========================================================================
+
+    @Test
+    @DisplayName("analyzeTender: 强制启用 json_object 模式且 max_tokens 提升至 4096")
+    void analyzeTender_SendsJsonObjectFormatAndAnalysisMaxTokens4096() {
+        OpenAiCompatibleClient client = createClient();
+        RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(client, "restTemplate");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        String analysisResponseBody = """
+                {
+                  "id": "chatcmpl-analysis-001",
+                  "choices": [
+                    {
+                      "message": {
+                        "role": "assistant",
+                        "content": "{\\"score\\":85,\\"riskLevel\\":\\"LOW\\",\\"strengths\\":[\\"经验丰富\\"],\\"weaknesses\\":[\\"工期略紧\\"],\\"recommendations\\":[\\"增派人员\\"],\\"dimensionScores\\":[{\\"dimension\\":\\"技术\\",\\"score\\":90,\\"details\\":\\"完全符合\\"}]}"
+                      }
+                    }
+                  ]
+                }
+                """;
+
+        server.expect(requestTo("https://api.deepseek.com/chat/completions"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.max_tokens").value(4096))
+                .andExpect(jsonPath("$.response_format.type").value("json_object"))
+                .andRespond(withSuccess(analysisResponseBody, MediaType.APPLICATION_JSON));
+
+        AiAnalysisResponse response = client.analyzeTender(testConfig(), "招标文件内容测试", Map.of("projectId", 1001L));
+
+        assertThat(response).isNotNull();
+        assertThat(response.getScore()).isEqualTo(85);
+        assertThat(response.getRiskLevel()).isEqualTo(Tender.RiskLevel.LOW);
+        assertThat(response.getStrengths()).contains("经验丰富");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("analyzeProject: 强制启用 json_object 模式且 max_tokens 提升至 4096")
+    void analyzeProject_SendsJsonObjectFormatAndAnalysisMaxTokens4096() {
+        OpenAiCompatibleClient client = createClient();
+        RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(client, "restTemplate");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        String analysisResponseBody = """
+                {
+                  "id": "chatcmpl-analysis-002",
+                  "choices": [
+                    {
+                      "message": {
+                        "role": "assistant",
+                        "content": "{\\"score\\":92,\\"riskLevel\\":\\"LOW\\",\\"strengths\\":[\\"方案详实\\"],\\"weaknesses\\":[],\\"recommendations\\":[\\"保持沟通\\"],\\"dimensionScores\\":[]}"
+                      }
+                    }
+                  ]
+                }
+                """;
+
+        server.expect(requestTo("https://api.deepseek.com/chat/completions"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.max_tokens").value(4096))
+                .andExpect(jsonPath("$.response_format.type").value("json_object"))
+                .andRespond(withSuccess(analysisResponseBody, MediaType.APPLICATION_JSON));
+
+        AiAnalysisResponse response = client.analyzeProject(testConfig(), 1002L, Map.of("budget", 5000000));
+
+        assertThat(response).isNotNull();
+        assertThat(response.getScore()).isEqualTo(92);
+        assertThat(response.getRiskLevel()).isEqualTo(Tender.RiskLevel.LOW);
+        assertThat(response.getStrengths()).contains("方案详实");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("analyzeTender: 当网关不支持 response_format 时透明降级为普通请求并成功解析")
+    void analyzeTender_WhenGateway400UnsupportedResponseFormat_FallsBackAndSucceeds() {
+        OpenAiCompatibleClient client = createClient();
+        RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(client, "restTemplate");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        String error400Body = """
+                {"error":{"message":"response_format 'json_object' is not supported","code":"unsupported_parameter"}}
+                """;
+        String fallbackSuccessBody = """
+                {
+                  "choices": [
+                    {
+                      "message": {
+                        "content": "{\\"score\\":78,\\"riskLevel\\":\\"MEDIUM\\",\\"strengths\\":[\\"资质齐全\\"],\\"weaknesses\\":[\\"成本偏高\\"],\\"recommendations\\":[\\"优化用工\\"],\\"dimensionScores\\":[]}"
+                      }
+                    }
+                  ]
+                }
+                """;
+
+        // 第 1 次调用带 response_format -> 返回 400
+        server.expect(requestTo("https://api.deepseek.com/chat/completions"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.response_format.type").value("json_object"))
+                .andExpect(jsonPath("$.max_tokens").value(4096))
+                .andRespond(withBadRequest().contentType(MediaType.APPLICATION_JSON).body(error400Body));
+
+        // 第 2 次降级重试不带 response_format -> 返回 200
+        server.expect(requestTo("https://api.deepseek.com/chat/completions"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.response_format").doesNotExist())
+                .andExpect(jsonPath("$.max_tokens").value(4096))
+                .andRespond(withSuccess(fallbackSuccessBody, MediaType.APPLICATION_JSON));
+
+        AiAnalysisResponse response = client.analyzeTender(testConfig(), "降级测试内容", Map.of());
+
+        assertThat(response).isNotNull();
+        assertThat(response.getScore()).isEqualTo(78);
+        assertThat(response.getRiskLevel()).isEqualTo(Tender.RiskLevel.MEDIUM);
+        server.verify();
     }
 }
