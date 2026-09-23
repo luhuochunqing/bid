@@ -1203,3 +1203,7 @@
 - 操作：分支 `agent/claude/fix-scoreparse-5-failures`；OriginalScoringContext 单表提升允许全 blank section、Guard 仅门禁 total 非 null 才覆盖、verifyWeight 单值 title==claim 免检；两处 stale 测试按新契约更新。
 - 验证：全量子 957 run / 0 failures / 2 skipped（既有 SKIP）；`git diff --check` 通过；line-budget 合规（OriginalScoringContext 回到 ≤300 行）。
 - 回填：docs/lessons/lessons-learned.md §401。
+## [2026-09-23] fix | scoreparse 页级证据覆盖与父子计分单元
+- 触发：父项/子项可能重复计分，跨页证据不完整时不能可靠复核；本次修复加入页覆盖校验及显式子项聚合关系。
+- 结论：复核与发布继续要求原文证据，但总分闭合按明确聚合后的计分叶子单元判断；页覆盖不全保留人工复核。
+- 回归：增加合成跨页父子评分金标 `case-page-split-parent-child`；更新 [[scoreparse-multimodal-primary]]。

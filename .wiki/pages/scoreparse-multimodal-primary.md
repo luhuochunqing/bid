@@ -9,13 +9,16 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalStructuredExtractionHandler.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/MultimodalScoreFactValidator.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/application/MultimodalStructuredExtractionHandlerTest.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ChildAggregation.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreUnitPolicy.java
+  - backend/src/test/resources/scoreparse-golden/case-page-split-parent-child.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/AiProviderDiagnostics.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/RunSummaryAssembler.java
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-09-20
-updated: 2026-09-22
-health_checked: 2026-09-22
+updated: 2026-09-23
+health_checked: 2026-09-23
 archive: false
 ---
 
@@ -64,6 +67,13 @@ archive: false
 - 在有表头的评分明细中，评分项规则行的“满分”是单项上限，不是方案声明；即使 OCR 仅留下一个规则单元格，也根据表头与行位置判断角色。只有明确正文或独立汇总等方案级来源才提供总分，单项最高分校验继续读取该规则行。
 - 原文 `subtotals` 与候选无关；模型首次、一次复核和确定性回补均通过同一 `OriginalScoreEvidencePolicy` 比较表内叶子合计。分表小计冲突不会抹去已经确认的方案总分，拒绝原因和定位保留在任务运行摘要。
 - Markdown 评分标题按层级理解：父评分办法下的商务/技术评分标准是子章节，非独立方案；同级新方案或不同标包仍转人工。汇总表不产出正式项，正确 100/80 分以及完整多表结果仍允许自动发布。
+
+### 页级证据覆盖与评分单元
+
+- 每个物理页都要进入抽取与复核证据集；页图存在缺口时保留异常复核，不允许用部分页的结果自动发布。复核请求继续使用同一份完整页图集合。
+- 父项分值仅在原文明确声明“取子项之和”等聚合关系时，作为组织/校验关系；无显式规则或关系不明时禁止把父项与子项重复累加，也不把子项分值直接冒充父项分值。
+- 正式计分单元按明确规则聚合后的叶子项计算。原文引文、页码与审核保护仍然生效，但完整性与总分闭合要按该计分单元口径校验。
+- 合成回归夹具 `case-page-split-parent-child` 锁定跨页商务/技术评分组与叶子分值闭合；`ChildAggregationTest` 锁定关系策略。真实招标文件仍按既有脱敏纪律留在仓库外。
 
 ## 主客观分类
 
