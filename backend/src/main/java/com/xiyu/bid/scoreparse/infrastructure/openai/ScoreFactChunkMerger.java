@@ -8,7 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Merges chunk responses without hiding non-identical facts or conflicting totals. */
+/** Merges chunk responses; conflicting chunk totals remain unknown without discarding facts. */
 final class ScoreFactChunkMerger {
     private ScoreFactChunkMerger() {}
 
@@ -16,14 +16,17 @@ final class ScoreFactChunkMerger {
             List<MultimodalScoreFactExtractor.ExtractionResult> results) {
         Map<FactKey, MultimodalScoreFact> facts = new LinkedHashMap<>();
         BigDecimal declaredTotal = null;
+        boolean conflictingDeclaredTotal = false;
         String model = "";
         for (var result : results) {
             if (result == null) throw new IllegalStateException("Missing score extraction chunk response");
             if (result.declaredTotal() != null) {
                 if (declaredTotal != null && declaredTotal.compareTo(result.declaredTotal()) != 0) {
-                    throw new IllegalStateException("Score extraction chunks returned conflicting declared totals");
+                    // A chunk can expose a local subtotal; defer document-total resolution downstream.
+                    conflictingDeclaredTotal = true;
+                } else if (declaredTotal == null) {
+                    declaredTotal = result.declaredTotal();
                 }
-                declaredTotal = result.declaredTotal();
             }
             if (model.isBlank()) model = result.model();
             for (var fact : result.facts()) {
@@ -32,7 +35,8 @@ final class ScoreFactChunkMerger {
                 if (existing == null || fact.confidence() > existing.confidence()) facts.put(key, fact);
             }
         }
-        return new MultimodalScoreFactExtractor.ExtractionResult(declaredTotal, List.copyOf(facts.values()), model, 0);
+        return new MultimodalScoreFactExtractor.ExtractionResult(
+                conflictingDeclaredTotal ? null : declaredTotal, List.copyOf(facts.values()), model, 0);
     }
 
     private record FactKey(String sectionTitle, String code, String parentCode, String dimension,
