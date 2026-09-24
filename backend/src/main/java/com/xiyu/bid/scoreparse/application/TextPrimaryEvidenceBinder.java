@@ -64,6 +64,7 @@ final class TextPrimaryEvidenceBinder {
         }
         String quote = fact.quotedText();
         String normalizedQuote = normalizeForEvidence(quote);
+        if (normalizedQuote.isBlank()) return java.util.Optional.empty();
         int offset = normalizedText.text().indexOf(normalizedQuote);
         if (offset < 0) return java.util.Optional.empty();
         int sourceOffset = normalizedText.sourceOffsets().get(offset);
@@ -119,9 +120,11 @@ final class TextPrimaryEvidenceBinder {
         var table = (DocumentArtifact.CanonicalTable) pair[0];
         var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
         String raw = cell.rawText() == null ? "" : cell.rawText();
+        String normalizedQuote = normalizeForEvidence(fact.quotedText());
         Integer page = cell.sourcePage() == null ? table.sourcePage() : cell.sourcePage();
         return !fact.quotedText().isBlank()
-                && normalizeForEvidence(raw).contains(normalizeForEvidence(fact.quotedText()))
+                && !normalizedQuote.isBlank()
+                && normalizeForEvidence(raw).contains(normalizedQuote)
                 && (fact.pageNumber() == null || page == null || fact.pageNumber().equals(page));
     }
 

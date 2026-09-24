@@ -35,6 +35,15 @@ class TextPrimaryEvidenceBinderTest {
     }
 
     @Test
+    void rejectsWhitespaceOnlyQuote() {
+        var fact = new MultimodalScoreFact("评分办法", "1", "", "业绩", BigDecimal.TEN,
+                "满足条件得10分", "OBJECTIVE", null, "", List.of(), "\u00a0", 0.9, ChildAggregation.SUM);
+
+        assertThat(TextPrimaryEvidenceBinder.bind(List.of(fact), null, "评分要求：10分").get(0).sourceCellIds())
+                .isEmpty();
+    }
+
+    @Test
     void tableBindingAlsoAllowsWhitespaceVariantQuote() {
         var cell = new DocumentArtifact.CanonicalTable.CanonicalCellDto(
                 "t-r1-c1", 1, 1, "满足条件得\n10\u00a0分", "满足条件得 10 分", 1, 1,
