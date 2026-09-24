@@ -1,5 +1,4 @@
 package com.xiyu.bid.scoreparse.application;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.scoreparse.dto.ScoreParseReviewCommand;
@@ -29,7 +28,6 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ScoreParseReviewAppService {
-
     private static final String TASK_TYPE_PARSE = "PARSE";
     private static final List<String> ANY_STATUS = List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED");
     private static final Set<String> ALLOWED_ACTIONS = Set.of(
@@ -66,6 +64,7 @@ public class ScoreParseReviewAppService {
                 task.getPipelineVersion(),
                 task.getArtifactSha256(),
                 declaredTotal(task),
+                ScoreParseReviewTotalPolicy.adoptionStatus(task),
                 facts.stream()
                         .sorted(Comparator.comparing(ScoreParseFact::getId))
                         .map(fact -> toFactDTO(fact, evidenceByFactId.getOrDefault(fact.getFactId(), List.of())))
@@ -165,6 +164,7 @@ public class ScoreParseReviewAppService {
             throw new IllegalArgumentException(result.errorMessage());
         }
         BigDecimal declaredTotal = declaredTotal(task);
+        if (declaredTotal == null && ScoreParseReviewTotalPolicy.isSingleUnknownTable(task)) declaredTotal = result.totalWeight();
         if (declaredTotal == null) throw new IllegalArgumentException("招标文件存在多个冲突的声明总分，请人工确认分表后再采纳");
         if (result.totalWeight().compareTo(declaredTotal) != 0) {
             throw new IllegalArgumentException("修正后的叶子评分项合计必须为" + declaredTotal
@@ -232,6 +232,7 @@ public class ScoreParseReviewAppService {
         }
         return BigDecimal.valueOf(100);
     }
+
     private static BigDecimal numericTotal(JsonNode split) {
         JsonNode value = split.get("declaredTotal");
         return value != null && value.isNumber() ? value.decimalValue() : null;

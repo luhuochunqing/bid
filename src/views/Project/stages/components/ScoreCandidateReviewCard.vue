@@ -16,13 +16,15 @@
       </div>
     </div>
     <el-alert
-      v-if="declaredTotalWeight == null || candidateTotalWeight !== declaredTotalWeight"
+      v-if="adoptionStatus === 'CONFLICTING_TOTAL' || declaredTotalWeight == null || candidateTotalWeight !== declaredTotalWeight"
       type="warning"
       :closable="false"
       show-icon
       class="candidate-weight-alert"
-      :title="declaredTotalWeight == null
-        ? '招标文件存在多个评分表且声明总分待确认，请人工核对分表后再采纳。'
+      :title="adoptionStatus === 'CONFLICTING_TOTAL'
+        ? '招标文件存在多个冲突的评分表，请人工核对分表后再采纳。'
+        : declaredTotalWeight == null
+        ? '原文未提供单表总分，确认候选项无误后将以候选合计作为正式总分。'
         : `候选评分项合计为 ${candidateTotalWeight} 分，应与原文声明的 ${declaredTotalWeight} 分闭合。`"
     />
     <div class="candidate-table-wrapper">
@@ -72,7 +74,7 @@
       <el-button
         type="primary"
         :loading="isAdoptingCandidates"
-        :disabled="declaredTotalWeight == null || candidateTotalWeight !== declaredTotalWeight"
+        :disabled="candidateTotalWeight <= 0 || adoptionStatus === 'CONFLICTING_TOTAL' || (declaredTotalWeight != null && candidateTotalWeight !== declaredTotalWeight)"
         data-test="btn-adopt-candidates"
         @click="$emit('adopt', candidateFacts)"
       >
@@ -98,6 +100,10 @@ defineProps({
   declaredTotalWeight: {
     type: Number,
     default: 100,
+  },
+  adoptionStatus: {
+    type: String,
+    default: 'DECLARED_TOTAL',
   },
   isAdoptingCandidates: {
     type: Boolean,

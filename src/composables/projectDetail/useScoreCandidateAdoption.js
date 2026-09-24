@@ -77,6 +77,7 @@ export function useScoreCandidateAdoption({
       const parsed = Number(raw)
       return Number.isFinite(parsed) ? parsed : null
     }),
+    adoptionStatus: computed(() => reviewSnapshot.value?.adoptionStatus || 'DECLARED_TOTAL'),
     isAdoptingCandidates,
     adoptCandidateFacts,
   }
