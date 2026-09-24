@@ -7,10 +7,15 @@ package com.xiyu.bid.scoreparse.golden;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
+import com.xiyu.bid.scoreparse.domain.ChildAggregation;
 import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
+import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
+import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
+import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -32,6 +37,25 @@ class GoldenCasesReplayTest {
 
     private static final List<GoldenCasesReplaySupport.ReplayReportRow> REPORT_ROWS =
             Collections.synchronizedList(new ArrayList<>());
+
+    @Test
+    void peerSectionTextCannotPublishAsScoringSchemeEvidence() throws Exception {
+        String text = GoldenCasesReplaySupport.readFixture("case-text-peer-scope.md");
+        JsonNode expected = GoldenCasesReplaySupport.parseExpected(
+                GoldenCasesReplaySupport.readFixture("case-text-peer-scope.expected.json"));
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("synthetic", "scope", "docx", "2.0"),
+                List.of(), List.of());
+        JsonNode scope = expected.path("scopeRegression");
+        String quote = scope.path("quote").asText();
+        var fact = new MultimodalScoreFact("履约考核办法", "1", "", scope.path("dimension").asText(),
+                new BigDecimal(scope.path("weight").asText()), quote, "OBJECTIVE", null, "",
+                List.of(scope.path("locator").asText()), quote, 0.9, ChildAggregation.SUM);
+
+        var result = OriginalScoreEvidencePolicy.verifyModel(artifact, text, List.of(fact), new BigDecimal("100"));
+
+        assertTrue(result.problems().stream().anyMatch(problem ->
+                problem.code().equals("ITEM_SCHEME_SCOPE_MISMATCH")));
+    }
 
     static Stream<Arguments> cases() {
         return Stream.of(

@@ -18,9 +18,9 @@ class MultimodalScoreFactValidatorTest {
     }
 
     @Test void acceptsParagraphBackedFactWithTextLocator() {
-        String text = "本项目总分为 30 分。商务部分（响应报价）30 分";
+        String text = "# 评分办法\n本项目总分为 30 分。商务部分（响应报价）30 分";
         var fact = new MultimodalScoreFact("商务部分", "响应报价", "", "商务部分（响应报价）",
-                new BigDecimal("30"), "商务部分（响应报价）30 分", "OBJECTIVE", null, "", List.of("text:line[0]"),
+                new BigDecimal("30"), "商务部分（响应报价）30 分", "OBJECTIVE", null, "", List.of("text:line[1]"),
                 "商务部分（响应报价）30 分", 0.9, ChildAggregation.SUM);
         var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("d", "sha", "docx", "2.0"),
                 List.of(), List.of());
@@ -31,10 +31,10 @@ class MultimodalScoreFactValidatorTest {
     }
 
     @Test void acceptsParagraphQuoteSplitAcrossDocxRuns() {
-        String text = "本项目总分\n为 10 分。业绩：满足条件得\n10\u00a0分";
+        String text = "# 评分办法\n本项目总分\n为 10 分。业绩：满足条件得\n10\u00a0分";
         var fact = new MultimodalScoreFact("评分办法", "1", "", "业绩",
                 new BigDecimal("10"), "满足条件得10分", "OBJECTIVE", null, "",
-                List.of("text:line[0]"), "满足条件得 10 分", 0.9, ChildAggregation.SUM);
+                List.of("text:line[2]"), "满足条件得 10 分", 0.9, ChildAggregation.SUM);
         var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("d", "sha", "docx", "2.0"),
                 List.of(), List.of());
 

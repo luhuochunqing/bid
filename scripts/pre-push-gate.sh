@@ -434,6 +434,14 @@ else
   fi
 fi
 
+# ── scoreparse 文本证据必须归属评分方案 ───────────────────
+echo "── scoreparse 文本评分范围 ──"
+if node "$ROOT_DIR/scripts/check-scoreparse-text-scope.mjs" 2>&1; then
+  pass "scoreparse 文本证据评分范围守卫"
+else
+  fail "scoreparse 文本证据评分范围守卫 — 纯文本评分事实必须由当前评分方案标题范围证明"
+fi
+
 # ── 5.7. 仓库卫生：根目录产物文件拦截（PR !2399 教训） ────
 # implementation-notes.html / ui_mvp_preview.html 等产物/笔记文件不应持续入库。
 # 历史文件允许继续存在，仅拦截本次推送对它们的新增/修改。

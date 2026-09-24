@@ -475,3 +475,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 2026-08-02 | 新增 "后端 OOM（exit 137）" 案例；根因：裸 `mvn spring-boot:run` 时 JVM 默认堆 = 物理内存 1/4，macOS 内存紧张时触发系统级 OOM Killer；规范：禁止 裸 mvn 启动、必须显式 -Xmx；§5.1 编码规范新增"分页 size 必须上限保护（MAX_PAGE_SIZE=100）"，补齐 TenderController 遗漏 | OOM 根因修复，PR !2245 |
 | 2026-08-25 | 新增 Code Review 三透镜纪律（行为正确性/结构健康/交付就绪）：PR !2399 四轮审查全在行为平面，依赖方向/影响面/交付就绪从未进入检查面；工程化落点：`check-keyword-sync.mjs`（跨语言关键词契约）、pre-push §5.7（仓库卫生）、`gitee-pr-helper.sh merge` mergeable 断言、`agent-finish-task.sh` 冲突预警；技能落点：`xiyu-code-review` 新增第 0 步状态快照 + §7 结构健康 + §8 交付就绪（本地 `.agents/skills/`，未入库） | PR !2399 审查复盘 |
 | 2026-09-20 | 新增 §5.2.1「验证命令集必须等于门禁契约」：两轮 S5 自拟命令集全绿，真实缺陷均由 pre-commit 反查——漏 `ProjectAccessGuardCoverageTest`（新增 `*AppService` 未登记项目访问守卫基线 → BUILD FAILURE）与 `npm run lint`（3 个 ESLint error 随提交入库，`npm run build` 链不含 lint 且 pre-commit lint 非阻断）；§7.3 checklist 增补对应项 | 案例摘要改造任务复盘 |
+
+### 重复 bug：证据来源范围必须跨载体一致
+
+评分解析曾对表格候选执行评分方案归属验证，却把所有 `text:line[...]` 纯文本定位器无条件视为方案内，导致其他章节的履约考核分数并入评分总分。重复修复应沿证据绑定、locator、范围校验和发布判定追完整链路；“全文能找到引文”不等于“引文属于当前方案”。必须有同方案正例、异方案反例，并用自动门禁阻止文本证据重新绕过归属校验。

@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "desensitization": "完全合成的Markdown标题层级、评分描述与分值，用于范围验证",
+  "focus": "lessons §404：评分方案同级章节的文本候选不能进入当前方案发布结果",
+  "threshold": 0.95,
+  "scopeRegression": {
+    "dimension": "履约指标",
+    "weight": 10,
+    "quote": "履约指标最高得10分。",
+    "locator": "text:line[5]"
+  },
+  "items": []
+}
