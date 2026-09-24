@@ -44,6 +44,8 @@ final class TextPrimaryEvidenceBinder {
     static List<MultimodalScoreFact> bind(List<MultimodalScoreFact> facts, DocumentArtifact artifact,
                                           String tenderText) {
         if (facts == null || facts.isEmpty()) return List.of();
+        NormalizedEvidence normalizedText = tenderText == null || tenderText.isBlank()
+                ? null : normalizeWithOffsets(tenderText);
         return facts.stream().map(fact -> {
             if (!fact.tableId().isBlank() && !fact.sourceCellIds().isEmpty()) return fact;
             var bound = artifact == null ? java.util.Optional.<MultimodalScoreFact>empty()
@@ -51,16 +53,16 @@ final class TextPrimaryEvidenceBinder {
                             .map(cell -> new Object[]{table, cell}))
                     .filter(pair -> matches(fact, pair)).findFirst().map(pair -> bound(fact, pair));
             if (bound.isPresent()) return bound.get();
-            return textEvidence(fact, tenderText).orElse(fact);
+            return textEvidence(fact, tenderText, normalizedText).orElse(fact);
         }).toList();
     }
 
-    private static java.util.Optional<MultimodalScoreFact> textEvidence(MultimodalScoreFact fact, String tenderText) {
-        if (tenderText == null || tenderText.isBlank() || fact.quotedText().isBlank()) {
+    private static java.util.Optional<MultimodalScoreFact> textEvidence(MultimodalScoreFact fact, String tenderText,
+                                                                         NormalizedEvidence normalizedText) {
+        if (tenderText == null || tenderText.isBlank() || fact.quotedText().isBlank() || normalizedText == null) {
             return java.util.Optional.empty();
         }
         String quote = fact.quotedText();
-        NormalizedEvidence normalizedText = normalizeWithOffsets(tenderText);
         String normalizedQuote = normalizeForEvidence(quote);
         int offset = normalizedText.text().indexOf(normalizedQuote);
         if (offset < 0) return java.util.Optional.empty();
