@@ -26,12 +26,27 @@ public final class MultimodalFactParentCodeNormalizer {
                 return fact;
             }
             String canonical = canonicalParentCode(fact, canonicalCodes);
-            return canonical == null || canonical.equals(fact.parentCode())
-                    ? fact
+            if (canonical == null && structuralParentReference(fact)) {
+                // A text chunk can contain children while the parent heading is
+                // outside the chunk and therefore absent from the model pool.
+                // Keep the child as a top-level scoring unit instead of creating
+                // a dangling relation that can never be source-verified.
+                return new MultimodalScoreFact(fact.sectionTitle(), fact.code(), "", fact.dimension(),
+                        fact.weight(), fact.ruleText(), fact.scoreType(), fact.pageNumber(), fact.tableId(),
+                        fact.sourceCellIds(), fact.quotedText(), fact.confidence(), fact.childAggregation());
+            }
+            return canonical == null || canonical.equals(fact.parentCode()) ? fact
                     : new MultimodalScoreFact(fact.sectionTitle(), fact.code(), canonical, fact.dimension(),
                     fact.weight(), fact.ruleText(), fact.scoreType(), fact.pageNumber(), fact.tableId(),
                     fact.sourceCellIds(), fact.quotedText(), fact.confidence(), fact.childAggregation());
         }).toList();
+    }
+
+    private static boolean structuralParentReference(MultimodalScoreFact fact) {
+        String parent = compact(fact.parentCode());
+        String code = compact(fact.code());
+        return !parent.isBlank() && !code.isBlank()
+                && (code.startsWith(parent + "_") || code.startsWith(parent + "."));
     }
 
     private static String canonicalParentCode(MultimodalScoreFact fact, Map<String, String> canonicalCodes) {

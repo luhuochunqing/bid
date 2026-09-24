@@ -30,6 +30,15 @@ class MultimodalFactParentCodeNormalizerTest {
     }
 
     @Test
+    void dropsDanglingStructuralParentWhenChunkOmittedParentHeading() {
+        var child = fact("3.2.1_1", "3.2.1");
+
+        var normalized = MultimodalFactParentCodeNormalizer.normalize(List.of(child));
+
+        assertThat(normalized.get(0).parentCode()).isBlank();
+    }
+
+    @Test
     void leavesAmbiguousSameSectionParentCodeUntouched() {
         var parentA = fact("business", "");
         var parentB = fact("business", "");

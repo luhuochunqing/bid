@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "desensitization": "合成文本，保留 DOCX 换行拆分的总分声明和评分表结构",
+  "focus": "正文总分在 DOCX run 边界断开时仍能保留两个正式计分单元",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": false,
+  "laneHints": ["table"],
+  "items": [
+    { "code": "1", "dim": "商务服务", "detail": "满足商务服务要求，得 40 分。", "weight": 40 },
+    { "code": "2", "dim": "技术方案", "detail": "技术方案完整可行，得 60 分。", "weight": 60 }
+  ]
+}

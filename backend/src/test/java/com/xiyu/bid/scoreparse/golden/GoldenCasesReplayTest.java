@@ -56,7 +56,8 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-long-text-scoring-table"),
                 Arguments.of("case-text-primary-multi-document"),
                 Arguments.of("case-score-total-evidence-roles"),
-                Arguments.of("case-upstream-scoring-integrity"));
+                Arguments.of("case-upstream-scoring-integrity"),
+                Arguments.of("case-docx-run-boundary-score"));
     }
 
     @ParameterizedTest(name = "{0}")
