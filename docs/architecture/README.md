@@ -18,6 +18,7 @@
 | `production-readiness-report.md` | 就绪报告 | 生产就绪报告 |
 | `architecture-ratchet-candidates.md` | 架构演进 | 架构棘轮候选项 |
 | `doc-consistency-report.md` | 一致性报告 | 文档自一致性报告 |
+| `score-parse-root-cause-analysis.md` | 根因分析 | 评分项解析长期反复失效的根因链条与治理方向 |
 
 ## 子目录
 
