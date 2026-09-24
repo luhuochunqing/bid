@@ -25,6 +25,9 @@ sources:
   - backend/src/test/resources/scoreparse-golden/case-long-text-scoring-table.expected.json
   - backend/src/test/resources/scoreparse-golden/case-text-primary-multi-document.md
   - backend/src/test/resources/scoreparse-golden/case-text-primary-multi-document.expected.json
+  - backend/src/test/resources/scoreparse-golden/case-docx-run-boundary-score.md
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoringContext.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/MultimodalFactParentCodeNormalizer.java
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-09-20
@@ -99,6 +102,13 @@ archive: false
 - 合成回归夹具 `case-page-split-parent-child` 锁定跨页商务/技术评分组与叶子分值闭合；`case-long-text-scoring-table` 锁定长篇正文后仍完整召回末尾评分表；`ChildAggregationTest` 锁定关系策略。长文本分片与事实合并由 `ScoreTextChunkerTest`、`ScoreFactChunkMergerTest` 及抽取器测试覆盖。真实招标文件仍按既有脱敏纪律留在仓库外。
 
 ## 主客观分类
+
+## DOCX 原文边界与分片父项
+
+- DOCX 转换器可能把“本项目总分为 100 分”拆到相邻 run 或换行中；总分解析先统一空白，再只接受带“本项目/本标包/评分办法/评标办法”作用域的明确总分。
+- 模型引用允许转换器造成的换行、非断行空格差异，但仍必须在完整原文中连续回指，原始引用文字不改写。
+- 分片缺少父标题时，仅清理可证明的结构前缀父引用；任意其他悬空父编号仍转人工复核。
+- 合成夹具不替代部署后真实项目重解析验收。
 
 - 客观：明确阶梯、证书、数量、金额、日期或计算公式。
 - 主观：横向比较、酌情评价、优良中差等依赖评委判断的规则。
