@@ -6,6 +6,7 @@ import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
+import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreUnitPolicy;
 import com.xiyu.bid.scoreparse.domain.TableCompleteness;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
@@ -40,7 +41,7 @@ final class MultimodalReviewFallback {
                 modelValidation.facts().size(), facts.size(), completeness.declaredTotalScore(),
                 completeness.leafWeightSum());
         return StructuredTableResult.evidencePipeline(facts, candidates, completeness,
-                shadow.tableCompletenesses(), original.proofs());
+                shadow.tableCompletenesses(), original.proofs(), original.qualifications(), null);
     }
 
     static StructuredTableResult reviewOnly(DocumentArtifact artifact, OriginalScoringContext context,
@@ -65,8 +66,11 @@ final class MultimodalReviewFallback {
             var completeness = new ScoreCompletenessPolicy.ScoreCompletenessResult(false,
                     ScoreParseDecision.REVIEW_REQUIRED, reason, originalTotal, totalSource, sum,
                     leaves.size(), parents.size(), 0, defects, leaves, parents);
+            List<OriginalScoreEvidencePolicy.Qualification> qualifications =
+                    OriginalScoreEvidencePolicy.verifyFacts(context, artifact, facts).qualifications();
             return StructuredTableResult.evidencePipeline(facts, List.of(), completeness,
-                    List.of(new TableCompleteness("MULTIMODAL_FALLBACK", false, completeness)));
+                    List.of(new TableCompleteness("MULTIMODAL_FALLBACK", false, completeness)),
+                    List.of(), qualifications, null);
         } catch (RuntimeException failure) {
             return StructuredTableResult.structureIncomplete(reason);
         }

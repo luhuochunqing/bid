@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * AI 评分解析待复核候选标准人工采纳领域策略（纯核心，无框架依赖）。
@@ -20,11 +19,16 @@ public final class ScoreReviewAdoptionPolicy {
             BigDecimal weight,
             String sourceText,
             String parentFactId,
-            String scoreType
+            String scoreType,
+            String childAggregation
     ) {
         public CandidateInput(String factId, String code, String dimension, BigDecimal weight,
+                              String sourceText, String parentFactId, String scoreType) {
+            this(factId, code, dimension, weight, sourceText, parentFactId, scoreType, null);
+        }
+        public CandidateInput(String factId, String code, String dimension, BigDecimal weight,
                               String sourceText, String parentFactId) {
-            this(factId, code, dimension, weight, sourceText, parentFactId, null);
+            this(factId, code, dimension, weight, sourceText, parentFactId, null, null);
         }
         public CandidateInput {
             factId = factId == null ? "" : factId.trim();
@@ -33,6 +37,7 @@ public final class ScoreReviewAdoptionPolicy {
             sourceText = sourceText == null ? "" : sourceText.trim();
             parentFactId = parentFactId == null ? "" : parentFactId.trim();
             scoreType = scoreType == null ? "" : scoreType.trim().toUpperCase();
+            childAggregation = ChildAggregation.legacyDefault(childAggregation).name();
         }
     }
 
@@ -77,14 +82,15 @@ public final class ScoreReviewAdoptionPolicy {
         BigDecimal total = BigDecimal.ZERO;
         int index = 1;
 
-        Set<String> parentIds = facts.stream()
+        List<ScoreUnitPolicy.Node> nodes = facts.stream()
                 .filter(Objects::nonNull)
-                .map(CandidateInput::parentFactId)
-                .filter(id -> id != null && !id.isBlank())
-                .collect(Collectors.toSet());
+                .map(fact -> new ScoreUnitPolicy.Node(fact.factId(), fact.parentFactId(), fact.weight(),
+                        fact.childAggregation()))
+                .toList();
+        Set<String> effectiveUnitIds = ScoreUnitPolicy.effectiveUnitIds(nodes);
 
         for (CandidateInput fact : facts) {
-            if (fact == null || parentIds.contains(fact.factId())) {
+            if (fact == null || !effectiveUnitIds.contains(fact.factId())) {
                 continue;
             }
             if (filterByIds && !selectedFactIds.contains(fact.factId())) {

@@ -92,6 +92,30 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
+    void getReviewSnapshotKeepsDifferentSchemesSeparateAndRequiresAnExplicitChoice() {
+        mockLatestTask();
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("scheme-a-fact", "100"),
+                fact("scheme-b-fact", "150")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                schemeQualification("scheme-a-fact", "scheme-a", "IN_SCHEME", true, null,
+                        "第一评分方案", "100", "VERIFIED", "text:line[1]", "MULTI_TABLE_SAME_SCHEME", List.of("a1", "a2")),
+                schemeQualification("scheme-b-fact", "scheme-b", "IN_SCHEME", true, null,
+                        "第二评分方案", "150", "VERIFIED", "text:line[5]", "SINGLE_TABLE", List.of("b1"))));
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+
+        ScoreParseReviewDTO dto = service.getReviewSnapshot(PROJECT_ID);
+
+        assertThat(dto.schemeSelectionRequired()).isTrue();
+        assertThat(dto.selectedSchemeId()).isNull();
+        assertThat(dto.declaredTotal()).isNull();
+        assertThat(dto.schemes()).extracting(ScoreParseReviewDTO.Scheme::schemeId)
+                .containsExactly("scheme-a", "scheme-b");
+        assertThat(dto.schemes()).extracting(ScoreParseReviewDTO.Scheme::declaredTotal)
+                .containsExactly(new BigDecimal("100"), new BigDecimal("150"));
+        assertThat(dto.schemes().get(0).tableIds()).containsExactly("a1", "a2");
+    }
+
+    @Test
     void submitReview_savesAuditOnlyAndReturnsSnapshot() {
         mockLatestTask();
         when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "10")));
@@ -120,7 +144,7 @@ class ScoreParseReviewAppServiceTest {
         ScoreParseFact fact1 = fact("fact-1", "20");
         ScoreParseFact fact2 = fact("fact-2", "80");
         when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact1, fact2));
-        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of());
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(eligibleEvidence("fact-1", "fact-2"));
         when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
 
         ScoreParseReviewDTO result = service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
@@ -147,13 +171,55 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
+    void submitReview_adoptCandidates_excludesPersistedOutOfSchemeFactsFromDefaultSelection() {
+        mockLatestTask();
+        ScoreParseFact inScheme = fact("in-scheme", "100");
+        ScoreParseFact outOfScheme = fact("contract-duty", "40");
+        outOfScheme.setDimension("履约考核");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(inScheme, outOfScheme));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                qualification("in-scheme", "scheme-main", "IN_SCHEME", true, null),
+                qualification("contract-duty", "contract-performance", "OUT_OF_SCHEME", false,
+                        "ITEM_SCHEME_SCOPE_MISMATCH")));
+
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "默认采纳本评分方案候选")
+        ), "人工确认采纳", 9L), "admin");
+
+        ArgumentCaptor<List<com.xiyu.bid.scoreparse.domain.ScoreCandidate>> captor =
+                ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), captor.capture());
+        assertThat(captor.getValue()).hasSize(1).extracting(com.xiyu.bid.scoreparse.domain.ScoreCandidate::dim)
+                .containsExactly("资质");
+    }
+
+    @Test
+    void submitReview_adoptCandidates_rejectsExplicitOutOfSchemeFactBeforePersistence() {
+        mockLatestTask();
+        ScoreParseFact outOfScheme = fact("contract-duty", "100");
+        outOfScheme.setDimension("履约考核");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(outOfScheme));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                qualification("contract-duty", "contract-performance", "OUT_OF_SCHEME", false,
+                        "ITEM_SCHEME_SCOPE_MISMATCH")));
+
+        assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("contract-duty", "ADOPT_CANDIDATES", new BigDecimal("100"), "显式选择")
+        ), "人工确认采纳", 9L), "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("方案外");
+
+        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+    }
+
+    @Test
     void submitReview_adoptCandidates_closesAgainstDeclaredEightyPoints() {
         mockLatestTask();
         ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                 PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")).get(0);
         task.setRunSummary("{\"tableSplits\":[{\"declaredTotal\":80}]} ");
         when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "30"), fact("fact-2", "50")));
-        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of());
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(eligibleEvidenceTotal("80", "fact-1", "fact-2"));
         when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
 
         service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
@@ -165,12 +231,73 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
+    void submitReview_adoptsMutuallyExclusiveTiersUsingParentMaximumOnce() {
+        mockLatestTask();
+        ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")).get(0);
+        ScoreParseFact parent = fact("tier-parent", "5");
+        parent.setChildAggregation("MUTUALLY_EXCLUSIVE");
+        ScoreParseFact tierFive = childFact("tier-five", "5", "tier-parent");
+        ScoreParseFact tierFour = childFact("tier-four", "4", "tier-parent");
+        ScoreParseFact tierThree = childFact("tier-three", "3", "tier-parent");
+        ScoreParseFact tierTwo = childFact("tier-two", "2", "tier-parent");
+        List<ScoreParseFact> facts = List.of(parent, tierFive, tierFour, tierThree, tierTwo);
+        when(factRepository.findByParseTaskId(9L)).thenReturn(facts);
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(eligibleEvidenceTotal(
+                "5", "tier-parent", "tier-five", "tier-four", "tier-three", "tier-two"));
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "采纳互斥分档")
+        ), "人工确认采纳", 9L), "admin");
+
+        ArgumentCaptor<List<com.xiyu.bid.scoreparse.domain.ScoreCandidate>> captor =
+                ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), captor.capture());
+        assertThat(captor.getValue()).singleElement().satisfies(candidate -> {
+            assertThat(candidate.dim()).isEqualTo("资质");
+            assertThat(candidate.weight()).isEqualByComparingTo("5");
+        });
+        assertThat(task.getOriginalTotalWeight()).isEqualByComparingTo("5");
+    }
+
+    @Test
+    void submitReview_adoptsCumulativeChildrenAsTheirSum() {
+        mockLatestTask();
+        ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")).get(0);
+        ScoreParseFact parent = fact("sum-parent", "20");
+        parent.setChildAggregation("SUM");
+        List<ScoreParseFact> facts = List.of(parent,
+                childFact("sum-five-a", "5", "sum-parent"),
+                childFact("sum-five-b", "5", "sum-parent"),
+                childFact("sum-ten", "10", "sum-parent"));
+        when(factRepository.findByParseTaskId(9L)).thenReturn(facts);
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(eligibleEvidenceTotal(
+                "20", "sum-parent", "sum-five-a", "sum-five-b", "sum-ten"));
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "采纳累计子项")
+        ), "人工确认采纳", 9L), "admin");
+
+        ArgumentCaptor<List<com.xiyu.bid.scoreparse.domain.ScoreCandidate>> captor =
+                ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), captor.capture());
+        assertThat(captor.getValue()).hasSize(3)
+                .extracting(com.xiyu.bid.scoreparse.domain.ScoreCandidate::weight)
+                .containsExactly(new BigDecimal("5"), new BigDecimal("5"), new BigDecimal("10"));
+        assertThat(task.getOriginalTotalWeight()).isEqualByComparingTo("20");
+    }
+
+    @Test
     void submitReview_adoptCandidates_usesConfirmedCandidateTotalForSingleUnknownTable() {
         mockLatestTask();
         ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                 PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")).get(0);
         task.setRunSummary("{\"tableSplits\":[{\"tableId\":\"NO_DECLARED_TOTAL\"}]}");
         when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "40"), fact("fact-2", "60")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(unknownEvidence("fact-1", "fact-2"));
 
         service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
                 new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "确认单表候选合计")
@@ -188,13 +315,17 @@ class ScoreParseReviewAppServiceTest {
         task.setRunSummary("{\"tableSplits\":[{\"tableId\":\"NO_DECLARED_TOTAL\",\"declaredTotal\":60},"
                 + "{\"tableId\":\"business\",\"declaredTotal\":40}]}");
         when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "60"), fact("fact-2", "40")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                schemeQualification("fact-1", "scheme-main", "IN_SCHEME", true, null, "本项目评分办法",
+                        null, "CONFLICT", "", "MULTI_TABLE_SAME_SCHEME", List.of("business", "technical")),
+                schemeQualification("fact-2", "scheme-main", "IN_SCHEME", true, null, "本项目评分办法",
+                        null, "CONFLICT", "", "MULTI_TABLE_SAME_SCHEME", List.of("business", "technical"))));
 
         assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
                 new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "采纳冲突候选项")
         ), "人工确认采纳", 9L), "admin"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("声明总分")
-                .hasMessageContaining("人工确认");
+                .hasMessageContaining("原文总分存在冲突");
 
         verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
         verify(taskRepository, never()).save(task);
@@ -245,7 +376,7 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
-    void declaredTotal_sumsOnlyExplicitSplitTotalsAndDefaultsWhenUnknownGroupExists() {
+    void declaredTotalDoesNotAddPhysicalTableTotalsOrGuessTheSchemeTotal() {
         ScoreParseTask explicit = ScoreParseTask.builder().taskId("explicit")
                 .runSummary("{\"tableSplits\":[{\"tableId\":\"a\",\"declaredTotal\":60},{\"tableId\":\"b\",\"declaredTotal\":40}]}")
                 .build();
@@ -253,7 +384,7 @@ class ScoreParseReviewAppServiceTest {
                 .runSummary("{\"tableSplits\":[{\"tableId\":\"NO_DECLARED_TOTAL\",\"declaredTotal\":60},{\"tableId\":\"b\",\"declaredTotal\":40}]}")
                 .build();
 
-        assertThat(ScoreParseReviewAppService.declaredTotal(explicit)).isEqualByComparingTo("100");
+        assertThat(ScoreParseReviewAppService.declaredTotal(explicit)).isNull();
         assertThat(ScoreParseReviewAppService.declaredTotal(unknown)).isNull();
     }
 
@@ -301,6 +432,12 @@ class ScoreParseReviewAppServiceTest {
                 .build();
     }
 
+    private ScoreParseFact childFact(String factId, String weight, String parentFactId) {
+        ScoreParseFact fact = fact(factId, weight);
+        fact.setParentFactId(parentFactId);
+        return fact;
+    }
+
     private ScoreParseEvidence evidence(String factId) {
         return ScoreParseEvidence.builder()
                 .id(3L)
@@ -310,6 +447,48 @@ class ScoreParseReviewAppServiceTest {
                 .cellId("c1")
                 .quotedText("CMMI 认证")
                 .build();
+    }
+
+    private ScoreParseEvidence qualification(String factId, String schemeId, String scopeStatus,
+                                             boolean candidateEligible, String reason) {
+        return schemeQualification(factId, schemeId, scopeStatus, candidateEligible, reason,
+                "scheme-main".equals(schemeId) ? "本项目评分办法" : schemeId,
+                "100", "VERIFIED", "text:line[0]", "SINGLE_TABLE", List.of("score-table"));
+    }
+
+    private List<ScoreParseEvidence> eligibleEvidence(String... factIds) {
+        return java.util.Arrays.stream(factIds)
+                .map(factId -> qualification(factId, "scheme-main", "IN_SCHEME", true, null)).toList();
+    }
+
+    private List<ScoreParseEvidence> eligibleEvidenceTotal(String total, String... factIds) {
+        return java.util.Arrays.stream(factIds).map(factId -> schemeQualification(factId, "scheme-main", "IN_SCHEME",
+                true, null, "本项目评分办法", total, "VERIFIED", "text:line[0]", "SINGLE_TABLE",
+                List.of("score-table"))).toList();
+    }
+
+    private List<ScoreParseEvidence> unknownEvidence(String... factIds) {
+        return java.util.Arrays.stream(factIds).map(factId -> schemeQualification(factId, "scheme-main", "IN_SCHEME",
+                true, null, "本项目评分办法", null, "UNKNOWN", "", "SINGLE_TABLE",
+                List.of("score-table"))).toList();
+    }
+
+    private ScoreParseEvidence schemeQualification(String factId, String schemeId, String scopeStatus,
+                                                   boolean candidateEligible, String reason, String title,
+                                                   String declaredTotal, String totalStatus, String totalLocator,
+                                                   String layoutStatus, List<String> tableIds) {
+        String numeric = declaredTotal == null ? "null" : declaredTotal;
+        String reasonJson = reason == null ? "null" : "\"" + reason + "\"";
+        String tableIdsJson = tableIds.stream().map(id -> "\"" + id + "\"")
+                .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+        String explanation = "{\"schemeId\":\"" + schemeId + "\",\"schemeTitle\":\"" + title
+                + "\",\"scopeStatus\":\"" + scopeStatus + "\",\"candidateEligible\":" + candidateEligible
+                + ",\"reason\":" + reasonJson + ",\"declaredTotal\":" + numeric
+                + ",\"totalEvidenceStatus\":\"" + totalStatus + "\",\"totalLocator\":\"" + totalLocator
+                + "\",\"totalQuote\":\"总分100分\",\"layoutStatus\":\"" + layoutStatus
+                + "\",\"tableIds\":" + tableIdsJson + "}";
+        return ScoreParseEvidence.builder().id(20L).parseTaskId(9L).factId(factId)
+                .kind("SCHEME_QUALIFICATION").explanation(explanation).build();
     }
 
     private ScoreParseReview review(String factId) {

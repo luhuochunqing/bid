@@ -1,0 +1,33 @@
+{
+  "projectId": 1382,
+  "fixtureKind": "redacted-source-shaped-regression",
+  "schemeTitle": "第三章 评审办法",
+  "declaredTotal": 100,
+  "totalQuote": "分值构成（总分 100 分）",
+  "totalLocator": "t-score-summary:total-cell",
+  "eligibleFacts": [
+    { "section": "商务", "code": "BUSINESS", "dimension": "商务部分", "weight": 15, "quote": "（1）商务部分：15 分", "locator": "text:line[3]", "parentCode": "", "childRelation": "SUM" },
+    { "section": "商务", "code": "B1", "dimension": "供应商业绩", "weight": 7, "quote": "供应商业绩（7 分）", "locator": "text:line[4]", "parentCode": "BUSINESS", "childRelation": "SUM" },
+    { "section": "商务", "code": "B2", "dimension": "财务状况", "weight": 3, "quote": "财务状况（3 分）", "locator": "text:line[5]", "parentCode": "BUSINESS", "childRelation": "SUM" },
+    { "section": "商务", "code": "B3", "dimension": "服务网点及仓储", "weight": 3, "quote": "服务网点及仓储（3 分）", "locator": "text:line[6]", "parentCode": "BUSINESS", "childRelation": "SUM" },
+    { "section": "商务", "code": "B4", "dimension": "电子商城运营时间", "weight": 1, "quote": "电子商城运营时间（1 分）", "locator": "text:line[7]", "parentCode": "BUSINESS", "childRelation": "SUM" },
+    { "section": "商务", "code": "B5", "dimension": "授信额度", "weight": 1, "quote": "授信额度（1 分）", "locator": "text:line[8]", "parentCode": "BUSINESS", "childRelation": "SUM" },
+    { "section": "技术", "code": "TECHNICAL", "dimension": "技术部分", "weight": 45, "quote": "（2）技术部分：45 分", "locator": "text:line[3]", "parentCode": "", "childRelation": "SUM" },
+    { "section": "技术", "code": "T1", "dimension": "综合服务方案", "weight": 10, "quote": "针对办公用品的综合服务方案（10 分）", "locator": "text:line[9]", "parentCode": "TECHNICAL", "childRelation": "SUM" },
+    { "section": "技术", "code": "T2", "dimension": "产品质量及价格管控方案", "weight": 10, "quote": "针对办公用品的产品质量及价格管控方案（10 分）", "locator": "text:line[10]", "parentCode": "TECHNICAL", "childRelation": "SUM" },
+    { "section": "技术", "code": "T3", "dimension": "物流仓储方案", "weight": 8, "quote": "针对办公用品的物流仓储方案（8 分）", "locator": "text:line[11]", "parentCode": "TECHNICAL", "childRelation": "SUM" },
+    { "section": "技术", "code": "T4", "dimension": "服务团队方案", "weight": 10, "quote": "针对办公用品服务团队方案（10 分）", "locator": "text:line[12]", "parentCode": "TECHNICAL", "childRelation": "SUM" },
+    { "section": "技术", "code": "T5", "dimension": "平台系统对接方案", "weight": 3, "quote": "平台系统对接方案（3 分）", "locator": "text:line[13]", "parentCode": "TECHNICAL", "childRelation": "SUM" },
+    { "section": "技术", "code": "T6", "dimension": "增值服务方案", "weight": 4, "quote": "针对办公用品增值服务方案（4 分）", "locator": "text:line[14]", "parentCode": "TECHNICAL", "childRelation": "SUM" },
+    { "section": "报价", "code": "PRICE", "dimension": "报价", "weight": 40, "quote": "办公用品价格分评审（40 分）", "locator": "text:line[15]", "parentCode": "", "childRelation": "SUM" },
+    { "section": "报价", "code": "P1", "dimension": "一级集采商品价格分", "weight": 28, "quote": "一级集采商品价格分（满分 28 分）", "locator": "text:line[15]", "parentCode": "PRICE", "childRelation": "SUM" },
+    { "section": "报价", "code": "P2", "dimension": "非一级集采商品价格分", "weight": 12, "quote": "非一级集采商品价格分（满分 12 分）", "locator": "text:line[15]", "parentCode": "PRICE", "childRelation": "SUM" }
+  ],
+  "auditFacts": [
+    { "section": "合同条款", "code": "A1", "dimension": "合同履约响应率", "weight": 100, "quote": "回复率须达到 100%", "locator": "text:line[19]", "scopeStatus": "OUT_OF_SCHEME", "page": 98 }
+  ],
+  "expectedEligibleFactCount": 16,
+  "expectedOutOfSchemeFactCount": 1,
+  "expectedEligibleLeafTotal": 100,
+  "page98AndAfterRemainAuditOnly": true
+}

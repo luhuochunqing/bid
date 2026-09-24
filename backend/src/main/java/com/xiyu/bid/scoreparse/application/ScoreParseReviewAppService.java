@@ -1,6 +1,4 @@
 package com.xiyu.bid.scoreparse.application;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.scoreparse.dto.ScoreParseReviewCommand;
 import com.xiyu.bid.scoreparse.dto.ScoreParseReviewDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseEvidence;
@@ -32,7 +30,6 @@ public class ScoreParseReviewAppService {
     private static final List<String> ANY_STATUS = List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED");
     private static final Set<String> ALLOWED_ACTIONS = Set.of(
             "RETAIN_ORIGINAL", "MANUAL_ADJUST", "EXCLUDE", "ADOPT_CANDIDATES");
-    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreParseFactRepository factRepository;
@@ -48,10 +45,24 @@ public class ScoreParseReviewAppService {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         ScoreParseTask task = latestParseTask(projectId);
         List<ScoreParseFact> facts = factRepository.findByParseTaskId(task.getId());
-        Map<String, List<ScoreParseEvidence>> evidenceByFactId = evidenceRepository.findByParseTaskId(task.getId())
+        List<ScoreParseEvidence> allEvidence = evidenceRepository.findByParseTaskId(task.getId());
+        Map<String, List<ScoreParseEvidence>> evidenceByFactId = allEvidence
                 .stream()
                 .collect(Collectors.groupingBy(ScoreParseEvidence::getFactId));
         List<ScoreParseReview> audits = reviewRepository.findByParseTaskId(task.getId());
+
+        List<ScoreParseReviewDTO.Fact> reviewFacts = facts.stream()
+                .sorted(Comparator.comparing(ScoreParseFact::getId))
+                .map(fact -> ScoreParseReviewFactMapper.toFactDTO(fact, evidenceByFactId.getOrDefault(fact.getFactId(), List.of())))
+                .toList();
+        List<ScoreParseReviewDTO.Scheme> schemes = ScoreParseReviewFactMapper.schemes(reviewFacts);
+        boolean selectionRequired = schemes.stream().map(ScoreParseReviewDTO.Scheme::schemeId)
+                .filter(id -> id != null && !id.isBlank()).distinct().count() > 1;
+        String selectedSchemeId = selectionRequired ? null : schemes.stream()
+                .map(ScoreParseReviewDTO.Scheme::schemeId).filter(id -> id != null && !id.isBlank())
+                .findFirst().orElse(null);
+        BigDecimal declaredTotal = schemes.size() == 1 ? schemes.get(0).declaredTotal()
+                : schemes.isEmpty() ? declaredTotal(task) : null;
 
         return new ScoreParseReviewDTO(
                 projectId,
@@ -63,17 +74,15 @@ public class ScoreParseReviewAppService {
                 task.getReviewReason(),
                 task.getPipelineVersion(),
                 task.getArtifactSha256(),
-                declaredTotal(task),
-                ScoreParseReviewTotalPolicy.adoptionStatus(task),
-                facts.stream()
-                        .sorted(Comparator.comparing(ScoreParseFact::getId))
-                        .map(fact -> toFactDTO(fact, evidenceByFactId.getOrDefault(fact.getFactId(), List.of())))
-                        .toList(),
+                declaredTotal,
+                ScoreParseReviewTotalPolicy.adoptionStatus(task, schemes),
+                reviewFacts,
                 audits.stream()
                         .sorted(Comparator.comparing(ScoreParseReview::getCreatedAt,
                                 Comparator.nullsLast(Comparator.naturalOrder())))
                         .map(this::toAuditDTO)
-                        .toList());
+                        .toList(),
+                selectionRequired, selectedSchemeId, schemes);
     }
     @Transactional
     public ScoreParseReviewDTO submitReview(Long projectId, ScoreParseReviewCommand command, String operatorName) {
@@ -154,7 +163,42 @@ public class ScoreParseReviewAppService {
                 }
             }
         }
-        List<com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput> inputs = facts.stream()
+        List<ScoreParseEvidence> qualificationEvidence = evidenceRepository.findByParseTaskId(task.getId());
+        Map<String, ScoreParseReviewFactMapper.Qualification> qualifications = qualificationEvidence.stream()
+                .filter(evidence -> "SCHEME_QUALIFICATION".equals(evidence.getKind()))
+                .collect(Collectors.toMap(ScoreParseEvidence::getFactId, ScoreParseReviewFactMapper::qualification,
+                        (first, ignored) -> first));
+        qualificationEvidence.stream().filter(evidence -> "ITEM_SCHEME_SCOPE_MISMATCH".equals(evidence.getKind()))
+                .forEach(evidence -> qualifications.putIfAbsent(evidence.getFactId(), ScoreParseReviewFactMapper.qualification(evidence)));
+        List<ScoreParseFact> eligibleFacts = facts.stream().filter(fact -> {
+            ScoreParseReviewFactMapper.Qualification qualification = qualifications.get(fact.getFactId());
+            return qualification != null && qualification.candidateEligible();
+        }).toList();
+        Set<String> eligibleIds = eligibleFacts.stream().map(ScoreParseFact::getFactId)
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (!eligibleIds.containsAll(selectedFactIds)) {
+            throw new IllegalArgumentException("方案外或来源未验证的评分事实不能采纳");
+        }
+        if (selectedFactIds.isEmpty()) {
+            if (eligibleFacts.isEmpty()) {
+                throw new IllegalArgumentException("没有来源已验证且属于评分方案的候选项");
+            }
+            Set<String> schemeIds = eligibleFacts.stream().map(fact -> qualifications.get(fact.getFactId()).schemeId())
+                    .filter(id -> id != null && !id.isBlank()).collect(Collectors.toSet());
+            if (schemeIds.size() != 1) {
+                throw new IllegalArgumentException("存在多个评分方案，请先选择一个方案再采纳");
+            }
+            selectedFactIds.addAll(eligibleIds);
+        }
+        Set<String> selectedSchemeIds = selectedFactIds.stream().map(qualifications::get)
+                .filter(java.util.Objects::nonNull).map(ScoreParseReviewFactMapper.Qualification::schemeId)
+                .filter(id -> id != null && !id.isBlank()).collect(Collectors.toSet());
+        if (selectedSchemeIds.size() != 1) {
+            throw new IllegalArgumentException("一次采纳只能包含同一评分方案的事实");
+        }
+        String adoptedSchemeId = selectedSchemeIds.iterator().next();
+        List<com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput> inputs = eligibleFacts.stream()
+                .filter(fact -> adoptedSchemeId.equals(qualifications.get(fact.getFactId()).schemeId()))
                 .map(f -> toCandidateInput(f, edits.get(f.getFactId())))
                 .toList();
 
@@ -163,9 +207,19 @@ public class ScoreParseReviewAppService {
         if (!result.success()) {
             throw new IllegalArgumentException(result.errorMessage());
         }
-        BigDecimal declaredTotal = declaredTotal(task);
-        if (declaredTotal == null && ScoreParseReviewTotalPolicy.isSingleUnknownTable(task)) declaredTotal = result.totalWeight();
-        if (declaredTotal == null) throw new IllegalArgumentException("招标文件存在多个冲突的声明总分，请人工确认分表后再采纳");
+        ScoreParseReviewFactMapper.Qualification selectedScheme = qualifications.values().stream()
+                .filter(qualification -> adoptedSchemeId.equals(qualification.schemeId())).findFirst().orElse(null);
+        BigDecimal declaredTotal = selectedScheme == null ? null : selectedScheme.declaredTotal();
+        String totalEvidenceStatus = selectedScheme == null ? "UNKNOWN" : selectedScheme.totalEvidenceStatus();
+        if (declaredTotal == null && "UNKNOWN".equals(totalEvidenceStatus)
+                && selectedScheme != null && selectedScheme.tableIds().size() == 1
+                && ScoreParseReviewTotalPolicy.isSingleUnknownTable(task)) declaredTotal = result.totalWeight();
+        if ("CONFLICT".equals(totalEvidenceStatus)) {
+            throw new IllegalArgumentException("所选评分方案的原文总分存在冲突，请先核验冲突证据");
+        }
+        if (declaredTotal == null) {
+            throw new IllegalArgumentException("所选评分方案没有可验证的原文总分，不能自动按表格分值合并");
+        }
         if (result.totalWeight().compareTo(declaredTotal) != 0) {
             throw new IllegalArgumentException("修正后的叶子评分项合计必须为" + declaredTotal
                     + "分，当前为" + result.totalWeight() + "分");
@@ -202,75 +256,20 @@ public class ScoreParseReviewAppService {
                 prefer(edit == null ? null : edit.adjustedDimension(), fact.getDimension()), fact.getWeight(),
                 prefer(edit == null ? null : edit.adjustedSourceText(), fact.getSourceText()),
                 prefer(edit == null ? null : edit.adjustedParentFactId(), fact.getParentFactId()),
-                edit == null ? null : edit.adjustedScoreType());
+                edit == null ? null : edit.adjustedScoreType(), fact.getChildAggregation());
     }
     private String prefer(String adjusted, String original) {
         return adjusted == null ? original : adjusted;
     }
     static BigDecimal declaredTotal(ScoreParseTask task) {
-        if (task != null && task.getRunSummary() != null && !task.getRunSummary().isBlank()) {
-            try {
-                JsonNode splits = JSON.readTree(task.getRunSummary()).path("tableSplits");
-                if (splits.isArray() && !splits.isEmpty()) {
-                    if (splits.size() == 1) return numericTotal(splits.get(0));
-                    BigDecimal total = BigDecimal.ZERO;
-                    for (JsonNode split : splits) {
-                        if ("NO_DECLARED_TOTAL".equals(split.path("tableId").asText())) {
-                            return null;
-                        }
-                        JsonNode value = split.get("declaredTotal");
-                        if (value == null || !value.isNumber()) {
-                            return null;
-                        }
-                        total = total.add(value.decimalValue());
-                    }
-                    return total;
-                }
-            } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) {
-                log.warn("解析任务声明总分失败，按100分闭合: taskId={}", task.getTaskId());
-            }
-        }
-        return BigDecimal.valueOf(100);
+        return ScoreParseReviewFactMapper.declaredTotal(task);
     }
 
-    private static BigDecimal numericTotal(JsonNode split) {
-        JsonNode value = split.get("declaredTotal");
-        return value != null && value.isNumber() ? value.decimalValue() : null;
-    }
     private ScoreParseTask latestParseTask(Long projectId) {
         return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, TASK_TYPE_PARSE, ANY_STATUS)
                 .stream()
                 .max(Comparator.comparing(ScoreParseTask::getId))
                 .orElseThrow(() -> new IllegalStateException("项目无解析任务: " + projectId));
-    }
-    private ScoreParseReviewDTO.Fact toFactDTO(ScoreParseFact fact, List<ScoreParseEvidence> evidences) {
-        return new ScoreParseReviewDTO.Fact(
-                fact.getFactId(),
-                fact.getCode(),
-                fact.getDimension(),
-                fact.getWeight(),
-                new com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy().classify(fact.getSourceText()),
-                fact.getValidationStatus(),
-                evidences.stream().map(ScoreParseEvidence::getExplanation)
-                        .filter(java.util.Objects::nonNull).filter(message -> !message.isBlank())
-                        .distinct().collect(Collectors.joining("；")),
-                fact.getSourceText(),
-                fact.getSourceCellIds(),
-                fact.getWeightEvidence(),
-                fact.getParentFactId(),
-                fact.getExtractionMethod(),
-                fact.getConfidence(),
-                evidences.stream()
-                        .sorted(Comparator.comparing(ScoreParseEvidence::getId))
-                        .map(evidence -> new ScoreParseReviewDTO.Evidence(
-                                evidence.getCellId(),
-                                evidence.getKind(),
-                                evidence.getQuotedText(),
-                                evidence.getStartOffset(),
-                                evidence.getEndOffset(),
-                                evidence.getExplanation()))
-                        .toList(),
-                com.xiyu.bid.scoreparse.domain.ChildAggregation.legacyDefault(fact.getChildAggregation()).name());
     }
     private ScoreParseReviewDTO.Audit toAuditDTO(ScoreParseReview review) {
         return new ScoreParseReviewDTO.Audit(

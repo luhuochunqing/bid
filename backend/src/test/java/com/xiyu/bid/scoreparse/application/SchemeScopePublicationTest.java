@@ -136,7 +136,7 @@ class SchemeScopePublicationTest {
                 task, "task-scheme", result, tasks, state, progress, items, estimates);
         verify(items, never()).persistItems(any(), any(), anyList());
         verify(estimates, never()).estimateForProject(any());
-        verify(items).persistFactsAndEvidence(any(), any(), anyList());
+        verify(items).persistFactsAndEvidence(any(), any(), anyList(), anyList());
     }
 
     static StructuredTableResult extract(DocumentArtifact source, String text) throws Exception {

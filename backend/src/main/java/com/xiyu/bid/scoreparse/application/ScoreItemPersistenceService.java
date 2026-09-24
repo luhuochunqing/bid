@@ -12,7 +12,6 @@ import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreResult;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,7 +39,7 @@ public class ScoreItemPersistenceService {
     private final ScoreResultRepository resultRepository;
     private final com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository factRepository;
     private final com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository evidenceRepository;
-    private final ObjectMapper objectMapper;
+    private final ScoreParseFactEvidenceWriter factEvidenceWriter;
     private final ScoreTypeClassificationPolicy classificationPolicy = new ScoreTypeClassificationPolicy();
     private final ScoreItemOrderPolicy orderPolicy = new ScoreItemOrderPolicy();
 
@@ -55,7 +54,8 @@ public class ScoreItemPersistenceService {
         this.resultRepository = resultRepository;
         this.factRepository = factRepository;
         this.evidenceRepository = evidenceRepository;
-        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+        this.factEvidenceWriter = new ScoreParseFactEvidenceWriter(factRepository, evidenceRepository,
+                objectMapper != null ? objectMapper : new ObjectMapper());
     }
 
     public ScoreItemPersistenceService(
@@ -148,65 +148,15 @@ public class ScoreItemPersistenceService {
     /** 双写持久化不可变事实与单元格证据（spec 059 Phase 5） */
     @Transactional
     public void persistFactsAndEvidence(Long projectId, Long parseTaskId, List<com.xiyu.bid.scoreparse.domain.ScoreFact> facts) {
-        if (facts == null || facts.isEmpty()) {
-            return;
-        }
-        List<com.xiyu.bid.scoreparse.entity.ScoreParseFact> factEntities = new ArrayList<>();
-        List<com.xiyu.bid.scoreparse.entity.ScoreParseEvidence> evidenceEntities = new ArrayList<>();
+        factEvidenceWriter.persist(projectId, parseTaskId, facts, List.of());
+    }
 
-        for (com.xiyu.bid.scoreparse.domain.ScoreFact f : facts) {
-            if (f == null) continue;
-            if (f.validationStatus() == com.xiyu.bid.scoreparse.domain.ScoreFact.ValidationStatus.AUTO_APPROVED
-                    && (f.sourceCellIds() == null || f.sourceCellIds().isEmpty())
-                    && f.weightEvidence() == null) {
-                throw new IllegalArgumentException("持久化服务拒绝无证据自动通过项: factId=" + f.factId());
-            }
-            String cellIdsJson = serializeCellIds(f.sourceCellIds());
-            String evidenceJson = serializeWeightEvidence(f.weightEvidence());
-            if (f.weightEvidence() != null) {
-                var ev = f.weightEvidence();
-                evidenceEntities.add(com.xiyu.bid.scoreparse.entity.ScoreParseEvidence.builder()
-                        .factId(f.factId())
-                        .parseTaskId(parseTaskId)
-                        .cellId(ev.cellId())
-                        .kind(ev.kind().name())
-                        .quotedText(ev.quotedText())
-                        .startOffset(ev.startOffset())
-                        .endOffset(ev.endOffset())
-                        .explanation(ev.explanation())
-                        .build());
-            }
-            factEntities.add(com.xiyu.bid.scoreparse.entity.ScoreParseFact.builder()
-                    .projectId(projectId)
-                    .parseTaskId(parseTaskId)
-                    .factId(f.factId())
-                    .sourceTableId(f.sourceTableId())
-                    .sourceCellIds(cellIdsJson)
-                    .sourceText(f.sourceText() == null ? "" : f.sourceText())
-                    .code(com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer.clean(f.code()))
-                    .dimension(f.dimension() == null ? "" : f.dimension())
-                    .weight(f.weight() == null ? BigDecimal.ZERO : f.weight())
-                    .weightEvidence(evidenceJson)
-                    .parentFactId(f.parentFactId())
-                    .childAggregation(f.childAggregation().name())
-                    .extractionMethod(f.extractionMethod() == null ? "DETERMINISTIC" : f.extractionMethod())
-                    .confidence(BigDecimal.valueOf(f.confidence()))
-                    .validationStatus(f.validationStatus() == null ? "AUTO_APPROVED" : f.validationStatus().name())
-                    .build());
-        }
-        if (factRepository != null) {
-            // 删除范围按 parseTaskId 隔离（与 evidence 的删除口径一致）：
-            // 复核读取走 findByParseTaskId(task)，历史任务的事实快照是旧正式评分项
-            // 的证据链，不得在保存本次候选时按 projectId 一并洗掉。
-            factRepository.deleteByParseTaskId(parseTaskId);
-            factRepository.saveAll(factEntities);
-        }
-        if (evidenceRepository != null) {
-            evidenceRepository.deleteByParseTaskId(parseTaskId);
-            if (!evidenceEntities.isEmpty()) {
-                evidenceRepository.saveAll(evidenceEntities);
-            }
-        }
+    /** Persist source qualification beside each fact so review and adoption share the same eligibility decision. */
+    @Transactional
+    public void persistFactsAndEvidence(Long projectId, Long parseTaskId,
+                                        List<com.xiyu.bid.scoreparse.domain.ScoreFact> facts,
+                                        List<com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.Qualification> qualifications) {
+        factEvidenceWriter.persist(projectId, parseTaskId, facts, qualifications);
     }
 
     /**
@@ -248,29 +198,6 @@ public class ScoreItemPersistenceService {
             log.info("评分结构变动，清理旧打分数据: projectId={}, oldItems={}", projectId, oldItems.size());
         }
         itemRepository.deleteByProjectId(projectId);
-    }
-
-    private String serializeCellIds(List<String> cellIds) {
-        if (cellIds == null || cellIds.isEmpty()) return "[]";
-        try {
-            return objectMapper.writeValueAsString(cellIds);
-        } catch (JsonProcessingException e) {
-            log.warn("序列化 sourceCellIds 失败: {}", e.getMessage());
-            return "[]";
-        }
-    }
-
-    private String serializeWeightEvidence(com.xiyu.bid.scoreparse.domain.ScoreEvidence ev) {
-        if (ev == null) return null;
-        try {
-            return objectMapper.writeValueAsString(Map.of(
-                    "kind", ev.kind().name(),
-                    "quotedText", ev.quotedText() == null ? "" : ev.quotedText(),
-                    "cellId", ev.cellId() == null ? "" : ev.cellId()));
-        } catch (JsonProcessingException e) {
-            log.warn("序列化 weightEvidence 失败: {}", e.getMessage());
-            return null;
-        }
     }
 
     private String resolveCode(String code) {

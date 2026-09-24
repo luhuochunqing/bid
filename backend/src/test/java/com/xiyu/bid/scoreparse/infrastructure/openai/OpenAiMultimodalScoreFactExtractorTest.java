@@ -45,6 +45,42 @@ class OpenAiMultimodalScoreFactExtractorTest {
     }
 
     @Test
+    void textExtractionSendsScoringAndContractAuditRangesSeparately() {
+        OpenAiStructuredOutputService output = mock(OpenAiStructuredOutputService.class);
+        OpenAiBidAgentConfigurationResolver resolver = mock(OpenAiBidAgentConfigurationResolver.class);
+        OpenAiBidAgentRequestConfig config = mock(OpenAiBidAgentRequestConfig.class);
+        when(config.model()).thenReturn("test-model");
+        when(resolver.resolve(any())).thenReturn(config);
+        var response = new OpenAiMultimodalScoreFactExtractor.Output();
+        response.declaredTotal = BigDecimal.valueOf(100);
+        var item = new OpenAiMultimodalScoreFactExtractor.Item();
+        item.code = "1";
+        item.dimension = "评分项";
+        item.weight = BigDecimal.valueOf(5);
+        item.ruleText = "原文得5分";
+        item.quotedText = "原文得5分";
+        item.childAggregation = "SUM";
+        response.facts = List.of(item);
+        ArgumentCaptor<String> prompts = ArgumentCaptor.forClass(String.class);
+        when(output.request(prompts.capture(), any(), eq(OpenAiMultimodalScoreFactExtractor.Output.class),
+                eq(config), any())).thenReturn(response);
+        var extractor = new OpenAiMultimodalScoreFactExtractor(output, resolver, new ObjectMapper());
+        String source = "# 本项目评分办法\n总分100分。\n## 商务评分\n原文得5分。\n"
+                + "# 合同履约考核\n服务期每月另计40分。";
+
+        var result = extractor.extractWithText(artifact(), source);
+
+        assertThat(prompts.getAllValues()).hasSize(2);
+        assertThat(prompts.getAllValues().get(0)).contains("本项目评分办法", "商务评分")
+                .doesNotContain("服务期每月");
+        assertThat(prompts.getAllValues().get(1)).contains("合同履约考核", "服务期每月")
+                .doesNotContain("商务评分");
+        assertThat(result.facts()).extracting(com.xiyu.bid.scoreparse.domain.MultimodalScoreFact::scopeStatus)
+                .containsExactly("IN_SCHEME", "OUT_OF_SCHEME");
+        assertThat(result.declaredTotal()).isEqualByComparingTo("100");
+    }
+
+    @Test
     void longTextIsFullyCoveredByBoundedOverlappingTextOnlyRequestsForExtractionAndRecheck() {
         OpenAiStructuredOutputService output = mock(OpenAiStructuredOutputService.class);
         OpenAiBidAgentConfigurationResolver resolver = mock(OpenAiBidAgentConfigurationResolver.class);

@@ -11,8 +11,11 @@ import com.xiyu.bid.scoreparse.domain.ChildAggregation;
 import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
 import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
+import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreUnitPolicy;
+import com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -28,6 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,7 +58,199 @@ class GoldenCasesReplayTest {
         var result = OriginalScoreEvidencePolicy.verifyModel(artifact, text, List.of(fact), new BigDecimal("100"));
 
         assertTrue(result.problems().stream().anyMatch(problem ->
-                problem.code().equals("ITEM_SCHEME_SCOPE_MISMATCH")));
+                problem.code().equals("ORIGINAL_ELIGIBLE_FACTS_MISSING")));
+        assertEquals("OUT_OF_SCHEME", result.qualifications().get(0).scopeStatus());
+        assertTrue(!result.qualifications().get(0).candidateEligible());
+    }
+
+    @Test
+    void project1382ReplayExcludesPage98ContractAuditFromSchemeCandidates() throws Exception {
+        String text = GoldenCasesReplaySupport.readFixture("case-project-1382-scheme-eligibility.md");
+        JsonNode expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(
+                "case-project-1382-scheme-eligibility.expected.json"));
+        String schemeId = OriginalScoringContext.schemeId(expected.path("schemeTitle").asText());
+        List<MultimodalScoreFact> facts = new ArrayList<>();
+        expected.path("eligibleFacts").forEach(item -> facts.add(textFact(item, schemeId, "IN_SCHEME")));
+        expected.path("auditFacts").forEach(item -> facts.add(textFact(item, schemeId, "OUT_OF_SCHEME")));
+        var artifact = project1382Artifact(text, expected);
+
+        var verification = OriginalScoreEvidencePolicy.verifyModel(artifact, text, facts,
+                expected.path("declaredTotal").decimalValue());
+        Map<String, OriginalScoreEvidencePolicy.Qualification> qualifications = verification.qualifications().stream()
+                .collect(java.util.stream.Collectors.toMap(OriginalScoreEvidencePolicy.Qualification::factId,
+                        qualification -> qualification));
+        List<MultimodalScoreFact> eligibleFacts = OriginalScoreEvidencePolicy.eligibleModelFacts(facts, verification);
+        BigDecimal eligibleTotal = effectiveTotal(eligibleFacts);
+        long auditFactCount = facts.stream().filter(fact -> !qualification(fact, qualifications).candidateEligible()).count();
+
+        assertEquals(expected.path("totalLocator").asText(), verification.total().locator());
+        assertEquals(expected.path("totalQuote").asText(), verification.total().quote());
+        assertEquals(expected.path("expectedEligibleLeafTotal").decimalValue(), eligibleTotal);
+        assertEquals(expected.path("expectedEligibleFactCount").asInt(), eligibleFacts.size());
+        assertEquals(expected.path("expectedOutOfSchemeFactCount").asInt(), auditFactCount);
+        assertEquals("OUT_OF_SCHEME", qualification(facts.get(facts.size() - 1), qualifications).scopeStatus());
+        assertTrue(verification.qualifications().stream().filter(q -> q.scopeStatus().equals("OUT_OF_SCHEME"))
+                .allMatch(q -> !q.candidateEligible()));
+        assertEquals("OUT_OF_SCHEME", OriginalScoringContext.textScopeAt(text, 19).scopeStatus());
+        assertEquals("IN_SCHEME", OriginalScoringContext.textScopeAt(text, 4).scopeStatus());
+
+        var validation = new com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator().validate(
+                facts, artifact, text, expected.path("declaredTotal").decimalValue());
+        assertEquals(expected.path("expectedEligibleFactCount").asInt(), OriginalScoreEvidencePolicy.eligibleModelFacts(facts, validation.sourceVerification()).size(),
+                validation.sourceVerification().qualifications().toString());
+        assertEquals(expected.path("expectedEligibleLeafTotal").decimalValue(), validation.leafTotal());
+        assertTrue(validation.autoApprovable(), validation.violations().toString());
+        assertTrue(validation.violations().stream().noneMatch(violation ->
+                List.of("ITEM_SCHEME_SCOPE_MISMATCH", "WEIGHT_SUM_MISMATCH").contains(violation.code())));
+    }
+
+    @Test
+    void project1384ReplayKeepsOneHundredPointSchemeAndCrossTableParent() throws Exception {
+        String text = GoldenCasesReplaySupport.readFixture("case-project-1384-logical-scheme.md");
+        JsonNode expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(
+                "case-project-1384-logical-scheme.expected.json"));
+        DocumentArtifact artifact = project1384Artifact(text, expected);
+        String schemeId = OriginalScoringContext.schemeId(expected.path("schemeTitle").asText());
+        List<MultimodalScoreFact> rawFacts = project1384Facts(expected, schemeId);
+        List<MultimodalScoreFact> facts = com.xiyu.bid.scoreparse.domain.MultimodalFactParentCodeNormalizer
+                .normalize(rawFacts);
+
+        var verification = OriginalScoreEvidencePolicy.verifyModel(artifact, text, facts,
+                expected.path("declaredTotal").decimalValue());
+        var validation = new MultimodalScoreFactValidator().validate(facts, artifact,
+                OriginalScoringContext.resolve(artifact, text), text, expected.path("declaredTotal").decimalValue());
+        var schemes = OriginalScoringContext.schemes(artifact, text);
+        BigDecimal effectiveTotal = effectiveTotal(facts);
+
+        assertEquals(1, schemes.size());
+        assertEquals(expected.path("layoutStatus").asText(), schemes.get(0).layoutStatus());
+        assertEquals(expected.path("declaredTotal").decimalValue(), schemes.get(0).declaredTotal());
+        assertEquals(expected.path("totalLocator").asText(), schemes.get(0).totalLocator());
+        assertEquals(expected.path("totalQuote").asText(), schemes.get(0).totalQuote());
+        assertEquals(expected.path("expectedEligibleLeafTotal").decimalValue(), effectiveTotal);
+        assertEquals(expected.path("expectedEligibleLeafTotal").decimalValue(), validation.leafTotal());
+        assertTrue(validation.autoApprovable(), validation.violations().toString());
+        assertTrue(facts.stream().filter(fact -> fact.code().startsWith("B"))
+                .filter(fact -> !fact.code().equals("BUSINESS"))
+                .allMatch(fact -> "BUSINESS".equals(fact.parentCode())));
+        assertTrue(facts.stream().filter(fact -> fact.code().startsWith("T"))
+                .filter(fact -> !fact.code().equals("TECHNICAL"))
+                .allMatch(fact -> "TECHNICAL".equals(fact.parentCode())));
+        assertEquals("IN_SCHEME", verification.qualifications().get(0).scopeStatus());
+        assertTrue(validation.violations().stream().noneMatch(violation ->
+                List.of("PARENT_NOT_FOUND", "PARENT_WEIGHT_MISMATCH", "WEIGHT_SUM_MISMATCH")
+                        .contains(violation.code())));
+        BigDecimal categoryTotal = StreamSupport.stream(expected.path("parents").spliterator(), false)
+                .map(parent -> parent.path("weight").decimalValue()).reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertEquals(expected.path("declaredTotal").decimalValue(), categoryTotal);
+        assertEquals(expected.path("tableIds").size(), schemes.get(0).tableIds().size());
+    }
+
+    private static MultimodalScoreFact textFact(JsonNode expected, String schemeId, String status) {
+        String quote = expected.path("quote").asText();
+        return new MultimodalScoreFact(expected.path("section").asText("商务"), expected.path("code").asText(),
+                expected.path("parentCode").asText(""),
+                expected.path("dimension").asText(), expected.path("weight").decimalValue(), quote,
+                "OBJECTIVE", null, "", List.of(expected.path("locator").asText()), quote, 0.99,
+                ChildAggregation.valueOf(expected.path("childRelation").asText("SUM")), schemeId, status);
+    }
+
+    private static OriginalScoreEvidencePolicy.Qualification qualification(MultimodalScoreFact fact,
+            Map<String, OriginalScoreEvidencePolicy.Qualification> qualifications) {
+        return qualifications.get(OriginalScoreEvidencePolicy.modelFactId(fact));
+    }
+
+    private static List<MultimodalScoreFact> project1384Facts(JsonNode expected, String schemeId) {
+        List<MultimodalScoreFact> facts = new ArrayList<>();
+        expected.path("parents").forEach(parent -> facts.add(new MultimodalScoreFact(
+                parent.path("section").asText(), parent.path("code").asText(), "",
+                parent.path("dimension").asText(), parent.path("weight").decimalValue(),
+                parent.path("quote").asText(), "OBJECTIVE", null, "",
+                List.of(parent.path("locator").asText()), parent.path("quote").asText(), 0.99,
+                ChildAggregation.valueOf(parent.path("childRelation").asText()), schemeId, "IN_SCHEME")));
+        expected.path("facts").forEach(item -> {
+            String tableId = item.path("tableId").asText();
+            String factCode = item.path("code").asText();
+            List<String> sourceCells = List.of(factCode + "-name", factCode + "-rule", factCode + "-weight");
+            facts.add(new MultimodalScoreFact(item.path("section").asText(), factCode, item.path("parentCode").asText(),
+                    item.path("dimension").asText(), item.path("weight").decimalValue(), item.path("quote").asText(),
+                    "OBJECTIVE", pageForTable(tableId), tableId, sourceCells,
+                    item.path("quote").asText(), 0.99, ChildAggregation.SUM, schemeId, "IN_SCHEME"));
+        });
+        return facts;
+    }
+
+    private static DocumentArtifact project1384Artifact(String text, JsonNode expected) {
+        String scheme = expected.path("schemeTitle").asText();
+        Map<String, List<JsonNode>> grouped = new java.util.LinkedHashMap<>();
+        expected.path("facts").forEach(item -> grouped.computeIfAbsent(item.path("tableId").asText(), ignored -> new ArrayList<>()).add(item));
+        List<DocumentArtifact.CanonicalTable> tables = grouped.entrySet().stream().map(entry -> {
+            String tableId = entry.getKey();
+            int page = pageForTable(tableId);
+            List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new ArrayList<>(List.of(
+                    cell(tableId + "-h-no", 0, 0, "序号"), cell(tableId + "-h-name", 0, 1, "评审内容"),
+                    cell(tableId + "-h-rule", 0, 2, "评审标准"), cell(tableId + "-h-score", 0, 3, "评分分值")));
+            int row = 1;
+            for (JsonNode item : entry.getValue()) {
+                String code = item.path("code").asText();
+                cells.add(cell(code + "-no", row, 0, Integer.toString(row)));
+                cells.add(cell(code + "-name", row, 1, item.path("dimension").asText()));
+                cells.add(cell(code + "-rule", row, 2, item.path("quote").asText()));
+                cells.add(cell(code + "-weight", row, 3, item.path("weight").asText() + " 分"));
+                row++;
+            }
+            String section = tableId.startsWith("t-business") ? "商务部分（综合实力）" : "技术部分";
+            return table(tableId, page, scheme + " / " + section, true,
+                    cells.toArray(DocumentArtifact.CanonicalTable.CanonicalCellDto[]::new));
+        }).toList();
+        if (!text.contains(expected.path("totalQuote").asText()))
+            throw new IllegalStateException("1384 replay fixture is missing its original declared-total paragraph");
+        return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("project-1384-redacted", "sha-1384", "docx", "2.0"),
+                tables, List.of());
+    }
+
+    private static DocumentArtifact project1382Artifact(String text, JsonNode expected) {
+        String quote = expected.path("totalQuote").asText();
+        if (!text.contains(quote)) throw new IllegalStateException("1382 replay fixture is missing its total quote");
+        var summary = table("t-score-summary", 28, expected.path("schemeTitle").asText() + " / 分值构成", false,
+                cell("total-cell", 0, 0, quote));
+        return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("project-1382-redacted", "sha-1382", "pdf", "2.0"),
+                List.of(summary), List.of());
+    }
+
+    private static int pageForTable(String tableId) {
+        return switch (tableId) {
+            case "t-business-detail-1" -> 28;
+            case "t-business-detail-2" -> 29;
+            case "t-technical-detail-1" -> 30;
+            default -> 31;
+        };
+    }
+
+    private static BigDecimal effectiveTotal(List<MultimodalScoreFact> facts) {
+        List<MultimodalScoreFact> normalized = com.xiyu.bid.scoreparse.domain.MultimodalFactParentCodeNormalizer.normalize(facts);
+        List<ScoreUnitPolicy.Node> nodes = normalized.stream().map(fact -> {
+            String id = OriginalScoreEvidencePolicy.qualificationFactKey(fact);
+            MultimodalScoreFact parentFact = com.xiyu.bid.scoreparse.domain.MultimodalFactParentCodeNormalizer
+                    .resolveParent(fact, normalized);
+            String parent = parentFact == null ? "" : OriginalScoreEvidencePolicy.qualificationFactKey(parentFact);
+            return new ScoreUnitPolicy.Node(id, parent, fact.weight(), fact.childAggregation().name());
+        }).toList();
+        return ScoreUnitPolicy.totalWeight(nodes);
+    }
+
+    private static DocumentArtifact.CanonicalTable table(String id, int page, String section, boolean score,
+            DocumentArtifact.CanonicalTable.CanonicalCellDto... cells) {
+        int rows = java.util.Arrays.stream(cells).mapToInt(DocumentArtifact.CanonicalTable.CanonicalCellDto::row)
+                .max().orElse(0) + 1;
+        int columns = java.util.Arrays.stream(cells).mapToInt(DocumentArtifact.CanonicalTable.CanonicalCellDto::column)
+                .max().orElse(0) + 1;
+        return new DocumentArtifact.CanonicalTable(id, page, section, rows, columns, List.of(), List.of(cells), score);
+    }
+
+    private static DocumentArtifact.CanonicalTable.CanonicalCellDto cell(String id, int row, int column, String text) {
+        return new DocumentArtifact.CanonicalTable.CanonicalCellDto(id, row, column, text, text,
+                1, 1, false, "fixture:" + id);
     }
 
     static Stream<Arguments> cases() {

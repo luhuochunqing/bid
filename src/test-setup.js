@@ -4,6 +4,16 @@
 // 维护声明: 仅补 jsdom 缺失的浏览器 API，禁止放业务 mock（业务 mock 归各 spec 自身）。
 //           新增 stub 前先确认 jsdom 版本确实缺失（升级 jsdom 后可删）。
 
+// Node 25+ exposes a process-level localStorage getter that has no backing store
+// unless --localstorage-file is set. Vitest 1.6 does not replace that existing
+// global with jsdom's storage, so bind the browser global to the jsdom instance.
+if (globalThis.jsdom?.window) {
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: globalThis.jsdom.window.localStorage
+  })
+}
+
 // 背景：src/utils/download.js 下载后在 setTimeout 里调 URL.revokeObjectURL，
 // jsdom 24 未实现该 API → 未处理异常让 vitest 整批 exit 1（212 文件全绿也被拦）。
 if (typeof URL.createObjectURL !== 'function') {
@@ -25,4 +35,3 @@ console.warn = (...args) => {
   }
   originalWarn.apply(console, args)
 }
-

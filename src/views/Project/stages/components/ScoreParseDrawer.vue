@@ -2,17 +2,8 @@
   Input: projectId, open options (stage, autoScore, file)
   Output: AI 评分标准解析 V3 抽屉（阶段 1 招标文件提取 + 阶段 2 投标文件实际打分）
   Pos: src/views/Project/stages/components/ScoreParseDrawer.vue
-  注：顶部操作栏（阶段标签 + 重新解析 / 导入评分草稿 / 导出报告）已随"导入到评分草稿/导出报告"功能取消而删除（2026-08-17）。
-      重新解析按钮保留在「招标文件解析」标题栏。
-      两节副标题（规则提取与满足预判 / 标书对标打分与引用建议）与打分范围单选（全部/仅不满足/勾选）
-      已按用户反馈删除，打分固定全量 scope=ALL（2026-08-18）。
-      抽屉头部与内容区顶部留白已压缩，内容整体上移（2026-08-25）。
-      el-drawer teleport 到 body 后不带 scoped data-v 属性，:deep(.el-drawer__body/header) 规则失效，
-      导致 body 非 flex 布局、内容区撑满全高、打分遮罩文字落到内容中点而非可视区（2026-08-26 已改为全局规则）。
-      遮罩展示期间锁定内容区滚动（.scroll-locked），避免轮询中用户滚动导致提示文字漂出可视区（2026-08-26）。
-      为 e2e 布局契约用例新增 data-test 钩子：score-parse-content / score-parse-overlay-text / score-parse-reparse（2026-08-26）。一旦我被更新，务必更新我的开头注释。
-      REVIEW_REQUIRED / STRUCTURE_INCOMPLETE 增加 facts/evidence 复核快照与 score_parse_review 审计入口（2026-09-12）。
-      新增待复核候选评分项预览与一键采纳闭环（score-parse-candidate-review / btn-adopt-candidates）（2026-09-18）。
+  注：保留解析重试与 E2E 钩子；抽屉遮罩锁定内容滚动，候选支持复核采纳。
+      方案资格按原文评分方案判定，清楚标识方案内、方案外与来源未验证事实；多方案需显式选择（2026-09-24）。
 -->
 <template>
   <el-drawer
@@ -76,12 +67,16 @@
             <ScoreCandidateReviewCard
               v-if="scoreItems.length === 0 && candidateFacts.length > 0"
               :candidate-facts="candidateFacts"
+              :schemes="schemes"
+              :selected-scheme-id="selectedSchemeId"
+              :scheme-selection-required="schemeSelectionRequired"
               :candidate-total-weight="candidateTotalWeight"
               :declared-total-weight="declaredTotalWeight"
               :adoption-status="adoptionStatus"
               :is-adopting-candidates="isAdoptingCandidates"
               :reparse-disabled="loading || scoringOverlayVisible"
               @adopt="adoptCandidateFacts"
+              @scheme-change="selectedSchemeId = $event"
               @reparse="reparse"
             />
 
@@ -217,7 +212,8 @@ const {
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
   decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason,
-  candidateFacts, candidateTotalWeight, declaredTotalWeight, adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,
+  candidateFacts, schemes, selectedSchemeId, schemeSelectionRequired, candidateTotalWeight, declaredTotalWeight,
+  adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,
 } = useScoreParseDrawer(props, emit)
 
 defineExpose({ open, runScoring, scoringOverlayVisible, loading })

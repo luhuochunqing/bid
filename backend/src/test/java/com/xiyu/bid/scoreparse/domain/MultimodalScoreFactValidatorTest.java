@@ -77,10 +77,39 @@ class MultimodalScoreFactValidatorTest {
                 fact("技术", "1", null, "方案", "40", "方案满分40分", "p"),
                 fact("技术", "1.1", "1", "实施", "10", "实施得10分", "c1"),
                 fact("技术", "1.2", "1", "服务", "20", "服务得20分", "c2")),
-                artifact(cell("p", "方案满分40分"), cell("c1", "实施得10分"), cell("c2", "服务得20分")), new BigDecimal("30"));
+                artifact(cell("p", "方案满分40分"), cell("c1", "实施得10分"), cell("c2", "服务得20分"),
+                        cell("total", "本项目评分总分30分")), new BigDecimal("30"));
         assertThat(result.violations()).extracting(MultimodalScoreFactValidator.Violation::code)
                 .contains("PARENT_WEIGHT_MISMATCH");
         assertThat(result.leafTotal()).isEqualByComparingTo("30");
+    }
+
+    @Test void validatesParentChildAcrossPhysicalTablesInsideOneScheme() {
+        String schemeId = OriginalScoringContext.schemeId("本项目评分办法");
+        var parentTable = new DocumentArtifact.CanonicalTable("t-parent", 1, "本项目评分办法 / 商务汇总",
+                2, 2, List.of(), List.of(cellAt("p-name", 0, "商务部分"),
+                cellAt("p-rule", 1, "商务部分由以下子项累计计分，最高10分")), true);
+        var childTable = new DocumentArtifact.CanonicalTable("t-child", 2, "本项目评分办法 / 商务明细",
+                2, 2, List.of(), List.of(cellAt("c-name", 0, "履约能力"),
+                cellAt("c-rule", 1, "履约能力按原文要求得10分")), true);
+        var summaryTable = new DocumentArtifact.CanonicalTable("t-total", 1, "本项目评分办法 / 汇总",
+                1, 1, List.of(), List.of(cellAt("total", 0, "本项目评分总分10分")), false);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("d", "sha-cross-table", "pdf", "2.0"),
+                List.of(parentTable, childTable, summaryTable), List.of());
+        var parent = new MultimodalScoreFact("评审标准", "1", "", "商务部分", BigDecimal.TEN,
+                "商务部分由以下子项累计计分，最高10分", "OBJECTIVE", 1, "t-parent", List.of("p-rule"),
+                "商务部分由以下子项累计计分，最高10分", 0.9, ChildAggregation.SUM, schemeId, "IN_SCHEME");
+        var child = new MultimodalScoreFact("商务评分表", "1.1", "1", "履约能力", BigDecimal.TEN,
+                "履约能力按原文要求得10分", "OBJECTIVE", 2, "t-child", List.of("c-rule"),
+                "履约能力按原文要求得10分", 0.9, ChildAggregation.SUM, schemeId, "IN_SCHEME");
+
+        var result = validator.validate(List.of(parent, child), artifact,
+                OriginalScoringContext.resolve(artifact, "# 本项目评分办法\n总分10分。"),
+                "# 本项目评分办法\n总分10分。", BigDecimal.TEN);
+
+        assertThat(result.leafTotal()).isEqualByComparingTo("10");
+        assertThat(result.violations()).extracting(MultimodalScoreFactValidator.Violation::code)
+                .doesNotContain("PARENT_NOT_FOUND", "PARENT_WEIGHT_MISMATCH", "WEIGHT_SUM_MISMATCH");
     }
 
     @Test void sharedCapCountsParentOnceAndDoesNotRequireChildrenToSumToCap() {

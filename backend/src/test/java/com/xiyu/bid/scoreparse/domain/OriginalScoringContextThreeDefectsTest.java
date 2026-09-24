@@ -115,6 +115,82 @@ class OriginalScoringContextThreeDefectsTest {
                 .contains("ORIGINAL_SCHEME_AMBIGUOUS");
     }
 
+    @Test void repeatedEvaluationStandardHeadingContinuesTheSameLogicalScheme() {
+        var source = new DocumentArtifact(meta(), List.of(), List.of());
+        String text = "# 第三章 评审标准\n# 评审标准\n本项目总分为100分。";
+
+        var context = OriginalScoringContext.resolve(source, text);
+        var schemes = OriginalScoringContext.schemes(source, text);
+
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+        assertThat(schemes).hasSize(1);
+        assertThat(schemes.get(0).title()).isEqualTo("第三章 评审标准");
+    }
+
+    @Test void contractPerformanceChapterIsNotOwnedByTheScoringScheme() {
+        DocumentArtifact original = new DocumentArtifact(meta(), List.of(
+                table("t-main", SCHEME + " / 商务", "企业业绩", "20", "20"),
+                table("t-contract", "合同履约考核评分", "履约考核", "40", "40")), List.of());
+        var context = OriginalScoringContext.resolve(original, "# 本项目评分办法\n总分100分。\n# 合同履约考核评分\n履约考核40分。");
+
+        assertThat(context.owns(original.tables().get(0))).isTrue();
+        assertThat(context.owns(original.tables().get(1))).isFalse();
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+        assertThat(OriginalScoringContext.schemes(original,
+                "# 本项目评分办法\n总分100分。\n# 合同履约考核评分\n履约考核40分。"))
+                .hasSize(1).first().extracting(OriginalScoringContext.SchemeEvidence::title)
+                .isEqualTo(SCHEME);
+    }
+
+    @Test void sourceTotalCarriesExactOriginalLineAndLocation() {
+        var context = OriginalScoringContext.resolve(itemMaximumDocument(false),
+                "本项目评分总分100分。\n# 本项目评分办法\n技术方案细则。");
+
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+        assertThat(context.total().locator()).isEqualTo("text:line[0]");
+        assertThat(context.total().quote()).isEqualTo("本项目评分总分100分。");
+    }
+
+    @Test void sourceScoreDistributionTableCellCanDeclareTheWholeSchemeTotal() {
+        var table = new DocumentArtifact.CanonicalTable("t-score-summary", 28, "评审办法前附表",
+                1, 1, List.of(), List.of(cell("total-cell", 0, 0, "分值构成（总分 100 分）")), true);
+        var source = new DocumentArtifact(meta(), List.of(table), List.of());
+
+        var context = OriginalScoringContext.resolve(source, "# 第三章 评审办法\n评分细则见后续表格。");
+
+        assertThat(context.total().value()).as("scheme=%s owns=%s total=%s", context.scheme(),
+                context.owns(table), context.total()).isEqualByComparingTo("100");
+        assertThat(context.total().locator()).isEqualTo("t-score-summary:total-cell");
+        assertThat(context.total().quote()).isEqualTo("分值构成（总分 100 分）");
+    }
+
+    @Test void textScopesKeepContractPerformanceChapterOutOfScoringInput() {
+        var scopes = OriginalScoringContext.textScopes("# 本项目评分办法\n总分100分。\n## 商务评分标准\n人员业绩得20分。"
+                + "\n# 合同履约考核\n服务期每月得5分。");
+
+        assertThat(scopes).extracting(OriginalScoringContext.TextScope::scopeStatus)
+                .containsExactly("IN_SCHEME", "OUT_OF_SCHEME");
+        assertThat(scopes.get(0).text()).contains("人员业绩得20分").doesNotContain("服务期每月");
+        assertThat(scopes.get(1).text()).contains("服务期每月");
+    }
+
+    @Test void sameLogicalSchemeAcrossTwoPhysicalTablesKeepsOneVerifiedHundredPointManifest() {
+        var source = twoCategoryTables("20", "80");
+        String text = "# 本项目评分办法\n本项目总分为100分。\n## 商务评分标准\n履约能力20分。"
+                + "\n## 技术评分标准\n实施方案80分。";
+
+        var schemes = OriginalScoringContext.schemes(source, text);
+
+        assertThat(schemes).hasSize(1);
+        var scheme = schemes.get(0);
+        assertThat(scheme.layoutStatus()).isEqualTo("MULTI_TABLE_SAME_SCHEME");
+        assertThat(scheme.tableIds()).containsExactlyInAnyOrder("t-business", "t-technical");
+        assertThat(scheme.totalEvidenceStatus()).isEqualTo("VERIFIED");
+        assertThat(scheme.declaredTotal()).isEqualByComparingTo("100");
+        assertThat(scheme.totalLocator()).isEqualTo("text:line[1]");
+        assertThat(scheme.totalQuote()).isEqualTo("本项目总分为100分。");
+    }
+
     private static DocumentArtifact itemMaximumDocument(boolean summary) {
         List<DocumentArtifact.CanonicalTable> tables = new ArrayList<>();
         tables.add(new DocumentArtifact.CanonicalTable("t-items", 1, SCHEME + " / 评分明细", 3, 4,

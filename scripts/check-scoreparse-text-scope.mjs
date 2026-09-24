@@ -10,16 +10,19 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const policyPath = join(root, 'backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreEvidencePolicy.java');
-const contextPath = join(root, 'backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreEvidencePolicy.java');
+const policyPath = join(root, 'backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreQualificationPolicy.java');
+const scopePath = join(root, 'backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoringTextScopePolicy.java');
 const testPath = join(root, 'backend/src/test/java/com/xiyu/bid/scoreparse/domain/OriginalScoreEvidenceRoleAndHeadingTest.java');
 const policy = readFileSync(policyPath, 'utf8');
-const context = readFileSync(contextPath, 'utf8');
+const scopePolicy = readFileSync(scopePath, 'utf8');
 const tests = readFileSync(testPath, 'utf8');
 const checks = [
-  ['text locator uses scoring-scheme ownership check', /textLocatorInScheme\(claim\.sourceCellIds\(\)\.get\(0\), claim\.tenderText\(\), context\.scheme\(\)\)/.test(policy)],
+  ['text locator uses scoring-scheme ownership check', /OriginalScoringContext\.textScopeAt\(claim\.tenderText\(\), line\)/.test(policy)
+    && /"OUT_OF_SCHEME"\.equals\(scope\.scopeStatus\(\)\)/.test(policy)],
   ['text evidence is not unconditionally accepted', !/boolean\s+inScheme\s*=\s*textBacked\s*\|\|/.test(policy)],
-  ['policy validates source line against heading scope', /textLocatorInScheme\(/.test(policy) && /title\.contains\(scheme\)/.test(context)],
+  ['policy validates source line against heading scope', /textScopeAt\(String text, int line\)/.test(scopePolicy)
+    && /line >= scope\.startLine\(\) && line < scope\.endLine\(\)/.test(scopePolicy)
+    && /nextSchemeBoundary\(headings, root, lines\.length\)/.test(scopePolicy)],
   ['foreign peer heading has a regression test', /textFactUnderUnrelatedPeerHeadingCannotJoinScoringScheme/.test(tests) && /ITEM_SCHEME_SCOPE_MISMATCH/.test(tests)],
 ];
 let failed = false;

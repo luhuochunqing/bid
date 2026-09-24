@@ -55,6 +55,15 @@ class OriginalScoreEvidenceRoleAndHeadingTest {
     }
 
     @Test
+    void nestedContractAuditTotalCannotConflictWithScoringSchemeTotal() {
+        var context = OriginalScoringContext.resolve(detailTable(),
+                "# 本项目评分办法\n总分100分。\n## 合同履约考核\n总分30分。\n");
+
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+        assertThat(context.total().source()).isEqualTo("TENDER_TEXT");
+    }
+
+    @Test
     void textFactUnderUnrelatedPeerHeadingCannotJoinScoringScheme() {
         String text = "# 本项目评分办法\n本项目评分总分100分。\n"
                 + "## 评分项目\n技术方案最高得100分。\n"
@@ -64,8 +73,11 @@ class OriginalScoreEvidenceRoleAndHeadingTest {
                         "text:line[5]", "履约指标最高得10分。")), new BigDecimal("100"));
 
         assertThat(report.publishable()).isFalse();
-        assertThat(report.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
-                .contains("ITEM_SCHEME_SCOPE_MISMATCH");
+        assertThat(report.qualifications()).singleElement().satisfies(qualification -> {
+            assertThat(qualification.scopeStatus()).isEqualTo("OUT_OF_SCHEME");
+            assertThat(qualification.reason()).isEqualTo("ITEM_SCHEME_SCOPE_MISMATCH");
+            assertThat(qualification.candidateEligible()).isFalse();
+        });
     }
 
     @Test

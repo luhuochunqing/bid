@@ -42,12 +42,12 @@ final class ScoreFactChunkMerger {
     private record FactKey(String sectionTitle, String code, String parentCode, String dimension,
                            BigDecimal weight, String ruleText, String scoreType, Integer pageNumber,
                            String tableId, List<String> sourceCellIds, String quotedText,
-                           ChildAggregation childAggregation) {
+                           ChildAggregation childAggregation, String schemeId, String scopeStatus) {
         static FactKey of(MultimodalScoreFact fact) {
             BigDecimal weight = fact.weight() == null ? null : fact.weight().stripTrailingZeros();
             return new FactKey(fact.sectionTitle(), fact.code(), fact.parentCode(), fact.dimension(), weight,
                     fact.ruleText(), fact.scoreType(), fact.pageNumber(), fact.tableId(), fact.sourceCellIds(),
-                    fact.quotedText(), fact.childAggregation());
+                    fact.quotedText(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus());
         }
     }
 }

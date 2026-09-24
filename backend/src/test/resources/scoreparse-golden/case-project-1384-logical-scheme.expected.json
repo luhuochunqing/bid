@@ -1,0 +1,29 @@
+{
+  "projectId": 1384,
+  "fixtureKind": "redacted-source-shaped-logical-scheme-regression",
+  "schemeTitle": "第三章 评审标准",
+  "declaredTotal": 100,
+  "totalQuote": "本项目总分为 100 分，由商务部分（响应报价）30 分、商务部分（综合实力） 40 分、技术部分 30 分，三部分组成。",
+  "totalLocator": "text:line[2]",
+  "layoutStatus": "MULTI_TABLE_SAME_SCHEME",
+  "tableIds": ["t-business-detail-1", "t-business-detail-2", "t-technical-detail-1", "t-technical-detail-2"],
+  "parents": [
+    { "section": "评审标准", "code": "PRICE", "dimension": "商务部分（响应报价）", "weight": 30, "quote": "商务部分（响应报价）30 分", "locator": "text:line[2]", "childRelation": "SUM" },
+    { "section": "评审标准", "code": "BUSINESS", "dimension": "商务部分（综合实力）", "weight": 40, "quote": "商务部分（综合实力） 40 分", "locator": "text:line[2]", "childRelation": "SUM" },
+    { "section": "评审标准", "code": "TECHNICAL", "dimension": "技术部分", "weight": 30, "quote": "技术部分 30 分", "locator": "text:line[2]", "childRelation": "SUM" }
+  ],
+  "facts": [
+    { "code": "B1", "parentCode": "BUSINESS", "section": "商务", "dimension": "业绩", "weight": 5, "tableId": "t-business-detail-1", "quote": "业绩" },
+    { "code": "B2", "parentCode": "BUSINESS", "section": "商务", "dimension": "仓储能力", "weight": 10, "tableId": "t-business-detail-2", "quote": "仓储能力" },
+    { "code": "B3", "parentCode": "BUSINESS", "section": "商务", "dimension": "配送能力", "weight": 10, "tableId": "t-business-detail-2", "quote": "配送能力" },
+    { "code": "B4", "parentCode": "BUSINESS", "section": "商务", "dimension": "产品能力", "weight": 10, "tableId": "t-business-detail-2", "quote": "产品能力" },
+    { "code": "B5", "parentCode": "BUSINESS", "section": "商务", "dimension": "服务", "weight": 5, "tableId": "t-business-detail-2", "quote": "服务" },
+    { "code": "T1", "parentCode": "TECHNICAL", "section": "技术", "dimension": "整体方案", "weight": 10, "tableId": "t-technical-detail-1", "quote": "整体方案" },
+    { "code": "T2", "parentCode": "TECHNICAL", "section": "技术", "dimension": "项目团队", "weight": 4, "tableId": "t-technical-detail-1", "quote": "项目团队" },
+    { "code": "T3", "parentCode": "TECHNICAL", "section": "技术", "dimension": "接口对接", "weight": 4, "tableId": "t-technical-detail-2", "quote": "接口对接" },
+    { "code": "T4", "parentCode": "TECHNICAL", "section": "技术", "dimension": "价格管控方案", "weight": 6, "tableId": "t-technical-detail-2", "quote": "价格管控方案" },
+    { "code": "T5", "parentCode": "TECHNICAL", "section": "技术", "dimension": "质量管控方案", "weight": 6, "tableId": "t-technical-detail-2", "quote": "质量管控方案" }
+  ],
+  "expectedEligibleLeafTotal": 100,
+  "mustNotCombinePhysicalTablesAsSeparateSchemeTotals": true
+}

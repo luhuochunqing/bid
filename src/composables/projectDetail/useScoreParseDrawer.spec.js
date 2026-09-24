@@ -578,7 +578,7 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.reviewRequired.value).toBe(false)
   })
 
-  it('keeps the complete candidate fact set and calculates leaf total weight', async () => {
+  it('keeps all facts for review but totals only eligible facts in the selected scheme', async () => {
     scoreParseApi.getItems.mockResolvedValue({
       data: {
         items: [],
@@ -588,10 +588,11 @@ describe('useScoreParseDrawer.js', () => {
     scoreParseApi.getReview.mockResolvedValue({
       data: {
         facts: [
-          { factId: 'f-1', dimension: '资质要求', weight: 20, sourceText: '具备资质得20分' },
-          { factId: 'f-2', dimension: '技术方案', weight: 80, sourceText: '方案完整得80分' },
-          { factId: 'f-3', dimension: '占位模板', weight: 0, sourceText: 'XX~XX' },
+          { factId: 'f-1', schemeId: 'scheme-main', dimension: '资质要求', weight: 20, sourceText: '具备资质得20分', candidateEligible: true },
+          { factId: 'f-2', schemeId: 'scheme-main', dimension: '技术方案', weight: 80, sourceText: '方案完整得80分', candidateEligible: true },
+          { factId: 'f-3', schemeId: 'scheme-audit', dimension: '合同履约考核', weight: 30, sourceText: '履约考核得30分', candidateEligible: false, scopeStatus: 'OUT_OF_SCHEME' },
         ],
+        schemes: [{ schemeId: 'scheme-main', title: '本项目评分办法', declaredTotal: 100, totalEvidenceStatus: 'VERIFIED', tableIds: ['t-main'] }],
         audits: [],
       },
     })
@@ -612,7 +613,8 @@ describe('useScoreParseDrawer.js', () => {
     })
     scoreParseApi.getReview.mockResolvedValue({
       data: {
-        facts: [{ factId: 'f-1', dimension: '商务', weight: 100 }],
+        facts: [{ factId: 'f-1', dimension: '商务', weight: 100, candidateEligible: true }],
+        schemes: [],
         audits: [],
       },
     })
@@ -625,7 +627,7 @@ describe('useScoreParseDrawer.js', () => {
 
     expect(scoreParseApi.submitReview).toHaveBeenCalledWith(99, expect.objectContaining({
       reason: '人工确认采纳候选评分标准',
-      actions: [{ action: 'ADOPT_CANDIDATES', reason: '一键采纳所有候选有效评分项' }],
+      actions: [{ factId: 'f-1', action: 'ADOPT_CANDIDATES' }],
     }))
     expect(ElMessage.success).toHaveBeenCalledWith('已成功采纳候选评分标准！')
     expect(drawer.reviewSubmitted.value).toBe(true)

@@ -72,6 +72,11 @@ class MultimodalStructuredExtractionHandlerTest {
             assertThat(fact.sourceTableId()).isEqualTo("doc0-t1");
             assertThat(fact.sourceCellIds()).containsExactly("doc0-c1");
         });
+        assertThat(result.qualifications()).singleElement().satisfies(qualification -> {
+            assertThat(qualification.scopeStatus()).isEqualTo("IN_SCHEME");
+            assertThat(qualification.candidateEligible()).isTrue();
+            assertThat(qualification.factId()).isEqualTo(result.facts().get(0).factId());
+        });
     }
 
     @Test

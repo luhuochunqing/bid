@@ -35,9 +35,9 @@ describe('useScoreCandidateAdoption.js', () => {
     vi.clearAllMocks()
     props = { projectId: 49 }
     reviewFacts = ref([
-      { factId: 'f1', code: '1', dimension: '资质要求', weight: 10, sourceText: '具备ISO9001' },
-      { factId: 'f2', code: '2', dimension: '技术方案', weight: 30, sourceText: '实施方案完整' },
-      { factId: 'f3', code: '3', dimension: '占位模板', weight: 0, sourceText: 'XX~XX分' },
+      { factId: 'f1', code: '1', dimension: '资质要求', weight: 10, sourceText: '具备ISO9001', candidateEligible: true },
+      { factId: 'f2', code: '2', dimension: '技术方案', weight: 30, sourceText: '实施方案完整', candidateEligible: true },
+      { factId: 'f3', code: '3', dimension: '占位模板', weight: 0, sourceText: 'XX~XX分', candidateEligible: true },
     ])
     reviewSnapshot = ref({ parseTaskId: 9, facts: reviewFacts.value, audits: [] })
     reviewSubmitted = ref(false)
@@ -72,9 +72,9 @@ describe('useScoreCandidateAdoption.js', () => {
 
   it('candidateFacts 展示父子全量事实，但总分只统计叶子项', () => {
     reviewFacts.value = [
-      { factId: 'p1', code: '', dimension: '商务部分', weight: 30, sourceText: '商务部分汇总' },
-      { factId: 'c1', code: '1', dimension: '企业业绩', weight: 6, sourceText: '业绩细则', parentFactId: 'p1' },
-      { factId: 'c2', code: '2', dimension: '财务状况', weight: 3, sourceText: '财务细则', parentFactId: 'p1' },
+      { factId: 'p1', code: '', dimension: '商务部分', weight: 30, sourceText: '商务部分汇总', candidateEligible: true },
+      { factId: 'c1', code: '1', dimension: '企业业绩', weight: 6, sourceText: '业绩细则', parentFactId: 'p1', candidateEligible: true },
+      { factId: 'c2', code: '2', dimension: '财务状况', weight: 3, sourceText: '财务细则', parentFactId: 'p1', candidateEligible: true },
     ]
     const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
       props,
@@ -90,10 +90,98 @@ describe('useScoreCandidateAdoption.js', () => {
     expect(candidateTotalWeight.value).toBe(9)
   })
 
+  it('互斥档位按父项最高分计一次，累计子项仍按叶子求和', () => {
+    reviewFacts.value = [
+      { factId: 'tier-parent', weight: 5, childAggregation: 'MUTUALLY_EXCLUSIVE', candidateEligible: true },
+      { factId: 'tier-5', weight: 5, parentFactId: 'tier-parent', candidateEligible: true },
+      { factId: 'tier-4', weight: 4, parentFactId: 'tier-parent', candidateEligible: true },
+      { factId: 'tier-3', weight: 3, parentFactId: 'tier-parent', candidateEligible: true },
+      { factId: 'tier-2', weight: 2, parentFactId: 'tier-parent', candidateEligible: true },
+      { factId: 'sum-parent', weight: 20, childAggregation: 'SUM', candidateEligible: true },
+      { factId: 'sum-5a', weight: 5, parentFactId: 'sum-parent', candidateEligible: true },
+      { factId: 'sum-5b', weight: 5, parentFactId: 'sum-parent', candidateEligible: true },
+      { factId: 'sum-10', weight: 10, parentFactId: 'sum-parent', candidateEligible: true },
+    ]
+    const { candidateTotalWeight } = useScoreCandidateAdoption({
+      props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
+    })
+
+    expect(candidateTotalWeight.value).toBe(25)
+  })
+
+  it('未知父子计分关系不生成可采纳总分', () => {
+    reviewFacts.value = [
+      { factId: 'unknown-parent', weight: 5, childAggregation: 'UNKNOWN', candidateEligible: true },
+      { factId: 'unknown-child', weight: 5, parentFactId: 'unknown-parent', candidateEligible: true },
+    ]
+    const { candidateTotalWeight } = useScoreCandidateAdoption({
+      props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
+    })
+
+    expect(candidateTotalWeight.value).toBe(0)
+  })
+
+  it('方案外和来源未验证事实只保留审计展示，不进入候选合计或一键采纳 payload', async () => {
+    reviewFacts.value = [
+      { factId: 'in-scheme', code: '1', dimension: '评分办法内', weight: 100, candidateEligible: true, scopeStatus: 'IN_SCHEME' },
+      { factId: 'out-of-scheme', code: '2', dimension: '履约考核', weight: 40, candidateEligible: false, scopeStatus: 'OUT_OF_SCHEME' },
+      { factId: 'legacy', code: '3', dimension: '未验证来源', weight: 25 },
+    ]
+    reviewSnapshot.value = { parseTaskId: 9, facts: reviewFacts.value, audits: [] }
+    scoreParseApi.submitReview.mockResolvedValue({ data: { facts: reviewFacts.value, audits: [] } })
+    const { candidateFacts, candidateTotalWeight, adoptCandidateFacts } = useScoreCandidateAdoption({
+      props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
+    })
+
+    expect(candidateFacts.value.map((fact) => fact.factId)).toEqual(['in-scheme', 'out-of-scheme', 'legacy'])
+    expect(candidateTotalWeight.value).toBe(100)
+    await adoptCandidateFacts()
+    expect(scoreParseApi.submitReview).toHaveBeenCalledWith(49, {
+      parseTaskId: 9,
+      reason: '人工确认采纳候选评分标准',
+      actions: [{ factId: 'in-scheme', action: 'ADOPT_CANDIDATES' }],
+    })
+  })
+
+  it('多个方案必须明确选择，当前合计和采纳 payload 只用所选方案', async () => {
+    reviewFacts.value = [
+      { factId: 'a', schemeId: 'scheme-a', code: '1', dimension: '方案甲', weight: 100, candidateEligible: true },
+      { factId: 'b', schemeId: 'scheme-b', code: '1', dimension: '方案乙', weight: 150, candidateEligible: true },
+      { factId: 'audit', schemeId: 'scheme-a', code: '2', dimension: '履约考核', weight: 35,
+        candidateEligible: false, scopeStatus: 'OUT_OF_SCHEME' },
+    ]
+    reviewSnapshot.value = {
+      parseTaskId: 9,
+      facts: reviewFacts.value,
+      schemes: [
+        { schemeId: 'scheme-a', title: '方案甲', declaredTotal: 100, totalEvidenceStatus: 'VERIFIED', tableIds: ['a1', 'a2'] },
+        { schemeId: 'scheme-b', title: '方案乙', declaredTotal: 150, totalEvidenceStatus: 'VERIFIED', tableIds: ['b1'] },
+      ],
+      schemeSelectionRequired: true,
+      selectedSchemeId: null,
+      declaredTotal: null,
+    }
+    scoreParseApi.submitReview.mockResolvedValue({ data: { facts: reviewFacts.value, audits: [] } })
+    const { selectedSchemeId, candidateTotalWeight, declaredTotalWeight, adoptionStatus, adoptCandidateFacts } = useScoreCandidateAdoption({
+      props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
+    })
+
+    expect(selectedSchemeId.value).toBeNull()
+    expect(candidateTotalWeight.value).toBe(0)
+    expect(adoptionStatus.value).toBe('SCHEME_SELECTION_REQUIRED')
+    selectedSchemeId.value = 'scheme-a'
+    expect(candidateTotalWeight.value).toBe(100)
+    expect(declaredTotalWeight.value).toBe(100)
+    await adoptCandidateFacts()
+    expect(scoreParseApi.submitReview).toHaveBeenCalledWith(49, expect.objectContaining({
+      actions: [{ factId: 'a', action: 'ADOPT_CANDIDATES' }],
+    }))
+  })
+
   it('adoptCandidateFacts 默认调用 submitReview 一键采纳所有候选并刷新数据', async () => {
     scoreParseApi.submitReview.mockResolvedValue({
       data: {
-        facts: reviewFacts.value,
+      facts: reviewFacts.value,
         audits: [{ action: 'ADOPT_CANDIDATES', reason: '一键采纳所有候选有效评分项' }],
       },
     })
@@ -112,7 +200,11 @@ describe('useScoreCandidateAdoption.js', () => {
     expect(scoreParseApi.submitReview).toHaveBeenCalledWith(49, {
       parseTaskId: 9,
       reason: '人工确认采纳候选评分标准',
-      actions: [{ action: 'ADOPT_CANDIDATES', reason: '一键采纳所有候选有效评分项' }],
+      actions: [
+        { factId: 'f1', action: 'ADOPT_CANDIDATES' },
+        { factId: 'f2', action: 'ADOPT_CANDIDATES' },
+        { factId: 'f3', action: 'ADOPT_CANDIDATES' },
+      ],
     })
     expect(reviewSubmitted.value).toBe(true)
     expect(ElMessage.success).toHaveBeenCalledWith('已成功采纳候选评分标准！')
@@ -138,7 +230,7 @@ describe('useScoreCandidateAdoption.js', () => {
     })
 
     await adoptCandidateFacts([{
-      factId: 'f1', code: '1', dimension: '资质要求', weight: 10,
+      factId: 'f1', code: '1', dimension: '资质要求', weight: 10, candidateEligible: true,
       sourceText: '具备ISO9001', parentFactId: '', scoreType: 'OBJECTIVE',
     }])
 
@@ -187,9 +279,9 @@ describe('useScoreCandidateAdoption.js', () => {
   describe('版式继承与业务父子关系分离（三场景一致性校验）', () => {
     it('场景1：普通未合并标签，3个末级项，合计100分', () => {
       reviewFacts.value = [
-        { factId: 'f1', code: '1', dimension: '商务', weight: 30, sourceText: '财务状况', parentFactId: '' },
-        { factId: 'f2', code: '2', dimension: '商务', weight: 20, sourceText: '履约能力', parentFactId: '' },
-        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '' },
+        { factId: 'f1', code: '1', dimension: '商务', weight: 30, sourceText: '财务状况', parentFactId: '', candidateEligible: true },
+        { factId: 'f2', code: '2', dimension: '商务', weight: 20, sourceText: '履约能力', parentFactId: '', candidateEligible: true },
+        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '', candidateEligible: true },
       ]
       const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
         props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
@@ -206,9 +298,9 @@ describe('useScoreCandidateAdoption.js', () => {
 
     it('场景2：合并标签“商务”无汇总分值，正常计分明细不作为父项，仍为3个末级项，合计100分', () => {
       reviewFacts.value = [
-        { factId: 'f1', code: '1', dimension: '商务', weight: 30, sourceText: '财务状况', parentFactId: '' },
-        { factId: 'f2', code: '2', dimension: '商务', weight: 20, sourceText: '履约能力', parentFactId: '' },
-        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '' },
+        { factId: 'f1', code: '1', dimension: '商务', weight: 30, sourceText: '财务状况', parentFactId: '', candidateEligible: true },
+        { factId: 'f2', code: '2', dimension: '商务', weight: 20, sourceText: '履约能力', parentFactId: '', candidateEligible: true },
+        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '', candidateEligible: true },
       ]
       const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
         props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
@@ -225,10 +317,10 @@ describe('useScoreCandidateAdoption.js', () => {
 
     it('场景3：合并标签“商务（50分）”存在独立汇总父事实，排除父项保留3个末级项，合计100分', () => {
       reviewFacts.value = [
-        { factId: 'p1', code: '', dimension: '商务', weight: 50, sourceText: '商务（50分）', parentFactId: '' },
-        { factId: 'f1', code: '1', dimension: '商务', weight: 30, sourceText: '财务状况', parentFactId: 'p1' },
-        { factId: 'f2', code: '2', dimension: '商务', weight: 20, sourceText: '履约能力', parentFactId: 'p1' },
-        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '' },
+        { factId: 'p1', code: '', dimension: '商务', weight: 50, sourceText: '商务（50分）', parentFactId: '', candidateEligible: true },
+        { factId: 'f1', code: '1', dimension: '商务', weight: 30, sourceText: '财务状况', parentFactId: 'p1', candidateEligible: true },
+        { factId: 'f2', code: '2', dimension: '商务', weight: 20, sourceText: '履约能力', parentFactId: 'p1', candidateEligible: true },
+        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '', candidateEligible: true },
       ]
       const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
         props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
@@ -246,10 +338,10 @@ describe('useScoreCandidateAdoption.js', () => {
 
     it('场景4：独立商务汇总行50分，下属明细30分和20分，另有价格50分，采纳精准排除独立汇总父项，为3个末级项100分', () => {
       reviewFacts.value = [
-        { factId: 'p_standalone', code: '一', dimension: '商务部分', weight: 50, sourceText: '商务部分（50分）', parentFactId: '' },
-        { factId: 'f1', code: '1', dimension: '商务部分', weight: 30, sourceText: '财务状况', parentFactId: 'p_standalone' },
-        { factId: 'f2', code: '2', dimension: '商务部分', weight: 20, sourceText: '履约能力', parentFactId: 'p_standalone' },
-        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '' },
+        { factId: 'p_standalone', code: '一', dimension: '商务部分', weight: 50, sourceText: '商务部分（50分）', parentFactId: '', candidateEligible: true },
+        { factId: 'f1', code: '1', dimension: '商务部分', weight: 30, sourceText: '财务状况', parentFactId: 'p_standalone', candidateEligible: true },
+        { factId: 'f2', code: '2', dimension: '商务部分', weight: 20, sourceText: '履约能力', parentFactId: 'p_standalone', candidateEligible: true },
+        { factId: 'f3', code: '3', dimension: '价格', weight: 50, sourceText: '投标报价', parentFactId: '', candidateEligible: true },
       ]
       const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
         props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,

@@ -5,6 +5,8 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseFact;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
@@ -250,6 +252,41 @@ class ScoreItemPersistenceServiceTest {
         assertThat(fact.getValidationStatus()).isEqualTo("REVIEW_REQUIRED");
         assertThat(fact.getExtractionMethod()).isEqualTo("LEGACY_REVIEW_CANDIDATE");
         assertThat(fact.getSourceText()).contains("认证证书");
+    }
+
+    @Test
+    void persistFactsAndEvidence_keepsOutOfSchemeFactWithTypedQualificationAudit() throws Exception {
+        ScoreFact inScheme = new ScoreFact("in-scheme", "t-score", List.of("score-rule"),
+                "技术方案最高得100分", "1", "技术方案", new BigDecimal("100"), null, null,
+                null, "TABLE_ROW", 0.95, ScoreFact.ValidationStatus.REVIEW_REQUIRED);
+        ScoreFact outOfScheme = new ScoreFact("contract", "t-contract", List.of("contract-rule"),
+                "合同履约考核最高得40分", "2", "履约考核", new BigDecimal("40"), null, null,
+                null, "TABLE_ROW", 0.95, ScoreFact.ValidationStatus.REVIEW_REQUIRED);
+        List<OriginalScoreEvidencePolicy.Qualification> qualifications = List.of(
+                new OriginalScoreEvidencePolicy.Qualification("in-scheme", "scheme-main", "IN_SCHEME", true,
+                        null, "t-score:score-rule"),
+                new OriginalScoreEvidencePolicy.Qualification("contract", "scheme-contract", "OUT_OF_SCHEME", false,
+                        "ITEM_SCHEME_SCOPE_MISMATCH", "t-contract:contract-rule"));
+
+        service.persistFactsAndEvidence(PROJECT_ID, PARSE_TASK_ID, List.of(inScheme, outOfScheme), qualifications);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<com.xiyu.bid.scoreparse.entity.ScoreParseFact>> facts = ArgumentCaptor.forClass(List.class);
+        verify(factRepository).saveAll(facts.capture());
+        assertThat(facts.getValue()).extracting(com.xiyu.bid.scoreparse.entity.ScoreParseFact::getFactId)
+                .containsExactly("in-scheme", "contract");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<com.xiyu.bid.scoreparse.entity.ScoreParseEvidence>> evidence =
+                ArgumentCaptor.forClass(List.class);
+        verify(evidenceRepository).saveAll(evidence.capture());
+        assertThat(evidence.getValue()).hasSize(2);
+        var audit = evidence.getValue().stream().filter(row -> "contract".equals(row.getFactId())).findFirst().orElseThrow();
+        assertThat(audit.getKind()).isEqualTo("SCHEME_QUALIFICATION");
+        var qualification = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(audit.getExplanation());
+        assertThat(qualification.path("scopeStatus").asText()).isEqualTo("OUT_OF_SCHEME");
+        assertThat(qualification.path("candidateEligible").asBoolean()).isFalse();
+        assertThat(qualification.path("reason").asText()).isEqualTo("ITEM_SCHEME_SCOPE_MISMATCH");
     }
 
     @SuppressWarnings("unchecked")

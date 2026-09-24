@@ -26,6 +26,19 @@ final class ScoreParseReviewTotalPolicy {
 
     static String adoptionStatus(ScoreParseTask task) {
         if (ScoreParseReviewAppService.declaredTotal(task) != null) return "DECLARED_TOTAL";
-        return isSingleUnknownTable(task) ? "SINGLE_UNKNOWN_TOTAL" : "CONFLICTING_TOTAL";
+        return isSingleUnknownTable(task) ? "SINGLE_UNKNOWN_TOTAL" : "UNKNOWN_TOTAL";
+    }
+
+    static String adoptionStatus(ScoreParseTask task,
+                                 java.util.List<com.xiyu.bid.scoreparse.dto.ScoreParseReviewDTO.Scheme> schemes) {
+        if (schemes != null && schemes.size() > 1) return "SCHEME_SELECTION_REQUIRED";
+        if (schemes != null && schemes.size() == 1) {
+            var scheme = schemes.get(0);
+            if ("VERIFIED".equals(scheme.totalEvidenceStatus()) && scheme.declaredTotal() != null)
+                return "DECLARED_TOTAL";
+            if ("CONFLICT".equals(scheme.totalEvidenceStatus())) return "CONFLICTING_TOTAL";
+            return scheme.tableIds().size() == 1 ? "SINGLE_UNKNOWN_TOTAL" : "UNKNOWN_TOTAL";
+        }
+        return adoptionStatus(task);
     }
 }
