@@ -24,6 +24,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
     private static final Pattern OTHER = Pattern.compile(".*(?:其他标包|其它标包|示例|样例|参考).*", Pattern.DOTALL);
     private static final Pattern CATEGORY = Pattern.compile(".*(?:商务|技术|报价|价格|小计).*", Pattern.DOTALL);
     private static final Pattern PACKAGE = Pattern.compile("(?:第[一二三四五六七八九十百0-9]+标包|标包[一二三四五六七八九十百0-9]+|第[一二三四五六七八九十百0-9]+包)");
+    private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包|评分办法|评标办法)[^。；;\\n]{0,80}?总分\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
 
     public OriginalScoringContext {
         subtotals = Map.copyOf(subtotals);
@@ -203,7 +204,6 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 && !section.contains("评分") && !section.contains("评标")) return true;
         return !scheme.isBlank() && SCHEME.matcher(root).matches() && !sameScheme(root, scheme);
     }
-
     private static boolean sameScheme(String first, String second) {
         return first.contains(second) || second.contains(first);
     }
@@ -232,21 +232,22 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             boolean inScheme = scheme.isBlank() || headings.isEmpty()
                     || headings.stream().anyMatch(heading -> heading.title().equals(scheme));
             if (!inScheme) continue;
-            Matcher matcher = TOTAL.matcher(line);
+            String normalizedLine = normalizeTextLine(line);
+            Matcher matcher = TOTAL.matcher(normalizedLine);
             while (matcher.find()) {
-                if (CATEGORY.matcher(line.substring(0, matcher.start())).matches()) continue;
-                boolean scoped = line.contains("总分") && (SCHEME.matcher(line).matches()
-                        || line.contains("本项目") || line.contains("本标包")
-                        || line.stripLeading().startsWith("评分总分")
+                if (CATEGORY.matcher(normalizedLine.substring(0, matcher.start())).matches()) continue;
+                boolean scoped = normalizedLine.contains("总分") && (SCHEME.matcher(normalizedLine).matches()
+                        || normalizedLine.contains("本项目") || normalizedLine.contains("本标包")
+                        || normalizedLine.stripLeading().startsWith("评分总分")
                         || inScheme)
-                        || line.stripLeading().matches("^(?:总分|满分).*分.*")
+                        || normalizedLine.stripLeading().matches("^(?:总分|满分).*分.*")
                         && inScheme;
-                if (scoped) totals.add(new Evidence(new BigDecimal(matcher.group(1)), "TENDER_TEXT",
-                        headings.isEmpty() ? scheme : headings.get(headings.size() - 1).title(),
-                        "text:line[" + i + "]"));
+                if (scoped) totals.add(new Evidence(new BigDecimal(matcher.group(1)), "TENDER_TEXT", headings.isEmpty() ? scheme : headings.get(headings.size() - 1).title(), "text:line[" + i + "]"));
             }
         }
+        if (totals.isEmpty()) { Matcher m = DOCUMENT_TOTAL.matcher(normalizeTextLine(text)); if (m.find()) totals.add(new Evidence(new BigDecimal(m.group(1)), "TENDER_TEXT", scheme, "text:document")); }
     }
+    private static String normalizeTextLine(String value) { return value == null ? "" : value.replaceAll("[\\u00a0\\u2007\\u202f\\t\\r\\n]+", " ").replaceAll(" +", " ").trim(); }
     private static TableStructure tableStructure(DocumentArtifact.CanonicalTable table, Map<Integer, List<DocumentArtifact.CanonicalTable.CanonicalCellDto>> rows) {
         int maxColumn = rows.values().stream().flatMap(List::stream)
                 .map(DocumentArtifact.CanonicalTable.CanonicalCellDto::column)

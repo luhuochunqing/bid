@@ -89,7 +89,8 @@ public final class MultimodalScoreFactValidator {
             List<CellSource> sources = fact.sourceCellIds().stream().map(cells::get).filter(java.util.Objects::nonNull).toList();
             boolean textLocator = fact.tableId().isBlank() && fact.sourceCellIds().size() == 1
                     && fact.sourceCellIds().get(0).startsWith("text:line[")
-                    && tenderText != null && !fact.quotedText().isBlank() && tenderText.contains(fact.quotedText());
+                    && tenderText != null && !fact.quotedText().isBlank()
+                    && normalizeEvidence(tenderText).contains(normalizeEvidence(fact.quotedText()));
             boolean locatorValid = textLocator || (!fact.tableId().isBlank() && !fact.sourceCellIds().isEmpty() && !sources.isEmpty()
                     && sources.size() == fact.sourceCellIds().size()
                     && sources.stream().allMatch(cell -> cell.tableId().equals(fact.tableId()))
@@ -99,10 +100,16 @@ public final class MultimodalScoreFactValidator {
             }
             String exactSource = textLocator ? tenderText
                     : sources.stream().map(CellSource::rawText).reduce((a, b) -> a + b).orElse("");
-            if (fact.quotedText().isBlank() || !exactSource.contains(fact.quotedText())) {
+            if (fact.quotedText().isBlank() || !normalizeEvidence(exactSource).contains(normalizeEvidence(fact.quotedText()))) {
                 violations.add(of(fact, "quotedText", "QUOTE_NOT_VERBATIM", "引用必须逐字存在于指定原始单元格", exactSource, fact.quotedText()));
             }
         }
+    }
+
+    private static String normalizeEvidence(String value) {
+        return value == null ? "" : value.replace('\u00a0', ' ')
+                .replace('\u2007', ' ').replace('\u202f', ' ')
+                .replaceAll("[\\t\\r\\n]+", " ").replaceAll(" +", " ").trim();
     }
 
     private static void validateDuplicates(List<MultimodalScoreFact> facts, List<Violation> violations) {

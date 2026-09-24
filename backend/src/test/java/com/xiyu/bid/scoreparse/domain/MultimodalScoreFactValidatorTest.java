@@ -30,6 +30,21 @@ class MultimodalScoreFactValidatorTest {
         assertThat(result.violations()).isEmpty();
     }
 
+    @Test void acceptsParagraphQuoteSplitAcrossDocxRuns() {
+        String text = "本项目总分\n为 10 分。业绩：满足条件得\n10\u00a0分";
+        var fact = new MultimodalScoreFact("评分办法", "1", "", "业绩",
+                new BigDecimal("10"), "满足条件得10分", "OBJECTIVE", null, "",
+                List.of("text:line[0]"), "满足条件得 10 分", 0.9, ChildAggregation.SUM);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("d", "sha", "docx", "2.0"),
+                List.of(), List.of());
+
+        var result = validator.validate(List.of(fact), artifact,
+                OriginalScoringContext.resolve(artifact, text), text, new BigDecimal("10"));
+
+        assertThat(result.autoApprovable()).isTrue();
+        assertThat(result.violations()).isEmpty();
+    }
+
     @Test void reportsAllHardDifferencesWithoutDroppingCandidates() {
         var result = validator.validate(List.of(
                 fact("商务", "2", null, "报价", "30", "不存在的改写", "c1"),

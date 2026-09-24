@@ -60,13 +60,29 @@ final class TextPrimaryEvidenceBinder {
             return java.util.Optional.empty();
         }
         String quote = fact.quotedText();
-        int offset = tenderText.indexOf(quote);
+        String normalizedText = normalizeForEvidence(tenderText);
+        String normalizedQuote = normalizeForEvidence(quote);
+        int offset = normalizedText.indexOf(normalizedQuote);
         if (offset < 0) return java.util.Optional.empty();
-        int line = 0;
-        for (int i = 0; i < offset; i++) if (tenderText.charAt(i) == '\n') line++;
+        int line = lineOfFirstQuoteToken(tenderText, quote);
         return java.util.Optional.of(new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(),
                 fact.dimension(), fact.weight(), fact.ruleText(), fact.scoreType(), fact.pageNumber(), "",
                 List.of("text:line[" + line + "]"), fact.quotedText(), fact.confidence(), fact.childAggregation()));
+    }
+
+    private static String normalizeForEvidence(String value) {
+        return value == null ? "" : value.replace('\u00a0', ' ')
+                .replace('\u2007', ' ').replace('\u202f', ' ')
+                .replaceAll("[\\t\\r\\n]+", " ").replaceAll(" +", " ").trim();
+    }
+
+    private static int lineOfFirstQuoteToken(String source, String quote) {
+        String token = quote.trim().split("\\s+", 2)[0];
+        int offset = token.isBlank() ? -1 : source.indexOf(token);
+        if (offset < 0) return 0;
+        int line = 0;
+        for (int i = 0; i < offset; i++) if (source.charAt(i) == '\n') line++;
+        return line;
     }
 
     private static boolean matches(MultimodalScoreFact fact, Object[] pair) {
@@ -74,7 +90,8 @@ final class TextPrimaryEvidenceBinder {
         var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
         String raw = cell.rawText() == null ? "" : cell.rawText();
         Integer page = cell.sourcePage() == null ? table.sourcePage() : cell.sourcePage();
-        return !fact.quotedText().isBlank() && raw.contains(fact.quotedText())
+        return !fact.quotedText().isBlank()
+                && normalizeForEvidence(raw).contains(normalizeForEvidence(fact.quotedText()))
                 && (fact.pageNumber() == null || page == null || fact.pageNumber().equals(page));
     }
 

@@ -7,6 +7,15 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class OriginalScoreEvidencePolicyTest {
+    @Test void splitDocxRunsStillExposeExplicitWholeDocumentTotal() {
+        var source = artifact("评分办法", List.of(
+                cell("n1", 0, 0, "业绩"), cell("r1", 0, 1, "满足条件得10分"), cell("w1", 0, 2, "10分")));
+        var context = OriginalScoringContext.resolve(source,
+                "本项目总分\n为\u00a0100\u00a0分，由商务部分 40 分、技术部分 30 分和响应报价 30 分组成。");
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+        assertThat(context.total().source()).isEqualTo("TENDER_TEXT");
+    }
+
     @Test void bodyItemMaximumCannotInventSchemeTotal() {
         var source = artifact("本项目评分办法", List.of(
                 cell("n1", 0, 0, "证书"), cell("r1", 0, 1, "本项目该评分项满分10分"),
