@@ -54,6 +54,31 @@ class OriginalScoreEvidenceRoleAndHeadingTest {
         assertThat(context.total().source()).isEqualTo("UNKNOWN");
     }
 
+    @Test
+    void textFactUnderUnrelatedPeerHeadingCannotJoinScoringScheme() {
+        String text = "# 本项目评分办法\n本项目评分总分100分。\n"
+                + "## 评分项目\n技术方案最高得100分。\n"
+                + "# 履约考核办法\n履约指标最高得10分。\n";
+        var report = OriginalScoreEvidencePolicy.verifyModel(detailTable(), text,
+                List.of(textFact("履约考核办法", "1", "履约指标", "10",
+                        "text:line[5]", "履约指标最高得10分。")), new BigDecimal("100"));
+
+        assertThat(report.publishable()).isFalse();
+        assertThat(report.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("ITEM_SCHEME_SCOPE_MISMATCH");
+    }
+
+    @Test
+    void textFactUnderChildHeadingRemainsWithinParentScoringScheme() {
+        String text = "# 本项目评分办法\n本项目评分总分100分。\n"
+                + "## 商务评分项目\n商务方案最高得100分。\n";
+        var report = OriginalScoreEvidencePolicy.verifyModel(detailTable(), text,
+                List.of(textFact(SCHEME, "1", "商务方案", "100",
+                        "text:line[3]", "商务方案最高得100分。")), new BigDecimal("100"));
+
+        assertThat(report.publishable()).isTrue();
+    }
+
     private static DocumentArtifact detailTable() {
         return detailTableWithHeaders(List.of("序号", "评审因素", "分值", "评审标准"));
     }
@@ -82,5 +107,11 @@ class OriginalScoreEvidenceRoleAndHeadingTest {
                                             String cellId, String rule) {
         return new MultimodalScoreFact(SCHEME, code, "", name, new BigDecimal(weight), rule,
                 "OBJECTIVE", 1, "t-items", List.of(cellId), rule, 0.9);
+    }
+
+    private static MultimodalScoreFact textFact(String section, String code, String name, String weight,
+                                                String locator, String quote) {
+        return new MultimodalScoreFact(section, code, "", name, new BigDecimal(weight), quote,
+                "OBJECTIVE", null, "", List.of(locator), quote, 0.9);
     }
 }

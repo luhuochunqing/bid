@@ -19,6 +19,8 @@ public final class OriginalScoreEvidencePolicy {
             "(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern TITLE_SCORE = Pattern.compile("[（(]\\s*(\\d+(?:\\.\\d+)?)\\s*分\\s*[）)]");
     private static final Pattern AWARD_SCORE = Pattern.compile("(?:得|奖励|加)\\s*(\\d+(?:\\.\\d+)?)\\s*分");
+    private static final Pattern TEXT_LOCATOR = Pattern.compile("^text:line\\[(\\d+)]$");
+    private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
 
     private OriginalScoreEvidencePolicy() {}
 
@@ -80,8 +82,10 @@ public final class OriginalScoreEvidencePolicy {
         }
         for (Claim claim : claims) {
             boolean textBacked = claim.textLocator();
-            boolean inScheme = textBacked || (artifact != null && artifact.tables().stream()
-                    .anyMatch(table -> table.tableId().equals(claim.tableId()) && context.owns(table)));
+            boolean inScheme = textBacked
+                    ? textLocatorInScheme(claim.sourceCellIds().get(0), claim.tenderText(), context.scheme())
+                    : artifact != null && artifact.tables().stream()
+                    .anyMatch(table -> table.tableId().equals(claim.tableId()) && context.owns(table));
             if (!inScheme) problems.add(new Problem(claim.id(), "tableId", "ITEM_SCHEME_SCOPE_MISMATCH",
                     context.scheme(), claim.tableId(), claim.tableId()));
             verifyWeight(artifact, claim, problems);
@@ -185,6 +189,35 @@ public final class OriginalScoreEvidencePolicy {
         List<BigDecimal> values = new ArrayList<>(first);
         values.addAll(second);
         return values;
+    }
+
+    private static boolean textLocatorInScheme(String locator, String text, String scheme) {
+        if (scheme == null || scheme.isBlank() || locator == null || text == null) return false;
+        Matcher match = TEXT_LOCATOR.matcher(locator);
+        if (!match.matches()) return false;
+        int lineIndex;
+        try { lineIndex = Integer.parseInt(match.group(1)); }
+        catch (NumberFormatException invalid) { return false; }
+        String[] lines = text.split("\\R", -1);
+        if (lineIndex >= lines.length) return false;
+        String activeScheme = "";
+        int activeSchemeLevel = Integer.MAX_VALUE;
+        for (int i = 0; i <= lineIndex; i++) {
+            Matcher heading = HEADING.matcher(lines[i]);
+            if (!heading.matches()) continue;
+            String headingLine = lines[i].stripLeading();
+            int level = 0;
+            while (level < headingLine.length() && headingLine.charAt(level) == '#') level++;
+            String title = heading.group(1).trim();
+            if (title.contains(scheme) || scheme.contains(title)) {
+                activeScheme = title;
+                activeSchemeLevel = level;
+            } else if (level <= activeSchemeLevel) {
+                activeScheme = "";
+                activeSchemeLevel = Integer.MAX_VALUE;
+            }
+        }
+        return !activeScheme.isBlank();
     }
 
     private static Set<BigDecimal> distinct(List<BigDecimal> values) {
