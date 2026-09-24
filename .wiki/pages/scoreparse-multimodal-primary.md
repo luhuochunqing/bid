@@ -134,3 +134,7 @@ archive: false
 - **诊断信息载体与定位**：新增不可变领域 Record `AiProviderDiagnostics`，采集激活的 Provider 代码、模型名、调用延迟（毫秒）、执行状态、异常类与脱敏异常信息，并通过 `RunSummaryAssembler` 透出至 `run_summary.aiProviderDiagnostics`。
 - **凭据脱敏安全红线**：严禁在 `errorMessage` 或诊断中透出未经脱敏的敏感凭据。所有针对 `sk-*`、`Bearer *` 或常见 Token 格式均由 `AiProviderDiagnostics.sanitize()` 正则统一脱敏为 `sk-***` / `Bearer ***`。
 - **向后兼容与键序**：RunSummary 装配严格保持原有 11 项 JSON 键物理顺序，`aiProviderDiagnostics` 仅作为可选字段置于 `sourceDiagnostics` 之后透出，且 `llmModel` 为空时自动推导回填。
+
+## 2026-09-24 采纳边界
+
+单表评分表未能抽取原文声明总分时，人工确认采纳可以使用候选叶子项合计作为正式总分；多表存在冲突声明总分时仍必须阻止采纳。后端通过 adoptionStatus 将 `SINGLE_UNKNOWN_TOTAL` 与 `CONFLICTING_TOTAL` 传给前端，避免页面把两种状态显示为同一类待确认。
