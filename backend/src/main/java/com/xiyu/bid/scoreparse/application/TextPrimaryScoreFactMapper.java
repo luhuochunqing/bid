@@ -7,6 +7,8 @@ import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreRule;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 final class TextPrimaryScoreFactMapper {
@@ -20,9 +22,12 @@ final class TextPrimaryScoreFactMapper {
                 .filter(cell -> cell.cellId().equals(cellId)).map(cell -> cell.rawText() == null ? "" : cell.rawText())
                 .findFirst().orElse("");
         int start = raw.indexOf(fact.quotedText());
-        String factId = fact.sectionTitle() + "/" + fact.code();
-        String parentId = fact.parentCode().isBlank() ? "" : fact.sectionTitle() + "/" + fact.parentCode();
-        String violations = validation.violations().stream().filter(v -> v.factId().isBlank() || v.factId().equals(factId))
+        String factKey = fact.sectionTitle() + "/" + fact.code();
+        String factId = boundedFactId(factKey);
+        String parentKey = fact.sectionTitle() + "/" + fact.parentCode();
+        String parentId = fact.parentCode().isBlank() ? "" : boundedFactId(parentKey);
+        String violations = validation.violations().stream()
+                .filter(v -> v.factId().isBlank() || v.factId().equals(factKey))
                 .map(v -> v.code() + "[field=" + v.field() + ", expected=" + v.expected() + ", actual=" + v.actual()
                         + ", evidence=" + v.evidence() + "]").collect(Collectors.joining("; "));
         var status = violations.isBlank() && validation.autoApprovable()
@@ -32,5 +37,13 @@ final class TextPrimaryScoreFactMapper {
                 start, start < 0 ? -1 : start + fact.quotedText().length(), "page=" + fact.pageNumber() + "; scoreType="
                 + fact.scoreType() + (violations.isBlank() ? "" : "; validationDiff=" + violations)), ScoreRule.MAX_SCORE,
                 parentId, "MULTIMODAL", fact.confidence(), status, fact.childAggregation());
+    }
+
+    /**
+     * The source key is human-readable and unbounded, while fact_id is a database key.
+     * Keep the source key for validation matching and persist a stable bounded identifier.
+     */
+    private static String boundedFactId(String sourceKey) {
+        return "fact-" + UUID.nameUUIDFromBytes(sourceKey.getBytes(StandardCharsets.UTF_8));
     }
 }

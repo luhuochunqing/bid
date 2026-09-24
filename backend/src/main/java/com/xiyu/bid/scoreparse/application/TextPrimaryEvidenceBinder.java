@@ -38,13 +38,35 @@ final class TextPrimaryEvidenceBinder {
     }
 
     static List<MultimodalScoreFact> bind(List<MultimodalScoreFact> facts, DocumentArtifact artifact) {
-        if (artifact == null || facts == null || facts.isEmpty()) return facts == null ? List.of() : facts;
+        return bind(facts, artifact, null);
+    }
+
+    static List<MultimodalScoreFact> bind(List<MultimodalScoreFact> facts, DocumentArtifact artifact,
+                                          String tenderText) {
+        if (facts == null || facts.isEmpty()) return List.of();
         return facts.stream().map(fact -> {
             if (!fact.tableId().isBlank() && !fact.sourceCellIds().isEmpty()) return fact;
-            return artifact.tables().stream().flatMap(table -> table.cells().stream()
+            var bound = artifact == null ? java.util.Optional.<MultimodalScoreFact>empty()
+                    : artifact.tables().stream().flatMap(table -> table.cells().stream()
                             .map(cell -> new Object[]{table, cell}))
-                    .filter(pair -> matches(fact, pair)).findFirst().map(pair -> bound(fact, pair)).orElse(fact);
+                    .filter(pair -> matches(fact, pair)).findFirst().map(pair -> bound(fact, pair));
+            if (bound.isPresent()) return bound.get();
+            return textEvidence(fact, tenderText).orElse(fact);
         }).toList();
+    }
+
+    private static java.util.Optional<MultimodalScoreFact> textEvidence(MultimodalScoreFact fact, String tenderText) {
+        if (tenderText == null || tenderText.isBlank() || fact.quotedText().isBlank()) {
+            return java.util.Optional.empty();
+        }
+        String quote = fact.quotedText();
+        int offset = tenderText.indexOf(quote);
+        if (offset < 0) return java.util.Optional.empty();
+        int line = 0;
+        for (int i = 0; i < offset; i++) if (tenderText.charAt(i) == '\n') line++;
+        return java.util.Optional.of(new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(),
+                fact.dimension(), fact.weight(), fact.ruleText(), fact.scoreType(), fact.pageNumber(), "",
+                List.of("text:line[" + line + "]"), fact.quotedText(), fact.confidence(), fact.childAggregation()));
     }
 
     private static boolean matches(MultimodalScoreFact fact, Object[] pair) {

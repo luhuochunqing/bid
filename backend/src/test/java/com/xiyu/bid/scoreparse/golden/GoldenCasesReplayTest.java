@@ -47,6 +47,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-pdf-cert-list-single-item"),
                 Arguments.of("case-1117-performance-evidence"),
                 Arguments.of("case-multi-table-tech-commercial"),
+                Arguments.of("case-document-total-cross-table"),
                 Arguments.of("case-category-weight-noise-before-score"),
                 Arguments.of("case-sidecar-stream-failure"),
                 Arguments.of("case-multimodal-incomplete-recall-fallback"),

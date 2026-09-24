@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "desensitization": "全部文本合成改写，项目名以××掩码替代，保留正文总分与两张无表内小计评分表的版式特征",
+  "focus": "正文明确总分 100 分时，多张物理评分表的末级分值闭合后可作为同一评分方案",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": false,
+  "laneHints": ["table"],
+  "items": [
+    { "code": "1", "dim": "商务-响应报价", "detail": "报价方案完整且响应要求的得30分。", "weight": 30 },
+    { "code": "2", "dim": "商务-类似业绩", "detail": "近三年具有同类项目服务经验的得40分。", "weight": 40 },
+    { "code": "1", "dim": "技术-技术方案", "detail": "技术路线清晰、实施计划完整的得15分。", "weight": 15 },
+    { "code": "2", "dim": "技术-项目团队", "detail": "项目团队配置合理、经验充分的得10分。", "weight": 10 },
+    { "code": "3", "dim": "技术-服务保障", "detail": "服务方案完整、响应机制有效的得5分。", "weight": 5 }
+  ]
+}

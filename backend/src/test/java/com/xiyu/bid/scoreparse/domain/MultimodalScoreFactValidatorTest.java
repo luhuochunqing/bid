@@ -17,6 +17,19 @@ class MultimodalScoreFactValidatorTest {
         assertThat(result.violations()).isEmpty();
     }
 
+    @Test void acceptsParagraphBackedFactWithTextLocator() {
+        String text = "本项目总分为 30 分。商务部分（响应报价）30 分";
+        var fact = new MultimodalScoreFact("商务部分", "响应报价", "", "商务部分（响应报价）",
+                new BigDecimal("30"), "商务部分（响应报价）30 分", "OBJECTIVE", null, "", List.of("text:line[0]"),
+                "商务部分（响应报价）30 分", 0.9, ChildAggregation.SUM);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("d", "sha", "docx", "2.0"),
+                List.of(), List.of());
+        var result = validator.validate(List.of(fact), artifact,
+                OriginalScoringContext.resolve(artifact, text), text, new BigDecimal("30"));
+        assertThat(result.autoApprovable()).isTrue();
+        assertThat(result.violations()).isEmpty();
+    }
+
     @Test void reportsAllHardDifferencesWithoutDroppingCandidates() {
         var result = validator.validate(List.of(
                 fact("商务", "2", null, "报价", "30", "不存在的改写", "c1"),

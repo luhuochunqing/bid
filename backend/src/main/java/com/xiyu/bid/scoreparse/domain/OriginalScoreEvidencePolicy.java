@@ -24,11 +24,16 @@ public final class OriginalScoreEvidencePolicy {
 
     public static Verification verifyModel(DocumentArtifact artifact, String tenderText,
                                            List<MultimodalScoreFact> facts, BigDecimal modelTotal) {
-        return verifyModel(OriginalScoringContext.resolve(artifact, tenderText), artifact, facts, modelTotal);
+        return verifyModel(OriginalScoringContext.resolve(artifact, tenderText), artifact, tenderText, facts, modelTotal);
     }
 
     public static Verification verifyModel(OriginalScoringContext context, DocumentArtifact artifact,
                                            List<MultimodalScoreFact> facts, BigDecimal modelTotal) {
+        return verifyModel(context, artifact, null, facts, modelTotal);
+    }
+
+    public static Verification verifyModel(OriginalScoringContext context, DocumentArtifact artifact,
+                                           String tenderText, List<MultimodalScoreFact> facts, BigDecimal modelTotal) {
         Set<String> parentKeys = new LinkedHashSet<>();
         facts.stream().filter(f -> !f.parentCode().isBlank())
                 .forEach(f -> parentKeys.add(f.sectionTitle() + "/" + f.parentCode()));
@@ -39,7 +44,7 @@ public final class OriginalScoreEvidencePolicy {
         List<Claim> claims = facts.stream().map(f -> new Claim(f.sectionTitle() + "/" + f.code(),
                 f.tableId(), f.dimension(), f.sourceCellIds(), f.weight(),
                 parentKeys.contains(f.sectionTitle() + "/" + f.code()),
-                units.contains(f.sectionTitle() + "/" + f.code()))).toList();
+                units.contains(f.sectionTitle() + "/" + f.code()), f.quotedText(), tenderText)).toList();
         return verify(context, artifact, claims, modelTotal, true);
     }
 
@@ -56,7 +61,7 @@ public final class OriginalScoreEvidencePolicy {
         List<Claim> claims = facts.stream().map(f -> new Claim(f.factId(), f.sourceTableId(),
                 f.dimension(), f.weightEvidence() == null ? f.sourceCellIds()
                 : List.of(f.weightEvidence().cellId()), f.weight(), parentIds.contains(f.factId()),
-                units.contains(f.factId()))).toList();
+                units.contains(f.factId()), f.dimension(), null)).toList();
         return verify(context, artifact, claims, null, false);
     }
 
@@ -74,8 +79,9 @@ public final class OriginalScoreEvidencePolicy {
                     total.value(), modelTotal, total.locator()));
         }
         for (Claim claim : claims) {
-            boolean inScheme = artifact != null && artifact.tables().stream()
-                    .anyMatch(table -> table.tableId().equals(claim.tableId()) && context.owns(table));
+            boolean textBacked = claim.textLocator();
+            boolean inScheme = textBacked || (artifact != null && artifact.tables().stream()
+                    .anyMatch(table -> table.tableId().equals(claim.tableId()) && context.owns(table)));
             if (!inScheme) problems.add(new Problem(claim.id(), "tableId", "ITEM_SCHEME_SCOPE_MISMATCH",
                     context.scheme(), claim.tableId(), claim.tableId()));
             verifyWeight(artifact, claim, problems);
@@ -95,6 +101,17 @@ public final class OriginalScoreEvidencePolicy {
 
     private static void verifyWeight(DocumentArtifact artifact, Claim claim, List<Problem> problems) {
         if (claim.weight() == null && !claim.parent()) return;
+        if (claim.textLocator()) {
+            if (claim.weight() == null) return;
+            String text = claim.tenderText() == null ? "" : claim.tenderText();
+            String quote = claim.quotedText() == null ? "" : claim.quotedText();
+            String evidence = text.contains(quote) ? quote : text;
+            Pattern weight = Pattern.compile("(?<!\\d)" + Pattern.quote(claim.weight().stripTrailingZeros().toPlainString()) + "\\s*分");
+            if (weight.matcher(evidence).find()) return;
+            problems.add(new Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
+                    "original item max score", claim.weight(), claim.sourceCellIds().get(0)));
+            return;
+        }
         if (artifact == null || claim.sourceCellIds().isEmpty()) {
             problems.add(new Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
                     "original item max score", claim.weight(), ""));
@@ -113,8 +130,11 @@ public final class OriginalScoreEvidencePolicy {
                     && c.row() <= anchor.row() && c.row() + Math.max(1, c.rowspan() == null ? 1 : c.rowspan()) > anchor.row())
                     .toList();
             String locator = table.tableId() + ":" + anchor.cellId();
-            boolean itemMatched = row.stream().map(c -> c.rawText() == null ? "" : c.rawText())
-                    .anyMatch(text -> !claim.dimension().isBlank() && text.contains(claim.dimension()));
+            String rowText = row.stream().map(c -> c.rawText() == null ? "" : c.rawText())
+                    .reduce((a, b) -> a + " " + b).orElse("");
+            boolean itemMatched = (!claim.dimension().isBlank() && rowText.contains(claim.dimension()))
+                    || (!claim.quotedText().isBlank() && rowText.contains(claim.quotedText())
+                    && (claim.dimension().isBlank() || claim.quotedText().contains(claim.dimension())));
             if (!itemMatched) {
                 problems.add(new Problem(claim.id(), "dimension", "ITEM_SOURCE_SCOPE_MISMATCH",
                         claim.dimension(), "not in cited item row", locator));
@@ -179,7 +199,14 @@ public final class OriginalScoreEvidencePolicy {
     }
 
     private record Claim(String id, String tableId, String dimension, List<String> sourceCellIds,
-                         BigDecimal weight, boolean parent, boolean contributesToTotal) {}
+                         BigDecimal weight, boolean parent, boolean contributesToTotal,
+                         String quotedText, String tenderText) {
+        private boolean textLocator() {
+            return (tableId == null || tableId.isBlank())
+                    && sourceCellIds != null && sourceCellIds.size() == 1
+                    && sourceCellIds.get(0).startsWith("text:line[");
+        }
+    }
     public record Problem(String factId, String field, String code, Object expected, Object actual, String locator) {}
     public record Total(BigDecimal value, String source, String scope, String locator, List<Problem> problems) {}
     public record Verification(String documentId, String scheme, Total total, List<Problem> problems) {

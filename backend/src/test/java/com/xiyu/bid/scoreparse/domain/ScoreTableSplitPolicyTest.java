@@ -110,6 +110,25 @@ class ScoreTableSplitPolicyTest {
     }
 
     @Test
+    void multiTableDocumentTotalClosesAcrossPhysicalTables() {
+        List<ScoreTableSplitPolicy.ScoreTableInput> tables = List.of(
+                new ScoreTableSplitPolicy.ScoreTableInput("t1", true, List.of(
+                        fact("t1-f1", "t1", "商务", "30"),
+                        fact("t1-f2", "t1", "业绩", "40"))),
+                new ScoreTableSplitPolicy.ScoreTableInput("t2", true, List.of(
+                        fact("t2-f1", "t2", "技术", "30"))));
+
+        TableSplitResult result = ScoreTableSplitPolicy.split(tables, List.of(),
+                "本项目总分为 100 分，由商务部分、技术部分组成。");
+
+        assertThat(result.tables()).singleElement().satisfies(table -> {
+            assertThat(table.tableId()).isEqualTo("DOCUMENT");
+            assertThat(table.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        });
+        assertThat(result.documentLevel().leafWeightSum()).isEqualByComparingTo("100");
+    }
+
+    @Test
     void singleTableSelfConsistent_resultMatchesDirectPolicyCall() {
         List<ScoreFact> facts = List.of(
                 fact("t1-f1", "t1", "技术方案", "30"),
