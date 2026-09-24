@@ -28,6 +28,12 @@ public final class MultimodalScoreFactValidator {
     public ValidationReport validate(List<MultimodalScoreFact> input,
                                      DocumentArtifact artifact, OriginalScoringContext context,
                                      BigDecimal declaredTotal) {
+        return validate(input, artifact, context, null, declaredTotal);
+    }
+
+    public ValidationReport validate(List<MultimodalScoreFact> input,
+                                     DocumentArtifact artifact, OriginalScoringContext context,
+                                     String tenderText, BigDecimal declaredTotal) {
         List<MultimodalScoreFact> facts = input == null ? List.of() : List.copyOf(input);
         List<Violation> violations = new ArrayList<>();
         if (facts.isEmpty()) {
@@ -36,11 +42,11 @@ public final class MultimodalScoreFactValidator {
         }
         validateRequiredFields(facts, violations);
         Map<String, CellSource> cells = indexCells(artifact);
-        validateEvidence(facts, cells, violations);
+        validateEvidence(facts, cells, tenderText, violations);
         validateDuplicates(facts, violations);
         validateSequences(facts, violations);
         validateParents(facts, cells, violations);
-        var sourceVerification = OriginalScoreEvidencePolicy.verifyModel(context, artifact, facts, declaredTotal);
+        var sourceVerification = OriginalScoreEvidencePolicy.verifyModel(context, artifact, tenderText, facts, declaredTotal);
         sourceVerification.problems().forEach(problem -> violations.add(new Violation(problem.factId(),
                 problem.field(), problem.code(), "模型字段缺少对应原文依据", problem.expected(),
                 problem.actual(), problem.locator())));
@@ -77,17 +83,22 @@ public final class MultimodalScoreFactValidator {
     }
 
     private static void validateEvidence(List<MultimodalScoreFact> facts, Map<String, CellSource> cells,
+                                         String tenderText,
                                          List<Violation> violations) {
         for (MultimodalScoreFact fact : facts) {
             List<CellSource> sources = fact.sourceCellIds().stream().map(cells::get).filter(java.util.Objects::nonNull).toList();
-            boolean locatorValid = !fact.tableId().isBlank() && !fact.sourceCellIds().isEmpty() && !sources.isEmpty()
+            boolean textLocator = fact.tableId().isBlank() && fact.sourceCellIds().size() == 1
+                    && fact.sourceCellIds().get(0).startsWith("text:line[")
+                    && tenderText != null && !fact.quotedText().isBlank() && tenderText.contains(fact.quotedText());
+            boolean locatorValid = textLocator || (!fact.tableId().isBlank() && !fact.sourceCellIds().isEmpty() && !sources.isEmpty()
                     && sources.size() == fact.sourceCellIds().size()
                     && sources.stream().allMatch(cell -> cell.tableId().equals(fact.tableId()))
-                    && sources.stream().anyMatch(cell -> java.util.Objects.equals(cell.page(), fact.pageNumber()));
+                    && sources.stream().anyMatch(cell -> java.util.Objects.equals(cell.page(), fact.pageNumber())));
             if (!locatorValid) {
                 violations.add(of(fact, "sourceCellIds", "SOURCE_LOCATOR_INVALID", "引用必须绑定输入资产中的页码、表和来源单元格", fact.sourceCellIds(), sources));
             }
-            String exactSource = sources.stream().map(CellSource::rawText).reduce((a, b) -> a + b).orElse("");
+            String exactSource = textLocator ? tenderText
+                    : sources.stream().map(CellSource::rawText).reduce((a, b) -> a + b).orElse("");
             if (fact.quotedText().isBlank() || !exactSource.contains(fact.quotedText())) {
                 violations.add(of(fact, "quotedText", "QUOTE_NOT_VERBATIM", "引用必须逐字存在于指定原始单元格", exactSource, fact.quotedText()));
             }
@@ -112,6 +123,8 @@ public final class MultimodalScoreFactValidator {
         Map<String, List<MultimodalScoreFact>> siblings = new LinkedHashMap<>();
         facts.forEach(f -> siblings.computeIfAbsent(f.sectionTitle() + "\u0000" + f.parentCode(), key -> new ArrayList<>()).add(f));
         siblings.forEach((group, rows) -> {
+            boolean numbered = rows.stream().anyMatch(row -> fLocalNumber(row) != null);
+            if (!numbered) return;
             for (int i = 0; i < rows.size(); i++) {
                 Integer actual = fLocalNumber(rows.get(i));
                 int expected = i + 1;

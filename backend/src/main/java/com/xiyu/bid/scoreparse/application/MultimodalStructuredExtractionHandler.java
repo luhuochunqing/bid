@@ -158,21 +158,24 @@ final class MultimodalStructuredExtractionHandler {
                                               MultimodalScoreFactExtractor.ExtractionResult extracted,
                                               boolean textOnly, boolean alreadyRechecked) {
         extracted = normalized(extracted);
-        extracted = new MultimodalScoreFactExtractor.ExtractionResult(extracted.declaredTotal(),
-                TextPrimaryEvidenceBinder.bind(extracted.facts(), artifact), extracted.model(), extracted.imageCount());
+        extracted = new MultimodalScoreFactExtractor.ExtractionResult(extracted.declaredTotal(), TextPrimaryEvidenceBinder.bind(extracted.facts(), artifact, tenderSectionText), extracted.model(), extracted.imageCount());
         var validator = new MultimodalScoreFactValidator();
-        var validation = validator.validate(extracted.facts(), artifact, originalContext, extracted.declaredTotal());
+        var validation = validator.validate(extracted.facts(), artifact, originalContext, tenderSectionText,
+                extracted.declaredTotal());
         boolean multiTableModelScopeUnknown = hasMultipleTables(extracted.facts())
-                && !hasIndependentTableTotals(originalContext, extracted.facts());
+                && !hasIndependentTableTotals(originalContext, extracted.facts())
+                && !documentTotalCloses(originalContext, validation);
         if (!alreadyRechecked && (!validation.autoApprovable() || multiTableModelScopeUnknown)) {
             try {
                 var rechecked = normalized(textOnly
                         ? extractor.recheckTextAndProgress(tenderSectionText, chunkCompleted)
                         : extractor.recheckWithTextAndProgress(artifact, tenderSectionText, chunkCompleted));
+                rechecked = new MultimodalScoreFactExtractor.ExtractionResult(rechecked.declaredTotal(), TextPrimaryEvidenceBinder.bind(rechecked.facts(), artifact, tenderSectionText), rechecked.model(), rechecked.imageCount());
                 var recheckValidation = validator.validate(rechecked.facts(), artifact, originalContext,
-                        rechecked.declaredTotal());
+                        tenderSectionText, rechecked.declaredTotal());
                 boolean recheckScopeUnknown = hasMultipleTables(rechecked.facts())
-                        && !hasIndependentTableTotals(originalContext, rechecked.facts());
+                        && !hasIndependentTableTotals(originalContext, rechecked.facts())
+                        && !documentTotalCloses(originalContext, recheckValidation);
                 if (recheckValidation.autoApprovable() && !recheckScopeUnknown) {
                     extracted = rechecked;
                     validation = recheckValidation;
@@ -187,11 +190,7 @@ final class MultimodalStructuredExtractionHandler {
                         recheckFailure.getClass().getSimpleName());
             }
         }
-        boolean scoringRelationUncertain = validation.violations().stream().anyMatch(violation ->
-                violation.code().startsWith("CHILD_AGGREGATION_")
-                        || "PARENT_WEIGHT_MISMATCH".equals(violation.code()));
-        if ((!validation.autoApprovable() || multiTableModelScopeUnknown)
-                && !scoringRelationUncertain) {
+        if (!validation.autoApprovable() || multiTableModelScopeUnknown) {
             StructuredTableResult deterministicFallback = artifact == null ? null : MultimodalReviewFallback.completeDeterministic(
                     originalContext, artifact, tenderSectionText, validation);
             if (deterministicFallback != null) {
@@ -276,6 +275,11 @@ final class MultimodalStructuredExtractionHandler {
         }
         return facts.stream().map(MultimodalScoreFact::tableId).filter(tableId -> tableId != null && !tableId.isBlank())
                 .distinct().allMatch(context.subtotals()::containsKey);
+    }
+
+    private static boolean documentTotalCloses(OriginalScoringContext context, MultimodalScoreFactValidator.ValidationReport validation) {
+        return context != null && context.total().value() != null && validation != null && validation.leafTotal() != null
+                && context.total().value().compareTo(validation.leafTotal()) == 0;
     }
 
     private static TableSplitResult splitModelFacts(List<ScoreFact> facts, OriginalScoringContext context,
