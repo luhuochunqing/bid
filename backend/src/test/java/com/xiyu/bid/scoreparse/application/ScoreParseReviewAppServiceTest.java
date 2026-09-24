@@ -165,6 +165,22 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
+    void submitReview_adoptCandidates_usesConfirmedCandidateTotalForSingleUnknownTable() {
+        mockLatestTask();
+        ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")).get(0);
+        task.setRunSummary("{\"tableSplits\":[{\"tableId\":\"NO_DECLARED_TOTAL\"}]}");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "40"), fact("fact-2", "60")));
+
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "确认单表候选合计")
+        ), "人工确认采纳", 9L), "admin");
+
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+        assertThat(task.getOriginalTotalWeight()).isEqualByComparingTo("100");
+    }
+
+    @Test
     void submitReview_adoptCandidates_rejectsConflictingDeclaredTotalsWithoutPersistence() {
         mockLatestTask();
         ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(

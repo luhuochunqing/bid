@@ -114,7 +114,7 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('shows an unresolved total and disables adoption when declared total is unknown', () => {
+  it('allows manual adoption when a single-table declared total is unknown', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: { candidateFacts, candidateTotalWeight: 100, declaredTotalWeight: null },
       global: {
@@ -125,8 +125,8 @@ describe('ScoreCandidateReviewCard.vue', () => {
       },
     })
 
-    expect(wrapper.find('.el-alert-mock').text()).toContain('声明总分待确认')
-    expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.el-alert-mock').text()).toContain('以候选合计作为正式总分')
+    expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
   })
 
   it('renders JSON encoded source cell ids without throwing', () => {
