@@ -24,6 +24,17 @@ class TextPrimaryEvidenceBinderTest {
     }
 
     @Test
+    void locatesTheWholeQuoteWhenItsFirstTokenAppearsEarlier() {
+        var fact = new MultimodalScoreFact("评分办法", "1", "", "业绩", BigDecimal.TEN,
+                "满足条件得10分", "OBJECTIVE", null, "", List.of(),
+                "满足条件得 10 分", 0.9, ChildAggregation.SUM);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), null,
+                "满足条件得。\n评分要求：满足条件得\n10\u00a0分。\n");
+
+        assertThat(bound.get(0).sourceCellIds()).containsExactly("text:line[1]");
+    }
+
+    @Test
     void tableBindingAlsoAllowsWhitespaceVariantQuote() {
         var cell = new DocumentArtifact.CanonicalTable.CanonicalCellDto(
                 "t-r1-c1", 1, 1, "满足条件得\n10\u00a0分", "满足条件得 10 分", 1, 1,

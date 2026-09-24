@@ -60,11 +60,12 @@ final class TextPrimaryEvidenceBinder {
             return java.util.Optional.empty();
         }
         String quote = fact.quotedText();
-        String normalizedText = normalizeForEvidence(tenderText);
+        NormalizedEvidence normalizedText = normalizeWithOffsets(tenderText);
         String normalizedQuote = normalizeForEvidence(quote);
-        int offset = normalizedText.indexOf(normalizedQuote);
+        int offset = normalizedText.text().indexOf(normalizedQuote);
         if (offset < 0) return java.util.Optional.empty();
-        int line = lineOfFirstQuoteToken(tenderText, quote);
+        int sourceOffset = normalizedText.sourceOffsets().get(offset);
+        int line = lineOfOffset(tenderText, sourceOffset);
         return java.util.Optional.of(new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(),
                 fact.dimension(), fact.weight(), fact.ruleText(), fact.scoreType(), fact.pageNumber(), "",
                 List.of("text:line[" + line + "]"), fact.quotedText(), fact.confidence(), fact.childAggregation()));
@@ -76,13 +77,40 @@ final class TextPrimaryEvidenceBinder {
                 .replaceAll("[\\t\\r\\n]+", " ").replaceAll(" +", " ").trim();
     }
 
-    private static int lineOfFirstQuoteToken(String source, String quote) {
-        String token = quote.trim().split("\\s+", 2)[0];
-        int offset = token.isBlank() ? -1 : source.indexOf(token);
-        if (offset < 0) return 0;
+    private static int lineOfOffset(String source, int offset) {
         int line = 0;
         for (int i = 0; i < offset; i++) if (source.charAt(i) == '\n') line++;
         return line;
+    }
+
+    private static NormalizedEvidence normalizeWithOffsets(String source) {
+        StringBuilder normalized = new StringBuilder();
+        List<Integer> offsets = new java.util.ArrayList<>();
+        boolean pendingSpace = false;
+        for (int i = 0; i < source.length(); i++) {
+            char c = source.charAt(i);
+            boolean whitespace = c == '\u00a0' || c == '\u2007' || c == '\u202f'
+                    || c == '\t' || c == '\r' || c == '\n' || c == ' ';
+            if (whitespace) {
+                pendingSpace = normalized.length() > 0;
+                continue;
+            }
+            if (pendingSpace && normalized.length() > 0) {
+                normalized.append(' ');
+                offsets.add(i);
+            }
+            pendingSpace = false;
+            normalized.append(c);
+            offsets.add(i);
+        }
+        while (normalized.length() > 0 && normalized.charAt(normalized.length() - 1) == ' ') {
+            normalized.setLength(normalized.length() - 1);
+            offsets.remove(offsets.size() - 1);
+        }
+        return new NormalizedEvidence(normalized.toString(), offsets);
+    }
+
+    private record NormalizedEvidence(String text, List<Integer> sourceOffsets) {
     }
 
     private static boolean matches(MultimodalScoreFact fact, Object[] pair) {
