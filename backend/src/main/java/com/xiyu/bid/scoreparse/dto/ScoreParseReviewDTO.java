@@ -18,6 +18,7 @@ public record ScoreParseReviewDTO(
         String pipelineVersion,
         String artifactSha256,
         BigDecimal declaredTotal,
+        String adoptionStatus,
         List<Fact> facts,
         List<Audit> audits
 ) {
@@ -26,7 +27,7 @@ public record ScoreParseReviewDTO(
                                String pipelineVersion, String artifactSha256,
                                List<Fact> facts, List<Audit> audits) {
         this(projectId, parseTaskId, taskId, status, decisionStatus, fallbackReason, reviewReason,
-                pipelineVersion, artifactSha256, BigDecimal.valueOf(100), facts, audits);
+                pipelineVersion, artifactSha256, BigDecimal.valueOf(100), "DECLARED_TOTAL", facts, audits);
     }
     public record Fact(
             String factId,

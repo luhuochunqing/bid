@@ -64,6 +64,7 @@ public class ScoreParseReviewAppService {
                 task.getPipelineVersion(),
                 task.getArtifactSha256(),
                 declaredTotal(task),
+                ScoreParseReviewTotalPolicy.adoptionStatus(task),
                 facts.stream()
                         .sorted(Comparator.comparing(ScoreParseFact::getId))
                         .map(fact -> toFactDTO(fact, evidenceByFactId.getOrDefault(fact.getFactId(), List.of())))

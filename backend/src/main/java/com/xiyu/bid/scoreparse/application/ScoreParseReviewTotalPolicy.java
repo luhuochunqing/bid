@@ -23,4 +23,9 @@ final class ScoreParseReviewTotalPolicy {
             return false;
         }
     }
+
+    static String adoptionStatus(ScoreParseTask task) {
+        if (ScoreParseReviewAppService.declaredTotal(task) != null) return "DECLARED_TOTAL";
+        return isSingleUnknownTable(task) ? "SINGLE_UNKNOWN_TOTAL" : "CONFLICTING_TOTAL";
+    }
 }

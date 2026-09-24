@@ -26,7 +26,6 @@
       <div class="loading-icon">🤖</div>
       <div class="loading-text">AI 正在解析评分标准，联动知识库做智能比对<span class="dots"></span></div>
     </div>
-
     <div v-else-if="error" class="error-state">
       <el-alert :title="errorPresentation.title" :description="errorPresentation.message" type="error" show-icon :closable="false" class="ai-document-error-alert" />
       <div v-if="errorPresentation.detail && errorPresentation.scanned" class="error-detail">原始错误：{{ errorPresentation.detail }}</div>
@@ -79,6 +78,7 @@
               :candidate-facts="candidateFacts"
               :candidate-total-weight="candidateTotalWeight"
               :declared-total-weight="declaredTotalWeight"
+              :adoption-status="adoptionStatus"
               :is-adopting-candidates="isAdoptingCandidates"
               :reparse-disabled="loading || scoringOverlayVisible"
               @adopt="adoptCandidateFacts"
@@ -217,7 +217,7 @@ const {
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
   decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason,
-  candidateFacts, candidateTotalWeight, declaredTotalWeight, isAdoptingCandidates, adoptCandidateFacts,
+  candidateFacts, candidateTotalWeight, declaredTotalWeight, adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,
 } = useScoreParseDrawer(props, emit)
 
 defineExpose({ open, runScoring, scoringOverlayVisible, loading })

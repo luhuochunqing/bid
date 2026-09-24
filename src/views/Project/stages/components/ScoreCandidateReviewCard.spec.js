@@ -129,6 +129,21 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
   })
 
+  it('keeps adoption disabled when multiple table totals conflict', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: { candidateFacts, candidateTotalWeight: 100, declaredTotalWeight: null, adoptionStatus: 'CONFLICTING_TOTAL' },
+      global: {
+        stubs: {
+          'el-alert': { template: '<div class="el-alert-mock">{{ title }}</div>', props: ['title'] },
+          'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
+        },
+      },
+    })
+
+    expect(wrapper.find('.el-alert-mock').text()).toContain('多个冲突的评分表')
+    expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+  })
+
   it('renders JSON encoded source cell ids without throwing', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: { candidateFacts: [{ ...candidateFacts[0], sourceCellIds: '["p1-r1-c1"]' }], candidateTotalWeight: 6 },
