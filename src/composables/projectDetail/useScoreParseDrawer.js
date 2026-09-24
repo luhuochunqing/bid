@@ -1,7 +1,6 @@
 // Input: props.projectId, emit callbacks
 // Output: state and handlers for score parse drawer (real API driven, no mock fallbacks)
 // Pos: src/composables/projectDetail/ - Presentation domain composable
-
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
@@ -275,6 +274,7 @@ export function useScoreParseDrawer(props, emit) {
     candidateFacts,
     candidateTotalWeight,
     declaredTotalWeight,
+    adoptionStatus,
     isAdoptingCandidates,
     adoptCandidateFacts,
   } = useScoreCandidateAdoption({
@@ -295,6 +295,6 @@ export function useScoreParseDrawer(props, emit) {
     decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason, fallbackReason, pipelineVersion, artifactSha256,
     reviewRequired, reviewSnapshot, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewSubmitted, reviewError,
     loadReviewSnapshotIfNeeded, submitReviewRetention,
-    candidateFacts, candidateTotalWeight, declaredTotalWeight, isAdoptingCandidates, adoptCandidateFacts,
+    candidateFacts, candidateTotalWeight, declaredTotalWeight, adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,
   }
 }
