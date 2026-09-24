@@ -8,7 +8,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ScoreFactChunkMergerTest {
     @Test
@@ -23,12 +22,14 @@ class ScoreFactChunkMergerTest {
     }
 
     @Test
-    void conflictingDeclaredTotalsFailClosed() {
-        assertThatThrownBy(() -> ScoreFactChunkMerger.merge(List.of(
+    void conflictingDeclaredTotalsKeepFactsAndMarkTotalUnknown() {
+        var merged = ScoreFactChunkMerger.merge(List.of(
                 result(BigDecimal.valueOf(100), fact("1", "5", 0.8)),
-                result(BigDecimal.valueOf(80), fact("2", "3", 0.8)))))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("conflicting declared totals");
+                result(BigDecimal.valueOf(80), fact("2", "3", 0.8))));
+
+        assertThat(merged.declaredTotal()).isNull();
+        assertThat(merged.facts()).extracting(MultimodalScoreFact::code)
+                .containsExactly("1", "2");
     }
 
     private static MultimodalScoreFactExtractor.ExtractionResult result(BigDecimal total, MultimodalScoreFact... facts) {
