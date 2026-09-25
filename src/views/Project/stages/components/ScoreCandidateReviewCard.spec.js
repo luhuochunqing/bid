@@ -42,7 +42,7 @@ describe('ScoreCandidateReviewCard.vue', () => {
       global: {
         stubs: {
           'el-alert': true,
-          'el-button': true,
+          'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
           'el-input': { template: '<span>{{ modelValue }}</span>', props: ['modelValue'] },
           'el-input-number': { template: '<span>{{ modelValue }}</span>', props: ['modelValue'] },
           'el-select': { template: '<span class="select-stub">{{ modelValue }}</span>', props: ['modelValue'] },
@@ -60,11 +60,11 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.findAll('.col-detail')[0].text()).toContain('业绩要求')
   })
 
-  it('renders warning alert when candidateTotalWeight is not 100', () => {
+  it('explains a partial candidate total and still allows explicit adoption', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: {
         candidateFacts,
-        candidateTotalWeight: 9,
+        candidateTotalWeight: 91,
         isAdoptingCandidates: false,
       },
       global: {
@@ -73,14 +73,46 @@ describe('ScoreCandidateReviewCard.vue', () => {
             template: '<div class="el-alert-mock">{{ title }}</div>',
             props: ['title'],
           },
-          'el-button': true,
+          'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
         },
       },
     })
 
     const alert = wrapper.find('.el-alert-mock')
     expect(alert.exists()).toBe(true)
-    expect(alert.text()).toContain('9 分，应与原文声明的 100 分闭合')
+    expect(alert.text()).toContain('候选合计为 91 分，原文声明 100 分，尚差 9 分')
+    expect(wrapper.find('[data-test="btn-adopt-candidates"]').element.disabled).toBe(false)
+  })
+
+  it('blocks a candidate total above the declared total', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: { candidateFacts, candidateTotalWeight: 101, declaredTotalWeight: 100 },
+      global: { stubs: { 'el-alert': true, 'el-button': { template: '<button v-bind="$attrs"><slot /></button>' } } },
+    })
+
+    expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('shows Chinese explanations instead of raw validator codes and JSON', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: {
+        candidateFacts: [{ ...candidateFacts[0], validationStatus: 'REVIEW_REQUIRED', validationMessage:
+          '{"validationDiff":"ITEM_SOURCE_SCOPE_MISMATCH[field=dimension, expected=技术]; ITEM_WEIGHT_SOURCE_UNKNOWN[field=weight, expected=[6, 0], actual=6]; WEIGHT_SUM_MISMATCH[field=weight, expected=100, actual=91]"}',
+          evidences: [{ kind: 'SCHEME_QUALIFICATION', quotedText: '', explanation: '{"schemeId":"internal-id","candidateEligible":true}' }] }],
+        candidateTotalWeight: 6,
+      },
+      global: { stubs: { 'el-alert': true, 'el-button': true } },
+    })
+
+    const message = wrapper.find('.validation-diff').text()
+    expect(message).toContain('评分项类别与引用的原文行暂时无法对应')
+    expect(message).toContain('原文暂时无法单独确认该分值')
+    expect(message).toContain('评分项合计与原文声明总分存在差额')
+    expect(message).not.toContain('ITEM_SOURCE_SCOPE_MISMATCH')
+    expect(message).not.toContain('ITEM_WEIGHT_SOURCE_UNKNOWN')
+    expect(message).not.toContain('WEIGHT_SUM_MISMATCH')
+    expect(message).not.toContain('{"')
+    expect(wrapper.text()).not.toContain('internal-id')
   })
 
   it('separates out-of-scheme and unverified facts into an audit-only section', () => {
@@ -133,6 +165,28 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.find('.candidate-review-title').text()).toContain('方案甲')
     expect(wrapper.find('.audit-facts').text()).toContain('方案乙')
     expect(wrapper.find('.audit-facts').text()).toContain('履约考核')
+  })
+
+  it('uses a Chinese fallback label when a scheme title is unavailable', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: {
+        candidateFacts: [{ factId: 'a', schemeId: 'scheme-d9e11f7d-private', dimension: '技术', weight: 91, candidateEligible: true }],
+        schemes: [
+          { schemeId: 'scheme-d9e11f7d-private', title: '', declaredTotal: 100 },
+          { schemeId: 'scheme-other-private', title: '第二方案', declaredTotal: 50 },
+        ],
+        selectedSchemeId: 'scheme-d9e11f7d-private',
+        schemeSelectionRequired: true,
+        candidateTotalWeight: 91,
+        declaredTotalWeight: 100,
+      },
+      global: { stubs: { 'el-alert': true, 'el-button': true, 'el-input': true, 'el-input-number': true,
+        'el-select': { template: '<div class="select-stub"><slot /></div>' },
+        'el-option': { template: '<div>{{ label }}<slot /></div>', props: ['label', 'value'] } } },
+    })
+
+    expect(wrapper.find('.scheme-selection').text()).toContain('评分方案1')
+    expect(wrapper.find('.scheme-selection').text()).not.toContain('scheme-d9e11f7d-private')
   })
 
   it('does not render warning alert when candidateTotalWeight is 100', () => {
@@ -196,12 +250,17 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
   })
 
-  it('renders JSON encoded source cell ids without throwing', () => {
+  it('does not show internal evidence locators or qualification JSON', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
-      props: { candidateFacts: [{ ...candidateFacts[0], sourceCellIds: '["p1-r1-c1"]' }], candidateTotalWeight: 6 },
+      props: { candidateFacts: [{ ...candidateFacts[0], validationStatus: 'AUTO_APPROVED',
+        validationMessage: '{"schemeId":"internal"}', sourceCellIds: '["doc0-t-0009-r3-c2"]',
+        evidences: [{ kind: 'SCHEME_QUALIFICATION', explanation: '{"schemeId":"internal"}' }] }], candidateTotalWeight: 6 },
       global: { stubs: { 'el-alert': true, 'el-button': true } },
     })
-    expect(wrapper.find('.evidence-location').text()).toContain('p1-r1-c1')
+    expect(wrapper.text()).not.toContain('doc0-t-0009-r3-c2')
+    expect(wrapper.text()).not.toContain('schemeId')
+    expect(wrapper.text()).not.toContain('internal')
+    expect(wrapper.find('.validation-diff').exists()).toBe(false)
   })
 
   it('emits adopt when clicking adopt button', async () => {

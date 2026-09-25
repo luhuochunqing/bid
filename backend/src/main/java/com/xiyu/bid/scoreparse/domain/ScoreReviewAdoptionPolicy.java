@@ -12,6 +12,13 @@ import java.util.Set;
  */
 public final class ScoreReviewAdoptionPolicy {
 
+    /** Returns whether a human-confirmed candidate sum fits within its verified scheme total. */
+    public static boolean isWithinDeclaredTotal(BigDecimal candidateTotal, BigDecimal declaredTotal) {
+        return candidateTotal != null && declaredTotal != null
+                && candidateTotal.compareTo(BigDecimal.ZERO) > 0
+                && candidateTotal.compareTo(declaredTotal) <= 0;
+    }
+
     public record CandidateInput(
             String factId,
             String code,
@@ -98,6 +105,9 @@ public final class ScoreReviewAdoptionPolicy {
             }
 
             BigDecimal weight = adjustments.getOrDefault(fact.factId(), fact.weight());
+            if (weight != null && weight.compareTo(BigDecimal.ZERO) < 0) {
+                return AdoptionResult.failure("候选评分项分值不能为负数");
+            }
             if (weight == null || weight.compareTo(BigDecimal.ZERO) <= 0) {
                 // 如果用户没有显式勾选特定 ID，自动跳过分值为 0 的模板占位项
                 if (!filterByIds) {
