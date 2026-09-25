@@ -9,13 +9,18 @@ Position: Imported by app.py (the HTTP shell). Heading analysis is pure; the PDF
 """
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import os
 import re
+import subprocess
 from collections import Counter
 
-SCHEMA_VERSION = "2.0"
+SCHEMA_VERSION = "2.2"
 PDF_TABLE_EXTRACTION_VERSION = "pdf-table-v1"
+PDF_OCR_MAX_PAGES = 30
+PDF_OCR_MIN_CONFIDENCE = 70.0
 
 # 报价评分参数关键词（与 Java 侧 backend/src/main/java/com/xiyu/bid/biddraftagent/domain/PriceScoringKeywords.java
 # 的 PRICE_PARAMS 保持同步；两处修改必须同步，Java 侧另有 ScoreParsePromptsTest.buildCandidateExtractionPrompt_mustContainCriticalPriceParams 校验与 prompt 的同步）
@@ -165,13 +170,31 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
         "schemaVersion": SCHEMA_VERSION,
         "artifact": _build_pdf_artifact_header(pdf_path),
         "tables": [],
+        "textBlocks": [],
         "warnings": [],
     }
     try:
         with pdfplumber.open(pdf_path) as pdf:
             extracted_tables: list[dict] = []
+            page_texts: list[str] = []
+            ocr_pages: set[int] = set()
             table_index = 0
             for page_index, page in enumerate(pdf.pages):
+                page_number = page_index + 1
+                extract_text = getattr(page, "extract_text", None)
+                page_text = (extract_text() or "") if callable(extract_text) else ""
+                page_texts.append(page_text)
+                if _is_pdf_scoring_page(page_text):
+                    ocr_pages.add(page_number)
+                page_width = float(getattr(page, "width", 0) or 0)
+                page_height = float(getattr(page, "height", 0) or 0)
+                page_area = max(page_width * page_height, 1.0)
+                for image in getattr(page, "images", ()) or ():
+                    image_area = max(0.0, float(image.get("x1", 0)) - float(image.get("x0", 0))) * max(
+                        0.0, float(image.get("bottom", 0)) - float(image.get("top", 0))
+                    )
+                    if image_area / page_area >= 0.2:
+                        ocr_pages.add(page_number)
                 tables = page.extract_tables() or []
                 for raw_table in tables:
                     table = _normalise_pdf_table(raw_table)
@@ -181,8 +204,10 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                     if max_cols <= 0:
                         continue
                     rows = [row + [""] * (max_cols - len(row)) for row in table]
+                    if _is_pdf_score_table(rows):
+                        ocr_pages.add(page_number)
                     extracted_tables.append({
-                        "sourcePage": page_index + 1,
+                        "sourcePage": page_number,
                         "sourceTableIndex": table_index,
                         "rows": rows,
                     })
@@ -223,9 +248,132 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                     "cells": cells,
                     "isScoreTable": _is_pdf_score_table(rows),
                 })
+            text_blocks, ocr_warnings = _extract_pdf_ocr_text_blocks(
+                pdf_path, sorted(ocr_pages), page_texts
+            )
+            artifact["textBlocks"] = text_blocks
+            artifact["warnings"].extend(ocr_warnings)
     except Exception as exc:
         artifact["warnings"].append(f"pdf table extraction failed: {exc}")
     return artifact
+
+
+def _is_pdf_scoring_page(text: str) -> bool:
+    return bool(re.search(r"(?:评分|评审).{0,16}(?:标准|办法|细则|因素)|分值构成", text))
+
+
+def _extract_pdf_ocr_text_blocks(
+    pdf_path: str, requested_pages: list[int], native_page_texts: list[str]
+) -> tuple[list[dict], list[str]]:
+    if not requested_pages:
+        return [], []
+    limit = _pdf_ocr_page_limit()
+    selected_pages = requested_pages[:limit]
+    warnings: list[str] = []
+    if len(requested_pages) > limit:
+        warnings.append(f"PDF OCR 页数超限：仅处理评分相关页前 {limit} 页")
+    try:
+        import pymupdf
+
+        document = pymupdf.open(pdf_path)
+    except Exception:
+        return [], ["PDF OCR 初始化失败，文字证据未生成"]
+
+    blocks: list[dict] = []
+    current_section = ""
+    try:
+        for page_number in selected_pages:
+            page_text = native_page_texts[page_number - 1] if page_number <= len(native_page_texts) else ""
+            try:
+                pixmap = document.load_page(page_number - 1).get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
+                process = subprocess.run(
+                    ["tesseract", "stdin", "stdout", "-l", "chi_sim+eng", "--psm", "6", "tsv"],
+                    input=pixmap.tobytes("png"), capture_output=True, timeout=12, check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                warnings.append(f"PDF 第 {page_number} 页 OCR 不可用")
+                continue
+            if process.returncode != 0:
+                warnings.append(f"PDF 第 {page_number} 页 OCR 失败")
+                continue
+            page_blocks = _parse_tesseract_tsv(process.stdout.decode("utf-8", errors="replace"), page_number,
+                                               pixmap.width, pixmap.height)
+            ocr_text = "\n".join(block["text"] for block in page_blocks)
+            current_section = _pdf_section_heading(page_text) or _pdf_section_heading(ocr_text) or current_section
+            native_normalized = _normalize_pdf_text(page_text)
+            for block in page_blocks:
+                if _normalize_pdf_text(block["text"]) in native_normalized:
+                    continue
+                block["sourceSection"] = current_section
+                blocks.append(block)
+    finally:
+        document.close()
+    return blocks, warnings
+
+
+def _parse_tesseract_tsv(tsv: str, page_number: int, image_width: int, image_height: int) -> list[dict]:
+    paragraphs: dict[tuple[str, str], dict] = {}
+    for row in csv.DictReader(io.StringIO(tsv), delimiter="\t"):
+        token = (row.get("text") or "").strip()
+        try:
+            confidence = float(row.get("conf", "-1"))
+            left, top = int(row["left"]), int(row["top"])
+            width, height = int(row["width"]), int(row["height"])
+        except (TypeError, ValueError, KeyError):
+            continue
+        if not token or confidence < 0:
+            continue
+        key = (row.get("block_num", "0"), row.get("par_num", "0"))
+        value = paragraphs.setdefault(key, {"lines": {}, "confidence": [], "left": left,
+                                              "top": top, "right": left + width, "bottom": top + height})
+        line = value["lines"].setdefault(row.get("line_num", "0"), [])
+        line.append(token)
+        value["confidence"].append(confidence)
+        value["left"] = min(value["left"], left)
+        value["top"] = min(value["top"], top)
+        value["right"] = max(value["right"], left + width)
+        value["bottom"] = max(value["bottom"], top + height)
+
+    result = []
+    for index, value in enumerate(paragraphs.values(), start=1):
+        confidence = min(value["confidence"])
+        text = "\n".join(" ".join(value["lines"][line]) for line in sorted(value["lines"], key=int)).strip()
+        if confidence < PDF_OCR_MIN_CONFIDENCE or len(text) < 6:
+            continue
+        left, top, right, bottom = value["left"], value["top"], value["right"], value["bottom"]
+        result.append({
+            "blockId": f"p{page_number}-ocr-{index}",
+            "sourcePage": page_number,
+            "sourceSection": "",
+            "text": text,
+            "confidence": confidence,
+            "bounds": {"left": left, "top": top, "width": right - left, "height": bottom - top,
+                       "imageWidth": image_width, "imageHeight": image_height},
+        })
+    return result
+
+
+def _pdf_section_heading(text: str) -> str:
+    for line in text.splitlines():
+        candidate = " ".join(line.split()).strip(" ：:")
+        if len(candidate) > 80:
+            continue
+        if re.match(r"^第[一二三四五六七八九十百\d]+[章节部分].{0,60}$", candidate):
+            return candidate
+        if re.fullmatch(r".{0,12}(?:评审办法|评分办法|评审标准|评分标准|评审细则|评分细则|合同履约考核).{0,12}", candidate):
+            return candidate
+    return ""
+
+
+def _normalize_pdf_text(text: str) -> str:
+    return re.sub(r"\s+", "", text or "").lower()
+
+
+def _pdf_ocr_page_limit() -> int:
+    try:
+        return max(0, min(int(os.getenv("SIDECAR_PDF_OCR_MAX_PAGES", PDF_OCR_MAX_PAGES)), 100))
+    except (TypeError, ValueError):
+        return PDF_OCR_MAX_PAGES
 
 
 def _build_pdf_artifact_header(path: str) -> dict:

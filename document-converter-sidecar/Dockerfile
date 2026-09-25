@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpoppler-cpp-dev \
         # Tesseract OCR (optional — enables scanned-PDF extraction)
         tesseract-ocr \
+        tesseract-ocr-chi-sim \
     && rm -rf /var/lib/apt/lists/*
 
 # Non-root user for security

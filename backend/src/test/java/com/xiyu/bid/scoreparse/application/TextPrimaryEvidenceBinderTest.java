@@ -169,4 +169,165 @@ class TextPrimaryEvidenceBinderTest {
         assertThat(bound.get(0).tableId()).isEqualTo("t-1");
         assertThat(bound.get(0).sourceCellIds()).containsExactly("t-r1-c1");
     }
+
+    @Test
+    void bindsUniqueVerbatimQuoteToPhysicalPageWhenFactUsesPrintedPageNumber() {
+        var cell = new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                "pdf-p34-r2-c1", 2, 1, "独特来源证据完整保留。", "独特来源证据完整保留。", 1, 1,
+                false, "pdf:page=34;line=12", 34, "");
+        var table = new DocumentArtifact.CanonicalTable("pdf-p34-t1", 34, "第三章 评审标准", 3, 2,
+                List.of(), List.of(cell), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "table-v2"),
+                List.of(table), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审标准", "1", "", "技术方案", BigDecimal.TEN,
+                "独特来源证据完整保留。", "SUBJECTIVE", 29, "", List.of(),
+                "独特来源证据完整保留。", 0.9, ChildAggregation.SUM);
+
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(bound.pageNumber()).isEqualTo(34);
+        assertThat(bound.tableId()).isEqualTo("pdf-p34-t1");
+        assertThat(bound.sourceCellIds()).containsExactly("pdf-p34-r2-c1");
+    }
+
+    @Test
+    void doesNotUseUnmappedPageHintToChooseBetweenDuplicateVerbatimQuotes() {
+        var page29 = new DocumentArtifact.CanonicalTable("pdf-p29-t1", 29, "第三章 评审标准", 1, 1,
+                List.of(), List.of(new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                "pdf-p29-r1-c1", 1, 1, "重复的原文句子。", "重复的原文句子。", 1, 1,
+                false, "pdf:page=29;line=4", 29, "")), true);
+        var page34 = new DocumentArtifact.CanonicalTable("pdf-p34-t1", 34, "第三章 评审标准", 1, 1,
+                List.of(), List.of(new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                "pdf-p34-r1-c1", 1, 1, "重复的原文句子。", "重复的原文句子。", 1, 1,
+                false, "pdf:page=34;line=4", 34, "")), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "table-v2"),
+                List.of(page29, page34), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审标准", "1", "", "技术方案", BigDecimal.TEN,
+                "重复的原文句子。", "SUBJECTIVE", 29, "", List.of(),
+                "重复的原文句子。", 0.9, ChildAggregation.SUM);
+
+        var unbound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(unbound.tableId()).isBlank();
+        assertThat(unbound.sourceCellIds()).isEmpty();
+    }
+
+    @Test
+    void doesNotTreatPunctuationDifferenceAsVerbatimEvidence() {
+        var cell = new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                "pdf-p34-r1-c1", 1, 1, "独特评分规则，满足条件得10分。", "独特评分规则，满足条件得10分。",
+                1, 1, false, "pdf:page=34;line=4", 34, "");
+        var table = new DocumentArtifact.CanonicalTable("pdf-p34-t1", 34, "第三章 评审标准", 1, 1,
+                List.of(), List.of(cell), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "table-v2"),
+                List.of(table), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审标准", "1", "", "技术方案", BigDecimal.TEN,
+                "独特评分规则 满足条件得10分", "SUBJECTIVE", 29, "", List.of(),
+                "独特评分规则 满足条件得10分", 0.9, ChildAggregation.SUM);
+
+        var unbound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(unbound.tableId()).isBlank();
+        assertThat(unbound.sourceCellIds()).isEmpty();
+    }
+
+    @Test
+    void bindsUniqueExactOcrTextToPhysicalPageAndBoundingBoxOnlyInsideItsScheme() {
+        String section = "第三章 评审标准";
+        String schemeId = com.xiyu.bid.scoreparse.domain.OriginalScoringContext.schemeId(section);
+        var block = new DocumentArtifact.TextBlockEvidence("p34-b7", 34, section,
+                "原文规则完整保留并逐字匹配。", 94.0,
+                new DocumentArtifact.BoundingBox(120, 300, 420, 65, 1190, 1684));
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "pdf-ocr"),
+                List.of(), List.of(), List.of(block), "2.2");
+        var fact = new MultimodalScoreFact(section, "1", "", "技术方案", BigDecimal.TEN,
+                "原文规则完整保留并逐字匹配。", "SUBJECTIVE", 29, "", List.of(),
+                "原文规则完整保留并逐字匹配。", 0.9, ChildAggregation.SUM, schemeId, "IN_SCHEME");
+
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(bound.pageNumber()).isEqualTo(34);
+        assertThat(bound.tableId()).isBlank();
+        assertThat(bound.sourceCellIds()).singleElement()
+                .asString().contains("pdf:page=34", "bbox=120,300,420,65");
+    }
+
+    @Test
+    void bindsContinuousChineseQuoteToTesseractTextWithTokenSpaces() {
+        String section = "第三章 评审标准";
+        String quote = "技术评分标准";
+        var block = new DocumentArtifact.TextBlockEvidence("p34-b8", 34, section,
+                "技术 评分 标准", 94.0,
+                new DocumentArtifact.BoundingBox(120, 300, 420, 65, 1190, 1684));
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "pdf-ocr"),
+                List.of(), List.of(), List.of(block), "2.2");
+        var schemeId = com.xiyu.bid.scoreparse.domain.OriginalScoringContext.schemeId(section);
+        var fact = new MultimodalScoreFact(section, "1", "", "技术", BigDecimal.TEN,
+                quote, "SUBJECTIVE", 29, "", List.of(), quote, 0.9, ChildAggregation.SUM,
+                schemeId, "IN_SCHEME");
+
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(bound.pageNumber()).isEqualTo(34);
+        assertThat(bound.sourceCellIds()).singleElement()
+                .asString().contains("pdf:page=34", "bbox=120,300,420,65");
+    }
+
+    @Test
+    void doesNotEraseMeaningfulLatinWordSpacesWhenMatchingOcrText() {
+        String section = "第三章 评审标准";
+        var block = new DocumentArtifact.TextBlockEvidence("p34-b9", 34, section,
+                "No bid", 94.0,
+                new DocumentArtifact.BoundingBox(120, 300, 420, 65, 1190, 1684));
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "pdf-ocr"),
+                List.of(), List.of(), List.of(block), "2.2");
+        var fact = new MultimodalScoreFact(section, "1", "", "技术", BigDecimal.TEN,
+                "Nobid", "SUBJECTIVE", 29, "", List.of(), "Nobid", 0.9, ChildAggregation.SUM,
+                com.xiyu.bid.scoreparse.domain.OriginalScoringContext.schemeId(section), "IN_SCHEME");
+
+        var unbound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(unbound.pageNumber()).isEqualTo(29);
+        assertThat(unbound.sourceCellIds()).isEmpty();
+    }
+
+    @Test
+    void refusesLowConfidenceOrOutOfSchemeOcrText() {
+        var box = new DocumentArtifact.BoundingBox(10, 20, 100, 30, 1190, 1684);
+        var lowConfidence = new DocumentArtifact.TextBlockEvidence(
+                "p34-b1", 34, "第三章 评审标准", "只差一个字的OCR内容", 42.0, box);
+        var otherScheme = new DocumentArtifact.TextBlockEvidence(
+                "p35-b1", 35, "第四章 合同履约考核", "完全相同的来源句子。", 97.0, box);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "pdf-ocr"),
+                List.of(), List.of(), List.of(lowConfidence, otherScheme), "2.2");
+        var fact = new MultimodalScoreFact("第三章 评审标准", "1", "", "技术方案", BigDecimal.TEN,
+                "完全相同的来源句子。", "SUBJECTIVE", 29, "", List.of(),
+                "完全相同的来源句子。", 0.9, ChildAggregation.SUM,
+                com.xiyu.bid.scoreparse.domain.OriginalScoringContext.schemeId("第三章 评审标准"), "IN_SCHEME");
+
+        var unbound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(unbound.pageNumber()).isEqualTo(29);
+        assertThat(unbound.sourceCellIds()).isEmpty();
+    }
+
+    @Test
+    void refusesDuplicateExactOcrQuotesEvenWhenPageHintMatchesOne() {
+        String section = "第三章 评审标准";
+        String quote = "多页重复的OCR原文句子。";
+        var box = new DocumentArtifact.BoundingBox(10, 20, 100, 30, 1190, 1684);
+        var first = new DocumentArtifact.TextBlockEvidence("p29-b1", 29, section, quote, 94.0, box);
+        var second = new DocumentArtifact.TextBlockEvidence("p34-b1", 34, section, quote, 95.0, box);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "pdf-ocr"),
+                List.of(), List.of(), List.of(first, second), "2.2");
+        var schemeId = com.xiyu.bid.scoreparse.domain.OriginalScoringContext.schemeId(section);
+        var fact = new MultimodalScoreFact(section, "1", "", "技术方案", BigDecimal.TEN,
+                quote, "SUBJECTIVE", 29, "", List.of(), quote, 0.9, ChildAggregation.SUM,
+                schemeId, "IN_SCHEME");
+
+        var unbound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(unbound.pageNumber()).isEqualTo(29);
+        assertThat(unbound.sourceCellIds()).isEmpty();
+    }
 }

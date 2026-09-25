@@ -1,4 +1,4 @@
-// Input: Sidecar DocumentArtifact schemaVersion=2.0/2.1 JSON
+// Input: Sidecar DocumentArtifact schemaVersion=2.0/2.1/2.2 JSON
 // Output: 不可变 CanonicalTableGrid 结构 + 结构验证结果
 // Pos: scoreparse/domain/grid — 纯核心，无框架依赖（spec 059 Phase 1）
 package com.xiyu.bid.scoreparse.domain.grid;

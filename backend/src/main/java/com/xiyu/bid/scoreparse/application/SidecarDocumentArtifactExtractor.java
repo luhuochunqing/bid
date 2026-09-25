@@ -1,4 +1,4 @@
-// Input: Sidecar DocumentArtifact schemaVersion=2.1 JSON (v2.0 remains readable)
+// Input: Sidecar DocumentArtifact schemaVersion=2.2 JSON (v2.0/2.1 remain readable)
 // Output: DocumentArtifact 值对象（含 artifact/tables/warnings）
 // Pos: scoreparse/application — /extract-tables 客户端的 v2 解析路径（Phase 1）
 package com.xiyu.bid.scoreparse.application;
@@ -85,7 +85,7 @@ public class SidecarDocumentArtifactExtractor {
                 .uri(URI.create(sidecarUrl + "/extract-tables"))
                 .timeout(Duration.ofSeconds(extractTimeoutSeconds))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                // Request v2.1; v2.0 responses remain compatible because logicalRowId is optional.
+                // Request v2.2; v2.0/v2.1 remain compatible because added evidence is optional.
                 .header("X-Schema-Version", DocumentArtifact.SUPPORTED_SCHEMA_VERSION);
         if (!sharedKey.isBlank()) {
             requestBuilder.header(SidecarMultipart.SIDECAR_KEY_HEADER, sharedKey);

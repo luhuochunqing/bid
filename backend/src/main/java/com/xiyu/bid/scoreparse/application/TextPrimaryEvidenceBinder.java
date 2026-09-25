@@ -57,6 +57,7 @@ final class TextPrimaryEvidenceBinder {
         List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact, tenderText);
         return facts.stream().map(fact -> {
             if (!fact.tableId().isBlank() && !fact.sourceCellIds().isEmpty()) return fact;
+            // Page hints may be printed page labels; an exact unique artifact match owns the physical locator.
             List<Object[]> exactCells = artifact == null ? List.of() : artifact.tables().stream()
                     .flatMap(table -> table.cells().stream().map(cell -> new Object[]{table, cell}))
                     .filter(pair -> matches(fact, pair, schemes)).toList();
@@ -65,8 +66,30 @@ final class TextPrimaryEvidenceBinder {
                     : artifact == null ? java.util.Optional.<MultimodalScoreFact>empty()
                     : LogicalRowEvidenceBinder.bind(fact, artifact, schemes);
             if (bound.isPresent()) return bound.get();
+            if (exactCells.isEmpty() && artifact != null) {
+                var ocrBound = textBlockEvidence(fact, artifact);
+                if (ocrBound.isPresent()) return ocrBound.get();
+            }
             return textEvidence(fact, tenderText, normalizedText).orElse(fact);
         }).toList();
+    }
+
+    private static java.util.Optional<MultimodalScoreFact> textBlockEvidence(
+            MultimodalScoreFact fact, DocumentArtifact artifact) {
+        if (!"IN_SCHEME".equals(fact.scopeStatus()) || fact.schemeId().isBlank()
+                || fact.quotedText().isBlank()) return java.util.Optional.empty();
+        String quote = normalizeOcrForMatching(fact.quotedText());
+        List<DocumentArtifact.TextBlockEvidence> matches = artifact.textBlocks().stream()
+                .filter(DocumentArtifact.TextBlockEvidence::isVerifiable)
+                .filter(block -> fact.schemeId().equals(OriginalScoringContext.schemeId(block.sourceSection())))
+                .filter(block -> normalizeOcrForMatching(block.text()).contains(quote))
+                .toList();
+        if (matches.size() != 1) return java.util.Optional.empty();
+        DocumentArtifact.TextBlockEvidence block = matches.get(0);
+        return java.util.Optional.of(new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(),
+                fact.dimension(), fact.weight(), fact.ruleText(), fact.scoreType(), block.sourcePage(), "",
+                List.of(block.locator()), fact.quotedText(), fact.confidence(), fact.childAggregation(),
+                fact.schemeId(), fact.scopeStatus()));
     }
 
     private static java.util.Optional<MultimodalScoreFact> textEvidence(MultimodalScoreFact fact, String tenderText,
@@ -92,6 +115,10 @@ final class TextPrimaryEvidenceBinder {
                 .replace('\u2007', ' ').replace('\u202f', ' ')
                 .replaceAll("\\*\\*|__", "")
                 .replaceAll("[\\t\\r\\n]+", " ").replaceAll(" +", " ").trim();
+    }
+
+    private static String normalizeOcrForMatching(String value) {
+        return normalizeForEvidence(value).replaceAll("(?<=\\p{IsHan})\\s+(?=\\p{IsHan})", "");
     }
 
     private static int lineOfOffset(String source, int offset) {
@@ -146,7 +173,6 @@ final class TextPrimaryEvidenceBinder {
         var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
         String raw = cell.rawText() == null ? "" : cell.rawText();
         String normalizedQuote = normalizeForEvidence(fact.quotedText());
-        Integer page = cell.sourcePage() == null ? table.sourcePage() : cell.sourcePage();
         String tableScheme = OriginalScoringContext.schemeTitleForTable(table);
         String tableSchemeId = schemes.stream().filter(scheme -> scheme.tableIds().contains(table.tableId()))
                 .map(OriginalScoringContext.SchemeEvidence::schemeId).findFirst()
@@ -160,8 +186,7 @@ final class TextPrimaryEvidenceBinder {
         }
         return !fact.quotedText().isBlank()
                 && !normalizedQuote.isBlank()
-                && normalizeForEvidence(raw).contains(normalizedQuote)
-                && (fact.pageNumber() == null || page == null || fact.pageNumber().equals(page));
+                && normalizeForEvidence(raw).contains(normalizedQuote);
     }
 
     private static MultimodalScoreFact bound(MultimodalScoreFact fact, Object[] pair) {

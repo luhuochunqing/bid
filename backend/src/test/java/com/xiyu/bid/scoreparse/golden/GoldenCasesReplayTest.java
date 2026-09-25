@@ -280,6 +280,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-score-total-evidence-roles"),
                 Arguments.of("case-upstream-scoring-integrity"),
                 Arguments.of("case-docx-run-boundary-score"),
+                Arguments.of("case-ocr-chinese-token-spaces"),
                 Arguments.of("case-project-1384-docx-continuation"));
     }
 

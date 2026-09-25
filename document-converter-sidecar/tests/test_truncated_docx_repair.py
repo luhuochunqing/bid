@@ -77,7 +77,7 @@ def test_extract_tables_artifact_on_truncated_docx(tmp_path):
     truncated_file.write_bytes(truncated_bytes)
 
     artifact = extract_tables_artifact(str(truncated_file))
-    assert artifact["schemaVersion"] == "2.1"
+    assert artifact["schemaVersion"] == "2.2"
     assert len(artifact["tables"]) == 1
     table = artifact["tables"][0]
     assert table["isScoreTable"] is True

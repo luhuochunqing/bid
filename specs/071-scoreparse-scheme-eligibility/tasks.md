@@ -152,3 +152,32 @@
 ## Implementation Strategy
 
 Implement one requested behavior at a time. First make eligibility affect server and client defaults while preserving excluded facts. Then fix the scheme boundary and cross-table grouping that supply eligibility. Next fix mutually exclusive grade scoring independently of cumulative child aggregation. Finish with both redacted project-shaped replays and explicit reporting of the external test-system acceptance state.
+
+## Phase 9: PDF source locator page and OCR alignment
+
+**Goal**: Resolve unique literal citations against canonical physical PDF evidence despite printed-page hints, and carry only source-verifiable OCR text into the same locator contract.
+
+### Tests first
+
+- [x] T059 Add a Java RED test in `backend/src/test/java/com/xiyu/bid/scoreparse/application/TextPrimaryEvidenceBinderTest.java`: exact unique quote, model/printed page 29, artifact physical page 34 binds to the artifact page/cell.
+- [x] T060 Add adversarial Java tests: duplicate exact quote on different physical pages remains unbound even if the model page equals one physical page; no semantic or punctuation-insensitive matching is introduced.
+- [x] T061 Add a synthetic PDF Sidecar RED fixture in `document-converter-sidecar/tests/test_pdf_table_artifact.py` containing text that is absent from the embedded PDF text layer but recoverable by the configured OCR path; assert returned source evidence includes exact text, physical page, and bounded line/region locator. Do not use task 267 source data.
+
+### Implementation after RED
+
+- [x] T062 In `backend/src/main/java/com/xiyu/bid/scoreparse/application/TextPrimaryEvidenceBinder.java`, use the artifact physical page as canonical for a unique exact quote. A model page hint cannot disambiguate duplicate artifact matches.
+- [x] T063 T061 proved the Sidecar OCR tools emit bounded evidence. Add the optional OCR artifact to the PDF converter contract, install its runtime dependencies/language package, and accept only a unique exact literal match scoped to the cited scheme. Do not create guessed locators.
+- [x] T064 Run focused Java and Sidecar PDF tests, existing `OriginalScoreEvidencePolicyTest` and `PdfEvidencePipelineTest`, and applicable architecture/static checks; retain exact pass/fail/skip counts.
+- [x] T065 Run mandatory Mode B deletion-first cleanup, rerun fresh verification, and perform read-only three-lens review. Update this spec only with accepted behavior and actual residual limits.
+
+No production deployment or production data mutation is included in this phase. Test-site deployment/reparse is authorized as follow-up acceptance but is blocked until backend health is restored; PR/merge remain separate delivery steps.
+
+### Phase 9 verification evidence (2026-09-25)
+
+- RED/GREEN: unique quote at printed page 29 / artifact physical page 34 failed before page filtering was removed and passed afterward; duplicate exact quotes remain unbound; punctuation differences do not become exact evidence.
+- OCR: a raster-only synthetic PDF with Chinese scoring text is recognized by the shipped container's `chi_sim+eng` Tesseract path and emits page/bounds. The test also verifies OCR failure falls back to no binding.
+- Java: `TextPrimaryEvidenceBinderTest`, `SidecarDocumentArtifactExtractorTest`, `CanonicalTableGridTest`, `FPJavaArchitectureTest` — 58 run, 0 failures/errors/skips.
+- Sidecar: `pytest -q tests` in the candidate container with test dependencies — 125 passed. The OCR fixture uses Chinese text and validates the actual PDF render → Tesseract path.
+- Adjacent regression: `OriginalScoreEvidencePolicyTest` 29/29 passed. `PdfEvidencePipelineTest` had 2 failures in 7; the same two failures were reproduced with the old page guard restored, so they are pre-existing and outside this source-locator change.
+- Static: Python compile, `git diff --check`, line-budget check, and Java/Python keyword sync passed.
+- Test-site acceptance remains pending: health check shows backend DEAD due failed Flyway migration V1218; no deploy or reparse was run.

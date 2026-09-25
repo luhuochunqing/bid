@@ -10,7 +10,7 @@ import java.util.Optional;
  * Sidecar DocumentArtifact v2 响应（spec 059 Phase 1）。
  * <p>本模型作为 CanonicalTableGridFactory 的输入。整体契约：
  * <ul>
- *   <li>{@code schemaVersion} 必须为 {@link #SUPPORTED_SCHEMA_VERSION} 或兼容的 {@link #LEGACY_SCHEMA_VERSION}</li>
+ *   <li>{@code schemaVersion} 必须为受支持的当前版本或兼容的历史版本</li>
  *   <li>{@code artifact.sha256} 必须与落库任务输入文件的 SHA-256 一致（Phase 4 校验）</li>
  *   <li>{@code tables[*]} 数组中的每个表都必须能通过 {@link CanonicalTableGridFactory}</li>
  * </ul>
@@ -25,24 +25,63 @@ public record DocumentArtifact(
         ArtifactMeta artifact,
         List<CanonicalTable> tables,
         List<String> warnings,
+        List<TextBlockEvidence> textBlocks,
         String schemaVersion
 ) {
 
-    public static final String SUPPORTED_SCHEMA_VERSION = "2.1";
+    public static final String SUPPORTED_SCHEMA_VERSION = "2.2";
+    public static final String COMPATIBLE_SCHEMA_VERSION = "2.1";
     public static final String LEGACY_SCHEMA_VERSION = "2.0";
 
     public DocumentArtifact(ArtifactMeta artifact, List<CanonicalTable> tables, List<String> warnings) {
-        this(artifact, tables, warnings, SUPPORTED_SCHEMA_VERSION);
+        this(artifact, tables, warnings, List.of(), SUPPORTED_SCHEMA_VERSION);
+    }
+
+    public DocumentArtifact(ArtifactMeta artifact, List<CanonicalTable> tables, List<String> warnings,
+                            String schemaVersion) {
+        this(artifact, tables, warnings, List.of(), schemaVersion);
     }
 
     public DocumentArtifact {
         warnings = warnings == null ? List.of() : List.copyOf(warnings);
         tables = tables == null ? List.of() : List.copyOf(tables);
+        textBlocks = textBlocks == null ? List.of() : List.copyOf(textBlocks);
         schemaVersion = schemaVersion == null ? "" : schemaVersion;
     }
 
     public boolean hasSupportedSchemaVersion() {
-        return SUPPORTED_SCHEMA_VERSION.equals(schemaVersion) || LEGACY_SCHEMA_VERSION.equals(schemaVersion);
+        return SUPPORTED_SCHEMA_VERSION.equals(schemaVersion)
+                || COMPATIBLE_SCHEMA_VERSION.equals(schemaVersion)
+                || LEGACY_SCHEMA_VERSION.equals(schemaVersion);
+    }
+
+    /** Exact OCR text with physical PDF page and pixel-region provenance. */
+    public record TextBlockEvidence(String blockId, Integer sourcePage, String sourceSection,
+                                    String text, Double confidence, BoundingBox bounds) {
+        public TextBlockEvidence {
+            blockId = blockId == null ? "" : blockId;
+            sourceSection = sourceSection == null ? "" : sourceSection;
+            text = text == null ? "" : text;
+        }
+
+        public boolean isVerifiable() {
+            return sourcePage != null && !blockId.isBlank() && !sourceSection.isBlank() && !text.isBlank()
+                    && confidence != null && confidence >= 70.0 && bounds != null
+                    && bounds.left() >= 0 && bounds.top() >= 0 && bounds.width() > 0 && bounds.height() > 0
+                    && bounds.imageWidth() > 0 && bounds.imageHeight() > 0
+                    && bounds.left() + bounds.width() <= bounds.imageWidth()
+                    && bounds.top() + bounds.height() <= bounds.imageHeight();
+        }
+
+        public String locator() {
+            if (!isVerifiable()) return "";
+            return "pdf:page=" + sourcePage + ";ocr=" + blockId + ";bbox=" + bounds.left() + ","
+                    + bounds.top() + "," + bounds.width() + "," + bounds.height();
+        }
+    }
+
+    /** Coordinates are pixels in the rendered page; page dimensions make them reproducible. */
+    public record BoundingBox(int left, int top, int width, int height, int imageWidth, int imageHeight) {
     }
 
     /**

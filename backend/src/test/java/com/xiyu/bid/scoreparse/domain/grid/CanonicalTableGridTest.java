@@ -369,7 +369,7 @@ class CanonicalTableGridTest {
 
         @Test
         void supports_schema_version_constant() {
-            assertEquals("2.1", DocumentArtifact.SUPPORTED_SCHEMA_VERSION);
+            assertEquals("2.2", DocumentArtifact.SUPPORTED_SCHEMA_VERSION);
             assertNotNull(DocumentArtifact.SUPPORTED_SCHEMA_VERSION);
         }
     }

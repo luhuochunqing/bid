@@ -141,7 +141,7 @@ class TestArtifactHeader:
         path = _write_docx(doc)
         try:
             artifact = extract_tables_artifact(path)
-            assert artifact["schemaVersion"] == "2.1"
+            assert artifact["schemaVersion"] == "2.2"
             assert artifact["schemaVersion"] == SCHEMA_VERSION
         finally:
             os.unlink(path)
@@ -168,7 +168,7 @@ class TestArtifactHeader:
         tmp.close()
         try:
             artifact = extract_tables_artifact(tmp.name)
-            assert artifact["schemaVersion"] == "2.1"
+            assert artifact["schemaVersion"] == "2.2"
             assert artifact["artifact"]["fileType"] == "DOCX"
             # sha256 should still be computed for the uploaded file
             assert len(artifact["artifact"]["sha256"]) == 64
@@ -251,7 +251,7 @@ def test_docx_continuation_fragments_share_logical_row_but_independent_row_does_
     path = tmp_path / "continuation-and-independent.docx"
     doc.save(path)
     artifact = extract_tables_artifact(str(path))
-    assert artifact["schemaVersion"] == "2.1"
+    assert artifact["schemaVersion"] == "2.2"
     tables = artifact["tables"]
     assert [table["tableId"] for table in tables] == ["t-0000", "t-0001", "t-0002"]
     assert tables[0]["sourceSection"] == tables[1]["sourceSection"] == tables[2]["sourceSection"]

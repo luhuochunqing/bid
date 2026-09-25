@@ -17,3 +17,4 @@ pypandoc==1.17
 python-docx
 python-pptx
 PyMuPDF
+pdfplumber>=0.11,<0.12
