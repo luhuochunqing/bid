@@ -6746,3 +6746,17 @@ Lesson 392 的假通过还有一个放大器：Sidecar `/convert-images` 的 `.d
 - 文本、表格等不同证据载体都必须执行同一业务归属契约，不能因一种 locator 新增而绕过既有范围检查。
 - 重复修复时用跨章节反例验证根因行为；同方案子标题作为正例， peer 方案标题作为负例。
 - 本次本地领域回归通过；项目 1382 页面对应的生产重新解析和验收尚未执行，不能据此宣称线上结果已变化。
+
+
+## 405. 数据字典长期漂移的根源：迁移静态解析的六类盲区（V1218 注释回填，2026-09-25）
+
+### 根因与修复
+
+`docs/generated/db-schema.md` 由 `scripts/generate-db-schema.mjs` 静态解析 Flyway 迁移生成，长期存在 151 张表无表注释、1636 个字段无字段注释，且字典与真实 schema 存在结构性偏差。逐项排查定位出六类解析盲区：V1011 头注释内含分号（"-- Rename old table to deprecated; create new tables"）导致 `splitStatements` 把 ALTER 语句切进无法匹配的残片；80 处 `CALL add_column_if_not_exists('t','c','def')` 动态加列；V1026 式 `SELECT IF(...,'ALTER TABLE ...')` 预处理动态 DDL；V1115 式存储过程体内嵌 `IF ... THEN ALTER TABLE`（含 schema 漂移修复列）；一条 ALTER 携带多个 ADD COLUMN 子句只解析首个（V1016 一次加几十列）；`ALTER TABLE ... RENAME TO`（V1011 品牌授权表改名）不识别导致新旧两个表名并存。修复：生成器新增动态 SQL 展开（CALL 辅助过程合成等价 DDL、字符串字面量 DDL 提取）、按行剥离行注释后再按分号切分、多 ADD COLUMN 循环解析、RENAME/DROP TABLE/DROP COLUMN/CHANGE COLUMN 语义，以及 binary/varbinary/blob 族类型识别。V1218 迁移为 151 张表 + 1636 个字段补齐中文 COMMENT（定义逐列取自迁移链构建库，仅元数据变更），重新生成字典后与 information_schema 实测双向 diff 归零、空注释清零。
+
+### 可复用纪律
+
+- 机器生成的"真相文档"必须定期与真实环境双向 diff（字典列集 vs `information_schema` 列集），漂移会在无声中累积数月。
+- 写迁移时优先用静态可解析的写法：避免头注释内出现分号；能写普通 ALTER 就不要包存储过程；一条 ALTER 多子句时确认工具链可解析。
+- 只改注释的元数据迁移，验证方法是"前后 SHOW CREATE TABLE 去注释后逐字节一致"，比逐条人工审查可靠；配套 U 回滚同样做双向验证。
+- 给大表批量补注释时，列定义必须取自迁移链构建出的库（或 information_schema），严禁手写类型/默认值，避免 MODIFY COLUMN 意外改变结构属性。
