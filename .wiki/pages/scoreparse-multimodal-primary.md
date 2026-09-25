@@ -185,3 +185,7 @@ archive: false
 - `TextPrimaryEvidenceBinder` 只在 OCR 匹配时折叠相邻汉字间空格。英文/数字词间空格仍是原文差异；不做语义相似或标点模糊匹配。
 - OCR locator 仍须唯一精确引用、同一评分方案、高置信度和有效 bbox；重复引用不允许用模型页码提示消歧。
 - 合成中文扫描件和跨层绑定回归通过。真实 task 267 测试站重解析因后端 Flyway V1218 故障仍未验收。
+
+## 项目 1384 真实 DOCX 入口契约
+
+- PR #2757 的方案资格逻辑遇到 Markdown 加粗标题/总分与无 `sourceSection` 的表格时，实际项目仍会得到 0 条合格候选；根因证据、误归属风险和真实文件回归判据见 [[scoreparse-1384-docx-scheme-contract-rca]]。
