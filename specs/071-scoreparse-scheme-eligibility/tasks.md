@@ -120,7 +120,7 @@
 ### Sidecar contract (RED/GREEN before Java changes)
 
 - [x] T049 [P] [US5] Add generated DOCX regressions in `document-converter-sidecar/tests/test_extract_tables_v2.py` for a split scoring row, an adjacent complete independent row and a repeated header. Assert only proven continuation shares `logicalRowId`; physical table/cell IDs, coordinates and XML paths remain unchanged. RED observed before implementation.
-- [x] T050 [US5] Emit stable `logicalRowId` for every v2.1 cell in `document-converter-sidecar/table_extractor.py`; link only adjacent same-section tables with compatible columns, no repeated header, blank score/identity cells and non-empty continuation rule text when the predecessor is unique. Update schema-version assertions. Java remains backward-compatible with v2.0 cells lacking this field.
+- [x] T050 [US5] Emit stable `logicalRowId` for every v2.1 cell in `document-converter-sidecar/table_extractor.py`; link only adjacent same-section tables with compatible columns, a predecessor score-value header, blank score/identity cells in the continuation row, and a later complete row with numeric score plus criterion text. Do not trust keyword-only `isScoreTable` classification as continuation proof: ordinary tables containing “评审” must not link. Update schema-version assertions. Java remains backward-compatible with v2.0 cells lacking this field.
 
 ### Exact Java source binding and qualification (after T050)
 
@@ -129,18 +129,18 @@
 - [x] T053 [US5] Add qualification and validator regressions for same-row multi-table sources, missing cell IDs, different logical rows and cross-scheme sources. Verify Java deserializes v2.1 `logicalRowId` and v2.0 artifacts without it; require every cited ID to resolve and cross-table IDs to share a logical row/scheme with an exact joined quote, while retaining legacy single-table and text locator behavior.
 - [x] T054 [US5] Add synthetic/redacted `case-project-1384-docx-continuation.md` and `.expected.json` under `backend/src/test/resources/scoreparse-golden/`, register it in `GoldenCasesReplayTest#cases()`, and assert synthetic score extraction and 100-point closure. Keep exact emphasis/`and`/`和` reconstruction and continuation citations asserted by binder/validator tests. Do not commit the real DOCX.
 
-### Fresh cleanup, verification, review and test acceptance
+### Fresh cleanup, verification and independent code review
 
-- [ ] T055 [US5] Run `ai-slop-cleaner` Mode B on the follow-up diff and record cleanup evidence. Then run the new Sidecar and Java/Golden cases, `mvn -q -Dtest=FPJavaArchitectureTest test`, `npm run build` and applicable PR gates after cleanup.
-- [ ] T056 [US5] Run fresh health and read-only XiYu three-lens source review against the new diff and T055 evidence; classify code findings separately from the still-pending real acceptance, and do not push. Record this review round; it cannot reuse prior S6 evidence.
-- [ ] T057 [US5] Only when the source review has no code blocker and test readiness is healthy, deploy this exact commit to ENV=test and reparse the existing 1384 DOCX; record release/input SHA, task ID/time, each missing fact's citations and qualification, `/review`, `/items`, UI and preserved formal items. The historical V1218 failure blocks this task until resolved; do not repair migration history or the DB as part of this fix.
-- [ ] T058 [US5] Run final read-only review on fresh real acceptance evidence. Update existing PR #2760 only when MERGE_READY; if test DB readiness remains blocked, report code verification separately and leave live acceptance/PR delivery pending.
+- [x] T055 [US5] Run `ai-slop-cleaner` Mode B on the follow-up diff and record cleanup evidence. Then run the new Sidecar and Java/Golden cases, `mvn -q -Dtest=FPJavaArchitectureTest test`, `npm run build` and applicable PR gates after cleanup.
+- [x] T056 [US5] Run fresh health and read-only XiYu three-lens source review against the new diff and T055 evidence; classify code findings separately from the still-pending real acceptance. Record this review round; it cannot reuse prior S6 evidence.
+- [ ] T057 [US5] After fresh T055/T056 evidence, independently pursue test-site readiness and, only when healthy, deploy the exact candidate to ENV=test and reparse the existing 1384 DOCX; record release/input SHA, task ID/time, missing facts' citations and qualification, `/review`, `/items`, UI and preserved formal items. This proceeds independently of PR review. The historical V1218 failure blocks deployment until resolved; do not repair migration history or the DB as part of this fix.
+- [ ] T058 [US5] Update existing PR #2760 as soon as fresh code-only S6 reaches MERGE_READY, without waiting for T057 live acceptance, so PR review and test-site readiness can proceed in parallel. Keep merge and live acceptance blocked until Flyway validation passes and real DOCX reparse evidence is reviewed.
 
 ## Dependencies
 
 - User Story order follows the requested sequence: US1 eligibility gate → US2 logical scheme extraction/total/parent grouping → US3 weight semantics → US4 two-project replay.
 - Within each story, tests are written and run before implementation; new conversion-contract tasks T038–T041 precede qualification tasks T042–T044. T045–T047 were completed for the prior source revision; their evidence is stale after this follow-up change and must not be reused.
-- T057 remains ENV=test only and requires fresh T055/T056 evidence plus healthy readiness. T058 and PR update require real reparse acceptance. No production deployment or database repair is authorized.
+- T057 remains ENV=test only and requires fresh T055/T056 evidence plus healthy readiness; it runs independently of PR review. T058 requires code-only MERGE_READY and can occur before T057 completes. Merge/live acceptance additionally require real reparse evidence. No production deployment or database repair is authorized.
 
 ## Parallel Opportunities
 

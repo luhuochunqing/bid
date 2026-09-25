@@ -394,7 +394,8 @@ def _link_unique_continuation(previous: dict[str, Any], current: dict[str, Any])
     """Share a row identity only for an immediately adjacent, same-section continuation."""
     if previous["sourceSection"] != current["sourceSection"]:
         return
-    if previous["columns"] != current["columns"] or not previous["isScoreTable"]:
+    if (previous["columns"] != current["columns"]
+            or not previous["isScoreTable"] or not current["isScoreTable"]):
         return
 
     previous_cells = previous["cells"]
@@ -410,6 +411,16 @@ def _link_unique_continuation(previous: dict[str, Any], current: dict[str, Any])
     marker = re.compile(r"序号|编号|评分项|评审因素|评分因素|指标|分值|得分|权重|评分类别")
     marker_columns = {column for column, text in headers.items() if marker.search(text)}
     if not marker_columns:
+        return
+    score_columns = {
+        column for column, text in headers.items()
+        if re.search(r"分值|得分|权重", text)
+    }
+    criterion_columns = {
+        column for column in marker_columns - score_columns
+        if not re.search(r"序号|编号", headers.get(column, ""))
+    }
+    if not score_columns or not _has_later_score_row(current_cells, columns, criterion_columns, score_columns):
         return
 
     first_row = [cell for cell in current_cells if cell["row"] == 0]
@@ -433,6 +444,28 @@ def _link_unique_continuation(previous: dict[str, Any], current: dict[str, Any])
     logical_row_id = f"{previous['tableId']}-r{last_row_index}"
     for cell in first_row:
         cell["logicalRowId"] = logical_row_id
+
+
+def _has_later_score_row(
+    cells: list[dict[str, Any]],
+    columns: int,
+    criterion_columns: set[int],
+    score_columns: set[int],
+) -> bool:
+    """Require a complete score row after the fragment to reject keyword-only tables."""
+    score_value = re.compile(r"\d+(?:\.\d+)?(?:\s*[-~～至]\s*\d+(?:\.\d+)?)?\s*分?\Z")
+    rows: dict[int, dict[int, str]] = {}
+    for cell in cells:
+        if cell["row"] > 0 and cell["normalizedText"]:
+            rows.setdefault(cell["row"], {})[cell["column"]] = cell["normalizedText"]
+    for row in rows.values():
+        if any(column >= columns for column in score_columns):
+            continue
+        has_score = any(score_value.fullmatch(row.get(column, "")) for column in score_columns)
+        has_criterion = any(row.get(column, "") for column in criterion_columns)
+        if has_score and has_criterion:
+            return True
+    return False
 
 
 def _normalize_text(text: str) -> str:
