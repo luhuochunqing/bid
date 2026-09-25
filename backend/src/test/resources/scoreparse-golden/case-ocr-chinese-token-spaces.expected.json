@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "desensitization": "合成评分条款，保留中文 OCR token 之间插入空格的版式特征",
+  "focus": "中文 OCR token 空格输入下仍识别评分项与分值",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": false,
+  "laneHints": ["table"],
+  "items": [
+    { "code": "1", "dim": "商务服务", "detail": "供应商应提供税务发票，相关材料清晰完整，得40分。", "weight": 40 },
+    { "code": "2", "dim": "技术方案", "detail": "技术评分标准清晰，方案内容完整，得60分。", "weight": 60 }
+  ]
+}
