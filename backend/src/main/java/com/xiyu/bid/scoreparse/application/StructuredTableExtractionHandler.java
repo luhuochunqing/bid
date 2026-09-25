@@ -26,8 +26,7 @@ import java.util.Optional;
 
 @Slf4j
 final class StructuredTableExtractionHandler {
-    private StructuredTableExtractionHandler() {
-    }
+    private StructuredTableExtractionHandler() {}
     static StructuredTableResult extract(TenderTextSource source,
                                           LoadedBidFile loaded,
                                           SidecarDocumentArtifactExtractor artifactExtractor,
@@ -134,7 +133,7 @@ final class StructuredTableExtractionHandler {
                 completeness.declaredTotalSource(), completeness.decision(), completeness.fallbackReason(),
                 shadow.tableCompletenesses().size());
         return StructuredTableResult.evidencePipeline(facts, leafCandidates, completeness,
-                shadow.tableCompletenesses(), originalCheck.proofs());
+                shadow.tableCompletenesses(), originalCheck.proofs(), originalCheck.qualifications(), null);
     }
 
     static void markIncomplete(ScoreParseTask task,
@@ -229,7 +228,8 @@ final class StructuredTableExtractionHandler {
                     tableCompleteness == null ? null : tableCompleteness.fallbackReason());
         });
         if (!structured.facts().isEmpty()) {
-            itemPersistenceService.persistFactsAndEvidence(task.getProjectId(), task.getId(), structured.facts());
+            itemPersistenceService.persistFactsAndEvidence(task.getProjectId(), task.getId(), structured.facts(),
+                    structured.qualifications());
         }
         if (decision == ScoreParseDecision.PARSE_FAILED) {
             stateService.failTask(taskId, "Evidence Pipeline 未提取到可自动落库的评分项");

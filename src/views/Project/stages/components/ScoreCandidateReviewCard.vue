@@ -9,24 +9,38 @@
     <div class="candidate-review-header">
       <div class="candidate-review-title">
         <span class="candidate-icon">💡</span>
-        <span>检测到待人工复核的候选评分标准（共 {{ candidateFacts.length }} 项，合计 {{ candidateTotalWeight }} 分）</span>
+        <span>检测到待人工复核的候选评分标准{{ selectedSchemeTitle ? `（${selectedSchemeTitle}）` : '' }}（本方案内 {{ eligibleFacts.length }} 项，合计 {{ candidateTotalWeight }} 分）</span>
       </div>
       <div class="candidate-review-desc">
         文档中包含多个表格或参考模板，系统未自动入库。请核对下方候选细则列表，确认无误后可一键采纳：
       </div>
     </div>
+    <div v-if="schemes.length > 1" class="scheme-selection">
+      <label for="score-scheme-select">评分方案</label>
+      <el-select id="score-scheme-select" :model-value="selectedSchemeId" placeholder="请选择一个评分方案"
+        aria-label="选择评分方案" @change="$emit('scheme-change', $event)">
+        <el-option v-for="scheme in schemes" :key="scheme.schemeId" :label="scheme.title || scheme.schemeId" :value="scheme.schemeId">
+          {{ scheme.title || scheme.schemeId }}<template v-if="scheme.declaredTotal != null">（{{ scheme.declaredTotal }} 分）</template>
+        </el-option>
+      </el-select>
+    </div>
     <el-alert
-      v-if="adoptionStatus === 'CONFLICTING_TOTAL' || declaredTotalWeight == null || candidateTotalWeight !== declaredTotalWeight"
+      v-if="adoptionStatus === 'CONFLICTING_TOTAL' || adoptionStatus === 'UNKNOWN_TOTAL' || schemeSelectionRequired || declaredTotalWeight == null || candidateTotalWeight !== declaredTotalWeight"
       type="warning"
       :closable="false"
       show-icon
       class="candidate-weight-alert"
       :title="adoptionStatus === 'CONFLICTING_TOTAL'
-        ? '招标文件存在多个冲突的评分表，请人工核对分表后再采纳。'
+        ? '所选评分方案的原文总分存在冲突，请核验原文后再采纳。'
+        : schemeSelectionRequired && !selectedSchemeId
+        ? '文档包含多个评分方案，请先选择一个方案；不同方案不会合并计分。'
+        : adoptionStatus === 'UNKNOWN_TOTAL'
+        ? '该方案包含多个物理表格但尚无可验证的方案总分，不能按表格分值相加。'
         : declaredTotalWeight == null
-        ? '原文未提供单表总分，确认候选项无误后将以候选合计作为正式总分。'
+        ? '原文尚无可验证总分；仅在单表方案且候选项核验通过时可人工确认。'
         : `候选评分项合计为 ${candidateTotalWeight} 分，应与原文声明的 ${declaredTotalWeight} 分闭合。`"
     />
+    <div v-if="schemeSelectionRequired && !selectedSchemeId" class="scheme-selection-hint">请选择方案以查看其候选总分与原文总分证据。</div>
     <div class="candidate-table-wrapper">
       <table class="candidate-table">
         <thead>
@@ -39,7 +53,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(fact, idx) in candidateFacts" :key="fact.factId || idx">
+          <tr v-for="(fact, idx) in eligibleFacts" :key="fact.factId || idx">
             <td class="col-center"><el-input v-model="fact.code" size="small" :aria-label="`第${idx + 1}项序号`" /></td>
             <td class="col-dim">
               <el-input v-model="fact.dimension" size="small" aria-label="评分维度" />
@@ -70,11 +84,22 @@
         </tbody>
       </table>
     </div>
+    <section v-if="auditFacts.length" class="audit-facts" aria-label="当前方案外或来源未验证事实">
+      <h4>当前方案外或来源未验证事实（不计当前候选、不计当前总分）</h4>
+      <ul>
+        <li v-for="fact in auditFacts" :key="fact.factId">
+          <strong>{{ fact.dimension || fact.code || '未命名评分事实' }}</strong>
+          <span>{{ fact.candidateEligible === true ? '其他评分方案（未选择）' : scopeLabel(fact.scopeStatus) }}</span>
+          <span v-if="fact.exclusionReason">：{{ fact.exclusionReason }}</span>
+          <small v-if="fact.sourceText"> {{ fact.sourceText }}</small>
+        </li>
+      </ul>
+    </section>
     <div class="candidate-review-actions">
       <el-button
         type="primary"
         :loading="isAdoptingCandidates"
-        :disabled="candidateTotalWeight <= 0 || adoptionStatus === 'CONFLICTING_TOTAL' || (declaredTotalWeight != null && candidateTotalWeight !== declaredTotalWeight)"
+        :disabled="candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId) || adoptionStatus === 'CONFLICTING_TOTAL' || adoptionStatus === 'UNKNOWN_TOTAL' || (declaredTotalWeight != null && candidateTotalWeight !== declaredTotalWeight)"
         data-test="btn-adopt-candidates"
         @click="$emit('adopt', candidateFacts)"
       >
@@ -88,11 +113,16 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   candidateFacts: {
     type: Array,
     default: () => [],
   },
+  schemes: { type: Array, default: () => [] },
+  selectedSchemeId: { type: String, default: null },
+  schemeSelectionRequired: { type: Boolean, default: false },
   candidateTotalWeight: {
     type: Number,
     default: 0,
@@ -115,7 +145,19 @@ defineProps({
   },
 })
 
-defineEmits(['adopt', 'reparse'])
+const selectedSchemeTitle = computed(() => props.schemes.find((scheme) => scheme.schemeId === props.selectedSchemeId)?.title || '')
+const eligibleFacts = computed(() => props.candidateFacts.filter((fact) => fact.candidateEligible === true
+  && (props.selectedSchemeId ? fact.schemeId === props.selectedSchemeId : props.schemes.length === 0)))
+const auditFacts = computed(() => props.candidateFacts.filter((fact) => fact.candidateEligible !== true
+  || (props.selectedSchemeId && fact.schemeId !== props.selectedSchemeId)))
+
+defineEmits(['adopt', 'reparse', 'scheme-change'])
+
+function scopeLabel(status) {
+  if (status === 'OUT_OF_SCHEME') return '方案外'
+  if (status === 'SOURCE_UNVERIFIED') return '来源未验证'
+  return '资格未确认'
+}
 
 function sourceCellIdsOf(fact) {
   if (Array.isArray(fact?.sourceCellIds)) return fact.sourceCellIds
@@ -162,6 +204,9 @@ function scoreTypeLabel(scoreType) {
 .candidate-weight-alert {
   margin-bottom: 12px;
 }
+.scheme-selection { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+.scheme-selection .el-select { width: min(420px, 100%); }
+.scheme-selection-hint { margin: 10px 0; color: var(--text-muted); font-size: 12px; }
 .candidate-table-wrapper {
   max-height: 280px;
   overflow-y: auto;

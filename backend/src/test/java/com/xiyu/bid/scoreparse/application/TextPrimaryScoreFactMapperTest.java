@@ -27,6 +27,22 @@ class TextPrimaryScoreFactMapperTest {
         assertThat(mappedChild.parentFactId()).isEqualTo(mappedParent.factId());
     }
 
+    @Test
+    void preserves_parent_link_when_source_paragraph_and_detail_tables_use_different_sections() {
+        String schemeId = com.xiyu.bid.scoreparse.domain.OriginalScoringContext.schemeId("第三章 评审标准");
+        MultimodalScoreFact parent = fact("评审标准", "BUSINESS", "", 40)
+                .withScope(schemeId, "IN_SCHEME");
+        MultimodalScoreFact child = fact("商务评分表", "B1", "BUSINESS", 40)
+                .withScope(schemeId, "IN_SCHEME");
+        var validation = new MultimodalScoreFactValidator()
+                .validate(List.of(parent, child), null, BigDecimal.valueOf(40));
+
+        var mappedParent = TextPrimaryScoreFactMapper.map(parent, null, validation);
+        var mappedChild = TextPrimaryScoreFactMapper.map(child, null, validation);
+
+        assertThat(mappedChild.parentFactId()).isEqualTo(mappedParent.factId());
+    }
+
     private static MultimodalScoreFact fact(String sectionTitle, String code, String parentCode, int weight) {
         return new MultimodalScoreFact(sectionTitle, code, parentCode, "技术方案",
                 BigDecimal.valueOf(weight), "满足要求得" + weight + "分", "OBJECTIVE", 1,

@@ -32,6 +32,19 @@ class ScoreFactChunkMergerTest {
                 .containsExactly("1", "2");
     }
 
+    @Test
+    void sameCodesFromDifferentSchemesAndAuditRangesAreNotCollapsed() {
+        var inScheme = fact("1", "5", 0.8).withScope("scheme-a", "IN_SCHEME");
+        var otherScheme = fact("1", "5", 0.9).withScope("scheme-b", "IN_SCHEME");
+        var audit = fact("1", "5", 0.95).withScope("scheme-a", "OUT_OF_SCHEME");
+
+        var merged = ScoreFactChunkMerger.merge(List.of(result(null, inScheme, otherScheme, audit)));
+
+        assertThat(merged.facts()).hasSize(3);
+        assertThat(merged.facts()).extracting(MultimodalScoreFact::scopeStatus)
+                .containsExactly("IN_SCHEME", "IN_SCHEME", "OUT_OF_SCHEME");
+    }
+
     private static MultimodalScoreFactExtractor.ExtractionResult result(BigDecimal total, MultimodalScoreFact... facts) {
         return new MultimodalScoreFactExtractor.ExtractionResult(total, List.of(facts), "model", 0);
     }

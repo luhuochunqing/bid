@@ -9,12 +9,14 @@ import com.xiyu.bid.scoreparse.application.MultimodalScoreFactExtractor;
 import com.xiyu.bid.scoreparse.domain.DocumentImage;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
 import com.xiyu.bid.scoreparse.domain.ChildAggregation;
+import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /** One request owns recall and structure; deterministic code validates the response afterwards. */
 @Service
@@ -62,12 +64,12 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
     @Override
     public ExtractionResult extractWithTextAndProgress(DocumentArtifact artifact, String sourceText,
                                                        Runnable chunkCompleted) {
-        return extractTextChunks(sourceText, false, chunkCompleted);
+        return extractTextChunks(artifact, sourceText, false, chunkCompleted);
     }
 
     @Override
     public ExtractionResult extractTextAndProgress(String sourceText, Runnable chunkCompleted) {
-        return extractTextChunks(sourceText, false, chunkCompleted);
+        return extractTextChunks(null, sourceText, false, chunkCompleted);
     }
 
     @Override
@@ -97,16 +99,45 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
     @Override
     public ExtractionResult recheckWithTextAndProgress(DocumentArtifact artifact, String sourceText,
                                                        Runnable chunkCompleted) {
-        return extractTextChunks(sourceText, true, chunkCompleted);
+        return extractTextChunks(artifact, sourceText, true, chunkCompleted);
     }
 
     @Override
     public ExtractionResult recheckTextAndProgress(String sourceText, Runnable chunkCompleted) {
-        return extractTextChunks(sourceText, true, chunkCompleted);
+        return extractTextChunks(null, sourceText, true, chunkCompleted);
     }
 
-    private ExtractionResult extractTextChunks(String sourceText, boolean recheck,
+    private ExtractionResult extractTextChunks(DocumentArtifact artifact, String sourceText, boolean recheck,
                                                Runnable chunkCompleted) {
+        List<OriginalScoringContext.TextScope> scopes = OriginalScoringContext.textScopes(sourceText).stream()
+                .filter(scope -> scope.schemeId() != null && !scope.schemeId().isBlank()).toList();
+        if (scopes.isEmpty()) return extractTextChunksInScope(sourceText, recheck, chunkCompleted, null);
+        java.util.Map<String, List<ExtractionResult>> grouped = new java.util.LinkedHashMap<>();
+        java.util.Map<String, OriginalScoringContext.TextScope> groupScopes = new java.util.LinkedHashMap<>();
+        for (OriginalScoringContext.TextScope scope : scopes) {
+            ExtractionResult extracted = extractTextChunksInScope(scope.text(), recheck, chunkCompleted, scope);
+            String key = scope.schemeId() + "\u0000" + scope.scopeStatus();
+            grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(extracted);
+            groupScopes.putIfAbsent(key, scope);
+        }
+        java.util.Map<String, ExtractionResult> merged = grouped.entrySet().stream().collect(
+                java.util.stream.Collectors.toMap(Map.Entry::getKey, entry -> ScoreFactChunkMerger.merge(entry.getValue()),
+                        (first, ignored) -> first, java.util.LinkedHashMap::new));
+        List<MultimodalScoreFact> facts = merged.values().stream().flatMap(result -> result.facts().stream()).toList();
+        long schemeCount = scopes.stream().filter(scope -> "IN_SCHEME".equals(scope.scopeStatus()))
+                .map(OriginalScoringContext.TextScope::schemeId).distinct().count();
+        BigDecimal declaredTotal = schemeCount == 1 ? merged.entrySet().stream()
+                .filter(entry -> "IN_SCHEME".equals(groupScopes.get(entry.getKey()).scopeStatus()))
+                .map(entry -> entry.getValue().declaredTotal()).filter(java.util.Objects::nonNull).findFirst().orElse(null)
+                : null;
+        String model = merged.values().stream().map(ExtractionResult::model).filter(value -> value != null && !value.isBlank())
+                .findFirst().orElse("");
+        return new ExtractionResult(declaredTotal, facts, model, 0);
+    }
+
+    private ExtractionResult extractTextChunksInScope(String sourceText, boolean recheck,
+                                                       Runnable chunkCompleted,
+                                                       OriginalScoringContext.TextScope scope) {
         var config = configurationResolver.resolve(USE_CASE);
         String text = ScoreParsePrompts.promptSafe(sourceText);
         int basePromptChars = (recheck ? buildTextRecheckPrompt("") : buildTextPrompt("")).length();
@@ -118,7 +149,9 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
         List<ScoreTextChunker.Chunk> chunks = ScoreTextChunker.split(text, chunkChars, overlap);
         List<ExtractionResult> results = new ArrayList<>(chunks.size());
         for (int index = 0; index < chunks.size(); index++) {
-            String chunkContext = "全文分片 " + (index + 1) + "/" + chunks.size()
+            String scopeHeader = scope == null ? "" : "\n当前范围：" + scope.title() + "；范围状态："
+                    + scope.scopeStatus() + "。若范围状态为 OUT_OF_SCHEME，仍保留可回指事实供审计，不将其视作当前方案候选。\n";
+            String chunkContext = scopeHeader + "全文范围分片 " + (index + 1) + "/" + chunks.size()
                     + "；只输出本分片原文范围内有依据的评分事实，边界重叠处允许重复：\n" + chunks.get(index).text();
             String prompt = recheck ? buildTextRecheckPrompt(chunkContext) : buildTextPrompt(chunkContext);
             if (prompt.length() > MAX_PROMPT_CHARS) {
@@ -130,6 +163,7 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
             if (chunkCompleted != null) chunkCompleted.run();
             List<MultimodalScoreFact> facts = response == null || response.facts == null ? List.of()
                     : response.facts.stream().map(Item::toDomain).toList();
+            if (scope != null) facts = facts.stream().map(fact -> fact.withScope(scope.schemeId(), scope.scopeStatus())).toList();
             results.add(new ExtractionResult(response == null ? null : response.declaredTotal,
                     facts, config.model(), 0));
         }

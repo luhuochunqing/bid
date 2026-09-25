@@ -85,6 +85,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    environmentOptions: {
+      jsdom: { url: 'http://localhost/' }
+    },
     // jsdom 24 缺 URL.createObjectURL/revokeObjectURL，download.js 的 setTimeout 释放逻辑
     // 会抛未处理异常导致 vitest 整批 exit 1；setup 只补缺失的浏览器 API，不放业务 mock。
     setupFiles: ['src/test-setup.js'],

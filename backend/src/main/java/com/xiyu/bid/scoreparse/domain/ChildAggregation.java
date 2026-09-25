@@ -30,7 +30,7 @@ public enum ChildAggregation {
         String source = evidence == null ? "" : evidence;
         boolean sharedCap = source.matches("(?s).*(共享|共用|共.*最高|合计最高|总计最高|条件之一|任一条件).*");
         boolean bestOf = source.matches("(?s).*(择优|取最高|最高者|最高分者|按最高分).*");
-        boolean exclusive = source.matches("(?s).*(互斥|任选其一|择一|只能选择其中一|仅选择其中一|不得同时).*");
+        boolean exclusive = source.matches("(?s).*(互斥|任选其一|择一|只能选择其中一|仅选择其中一|不得同时|分档|档次|档位|优良中差|优\\s*[：:为]|良\\s*[：:为]|中\\s*[：:为]|差\\s*[：:为]).*");
         return switch (this) {
             case SUM -> !sharedCap && !bestOf && !exclusive;
             case SHARED_CAP -> sharedCap;

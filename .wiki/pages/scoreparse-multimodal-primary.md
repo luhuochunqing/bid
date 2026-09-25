@@ -28,8 +28,18 @@ sources:
   - backend/src/test/resources/scoreparse-golden/case-docx-run-boundary-score.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoringContext.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/MultimodalFactParentCodeNormalizer.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreQualificationPolicy.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoringSchemePolicy.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseReviewFactMapper.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseReviewAppService.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseReviewTotalPolicy.java
+  - backend/src/test/resources/scoreparse-golden/case-project-1382-scheme-eligibility.expected.json
+  - backend/src/test/resources/scoreparse-golden/case-project-1384-logical-scheme.expected.json
+  - specs/071-scoreparse-scheme-eligibility/spec.md
+  - specs/071-scoreparse-scheme-eligibility/contracts/score-parse-review-schemes.md
 backlinks:
   - .wiki/pages/_index.md
+  - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
 created: 2026-09-20
 updated: 2026-09-24
 health_checked: 2026-09-24
@@ -138,3 +148,12 @@ archive: false
 ## 2026-09-24 采纳边界
 
 单表评分表未能抽取原文声明总分时，人工确认采纳可以使用候选叶子项合计作为正式总分；多表存在冲突声明总分时仍必须阻止采纳。后端通过 adoptionStatus 将 `SINGLE_UNKNOWN_TOTAL` 与 `CONFLICTING_TOTAL` 传给前端，避免页面把两种状态显示为同一类待确认。
+
+## 2026-09-24 方案资格、逻辑方案与跨表计分
+
+- 评分范围校验是资格门槛，不是提示文案：只有原文引用有效且属于当前逻辑方案的事实才能进入默认候选、候选总分和正式采纳。方案外、来源未验证的事实仍留在审计快照。
+- 评分方案身份先于事实合并。后续章节的履约考核事实不能与当前方案计分；同一个方案可以跨章节明细和多张物理表，物理表数本身不产生多个方案。
+- 方案总分必须由原文段落或表格单元格回指；无证据为 `UNKNOWN`，同作用域不同值为 `CONFLICT`，同方案跨多表仍可有一个已验证总分。不同方案分开显示并显式选择。
+- 父子关系按方案内稳定身份解析。跨物理表且标题不同的父子项，只在同方案、同范围且父编号唯一时自动连接；歧义保留复核。
+- 聚合关系不可混淆：`SUM` 累计有效子项，`MUTUALLY_EXCLUSIVE` 取备选最大分，未知关系不生成可采纳的总分。
+- 1382/1384 脱敏真实项目形状回放分别固定后章排除和同方案跨表闭环；它们不替代测试部署后的真实项目重解析。

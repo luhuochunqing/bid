@@ -1,0 +1,138 @@
+package com.xiyu.bid.scoreparse.application;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.scoreparse.dto.ScoreParseReviewDTO;
+import com.xiyu.bid.scoreparse.entity.ScoreParseEvidence;
+import com.xiyu.bid.scoreparse.entity.ScoreParseFact;
+import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
+import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+
+/** Maps persisted parse facts and qualification evidence into review snapshots. */
+@Slf4j
+final class ScoreParseReviewFactMapper {
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    private ScoreParseReviewFactMapper() {}
+
+    static BigDecimal declaredTotal(ScoreParseTask task) {
+        if (task != null && task.getRunSummary() != null && !task.getRunSummary().isBlank()) {
+            try {
+                JsonNode splits = JSON.readTree(task.getRunSummary()).path("tableSplits");
+                if (splits.isArray() && !splits.isEmpty()) {
+                    return splits.size() == 1 ? numericTotal(splits.get(0)) : null;
+                }
+            } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) {
+                log.warn("解析任务声明总分失败，保留未知状态: taskId={}", task.getTaskId());
+            }
+        }
+        return null;
+    }
+
+    private static BigDecimal numericTotal(JsonNode split) {
+        JsonNode value = split.get("declaredTotal");
+        return value != null && value.isNumber() ? value.decimalValue() : null;
+    }
+    static ScoreParseReviewDTO.Fact toFactDTO(ScoreParseFact fact, List<ScoreParseEvidence> evidences) {
+        Qualification qualification = evidences.stream()
+                .filter(evidence -> "SCHEME_QUALIFICATION".equals(evidence.getKind()))
+                .map(ScoreParseReviewFactMapper::qualification).findFirst()
+                .orElseGet(() -> evidences.stream()
+                        .filter(evidence -> "ITEM_SCHEME_SCOPE_MISMATCH".equals(evidence.getKind()))
+                        .map(ScoreParseReviewFactMapper::qualification).findFirst()
+                        .orElseGet(Qualification::sourceUnverified));
+        return new ScoreParseReviewDTO.Fact(
+                fact.getFactId(),
+                fact.getCode(),
+                fact.getDimension(),
+                fact.getWeight(),
+                new com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy().classify(fact.getSourceText()),
+                fact.getValidationStatus(),
+                evidences.stream().map(ScoreParseEvidence::getExplanation)
+                        .filter(java.util.Objects::nonNull).filter(message -> !message.isBlank())
+                        .distinct().collect(Collectors.joining("；")),
+                fact.getSourceText(),
+                fact.getSourceCellIds(),
+                fact.getWeightEvidence(),
+                fact.getParentFactId(),
+                fact.getExtractionMethod(),
+                fact.getConfidence(),
+                evidences.stream()
+                        .sorted(Comparator.comparing(ScoreParseEvidence::getId))
+                        .map(evidence -> new ScoreParseReviewDTO.Evidence(
+                                evidence.getCellId(),
+                                evidence.getKind(),
+                                evidence.getQuotedText(),
+                                evidence.getStartOffset(),
+                                evidence.getEndOffset(),
+                                evidence.getExplanation()))
+                        .toList(),
+                com.xiyu.bid.scoreparse.domain.ChildAggregation.legacyDefault(fact.getChildAggregation()).name(),
+                qualification.schemeId(), qualification.scopeStatus(), qualification.candidateEligible(),
+                qualification.reason(), qualification.schemeTitle(), qualification.declaredTotal(),
+                qualification.totalEvidenceStatus(), qualification.totalQuote(), qualification.totalLocator(),
+                qualification.layoutStatus(), qualification.tableIds());
+    }
+
+    static Qualification qualification(ScoreParseEvidence evidence) {
+        if ("ITEM_SCHEME_SCOPE_MISMATCH".equals(evidence.getKind())) {
+            return new Qualification(null, "OUT_OF_SCHEME", false, "ITEM_SCHEME_SCOPE_MISMATCH");
+        }
+        String explanation = evidence.getExplanation();
+        if (explanation == null || explanation.isBlank()) return Qualification.sourceUnverified();
+        try {
+            JsonNode data = JSON.readTree(explanation);
+            String scope = data.path("scopeStatus").asText("SOURCE_UNVERIFIED");
+            boolean eligible = "IN_SCHEME".equals(scope) && data.path("candidateEligible").asBoolean(false);
+            String reason = data.path("reason").isTextual() ? data.path("reason").asText() : null;
+            List<String> tableIds = new java.util.ArrayList<>();
+            if (data.path("tableIds").isArray()) data.path("tableIds").forEach(value -> tableIds.add(value.asText()));
+            BigDecimal total = data.path("declaredTotal").isNumber() ? data.path("declaredTotal").decimalValue() : null;
+            return new Qualification(data.path("schemeId").asText(null), scope, eligible,
+                    reason == null || reason.isBlank() ? (eligible ? null : "SOURCE_SCHEME_NOT_VERIFIED") : reason,
+                    data.path("schemeTitle").asText(""), total,
+                    data.path("totalEvidenceStatus").asText("UNKNOWN"), data.path("totalQuote").asText(""),
+                    data.path("totalLocator").asText(""), data.path("layoutStatus").asText("UNKNOWN"), tableIds);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException invalid) {
+            return Qualification.sourceUnverified();
+        }
+    }
+
+    static List<ScoreParseReviewDTO.Scheme> schemes(List<ScoreParseReviewDTO.Fact> facts) {
+        Map<String, List<ScoreParseReviewDTO.Fact>> grouped = facts.stream()
+                .filter(fact -> fact.schemeId() != null && !fact.schemeId().isBlank())
+                .collect(Collectors.groupingBy(ScoreParseReviewDTO.Fact::schemeId, java.util.LinkedHashMap::new,
+                        Collectors.toList()));
+        return grouped.entrySet().stream().map(entry -> {
+            ScoreParseReviewDTO.Fact fact = entry.getValue().get(0);
+            return new ScoreParseReviewDTO.Scheme(entry.getKey(), fact.schemeTitle(), fact.tableIds(),
+                    fact.layoutStatus(), fact.totalEvidenceStatus(), fact.declaredTotal(), fact.totalQuote(),
+                    fact.totalLocator(), grouped.size() > 1);
+        }).toList();
+    }
+
+    record Qualification(String schemeId, String scopeStatus, boolean candidateEligible, String reason,
+                                 String schemeTitle, BigDecimal declaredTotal, String totalEvidenceStatus,
+                                 String totalQuote, String totalLocator, String layoutStatus, List<String> tableIds) {
+        Qualification {
+            schemeTitle = schemeTitle == null ? "" : schemeTitle;
+            totalEvidenceStatus = totalEvidenceStatus == null ? "UNKNOWN" : totalEvidenceStatus;
+            totalQuote = totalQuote == null ? "" : totalQuote;
+            totalLocator = totalLocator == null ? "" : totalLocator;
+            layoutStatus = layoutStatus == null ? "UNKNOWN" : layoutStatus;
+            tableIds = tableIds == null ? List.of() : List.copyOf(tableIds);
+        }
+        private Qualification(String schemeId, String scopeStatus, boolean candidateEligible, String reason) {
+            this(schemeId, scopeStatus, candidateEligible, reason, "", null,
+                    "UNKNOWN", "", "", "UNKNOWN", List.of());
+        }
+        private static Qualification sourceUnverified() {
+            return new Qualification(null, "SOURCE_UNVERIFIED", false, "SOURCE_SCHEME_NOT_VERIFIED");
+        }
+    }
+}

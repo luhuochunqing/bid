@@ -8,19 +8,11 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /** Pure checks against the original artifact, never against another model claim. */
 public final class OriginalScoreEvidencePolicy {
-    private static final Pattern SCORE_CELL = Pattern.compile("^[~≈]?\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
-    private static final Pattern MAX_SCORE = Pattern.compile(
-            "(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
-    private static final Pattern TITLE_SCORE = Pattern.compile("[（(]\\s*(\\d+(?:\\.\\d+)?)\\s*分\\s*[）)]");
-    private static final Pattern AWARD_SCORE = Pattern.compile("(?:得|奖励|加)\\s*(\\d+(?:\\.\\d+)?)\\s*分");
-    private static final Pattern TEXT_LOCATOR = Pattern.compile("^text:line\\[(\\d+)]$");
-    private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
 
     private OriginalScoreEvidencePolicy() {}
 
@@ -36,17 +28,26 @@ public final class OriginalScoreEvidencePolicy {
 
     public static Verification verifyModel(OriginalScoringContext context, DocumentArtifact artifact,
                                            String tenderText, List<MultimodalScoreFact> facts, BigDecimal modelTotal) {
-        Set<String> parentKeys = new LinkedHashSet<>();
-        facts.stream().filter(f -> !f.parentCode().isBlank())
-                .forEach(f -> parentKeys.add(f.sectionTitle() + "/" + f.parentCode()));
-        List<ScoreUnitPolicy.Node> nodes = facts.stream().map(f -> new ScoreUnitPolicy.Node(
-                f.sectionTitle() + "/" + f.code(), f.parentCode().isBlank() ? ""
-                : f.sectionTitle() + "/" + f.parentCode(), f.weight(), f.childAggregation().name())).toList();
+        Map<String, String> parentByFact = new java.util.LinkedHashMap<>();
+        for (MultimodalScoreFact fact : facts) {
+            if (fact.parentCode().isBlank()) continue;
+            MultimodalScoreFact parent = MultimodalFactParentCodeNormalizer.resolveParent(fact, facts);
+            if (parent != null) parentByFact.put(OriginalScoreQualificationPolicy.logicalKey(fact.schemeId(),
+                    fact.scopeStatus(), fact.sectionTitle(), fact.code()), OriginalScoreQualificationPolicy.logicalKey(
+                    parent.schemeId(), parent.scopeStatus(), parent.sectionTitle(), parent.code()));
+        }
+        Set<String> parentKeys = new LinkedHashSet<>(parentByFact.values());
+        List<ScoreUnitPolicy.Node> nodes = facts.stream().map(f -> {
+            String id = OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code());
+            return new ScoreUnitPolicy.Node(id, parentByFact.getOrDefault(id, ""), f.weight(), f.childAggregation().name());
+        }).toList();
         Set<String> units = ScoreUnitPolicy.effectiveUnitIds(nodes);
-        List<Claim> claims = facts.stream().map(f -> new Claim(f.sectionTitle() + "/" + f.code(),
-                f.tableId(), f.dimension(), f.sourceCellIds(), f.weight(),
-                parentKeys.contains(f.sectionTitle() + "/" + f.code()),
-                units.contains(f.sectionTitle() + "/" + f.code()), f.quotedText(), tenderText)).toList();
+        List<ScoreEvidenceClaim> claims = facts.stream().map(f -> new ScoreEvidenceClaim(OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code()),
+                modelFactId(f),
+                f.tableId(), f.dimension(), f.sourceCellIds(), f.sourceCellIds(), f.weight(),
+                parentKeys.contains(OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code())),
+                units.contains(OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code())), f.quotedText(), tenderText,
+                f.schemeId(), f.scopeStatus(), f.childAggregation())).toList();
         return verify(context, artifact, claims, modelTotal, true);
     }
 
@@ -57,17 +58,31 @@ public final class OriginalScoreEvidencePolicy {
     public static Verification verifyFacts(OriginalScoringContext context, DocumentArtifact artifact,
                                            List<ScoreFact> facts) {
         Set<String> parentIds = ScoreFact.parentIds(facts);
+        Map<String, ScoreFact> factsById = facts.stream().collect(java.util.stream.Collectors.toMap(
+                ScoreFact::factId, fact -> fact, (first, ignored) -> first));
         List<ScoreUnitPolicy.Node> nodes = facts.stream().map(f -> new ScoreUnitPolicy.Node(
                 f.factId(), f.parentFactId(), f.weight(), f.childAggregation().name())).toList();
         Set<String> units = ScoreUnitPolicy.effectiveUnitIds(nodes);
-        List<Claim> claims = facts.stream().map(f -> new Claim(f.factId(), f.sourceTableId(),
-                f.dimension(), f.weightEvidence() == null ? f.sourceCellIds()
+        List<ScoreEvidenceClaim> claims = facts.stream().map(f -> new ScoreEvidenceClaim(f.factId(), f.factId(), f.sourceTableId(),
+                f.dimension(), qualificationSourceCells(f, factsById), f.weightEvidence() == null ? f.sourceCellIds()
                 : List.of(f.weightEvidence().cellId()), f.weight(), parentIds.contains(f.factId()),
-                units.contains(f.factId()), f.dimension(), null)).toList();
+                units.contains(f.factId()), f.dimension(), null, "", "", f.childAggregation())).toList();
         return verify(context, artifact, claims, null, false);
     }
 
-    private static Verification verify(OriginalScoringContext context, DocumentArtifact artifact, List<Claim> claims,
+    private static List<String> qualificationSourceCells(ScoreFact fact, Map<String, ScoreFact> factsById) {
+        Set<String> cellIds = new LinkedHashSet<>(fact.sourceCellIds());
+        Set<String> visited = new LinkedHashSet<>();
+        ScoreFact parent = factsById.get(fact.parentFactId());
+        while (parent != null && visited.add(parent.factId())
+                && fact.sourceTableId().equals(parent.sourceTableId())) {
+            cellIds.addAll(parent.sourceCellIds());
+            parent = factsById.get(parent.parentFactId());
+        }
+        return List.copyOf(cellIds);
+    }
+
+    private static Verification verify(OriginalScoringContext context, DocumentArtifact artifact, List<ScoreEvidenceClaim> claims,
                                        BigDecimal modelTotal, boolean requireModelTotal) {
         Total total = context.total();
         List<Problem> problems = new ArrayList<>(total.problems());
@@ -80,169 +95,88 @@ public final class OriginalScoreEvidencePolicy {
             problems.add(new Problem("", "declaredTotal", "MODEL_TOTAL_SOURCE_MISMATCH",
                     total.value(), modelTotal, total.locator()));
         }
-        for (Claim claim : claims) {
-            boolean textBacked = claim.textLocator();
-            boolean inScheme = textBacked
-                    ? textLocatorInScheme(claim.sourceCellIds().get(0), claim.tenderText(), context.scheme())
-                    : artifact != null && artifact.tables().stream()
-                    .anyMatch(table -> table.tableId().equals(claim.tableId()) && context.owns(table));
-            if (!inScheme) problems.add(new Problem(claim.id(), "tableId", "ITEM_SCHEME_SCOPE_MISMATCH",
-                    context.scheme(), claim.tableId(), claim.tableId()));
-            verifyWeight(artifact, claim, problems);
+        List<Qualification> qualifications = new ArrayList<>();
+        Set<String> eligibleClaimIds = new LinkedHashSet<>();
+        List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact,
+                claims.stream().map(ScoreEvidenceClaim::tenderText).filter(java.util.Objects::nonNull).findFirst().orElse(null));
+        for (ScoreEvidenceClaim claim : claims) {
+            Qualification qualification = OriginalScoreQualificationPolicy.qualify(context, artifact, claim, schemes);
+            qualifications.add(qualification);
+            if (qualification.candidateEligible()) {
+                eligibleClaimIds.add(claim.id());
+                OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems);
+            } else if (!"OUT_OF_SCHEME".equals(qualification.scopeStatus())) {
+                problems.add(new Problem(claim.id(), "tableId",
+                        qualification.reason() == null ? "SOURCE_SCHEME_NOT_VERIFIED" : qualification.reason(),
+                        qualification.schemeTitle().isBlank() ? context.scheme() : qualification.schemeTitle(),
+                        qualification.scopeStatus(), qualification.locator().isBlank() ? claim.tableId() : qualification.locator()));
+            }
+        }
+        if (!claims.isEmpty() && eligibleClaimIds.isEmpty()
+                && qualifications.stream().allMatch(q -> "OUT_OF_SCHEME".equals(q.scopeStatus()))) {
+            problems.add(new Problem("", "facts", "ORIGINAL_ELIGIBLE_FACTS_MISSING",
+                    "at least one source-verified fact in the scoring scheme", claims.size(), context.scheme()));
         }
         context.subtotals().forEach((tableId, subtotal) -> {
-            BigDecimal leafSum = claims.stream().filter(claim -> tableId.equals(claim.tableId())
+            BigDecimal leafSum = claims.stream().filter(claim -> eligibleClaimIds.contains(claim.id())
+                            && tableId.equals(claim.tableId())
                             && claim.contributesToTotal())
-                    .map(Claim::weight).filter(java.util.Objects::nonNull)
+                    .map(ScoreEvidenceClaim::weight).filter(java.util.Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             if (leafSum.compareTo(subtotal.value()) != 0) {
                 problems.add(new Problem(tableId, "subtotal", "TABLE_SUBTOTAL_MISMATCH",
                         subtotal.value(), leafSum, subtotal.locator()));
             }
         });
-        return new Verification(context.documentId(), context.scheme(), total, List.copyOf(problems));
+        return new Verification(context.documentId(), context.scheme(), total, List.copyOf(problems),
+                List.copyOf(qualifications));
     }
 
-    private static void verifyWeight(DocumentArtifact artifact, Claim claim, List<Problem> problems) {
-        if (claim.weight() == null && !claim.parent()) return;
-        if (claim.textLocator()) {
-            if (claim.weight() == null) return;
-            String text = claim.tenderText() == null ? "" : claim.tenderText();
-            String quote = claim.quotedText() == null ? "" : claim.quotedText();
-            String evidence = text.contains(quote) ? quote : text;
-            Pattern weight = Pattern.compile("(?<!\\d)" + Pattern.quote(claim.weight().stripTrailingZeros().toPlainString()) + "\\s*分");
-            if (weight.matcher(evidence).find()) return;
-            problems.add(new Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
-                    "original item max score", claim.weight(), claim.sourceCellIds().get(0)));
-            return;
-        }
-        if (artifact == null || claim.sourceCellIds().isEmpty()) {
-            problems.add(new Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
-                    "original item max score", claim.weight(), ""));
-            return;
-        }
-        for (var table : artifact.tables()) {
-            if (!table.tableId().equals(claim.tableId())) continue;
-            var anchor = table.cells().stream().filter(c -> claim.sourceCellIds().contains(c.cellId()))
-                    .findFirst().orElse(null);
-            if (anchor == null || anchor.row() == null) {
-                problems.add(new Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
-                        "original item max score", claim.weight(), claim.tableId()));
-                return;
-            }
-            var row = table.cells().stream().filter(c -> c.row() != null && !Boolean.TRUE.equals(c.isMergedContinue())
-                    && c.row() <= anchor.row() && c.row() + Math.max(1, c.rowspan() == null ? 1 : c.rowspan()) > anchor.row())
-                    .toList();
-            String locator = table.tableId() + ":" + anchor.cellId();
-            String rowText = row.stream().map(c -> c.rawText() == null ? "" : c.rawText())
-                    .reduce((a, b) -> a + " " + b).orElse("");
-            boolean itemMatched = (!claim.dimension().isBlank() && rowText.contains(claim.dimension()))
-                    || (!claim.quotedText().isBlank() && rowText.contains(claim.quotedText())
-                    && (claim.dimension().isBlank() || claim.quotedText().contains(claim.dimension())));
-            if (!itemMatched) {
-                problems.add(new Problem(claim.id(), "dimension", "ITEM_SOURCE_SCOPE_MISMATCH",
-                        claim.dimension(), "not in cited item row", locator));
-            }
-            List<BigDecimal> explicit = new ArrayList<>();
-            List<BigDecimal> capped = new ArrayList<>();
-            List<BigDecimal> title = new ArrayList<>();
-            List<BigDecimal> awarded = new ArrayList<>();
-            for (var cell : row) {
-                String raw = cell.rawText() == null ? "" : cell.rawText();
-                Matcher numeric = SCORE_CELL.matcher(raw);
-                boolean scoreColumn = cell.column() != null && table.cells().stream()
-                        .anyMatch(header -> header.row() != null && header.row() == 0
-                                && cell.column().equals(header.column()) && header.rawText() != null
-                                && header.rawText().matches("(?s).*(?:最高分|分值|权重|得分).*"));
-                if (cell.column() != null && cell.column() > 0 && numeric.matches()
-                        && (raw.contains("分") || scoreColumn)) {
-                    explicit.add(new BigDecimal(numeric.group(1)));
-                }
-                collect(MAX_SCORE, raw, capped);
-                collect(TITLE_SCORE, raw, title);
-                if (!raw.matches("(?s).*(?:每份|每个|每项|每有|每增加).*")) {
-                    collect(AWARD_SCORE, raw, awarded);
-                }
-            }
-            List<BigDecimal> authoritative = claim.parent() && !title.isEmpty() ? title
-                    : !explicit.isEmpty() ? explicit : !capped.isEmpty() ? capped
-                    : !title.isEmpty() ? title : awarded;
-            if (!claim.parent() && !explicit.isEmpty() && !capped.isEmpty()) authoritative = concat(explicit, capped);
-            if (authoritative.isEmpty() || distinct(authoritative).size() != 1) {
-                if (!claim.parent() && distinct(title).size() == 1 && claim.weight() != null
-                        && distinct(title).iterator().next().compareTo(claim.weight()) == 0) {
-                    return;
-                }
-                problems.add(new Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
-                        authoritative, claim.weight(), locator));
-            } else if (claim.weight() == null || claim.weight().compareTo(authoritative.get(0)) != 0) {
-                problems.add(new Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_MISMATCH",
-                        authoritative.get(0), claim.weight(), locator));
-            }
-            return;
-        }
-        problems.add(new Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
-                "original item max score", claim.weight(), claim.tableId()));
+    public static String qualificationFactKey(MultimodalScoreFact fact) {
+        return OriginalScoreQualificationPolicy.qualificationFactKey(fact);
     }
 
-    private static List<BigDecimal> concat(List<BigDecimal> first, List<BigDecimal> second) {
-        List<BigDecimal> values = new ArrayList<>(first);
-        values.addAll(second);
-        return values;
+    public static String modelFactId(MultimodalScoreFact fact) {
+        return OriginalScoreQualificationPolicy.modelFactId(fact);
     }
 
-    private static boolean textLocatorInScheme(String locator, String text, String scheme) {
-        if (scheme == null || scheme.isBlank() || locator == null || text == null) return false;
-        Matcher match = TEXT_LOCATOR.matcher(locator);
-        if (!match.matches()) return false;
-        int lineIndex;
-        try { lineIndex = Integer.parseInt(match.group(1)); }
-        catch (NumberFormatException invalid) { return false; }
-        String[] lines = text.split("\\R", -1);
-        if (lineIndex >= lines.length) return false;
-        String activeScheme = "";
-        int activeSchemeLevel = Integer.MAX_VALUE;
-        for (int i = 0; i <= lineIndex; i++) {
-            Matcher heading = HEADING.matcher(lines[i]);
-            if (!heading.matches()) continue;
-            String headingLine = lines[i].stripLeading();
-            int level = 0;
-            while (level < headingLine.length() && headingLine.charAt(level) == '#') level++;
-            String title = heading.group(1).trim();
-            if (title.contains(scheme) || scheme.contains(title)) {
-                activeScheme = title;
-                activeSchemeLevel = level;
-            } else if (level <= activeSchemeLevel) {
-                activeScheme = "";
-                activeSchemeLevel = Integer.MAX_VALUE;
-            }
-        }
-        return !activeScheme.isBlank();
+    public static List<MultimodalScoreFact> eligibleModelFacts(List<MultimodalScoreFact> facts,
+                                                                Verification verification) {
+        return OriginalScoreQualificationPolicy.eligibleModelFacts(facts, verification);
     }
 
-    private static Set<BigDecimal> distinct(List<BigDecimal> values) {
-        Set<BigDecimal> distinct = new LinkedHashSet<>();
-        values.forEach(value -> distinct.add(value.stripTrailingZeros()));
-        return distinct;
-    }
-
-    private static void collect(Pattern pattern, String raw, List<BigDecimal> values) {
-        Matcher matcher = pattern.matcher(raw);
-        while (matcher.find()) values.add(new BigDecimal(matcher.group(1)));
-    }
-
-    private record Claim(String id, String tableId, String dimension, List<String> sourceCellIds,
-                         BigDecimal weight, boolean parent, boolean contributesToTotal,
-                         String quotedText, String tenderText) {
-        private boolean textLocator() {
-            return (tableId == null || tableId.isBlank())
-                    && sourceCellIds != null && sourceCellIds.size() == 1
-                    && sourceCellIds.get(0).startsWith("text:line[");
-        }
-    }
     public record Problem(String factId, String field, String code, Object expected, Object actual, String locator) {}
-    public record Total(BigDecimal value, String source, String scope, String locator, List<Problem> problems) {}
-    public record Verification(String documentId, String scheme, Total total, List<Problem> problems) {
+    public record Total(BigDecimal value, String source, String scope, String locator, List<Problem> problems,
+                        String quote) {
+        public Total(BigDecimal value, String source, String scope, String locator, List<Problem> problems) {
+            this(value, source, scope, locator, problems, "");
+        }
+    }
+    public record Qualification(String factId, String schemeId, String scopeStatus, boolean candidateEligible,
+                                String reason, String locator, String schemeTitle, BigDecimal declaredTotal,
+                                String totalEvidenceStatus, String totalQuote, String totalLocator, String layoutStatus,
+                                List<String> tableIds, ChildAggregation childAggregation) {
+        public Qualification {
+            schemeTitle = schemeTitle == null ? "" : schemeTitle;
+            totalEvidenceStatus = totalEvidenceStatus == null ? "UNKNOWN" : totalEvidenceStatus;
+            totalQuote = totalQuote == null ? "" : totalQuote;
+            totalLocator = totalLocator == null ? "" : totalLocator;
+            layoutStatus = layoutStatus == null ? "UNKNOWN" : layoutStatus;
+            tableIds = tableIds == null ? List.of() : List.copyOf(tableIds);
+            childAggregation = childAggregation == null ? ChildAggregation.UNKNOWN : childAggregation;
+        }
+
+        public Qualification(String factId, String schemeId, String scopeStatus, boolean candidateEligible,
+                             String reason, String locator) {
+            this(factId, schemeId, scopeStatus, candidateEligible, reason, locator, "", null,
+                    "UNKNOWN", "", "", "UNKNOWN", List.of(), ChildAggregation.UNKNOWN);
+        }
+    }
+    public record Verification(String documentId, String scheme, Total total, List<Problem> problems,
+                               List<Qualification> qualifications) {
+        public Verification(String documentId, String scheme, Total total, List<Problem> problems) {
+            this(documentId, scheme, total, problems, List.of());
+        }
         public boolean publishable() { return problems.isEmpty(); }
     }
 
@@ -264,13 +198,21 @@ public final class OriginalScoreEvidencePolicy {
 
     public static PublicationProof publicationProof(Verification verification, BigDecimal leafTotal,
                                                      List<ScoreFact> facts, List<ScoreCandidate> candidates) {
+        Set<String> eligibleIds = verification == null ? Set.of() : verification.qualifications().stream()
+                .filter(Qualification::candidateEligible).map(Qualification::factId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<ScoreFact> eligibleFacts = facts == null ? List.of()
+                : facts.stream().filter(fact -> eligibleIds.contains(fact.factId())).toList();
+        List<ScoreUnitPolicy.Node> nodes = eligibleFacts.stream().map(fact -> new ScoreUnitPolicy.Node(
+                fact.factId(), fact.parentFactId(), fact.weight(), fact.childAggregation().name())).toList();
+        Set<String> unitIds = ScoreUnitPolicy.effectiveUnitIds(nodes);
+        List<ScoreCandidate> expectedCandidates = eligibleFacts.stream()
+                .filter(fact -> unitIds.contains(fact.factId())).map(ScoreFact::toCandidate)
+                .flatMap(java.util.Optional::stream).toList();
         if (verification == null || !verification.publishable() || verification.total().value() == null
                 || leafTotal == null || leafTotal.compareTo(verification.total().value()) != 0
                 || facts == null || facts.isEmpty() || candidates == null || candidates.isEmpty()
-                || !facts.stream().filter(f -> ScoreUnitPolicy.effectiveUnitIds(facts.stream().map(fact ->
-                        new ScoreUnitPolicy.Node(fact.factId(), fact.parentFactId(), fact.weight(),
-                                fact.childAggregation().name())).toList()).contains(f.factId())).map(ScoreFact::toCandidate)
-                        .flatMap(java.util.Optional::stream).toList().equals(candidates)) {
+                || !expectedCandidates.equals(candidates)) {
             return null;
         }
         return new PublicationProof(verification, facts, candidates);

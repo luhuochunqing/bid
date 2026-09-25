@@ -4,8 +4,8 @@ import ScoreCandidateReviewCard from './ScoreCandidateReviewCard.vue'
 
 describe('ScoreCandidateReviewCard.vue', () => {
   const candidateFacts = [
-    { factId: 'f1', code: '1', dimension: '商务部分', weight: 6, scoreType: 'OBJECTIVE', sourceText: '业绩要求' },
-    { factId: 'f2', code: '2', dimension: '财务状况', weight: 3, scoreType: 'SUBJECTIVE', sourceText: '财务指标' },
+    { factId: 'f1', code: '1', dimension: '商务部分', weight: 6, scoreType: 'OBJECTIVE', sourceText: '业绩要求', candidateEligible: true },
+    { factId: 'f2', code: '2', dimension: '财务状况', weight: 3, scoreType: 'SUBJECTIVE', sourceText: '财务指标', candidateEligible: true },
   ]
 
   it('renders candidate table with facts and displays dimension and weight', () => {
@@ -83,6 +83,58 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(alert.text()).toContain('9 分，应与原文声明的 100 分闭合')
   })
 
+  it('separates out-of-scheme and unverified facts into an audit-only section', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: {
+        candidateFacts: [
+          candidateFacts[0],
+          { factId: 'contract', dimension: '履约考核', weight: 40, candidateEligible: false,
+            scopeStatus: 'OUT_OF_SCHEME', exclusionReason: 'ITEM_SCHEME_SCOPE_MISMATCH', sourceText: '第98页履约考核' },
+          { factId: 'legacy', dimension: '来源待核实', weight: 25, scopeStatus: 'SOURCE_UNVERIFIED' },
+        ],
+        candidateTotalWeight: 6,
+      },
+      global: { stubs: { 'el-alert': true, 'el-button': true, 'el-input': true, 'el-input-number': true,
+        'el-select': true, 'el-option': true } },
+    })
+
+    expect(wrapper.findAll('.candidate-table tbody tr')).toHaveLength(1)
+    expect(wrapper.find('.audit-facts').text()).toContain('履约考核')
+    expect(wrapper.find('.audit-facts').text()).toContain('方案外')
+    expect(wrapper.find('.audit-facts').text()).toContain('来源未验证')
+    expect(wrapper.text()).toContain('本方案内 1 项，合计 6 分')
+    expect(wrapper.find('.audit-facts').text()).toContain('不计当前候选、不计当前总分')
+  })
+
+  it('shows an explicit scheme selector and only the selected scheme in the candidate table', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: {
+        candidateFacts: [
+          { factId: 'a', schemeId: 'scheme-a', code: '1', dimension: '方案甲', weight: 100, candidateEligible: true },
+          { factId: 'b', schemeId: 'scheme-b', code: '1', dimension: '方案乙', weight: 150, candidateEligible: true },
+          { factId: 'audit', schemeId: 'scheme-a', dimension: '履约考核', weight: 35, candidateEligible: false,
+            scopeStatus: 'OUT_OF_SCHEME', sourceText: '第98页履约考核' },
+        ],
+        schemes: [
+          { schemeId: 'scheme-a', title: '方案甲', declaredTotal: 100 },
+          { schemeId: 'scheme-b', title: '方案乙', declaredTotal: 150 },
+        ],
+        selectedSchemeId: 'scheme-a',
+        schemeSelectionRequired: true,
+        candidateTotalWeight: 100,
+        declaredTotalWeight: 100,
+      },
+      global: { stubs: { 'el-alert': true, 'el-button': true, 'el-input': true, 'el-input-number': true,
+        'el-select': true, 'el-option': true } },
+    })
+
+    expect(wrapper.find('.scheme-selection').text()).toContain('评分方案')
+    expect(wrapper.findAll('.candidate-table tbody tr')).toHaveLength(1)
+    expect(wrapper.find('.candidate-review-title').text()).toContain('方案甲')
+    expect(wrapper.find('.audit-facts').text()).toContain('方案乙')
+    expect(wrapper.find('.audit-facts').text()).toContain('履约考核')
+  })
+
   it('does not render warning alert when candidateTotalWeight is 100', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: {
@@ -125,7 +177,7 @@ describe('ScoreCandidateReviewCard.vue', () => {
       },
     })
 
-    expect(wrapper.find('.el-alert-mock').text()).toContain('以候选合计作为正式总分')
+    expect(wrapper.find('.el-alert-mock').text()).toContain('单表方案且候选项核验通过')
     expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
   })
 
@@ -140,7 +192,7 @@ describe('ScoreCandidateReviewCard.vue', () => {
       },
     })
 
-    expect(wrapper.find('.el-alert-mock').text()).toContain('多个冲突的评分表')
+    expect(wrapper.find('.el-alert-mock').text()).toContain('所选评分方案的原文总分存在冲突')
     expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
   })
 

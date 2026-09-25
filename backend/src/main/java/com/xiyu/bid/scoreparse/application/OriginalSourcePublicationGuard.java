@@ -24,10 +24,15 @@ final class OriginalSourcePublicationGuard {
         original.problems().forEach(p -> defects.add(p.code() + "[fact=" + p.factId()
                 + ",field=" + p.field() + ",expected=" + p.expected() + ",actual=" + p.actual()
                 + ",source=" + p.locator() + "]"));
-        validateChildRelationships(artifact, facts, defects);
-        var unitIds = ScoreUnitPolicy.effectiveUnitIds(facts.stream().map(f -> new ScoreUnitPolicy.Node(
+        java.util.Set<String> eligibleIds = original.qualifications().stream()
+                .filter(OriginalScoreEvidencePolicy.Qualification::candidateEligible)
+                .map(OriginalScoreEvidencePolicy.Qualification::factId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<ScoreFact> eligibleFacts = facts.stream().filter(fact -> eligibleIds.contains(fact.factId())).toList();
+        validateChildRelationships(artifact, eligibleFacts, defects);
+        var unitIds = ScoreUnitPolicy.effectiveUnitIds(eligibleFacts.stream().map(f -> new ScoreUnitPolicy.Node(
                 f.factId(), f.parentFactId(), f.weight(), f.childAggregation().name())).toList());
-        BigDecimal leaves = facts.stream().filter(f -> unitIds.contains(f.factId()))
+        BigDecimal leaves = eligibleFacts.stream().filter(f -> unitIds.contains(f.factId()))
                 .map(ScoreFact::weight).filter(java.util.Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal total = original.total().value();
@@ -35,12 +40,12 @@ final class OriginalSourcePublicationGuard {
             defects.add("WEIGHT_SUM_MISMATCH[scheme=" + context.scheme() + ",expected=" + total
                     + ",actual=" + leaves + ",source=" + original.total().locator() + "]");
         }
-        var candidates = facts.stream().filter(f -> unitIds.contains(f.factId()))
+        var candidates = eligibleFacts.stream().filter(f -> unitIds.contains(f.factId()))
                 .map(ScoreFact::toCandidate).flatMap(java.util.Optional::stream).toList();
         var proof = defects.isEmpty() ? OriginalScoreEvidencePolicy.publicationProof(original, leaves,
                 facts, candidates) : null;
         return new Check(proof == null ? List.of() : List.of(proof), List.copyOf(defects), total, leaves,
-                original.total().source(), original.total().locator());
+                original.total().source(), original.total().locator(), original.qualifications());
     }
 
     private static void validateChildRelationships(DocumentArtifact artifact, List<ScoreFact> facts,
@@ -97,5 +102,6 @@ final class OriginalSourcePublicationGuard {
     }
 
     record Check(List<OriginalScoreEvidencePolicy.PublicationProof> proofs, List<String> defects,
-                 BigDecimal originalTotal, BigDecimal leafTotal, String source, String locator) {}
+                 BigDecimal originalTotal, BigDecimal leafTotal, String source, String locator,
+                 List<OriginalScoreEvidencePolicy.Qualification> qualifications) {}
 }

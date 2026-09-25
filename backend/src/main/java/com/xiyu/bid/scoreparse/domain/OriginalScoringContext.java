@@ -19,12 +19,9 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                                      List<OriginalScoreEvidencePolicy.Problem> problems) {
     private static final Pattern TOTAL = Pattern.compile("(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern NUMBER = Pattern.compile("^\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
+    private static final Pattern SCORE_DISTRIBUTION_TOTAL = Pattern.compile("(?s).*(?:分值构成|分数构成|评分构成)[^。；;\\n]{0,40}总分\\s*[：:（(为]?\\s*\\d+(?:\\.\\d+)?\\s*分.*");
     private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
-    private static final Pattern SCHEME = Pattern.compile(".*(?:评分办法|评分方案|评标办法|评分标准|综合评分法).*", Pattern.DOTALL);
-    private static final Pattern OTHER = Pattern.compile(".*(?:其他标包|其它标包|示例|样例|参考).*", Pattern.DOTALL);
-    private static final Pattern CATEGORY = Pattern.compile(".*(?:商务|技术|报价|价格|小计).*", Pattern.DOTALL);
-    private static final Pattern PACKAGE = Pattern.compile("(?:第[一二三四五六七八九十百0-9]+标包|标包[一二三四五六七八九十百0-9]+|第[一二三四五六七八九十百0-9]+包)");
-    private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包|评分办法|评标办法)[^。；;\\n]{0,80}?总分\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
+    private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包|评分办法|评审办法|评标办法|评分标准|评审标准)[^。；;\\n]{0,80}?总分\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
 
     public OriginalScoringContext {
         subtotals = Map.copyOf(subtotals);
@@ -32,27 +29,36 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
     }
 
     public boolean owns(DocumentArtifact.CanonicalTable table) {
-        if (table == null || otherScheme(table.sourceSection(), scheme)) return false;
-        String section = table.sourceSection();
-        return scheme.isBlank() || section == null || section.isBlank() || section.contains(scheme)
-                || section.contains("评分") || section.contains("评标");
+        return OriginalScoringSchemePolicy.owns(this, table);
+    }
+
+    public static String schemeId(String title) {
+        return OriginalScoringSchemePolicy.schemeId(title);
+    }
+
+    public static List<TextScope> textScopes(String text) {
+        return OriginalScoringSchemePolicy.textScopes(text);
+    }
+
+    public static List<SchemeEvidence> schemes(DocumentArtifact artifact, String text) {
+        return OriginalScoringSchemePolicy.schemes(artifact, text);
+    }
+
+    public static String schemeTitleForTable(DocumentArtifact.CanonicalTable table) {
+        return OriginalScoringSchemePolicy.schemeTitleForTable(table);
+    }
+
+    public static TextScope textScopeAt(String text, int line) {
+        return OriginalScoringSchemePolicy.textScopeAt(text, line);
     }
 
     public static OriginalScoringContext resolve(DocumentArtifact artifact, String text) {
         if (artifact == null) return new OriginalScoringContext("", "", unknown(), Map.of(), List.of());
-        String scheme = schemeFrom(artifact, text);
-        Set<String> namedSchemes = new java.util.LinkedHashSet<>(artifact.tables().stream()
-                .filter(t -> t != null && t.sourceSection() != null)
-                .map(t -> t.sourceSection().split("[/＞>]", 2)[0].trim())
-                .filter(root -> SCHEME.matcher(root).matches() && !OTHER.matcher(root).matches())
-                .collect(java.util.stream.Collectors.toSet()));
+        String scheme = OriginalScoringSchemePolicy.schemeFrom(artifact, text);
         Set<String> packages = new java.util.LinkedHashSet<>();
-        for (var table : artifact.tables()) {
-            if (table != null && scoringSection(table.sourceSection())) addPackage(packages, table.sourceSection());
-        }
-        namedSchemes.addAll(bodySchemes(text, packages));
+        Set<String> namedSchemes = OriginalScoringSchemePolicy.namedSchemes(artifact, text, packages);
         boolean ambiguousScopes = packages.size() > 1 || namedSchemes.stream().anyMatch(left -> namedSchemes.stream()
-                .anyMatch(right -> !left.contains(right) && !right.contains(left)));
+                .anyMatch(right -> !OriginalScoringSchemePolicy.sameScheme(left, right)));
         if (ambiguousScopes) {
             var problem = new OriginalScoreEvidencePolicy.Problem("", "scheme", "ORIGINAL_SCHEME_AMBIGUOUS",
                     "one task-scoped scoring scheme", namedSchemes, "artifact:sourceSection");
@@ -65,7 +71,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         List<OriginalScoreEvidencePolicy.Problem> localProblems = new ArrayList<>();
         int detailTables = 0;
         for (var table : artifact.tables()) {
-            if (table == null || otherScheme(table.sourceSection(), scheme)) continue;
+            if (table == null || !OriginalScoringSchemePolicy.owns(scheme, table)) continue;
             Map<Integer, List<DocumentArtifact.CanonicalTable.CanonicalCellDto>> rows = new LinkedHashMap<>();
             table.cells().stream().filter(c -> c.row() != null && !Boolean.TRUE.equals(c.isMergedContinue()))
                     .forEach(c -> rows.computeIfAbsent(c.row(), ignored -> new ArrayList<>()).add(c));
@@ -85,27 +91,29 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                     Matcher explicit = TOTAL.matcher(raw);
                     while (explicit.find()) {
                         String prefix = raw.substring(0, explicit.start());
-                        if (CATEGORY.matcher(prefix).matches() || detailRow) continue;
+                        if (OriginalScoringSchemePolicy.categoryTitle(prefix) || detailRow) continue;
                         BigDecimal value = new BigDecimal(explicit.group(1));
-                        if (summary && (detail || category(table.sourceSection()))
+                        if (summary && (detail || OriginalScoringSchemePolicy.category(table.sourceSection()))
                                 && !raw.contains("本项目") && !raw.contains("本标包")) {
-                            recordSubtotal(subtotals, localProblems, table.tableId(), value, locator);
+                            recordSubtotal(subtotals, localProblems, table.tableId(), value, locator, raw);
                         } else if (explicitWholeTotal(raw)
+                                || (SCORE_DISTRIBUTION_TOTAL.matcher(raw).matches()
+                                && OriginalScoringSchemePolicy.owns(scheme, table))
                                 || (!scheme.isBlank() && table.sourceSection() != null
                                 && table.sourceSection().contains(scheme)
-                                && ((summary && !category(table.sourceSection()))
+                                && ((summary && !OriginalScoringSchemePolicy.category(table.sourceSection()))
                                 || (!detail && raw.stripLeading().startsWith("总分"))))) {
-                            totals.add(new Evidence(value, "TABLE", table.sourceSection(), locator));
+                            totals.add(new Evidence(value, "TABLE", table.sourceSection(), locator, raw));
                         }
                     }
                     Matcher numeric = NUMBER.matcher(raw);
                     if (summary && cell.column() != null && cell.column() > 0 && numeric.matches()) {
                         BigDecimal value = new BigDecimal(numeric.group(1));
-                        if (!detail && !category(table.sourceSection()) && !scheme.isBlank()
+                        if (!detail && !OriginalScoringSchemePolicy.category(table.sourceSection()) && !scheme.isBlank()
                                 && table.sourceSection() != null && table.sourceSection().contains(scheme)) {
-                            totals.add(new Evidence(value, "TABLE", table.sourceSection(), locator));
+                            totals.add(new Evidence(value, "TABLE", table.sourceSection(), locator, raw));
                         } else {
-                            recordSubtotal(subtotals, localProblems, table.tableId(), value, locator);
+                            recordSubtotal(subtotals, localProblems, table.tableId(), value, locator, raw);
                         }
                     }
                 }
@@ -114,9 +122,10 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         parseText(text, scheme, totals);
         if (totals.isEmpty() && detailTables == 1 && subtotals.size() == 1 && localProblems.isEmpty()
                 && (!scheme.isBlank() || artifact.tables().stream().allMatch(t -> t == null || t.sourceSection() == null || t.sourceSection().isBlank()))
-                && artifact.tables().stream().filter(t -> t != null && subtotals.containsKey(t.tableId())).noneMatch(t -> category(t.sourceSection()))) {
+                && artifact.tables().stream().filter(t -> t != null && subtotals.containsKey(t.tableId()))
+                .noneMatch(t -> OriginalScoringSchemePolicy.category(t.sourceSection()))) {
             Subtotal only = subtotals.values().iterator().next();
-            totals.add(new Evidence(only.value(), "TABLE_SUMMARY", scheme, only.locator()));
+            totals.add(new Evidence(only.value(), "TABLE_SUMMARY", scheme, only.locator(), only.quote()));
         }
         OriginalScoreEvidencePolicy.Total resolved = total(totals, scheme);
         if (totals.isEmpty() && !localProblems.isEmpty()) {
@@ -131,8 +140,8 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
 
     private static void recordSubtotal(Map<String, Subtotal> values,
                                        List<OriginalScoreEvidencePolicy.Problem> problems,
-                                       String tableId, BigDecimal value, String locator) {
-        Subtotal previous = values.putIfAbsent(tableId, new Subtotal(value, locator));
+                                       String tableId, BigDecimal value, String locator, String quote) {
+        Subtotal previous = values.putIfAbsent(tableId, new Subtotal(value, locator, quote));
         if (previous != null && previous.value().compareTo(value) != 0) {
             problems.add(new OriginalScoreEvidencePolicy.Problem("", "subtotal", "TABLE_SUBTOTAL_CONFLICT",
                     previous.value() + "@" + previous.locator(), value + "@" + locator, locator));
@@ -140,82 +149,16 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
     }
 
     private static boolean explicitWholeTotal(String raw) {
-        return raw.matches("(?s).*(?:本项目|本标包|评分方案|评标办法|评分标准)\\s*(?:评分|评标|方案)?\\s*总分.*")
+        return raw.matches("(?s).*(?:本项目|本标包|评分方案|评审办法|评标办法|评分标准|评审标准)\\s*(?:评分|评标|方案)?\\s*总分.*")
                 || raw.matches("(?s).*(?:本项目|本标包)\\s*满分.*");
     }
 
-    private static void addPackage(Set<String> packages, String section) {
-        if (section == null || OTHER.matcher(section).matches()) return;
-        Matcher matcher = PACKAGE.matcher(section);
-        if (matcher.find()) packages.add(matcher.group());
-    }
-
-    private static boolean scoringSection(String section) {
-        return section != null && (section.contains("评分") || section.contains("评标"));
-    }
-
-    private static Set<String> bodySchemes(String text, Set<String> packages) {
-        Set<String> roots = new java.util.LinkedHashSet<>();
-        if (text == null) return roots;
-        int rootLevel = 0;
-        String root = "";
-        for (String line : text.split("\\R")) {
-            Matcher heading = HEADING.matcher(line);
-            if (!heading.matches()) continue;
-            String title = heading.group(1).trim();
-            String trimmed = line.stripLeading();
-            int level = 0;
-            while (level < trimmed.length() && trimmed.charAt(level) == '#') level++;
-            if (level <= rootLevel) root = "";
-            addPackage(packages, title);
-            if (SCHEME.matcher(title).matches() && !OTHER.matcher(title).matches() && root.isBlank()) {
-                roots.add(title);
-                root = title;
-                rootLevel = level;
-            }
-        }
-        return roots;
-    }
-
-    private static String schemeFrom(DocumentArtifact artifact, String text) {
-        for (var table : artifact.tables()) {
-            if (table != null && table.sourceSection() != null) {
-                String root = table.sourceSection().split("[/＞>]", 2)[0].trim();
-                if (SCHEME.matcher(root).matches() && !OTHER.matcher(root).matches()) return root;
-            }
-        }
-        if (text != null) for (String line : text.split("\\R")) {
-            Matcher heading = HEADING.matcher(line);
-            if (heading.matches() && SCHEME.matcher(heading.group(1)).matches()
-                    && !OTHER.matcher(heading.group(1)).matches()) return heading.group(1).trim();
-        }
-        return "";
-    }
-
-    private static boolean otherScheme(String section, String scheme) {
-        if (section == null) return false;
-        if (OTHER.matcher(section).matches()) return true;
-        Matcher sectionPackage = PACKAGE.matcher(section);
-        Matcher schemePackage = PACKAGE.matcher(scheme);
-        if (sectionPackage.find() && schemePackage.find()
-                && !sectionPackage.group().equals(schemePackage.group())) return true;
-        String root = section.split("[/＞>]", 2)[0].trim();
-        if (!scheme.isBlank() && !section.isBlank() && !section.contains(scheme)
-                && !section.contains("评分") && !section.contains("评标")) return true;
-        return !scheme.isBlank() && SCHEME.matcher(root).matches() && !sameScheme(root, scheme);
-    }
-    private static boolean sameScheme(String first, String second) {
-        return first.contains(second) || second.contains(first);
-    }
-    private static boolean category(String section) {
-        if (section == null) return false;
-        String[] parts = section.split("[/＞>]", 2);
-        return parts.length > 1 && CATEGORY.matcher(parts[1]).matches();
-    }
     private static void parseText(String text, String scheme, List<Evidence> totals) {
         if (text == null) return;
+        List<TextScope> scopes = textScopes(text);
         List<Heading> headings = new ArrayList<>();
         String[] lines = text.split("\\R", -1);
+        int scopeIndex = 0;
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
             Matcher title = HEADING.matcher(line);
@@ -225,27 +168,57 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 while (level < headingLine.length() && headingLine.charAt(level) == '#') level++;
                 while (!headings.isEmpty() && headings.get(headings.size() - 1).level() >= level)
                     headings.remove(headings.size() - 1);
-                headings.add(new Heading(level, title.group(1).trim()));
+                headings.add(new Heading(i, level, title.group(1).trim()));
                 continue;
             }
-            if (line.stripLeading().startsWith("|") || OTHER.matcher(line).matches()) continue;
-            boolean inScheme = scheme.isBlank() || headings.isEmpty()
-                    || headings.stream().anyMatch(heading -> heading.title().equals(scheme));
+            if (line.stripLeading().startsWith("|") || OriginalScoringSchemePolicy.isOtherSection(line)) continue;
+            while (scopeIndex < scopes.size() && i >= scopes.get(scopeIndex).endLine()) scopeIndex++;
+            TextScope sourceScope = scopeIndex < scopes.size() && i >= scopes.get(scopeIndex).startLine()
+                    && i < scopes.get(scopeIndex).endLine() ? scopes.get(scopeIndex) : null;
+            boolean inScheme;
+            if (sourceScope != null && "OUT_OF_SCHEME".equals(sourceScope.scopeStatus())) {
+                inScheme = false;
+            } else if (sourceScope != null && "IN_SCHEME".equals(sourceScope.scopeStatus())) {
+                inScheme = scheme.isBlank() || schemeId(scheme).equals(sourceScope.schemeId());
+            } else {
+                inScheme = scheme.isBlank() || headings.isEmpty()
+                        || headings.stream().anyMatch(heading -> heading.title().equals(scheme));
+            }
             if (!inScheme) continue;
             String normalizedLine = normalizeTextLine(line);
             Matcher matcher = TOTAL.matcher(normalizedLine);
             while (matcher.find()) {
-                if (CATEGORY.matcher(normalizedLine.substring(0, matcher.start())).matches()) continue;
-                boolean scoped = normalizedLine.contains("总分") && (SCHEME.matcher(normalizedLine).matches()
+                if (OriginalScoringSchemePolicy.categoryTitle(normalizedLine.substring(0, matcher.start()))) continue;
+                boolean scoped = normalizedLine.contains("总分") && (OriginalScoringSchemePolicy.isSchemeTitle(normalizedLine)
                         || normalizedLine.contains("本项目") || normalizedLine.contains("本标包")
                         || normalizedLine.stripLeading().startsWith("评分总分")
                         || inScheme)
                         || normalizedLine.stripLeading().matches("^(?:总分|满分).*分.*")
                         && inScheme;
-                if (scoped) totals.add(new Evidence(new BigDecimal(matcher.group(1)), "TENDER_TEXT", headings.isEmpty() ? scheme : headings.get(headings.size() - 1).title(), "text:line[" + i + "]"));
+                if (scoped) totals.add(new Evidence(new BigDecimal(matcher.group(1)), "TENDER_TEXT",
+                        headings.isEmpty() ? scheme : headings.get(headings.size() - 1).title(),
+                        "text:line[" + i + "]", line));
             }
         }
-        if (totals.isEmpty()) { Matcher m = DOCUMENT_TOTAL.matcher(normalizeTextLine(text)); if (m.find()) totals.add(new Evidence(new BigDecimal(m.group(1)), "TENDER_TEXT", scheme, "text:document")); }
+        if (totals.isEmpty()) {
+            String[] sourceLines = text.split("\\R", -1);
+            for (int i = 0; i < sourceLines.length && totals.isEmpty(); i++) {
+                TextScope sourceScope = textScopeAt(text, i);
+                if (sourceScope != null && "OUT_OF_SCHEME".equals(sourceScope.scopeStatus())) continue;
+                if (sourceScope != null && "IN_SCHEME".equals(sourceScope.scopeStatus())
+                        && !sourceScope.schemeId().equals(schemeId(scheme))) continue;
+                for (int end = Math.min(sourceLines.length, i + 3); end > i; end--) {
+                    String normalized = normalizeTextLine(String.join(" ", java.util.Arrays.copyOfRange(sourceLines, i, end)));
+                    Matcher m = DOCUMENT_TOTAL.matcher(normalized);
+                    if (m.find()) {
+                        String quote = String.join("\n", java.util.Arrays.copyOfRange(sourceLines, i, end));
+                        totals.add(new Evidence(new BigDecimal(m.group(1)), "TENDER_TEXT", scheme,
+                                "text:line[" + i + "]", quote));
+                        break;
+                    }
+                }
+            }
+        }
     }
     private static String normalizeTextLine(String value) { return value == null ? "" : value.replaceAll("[\\u00a0\\u2007\\u202f\\t\\r\\n]+", " ").replaceAll(" +", " ").trim(); }
     private static TableStructure tableStructure(DocumentArtifact.CanonicalTable table, Map<Integer, List<DocumentArtifact.CanonicalTable.CanonicalCellDto>> rows) {
@@ -281,20 +254,33 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         if (values.stream().anyMatch(value -> value.value().compareTo(first.value()) != 0))
             return new OriginalScoreEvidencePolicy.Total(null, "CONFLICT", scheme, first.locator(), List.of(
                     new OriginalScoreEvidencePolicy.Problem("", "declaredTotal", "ORIGINAL_TOTAL_CONFLICT",
-                            values.stream().map(v -> v.value() + "@" + v.locator()).toList(), null, first.locator())));
-        return new OriginalScoreEvidencePolicy.Total(first.value(), first.source(), scheme, first.locator(), List.of());
+                            values.stream().map(v -> v.value() + "@" + v.locator()).toList(), null, first.locator())),
+                    first.quote());
+        return new OriginalScoreEvidencePolicy.Total(first.value(), first.source(), scheme, first.locator(), List.of(),
+                first.quote());
     }
     private static OriginalScoreEvidencePolicy.Total unknown() {
         return new OriginalScoreEvidencePolicy.Total(null, "UNKNOWN", "", "", List.of(
                 new OriginalScoreEvidencePolicy.Problem("", "declaredTotal", "ORIGINAL_TOTAL_UNKNOWN",
                         "original document total", "no scoped original total", "")));
     }
-    private record Evidence(BigDecimal value, String source, String scope, String locator) {}
+    private record Evidence(BigDecimal value, String source, String scope, String locator, String quote) {}
     private record TableStructure(TableGrid grid, TableColumnMapping mapping) {
         private boolean explicitHeaders() {
             return HeuristicTableColumnMapper.hasExplicitScoreHeaders(grid);
         }
     }
-    private record Heading(int level, String title) {}
-    public record Subtotal(BigDecimal value, String locator) {}
+    private record Heading(int line, int level, String title) {}
+    public record TextScope(String schemeId, String title, String scopeStatus, String sourceLocator,
+                            int startLine, int endLine, String text) {}
+    public record SchemeEvidence(String schemeId, String title, List<String> tableIds, String layoutStatus,
+                                 String totalEvidenceStatus, BigDecimal declaredTotal, String totalQuote,
+                                 String totalLocator) {
+        public SchemeEvidence {
+            tableIds = tableIds == null ? List.of() : List.copyOf(tableIds);
+        }
+    }
+    public record Subtotal(BigDecimal value, String locator, String quote) {
+        public Subtotal(BigDecimal value, String locator) { this(value, locator, ""); }
+    }
 }

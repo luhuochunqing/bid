@@ -303,7 +303,7 @@ class ScoreParseAppServiceTest {
 
         verify(scoreAnalyzer, never()).recallCandidates(anyString(), isNull(), any());
         verify(sidecarTableExtractor, never()).extract(any(byte[].class), anyString());
-        verify(itemPersistenceService).persistFactsAndEvidence(eq(PROJECT_ID), eq(5L), anyList());
+        verify(itemPersistenceService).persistFactsAndEvidence(eq(PROJECT_ID), eq(5L), anyList(), anyList());
         verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(5L), anyList());
         verify(estimatedScoreService).estimateForProject(PROJECT_ID);
         verify(stateService).markCompleted(TASK_ID);
@@ -360,7 +360,7 @@ class ScoreParseAppServiceTest {
         service.executeParseAsync(TASK_ID);
 
         verify(scoreAnalyzer, never()).recallCandidates(anyString(), isNull(), any());
-        verify(itemPersistenceService).persistFactsAndEvidence(eq(PROJECT_ID), eq(5L), anyList());
+        verify(itemPersistenceService).persistFactsAndEvidence(eq(PROJECT_ID), eq(5L), anyList(), anyList());
         verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
         verify(estimatedScoreService, never()).estimateForProject(any());
         verify(stateService).markCompleted(TASK_ID);

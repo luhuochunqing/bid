@@ -2,6 +2,7 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
+import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,12 +47,13 @@ final class TextPrimaryEvidenceBinder {
         if (facts == null || facts.isEmpty()) return List.of();
         NormalizedEvidence normalizedText = tenderText == null || tenderText.isBlank()
                 ? null : normalizeWithOffsets(tenderText);
+        List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact, tenderText);
         return facts.stream().map(fact -> {
             if (!fact.tableId().isBlank() && !fact.sourceCellIds().isEmpty()) return fact;
             var bound = artifact == null ? java.util.Optional.<MultimodalScoreFact>empty()
                     : artifact.tables().stream().flatMap(table -> table.cells().stream()
                             .map(cell -> new Object[]{table, cell}))
-                    .filter(pair -> matches(fact, pair)).findFirst().map(pair -> bound(fact, pair));
+                    .filter(pair -> matches(fact, pair, schemes)).findFirst().map(pair -> bound(fact, pair));
             if (bound.isPresent()) return bound.get();
             return textEvidence(fact, tenderText, normalizedText).orElse(fact);
         }).toList();
@@ -71,7 +73,8 @@ final class TextPrimaryEvidenceBinder {
         int line = lineOfOffset(tenderText, sourceOffset);
         return java.util.Optional.of(new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(),
                 fact.dimension(), fact.weight(), fact.ruleText(), fact.scoreType(), fact.pageNumber(), "",
-                List.of("text:line[" + line + "]"), fact.quotedText(), fact.confidence(), fact.childAggregation()));
+                List.of("text:line[" + line + "]"), fact.quotedText(), fact.confidence(), fact.childAggregation(),
+                fact.schemeId(), fact.scopeStatus()));
     }
 
     private static String normalizeForEvidence(String value) {
@@ -116,12 +119,24 @@ final class TextPrimaryEvidenceBinder {
     private record NormalizedEvidence(String text, List<Integer> sourceOffsets) {
     }
 
-    private static boolean matches(MultimodalScoreFact fact, Object[] pair) {
+    private static boolean matches(MultimodalScoreFact fact, Object[] pair,
+                                   List<OriginalScoringContext.SchemeEvidence> schemes) {
         var table = (DocumentArtifact.CanonicalTable) pair[0];
         var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
         String raw = cell.rawText() == null ? "" : cell.rawText();
         String normalizedQuote = normalizeForEvidence(fact.quotedText());
         Integer page = cell.sourcePage() == null ? table.sourcePage() : cell.sourcePage();
+        String tableScheme = OriginalScoringContext.schemeTitleForTable(table);
+        String tableSchemeId = schemes.stream().filter(scheme -> scheme.tableIds().contains(table.tableId()))
+                .map(OriginalScoringContext.SchemeEvidence::schemeId).findFirst()
+                .orElseGet(() -> tableScheme.isBlank() ? "" : OriginalScoringContext.schemeId(tableScheme));
+        if ("IN_SCHEME".equals(fact.scopeStatus()) && !fact.schemeId().isBlank()
+                && !tableSchemeId.isBlank() && !fact.schemeId().equals(tableSchemeId)) return false;
+        if ("OUT_OF_SCHEME".equals(fact.scopeStatus())) {
+            String section = table.sourceSection() == null ? "" : table.sourceSection();
+            if (!section.matches("(?s).*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*")
+                    || !tableScheme.isBlank()) return false;
+        }
         return !fact.quotedText().isBlank()
                 && !normalizedQuote.isBlank()
                 && normalizeForEvidence(raw).contains(normalizedQuote)
@@ -134,7 +149,7 @@ final class TextPrimaryEvidenceBinder {
         Integer page = cell.sourcePage() == null ? table.sourcePage() : cell.sourcePage();
         return new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(), fact.dimension(), fact.weight(),
                 fact.ruleText(), fact.scoreType(), page, table.tableId(), List.of(cell.cellId()), fact.quotedText(),
-                fact.confidence(), fact.childAggregation());
+                fact.confidence(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus());
     }
 
     private static DocumentArtifact extract(LoadedBidFile loaded, String fileName,

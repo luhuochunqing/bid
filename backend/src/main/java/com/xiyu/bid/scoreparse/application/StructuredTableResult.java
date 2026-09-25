@@ -20,7 +20,8 @@ record StructuredTableResult(List<ScoreCandidate> candidates,
                              ScoreCompletenessPolicy.ScoreCompletenessResult completeness,
                              List<TableCompleteness> tableCompletenesses,
                              List<OriginalScoreEvidencePolicy.PublicationProof> originalProofs,
-                             AiProviderDiagnostics aiProviderDiagnostics) {
+                             AiProviderDiagnostics aiProviderDiagnostics,
+                             List<OriginalScoreEvidencePolicy.Qualification> qualifications) {
 
     StructuredTableResult(List<ScoreCandidate> candidates,
                           boolean structureIncomplete,
@@ -31,7 +32,20 @@ record StructuredTableResult(List<ScoreCandidate> candidates,
                           List<TableCompleteness> tableCompletenesses,
                           List<OriginalScoreEvidencePolicy.PublicationProof> originalProofs) {
         this(candidates, structureIncomplete, failureReason, evidencePipeline, facts,
-                completeness, tableCompletenesses, originalProofs, null);
+                completeness, tableCompletenesses, originalProofs, null, List.of());
+    }
+
+    StructuredTableResult(List<ScoreCandidate> candidates,
+                          boolean structureIncomplete,
+                          String failureReason,
+                          boolean evidencePipeline,
+                          List<ScoreFact> facts,
+                          ScoreCompletenessPolicy.ScoreCompletenessResult completeness,
+                          List<TableCompleteness> tableCompletenesses,
+                          List<OriginalScoreEvidencePolicy.PublicationProof> originalProofs,
+                          AiProviderDiagnostics aiProviderDiagnostics) {
+        this(candidates, structureIncomplete, failureReason, evidencePipeline, facts, completeness,
+                tableCompletenesses, originalProofs, aiProviderDiagnostics, List.of());
     }
 
     boolean originalVerified() {
@@ -44,7 +58,8 @@ record StructuredTableResult(List<ScoreCandidate> candidates,
     }
 
     static StructuredTableResult ok(List<ScoreCandidate> candidates, AiProviderDiagnostics aiProviderDiagnostics) {
-        return new StructuredTableResult(candidates, false, null, false, List.of(), null, List.of(), List.of(), aiProviderDiagnostics);
+        return new StructuredTableResult(candidates, false, null, false, List.of(), null, List.of(), List.of(),
+                aiProviderDiagnostics, List.of());
     }
 
     static StructuredTableResult structureIncomplete(String failureReason) {
@@ -52,7 +67,8 @@ record StructuredTableResult(List<ScoreCandidate> candidates,
     }
 
     static StructuredTableResult structureIncomplete(String failureReason, AiProviderDiagnostics aiProviderDiagnostics) {
-        return new StructuredTableResult(List.of(), true, failureReason, false, List.of(), null, List.of(), List.of(), aiProviderDiagnostics);
+        return new StructuredTableResult(List.of(), true, failureReason, false, List.of(), null, List.of(), List.of(),
+                aiProviderDiagnostics, List.of());
     }
 
     static StructuredTableResult evidencePipeline(List<ScoreFact> facts,
@@ -76,10 +92,21 @@ record StructuredTableResult(List<ScoreCandidate> candidates,
                                                   List<TableCompleteness> tableCompletenesses,
                                                   List<OriginalScoreEvidencePolicy.PublicationProof> originalProofs,
                                                   AiProviderDiagnostics aiProviderDiagnostics) {
+        return evidencePipeline(facts, candidates, completeness, tableCompletenesses, originalProofs,
+                List.of(), aiProviderDiagnostics);
+    }
+
+    static StructuredTableResult evidencePipeline(List<ScoreFact> facts,
+                                                  List<ScoreCandidate> candidates,
+                                                  ScoreCompletenessPolicy.ScoreCompletenessResult completeness,
+                                                  List<TableCompleteness> tableCompletenesses,
+                                                  List<OriginalScoreEvidencePolicy.PublicationProof> originalProofs,
+                                                  List<OriginalScoreEvidencePolicy.Qualification> qualifications,
+                                                  AiProviderDiagnostics aiProviderDiagnostics) {
         return new StructuredTableResult(candidates, false, null, true,
                 facts == null ? List.of() : List.copyOf(facts), completeness,
                 tableCompletenesses == null ? List.of() : List.copyOf(tableCompletenesses),
                 originalProofs == null ? List.of() : List.copyOf(originalProofs),
-                aiProviderDiagnostics);
+                aiProviderDiagnostics, qualifications == null ? List.of() : List.copyOf(qualifications));
     }
 }

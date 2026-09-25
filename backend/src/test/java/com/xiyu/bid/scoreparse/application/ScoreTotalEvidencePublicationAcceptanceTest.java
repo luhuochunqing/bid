@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -53,7 +54,7 @@ class ScoreTotalEvidencePublicationAcceptanceTest {
                 mock(ScoreParseTaskStateService.class), mock(ScoreParseProgressService.class), items,
                 mock(EstimatedScoreService.class));
         verify(items, never()).persistItems(any(), any(), any());
-        verify(items).persistFactsAndEvidence(any(), any(), any());
+        verify(items).persistFactsAndEvidence(any(), any(), anyList(), anyList());
     }
 
     @Test

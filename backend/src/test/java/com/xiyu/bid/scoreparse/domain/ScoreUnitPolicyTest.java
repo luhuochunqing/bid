@@ -42,6 +42,24 @@ class ScoreUnitPolicyTest {
         assertThat(ScoreUnitPolicy.hasUnknownRelation(facts)).isTrue();
     }
 
+    @Test
+    void exclusiveFiveFourThreeTwoTiersCountTheirFivePointParentWhileSumChildrenStillTotalTwenty() {
+        var facts = List.of(
+                node("tier-parent", "", "5", ChildAggregation.MUTUALLY_EXCLUSIVE),
+                node("tier-5", "tier-parent", "5", ChildAggregation.SUM),
+                node("tier-4", "tier-parent", "4", ChildAggregation.SUM),
+                node("tier-3", "tier-parent", "3", ChildAggregation.SUM),
+                node("tier-2", "tier-parent", "2", ChildAggregation.SUM),
+                node("sum-parent", "", "20", ChildAggregation.SUM),
+                node("sum-5-a", "sum-parent", "5", ChildAggregation.SUM),
+                node("sum-5-b", "sum-parent", "5", ChildAggregation.SUM),
+                node("sum-10", "sum-parent", "10", ChildAggregation.SUM));
+
+        assertThat(ScoreUnitPolicy.effectiveUnitIds(facts)).containsExactlyInAnyOrder(
+                "tier-parent", "sum-5-a", "sum-5-b", "sum-10");
+        assertThat(ScoreUnitPolicy.totalWeight(facts)).isEqualByComparingTo("25");
+    }
+
     private static ScoreUnitPolicy.Node node(String id, String parent, String weight, ChildAggregation relation) {
         return new ScoreUnitPolicy.Node(id, parent, new BigDecimal(weight), relation.name());
     }

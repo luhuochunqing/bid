@@ -114,7 +114,7 @@ class StructuredTableExtractionMarkCompletedTest {
         verify(itemService, never()).persistItems(any(), any(), anyList());
         verify(estimatedScoreService, never()).estimateForProject(any());
         // 本次提取事实与复核候选仍须保存（供复核 UI 按任务读取）
-        verify(itemService).persistFactsAndEvidence(any(), any(), anyList());
+        verify(itemService).persistFactsAndEvidence(any(), any(), anyList(), anyList());
         verify(taskRepository).save(task);
         verify(stateService).markCompleted("task-partial");
     }
@@ -157,7 +157,7 @@ class StructuredTableExtractionMarkCompletedTest {
                 mock(ScoreParseProgressService.class), items, mock(EstimatedScoreService.class));
         assertThat(task.getDecisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
         verify(items, never()).persistItems(any(), any(), anyList());
-        verify(items).persistFactsAndEvidence(any(), any(), anyList());
+        verify(items).persistFactsAndEvidence(any(), any(), anyList(), anyList());
     }
 
     @Test

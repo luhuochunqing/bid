@@ -22,7 +22,8 @@ public final class MultimodalScoreFactValidator {
     public ValidationReport validate(List<MultimodalScoreFact> input,
                                      DocumentArtifact artifact, String tenderText,
                                      BigDecimal declaredTotal) {
-        return validate(input, artifact, OriginalScoringContext.resolve(artifact, tenderText), declaredTotal);
+        return validate(input, artifact, OriginalScoringContext.resolve(artifact, tenderText), tenderText,
+                declaredTotal);
     }
 
     public ValidationReport validate(List<MultimodalScoreFact> input,
@@ -40,18 +41,25 @@ public final class MultimodalScoreFactValidator {
             violations.add(new Violation("", "facts", "EMPTY_FACTS", "模型必须返回至少一个评分项",
                     "non-empty", 0, ""));
         }
-        validateRequiredFields(facts, violations);
         Map<String, CellSource> cells = indexCells(artifact);
-        validateEvidence(facts, cells, tenderText, violations);
-        validateDuplicates(facts, violations);
-        validateSequences(facts, violations);
-        validateParents(facts, cells, violations);
         var sourceVerification = OriginalScoreEvidencePolicy.verifyModel(context, artifact, tenderText, facts, declaredTotal);
         sourceVerification.problems().forEach(problem -> violations.add(new Violation(problem.factId(),
                 problem.field(), problem.code(), "模型字段缺少对应原文依据", problem.expected(),
                 problem.actual(), problem.locator())));
-        List<ScoreUnitPolicy.Node> scoreNodes = facts.stream().map(f -> new ScoreUnitPolicy.Node(
-                factKey(f), parentKey(f), f.weight(), f.childAggregation().name())).toList();
+        List<MultimodalScoreFact> eligibleFacts = OriginalScoreEvidencePolicy.eligibleModelFacts(facts, sourceVerification);
+        Set<String> outOfSchemeIds = sourceVerification.qualifications().stream()
+                .filter(qualification -> "OUT_OF_SCHEME".equals(qualification.scopeStatus()))
+                .map(OriginalScoreEvidencePolicy.Qualification::factId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<MultimodalScoreFact> validationFacts = facts.stream()
+                .filter(fact -> !outOfSchemeIds.contains(OriginalScoreEvidencePolicy.modelFactId(fact))).toList();
+        validateRequiredFields(validationFacts, violations);
+        validateEvidence(validationFacts, cells, tenderText, violations);
+        validateDuplicates(validationFacts, violations);
+        validateSequences(validationFacts, violations);
+        validateParents(validationFacts, cells, violations);
+        List<ScoreUnitPolicy.Node> scoreNodes = eligibleFacts.stream().map(f -> new ScoreUnitPolicy.Node(
+                factKey(f), parentKey(f, eligibleFacts), f.weight(), f.childAggregation().name())).toList();
         BigDecimal leafTotal = ScoreUnitPolicy.totalWeight(scoreNodes);
         if (ScoreUnitPolicy.hasUnknownRelation(scoreNodes)) {
             violations.add(new Violation("", "childAggregation", "CHILD_AGGREGATION_UNKNOWN",
@@ -118,10 +126,15 @@ public final class MultimodalScoreFactValidator {
         Set<String> codes = new HashSet<>();
         Set<String> locators = new HashSet<>();
         for (MultimodalScoreFact fact : facts) {
-            if (!codes.add(fact.sectionTitle() + "\u0000" + fact.code())) {
+            if (!codes.add(fact.schemeId() + "\u0000" + fact.scopeStatus() + "\u0000"
+                    + fact.sectionTitle() + "\u0000" + fact.code())) {
                 violations.add(of(fact, "code", "DUPLICATE_CODE", "同章节序号重复", "unique", fact.code()));
             }
             String locator = fact.tableId() + "\u0000" + String.join(",", fact.sourceCellIds());
+            if (fact.tableId().isBlank() && fact.sourceCellIds().size() == 1
+                    && fact.sourceCellIds().get(0).startsWith("text:line[")) {
+                locator += "\u0000quote:" + normalizeEvidence(fact.quotedText());
+            }
             if (!locators.add(locator)) {
                 violations.add(of(fact, "sourceCellIds", "DUPLICATE_SOURCE", "多个评分项重复引用同一来源", "unique", locator));
             }
@@ -130,7 +143,8 @@ public final class MultimodalScoreFactValidator {
 
     private static void validateSequences(List<MultimodalScoreFact> facts, List<Violation> violations) {
         Map<String, List<MultimodalScoreFact>> siblings = new LinkedHashMap<>();
-        facts.forEach(f -> siblings.computeIfAbsent(f.sectionTitle() + "\u0000" + f.parentCode(), key -> new ArrayList<>()).add(f));
+        facts.forEach(f -> siblings.computeIfAbsent(f.schemeId() + "\u0000" + f.scopeStatus() + "\u0000" + f.sectionTitle()
+                + "\u0000" + f.parentCode(), key -> new ArrayList<>()).add(f));
         siblings.forEach((group, rows) -> {
             boolean numbered = rows.stream().anyMatch(row -> fLocalNumber(row) != null);
             if (!numbered) return;
@@ -147,20 +161,21 @@ public final class MultimodalScoreFactValidator {
     private static void validateParents(List<MultimodalScoreFact> facts, Map<String, CellSource> cells,
                                         List<Violation> violations) {
         Map<String, MultimodalScoreFact> byKey = new HashMap<>();
-        facts.forEach(f -> byKey.put(f.sectionTitle() + "\u0000" + f.code(), f));
+        facts.forEach(f -> byKey.put(logicalItemKey(f), f));
         Map<String, BigDecimal> childTotals = new HashMap<>();
+        Map<String, List<MultimodalScoreFact>> childrenByParent = new HashMap<>();
         for (MultimodalScoreFact child : facts) {
             if (child.parentCode().isBlank()) continue;
-            String key = child.sectionTitle() + "\u0000" + child.parentCode();
-            if (!byKey.containsKey(key)) {
+            MultimodalScoreFact parent = MultimodalFactParentCodeNormalizer.resolveParent(child, facts);
+            if (parent == null) {
                 violations.add(of(child, "parentCode", "PARENT_NOT_FOUND", "父项不存在", child.parentCode(), "missing"));
             } else if (child.weight() != null) {
+                String key = logicalItemKey(parent);
                 childTotals.merge(key, child.weight(), BigDecimal::add);
+                childrenByParent.computeIfAbsent(key, ignored -> new ArrayList<>()).add(child);
             }
         }
-        facts.stream().filter(child -> !child.parentCode().isBlank())
-                .map(child -> child.sectionTitle() + "\u0000" + child.parentCode()).distinct()
-                .forEach(key -> {
+        childTotals.keySet().forEach(key -> {
             MultimodalScoreFact parent = byKey.get(key);
             BigDecimal total = childTotals.getOrDefault(key, BigDecimal.ZERO);
             if (parent == null) return;
@@ -168,31 +183,37 @@ public final class MultimodalScoreFactValidator {
                     && (parent.weight() == null || parent.weight().compareTo(total) != 0)) {
                 violations.add(of(parent, "weight", "PARENT_WEIGHT_MISMATCH", "父项分值必须等于直接子项合计", total, parent.weight()));
             } else if (parent.childAggregation() != ChildAggregation.UNKNOWN
-                    && !relationSupported(parent, facts, cells)) {
+                    && !relationSupported(parent, childrenByParent.getOrDefault(key, List.of()), cells)) {
                 violations.add(of(parent, "childAggregation", "CHILD_AGGREGATION_UNSUPPORTED_BY_SOURCE",
                         "原文未能证明模型选择的父子计分关系", parent.childAggregation(), parent.ruleText()));
             }
         });
     }
 
-    private static boolean relationSupported(MultimodalScoreFact parent, List<MultimodalScoreFact> facts,
+    private static boolean relationSupported(MultimodalScoreFact parent, List<MultimodalScoreFact> children,
                                              Map<String, CellSource> cells) {
         var citedCellIds = new java.util.ArrayList<>(parent.sourceCellIds());
-        facts.stream()
-                .filter(child -> child.sectionTitle().equals(parent.sectionTitle())
-                        && child.parentCode().equals(parent.code()))
-                .flatMap(child -> child.sourceCellIds().stream()).forEach(citedCellIds::add);
+        children.stream().flatMap(child -> child.sourceCellIds().stream()).forEach(citedCellIds::add);
         String evidence = citedCellIds.stream().map(cells::get).filter(java.util.Objects::nonNull)
                 .map(CellSource::rawText).collect(java.util.stream.Collectors.joining(" "));
         return parent.childAggregation().supportedByOriginalText(evidence);
     }
 
     private static String factKey(MultimodalScoreFact fact) {
-        return fact.sectionTitle() + "/" + fact.code();
+        return logicalKey(fact, fact.code());
     }
 
-    private static String parentKey(MultimodalScoreFact fact) {
-        return fact.parentCode().isBlank() ? "" : fact.sectionTitle() + "/" + fact.parentCode();
+    private static String parentKey(MultimodalScoreFact fact, List<MultimodalScoreFact> facts) {
+        MultimodalScoreFact parent = MultimodalFactParentCodeNormalizer.resolveParent(fact, facts);
+        return parent == null ? "" : factKey(parent);
+    }
+
+    private static String logicalItemKey(MultimodalScoreFact fact) {
+        return logicalKey(fact, fact.code());
+    }
+
+    private static String logicalKey(MultimodalScoreFact fact, String code) {
+        return fact.schemeId() + "\u0000" + fact.scopeStatus() + "\u0000" + fact.sectionTitle() + "\u0000" + code;
     }
 
     private static Map<String, CellSource> indexCells(DocumentArtifact artifact) {
