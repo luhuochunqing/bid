@@ -1,0 +1,15 @@
+{
+  "synthetic": true,
+  "desensitization": "合成脱敏回归，不含项目1384原始标书内容",
+  "focus": "恢复30/10/4三项来源证据并与56分已核验叶子闭合100分",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": true,
+  "laneHints": ["table"],
+  "items": [
+    { "code": "1", "dim": "响应报价", "detail": "报价按评审基准折算，最高得 30 分。", "weight": 30 },
+    { "code": "2", "dim": "整体方案", "detail": "方案编制完整、合理和可行，最高得 10 分。", "weight": 10 },
+    { "code": "3", "dim": "项目团队", "detail": "项目团队配置符合要求，最高得 4 分。", "weight": 4 },
+    { "code": "4", "dim": "其他已核验评分项", "detail": "其余已核验叶子项合计得 56 分。", "weight": 56 }
+  ]
+}

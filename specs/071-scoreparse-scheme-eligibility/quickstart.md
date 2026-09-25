@@ -26,6 +26,14 @@ Expected behavior after the fix:
 - 5/4/3/2 alternatives yield a maximum of 5; cumulative 5+5+10 leaves remain 20 under their parent.
 - Default UI adoption sends eligible fact IDs from only the selected scheme; the backend rejects ineligible or cross-scheme IDs.
 
+### DOCX continuation evidence follow-up
+
+- Sidecar v2.1 adds optional cell-level `logicalRowId`; old v2.0 artifacts without it remain valid and cannot prove cross-table continuation.
+- Positive converter fixture: one score row spans the final row of a physical table and the first detail-only row of the immediately following same-section table. The two fragments share one logical ID while retaining both physical cell IDs and XML paths.
+- Adversarial converter fixture: same-section independent adjacent tables, repeated header, incompatible columns, missing dimension/score cells, or multiple possible predecessors must not share an ID.
+- Java binding uses the ordered `sourceCellIds[]` to reconstruct exact original text only from one logical row. A non-verbatim quote may be replaced by source text only when exact dimension text and explicit source score evidence identify exactly one row; otherwise the fact remains in audit review.
+- Acceptance for project 1384 requires all three previously missing facts (price 30, overall plan 10, project team 4) to expose source locators and pass selected-scheme qualification. Sum eligible leaves only; preserve group caps without double-counting; require the effective total to equal the original verified total 100.
+
 Then run the repository completion gates:
 
 ```bash

@@ -283,8 +283,8 @@ class TestExtractTablesVersionHeaders:
     async def test_default_request_echoes_v2_header(self, app_instance):
         resp = await _post_extract_tables(app_instance, b"not a docx", "test.txt")
         assert resp.status_code == 200
-        assert resp.headers.get("x-schema-version") == "2.0"
-        assert resp.json()["schemaVersion"] == "2.0"
+        assert resp.headers.get("x-schema-version") == "2.1"
+        assert resp.json()["schemaVersion"] == "2.1"
 
     @pytest.mark.asyncio
     async def test_health_echoes_v2_header(self, app_instance):
@@ -293,4 +293,4 @@ class TestExtractTablesVersionHeaders:
             resp = await client.get("/health")
         assert resp.status_code == 200
         assert resp.json() == {"status": "up"}  # body unchanged
-        assert resp.headers.get("x-schema-version") == "2.0"
+        assert resp.headers.get("x-schema-version") == "2.1"

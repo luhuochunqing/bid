@@ -46,12 +46,21 @@
 - Use the existing `python-docx` dependency already installed by the Sidecar for body iteration. Walk block elements once; keep heading stack and table index in that pass. Avoid a second DOCX parser or a post-hoc fuzzy text binder. This preserves O(paragraphs + tables + cells) traversal.
 - Java domain parsing must tolerate inline Markdown emphasis around total values and headings without changing line numbers, so the existing `text:line[n]` locator remains valid. A synthetic document scheme inferred only from `declaredTotal != null && any isScoreTable` is not evidence and must be removed; explicit heading/table section evidence remains valid.
 
+## 2026-09-25 follow-up: cross-table DOCX evidence
+
+The real task `e24bdfdd-71c5-4ab7-b04a-c496744bb3e8` verified the 100-point total but qualified only 56 points. The other 44 points were extracted but could not be bound: price 30 was affected by MarkItDown emphasis (`**30**`), overall plan 10 had a non-verbatim `and/和` quote, and project team 4 spans physical tables `t-0008`/`t-0009`.
+
+- Sidecar emits an additive `logicalRowId` for every canonical cell. Only a unique continuation candidate may share an ID across adjacent same-section tables: compatible column count, no repeated header, continuation row has detail text while scoring/identity columns are blank, and exactly one predecessor qualifies. Otherwise the rows remain separate. Keep physical table IDs, cell IDs, row/column coordinates and XML paths unchanged.
+- Java carries the ordered original cell IDs in the existing `sourceCellIds[]` field. The binder may join cells only when all IDs resolve to one `logicalRowId`; qualification also verifies same scheme and exact normalized source quote. This avoids schema migration and retains the existing review DTO/persistence shape.
+- If a model quote fails exact matching, rebuild it from original cells only when exact dimension text and original score evidence identify exactly one logical row. A missing or ambiguous match remains unverified. Never approve through fuzzy similarity or weight-only lookup.
+- Keep JSON additive and backward-compatible: v2.1 emits a `logicalRowId` on every cell; rows not linked across tables keep their physical-table row ID. Java accepts prior v2.0 artifacts with no such field and treats each cell as lacking cross-table proof. Python-docx processing stays in Sidecar; qualification remains in pure Java domain policy.
+
 ## Implementation Phases
 
-1. Establish Sidecar RED tests for bold Markdown heading metadata and interleaved DOCX paragraph/table section paths; implement the conversion contract with original offsets and a single body-order traversal.
-2. Add Java RED tests using converter-shaped input with no prefilled scheme ID or scope; preserve the total line locator, remove the total-plus-keyword-table fallback, and qualify facts only from source-proven scheme boundaries.
-3. Run existing scheme eligibility, 1382/1384 Golden, parent-child and mutually-exclusive/cumulative weight regressions; change only failures linked to the converter/eligibility root cause.
-4. After Mode B cleanup, fresh verification and MERGE_READY review, deploy to ENV=test and reparse only project 1384’s real DOCX; compare the new task, `/review`, `/items`, and rendered review card against SC-008. Do not treat Golden replay as acceptance.
+1. Establish Sidecar RED tests for bold heading metadata, interleaved section paths, a real-shaped continuation row, and an adjacent-table false-positive countercase; implement the additive v2.1 logical-row contract.
+2. Add Java RED tests for ordered cell sources across a proven logical row, missing/mixed-source rejection, strict cross-scheme rejection, and unique dimension-plus-score quote reconstruction; then update binding and qualification without weakening exact-source checks.
+3. Register a synthetic/redacted 1384 continuation Golden and retain the existing 1382/1384, parent-child, mutually-exclusive/cumulative-weight and UI regressions.
+4. After Mode B cleanup, fresh verification and read-only review, deploy the exact commit to ENV=test only when its readiness and migration preconditions pass; reparse only project 1384 and compare `/review`, `/items`, original formal items and rendered review card. Do not treat Golden replay as acceptance.
 
 ## Validation Plan
 

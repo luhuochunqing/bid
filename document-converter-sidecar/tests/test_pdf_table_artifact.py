@@ -146,4 +146,3 @@ def test_pdf_score_table_deep_header_and_multipage_continuation_merged_for_proje
     assert rows[13][0] == "5" and rows[13][1] == "企业荣誉" and rows[13][3] == "5.0"
     assert rows[14][0] == "6" and rows[14][1] == "服务方案" and rows[14][3] == "15.0"
     assert rows[15][0] == "7" and rows[15][1] == "应急方案" and rows[15][3] == "10.0"
-

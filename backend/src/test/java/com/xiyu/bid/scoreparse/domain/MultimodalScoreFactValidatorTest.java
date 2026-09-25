@@ -17,6 +17,65 @@ class MultimodalScoreFactValidatorTest {
         assertThat(result.violations()).isEmpty();
     }
 
+    @Test void approvesVerbatimRuleCitedAcrossSameLogicalRowInAdjacentTables() {
+        String row = "t-0008-r1";
+        var tableOne = new DocumentArtifact.CanonicalTable("t-0008", 3, "本项目评分办法", 2, 4,
+                List.of(), List.of(
+                sourceCell("total", 0, 0, "本项目评分总分100分"),
+                sourceCell("header-name", 0, 1, "评分因素"),
+                sourceCell("header-rule", 0, 2, "评分规则"),
+                logicalCell("name", 1, 1, "实施方案", row),
+                logicalCell("rule-a", 1, 2, "规则前半，", row),
+                logicalCell("weight", 1, 3, "100分", row)), true);
+        var tableTwo = new DocumentArtifact.CanonicalTable("t-0009", 3, "本项目评分办法", 1, 4,
+                List.of(), List.of(
+                logicalCell("rule-b", 0, 2, "规则后半得100分。", row)), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "DOCX", "table-v2"),
+                List.of(tableOne, tableTwo), List.of());
+        var quote = "规则前半，规则后半得100分。";
+        var fact = new MultimodalScoreFact("本项目评分办法", "1", "", "实施方案", new BigDecimal("100"),
+                quote, "OBJECTIVE", 3, "t-0008", List.of("rule-a", "rule-b"), quote, 0.9);
+
+        var report = validator.validate(List.of(fact), artifact, new BigDecimal("100"));
+
+        assertThat(report.autoApprovable()).as("violations=%s qualifications=%s",
+                report.violations(), report.sourceVerification().qualifications()).isTrue();
+        assertThat(report.violations()).isEmpty();
+    }
+
+    @Test void rejectsCrossTableCitationWithoutOneProvenLogicalRowAndScheme() {
+        assertCrossTableCitationRejected("t-0008-r1", "", "本项目评分办法");
+        assertCrossTableCitationRejected("t-0008-r1", "t-0008-r1", "第二章 技术评审");
+        assertCrossTableCitationRejected("t-0008-r1", "t-0008-r1", "本项目评分办法", "missing-cell");
+    }
+
+    private void assertCrossTableCitationRejected(String firstLogicalRow, String secondLogicalRow,
+                                                   String secondSection) {
+        assertCrossTableCitationRejected(firstLogicalRow, secondLogicalRow, secondSection, "rule-b");
+    }
+
+    private void assertCrossTableCitationRejected(String firstLogicalRow, String secondLogicalRow,
+                                                   String secondSection, String secondSourceCellId) {
+        var first = new DocumentArtifact.CanonicalTable("t-0008", 3, "本项目评分办法", 2, 4, List.of(), List.of(
+                sourceCell("total", 0, 0, "本项目评分总分100分"),
+                logicalCell("rule-a", 1, 2, "规则前半，", firstLogicalRow)), true);
+        var second = new DocumentArtifact.CanonicalTable("t-0009", 3, secondSection, 1, 4, List.of(), List.of(
+                logicalCell("rule-b", 0, 2, "规则后半得100分。", secondLogicalRow)), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "DOCX", "table-v2"),
+                List.of(first, second), List.of());
+        String quote = "规则前半，规则后半得100分。";
+        var fact = new MultimodalScoreFact("本项目评分办法", "1", "", "实施方案", new BigDecimal("100"),
+                quote, "OBJECTIVE", 3, "t-0008", List.of("rule-a", secondSourceCellId), quote, 0.9);
+
+        var report = validator.validate(List.of(fact), artifact, new BigDecimal("100"));
+
+        assertThat(report.autoApprovable()).isFalse();
+        assertThat(report.violations()).extracting(MultimodalScoreFactValidator.Violation::code)
+                .contains("SOURCE_LOCATOR_INVALID");
+        assertThat(report.sourceVerification().qualifications()).noneMatch(
+                OriginalScoreEvidencePolicy.Qualification::candidateEligible);
+    }
+
     @Test void acceptsParagraphBackedFactWithTextLocator() {
         String text = "# 评分办法\n本项目总分为 30 分。商务部分（响应报价）30 分";
         var fact = new MultimodalScoreFact("商务部分", "响应报价", "", "商务部分（响应报价）",
@@ -28,6 +87,21 @@ class MultimodalScoreFactValidatorTest {
                 OriginalScoringContext.resolve(artifact, text), text, new BigDecimal("30"));
         assertThat(result.autoApprovable()).isTrue();
         assertThat(result.violations()).isEmpty();
+    }
+
+    @Test void acceptsVerbatimTextQuoteWhenMarkItDownAddsBoldAroundTheScore() {
+        String text = "# 本项目评分办法\n本项目评分总分30分。\n响应报价**30**分。";
+        var fact = new MultimodalScoreFact("本项目评分办法", "1", "", "响应报价",
+                new BigDecimal("30"), "响应报价30分", "OBJECTIVE", null, "",
+                List.of("text:line[2]"), "响应报价30分", 0.9, ChildAggregation.SUM);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("d", "sha", "DOCX", "table-v2"),
+                List.of(), List.of());
+
+        var report = validator.validate(List.of(fact), artifact,
+                OriginalScoringContext.resolve(artifact, text), text, new BigDecimal("30"));
+
+        assertThat(report.autoApprovable()).isTrue();
+        assertThat(report.violations()).isEmpty();
     }
 
     @Test void acceptsParagraphQuoteSplitAcrossDocxRuns() {
@@ -244,6 +318,12 @@ class MultimodalScoreFactValidatorTest {
             String id, int row, int column, String text) {
         return new DocumentArtifact.CanonicalTable.CanonicalCellDto(id, row, column,
                 text, text, 1, 1, false, "");
+    }
+
+    private static DocumentArtifact.CanonicalTable.CanonicalCellDto logicalCell(
+            String id, int row, int column, String text, String logicalRowId) {
+        return new DocumentArtifact.CanonicalTable.CanonicalCellDto(id, row, column,
+                text, text, 1, 1, false, "", 3, logicalRowId);
     }
 
     private static MultimodalScoreFact fact(String section, String code, String parent, String name,

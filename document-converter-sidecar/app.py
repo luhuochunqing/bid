@@ -656,7 +656,7 @@ async def extract_document_tables(
     """Extract structured tables (with merged-cell info) from an uploaded .docx/.pdf.
 
     Default contract (spec 059 Phase 1):
-        schemaVersion = "2.0" — versioned DocumentArtifact with cell IDs,
+        schemaVersion = "2.1" — versioned DocumentArtifact with cell IDs,
         XML paths and merge region coordinates.
 
     Legacy v1 callers can request the old shape via ``X-Schema-Version: 1.0`` —

@@ -135,13 +135,13 @@ def _set_run_text(cell, text: str) -> None:
 class TestArtifactHeader:
     """Artifact header must always be present and well-formed."""
 
-    def test_schema_version_is_2_0(self):
+    def test_schema_version_is_2_1(self):
         doc = Document()
         doc.add_table(rows=1, cols=1).cell(0, 0).text = "x"
         path = _write_docx(doc)
         try:
             artifact = extract_tables_artifact(path)
-            assert artifact["schemaVersion"] == "2.0"
+            assert artifact["schemaVersion"] == "2.1"
             assert artifact["schemaVersion"] == SCHEMA_VERSION
         finally:
             os.unlink(path)
@@ -168,7 +168,7 @@ class TestArtifactHeader:
         tmp.close()
         try:
             artifact = extract_tables_artifact(tmp.name)
-            assert artifact["schemaVersion"] == "2.0"
+            assert artifact["schemaVersion"] == "2.1"
             assert artifact["artifact"]["fileType"] == "DOCX"
             # sha256 should still be computed for the uploaded file
             assert len(artifact["artifact"]["sha256"]) == 64
@@ -217,6 +217,84 @@ def _add_scoring_table(doc: Document) -> None:
     table.cell(0, 1).text = "分值"
     table.cell(1, 0).text = "技术方案"
     table.cell(1, 1).text = "10分"
+
+
+def test_docx_continuation_fragments_share_logical_row_but_independent_row_does_not(tmp_path):
+    doc = Document()
+    heading = doc.add_paragraph("第三章 评审标准")
+    heading.style = "Heading 1"
+
+    first = doc.add_table(rows=2, cols=4)
+    first.cell(0, 0).text = "序号"
+    first.cell(0, 1).text = "评分项"
+    first.cell(0, 2).text = "分值"
+    first.cell(0, 3).text = "评分标准"
+    first.cell(1, 0).text = "3"
+    first.cell(1, 1).text = "实施方案"
+    first.cell(1, 2).text = "方案编制合理、进度可行"
+    first.cell(1, 3).text = ""
+
+    continuation = doc.add_table(rows=1, cols=4)
+    continuation.cell(0, 0).text = ""
+    continuation.cell(0, 1).text = ""
+    continuation.cell(0, 2).text = ""
+    continuation.cell(0, 3).text = "组织保障措施完整"
+
+    independent = doc.add_table(rows=1, cols=4)
+    independent.cell(0, 0).text = "4"
+    independent.cell(0, 1).text = "项目团队"
+    independent.cell(0, 2).text = "人员配置齐全"
+    independent.cell(0, 3).text = "现场经验丰富"
+
+    path = tmp_path / "continuation-and-independent.docx"
+    doc.save(path)
+    artifact = extract_tables_artifact(str(path))
+    assert artifact["schemaVersion"] == "2.1"
+    tables = artifact["tables"]
+    assert [table["tableId"] for table in tables] == ["t-0000", "t-0001", "t-0002"]
+    assert tables[0]["sourceSection"] == tables[1]["sourceSection"] == tables[2]["sourceSection"]
+    assert all(cell["logicalRowId"] for table in tables for cell in table["cells"])
+
+    first_row = [cell for cell in tables[0]["cells"] if cell["row"] == 1]
+    continuation_row = tables[1]["cells"]
+    independent_row = tables[2]["cells"]
+    continuation_ids = {cell.get("logicalRowId") for cell in first_row + continuation_row}
+    independent_ids = {cell.get("logicalRowId") for cell in independent_row}
+
+    assert len(continuation_ids) == 1
+    assert None not in continuation_ids
+    assert len(independent_ids) == 1
+    assert None not in independent_ids
+    assert continuation_ids.isdisjoint(independent_ids)
+    assert all(cell["cellId"].startswith("t-000") for cell in first_row + continuation_row + independent_row)
+    assert all(cell["sourceXmlPath"] for cell in first_row + continuation_row + independent_row)
+
+
+def test_docx_repeated_header_is_not_linked_as_continuation(tmp_path):
+    doc = Document()
+    heading = doc.add_paragraph("第三章 评审标准")
+    heading.style = "Heading 1"
+    for code, dimension in (("1", "技术方案"), ("2", "商务能力")):
+        table = doc.add_table(rows=2, cols=3)
+        table.cell(0, 0).text = "序号"
+        table.cell(0, 1).text = "评分因素"
+        table.cell(0, 2).text = "评分标准"
+        table.cell(1, 0).text = code
+        table.cell(1, 1).text = dimension
+        table.cell(1, 2).text = f"{dimension}完整得10分"
+
+    path = tmp_path / "repeated-header.docx"
+    doc.save(path)
+    tables = extract_tables_artifact(str(path))["tables"]
+    first_row = [cell for cell in tables[0]["cells"] if cell["row"] == 1]
+    second_header = [cell for cell in tables[1]["cells"] if cell["row"] == 0]
+    second_row = [cell for cell in tables[1]["cells"] if cell["row"] == 1]
+
+    assert len({cell["logicalRowId"] for cell in first_row}) == 1
+    assert len({cell["logicalRowId"] for cell in second_header}) == 1
+    assert len({cell["logicalRowId"] for cell in second_row}) == 1
+    assert first_row[0]["logicalRowId"] != second_header[0]["logicalRowId"]
+    assert first_row[0]["logicalRowId"] != second_row[0]["logicalRowId"]
 
 
 # ---------------------------------------------------------------------------

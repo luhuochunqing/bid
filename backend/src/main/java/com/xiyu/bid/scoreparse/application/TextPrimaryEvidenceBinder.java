@@ -5,10 +5,16 @@ import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
 import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 /** Builds post-extraction Sidecar evidence and binds text facts back to source cells. */
 final class TextPrimaryEvidenceBinder {
+    private static final Pattern SCORE_COLUMN = Pattern.compile("(?:分值|分数|得分)");
+    private static final Pattern ID_COLUMN = Pattern.compile("(?:序号|编号)");
+
     private TextPrimaryEvidenceBinder() {
     }
 
@@ -27,7 +33,8 @@ final class TextPrimaryEvidenceBinder {
                 List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = table.cells().stream()
                         .map(cell -> new DocumentArtifact.CanonicalTable.CanonicalCellDto(prefix + cell.cellId(), cell.row(),
                                 cell.column(), cell.rawText(), cell.normalizedText(), cell.rowspan(), cell.colspan(),
-                                cell.isMergedContinue(), cell.sourceXmlPath(), cell.sourcePage())).toList();
+                                cell.isMergedContinue(), cell.sourceXmlPath(), cell.sourcePage(),
+                                cell.logicalRowId().isBlank() ? "" : prefix + cell.logicalRowId())).toList();
                 tables.add(new DocumentArtifact.CanonicalTable(prefix + table.tableId(), table.sourcePage(),
                         table.sourceSection(), table.rows(), table.columns(), table.mergedRegions(), cells,
                         table.isScoreTable()));
@@ -50,10 +57,13 @@ final class TextPrimaryEvidenceBinder {
         List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact, tenderText);
         return facts.stream().map(fact -> {
             if (!fact.tableId().isBlank() && !fact.sourceCellIds().isEmpty()) return fact;
-            var bound = artifact == null ? java.util.Optional.<MultimodalScoreFact>empty()
-                    : artifact.tables().stream().flatMap(table -> table.cells().stream()
-                            .map(cell -> new Object[]{table, cell}))
-                    .filter(pair -> matches(fact, pair, schemes)).findFirst().map(pair -> bound(fact, pair));
+            List<Object[]> exactCells = artifact == null ? List.of() : artifact.tables().stream()
+                    .flatMap(table -> table.cells().stream().map(cell -> new Object[]{table, cell}))
+                    .filter(pair -> matches(fact, pair, schemes)).toList();
+            var bound = exactCells.size() == 1 ? exactCells.stream().findFirst().map(pair -> bound(fact, pair))
+                    : exactCells.size() > 1 ? java.util.Optional.<MultimodalScoreFact>empty()
+                    : artifact == null ? java.util.Optional.<MultimodalScoreFact>empty()
+                    : LogicalRowEvidenceBinder.bind(fact, artifact, schemes);
             if (bound.isPresent()) return bound.get();
             return textEvidence(fact, tenderText, normalizedText).orElse(fact);
         }).toList();

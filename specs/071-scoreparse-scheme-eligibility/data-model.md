@@ -30,7 +30,7 @@ Persisted in the existing `score_parse_fact` row with original cells/evidence in
 | `scopeStatus` | `IN_SCHEME`, `OUT_OF_SCHEME`, or `SOURCE_UNVERIFIED` |
 | `candidateEligible` | True only when its original locator and quote verify membership in a logical scoring scheme; local weight and parent validation remain separately visible in `validationStatus` |
 | `exclusionReason` | Stable reason code used by the reviewer and audit log |
-| `sourceTableId`, `sourceCellIds` | Physical table and exact source cells; text facts use their text locator |
+| `sourceTableId`, `sourceCellIds` | First physical table and ordered exact source cells; a multi-table source is valid only when the cells share one converter-proven `logicalRowId`. Text facts use their text locator. |
 | `parentFactId` | Parent identity scoped to the same logical scheme |
 | `childAggregation` | Existing aggregation rule such as `SUM` or `MUTUALLY_EXCLUSIVE` |
 | `weight`, `weightEvidence` | Effective cap and original score evidence; mutually exclusive alternatives resolve to their maximum |
@@ -50,6 +50,7 @@ Derived from one explicitly selected `LogicalScheme`.
 
 - `score_parse_fact` retains source, parent, weight and validation facts.
 - `score_parse_evidence` stores a `SCHEME_QUALIFICATION` row for each fact. Its explanation JSON carries scheme ID/title, scope status, eligibility/reason, declared total and its evidence, layout, and member table IDs; `quoted_text` stores the locator. Original fact/source and weight evidence remain in their existing rows.
+- Sidecar v2.1 emits a stable cell `logicalRowId` for every row; IDs are shared across physical tables only for proven continuation fragments. The existing `sourceCellIds` JSON list stores every ordered fragment ID; Java resolves every ID back to its physical table/cell before qualification. No DB migration is required.
 - `score_parse_task.run_summary` remains unchanged and continues to store pipeline diagnostics/table splits. The review layer groups per-fact qualifications by scheme ID, avoiding a second scheme manifest that could disagree with the evidence rows.
 - `ScoreParseReviewDTO` exposes the grouped scheme list and each fact's `schemeId`, `scopeStatus`, `candidateEligible` and `exclusionReason`. Old snapshots lacking qualification evidence map to `SOURCE_UNVERIFIED`.
 

@@ -57,15 +57,19 @@ final class OriginalScoreQualificationPolicy {
             return qualification(claim, schemeId, "SOURCE_UNVERIFIED", false,
                     "SOURCE_LOCATOR_NOT_VERIFIED", claim.tableId(), schemes);
         }
-        var table = artifact.tables().stream().filter(candidate -> candidate != null
-                && claim.tableId().equals(candidate.tableId())).findFirst().orElse(null);
-        if (table == null || table.cells().stream().noneMatch(cell -> claim.sourceCellIds().contains(cell.cellId()))) {
+        List<ReferencedCell> cited = resolveReferencedCells(artifact, claim.tableId(), claim.sourceCellIds());
+        var table = cited.isEmpty() ? null : cited.get(0).table();
+        if (table == null) {
             return qualification(claim, schemeId, "SOURCE_UNVERIFIED", false,
                     "SOURCE_LOCATOR_NOT_VERIFIED", claim.tableId(), schemes);
         }
-        String quotedCells = table.cells().stream().filter(cell -> claim.sourceCellIds().contains(cell.cellId()))
-                .map(cell -> cell.rawText() == null ? "" : cell.rawText())
-                .collect(java.util.stream.Collectors.joining(" "));
+        boolean crossTable = cited.stream().map(source -> source.table().tableId()).distinct().count() > 1;
+        if (crossTable && !sameScheme(cited, schemes)) {
+            return qualification(claim, schemeId, "SOURCE_UNVERIFIED", false,
+                    "SOURCE_SCHEME_NOT_VERIFIED", claim.tableId(), schemes);
+        }
+        String quotedCells = cited.stream().map(source -> source.cell().rawText() == null ? "" : source.cell().rawText())
+                .collect(java.util.stream.Collectors.joining(crossTable ? "" : " "));
         if (claim.quotedText().isBlank()
                 || !normalizeSource(quotedCells).contains(normalizeSource(claim.quotedText()))) {
             return qualification(claim, schemeId, "SOURCE_UNVERIFIED", false,
@@ -108,6 +112,42 @@ final class OriginalScoreQualificationPolicy {
     }
 
     private static String stableSchemeId(String title) { return OriginalScoringContext.schemeId(title); }
+
+    static List<ReferencedCell> resolveReferencedCells(DocumentArtifact artifact, String firstTableId,
+                                                        List<String> sourceCellIds) {
+        if (artifact == null || sourceCellIds == null || sourceCellIds.isEmpty()
+                || new java.util.HashSet<>(sourceCellIds).size() != sourceCellIds.size()) return List.of();
+        List<ReferencedCell> cited = new java.util.ArrayList<>();
+        for (String id : sourceCellIds) {
+            List<ReferencedCell> found = artifact.tables().stream().filter(java.util.Objects::nonNull)
+                    .flatMap(table -> table.cells().stream().filter(cell -> id.equals(cell.cellId())
+                            ).map(cell -> new ReferencedCell(table, cell)))
+                    .toList();
+            if (found.size() != 1) return List.of();
+            cited.add(found.get(0));
+        }
+        if (!firstTableId.equals(cited.get(0).table().tableId())) return List.of();
+        if (cited.stream().map(source -> source.table().tableId()).distinct().count() == 1) return List.copyOf(cited);
+        String logicalRowId = cited.get(0).cell().logicalRowId();
+        String section = cited.get(0).table().sourceSection();
+        if (logicalRowId.isBlank() || cited.stream().anyMatch(source -> !logicalRowId.equals(source.cell().logicalRowId())
+                || !section.equals(source.table().sourceSection()))) return List.of();
+        return List.copyOf(cited);
+    }
+
+    static boolean sameScheme(List<ReferencedCell> cited,
+                              List<OriginalScoringContext.SchemeEvidence> schemes) {
+        List<String> schemeIds = cited.stream().map(ReferencedCell::table).distinct()
+                .map(table -> schemes.stream().filter(scheme -> scheme.tableIds().contains(table.tableId()))
+                        .map(OriginalScoringContext.SchemeEvidence::schemeId).findFirst()
+                        .orElseGet(() -> OriginalScoringContext.schemeTitleForTable(table).isBlank() ? ""
+                                : OriginalScoringContext.schemeId(OriginalScoringContext.schemeTitleForTable(table))))
+                .distinct().toList();
+        return schemeIds.size() == 1 && !schemeIds.get(0).isBlank();
+    }
+
+    record ReferencedCell(DocumentArtifact.CanonicalTable table,
+                          DocumentArtifact.CanonicalTable.CanonicalCellDto cell) {}
 
     private static boolean textLocatorContainsQuote(String locator, String text, String quote) {
         if (locator == null || text == null) return false;
