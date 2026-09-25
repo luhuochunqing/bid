@@ -1,24 +1,27 @@
 """PDF DocumentArtifact tests for score parsing evidence pipeline.
 
 Input: tests/fixtures/sample_multipage.pdf
-Output: schemaVersion=2.0 DocumentArtifact with PDF fileType and cell-level coordinates.
+Output: schemaVersion=2.2 DocumentArtifact with PDF fileType and cell/text coordinates.
 Position: sidecar tests — guards project 1381 PDF score-table routing.
 """
 from __future__ import annotations
 
 import os
 
+import fitz
+
 from converter import extract_pdf_tables_artifact
 from converter import _is_pdf_score_table
 from converter import _merge_pdf_score_table_continuations
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "sample_multipage.pdf")
+CHINESE_OCR_FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "scanned_chinese_score.png")
 
 
 def test_extract_pdf_tables_artifact_returns_pdf_document_artifact():
     artifact = extract_pdf_tables_artifact(FIXTURE)
 
-    assert artifact["schemaVersion"] == "2.0"
+    assert artifact["schemaVersion"] == "2.2"
     assert artifact["artifact"]["fileType"] == "PDF"
     assert artifact["artifact"]["extractionVersion"] == "pdf-table-v1"
     assert artifact["artifact"]["sha256"]
@@ -41,6 +44,28 @@ def test_pdf_score_table_detection_excludes_preliminary_review_table():
     ]
 
     assert _is_pdf_score_table(rows) is False
+
+
+def test_pdf_artifact_emits_ocr_text_with_physical_page_and_region(tmp_path):
+    image_pdf = fitz.open()
+    image_page = image_pdf.new_page(width=595, height=842)
+    image_page.insert_image(image_page.rect, filename=CHINESE_OCR_FIXTURE)
+    path = tmp_path / "ocr-only.pdf"
+    image_pdf.save(path)
+    image_pdf.close()
+
+    artifact = extract_pdf_tables_artifact(str(path))
+
+    blocks = artifact["textBlocks"]
+    matches = [block for block in blocks if "技术评分标准" in "".join(block["text"].split())]
+    assert len(matches) == 1
+    block = matches[0]
+    assert block["sourcePage"] == 1
+    assert block["confidence"] >= 70
+    assert block["bounds"]["width"] > 0
+    assert block["bounds"]["height"] > 0
+    assert block["bounds"]["imageWidth"] > 0
+    assert block["bounds"]["imageHeight"] > 0
 
 
 def test_pdf_score_table_continuation_is_merged_for_project_1381_shape():

@@ -123,11 +123,22 @@
 - **SC-004**: 5/4/3/2 互斥档位得到 5 分上限；累计 5+5+10 子项仍按父子关系闭合 20 分。
 - **SC-005**: 前端一键采纳与后端缺省采纳均排除方案外/来源未验证事实；所有排除事实仍保留复核证据。
 - **SC-006**: 新增验收通过已记录的 1382/1384 脱敏回放；只有测试站项目 1384 重新解析通过后才能声称真实项目端到端验收完成。
-- **SC-007**: 普通 DOCX 标题样式、MarkItDown 粗体标题、标题/表格交错和未知章节的 Sidecar 契约测试全部通过；Java 资格测试使用无预填方案身份的转换输出，并证明不能由“总分 + 任意评分表”推定资格。
-- **SC-008**: 测试站项目 1384 重解析记录部署版本、真实源文件摘要、新 parse task ID、`/review` 与 `/items`；复核结果可回指原文 100 分，且候选资格/总分与审计排除事实分离。
+
+## Phase 9: PDF 源引用页码与 OCR 定位
+
+项目 1382 task 267 的引用页码对应 PDF 页面上印刷的页码，而 Sidecar artifact 使用从 1 起算的物理页序。唯一逐字匹配的 artifact 单元格是定位真相；模型页码不能阻止唯一来源匹配，也不能用来消除重复引用歧义。对转换文本漏掉但可通过受支持 OCR 恢复的内容，只有 OCR 精确返回且具备 PDF 物理页和文本区域定位时才可绑定；相似文本、OCR 低置信/不完整及多处匹配必须保持来源未验证并由人工复核。
+
+- **FR-016**: 事实的页面提示与来源 artifact 页序口径不同时，系统 MUST 允许唯一、精确且方案范围相符的来源单元格建立绑定，并 MUST 以 artifact 物理页和单元格 ID 持久化定位。
+- **FR-017**: PDF OCR 证据只有在逐字引用可唯一定位到 OCR 输出、且输出含物理页与行/区域位置时才可建立 locator；相似度或语义相近 MUST NOT 作为原文绑定依据。
+- **SC-009**: 使用脱敏 PDF 测试固定印刷页码与物理页序相差 5 的情况，唯一逐字匹配绑定到正确物理页；两页重复引用仍不绑定。
+- **SC-010**: OCR 正例生成可回到物理页内原文区域的 locator；OCR 未命中、低置信及重复文本反例继续 `SOURCE_LOCATOR_NOT_VERIFIED`。
+
+### Phase 9 implementation status
+
+The Sidecar emits optional `textBlocks` under schema 2.2. It OCRs at most 30 selected scoring/image pages by default, with a 12-second subprocess limit per page. Java accepts only a unique exact quote in the verified scheme and stores the OCR block's physical page and bounding box. Synthetic OCR and exact-page-binding tests pass. The task 267 PDF has not yet been replayed against this implementation; test-site acceptance remains pending because the development/test backend is down on failed migration V1218.
 
 ## Assumptions
 
 - 当前招标文件原文、结构表格及评分章节是方案归属和总分证据的唯一来源；模型输出不能自证方案归属。
 - 无歧义的单一方案可以默认选中；发现多个独立方案时不自动合并或自动选择。
-- 本轮授权将经审查的修复部署至测试环境并重新解析测试站项目 1384；不触及生产，不改写或删除原始标书文件。真实项目重新解析结果单独记录，不能由本地夹具替代。
+- 本轮授权将经审查的修复部署至测试环境并重新解析测试站项目 1384；不触及生产，不改写或删除原始标书文件。真实项目重新解析结果单独记录，不能由本地夹具替代。测试环境当前未通过启动健康检查，因此尚未执行该验收。

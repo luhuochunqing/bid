@@ -4,7 +4,7 @@ Pure-function module — no ASGI/HTTP concerns.  Called by app.py /extract-table
 
 Output contract (spec 059 Phase 1):
     {
-      "schemaVersion": "2.1",
+      "schemaVersion": "2.2",
       "artifact": {
         "documentId": "sha256:<64hex>",
         "sha256": "<64hex>",
@@ -57,7 +57,7 @@ _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 _SCORE_TABLE_KEYWORDS = ("评分", "评审", "打分", "得分", "分值", "评分因素", "评审因素")
 
-SCHEMA_VERSION = "2.1"
+SCHEMA_VERSION = "2.2"
 EXTRACTION_VERSION = "table-v2"
 
 
@@ -96,6 +96,7 @@ def extract_tables_artifact(path: str) -> dict[str, Any]:
         "schemaVersion": SCHEMA_VERSION,
         "artifact": _build_artifact_header(path),
         "tables": [],
+        "textBlocks": [],
         "warnings": [],
     }
 

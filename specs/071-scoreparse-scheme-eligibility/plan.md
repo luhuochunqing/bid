@@ -112,3 +112,11 @@ backend/src/test/java/com/xiyu/bid/scoreparse/ # domain, API and golden replay
 ## Complexity Tracking
 
 No Constitution violations. No new production services, modules or tables are planned.
+
+## Phase 9 Design: PDF Citation Provenance
+
+- Treat `CanonicalCellDto.sourcePage` and `cellId` as canonical physical source coordinates. Model-reported page is advisory; do not hardcode an offset or rewrite artifact coordinates.
+- Bind a quote that has exactly one in-scheme exact-text cell match even when its reported page differs. If multiple cells match, remain unbound: without a per-document printed-page map, the model page might accidentally point at a different duplicate on another physical page.
+- Add PDF OCR evidence as optional `textBlocks` in `DocumentArtifact` schema 2.2 after a RED fixture proves the container OCR path can preserve physical page plus region. OCR is limited to 30 selected scoring/image pages by default with a per-page timeout; no new external service or fuzzy matching. If a bounded OCR result cannot produce a defensible locator, keep the fact review-only.
+- Keep OCR extraction and Java qualification separate: Sidecar emits evidence; the existing binder requires unique literal quote equality and applies scheme scope. No change to candidate eligibility, weights, adoption, or database schema.
+- Acceptance fixtures are synthetic/redacted; task 267's original text and PDF are not committed. The user authorized test-site reparse acceptance, but the test host is currently unhealthy because migration V1218 failed. No real reparse is claimed until the backend is healthy and the exact candidate is deployed.
