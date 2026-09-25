@@ -26,6 +26,16 @@ Expected behavior after the fix:
 - 5/4/3/2 alternatives yield a maximum of 5; cumulative 5+5+10 leaves remain 20 under their parent.
 - Default UI adoption sends eligible fact IDs from only the selected scheme; the backend rejects ineligible or cross-scheme IDs.
 
+### DOCX continuation evidence follow-up
+
+- Sidecar v2.1 adds optional cell-level `logicalRowId`; old v2.0 artifacts without it remain valid and cannot prove cross-table continuation.
+- Continuation linking requires a predecessor score-value header and a later complete score row in the current table; keyword-only classifier hits such as “评审” do not prove a continuation.
+- Positive converter fixture: one score row spans the final row of a physical table and the first detail-only row of the immediately following same-section table. The two fragments share one logical ID while retaining both physical cell IDs and XML paths.
+- Adversarial converter fixture: same-section independent adjacent tables, repeated header, incompatible columns, missing dimension/score cells, or multiple possible predecessors must not share an ID.
+- A normal table immediately after a score table, with its only text in the same physical column as the scoring rule, must remain independent unless it also passes the score-table classifier and the other continuation constraints.
+- Java binding uses the ordered `sourceCellIds[]` to reconstruct exact original text only from one logical row. A non-verbatim quote may be replaced by source text only when exact dimension text and explicit source score evidence identify exactly one row; otherwise the fact remains in audit review.
+- Acceptance for project 1384 requires all three previously missing facts (price 30, overall plan 10, project team 4) to expose source locators and pass selected-scheme qualification. Sum eligible leaves only; preserve group caps without double-counting; require the effective total to equal the original verified total 100.
+
 Then run the repository completion gates:
 
 ```bash
@@ -36,12 +46,21 @@ npm run agent:health-check
 
 Record exit codes, test counts, failures and skips in `.omc/verify-<session>.md`; do not summarize a skipped/environment-dependent command as passed.
 
-## Test-system E2E after a separately authorized release
+## Authorized test-system E2E for project 1384
 
-For each project, record the deployed commit, parse task ID, source file hash and parse timestamp. Reparse only after the fixed version is deployed, then compare the `/review` API snapshot with the visible review card:
+For project 1384, record the test deployed commit/release ID, SHA-256 of the existing real DOCX, new parse task ID and parse timestamp. The user authorized ENV=test only. Reparse after the reviewed build is deployed, then compare the `/review` API snapshot with `/items` and the visible review card:
 
-1. Project 1382: confirm no page 98 or later contract-performance fact is a default candidate; verify its audit-only reason/source remains; confirm the selected scheme's valid leaf total is 100.
-2. Project 1384: confirm total 100 points to an exact original paragraph/cell; verify cross-table parent IDs and effective leaves total 100; ensure independent schemes require selection and do not show 250.
-3. Preserve `/items` and prior formal results before/after. `REVIEW_REQUIRED` must not replace formal scoring items.
+1. Project 1384: confirm total 100 points to an exact original paragraph/cell; verify cross-table parent IDs and effective leaves total 100; ensure independent schemes require selection and do not show 250.
+2. Confirm unknown or out-of-scheme source facts remain auditable and do not enter candidate sums or default adoption.
+3. Preserve `/items` and prior formal results before/after. `REVIEW_REQUIRED` must not replace formal scoring items. Project 1382 is validated through its local redacted Golden replay only.
 
-This section is an external acceptance procedure, not a claim that a local golden test performed a deployment or real project reparse.
+This section is the authorized test-site acceptance procedure, not a claim that a local golden test performed a deployment or real project reparse.
+
+### 2026-09-25 test-site deployment attempt
+
+- Task branch: `agent/zcode/scoreparse-1384-docx-reparse`; source checkout HEAD `e91248ee14c90f28578c13368a3f544cf336be7f` with the reviewed changes present as a dirty worktree. Release: `1384-docx-contract3-api8080` (not a commit-pinned artifact).
+- Existing real DOCX SHA-256: `1ad688f01c1f53eac9fa4922b5d64213b4d817997e57c03e3077bb6062e7a4e9`.
+- Package/build, container/Flyway test gate, archive validation, upload, and sidecar release smoke passed. Deployment activated the test artifact, but backend startup failed while applying `V1218__backfill_table_column_comments.sql`; `/actuator/health` failed all 240 consecutive probes. The database was not manually repaired.
+- Recovery: restored backend JAR and frontend assets from test release `8245c4da8`, preserved the failed release and a backend rollback copy, and updated `deployed-release.json` to `8245c4da8`. The restored backend process is active and its DB/Redis/Sidecar components report UP, but aggregate readiness remains `OUT_OF_SERVICE` (HTTP 503), so do not treat the test site as healthy.
+- No parse task was started. Parse task ID, `/review`, `/items`, and rendered UI after reparse are unavailable. Browser baseline remains the earlier pre-deployment snapshot (0 candidates / 0 points, 13 audit-only facts); it is not post-change acceptance evidence.
+- Acceptance status: BLOCKED by the test database's failed V1218 migration. Resume only after the database owner resolves the failed migration and test readiness is healthy; then reparse the existing DOCX and record task ID plus `/review`, `/items`, and UI comparison.

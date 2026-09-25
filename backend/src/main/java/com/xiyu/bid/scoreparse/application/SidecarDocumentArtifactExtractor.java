@@ -1,4 +1,4 @@
-// Input: Sidecar DocumentArtifact schemaVersion=2.0 JSON
+// Input: Sidecar DocumentArtifact schemaVersion=2.1 JSON (v2.0 remains readable)
 // Output: DocumentArtifact 值对象（含 artifact/tables/warnings）
 // Pos: scoreparse/application — /extract-tables 客户端的 v2 解析路径（Phase 1）
 package com.xiyu.bid.scoreparse.application;
@@ -21,7 +21,7 @@ import java.util.UUID;
 
 /**
  * Sidecar DocumentArtifact v2 客户端（spec 059 Phase 1 FR-01）。
- * <p>与 {@link SidecarTableExtractor} 相比：要求 Sidecar 返回 schemaVersion=2.0 的
+ * <p>与 {@link SidecarTableExtractor} 相比：要求 Sidecar 返回 v2 DocumentArtifact 的
  * {@link DocumentArtifact} 形态（含 cellId / XML 路径 / 合并区域），让后端能进入
  * CanonicalTableGrid → ScoreFact 的确定性链路。
  * <p>两条规则：
@@ -85,7 +85,7 @@ public class SidecarDocumentArtifactExtractor {
                 .uri(URI.create(sidecarUrl + "/extract-tables"))
                 .timeout(Duration.ofSeconds(extractTimeoutSeconds))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                // Force v2: schemaVersion=2.0 DocumentArtifact.
+                // Request v2.1; v2.0 responses remain compatible because logicalRowId is optional.
                 .header("X-Schema-Version", DocumentArtifact.SUPPORTED_SCHEMA_VERSION);
         if (!sharedKey.isBlank()) {
             requestBuilder.header(SidecarMultipart.SIDECAR_KEY_HEADER, sharedKey);
@@ -133,8 +133,11 @@ public class SidecarDocumentArtifactExtractor {
         if (artifact == null || artifact.artifact() == null) {
             throw new DocumentArtifactUnavailable("sidecar response missing artifact header");
         }
-        // Defensive: even when Sidecar matches schemaVersion, reject payloads with
-        // a mismatched value (downstream validation gates on this).
+        String responseVersion = response.headers().firstValue("X-Schema-Version").orElse("");
+        if (!artifact.hasSupportedSchemaVersion() || !artifact.schemaVersion().equals(responseVersion)) {
+            throw new DocumentArtifactUnavailable("sidecar schema version mismatch: body="
+                    + artifact.schemaVersion() + ", header=" + responseVersion);
+        }
         return artifact;
     }
 

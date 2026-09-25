@@ -10,7 +10,7 @@ import java.util.Optional;
  * Sidecar DocumentArtifact v2 响应（spec 059 Phase 1）。
  * <p>本模型作为 CanonicalTableGridFactory 的输入。整体契约：
  * <ul>
- *   <li>{@code schemaVersion} 必须等于 {@link #SUPPORTED_SCHEMA_VERSION}</li>
+ *   <li>{@code schemaVersion} 必须为 {@link #SUPPORTED_SCHEMA_VERSION} 或兼容的 {@link #LEGACY_SCHEMA_VERSION}</li>
  *   <li>{@code artifact.sha256} 必须与落库任务输入文件的 SHA-256 一致（Phase 4 校验）</li>
  *   <li>{@code tables[*]} 数组中的每个表都必须能通过 {@link CanonicalTableGridFactory}</li>
  * </ul>
@@ -24,14 +24,25 @@ import java.util.Optional;
 public record DocumentArtifact(
         ArtifactMeta artifact,
         List<CanonicalTable> tables,
-        List<String> warnings
+        List<String> warnings,
+        String schemaVersion
 ) {
 
-    public static final String SUPPORTED_SCHEMA_VERSION = "2.0";
+    public static final String SUPPORTED_SCHEMA_VERSION = "2.1";
+    public static final String LEGACY_SCHEMA_VERSION = "2.0";
+
+    public DocumentArtifact(ArtifactMeta artifact, List<CanonicalTable> tables, List<String> warnings) {
+        this(artifact, tables, warnings, SUPPORTED_SCHEMA_VERSION);
+    }
 
     public DocumentArtifact {
         warnings = warnings == null ? List.of() : List.copyOf(warnings);
         tables = tables == null ? List.of() : List.copyOf(tables);
+        schemaVersion = schemaVersion == null ? "" : schemaVersion;
+    }
+
+    public boolean hasSupportedSchemaVersion() {
+        return SUPPORTED_SCHEMA_VERSION.equals(schemaVersion) || LEGACY_SCHEMA_VERSION.equals(schemaVersion);
     }
 
     /**
@@ -121,13 +132,25 @@ public record DocumentArtifact(
                 Integer colspan,
                 Boolean isMergedContinue,
                 String sourceXmlPath,
-                Integer sourcePage
+                Integer sourcePage,
+                String logicalRowId
         ) {
+            public CanonicalCellDto(String cellId, Integer row, Integer column, String rawText,
+                                    String normalizedText, Integer rowspan, Integer colspan,
+                                    Boolean isMergedContinue, String sourceXmlPath, Integer sourcePage) {
+                this(cellId, row, column, rawText, normalizedText, rowspan, colspan,
+                        isMergedContinue, sourceXmlPath, sourcePage, "");
+            }
+
             public CanonicalCellDto(String cellId, Integer row, Integer column, String rawText,
                                     String normalizedText, Integer rowspan, Integer colspan,
                                     Boolean isMergedContinue, String sourceXmlPath) {
                 this(cellId, row, column, rawText, normalizedText, rowspan, colspan,
-                        isMergedContinue, sourceXmlPath, null);
+                        isMergedContinue, sourceXmlPath, null, "");
+            }
+
+            public CanonicalCellDto {
+                if (logicalRowId == null) logicalRowId = "";
             }
         }
     }

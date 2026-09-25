@@ -46,15 +46,25 @@ public final class MultimodalScoreFactValidator {
         sourceVerification.problems().forEach(problem -> violations.add(new Violation(problem.factId(),
                 problem.field(), problem.code(), "模型字段缺少对应原文依据", problem.expected(),
                 problem.actual(), problem.locator())));
-        List<MultimodalScoreFact> eligibleFacts = OriginalScoreEvidencePolicy.eligibleModelFacts(facts, sourceVerification);
+        Map<String, OriginalScoreEvidencePolicy.Qualification> qualificationsByFact = sourceVerification.qualifications().stream()
+                .collect(java.util.stream.Collectors.toMap(OriginalScoreEvidencePolicy.Qualification::factId,
+                        qualification -> qualification, (first, duplicate) -> first));
+        Set<String> eligibleFactIds = sourceVerification.qualifications().stream()
+                .filter(OriginalScoreEvidencePolicy.Qualification::candidateEligible)
+                .map(OriginalScoreEvidencePolicy.Qualification::factId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<MultimodalScoreFact> eligibleFacts = facts.stream()
+                .filter(fact -> eligibleFactIds.contains(OriginalScoreEvidencePolicy.modelFactId(fact)))
+                .map(fact -> applyQualification(fact, qualificationsByFact)).toList();
         Set<String> outOfSchemeIds = sourceVerification.qualifications().stream()
                 .filter(qualification -> "OUT_OF_SCHEME".equals(qualification.scopeStatus()))
                 .map(OriginalScoreEvidencePolicy.Qualification::factId)
                 .collect(java.util.stream.Collectors.toSet());
         List<MultimodalScoreFact> validationFacts = facts.stream()
-                .filter(fact -> !outOfSchemeIds.contains(OriginalScoreEvidencePolicy.modelFactId(fact))).toList();
+                .filter(fact -> !outOfSchemeIds.contains(OriginalScoreEvidencePolicy.modelFactId(fact)))
+                .map(fact -> applyQualification(fact, qualificationsByFact)).toList();
         validateRequiredFields(validationFacts, violations);
-        validateEvidence(validationFacts, cells, tenderText, violations);
+        validateEvidence(validationFacts, cells, artifact, tenderText, violations);
         validateDuplicates(validationFacts, violations);
         validateSequences(validationFacts, violations);
         validateParents(validationFacts, cells, violations);
@@ -75,6 +85,12 @@ public final class MultimodalScoreFactValidator {
                 violations, sourceVerification);
     }
 
+    private static MultimodalScoreFact applyQualification(MultimodalScoreFact fact,
+            Map<String, OriginalScoreEvidencePolicy.Qualification> qualificationsByFact) {
+        var qualification = qualificationsByFact.get(OriginalScoreEvidencePolicy.modelFactId(fact));
+        return qualification == null ? fact : fact.withScope(qualification.schemeId(), qualification.scopeStatus());
+    }
+
     private static void validateRequiredFields(List<MultimodalScoreFact> facts, List<Violation> violations) {
         for (MultimodalScoreFact fact : facts) {
             if (fact.dimension().isBlank()) {
@@ -91,6 +107,7 @@ public final class MultimodalScoreFactValidator {
     }
 
     private static void validateEvidence(List<MultimodalScoreFact> facts, Map<String, CellSource> cells,
+                                         DocumentArtifact artifact,
                                          String tenderText,
                                          List<Violation> violations) {
         for (MultimodalScoreFact fact : facts) {
@@ -100,15 +117,24 @@ public final class MultimodalScoreFactValidator {
                     && fact.sourceCellIds().get(0).startsWith("text:line[")
                     && tenderText != null && !fact.quotedText().isBlank()
                     && !normalizedQuote.isBlank() && normalizeEvidence(tenderText).contains(normalizedQuote);
-            boolean locatorValid = textLocator || (!fact.tableId().isBlank() && !fact.sourceCellIds().isEmpty() && !sources.isEmpty()
-                    && sources.size() == fact.sourceCellIds().size()
-                    && sources.stream().allMatch(cell -> cell.tableId().equals(fact.tableId()))
-                    && sources.stream().anyMatch(cell -> java.util.Objects.equals(cell.page(), fact.pageNumber())));
+            List<OriginalScoreQualificationPolicy.ReferencedCell> cited = OriginalScoreQualificationPolicy
+                    .resolveReferencedCells(artifact, fact.tableId(), fact.sourceCellIds());
+            boolean crossTable = cited.stream().map(source -> source.table().tableId()).distinct().count() > 1;
+            boolean samePage = !cited.isEmpty() && (crossTable ? cited.stream().allMatch(source -> java.util.Objects.equals(
+                    source.cell().sourcePage() == null ? source.table().sourcePage() : source.cell().sourcePage(),
+                    fact.pageNumber())) : cited.stream().anyMatch(source -> java.util.Objects.equals(
+                    source.cell().sourcePage() == null ? source.table().sourcePage() : source.cell().sourcePage(),
+                    fact.pageNumber())));
+            boolean sameScheme = !crossTable || OriginalScoreQualificationPolicy.sameScheme(cited,
+                    OriginalScoringContext.schemes(artifact, tenderText));
+            boolean locatorValid = textLocator || (!fact.tableId().isBlank() && !cited.isEmpty()
+                    && samePage && sameScheme);
             if (!locatorValid) {
                 violations.add(of(fact, "sourceCellIds", "SOURCE_LOCATOR_INVALID", "引用必须绑定输入资产中的页码、表和来源单元格", fact.sourceCellIds(), sources));
             }
-            String exactSource = textLocator ? tenderText
-                    : sources.stream().map(CellSource::rawText).reduce((a, b) -> a + b).orElse("");
+            String exactSource = textLocator ? tenderText : cited.stream()
+                    .map(source -> source.cell().rawText() == null ? "" : source.cell().rawText())
+                    .reduce((a, b) -> a + b).orElse("");
             if (fact.quotedText().isBlank() || normalizedQuote.isBlank()
                     || !normalizeEvidence(exactSource).contains(normalizedQuote)) {
                 violations.add(of(fact, "quotedText", "QUOTE_NOT_VERBATIM", "引用必须逐字存在于指定原始单元格", exactSource, fact.quotedText()));
@@ -119,6 +145,7 @@ public final class MultimodalScoreFactValidator {
     private static String normalizeEvidence(String value) {
         return value == null ? "" : value.replace('\u00a0', ' ')
                 .replace('\u2007', ' ').replace('\u202f', ' ')
+                .replaceAll("\\*\\*|__", "")
                 .replaceAll("[\\t\\r\\n]+", " ").replaceAll(" +", " ").trim();
     }
 

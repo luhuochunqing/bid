@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 /** Resolves text ranges inside, and after, named scoring schemes. */
 final class OriginalScoringTextScopePolicy {
     private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
+    private static final Pattern SOURCE_HEADING = Pattern.compile("^(第[一二三四五六七八九十百0-9]+章\\s*.+|[一二三四五六七八九十]+[、.]\\s*.+|\\([^)]{1,24}\\)\\s*.+)$");
 
     private OriginalScoringTextScopePolicy() {}
 
@@ -87,12 +88,18 @@ final class OriginalScoringTextScopePolicy {
     static List<Heading> headings(String[] lines) {
         List<Heading> result = new ArrayList<>();
         for (int i = 0; i < lines.length; i++) {
-            Matcher matcher = HEADING.matcher(lines[i]);
-            if (!matcher.matches()) continue;
-            String prefix = lines[i].stripLeading();
-            int level = 0;
-            while (level < prefix.length() && prefix.charAt(level) == '#') level++;
-            result.add(new Heading(i, level, matcher.group(1).trim()));
+            String title = stripEmphasis(lines[i]).trim();
+            Matcher matcher = HEADING.matcher(title);
+            int level;
+            if (matcher.matches()) {
+                String prefix = title.stripLeading();
+                level = 0;
+                while (level < prefix.length() && prefix.charAt(level) == '#') level++;
+                title = matcher.group(1).trim();
+            } else if (SOURCE_HEADING.matcher(title).matches()) {
+                level = title.startsWith("第") ? 1 : 2;
+            } else continue;
+            result.add(new Heading(i, level, title));
         }
         return result;
     }
@@ -124,4 +131,9 @@ final class OriginalScoringTextScopePolicy {
     }
 
     record Heading(int line, int level, String title) {}
+
+    static String stripEmphasis(String value) {
+        return value == null ? "" : value.replaceAll("\\*{1,2}([^*]+)\\*{1,2}", "$1")
+                .replaceAll("_{1,2}([^_]+)_{1,2}", "$1").trim();
+    }
 }

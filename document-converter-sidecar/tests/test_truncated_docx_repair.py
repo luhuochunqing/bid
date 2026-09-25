@@ -77,7 +77,7 @@ def test_extract_tables_artifact_on_truncated_docx(tmp_path):
     truncated_file.write_bytes(truncated_bytes)
 
     artifact = extract_tables_artifact(str(truncated_file))
-    assert artifact["schemaVersion"] == "2.0"
+    assert artifact["schemaVersion"] == "2.1"
     assert len(artifact["tables"]) == 1
     table = artifact["tables"][0]
     assert table["isScoreTable"] is True
@@ -335,4 +335,3 @@ def test_regression_9_zip_bomb_uncompressed_size_cap_rejected(tmp_path, monkeypa
     monkeypatch.setenv("DOCX_MAX_UNCOMPRESSED_ENTRY_SIZE", str(50 * 1024))
     repaired = repair_truncated_docx(str(fpath))
     assert repaired is None, "Must reject entry whose uncompressed size exceeds safety cap"
-

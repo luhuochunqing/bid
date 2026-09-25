@@ -135,13 +135,13 @@ def _set_run_text(cell, text: str) -> None:
 class TestArtifactHeader:
     """Artifact header must always be present and well-formed."""
 
-    def test_schema_version_is_2_0(self):
+    def test_schema_version_is_2_1(self):
         doc = Document()
         doc.add_table(rows=1, cols=1).cell(0, 0).text = "x"
         path = _write_docx(doc)
         try:
             artifact = extract_tables_artifact(path)
-            assert artifact["schemaVersion"] == "2.0"
+            assert artifact["schemaVersion"] == "2.1"
             assert artifact["schemaVersion"] == SCHEMA_VERSION
         finally:
             os.unlink(path)
@@ -168,7 +168,7 @@ class TestArtifactHeader:
         tmp.close()
         try:
             artifact = extract_tables_artifact(tmp.name)
-            assert artifact["schemaVersion"] == "2.0"
+            assert artifact["schemaVersion"] == "2.1"
             assert artifact["artifact"]["fileType"] == "DOCX"
             # sha256 should still be computed for the uploaded file
             assert len(artifact["artifact"]["sha256"]) == 64
@@ -176,6 +176,210 @@ class TestArtifactHeader:
             assert len(artifact["warnings"]) >= 1
         finally:
             os.unlink(tmp.name)
+
+
+def test_docx_table_artifact_tracks_sections_in_body_order(tmp_path):
+    doc = Document()
+    doc.add_paragraph("招标文件附件")
+    unscoped = doc.add_table(rows=2, cols=2)
+    unscoped.cell(0, 0).text = "序号"
+    unscoped.cell(0, 1).text = "说明"
+    unscoped.cell(1, 0).text = "1"
+    unscoped.cell(1, 1).text = "普通内容"
+
+    chapter = doc.add_paragraph("第三章 评审标准")
+    chapter.runs[0].bold = True
+    _add_scoring_table(doc)
+    doc.add_paragraph("五、详细评审")
+    _add_scoring_table(doc)
+    doc.add_paragraph("第四章 合同条款")
+    _add_scoring_table(doc)
+
+    path = tmp_path / "interleaved-sections.docx"
+    doc.save(path)
+
+    artifact = extract_tables_artifact(str(path))
+
+    assert [table["tableId"] for table in artifact["tables"]] == [
+        "t-0000", "t-0001", "t-0002", "t-0003",
+    ]
+    assert [table["sourceSection"] for table in artifact["tables"]] == [
+        None,
+        "第三章 评审标准",
+        "第三章 评审标准 > 五、详细评审",
+        "第四章 合同条款",
+    ]
+
+
+def _add_scoring_table(doc: Document) -> None:
+    table = doc.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "评审因素"
+    table.cell(0, 1).text = "分值"
+    table.cell(1, 0).text = "技术方案"
+    table.cell(1, 1).text = "10分"
+
+
+def test_docx_continuation_fragments_share_logical_row_but_independent_row_does_not(tmp_path):
+    doc = Document()
+    heading = doc.add_paragraph("第三章 评审标准")
+    heading.style = "Heading 1"
+
+    first = doc.add_table(rows=2, cols=4)
+    first.cell(0, 0).text = "序号"
+    first.cell(0, 1).text = "评分项"
+    first.cell(0, 2).text = "评分标准"
+    first.cell(0, 3).text = "分值"
+    first.cell(1, 0).text = "3"
+    first.cell(1, 1).text = "实施方案"
+    first.cell(1, 2).text = "方案编制合理、进度可行"
+    first.cell(1, 3).text = ""
+
+    continuation = doc.add_table(rows=2, cols=4)
+    continuation.cell(0, 0).text = ""
+    continuation.cell(0, 1).text = ""
+    continuation.cell(0, 2).text = "组织保障措施完整"
+    continuation.cell(0, 3).text = ""
+    for column, value in enumerate(("4", "项目团队", "评分标准：团队组成人员符合要求", "4分")):
+        continuation.cell(1, column).text = value
+
+    independent = doc.add_table(rows=1, cols=4)
+    independent.cell(0, 0).text = "4"
+    independent.cell(0, 1).text = "项目团队"
+    independent.cell(0, 2).text = "人员配置齐全"
+    independent.cell(0, 3).text = "现场经验丰富"
+
+    path = tmp_path / "continuation-and-independent.docx"
+    doc.save(path)
+    artifact = extract_tables_artifact(str(path))
+    assert artifact["schemaVersion"] == "2.1"
+    tables = artifact["tables"]
+    assert [table["tableId"] for table in tables] == ["t-0000", "t-0001", "t-0002"]
+    assert tables[0]["sourceSection"] == tables[1]["sourceSection"] == tables[2]["sourceSection"]
+    assert all(cell["logicalRowId"] for table in tables for cell in table["cells"])
+
+    first_row = [cell for cell in tables[0]["cells"] if cell["row"] == 1]
+    continuation_row = [cell for cell in tables[1]["cells"] if cell["row"] == 0]
+    following_score_row = [cell for cell in tables[1]["cells"] if cell["row"] == 1]
+    independent_row = tables[2]["cells"]
+    continuation_ids = {cell.get("logicalRowId") for cell in first_row + continuation_row}
+    independent_ids = {cell.get("logicalRowId") for cell in independent_row}
+
+    assert len(continuation_ids) == 1
+    assert None not in continuation_ids
+    assert continuation_ids.isdisjoint({cell["logicalRowId"] for cell in following_score_row})
+    assert len(independent_ids) == 1
+    assert None not in independent_ids
+    assert continuation_ids.isdisjoint(independent_ids)
+    assert all(cell["cellId"].startswith("t-000") for cell in first_row + continuation_row + independent_row)
+    assert all(cell["sourceXmlPath"] for cell in first_row + continuation_row + independent_row)
+
+
+def test_docx_repeated_header_is_not_linked_as_continuation(tmp_path):
+    doc = Document()
+    heading = doc.add_paragraph("第三章 评审标准")
+    heading.style = "Heading 1"
+    for code, dimension in (("1", "技术方案"), ("2", "商务能力")):
+        table = doc.add_table(rows=2, cols=3)
+        table.cell(0, 0).text = "序号"
+        table.cell(0, 1).text = "评分因素"
+        table.cell(0, 2).text = "评分标准"
+        table.cell(1, 0).text = code
+        table.cell(1, 1).text = dimension
+        table.cell(1, 2).text = f"{dimension}完整得10分"
+
+    path = tmp_path / "repeated-header.docx"
+    doc.save(path)
+    tables = extract_tables_artifact(str(path))["tables"]
+    first_row = [cell for cell in tables[0]["cells"] if cell["row"] == 1]
+    second_header = [cell for cell in tables[1]["cells"] if cell["row"] == 0]
+    second_row = [cell for cell in tables[1]["cells"] if cell["row"] == 1]
+
+    assert len({cell["logicalRowId"] for cell in first_row}) == 1
+    assert len({cell["logicalRowId"] for cell in second_header}) == 1
+    assert len({cell["logicalRowId"] for cell in second_row}) == 1
+    assert first_row[0]["logicalRowId"] != second_header[0]["logicalRowId"]
+    assert first_row[0]["logicalRowId"] != second_row[0]["logicalRowId"]
+
+
+def test_docx_adjacent_non_score_table_is_not_linked_to_score_rule_row(tmp_path):
+    doc = Document()
+    heading = doc.add_paragraph("一、评审办法")
+    heading.style = "Heading 1"
+
+    scoring = doc.add_table(rows=2, cols=4)
+    for column, value in enumerate(("序号", "评分因素", "评分规则", "分值")):
+        scoring.cell(0, column).text = value
+    for column, value in enumerate(("3", "项目团队", "团队配置符合要求", "4")):
+        scoring.cell(1, column).text = value
+
+    ordinary = doc.add_table(rows=1, cols=4)
+    ordinary.cell(0, 2).text = "另一个业务事项说明"
+
+    path = tmp_path / "ordinary-table-after-scoring-table.docx"
+    doc.save(path)
+    tables = extract_tables_artifact(str(path))["tables"]
+    scoring_row = [cell for cell in tables[0]["cells"] if cell["row"] == 1]
+    ordinary_row = tables[1]["cells"]
+
+    assert tables[0]["isScoreTable"] is True
+    assert tables[1]["isScoreTable"] is False
+    assert {cell["logicalRowId"] for cell in scoring_row}.isdisjoint(
+        {cell["logicalRowId"] for cell in ordinary_row}
+    )
+
+
+def test_docx_adjacent_review_text_table_is_not_linked_to_score_rule_row(tmp_path):
+    doc = Document()
+    heading = doc.add_paragraph("一、评审办法")
+    heading.style = "Heading 1"
+
+    scoring = doc.add_table(rows=2, cols=4)
+    for column, value in enumerate(("序号", "评分因素", "评分规则", "分值")):
+        scoring.cell(0, column).text = value
+    for column, value in enumerate(("3", "项目团队", "团队配置符合要求", "4")):
+        scoring.cell(1, column).text = value
+
+    ordinary = doc.add_table(rows=1, cols=4)
+    ordinary.cell(0, 2).text = "本次评审结果为良好"
+
+    path = tmp_path / "review-text-table-after-scoring-table.docx"
+    doc.save(path)
+    tables = extract_tables_artifact(str(path))["tables"]
+    scoring_row = [cell for cell in tables[0]["cells"] if cell["row"] == 1]
+    ordinary_row = tables[1]["cells"]
+
+    assert tables[1]["isScoreTable"] is True  # Existing broad classifier hit.
+    assert {cell["logicalRowId"] for cell in scoring_row}.isdisjoint(
+        {cell["logicalRowId"] for cell in ordinary_row}
+    )
+
+
+def test_docx_adjacent_review_table_needs_criterion_text_before_linking(tmp_path):
+    doc = Document()
+    heading = doc.add_paragraph("一、评审办法")
+    heading.style = "Heading 1"
+
+    scoring = doc.add_table(rows=2, cols=4)
+    for column, value in enumerate(("序号", "评分因素", "评分规则", "分值")):
+        scoring.cell(0, column).text = value
+    for column, value in enumerate(("3", "项目团队", "团队配置符合要求", "4")):
+        scoring.cell(1, column).text = value
+
+    ordinary = doc.add_table(rows=2, cols=4)
+    ordinary.cell(0, 2).text = "本次评审结果为良好"
+    ordinary.cell(1, 0).text = "4"
+    ordinary.cell(1, 3).text = "4分"
+
+    path = tmp_path / "review-row-number-and-score-only.docx"
+    doc.save(path)
+    tables = extract_tables_artifact(str(path))["tables"]
+    scoring_row = [cell for cell in tables[0]["cells"] if cell["row"] == 1]
+    ordinary_row = [cell for cell in tables[1]["cells"] if cell["row"] == 0]
+
+    assert tables[1]["isScoreTable"] is True
+    assert {cell["logicalRowId"] for cell in scoring_row}.isdisjoint(
+        {cell["logicalRowId"] for cell in ordinary_row}
+    )
 
 
 # ---------------------------------------------------------------------------

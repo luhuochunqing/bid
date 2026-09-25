@@ -386,6 +386,29 @@ class OriginalScoreEvidencePolicyTest {
                 .contains("SOURCE_SCHEME_NOT_VERIFIED");
     }
 
+    @Test void markedScoringTableWithBlankSectionCannotBeInferredFromTextTotalAlone() {
+        var unlocated = new DocumentArtifact.CanonicalTable("t-unlocated", 2, "",
+                1, 2, List.of(), List.of(cell("rule", 0, 0, "技术方案最高得100分"),
+                cell("weight", 0, 1, "100分")), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.docx", "sha-unlocated", "docx", "2.0"),
+                List.of(unlocated), List.of());
+        var fact = new MultimodalScoreFact("", "1", "", "技术方案", new BigDecimal("100"),
+                "技术方案最高得100分", "OBJECTIVE", 2, "t-unlocated", List.of("rule"),
+                "技术方案最高得100分", 0.9);
+
+        var report = OriginalScoreEvidencePolicy.verifyModel(artifact,
+                "**第三章 评审标准**\n本项目总分为 **100** 分。", List.of(fact), new BigDecimal("100"));
+
+        assertThat(report.qualifications()).singleElement().satisfies(qualification -> {
+            assertThat(qualification.scopeStatus()).isEqualTo("SOURCE_UNVERIFIED");
+            assertThat(qualification.candidateEligible()).isFalse();
+            assertThat(qualification.reason()).isEqualTo("SOURCE_SCHEME_NOT_VERIFIED");
+        });
+        assertThat(OriginalScoringContext.schemes(artifact,
+                "**第三章 评审标准**\n本项目总分为 **100** 分.")).singleElement().satisfies(scheme ->
+                assertThat(scheme.tableIds()).doesNotContain("t-unlocated"));
+    }
+
     @Test void crossChapterContractFactsStayAuditableOnlyAfterTheirTextLocatorIsVerified() {
         String sourceText = "# 第三章 评审办法\n本项目总分100分。\n技术方案得100分。"
                 + "\n# 第四章 合同条款\n回复率须达到100%。";
@@ -410,6 +433,24 @@ class OriginalScoreEvidencePolicyTest {
                 .containsExactly(false, false);
         assertThat(report.qualifications().get(0).locator()).isEqualTo("text:line[4]");
         assertThat(report.qualifications().get(1).reason()).isEqualTo("SOURCE_LOCATOR_NOT_VERIFIED");
+    }
+
+    @Test void verifiesTextLocatorWhenMarkItDownWrapsTheWeightInBold() {
+        String sourceText = "# 第三章 评审标准\n本项目总分为 **100** 分。\n（一）商务部分（响应报价）**30** 分";
+        String schemeId = OriginalScoringContext.schemeId("第三章 评审标准");
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.docx", "sha-bold", "docx", "2.0"),
+                List.of(), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审标准", "F1", "", "响应报价",
+                new BigDecimal("30"), "报价评审", "OBJECTIVE", null, "",
+                List.of("text:line[2]"), "（一）商务部分（响应报价）30 分", 0.99,
+                ChildAggregation.SUM, schemeId, "IN_SCHEME");
+
+        var report = OriginalScoreEvidencePolicy.verifyModel(artifact, sourceText, List.of(fact), new BigDecimal("100"));
+
+        assertThat(report.qualifications()).singleElement().satisfies(qualification -> {
+            assertThat(qualification.candidateEligible()).isTrue();
+            assertThat(qualification.locator()).isEqualTo("text:line[2]");
+        });
     }
 
     private static MultimodalScoreFact fact(String code, String name, String weight, String rule, String cellId) {

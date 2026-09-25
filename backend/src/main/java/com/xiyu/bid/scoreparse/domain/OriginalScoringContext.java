@@ -161,14 +161,24 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         int scopeIndex = 0;
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
-            Matcher title = HEADING.matcher(line);
+            String normalizedHeading = OriginalScoringTextScopePolicy.stripEmphasis(line);
+            Matcher title = HEADING.matcher(normalizedHeading);
             if (title.matches()) {
-                String headingLine = line.stripLeading();
+                String headingLine = normalizedHeading.stripLeading();
                 int level = 0;
                 while (level < headingLine.length() && headingLine.charAt(level) == '#') level++;
                 while (!headings.isEmpty() && headings.get(headings.size() - 1).level() >= level)
                     headings.remove(headings.size() - 1);
                 headings.add(new Heading(i, level, title.group(1).trim()));
+                continue;
+            }
+            List<OriginalScoringTextScopePolicy.Heading> sourceHeadings =
+                    OriginalScoringTextScopePolicy.headings(new String[]{line});
+            if (!sourceHeadings.isEmpty()) {
+                var heading = sourceHeadings.get(0);
+                while (!headings.isEmpty() && headings.get(headings.size() - 1).level() >= heading.level())
+                    headings.remove(headings.size() - 1);
+                headings.add(new Heading(i, heading.level(), heading.title()));
                 continue;
             }
             if (line.stripLeading().startsWith("|") || OriginalScoringSchemePolicy.isOtherSection(line)) continue;
@@ -220,7 +230,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             }
         }
     }
-    private static String normalizeTextLine(String value) { return value == null ? "" : value.replaceAll("[\\u00a0\\u2007\\u202f\\t\\r\\n]+", " ").replaceAll(" +", " ").trim(); }
+    private static String normalizeTextLine(String value) { return OriginalScoringTextScopePolicy.stripEmphasis(value).replaceAll("[\\u00a0\\u2007\\u202f\\t\\r\\n]+", " ").replaceAll(" +", " ").trim(); }
     private static TableStructure tableStructure(DocumentArtifact.CanonicalTable table, Map<Integer, List<DocumentArtifact.CanonicalTable.CanonicalCellDto>> rows) {
         int maxColumn = rows.values().stream().flatMap(List::stream)
                 .map(DocumentArtifact.CanonicalTable.CanonicalCellDto::column)

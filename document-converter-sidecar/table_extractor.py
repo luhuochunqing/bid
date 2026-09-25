@@ -4,7 +4,7 @@ Pure-function module — no ASGI/HTTP concerns.  Called by app.py /extract-table
 
 Output contract (spec 059 Phase 1):
     {
-      "schemaVersion": "2.0",
+      "schemaVersion": "2.1",
       "artifact": {
         "documentId": "sha256:<64hex>",
         "sha256": "<64hex>",
@@ -57,7 +57,7 @@ _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 _SCORE_TABLE_KEYWORDS = ("评分", "评审", "打分", "得分", "分值", "评分因素", "评审因素")
 
-SCHEMA_VERSION = "2.0"
+SCHEMA_VERSION = "2.1"
 EXTRACTION_VERSION = "table-v2"
 
 
@@ -101,6 +101,9 @@ def extract_tables_artifact(path: str) -> dict[str, Any]:
 
     try:
         from docx import Document
+        from docx.table import Table
+        from docx.text.paragraph import Paragraph
+        from converter import extract_headings
     except ImportError:
         artifact["warnings"].append("python-docx not installed")
         return artifact
@@ -116,15 +119,41 @@ def extract_tables_artifact(path: str) -> dict[str, Any]:
             log.warning("python-docx failed to open %s: %s", target_path, exc)
             raise ValueError(f"cannot parse docx: {exc}") from exc
 
-        for idx, table in enumerate(doc.tables):
+        heading_path: list[str] = []
+        table_index = 0
+        previous_table: dict[str, Any] | None = None
+        for block in doc.element.body.iterchildren():
+            if block.tag == f"{{{_W_NS}}}p":
+                paragraph = Paragraph(block, doc)
+                paragraph_headings = extract_headings(paragraph.text)
+                if paragraph_headings:
+                    heading = paragraph_headings[0]
+                    level = int(heading["level"])
+                    heading_path = heading_path[:max(0, level - 1)]
+                    heading_path.append(str(heading["heading"]))
+                previous_table = None
+                continue
+            if block.tag != f"{{{_W_NS}}}tbl":
+                previous_table = None
+                continue
+
+            table = Table(block, doc)
+            idx = table_index
+            table_index += 1
             try:
-                tbl_data = _build_table_artifact(table, idx)
+                section = " > ".join(heading_path) or None
+                tbl_data = _build_table_artifact(table, idx, section)
             except Exception as exc:
                 artifact["warnings"].append(f"table {idx}: extraction failed ({exc})")
+                previous_table = None
                 continue
             if tbl_data is None:
+                previous_table = None
                 continue
+            if previous_table is not None:
+                _link_unique_continuation(previous_table, tbl_data)
             artifact["tables"].append(tbl_data)
+            previous_table = tbl_data
 
     return artifact
 
@@ -155,7 +184,7 @@ def _file_sha256(path: str) -> str:
 # Table artifact builder
 # ---------------------------------------------------------------------------
 
-def _build_table_artifact(table, idx: int) -> dict[str, Any] | None:
+def _build_table_artifact(table, idx: int, source_section: str | None = None) -> dict[str, Any] | None:
     """Build the v2 table artifact for a single python-docx Table.
 
     Returns ``None`` when the table has no rows.  Otherwise produces a dict
@@ -314,6 +343,7 @@ def _build_table_artifact(table, idx: int) -> dict[str, Any] | None:
                     "rowspan": 1,
                     "colspan": 1,
                     "isMergedContinue": True,
+                    "logicalRowId": f"{table_id}-r{r_idx}",
                     "sourceXmlPath": _build_xml_path(
                         tbl_elem,
                         raw_tr_elems[r_idx],
@@ -337,6 +367,7 @@ def _build_table_artifact(table, idx: int) -> dict[str, Any] | None:
                 "rowspan": cell["rowspan"],
                 "colspan": cell["colspan"],
                 "isMergedContinue": is_continuation,
+                "logicalRowId": f"{table_id}-r{r_idx}",
                 "sourceXmlPath": xml_path,
             })
 
@@ -350,13 +381,91 @@ def _build_table_artifact(table, idx: int) -> dict[str, Any] | None:
     return {
         "tableId": table_id,
         "sourcePage": None,
-        "sourceSection": None,
+        "sourceSection": source_section,
         "rows": num_rows,
         "columns": num_cols,
         "mergedRegions": merged_regions,
         "cells": cells,
         "isScoreTable": _looks_like_score_table_v2(cells),
     }
+
+
+def _link_unique_continuation(previous: dict[str, Any], current: dict[str, Any]) -> None:
+    """Share a row identity only for an immediately adjacent, same-section continuation."""
+    if previous["sourceSection"] != current["sourceSection"]:
+        return
+    if (previous["columns"] != current["columns"]
+            or not previous["isScoreTable"] or not current["isScoreTable"]):
+        return
+
+    previous_cells = previous["cells"]
+    current_cells = current["cells"]
+    columns = current["columns"]
+    if not columns:
+        return
+    headers = {
+        cell["column"]: cell["normalizedText"]
+        for cell in previous_cells
+        if cell["row"] == 0 and cell["normalizedText"]
+    }
+    marker = re.compile(r"序号|编号|评分项|评审因素|评分因素|指标|分值|得分|权重|评分类别")
+    marker_columns = {column for column, text in headers.items() if marker.search(text)}
+    if not marker_columns:
+        return
+    score_columns = {
+        column for column, text in headers.items()
+        if re.search(r"分值|得分|权重", text)
+    }
+    criterion_columns = {
+        column for column in marker_columns - score_columns
+        if not re.search(r"序号|编号", headers.get(column, ""))
+    }
+    if not score_columns or not _has_later_score_row(current_cells, columns, criterion_columns, score_columns):
+        return
+
+    first_row = [cell for cell in current_cells if cell["row"] == 0]
+    if len(first_row) != columns:
+        return
+    nonempty = [cell for cell in first_row if cell["normalizedText"]]
+    if not nonempty or any(cell["column"] in marker_columns for cell in nonempty):
+        return
+    if len(nonempty) > columns - len(marker_columns):
+        return
+    if any(marker.search(cell["normalizedText"]) for cell in first_row if cell["normalizedText"]):
+        return
+
+    last_row_index = previous["rows"] - 1
+    predecessor_row = [cell for cell in previous_cells if cell["row"] == last_row_index]
+    if len([cell for cell in predecessor_row if cell["normalizedText"]]) < 2:
+        return
+    if not any(cell["column"] in marker_columns and cell["normalizedText"] for cell in predecessor_row):
+        return
+
+    logical_row_id = f"{previous['tableId']}-r{last_row_index}"
+    for cell in first_row:
+        cell["logicalRowId"] = logical_row_id
+
+
+def _has_later_score_row(
+    cells: list[dict[str, Any]],
+    columns: int,
+    criterion_columns: set[int],
+    score_columns: set[int],
+) -> bool:
+    """Require a complete score row after the fragment to reject keyword-only tables."""
+    score_value = re.compile(r"\d+(?:\.\d+)?(?:\s*[-~～至]\s*\d+(?:\.\d+)?)?\s*分?\Z")
+    rows: dict[int, dict[int, str]] = {}
+    for cell in cells:
+        if cell["row"] > 0 and cell["normalizedText"]:
+            rows.setdefault(cell["row"], {})[cell["column"]] = cell["normalizedText"]
+    for row in rows.values():
+        if any(column >= columns for column in score_columns):
+            continue
+        has_score = any(score_value.fullmatch(row.get(column, "")) for column in score_columns)
+        has_criterion = any(row.get(column, "") for column in criterion_columns)
+        if has_score and has_criterion:
+            return True
+    return False
 
 
 def _normalize_text(text: str) -> str:
