@@ -34,7 +34,7 @@ final class OriginalScoringSchemePolicy {
         if (table == null || otherScheme(table.sourceSection(), scheme)) return false;
         String section = table.sourceSection();
         if (section != null && CONTRACT_AUDIT.matcher(section).matches()) return false;
-        if (section == null || section.isBlank()) return Boolean.TRUE.equals(table.isScoreTable());
+        if (section == null || section.isBlank()) return false;
         if (scheme == null || scheme.isBlank())
             return Boolean.TRUE.equals(table.isScoreTable()) && GENERIC_SECTION.matcher(section).matches();
         if (section.contains(scheme) || sameScheme(schemeTitleForTable(table), scheme)) return true;
@@ -64,7 +64,8 @@ final class OriginalScoringSchemePolicy {
             OriginalScoringContext context = OriginalScoringContext.resolve(artifact, text);
             boolean hasScoringTables = artifact.tables().stream().anyMatch(table -> table != null
                     && Boolean.TRUE.equals(table.isScoreTable()) && !CONTRACT_AUDIT.matcher(table.sourceSection()).matches()
-                    && !OTHER.matcher(table.sourceSection()).matches());
+                    && !OTHER.matcher(table.sourceSection()).matches() && table.sourceSection() != null
+                    && !table.sourceSection().isBlank());
             boolean ambiguous = context.problems().stream().anyMatch(problem -> "ORIGINAL_SCHEME_AMBIGUOUS".equals(problem.code()));
             if (hasScoringTables && !ambiguous && context.total().value() != null) {
                 String title = "document-scheme:" + artifact.artifact().documentId();
@@ -182,7 +183,7 @@ final class OriginalScoringSchemePolicy {
         if (section.contains(scheme) || sameScheme(schemeTitleForTable(table), scheme)) return true;
         if (schemeTitleForTable(table).isBlank()) {
             return schemes.size() == 1 && Boolean.TRUE.equals(table.isScoreTable())
-                    && (section.isBlank() || GENERIC_SECTION.matcher(section).matches());
+                    && !section.isBlank() && GENERIC_SECTION.matcher(section).matches();
         }
         List<String> matchingSchemes = schemes.stream().filter(candidate -> sameScheme(schemeTitleForTable(table), candidate))
                 .distinct().toList();

@@ -6,7 +6,7 @@
 
 ## Summary
 
-把评分方案身份和事实资格作为解析数据流的一部分：先隔离可审计的方案外事实，再按逻辑方案切分和合并文本/表格证据，保存可回指的方案总分与资格快照；复核 API、默认采纳和 UI 使用相同的资格结果。明确区分互斥档位的最高分与累计父子项合计。实现步骤按用户指定的 1 → 2 → 3 → 4 顺序推进。
+把评分方案身份和事实资格作为解析数据流的一部分：先隔离可审计的方案外事实，再按逻辑方案切分和合并文本/表格证据，保存可回指的方案总分与资格快照；复核 API、默认采纳和 UI 使用相同的资格结果。明确区分互斥档位的最高分与累计父子项合计。本轮新增根因修复顺序：先统一 DOCX heading/sourceSection 转换契约，再让资格规则只接受该契约可证明的章节归属，最后以测试站项目 1384 的真实 DOCX 重解析验收。
 
 ## Technical Context
 
@@ -17,7 +17,7 @@
 **Target Platform**: XiYu test/development application
 **Project Type**: Existing scoreparse backend API plus project review UI
 **Performance Goals**: Preserve extraction-call and source-size budgets; reduce irrelevant scoring prose per scheme.
-**Constraints**: Preserve original text/table locators, existing `AUTO_APPROVED` publication guard and legacy review compatibility; no test-project writes or deployment.
+**Constraints**: Preserve original text/table locators, existing `AUTO_APPROVED` publication guard and legacy review compatibility; no schema change; test deployment/reparse is authorized only for project 1384, never production.
 **Scale/Scope**: Scheme resolution, source-backed total evidence, candidate/review persistence, default adoption and the score review card for projects 1382/1384.
 
 ## Constitution Check
@@ -27,7 +27,7 @@
 - TDD: each requested behavior starts with a failing domain, orchestration, API or UI assertion.
 - Simplicity and line budgets: reuse existing scoreparse policies, chunk merger, immutable parse facts and evidence rows; add no new service/module.
 - Database: use existing fact/evidence tables; do not duplicate scheme qualification in `run_summary`. If tests prove typed eligibility cannot be persisted in current evidence rows, stop before schema edits, amend this plan/Entry Gate, acquire a migration lock, and add a reversible Flyway pair.
-- Release boundary: local working tree only; no deployment, project reparse, formal adoption or production-data mutation.
+- Release boundary: deploy the reviewed artifact only to the test environment, then reparse project 1384. Do not deploy to production, formally adopt candidates, or mutate production data.
 
 ## Design Decisions
 
@@ -39,12 +39,19 @@
 6. **Reuse existing snapshots.** `score_parse_evidence.kind/explanation` records per-fact qualification, including scheme/table membership and the source-backed total; the review DTO groups these rows into schemes. `run_summary` remains pipeline telemetry/table-split metadata and receives no duplicate scheme manifest. Old snapshots without scope evidence are `SOURCE_UNVERIFIED` and excluded by default.
 7. **Adoption is single-scheme.** One eligible scheme may be selected by default. Multiple schemes require selection and submit only that scheme's fact IDs. Backend rejects missing selection, cross-scheme fact sets and ineligible IDs.
 
+## DOCX Input Contract (new first slice)
+
+- The existing `/convert` response exposes heading metadata from `extract_headings`; it must recognize Markdown bold wrapped headings while keeping `charStart`/`charEnd` in the original Markdown coordinate space. Heading text is returned without Markdown emphasis.
+- The existing `/extract-tables` table-v2 response must derive `sourceSection` from paragraphs and tables in DOCX body order, not `doc.tables` alone. Its value is a stable heading breadcrumb using ` > `; table keywords remain only a content classifier and cannot establish section membership. Unknown section remains `null`/empty according to the existing Java DTO contract.
+- Use the existing `python-docx` dependency already installed by the Sidecar for body iteration. Walk block elements once; keep heading stack and table index in that pass. Avoid a second DOCX parser or a post-hoc fuzzy text binder. This preserves O(paragraphs + tables + cells) traversal.
+- Java domain parsing must tolerate inline Markdown emphasis around total values and headings without changing line numbers, so the existing `text:line[n]` locator remains valid. A synthetic document scheme inferred only from `declaredTotal != null && any isScoreTable` is not evidence and must be removed; explicit heading/table section evidence remains valid.
+
 ## Implementation Phases
 
-1. Add failing eligibility, audit preservation, candidate total and backend default-adoption tests; propagate typed eligibility through saved evidence, review DTO, frontend defaults and rendering.
-2. Add scheme-scoped extraction/merge tests, including 1382's active chapter and later contract section; bind 1384's 100-point total to original evidence; resolve cross-table parents and total/scheme states.
-3. Add mutually exclusive tier and cumulative-child tests, then correct weight verification without changing parent-child aggregation semantics.
-4. Add 1382/1384 golden and cross-layer replay checks. Report test-environment reparse separately; it is outside this working-tree route.
+1. Establish Sidecar RED tests for bold Markdown heading metadata and interleaved DOCX paragraph/table section paths; implement the conversion contract with original offsets and a single body-order traversal.
+2. Add Java RED tests using converter-shaped input with no prefilled scheme ID or scope; preserve the total line locator, remove the total-plus-keyword-table fallback, and qualify facts only from source-proven scheme boundaries.
+3. Run existing scheme eligibility, 1382/1384 Golden, parent-child and mutually-exclusive/cumulative weight regressions; change only failures linked to the converter/eligibility root cause.
+4. After Mode B cleanup, fresh verification and MERGE_READY review, deploy to ENV=test and reparse only project 1384’s real DOCX; compare the new task, `/review`, `/items`, and rendered review card against SC-008. Do not treat Golden replay as acceptance.
 
 ## Validation Plan
 
@@ -52,7 +59,7 @@
 - UI targets: `src/composables/projectDetail/useScoreCandidateAdoption.spec.js` and `src/views/Project/stages/components/ScoreCandidateReviewCard.spec.js`.
 - Acceptance: 1382 eligible leaves total 100, with no p98+ contract item in default candidates; 1384 total 100 has exact original locator and same-scheme multi-table parent linkage; multi-scheme total is unset until selection; 5/4/3/2 grades max to 5 while cumulative 5+5+10 remains 20.
 - After Mode B cleanup, rerun focused Maven/Vitest, Golden replay, `npm run build`, `mvn -f backend/pom.xml test`, `npm run agent:health-check` and applicable static/repository gates. Record all exits, failures and skips.
-- Real project E2E requires a test deployment and reparse. Keep that state pending; a golden replay is not deployment acceptance.
+- Project 1384 test-site deployment and reparse are within the authorized delivery target; a Golden replay is not deployment acceptance. Project 1382 remains a local redacted replay only.
 
 ## Project Structure
 
@@ -91,7 +98,7 @@ backend/src/test/java/com/xiyu/bid/scoreparse/ # domain, API and golden replay
 - Parent codes collide across schemes: include scheme identity in parent-resolution keys and test same-code cases.
 - Legacy snapshots lack typed scheme evidence: expose them as unverified rather than inferring scope from free-text errors.
 - Qualification and `run_summary` use existing MySQL `TEXT` columns. Fixture samples were measured at 546 bytes per qualification and 657 bytes per existing run summary, leaving over 64 KB per value; source quote/table-ID sizes remain subject to the column limit.
-- Golden fixtures cannot prove deployment behavior: report test-system reparse as pending.
+- Bold text may be emphasis rather than a heading: only accept lines that satisfy the existing structural heading patterns or explicit Word outline styles. Golden fixtures cannot prove deployment behavior: finish with the authorized test-site reparse.
 
 ## Complexity Tracking
 

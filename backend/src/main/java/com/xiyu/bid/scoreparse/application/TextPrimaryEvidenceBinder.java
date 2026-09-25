@@ -80,6 +80,7 @@ final class TextPrimaryEvidenceBinder {
     private static String normalizeForEvidence(String value) {
         return value == null ? "" : value.replace('\u00a0', ' ')
                 .replace('\u2007', ' ').replace('\u202f', ' ')
+                .replaceAll("\\*\\*|__", "")
                 .replaceAll("[\\t\\r\\n]+", " ").replaceAll(" +", " ").trim();
     }
 
@@ -94,6 +95,10 @@ final class TextPrimaryEvidenceBinder {
         List<Integer> offsets = new java.util.ArrayList<>();
         boolean pendingSpace = false;
         for (int i = 0; i < source.length(); i++) {
+            if (isMarkdownEmphasis(source, i)) {
+                i++;
+                continue;
+            }
             char c = source.charAt(i);
             boolean whitespace = c == '\u00a0' || c == '\u2007' || c == '\u202f'
                     || c == '\t' || c == '\r' || c == '\n' || c == ' ';
@@ -114,6 +119,12 @@ final class TextPrimaryEvidenceBinder {
             offsets.remove(offsets.size() - 1);
         }
         return new NormalizedEvidence(normalized.toString(), offsets);
+    }
+
+    private static boolean isMarkdownEmphasis(String source, int index) {
+        return index + 1 < source.length()
+                && ((source.charAt(index) == '*' && source.charAt(index + 1) == '*')
+                || (source.charAt(index) == '_' && source.charAt(index + 1) == '_'));
     }
 
     private record NormalizedEvidence(String text, List<Integer> sourceOffsets) {

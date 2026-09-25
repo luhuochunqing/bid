@@ -110,8 +110,7 @@ class GoldenCasesReplayTest {
         JsonNode expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(
                 "case-project-1384-logical-scheme.expected.json"));
         DocumentArtifact artifact = project1384Artifact(text, expected);
-        String schemeId = OriginalScoringContext.schemeId(expected.path("schemeTitle").asText());
-        List<MultimodalScoreFact> rawFacts = project1384Facts(expected, schemeId);
+        List<MultimodalScoreFact> rawFacts = project1384Facts(expected);
         List<MultimodalScoreFact> facts = com.xiyu.bid.scoreparse.domain.MultimodalFactParentCodeNormalizer
                 .normalize(rawFacts);
 
@@ -120,14 +119,16 @@ class GoldenCasesReplayTest {
         var validation = new MultimodalScoreFactValidator().validate(facts, artifact,
                 OriginalScoringContext.resolve(artifact, text), text, expected.path("declaredTotal").decimalValue());
         var schemes = OriginalScoringContext.schemes(artifact, text);
-        BigDecimal effectiveTotal = effectiveTotal(facts);
+        List<MultimodalScoreFact> eligibleFacts = OriginalScoreEvidencePolicy.eligibleModelFacts(facts, verification);
+        assertEquals(facts.size(), verification.qualifications().size());
+        assertTrue(verification.qualifications().stream().allMatch(
+                OriginalScoreEvidencePolicy.Qualification::candidateEligible));
 
         assertEquals(1, schemes.size());
         assertEquals(expected.path("layoutStatus").asText(), schemes.get(0).layoutStatus());
         assertEquals(expected.path("declaredTotal").decimalValue(), schemes.get(0).declaredTotal());
         assertEquals(expected.path("totalLocator").asText(), schemes.get(0).totalLocator());
         assertEquals(expected.path("totalQuote").asText(), schemes.get(0).totalQuote());
-        assertEquals(expected.path("expectedEligibleLeafTotal").decimalValue(), effectiveTotal);
         assertEquals(expected.path("expectedEligibleLeafTotal").decimalValue(), validation.leafTotal());
         assertTrue(validation.autoApprovable(), validation.violations().toString());
         assertTrue(facts.stream().filter(fact -> fact.code().startsWith("B"))
@@ -160,14 +161,14 @@ class GoldenCasesReplayTest {
         return qualifications.get(OriginalScoreEvidencePolicy.modelFactId(fact));
     }
 
-    private static List<MultimodalScoreFact> project1384Facts(JsonNode expected, String schemeId) {
+    private static List<MultimodalScoreFact> project1384Facts(JsonNode expected) {
         List<MultimodalScoreFact> facts = new ArrayList<>();
         expected.path("parents").forEach(parent -> facts.add(new MultimodalScoreFact(
                 parent.path("section").asText(), parent.path("code").asText(), "",
                 parent.path("dimension").asText(), parent.path("weight").decimalValue(),
                 parent.path("quote").asText(), "OBJECTIVE", null, "",
                 List.of(parent.path("locator").asText()), parent.path("quote").asText(), 0.99,
-                ChildAggregation.valueOf(parent.path("childRelation").asText()), schemeId, "IN_SCHEME")));
+                ChildAggregation.valueOf(parent.path("childRelation").asText()), "", "")));
         expected.path("facts").forEach(item -> {
             String tableId = item.path("tableId").asText();
             String factCode = item.path("code").asText();
@@ -175,7 +176,7 @@ class GoldenCasesReplayTest {
             facts.add(new MultimodalScoreFact(item.path("section").asText(), factCode, item.path("parentCode").asText(),
                     item.path("dimension").asText(), item.path("weight").decimalValue(), item.path("quote").asText(),
                     "OBJECTIVE", pageForTable(tableId), tableId, sourceCells,
-                    item.path("quote").asText(), 0.99, ChildAggregation.SUM, schemeId, "IN_SCHEME"));
+                    item.path("quote").asText(), 0.99, ChildAggregation.SUM, "", ""));
         });
         return facts;
     }

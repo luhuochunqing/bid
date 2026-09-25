@@ -178,6 +178,47 @@ class TestArtifactHeader:
             os.unlink(tmp.name)
 
 
+def test_docx_table_artifact_tracks_sections_in_body_order(tmp_path):
+    doc = Document()
+    doc.add_paragraph("招标文件附件")
+    unscoped = doc.add_table(rows=2, cols=2)
+    unscoped.cell(0, 0).text = "序号"
+    unscoped.cell(0, 1).text = "说明"
+    unscoped.cell(1, 0).text = "1"
+    unscoped.cell(1, 1).text = "普通内容"
+
+    chapter = doc.add_paragraph("第三章 评审标准")
+    chapter.runs[0].bold = True
+    _add_scoring_table(doc)
+    doc.add_paragraph("五、详细评审")
+    _add_scoring_table(doc)
+    doc.add_paragraph("第四章 合同条款")
+    _add_scoring_table(doc)
+
+    path = tmp_path / "interleaved-sections.docx"
+    doc.save(path)
+
+    artifact = extract_tables_artifact(str(path))
+
+    assert [table["tableId"] for table in artifact["tables"]] == [
+        "t-0000", "t-0001", "t-0002", "t-0003",
+    ]
+    assert [table["sourceSection"] for table in artifact["tables"]] == [
+        None,
+        "第三章 评审标准",
+        "第三章 评审标准 > 五、详细评审",
+        "第四章 合同条款",
+    ]
+
+
+def _add_scoring_table(doc: Document) -> None:
+    table = doc.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "评审因素"
+    table.cell(0, 1).text = "分值"
+    table.cell(1, 0).text = "技术方案"
+    table.cell(1, 1).text = "10分"
+
+
 # ---------------------------------------------------------------------------
 # Cell-level metadata
 # ---------------------------------------------------------------------------

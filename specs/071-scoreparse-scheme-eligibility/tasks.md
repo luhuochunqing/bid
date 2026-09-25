@@ -81,20 +81,43 @@
 
 ### External acceptance boundary
 
-- [ ] T033 [US4] Record test deployment commit, parse task IDs, file hashes and `/review` plus `/items` evidence for projects 1382 and 1384 in `specs/071-scoreparse-scheme-eligibility/quickstart.md` after separate test-release and reparse authorization; local golden replay does not complete this task.
 
-## Phase 6: Polish and verification
+## Phase 6: DOCX conversion契约与资格根因收敛（本轮新增）
+
+**Goal**: 转换输出保留标题和表格章节证据，Java 只凭可验证的证据授予资格。执行顺序固定：T038–T041 Sidecar 契约；T042–T043 Java 资格；T044 本地交叉层回归；T045 测试站真实 DOCX 验收。
+
+### DOCX 转换契约（先做）
+
+- [x] T038 [P] [US5] 在 `document-converter-sidecar/tests/test_app.py` 为加粗结构标题添加 headings HTTP 契约失败测试，断言解强调后的标题文本及原始字符 offset。
+- [x] T039 [US5] 修改 `document-converter-sidecar/converter.py` 的 `extract_headings`，识别 MarkItDown 加粗的结构性中文章节标题并保持 offset 指向原始 Markdown；RED→GREEN。
+- [x] T040 [P] [US5] 在 `document-converter-sidecar/tests/test_extract_tables_v2.py` 创建临时 DOCX，断言章节段落与交错表格按 body 顺序生成 sourceSection，未知区段保持空值。
+- [x] T041 [US5] 修改 `document-converter-sidecar/table_extractor.py`，按一次线性 DOCX body 遍历生成稳定标题路径；保持原 tableId 顺序、单元格/XML locator 和评分表 classifier；RED→GREEN。
+
+### 资格规则（转换契约通过后）
+
+- [x] T042 [P] [US5] 添加 converter-shaped Java 回归，使用粗体标题/总分和章节表格，不预填 schemeId，断言行定位、方案总分和章节归属。
+- [x] T043 [US5] 修复 inline emphasis 与空章节资格后门；额外修复 validator 在资格核验后仍以模型空身份聚合跨表父子项的问题，无章节证据继续 SOURCE_SCHEME_NOT_VERIFIED。
+- [x] T044 [US5] 更新项目 1384 脱敏回放为 Sidecar converter-shaped 输入且不预置 scheme/scope；验证 total locator、跨表父项和合格叶子 100 分，并运行 1382 回归。
+
+## Phase 7: Polish, verification and test-site acceptance
 
 - [x] T034 Run Spec Kit cross-artifact analysis and resolve requirement/task coverage gaps in `specs/071-scoreparse-scheme-eligibility/spec.md`, `plan.md` and `tasks.md`.
 - [x] T035 Run deletion-first Mode B cleanup on the changed source/test files; record findings and deletions in `.omc/verify-01a0d212-e635-7db0-99c9-d0c7b235a0c3.md`.
 - [x] T036 After cleanup, run the focused Java/Vitest targets, `GoldenCasesReplayTest`, build, backend suite, health check and applicable local gates; record exits and pass/fail/skip counts in `.omc/verify-01a0d212-e635-7db0-99c9-d0c7b235a0c3.md`. The broad backend run was explicitly interrupted after external test-infrastructure failures; it is not recorded as a pass.
 - [x] T037 Perform read-only XiYu three-lens/adversarial review and record a fresh verdict in `.omc/review-01a0d212-e635-7db0-99c9-d0c7b235a0c3.md`.
 
+### Post-change gates (must follow T038–T044)
+
+- [x] T045 [US5] 对所有本轮修改的 Sidecar、Java、回归测试和规格文件执行 Mode B deletion-first 清理；在 `.omc/slop-cleanup-01a0d614-a262-7ff1-ada6-f7e3876e56d6.md` 记录检查范围、实际删除项或“无安全删除项”。
+- [x] T046 [US5] 在清理后重跑 Sidecar 与指定 Java/Golden 测试、`mvn -f backend/pom.xml test -Dtest=FPJavaArchitectureTest`、`npm run build`、`cd backend && mvn test` 和适用的仓库门禁；在 `.omc/verify-01a0d614-a262-7ff1-ada6-f7e3876e56d6.md` 记录每条命令退出码及精确 pass/fail/skip。全后端测试中断且非通过，测试站部署健康门禁也失败。
+- [x] T047 [US5] 运行 `npm run agent:health-check` 和只读 XiYu 三透镜/对抗审查，检查最新 diff 与 T046 证据；在 `.omc/review-01a0d614-a262-7ff1-ada6-f7e3876e56d6.md` 写 verdict、reviewer、轮次和发现。
+- [ ] T048 [US5] 测试站发布尝试 `1384-docx-contract3-api8080` 在 `/actuator/health` 连续 240 次探测失败后退出；V1218 `backfill_table_column_comments` 在测试库失败。已恢复后端与前端到发布前 `8245c4da8` 并保留失败现场/备份。真实 DOCX 未重解析，`/review`、`/items` 与页面验收待测试库迁移恢复后执行。详见 `quickstart.md`。
+
 ## Dependencies
 
 - User Story order follows the requested sequence: US1 eligibility gate → US2 logical scheme extraction/total/parent grouping → US3 weight semantics → US4 two-project replay.
-- Within each story, tests are written and run before implementation; all post-cleanup verification follows T035.
-- T033 depends on an authorized test deployment/reparse and is not part of the local working-tree delivery ceiling.
+- Within each story, tests are written and run before implementation; new conversion-contract tasks T038–T041 precede qualification tasks T042–T044; T045 cleanup, T046 fresh verification and T047 review must all pass before T048 test deployment/reparse.
+- T048 is authorized for test only; T045/T046/T047 cleanup, fresh verification and review evidence must precede deployment. No production delivery is authorized.
 
 ## Parallel Opportunities
 

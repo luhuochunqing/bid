@@ -470,44 +470,43 @@ def extract_headings(markdown_text: str) -> list[dict[str, object]]:
         return []
 
     sections: list[dict[str, object]] = []
-    heading_pattern = re.compile(r"^(#{1,6})\s+(.*)$", re.MULTILINE)
-    md_matches = list(heading_pattern.finditer(markdown_text))
-
-    if md_matches:
-        for match in md_matches:
-            level = len(match.group(1))
-            heading_text = match.group(2).strip()
-            offset = match.start()
-            sections.append(
-                {
+    heading_pattern = re.compile(r"^(#{1,6})\s+(.*)$")
+    cn_heading_pattern = re.compile(
+        r"^(第[一二三四五六七八九十百千万\d]+[章节部分篇]\s*.*|"
+        r"评审办法前附表|评标办法前附表|评分标准前附表|评分细则前附表|"
+        r"[一二三四五六七八九十]、\s*.*|"
+        r"[（(][一二三四五六七八九十]+[)）]\s*.*|"
+        r"\d+\s+(?:评审方法|初步评审标准和程序|详细评审标准和程序|推荐成交原则|技术规范书).*)$"
+    )
+    offset = 0
+    for raw_line in markdown_text.splitlines(keepends=True):
+        line = raw_line.rstrip("\r\n")
+        markdown_match = heading_pattern.fullmatch(line.strip())
+        if markdown_match:
+            heading_text = _strip_markdown_emphasis(markdown_match.group(2).strip())
+            if heading_text:
+                sections.append({
+                    "heading": heading_text,
+                    "level": len(markdown_match.group(1)),
+                    "charStart": offset,
+                    "charEnd": len(markdown_text),
+                })
+        else:
+            heading_text = _strip_markdown_emphasis(line.strip())
+            if cn_heading_pattern.fullmatch(heading_text) and len(heading_text) <= 80:
+                if heading_text.startswith("第"):
+                    level = 1
+                elif re.match(r"^[（(]", heading_text):
+                    level = 3
+                else:
+                    level = 2
+                sections.append({
                     "heading": heading_text,
                     "level": level,
                     "charStart": offset,
-                    "charEnd": len(markdown_text),  # filled below
-                }
-            )
-    else:
-        # Fallback to Chinese chapter and section patterns for raw extracted text
-        cn_heading_pattern = re.compile(
-            r"^(第[一二三四五六七八九十百千万\d]+[章节部分篇]\s*.*|"
-            r"评审办法前附表|评标办法前附表|评分标准前附表|评分细则前附表|"
-            r"[一二三四五六七八九十]、\s*.*|"
-            r"\d+\s+(?:评审方法|初步评审标准和程序|详细评审标准和程序|推荐成交原则|技术规范书).*)$",
-            re.MULTILINE,
-        )
-        for match in cn_heading_pattern.finditer(markdown_text):
-            heading_text = match.group(1).strip()
-            if len(heading_text) <= 50:
-                offset = match.start()
-                level = 1 if heading_text.startswith("第") else 2
-                sections.append(
-                    {
-                        "heading": heading_text,
-                        "level": level,
-                        "charStart": offset,
-                        "charEnd": len(markdown_text),
-                    }
-                )
+                    "charEnd": len(markdown_text),
+                })
+        offset += len(raw_line)
 
     # Fill charEnd using the next section's charStart
     for i in range(len(sections) - 1):
@@ -524,3 +523,8 @@ def extract_headings(markdown_text: str) -> list[dict[str, object]]:
         section["path"] = list(current_path)
 
     return sections
+
+
+def _strip_markdown_emphasis(value: str) -> str:
+    """Remove bold markers without changing source offsets used by callers."""
+    return value.replace("**", "").replace("__", "").strip()

@@ -101,6 +101,9 @@ def extract_tables_artifact(path: str) -> dict[str, Any]:
 
     try:
         from docx import Document
+        from docx.table import Table
+        from docx.text.paragraph import Paragraph
+        from converter import extract_headings
     except ImportError:
         artifact["warnings"].append("python-docx not installed")
         return artifact
@@ -116,9 +119,27 @@ def extract_tables_artifact(path: str) -> dict[str, Any]:
             log.warning("python-docx failed to open %s: %s", target_path, exc)
             raise ValueError(f"cannot parse docx: {exc}") from exc
 
-        for idx, table in enumerate(doc.tables):
+        heading_path: list[str] = []
+        table_index = 0
+        for block in doc.element.body.iterchildren():
+            if block.tag == f"{{{_W_NS}}}p":
+                paragraph = Paragraph(block, doc)
+                paragraph_headings = extract_headings(paragraph.text)
+                if paragraph_headings:
+                    heading = paragraph_headings[0]
+                    level = int(heading["level"])
+                    heading_path = heading_path[:max(0, level - 1)]
+                    heading_path.append(str(heading["heading"]))
+                continue
+            if block.tag != f"{{{_W_NS}}}tbl":
+                continue
+
+            table = Table(block, doc)
+            idx = table_index
+            table_index += 1
             try:
-                tbl_data = _build_table_artifact(table, idx)
+                section = " > ".join(heading_path) or None
+                tbl_data = _build_table_artifact(table, idx, section)
             except Exception as exc:
                 artifact["warnings"].append(f"table {idx}: extraction failed ({exc})")
                 continue
@@ -155,7 +176,7 @@ def _file_sha256(path: str) -> str:
 # Table artifact builder
 # ---------------------------------------------------------------------------
 
-def _build_table_artifact(table, idx: int) -> dict[str, Any] | None:
+def _build_table_artifact(table, idx: int, source_section: str | None = None) -> dict[str, Any] | None:
     """Build the v2 table artifact for a single python-docx Table.
 
     Returns ``None`` when the table has no rows.  Otherwise produces a dict
@@ -350,7 +371,7 @@ def _build_table_artifact(table, idx: int) -> dict[str, Any] | None:
     return {
         "tableId": table_id,
         "sourcePage": None,
-        "sourceSection": None,
+        "sourceSection": source_section,
         "rows": num_rows,
         "columns": num_cols,
         "mergedRegions": merged_regions,

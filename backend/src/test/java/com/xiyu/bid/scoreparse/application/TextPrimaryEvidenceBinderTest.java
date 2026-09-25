@@ -24,6 +24,18 @@ class TextPrimaryEvidenceBinderTest {
     }
 
     @Test
+    void bindsPlainQuoteAgainstMarkItDownBoldWeightAndKeepsOriginalLine() {
+        var fact = new MultimodalScoreFact("评审标准", "1", "", "响应报价", BigDecimal.valueOf(30),
+                "报价评审", "OBJECTIVE", null, "", List.of(),
+                "（一）商务部分（响应报价）30 分", 0.9, ChildAggregation.SUM);
+
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), null,
+                "第三章 评审标准\n（一）商务部分（响应报价）**30** 分\n");
+
+        assertThat(bound.get(0).sourceCellIds()).containsExactly("text:line[1]");
+    }
+
+    @Test
     void locatesTheWholeQuoteWhenItsFirstTokenAppearsEarlier() {
         var fact = new MultimodalScoreFact("评分办法", "1", "", "业绩", BigDecimal.TEN,
                 "满足条件得10分", "OBJECTIVE", null, "", List.of(),

@@ -3,8 +3,8 @@
   "fixtureKind": "redacted-source-shaped-logical-scheme-regression",
   "schemeTitle": "第三章 评审标准",
   "declaredTotal": 100,
-  "totalQuote": "本项目总分为 100 分，由商务部分（响应报价）30 分、商务部分（综合实力） 40 分、技术部分 30 分，三部分组成。",
-  "totalLocator": "text:line[2]",
+  "totalQuote": "本项目总分为 **100** 分，由商务部分（响应报价）30 分、商务部分（综合实力） 40 分、技术部分 30 分，三部分组成。",
+  "totalLocator": "text:line[3]",
   "layoutStatus": "MULTI_TABLE_SAME_SCHEME",
   "tableIds": ["t-business-detail-1", "t-business-detail-2", "t-technical-detail-1", "t-technical-detail-2"],
   "parents": [

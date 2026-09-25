@@ -20,7 +20,8 @@ final class OriginalScoreQualificationPolicy {
         String schemeId = !claim.schemeId().isBlank() ? claim.schemeId() : stableSchemeId(context.scheme());
         if (schemeId == null && artifact != null && context.total().value() != null) {
             boolean hasScoringTable = artifact.tables().stream()
-                    .anyMatch(table -> table != null && Boolean.TRUE.equals(table.isScoreTable()));
+                    .anyMatch(table -> table != null && Boolean.TRUE.equals(table.isScoreTable())
+                            && table.sourceSection() != null && !table.sourceSection().isBlank());
             if (hasScoringTable) {
                 schemeId = stableSchemeId("document-scheme:" + artifact.artifact().documentId());
             }
@@ -127,6 +128,7 @@ final class OriginalScoreQualificationPolicy {
 
     private static String normalizeSource(String value) {
         return value == null ? "" : value.replaceAll("[\\u00a0\\u2007\\u202f\\t\\r\\n]+", " ")
+                .replaceAll("\\*\\*|__", "")
                 .replaceAll(" +", " ").trim();
     }
 

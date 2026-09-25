@@ -46,13 +46,23 @@ public final class MultimodalScoreFactValidator {
         sourceVerification.problems().forEach(problem -> violations.add(new Violation(problem.factId(),
                 problem.field(), problem.code(), "模型字段缺少对应原文依据", problem.expected(),
                 problem.actual(), problem.locator())));
-        List<MultimodalScoreFact> eligibleFacts = OriginalScoreEvidencePolicy.eligibleModelFacts(facts, sourceVerification);
+        Map<String, OriginalScoreEvidencePolicy.Qualification> qualificationsByFact = sourceVerification.qualifications().stream()
+                .collect(java.util.stream.Collectors.toMap(OriginalScoreEvidencePolicy.Qualification::factId,
+                        qualification -> qualification, (first, duplicate) -> first));
+        Set<String> eligibleFactIds = sourceVerification.qualifications().stream()
+                .filter(OriginalScoreEvidencePolicy.Qualification::candidateEligible)
+                .map(OriginalScoreEvidencePolicy.Qualification::factId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<MultimodalScoreFact> eligibleFacts = facts.stream()
+                .filter(fact -> eligibleFactIds.contains(OriginalScoreEvidencePolicy.modelFactId(fact)))
+                .map(fact -> applyQualification(fact, qualificationsByFact)).toList();
         Set<String> outOfSchemeIds = sourceVerification.qualifications().stream()
                 .filter(qualification -> "OUT_OF_SCHEME".equals(qualification.scopeStatus()))
                 .map(OriginalScoreEvidencePolicy.Qualification::factId)
                 .collect(java.util.stream.Collectors.toSet());
         List<MultimodalScoreFact> validationFacts = facts.stream()
-                .filter(fact -> !outOfSchemeIds.contains(OriginalScoreEvidencePolicy.modelFactId(fact))).toList();
+                .filter(fact -> !outOfSchemeIds.contains(OriginalScoreEvidencePolicy.modelFactId(fact)))
+                .map(fact -> applyQualification(fact, qualificationsByFact)).toList();
         validateRequiredFields(validationFacts, violations);
         validateEvidence(validationFacts, cells, tenderText, violations);
         validateDuplicates(validationFacts, violations);
@@ -73,6 +83,12 @@ public final class MultimodalScoreFactValidator {
         }
         return new ValidationReport(facts, declaredTotal, originalTotal, leafTotal, violations.isEmpty(),
                 violations, sourceVerification);
+    }
+
+    private static MultimodalScoreFact applyQualification(MultimodalScoreFact fact,
+            Map<String, OriginalScoreEvidencePolicy.Qualification> qualificationsByFact) {
+        var qualification = qualificationsByFact.get(OriginalScoreEvidencePolicy.modelFactId(fact));
+        return qualification == null ? fact : fact.withScope(qualification.schemeId(), qualification.scopeStatus());
     }
 
     private static void validateRequiredFields(List<MultimodalScoreFact> facts, List<Violation> violations) {

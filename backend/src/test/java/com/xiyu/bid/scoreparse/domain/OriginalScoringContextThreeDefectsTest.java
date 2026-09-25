@@ -13,6 +13,17 @@ class OriginalScoringContextThreeDefectsTest {
     private static final String SALES_RULE = "满分10分，销售额达到1亿元得10分。";
     private static final String TECH_RULE = "技术方案按完整性与可行性评议，最高得90分。";
 
+    @Test void boldChineseHeadingsAndBoldTotalKeepTheirTextScope() {
+        var context = OriginalScoringContext.resolve(new DocumentArtifact(meta(), List.of(), List.of()),
+                "**第三章 评审标准**\n\n**五、详细评审**\n\n本项目总分为 **100** 分。");
+
+        assertThat(context.scheme()).isEqualTo("第三章 评审标准");
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+        assertThat(context.total().locator()).isEqualTo("text:line[4]");
+        assertThat(OriginalScoringContext.textScopes("**第三章 评审标准**\n**五、详细评审**"))
+                .extracting(OriginalScoringContext.TextScope::scopeStatus).contains("IN_SCHEME");
+    }
+
     @Test void itemRuleStartingWithMaximumCannotSupplyMissingSchemeTotal() {
         DocumentArtifact original = itemMaximumDocument(false);
         var result = new MultimodalScoreFactValidator().validate(List.of(salesFact()), original, "", bd("10"));

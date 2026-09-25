@@ -290,6 +290,27 @@ def test_extract_headings_char_offsets():
     assert result[-1]["charEnd"] == len(text)
 
 
+def test_extract_headings_bold_chinese_headings_keep_original_offsets():
+    from converter import extract_headings
+
+    text = (
+        "前言\n\n**第三章 评审标准**\n\n**五、详细评审**\n\n"
+        "本项目总分为 **100** 分。"
+    )
+
+    result = extract_headings(text)
+
+    assert [section["heading"] for section in result] == [
+        "第三章 评审标准",
+        "五、详细评审",
+    ]
+    assert [section["level"] for section in result] == [1, 2]
+    assert result[0]["charStart"] == text.index("**第三章")
+    assert result[0]["charEnd"] == text.index("**五、")
+    assert result[1]["charStart"] == text.index("**五、")
+    assert result[1]["charEnd"] == len(text)
+
+
 @pytest.mark.asyncio
 async def test_health_check(no_key_app):
     async with AsyncClient(
