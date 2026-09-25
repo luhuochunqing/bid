@@ -60,10 +60,12 @@ public class TenderPushRequest {
     @Size(max = 255)
     private String tenderAgency;
 
-    /** 开标时间（ISO datetime） */
+    /** 开标时间（ISO datetime，必填） */
+    @NotBlank(message = "开标时间不能为空")
     private String bidOpeningTime;
 
-    /** 报名截止时间（ISO datetime） */
+    /** 报名截止时间（ISO datetime，必填） */
+    @NotBlank(message = "报名截止时间不能为空")
     private String registrationDeadline;
 
     @Size(max = 100)
