@@ -231,6 +231,58 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
+    void submitReview_adoptCandidates_allowsPartialWeightAndPersistsActualTotal() {
+        mockLatestTask();
+        ScoreParseFact fact1 = fact("fact-1", "30");
+        ScoreParseFact fact2 = fact("fact-2", "61");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact1, fact2));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(eligibleEvidenceTotal("100", "fact-1", "fact-2"));
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "人工确认采纳91分")
+        ), "人工确认采纳", 9L), "admin");
+
+        ArgumentCaptor<List<com.xiyu.bid.scoreparse.domain.ScoreCandidate>> candidates = ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), candidates.capture());
+        assertThat(candidates.getValue()).hasSize(2);
+        ArgumentCaptor<ScoreParseTask> taskCaptor = ArgumentCaptor.forClass(ScoreParseTask.class);
+        verify(taskRepository).save(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().getOriginalTotalWeight()).isEqualByComparingTo("91");
+    }
+
+    @Test
+    void submitReview_adoptCandidates_rejectsWeightAboveDeclaredTotalBeforePersistence() {
+        mockLatestTask();
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "101")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(eligibleEvidenceTotal("100", "fact-1"));
+
+        assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "人工确认")
+        ), "人工确认采纳", 9L), "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不能超过原文声明总分");
+
+        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+    }
+
+    @Test
+    void submitReview_adoptCandidates_rejectsNegativeAdjustedWeightBeforePersistence() {
+        mockLatestTask();
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "100"), fact("fact-2", "9")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(eligibleEvidenceTotal("100", "fact-1", "fact-2"));
+
+        assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("fact-1", "ADOPT_CANDIDATES", new BigDecimal("100"), "人工确认"),
+                new ScoreParseReviewCommand.Action("fact-2", "ADOPT_CANDIDATES", new BigDecimal("-9"), "人工确认")
+        ), "人工确认采纳", 9L), "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不能为负数");
+
+        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+    }
+
+    @Test
     void submitReview_adoptsMutuallyExclusiveTiersUsingParentMaximumOnce() {
         mockLatestTask();
         ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(

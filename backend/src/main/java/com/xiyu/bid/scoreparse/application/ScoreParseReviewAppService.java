@@ -1,6 +1,7 @@
 package com.xiyu.bid.scoreparse.application;
 import com.xiyu.bid.scoreparse.dto.ScoreParseReviewCommand;
 import com.xiyu.bid.scoreparse.dto.ScoreParseReviewDTO;
+import com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy;
 import com.xiyu.bid.scoreparse.entity.ScoreParseEvidence;
 import com.xiyu.bid.scoreparse.entity.ScoreParseFact;
 import com.xiyu.bid.scoreparse.entity.ScoreParseReview;
@@ -220,8 +221,8 @@ public class ScoreParseReviewAppService {
         if (declaredTotal == null) {
             throw new IllegalArgumentException("所选评分方案没有可验证的原文总分，不能自动按表格分值合并");
         }
-        if (result.totalWeight().compareTo(declaredTotal) != 0) {
-            throw new IllegalArgumentException("修正后的叶子评分项合计必须为" + declaredTotal
+        if (!ScoreReviewAdoptionPolicy.isWithinDeclaredTotal(result.totalWeight(), declaredTotal)) {
+            throw new IllegalArgumentException("候选评分项合计不能超过原文声明总分" + declaredTotal
                     + "分，当前为" + result.totalWeight() + "分");
         }
         if (itemPersistenceService != null) {

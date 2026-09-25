@@ -15,6 +15,27 @@ class ScoreReviewAdoptionPolicyTest {
     private final ScoreReviewAdoptionPolicy policy = new ScoreReviewAdoptionPolicy();
 
     @Test
+    @DisplayName("人工采纳允许低于原文总分但不允许超过原文总分")
+    void isWithinDeclaredTotal_allowsPartialAndExactButRejectsExcess() {
+        assertThat(ScoreReviewAdoptionPolicy.isWithinDeclaredTotal(new BigDecimal("91"), new BigDecimal("100"))).isTrue();
+        assertThat(ScoreReviewAdoptionPolicy.isWithinDeclaredTotal(new BigDecimal("100"), new BigDecimal("100"))).isTrue();
+        assertThat(ScoreReviewAdoptionPolicy.isWithinDeclaredTotal(new BigDecimal("101"), new BigDecimal("100"))).isFalse();
+    }
+
+    @Test
+    @DisplayName("显式调整的负分候选必须拒绝，不能抵消其他候选权重")
+    void adopt_rejectsNegativeAdjustedWeight() {
+        var result = policy.adopt(List.of(
+                        new ScoreReviewAdoptionPolicy.CandidateInput("positive", "1", "技术", new BigDecimal("100"), "正分", ""),
+                        new ScoreReviewAdoptionPolicy.CandidateInput("negative", "2", "商务", new BigDecimal("9"), "负分", "")),
+                Set.of("positive", "negative"), Map.of("positive", new BigDecimal("100"), "negative", new BigDecimal("-9")));
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorMessage()).contains("不能为负数");
+        assertThat(result.candidates()).isEmpty();
+    }
+
+    @Test
     @DisplayName("空事实列表采纳应返回失败")
     void adopt_emptyFacts_returnsFailure() {
         var result = policy.adopt(List.of(), Set.of(), Map.of());

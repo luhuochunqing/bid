@@ -38,6 +38,10 @@ sources:
   - backend/src/test/resources/scoreparse-golden/case-project-1384-logical-scheme.expected.json
   - specs/071-scoreparse-scheme-eligibility/spec.md
   - specs/071-scoreparse-scheme-eligibility/contracts/score-parse-review-schemes.md
+  - specs/072-scoreparse-partial-adoption-ux/spec.md
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreReviewAdoptionPolicy.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseReviewAppService.java
+  - src/views/Project/stages/components/ScoreCandidateReviewCard.vue
   - document-converter-sidecar/converter.py
   - document-converter-sidecar/table_extractor.py
 backlinks:
@@ -167,3 +171,10 @@ archive: false
 - DOCX 可能把同一评分行拆到相邻物理表。当前 Sidecar v2 逐物理表输出，Java 资格引用要求来源表/单元格可核实；完整引用跨越表边界时应保持未验证，不能用模糊匹配或相似分值自动放行。
 - 真实项目 1384 重解析已核实方案总分 100，但资格候选只有 8 项、56 分。报价 30 分受 Markdown 强调格式影响；技术 10 分模型引用有文字改写；团队 4 分来源跨两张物理表。真实验收必须记录 `/review`、`/items` 和页面结果，Golden 回放不能替代。
 - 后续修复优先扩展转换契约，让逻辑评分行可关联有序原文片段，再让模型事实引用这些来源；精确出处仍是资格门槛。
+
+## 2026-09-25 人工采纳部分候选与校验信息展示
+
+- `REVIEW_REQUIRED` 表示事实还需人工核对，不等于前端必须禁用人工采纳；已验证方案总分为 100、当前候选为 91 时，允许操作者核对后采纳 91，并将实际采纳合计保存为 91。
+- 采纳资格仍要求当前逻辑方案有效、总分证据无冲突且候选来源通过既有校验；候选合计超过原文声明总分必须在持久化前拒绝。任何单项负分也必须拒绝，避免通过正负抵消绕过上限。
+- 校验诊断、内部 locator、事实/方案 ID 和资格 JSON 属于机器证据，不应直接输出给业务用户。前端将已知差异翻译为中文说明，来源区域只显示可读原文引句。
+- 91/100 人工采纳和 UI 文案的本地回归通过；测试站真实 DOCX 重解析与用户界面验收仍需合并部署后完成。
