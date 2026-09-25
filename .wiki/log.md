@@ -1226,3 +1226,7 @@
 - 修复：按来源方案资格过滤候选与总分；按逻辑方案分组抽取；精确回指方案总分；唯一同方案父项可跨物理表关联；互斥档位取最大值而 `SUM` 保持累计。
 - 验证：1382/1384 脱敏项目形状 golden replay；本地专项测试通过。测试站点仍需部署后重解析，未声称外部验收通过。
 - 回填：更新 [[scoreparse-multimodal-primary]] 与 `docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md`。
+## [2026-09-25] compound | 1384 DOCX 真实重解析揭示转换引用断点
+- 触发：测试站真实 DOCX 声明总分 100 已核实，但候选仅 56 分；Markdown 粗体权重和跨物理表续行无法精确绑定。
+- 结论：证据归一化只能忽略 MarkItDown 格式标记/空白；跨物理表引用须由 Sidecar 逻辑行+原文片段契约支持，否则保留未验证，禁止模糊放行。
+- 回填：更新 [[scoreparse-multimodal-primary]]；真实验收尚未闭合。

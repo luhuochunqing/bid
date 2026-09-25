@@ -20,6 +20,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseAppService.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/TenderExecutionSource.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/TextPrimaryEvidenceBinder.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreQualificationPolicy.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/TextPrimaryScoreFactMapper.java
   - backend/src/test/resources/scoreparse-golden/case-long-text-scoring-table.md
   - backend/src/test/resources/scoreparse-golden/case-long-text-scoring-table.expected.json
@@ -37,12 +38,14 @@ sources:
   - backend/src/test/resources/scoreparse-golden/case-project-1384-logical-scheme.expected.json
   - specs/071-scoreparse-scheme-eligibility/spec.md
   - specs/071-scoreparse-scheme-eligibility/contracts/score-parse-review-schemes.md
+  - document-converter-sidecar/converter.py
+  - document-converter-sidecar/table_extractor.py
 backlinks:
   - .wiki/pages/_index.md
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
 created: 2026-09-20
-updated: 2026-09-24
-health_checked: 2026-09-24
+updated: 2026-09-25
+health_checked: 2026-09-25
 archive: false
 ---
 
@@ -157,3 +160,10 @@ archive: false
 - 父子关系按方案内稳定身份解析。跨物理表且标题不同的父子项，只在同方案、同范围且父编号唯一时自动连接；歧义保留复核。
 - 聚合关系不可混淆：`SUM` 累计有效子项，`MUTUALLY_EXCLUSIVE` 取备选最大分，未知关系不生成可采纳的总分。
 - 1382/1384 脱敏真实项目形状回放分别固定后章排除和同方案跨表闭环；它们不替代测试部署后的真实项目重解析。
+
+## 2026-09-25 真实 DOCX 重解析发现的证据断点
+
+- MarkItDown 会把 Word 强调权重写成 Markdown `**30**`；证据绑定和资格核验必须使用一致的 Markdown 强调归一化，同时保留原文行偏移。归一化只消除格式标记与空白，不放宽词句内容。
+- DOCX 可能把同一评分行拆到相邻物理表。当前 Sidecar v2 逐物理表输出，Java 资格引用要求来源表/单元格可核实；完整引用跨越表边界时应保持未验证，不能用模糊匹配或相似分值自动放行。
+- 真实项目 1384 重解析已核实方案总分 100，但资格候选只有 8 项、56 分。报价 30 分受 Markdown 强调格式影响；技术 10 分模型引用有文字改写；团队 4 分来源跨两张物理表。真实验收必须记录 `/review`、`/items` 和页面结果，Golden 回放不能替代。
+- 后续修复优先扩展转换契约，让逻辑评分行可关联有序原文片段，再让模型事实引用这些来源；精确出处仍是资格门槛。
