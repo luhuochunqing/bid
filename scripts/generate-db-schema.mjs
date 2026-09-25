@@ -61,11 +61,77 @@ function parseMigrations(sql, version, fileName, tables, alterLog) {
     const stmt = stripLineComments(raw).trim()
     if (!stmt) continue
 
-    parseCreateTable(stmt, version, fileName, tables)
+    // DROP TABLE：移除已删除的表，避免字典中出现"幽灵表"（表注释永远为空）
+    const dropMatch = stmt.match(/^DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?`?(\w+)`?/i)
+    if (dropMatch) {
+      tables.delete(dropMatch[1])
+      continue
+    }
+
+    // 动态 SQL 展开：CALL 辅助过程 / 字符串字面量里的 DDL（真实执行过，静态可见）
+    for (const pseudo of expandDynamicStatements(stmt)) {
+      const inner = stripLineComments(pseudo).trim()
+      if (!inner) continue
+      parseCreateTable(inner, version, fileName, tables)
+        || parseCreateIndex(inner, version, fileName, tables)
+        || parseAlterTable(inner, version, fileName, tables, alterLog)
+    }
+
+    const handled =
+      parseCreateTable(stmt, version, fileName, tables)
       || parseCreateIndex(stmt, version, fileName, tables)
       || parseAlterTable(stmt, version, fileName, tables, alterLog)
+    if (!handled) {
+      // 存储过程体内嵌 DDL（如 IF ... THEN ALTER TABLE ...）：从关键字处截取再解析
+      const embedded = stmt.match(/(?:ALTER|CREATE)\s+TABLE[\s\S]*$/i)
+      if (embedded && embedded.index > 0) {
+        const inner = stmt.slice(embedded.index)
+        parseCreateTable(inner, version, fileName, tables)
+          || parseCreateIndex(inner, version, fileName, tables)
+          || parseAlterTable(inner, version, fileName, tables, alterLog)
+      }
+    }
     // DML / other statements are silently skipped
   }
+}
+
+// 动态 SQL 展开：把"真实执行过但静态解析看不到"的 DDL 还原成等价语句
+//   1) CALL add_column_if_not_exists / p_add_col_if_missing → ALTER TABLE ... ADD COLUMN
+//   2) CALL drop_column_if_exists → ALTER TABLE ... DROP COLUMN
+//   3) CALL modify_column_if_type_matches / _like → ALTER TABLE ... MODIFY COLUMN
+//   4) CALL add_index_if_not_exists → CREATE INDEX
+//   5) 字符串字面量中的 'ALTER TABLE ...' / 'CREATE TABLE ...'（SELECT IF/CONCAT 动态执行）
+function expandDynamicStatements(stmt) {
+  const out = []
+  const unquote = (s) => s.replace(/''/g, "'").replace(/""/g, '"')
+  const arg = String.raw`(?:'((?:[^']|'')*)'|"((?:[^"]|"")*)")`
+
+  let m
+  const addColRe = new RegExp(String.raw`CALL\s+(?:add_column_if_not_exists|p_add_col_if_missing)\s*\(\s*'(\w+)'\s*,\s*'(\w+)'\s*,\s*${arg}\s*\)`, 'gi')
+  while ((m = addColRe.exec(stmt)) !== null) {
+    out.push(`ALTER TABLE ${m[1]} ADD COLUMN ${m[2]} ${unquote(m[3] !== undefined ? m[3] : m[4])}`)
+  }
+
+  const dropColRe = /CALL\s+drop_column_if_exists\s*\(\s*'(\w+)'\s*,\s*'(\w+)'\s*\)/gi
+  while ((m = dropColRe.exec(stmt)) !== null) {
+    out.push(`ALTER TABLE ${m[1]} DROP COLUMN ${m[2]}`)
+  }
+
+  const modColRe = new RegExp(String.raw`CALL\s+modify_column_if_type_(?:matches|like)\s*\(\s*'(\w+)'\s*,\s*'(\w+)'\s*,\s*(?:'[^']*'|"[^"]*")\s*,\s*${arg}\s*\)`, 'gi')
+  while ((m = modColRe.exec(stmt)) !== null) {
+    out.push(`ALTER TABLE ${m[1]} MODIFY COLUMN ${m[2]} ${unquote(m[3] !== undefined ? m[3] : m[4])}`)
+  }
+
+  const idxRe = new RegExp(String.raw`CALL\s+add_index_if_not_exists\s*\(\s*'(\w+)'\s*,\s*'(\w+)'\s*,\s*'((?:[^']|'')*)'\s*\)`, 'gi')
+  while ((m = idxRe.exec(stmt)) !== null) {
+    out.push(`CREATE INDEX ${m[2]} ${unquote(m[3])}`.replace(/\s+/g, ' '))
+  }
+
+  const ddlStrRe = /'((?:ALTER|CREATE)\s+TABLE\s+(?:[^']|'')*)'/gi
+  while ((m = ddlStrRe.exec(stmt)) !== null) {
+    out.push(unquote(m[1]))
+  }
+  return out
 }
 
 function stripBlockComments(sql) {
@@ -80,7 +146,23 @@ function stripLineComments(sql) {
 }
 
 function splitStatements(sql) {
-  return sql.split(';')
+  // 按 ';' 切分语句，但不切分 '--' 行注释内的分号（如 V1011 头注释
+  // "-- Rename old table to deprecated; create new tables" 曾把后续 ALTER 切进残片）
+  const parts = []
+  let current = ''
+  for (const line of sql.split('\n')) {
+    const commentIdx = line.indexOf('--')
+    const code = commentIdx === -1 ? line : line.slice(0, commentIdx)
+    const comment = commentIdx === -1 ? '' : line.slice(commentIdx)
+    const segments = code.split(';')
+    for (let i = 0; i < segments.length; i++) {
+      current += segments[i]
+      if (i < segments.length - 1) { parts.push(current); current = '' }
+    }
+    current += comment + '\n'
+  }
+  if (current.trim()) parts.push(current)
+  return parts
 }
 
 // ── CREATE TABLE ──
@@ -172,7 +254,7 @@ function extractTableComment(afterParen) {
 function parseColumnDef(raw, version) {
   // Match: column_name TYPE [(size)] [NOT NULL | NULL] [DEFAULT ...] [AUTO_INCREMENT] [COMMENT '...'] [AFTER ...]
   const match = raw.match(
-    /^\s*`?(\w+)`?\s+((?:tiny|small|medium|big)?int(?:\s*\(\d+\))?(?:\s+unsigned)?|(?:var)?char\s*\(\d+\)|text(?:\(\d+\))?|datetime(?:\(\d+\))?|date|time|timestamp(?:\(\d+\))?(?:\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP)?|decimal\s*\(\d+,\s*\d+\)|float|double|enum\s*\([^)]+\)|bit|boolean|blob|json|longtext|mediumtext|char\s*\(\d+\))/i
+    /^\s*`?(\w+)`?\s+((?:tiny|small|medium|big)?int(?:\s*\(\d+\))?(?:\s+unsigned)?|(?:var)?char\s*\(\d+\)|text(?:\(\d+\))?|datetime(?:\(\d+\))?|date|time|timestamp(?:\(\d+\))?(?:\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP)?|decimal\s*\(\d+,\s*\d+\)|float|double|enum\s*\([^)]+\)|bit|boolean|blob|binary\s*\(\d+\)|varbinary\s*\(\d+\)|(?:tiny|medium|long)blob|json|longtext|mediumtext|char\s*\(\d+\))/i
   )
   if (!match) return null
 
@@ -250,22 +332,35 @@ function parseAlterTable(stmt, version, fileName, tables, alterLog) {
   const tableName = match[1]
   const rest = stmt.slice(match[0].length)
 
-  // ADD COLUMN
-  const addCol = rest.match(/ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?\s+((?:tiny|small|medium|big)?int(?:\s*\(\d+\))?(?:\s+unsigned)?|(?:var)?char\s*\(\d+\)|text(?:\(\d+\))?|datetime(?:\(\d+\))?|date|time|timestamp(?:\(\d+\))?|decimal\s*\(\d+,\s*\d+\)|float|double|enum\s*\([^)]+\)|bit|boolean|blob|json|longtext|mediumtext|char\s*\(\d+\))/i)
-  if (addCol) {
+  // ADD COLUMN（支持一条语句内多个逗号分隔的 ADD COLUMN 子句）
+  const addColPattern = /ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?\s+((?:tiny|small|medium|big)?int(?:\s*\(\d+\))?(?:\s+unsigned)?|(?:var)?char\s*\(\d+\)|text(?:\(\d+\))?|datetime(?:\(\d+\))?|date|time|timestamp(?:\(\d+\))?(?:\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP)?|decimal\s*\(\d+,\s*\d+\)|float|double|enum\s*\([^)]+\)|bit|boolean|blob|binary\s*\(\d+\)|varbinary\s*\(\d+\)|(?:tiny|medium|long)blob|json|longtext|mediumtext|char\s*\(\d+\))/gi
+  let addColMatch
+  let hasAddColumn = false
+  while ((addColMatch = addColPattern.exec(rest)) !== null) {
+    hasAddColumn = true
     const table = getOrCreateTable(tables, tableName, version)
-    const colRest = rest.slice(addCol.index + addCol[0].length)
-    const nullable = /\bNOT\s+NULL\b/i.test(rest) ? false : true
-    const defaultMatch = colRest.match(/\bDEFAULT\s+('(?:[^'\\]|\\.)*'|NULL|\d+\.?\d*|\w+\(\))/i)
-    const commentMatch = colRest.match(/\bCOMMENT\s+'((?:[^'\\]|\\.)*)'/i)
-    table.columns.set(addCol[1], {
-      name: addCol[1],
-      type: addCol[2].trim(),
+    const matchEnd = addColMatch.index + addColMatch[0].length
+    const colRest = rest.slice(matchEnd)
+    const nextComma = colRest.indexOf(',')
+    const nextSemicolon = colRest.indexOf(';')
+    const endOfColumn = Math.min(
+      nextComma === -1 ? colRest.length : nextComma,
+      nextSemicolon === -1 ? colRest.length : nextSemicolon
+    )
+    const columnDef = rest.slice(addColMatch.index, matchEnd + endOfColumn)
+    const nullable = /\bNOT\s+NULL\b/i.test(columnDef) ? false : true
+    const defaultMatch = columnDef.match(/\bDEFAULT\s+('(?:[^'\\]|\\.)*'|NULL|\d+\.?\d*|\w+\(\))/i)
+    const commentMatch = columnDef.match(/\bCOMMENT\s+'((?:[^'\\]|\\.)*)'/i)
+    table.columns.set(addColMatch[1], {
+      name: addColMatch[1],
+      type: addColMatch[2].trim(),
       nullable,
       defaultValue: defaultMatch ? defaultMatch[1] : null,
       comment: commentMatch ? commentMatch[1] : '',
       since: version,
     })
+  }
+  if (hasAddColumn) {
     return true
   }
 
@@ -304,7 +399,7 @@ function parseAlterTable(stmt, version, fileName, tables, alterLog) {
 
   // MODIFY COLUMN (update column properties, including COMMENT)
   // Support both single and multiple MODIFY COLUMN in one ALTER TABLE
-  const modifyColPattern = /MODIFY\s+(?:COLUMN\s+)?`?(\w+)`?\s+((?:tiny|small|medium|big)?int(?:\s*\(\d+\))?(?:\s+unsigned)?|(?:var)?char\s*\(\d+\)|text(?:\(\d+\))?|datetime(?:\(\d+\))?|date|time|timestamp(?:\(\d+\))?(?:\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP)?|decimal\s*\(\d+,\s*\d+\)|float|double|enum\s*\([^)]+\)|bit|boolean|blob|json|longtext|mediumtext|char\s*\(\d+\))/gi
+  const modifyColPattern = /MODIFY\s+(?:COLUMN\s+)?`?(\w+)`?\s+((?:tiny|small|medium|big)?int(?:\s*\(\d+\))?(?:\s+unsigned)?|(?:var)?char\s*\(\d+\)|text(?:\(\d+\))?|datetime(?:\(\d+\))?|date|time|timestamp(?:\(\d+\))?(?:\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP)?|decimal\s*\(\d+,\s*\d+\)|float|double|enum\s*\([^)]+\)|bit|boolean|blob|binary\s*\(\d+\)|varbinary\s*\(\d+\)|(?:tiny|medium|long)blob|json|longtext|mediumtext|char\s*\(\d+\))/gi
   let modifyMatch
   let hasModifyColumn = false
   while ((modifyMatch = modifyColPattern.exec(rest)) !== null) {
@@ -345,6 +440,66 @@ function parseAlterTable(stmt, version, fileName, tables, alterLog) {
     }
   }
   if (hasModifyColumn) {
+    return true
+  }
+
+  // RENAME TO (table rename): move the entry under the new name
+  const renameMatch = rest.match(/^\s*RENAME\s+TO\s+`?(\w+)`?/i)
+  if (renameMatch) {
+    const renamed = tables.get(tableName) || { columns: new Map(), indexes: [], since: version, comment: '' }
+    tables.delete(tableName)
+    tables.set(renameMatch[1], renamed)
+    return true
+  }
+
+  // DROP COLUMN (supports multiple in one statement): remove the column from the dictionary
+  const dropColPattern = /DROP\s+COLUMN\s+(?:IF\s+EXISTS\s+)?`?(\w+)`?/gi
+  let dropColMatch
+  let hasDropColumn = false
+  while ((dropColMatch = dropColPattern.exec(rest)) !== null) {
+    hasDropColumn = true
+    const table = tables.get(tableName)
+    if (table) table.columns.delete(dropColMatch[1])
+  }
+  if (hasDropColumn) {
+    return true
+  }
+
+  // CHANGE COLUMN old new <def>: rename + update like MODIFY COLUMN
+  const changeColPattern = /CHANGE\s+COLUMN\s+`?(\w+)`?\s+`?(\w+)`?\s+((?:tiny|small|medium|big)?int(?:\s*\(\d+\))?(?:\s+unsigned)?|(?:var)?char\s*\(\d+\)|text(?:\(\d+\))?|datetime(?:\(\d+\))?|date|time|timestamp(?:\(\d+\))?(?:\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP)?|decimal\s*\(\d+,\s*\d+\)|float|double|enum\s*\([^)]+\)|bit|boolean|blob|binary\s*\(\d+\)|varbinary\s*\(\d+\)|(?:tiny|medium|long)blob|json|longtext|mediumtext|char\s*\(\d+\))/gi
+  let changeMatch
+  let hasChangeColumn = false
+  while ((changeMatch = changeColPattern.exec(rest)) !== null) {
+    hasChangeColumn = true
+    const table = getOrCreateTable(tables, tableName, version)
+    const oldName = changeMatch[1]
+    const newName = changeMatch[2]
+    const fullType = changeMatch[3].trim()
+    const matchEnd = changeMatch.index + changeMatch[0].length
+    const colRest = rest.slice(matchEnd)
+    const nextComma = colRest.indexOf(',')
+    const nextSemicolon = colRest.indexOf(';')
+    const endOfColumn = Math.min(
+      nextComma === -1 ? colRest.length : nextComma,
+      nextSemicolon === -1 ? colRest.length : nextSemicolon
+    )
+    const columnDef = rest.slice(changeMatch.index, matchEnd + endOfColumn)
+
+    const nullable = /\bNOT\s+NULL\b/i.test(columnDef) ? false : true
+    const defaultMatch = columnDef.match(/\bDEFAULT\s+('(?:[^'\\]|\\.)*'|NULL|\d+\.?\d*|\w+\(\))/i)
+    const commentMatch = columnDef.match(/\bCOMMENT\s+'((?:[^'\\]|\\.)*)'/i)
+
+    const existing = table.columns.get(oldName)
+    const col = existing || { name: newName, since: version }
+    col.name = newName
+    col.type = fullType
+    col.nullable = nullable
+    if (defaultMatch) col.defaultValue = defaultMatch[1]
+    col.comment = commentMatch ? commentMatch[1] : ''
+    if (oldName !== newName) table.columns.delete(oldName)
+    table.columns.set(newName, col)
+  }
+  if (hasChangeColumn) {
     return true
   }
 
