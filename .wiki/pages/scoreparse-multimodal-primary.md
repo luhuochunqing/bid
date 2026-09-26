@@ -189,3 +189,8 @@ archive: false
 ## 项目 1384 真实 DOCX 入口契约
 
 - PR #2757 的方案资格逻辑遇到 Markdown 加粗标题/总分与无 `sourceSection` 的表格时，实际项目仍会得到 0 条合格候选；根因证据、误归属风险和真实文件回归判据见 [[scoreparse-1384-docx-scheme-contract-rca]]。
+
+## 项目 1382 真实 PDF 入口契约
+
+- 与 DOCX 入口同型、但致病点不同：PDF 表格此前被硬编码 `"sourceSection": ""`（只有 OCR textBlocks 走章节识别），导致表格派生事实无方案锚点 → `SOURCE_SCHEME_NOT_VERIFIED`；同时目录点线行会被当成方案根 → `ORIGINAL_SCHEME_AMBIGUOUS`。根因链、`pdf-table-v2` 语义变更与 D6 残留风险见 [[scoreparse-1382-pdf-scheme-gate-rca]]。
+- 消费方注意：`DocumentArtifact` 的 `extractionVersion` 升级为 `pdf-table-v2`，此后 PDF 表格的 `sourceSection` 不再是恒空串。
