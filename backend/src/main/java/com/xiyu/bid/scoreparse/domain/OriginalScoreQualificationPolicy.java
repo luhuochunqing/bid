@@ -179,8 +179,24 @@ final class OriginalScoreQualificationPolicy {
     public static String modelFactId(MultimodalScoreFact fact) {
         String factKey = qualificationFactKey(fact) + "\u0000" + fact.dimension() + "\u0000"
                 + (fact.weight() == null ? "" : fact.weight().stripTrailingZeros().toPlainString())
-                + "\u0000" + fact.quotedText();
+                + "\u0000" + fact.quotedText() + "\u0000" + parentCodeKey(fact);
         return "fact-" + UUID.nameUUIDFromBytes(factKey.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Parent reference of the fact, in the form the parent lookup compares it in.
+     *
+     * <p>Two blank-code children that differ only in whose children they are — same dimension,
+     * weight and quote, but parent {@code 1.1} vs {@code 1.2} — are distinct scoring units, so the
+     * parent reference belongs in the identity. Without it they collapse into one id, and the
+     * parent graph keyed by that id lets one child's parent link overwrite the other's: the
+     * displaced parent reads as a leaf, its own weight is summed next to the children that should
+     * have replaced it, and the subtotal stops closing.
+     */
+    private static String parentCodeKey(MultimodalScoreFact fact) {
+        String parentCode = fact.parentCode();
+        return parentCode == null || parentCode.isBlank() ? ""
+                : MultimodalFactParentCodeNormalizer.compact(parentCode);
     }
 
     public static List<MultimodalScoreFact> eligibleModelFacts(List<MultimodalScoreFact> facts,

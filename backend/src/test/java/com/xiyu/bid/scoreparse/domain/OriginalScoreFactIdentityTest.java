@@ -147,7 +147,7 @@ class OriginalScoreFactIdentityTest {
                 childFact("1.1", "CHILD-A", "供应商业绩", "3"),
                 parentFact("1.2", "技术部分", "5"),
                 childFact("1.2", "CHILD-B", "财务状况", "5"));
-        var artifact = subtotalArtifact();
+        var artifact = twoParentSiblingArtifact("subtotal-identity", "财务状况", "5");
         var context = OriginalScoringContext.resolve(artifact, text);
 
         var verification = OriginalScoreEvidencePolicy.verifyModel(context, artifact, text, facts,
@@ -162,12 +162,86 @@ class OriginalScoreFactIdentityTest {
                 () -> verification.problems().toString());
     }
 
+    @Test
+    void blankCodeSiblingsDifferingOnlyByParentKeepDistinctIdentities() {
+        // 评审 F-2：两行空 code 兄弟若只在「父亲是谁」上不同（同维度、同引文、同分值），身份里缺少
+        // 父项引用就会撞成同一个 id；父图按该 id 建键时后写覆盖前写，被覆盖的父项失去子项、自己
+        // 反被当成叶子计入小计。两人确实分属不同父项时，就是两个不同的评分单元。
+        String text = String.join("\n", "第三章 评审办法", "分值构成（总分 6 分）");
+        var first = childFact("1.1", "CHILD-A", "供应商业绩", "3");
+        var second = childFact("1.2", "CHILD-B", "供应商业绩", "3");
+
+        assertNotEquals(OriginalScoreEvidencePolicy.modelFactId(first),
+                OriginalScoreEvidencePolicy.modelFactId(second));
+
+        var artifact = twoParentSiblingArtifact("identical-sibling", "供应商业绩", "3");
+        var context = OriginalScoringContext.resolve(artifact, text);
+        var verification = OriginalScoreEvidencePolicy.verifyModel(context, artifact, text,
+                List.of(parentFact("1.1", "商务部分", "3"), first, parentFact("1.2", "技术部分", "3"), second),
+                context.total().value());
+
+        assertTrue(verification.qualifications().stream().allMatch(
+                OriginalScoreEvidencePolicy.Qualification::candidateEligible),
+                () -> verification.qualifications().toString());
+        assertTrue(verification.problems().stream().noneMatch(problem ->
+                        "TABLE_SUBTOTAL_MISMATCH".equals(problem.code())),
+                () -> verification.problems().toString());
+    }
+
+    @Test
+    void factsThatShareOneIdentityAreNeverAutoApproved() {
+        // 残余撞键：同章节、同空 code、同维度/分值/引文、同父项，但来自不同单元格 —— 身份上不可区分。
+        // 合并两条会让父图错配，任选其一更糟，所以唯一安全的动作是拒绝自动采纳（转人工复核）。
+        String text = String.join("\n", "第三章 评审办法", "分值构成（总分 6 分）");
+        var first = childFact("1.1", "CHILD-A", "供应商业绩", "3");
+        var duplicate = childFact("1.1", "CHILD-B", "供应商业绩", "3");
+
+        assertEquals(OriginalScoreEvidencePolicy.modelFactId(first),
+                OriginalScoreEvidencePolicy.modelFactId(duplicate));
+
+        var artifact = twoParentSiblingArtifact("identical-sibling", "供应商业绩", "3");
+        var context = OriginalScoringContext.resolve(artifact, text);
+        var verification = OriginalScoreEvidencePolicy.verifyModel(context, artifact, text,
+                List.of(parentFact("1.1", "商务部分", "3"), first, duplicate), new BigDecimal("6"));
+
+        assertFalse(verification.publishable());
+        assertTrue(verification.problems().stream().anyMatch(problem ->
+                        "ORIGINAL_FACT_IDENTITY_AMBIGUOUS".equals(problem.code())),
+                () -> verification.problems().toString());
+    }
+
     private static MultimodalScoreFact parentFact(String code, String dimension, String weight) {
         String rule = dimension + "（" + weight + " 分）：最高得 " + weight + " 分。";
         return new MultimodalScoreFact("商务", code, "", dimension, new BigDecimal(weight), rule,
                 "OBJECTIVE", 34, "t1",
                 List.of(code + "-name", code + "-rule", code + "-weight"),
                 rule, 0.9, ChildAggregation.SUM, "", "");
+    }
+
+    /**
+     * Two SUM parents, each with one blank-code child, sharing one physical table.
+     *
+     * <p>Rows: {@code 1.1/商务部分/3} with {@code CHILD-A/供应商业绩/3}, then
+     * {@code 1.2/技术部分/<secondWeight>} with {@code CHILD-B/<secondChildDimension>/<secondWeight>}.
+     * The declared subtotal is the leaf sum, so the table closes exactly when each child replaces its
+     * parent. Passing the same dimension and weight as {@code CHILD-A} makes the two children differ
+     * only in which parent they hang from — the shape that used to collapse into one identity.
+     */
+    private static DocumentArtifact twoParentSiblingArtifact(String name, String secondChildDimension,
+                                                             String secondWeight) {
+        List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new java.util.ArrayList<>(List.of(
+                cell("h-no", 0, 0, "序号"), cell("h-name", 0, 1, "评审内容"),
+                cell("h-rule", 0, 2, "评审标准"), cell("h-weight", 0, 3, "评分分值")));
+        record(cells, 1, "1.1", "商务部分", "3");
+        record(cells, 2, "CHILD-A", "供应商业绩", "3");
+        record(cells, 3, "1.2", "技术部分", secondWeight);
+        record(cells, 4, "CHILD-B", secondChildDimension, secondWeight);
+        cells.add(cell("total-no", 5, 0, "合计"));
+        cells.add(cell("total-weight", 5, 3,
+                new BigDecimal("3").add(new BigDecimal(secondWeight)).stripTrailingZeros().toPlainString() + " 分"));
+        var table = new DocumentArtifact.CanonicalTable("t1", 34, "第三章 评审办法", 6, 4, List.of(), cells, true);
+        return new DocumentArtifact(
+                new DocumentArtifact.ArtifactMeta(name, "sha-" + name, "pdf", "2.2"), List.of(table), List.of());
     }
 
     private static MultimodalScoreFact childFact(String parentCode, String cellKey, String dimension, String weight) {
@@ -179,18 +253,7 @@ class OriginalScoreFactIdentityTest {
     }
 
     private static DocumentArtifact subtotalArtifact() {
-        List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new java.util.ArrayList<>(List.of(
-                cell("h-no", 0, 0, "序号"), cell("h-name", 0, 1, "评审内容"),
-                cell("h-rule", 0, 2, "评审标准"), cell("h-weight", 0, 3, "评分分值")));
-        record(cells, 1, "1.1", "商务部分", "3");
-        record(cells, 2, "CHILD-A", "供应商业绩", "3");
-        record(cells, 3, "1.2", "技术部分", "5");
-        record(cells, 4, "CHILD-B", "财务状况", "5");
-        cells.add(cell("total-no", 5, 0, "合计"));
-        cells.add(cell("total-weight", 5, 3, "8 分"));
-        var table = new DocumentArtifact.CanonicalTable("t1", 34, "第三章 评审办法", 6, 4, List.of(), cells, true);
-        return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("subtotal-identity", "sha-subtotal", "pdf", "2.2"),
-                List.of(table), List.of());
+        return twoParentSiblingArtifact("subtotal-identity", "财务状况", "5");
     }
 
     private static void record(List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells, int row, String cellKey,

@@ -277,6 +277,20 @@ def test_pdf_page_section_break_flags_only_chapters_without_a_usable_anchor():
         "第四章 " + "合" * 60: True,            # 超长标题 → 拒绝转锚点
         "第一节 评分标准": False,               # 章内层级：页首出现不掐断本页继承
         "第十条 付款方式": False,
+        # 识别面必须严格宽于锚点式：这些行「看起来是新的一章」但转不成锚点，
+        # 漏掉任何一条都会让外章表格继承上一章并被错误采纳（评审 F-1）。
+        "第3 章 合同履约考核": True,            # 数字与「章」之间有空白
+        "第 十一 章 合同履约考核": True,         # 「第」与数字间、数字内部都有空白
+        "第 三 章 评审办法": True,
+        "第一百零一章 合同履约考核": True,        # 「零」不在锚点式的窄字符集内
+        "第一〇一章 合同履约考核": True,          # 「〇」同理
+        "第３章 合同履约考核": True,             # 全角数字：后端只认 ASCII → 不可写出去
+        "第五卷 商务卷": True,                  # 卷/册同属章级容器
+        "第三册 附件": True,
+        # 反向：非章级行不得因为放宽而误掐断继承
+        "第二十一条 规定说明": False,
+        "第一次修改部分内容": False,
+        "第三方部分内容": False,
     }
     for text, expected in cases.items():
         page = _LinePage([(text, 100.0)])
@@ -321,6 +335,10 @@ def _make_pdf_with_unrecognised_chapter(path, chapter_line):
     "第三部分 合同履约考核",   # 后端只认「章」→ 不可转锚点
     "第三编 合同履约考核",     # 章级容器（编/篇）同样不可转锚点
     "第三篇 合同履约考核",
+    "第3 章 合同履约考核",      # 数字与「章」间有空白（评审 F-1 的具体输入）
+    "第一百零一章 合同履约考核",  # 「零」不在锚点式的窄字符集内
+    "第３章 合同履约考核",       # 全角数字：锚点式只认 ASCII，写出去后端也解析不了
+    "第五卷 商务卷",
 ])
 def test_pdf_tables_on_unrecognised_chapter_page_do_not_inherit_previous_chapter(tmp_path, chapter_line):
     """无法转成锚点的章标题页必须掐断跨页继承。
@@ -349,6 +367,21 @@ def test_pdf_table_sections_are_accepted_by_backend_chapter_heading_pattern(tmp_
     ]
     for section in sections:
         assert BACKEND_CHAPTER_HEADING.match(section), section
+
+
+@pytest.mark.parametrize("line", [
+    "第３章 合同履约考核",       # 全角数字：后端 SOURCE_HEADING 只认 ASCII
+    "第3 章 合同履约考核",        # 数字与「章」间有空白：后端要求「第X章」连续
+    "第一百零一章 合同履约考核",   # 「零」不在后端窄字符集内
+])
+def test_pdf_chapter_anchor_is_never_emitted_when_the_backend_cannot_parse_it(line):
+    """接缝契约的另一半：不可被后端命中的行也不得被写成 sourceSection。
+
+    Python 的 `\\d` 是 Unicode 数字类（连全角「３」也认），后端 `SOURCE_HEADING` 只认 ASCII `0-9`；
+    若锚点式沿用 `\\d`，sidecar 就会写出后端自己解析不了的章节标题——两层对"章标题语法"的口径
+    不一致。这些行必须留在"_PDF_SECTION_BREAK 掐断继承 → 转人工"一侧。"""
+    assert not BACKEND_CHAPTER_HEADING.match(line), line
+    assert _pdf_chapter_heading(line) == ""
 
 
 def test_pdf_section_heading_skips_toc_dot_leader_lines():

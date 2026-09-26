@@ -109,7 +109,8 @@ public final class MultimodalFactParentCodeNormalizer {
                 + "\u0000" + compact(sectionTitle) + "\u0000" + compact(code);
     }
 
-    private static String compact(String value) {
+    /** Whitespace-insensitive form codes are compared in; package-private so fact identity matches it. */
+    static String compact(String value) {
         return value == null ? "" : value.replaceAll("\\s+", "");
     }
 }
