@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [SOP, 多Agent协作, lease协议, worktree, 开发流程]
 created: 2026-04-26
-updated: 2026-08-12
-health_checked: 2026-09-18
+updated: 2026-09-26
+health_checked: 2026-09-26
 sources:
   - CLAUDE.md
   - scripts/who-touches.sh
@@ -18,7 +18,7 @@ backlinks:
 # Agent 开发 SOP 快速参考
 
 > 多 Agent 协作开发的「每次操作必备流程」速查表。
-> 本文是浓缩骨架；实操细节在 `CLAUDE.md` §1-§6（参考章节都标了对应位置）。
+> 本文是浓缩骨架；实操细节在 `docs/agent-workflow.md`（2026-09-26 起多 Agent 执行手册已从根 `CLAUDE.md` 迁出，参考章节都标了对应位置）。
 
 ---
 
@@ -47,16 +47,16 @@ git fetch origin && git rebase origin/main && ./scripts/sync-env.sh .
 | 你说 | Agent 执行 | 等价于 |
 |------|-----------|--------|
 | "早操SOP" | `git fetch origin && git rebase origin/main && ./scripts/sync-env.sh .` | 早操三连 |
-| "开个分支 XX" | `scripts/agent-start-task.sh <agent> <XX> origin/main --in-place` | 早操 + 切开发分支 |
-| "早操SOP + 开个分支 XX" | `scripts/agent-start-task.sh <agent> <XX> origin/main --in-place` | 同上，一次完成 |
+| "开个分支 XX" | `scripts/agent-start-task.sh <agent> <XX> origin/main` | 早操 + 拉独立临时 worktree 开发分支 |
+| "早操SOP + 开个分支 XX" | `scripts/agent-start-task.sh <agent> <XX> origin/main` | 同上，一次完成 |
 
-注意：Agent 通过 `AGENTS.md` §协作暗号 推导自己的 `<agent>` 名称。
+注意：Agent 通过 `AGENTS.md` §协作暗号 推导自己的 `<agent>` 名称。默认拉独立临时 worktree（纯源码，收尾自动删）；旧持久 worktree 内联模式需显式加 `--in-place`（详见 `docs/agent-workflow.md` §3）。
 
 ---
 
 ## 二、每次开新任务前（每个任务起点都要跑）
 
-### 2.1 同步基线（CLAUDE.md §5.0）
+### 2.1 同步基线（docs/agent-workflow.md §1.0）
 ```bash
 git fetch origin && git rebase origin/main
 ```
@@ -64,13 +64,13 @@ git fetch origin && git rebase origin/main
 
 > 有 uncommitted 工作要 sync？先 `git stash`，rebase 后再 `git stash pop`。
 
-### 2.2 Lease 检查（CLAUDE.md §5.1）
+### 2.2 Lease 检查（docs/agent-workflow.md §1.1）
 ```bash
 ./scripts/who-touches.sh <你打算改的路径>
 ```
 - **退出 0 + 无输出** → 干净，开工
 - **退出 1 + 有输出** → 别的 agent 在动这块。处置：等他 PR 合 / 换任务 / PR 描述 @ 协调
-- **撞到 `agent/gemini-init`** → 多查一条看任务上下文（CLAUDE.md §5.2）：
+- **撞到 `agent/gemini-init`** → 多查一条看任务上下文（docs/agent-workflow.md §1.3）：
   ```bash
   grep -h "\[~\]" conductor/tracks/*/plan.md | grep gemini
   ```
@@ -115,7 +115,7 @@ git fetch origin && git rebase origin/main
 
 ---
 
-## 四、每次 session 结束前必做（CLAUDE.md §6）
+## 四、每次 session 结束前必做（docs/agent-workflow.md §2）
 
 ```bash
 git push origin HEAD:$(git rev-parse --abbrev-ref HEAD)
@@ -127,7 +127,7 @@ git push origin HEAD:$(git rev-parse --abbrev-ref HEAD)
 
 ---
 
-## 五、报告任务完成前（CLAUDE.md §4）
+## 五、报告任务完成前（CLAUDE.md §多 Agent 执行手册·任务完成门禁）
 
 ```bash
 npm run build               # 前端构建验证
@@ -138,24 +138,22 @@ git status                  # 确认只动了授权文件
 
 ---
 
-## 六、合并到 main
+## 六、合并到 main（Gitee）
 
 ```bash
-gh pr create --base main --head agent/<你> --fill
+bash scripts/pr-create.sh          # 或 bash scripts/gitee-pr-helper.sh create
 ```
-浏览器打开链接 → 看到绿条 "Able to merge" → 点 **Rebase and merge** → confirm。
-
-GitHub 会自动做冲突检查；有冲突时 merge 按钮置灰、显示 "This branch has conflicts that must be resolved"。
+在 Gitee Web UI 确认无冲突 → 点合并（helper 默认 squash）。本项目主仓库为 Gitee，无远程 CI，合并前的验证门禁全部在本地跑（`pre-push-gate.sh` + `mvn`/`npm`）。
 
 ---
 
-## 七、合完后同步本地分支
+## 七、收尾
 
 ```bash
-git fetch origin && git reset --hard origin/main && git push --force-with-lease origin agent/<你>
+scripts/agent-finish-task.sh       # 先 --dry-run 预览
 ```
 
-让本地 + 远端 agent 分支 SHA 跟 main 对齐，避免下次 rebase 残影。`--force-with-lease` 比 `--force` 安全（如果别人在你不知情时往 agent 分支推过东西，命令拒绝执行而不是覆盖）。
+三重合入检查 + 锁清理 + 切回锚点分支 + 清理任务分支/临时 worktree。手动 fallback 与六项终检详见 `AGENTS.md` §收尾流程。
 
 ---
 
@@ -176,8 +174,8 @@ git fetch origin && git reset --hard origin/main && git push --force-with-lease 
 | 任务起点 lease check | `./scripts/who-touches.sh <path>` | 看撞没撞 |
 | Session 结束 | `git push origin HEAD:$(git rev-parse --abbrev-ref HEAD)` | 让别人看见你 |
 | 报完成 | `npm build + mvn test + git status` | 自证质量 |
-| 合 main | `gh pr create --fill` → Rebase merge | 落地 |
-| 合完 | `git reset --hard + git push --force-with-lease` | 同步残影 |
+| 合 main | `scripts/pr-create.sh` → Gitee UI 合并 | 落地 |
+| 合完 | `scripts/agent-finish-task.sh` | 收尾清理 |
 
 ---
 
@@ -191,6 +189,6 @@ git fetch origin && git reset --hard origin/main && git push --force-with-lease 
 
 ## 参考链接
 
-- 实操细则：`CLAUDE.md` §1（快速进入）/ §4（完成门禁）/ §5（任务启动协议）/ §6（push 纪律）
+- 实操细则：`docs/agent-workflow.md` §1（任务启动协议）/ §2（push 纪律）/ §3（分支策略）；完成门禁仍在根 `CLAUDE.md`
 - 协议设计动机 / 历史轨迹：`conductor/tracks/refactor_safety_governance_20260426/spec.md`
 - 工具自检：`./scripts/who-touches.sh --self-test` 应见 4 个 `[PASS]`
