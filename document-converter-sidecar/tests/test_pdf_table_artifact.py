@@ -406,6 +406,32 @@ def test_pdf_table_above_an_unrecognised_chapter_line_keeps_the_previous_chapter
     assert sections == ["第三章 评审办法", "第三章 评审办法"]
 
 
+def test_pdf_score_table_continuation_is_not_merged_across_a_page_boundary_cut(tmp_path):
+    """自审发现：断点在第 2 页末尾时，第 3 页的续表会丢掉"边界已断开"信号。
+
+    第 2 页出现章级断点后 `current_section` 被清空，第 3 页的表格**继承的是空串**（自己没有断点），
+    若 `inherited_cut` 不随页传递，它就长得像一张"章节未知、可桥接"的表 → 合并且沿用第 1 页的
+    `sourceSection`，外章行被挂回前一章。断点必须活到下一个锚点为止。"""
+    pdf_path = tmp_path / "cross-page-cut.pdf"
+    doc = fitz.open()
+    page1 = doc.new_page()
+    page1.insert_text((72, 72), "第三章 评审办法", fontsize=14, fontname="china-s")
+    _draw_grid(page1, 110, [["序号", "评分因素", "评分标准"], ["1", "供应商业绩（3分）", "每项1分，最高3分"]])
+    page2 = doc.new_page()
+    _draw_grid(page2, 72, [["2", "财务状况（2分）", "最高得2分"], ["3", "响应率（3分）", "最高得3分"]])
+    page2.insert_text((72, 700), "第三部分 合同履约考核", fontsize=14, fontname="china-s")
+    page3 = doc.new_page()
+    _draw_grid(page3, 110, [["4", "投诉率（2分）", "最高得2分"], ["5", "服务承诺（3分）", "最高得3分"]])
+    doc.save(str(pdf_path))
+    doc.close()
+
+    tables = extract_pdf_tables_artifact(str(pdf_path))["tables"]
+
+    # 第 1、2 页同属第三章（合法续表 → 合并）；第 3 页属叫不出名字的那一章（断点未跨页失效）
+    assert [t["sourcePage"] for t in tables] == [1, 3]
+    assert [t["sourceSection"] for t in tables] == ["第三章 评审办法", ""]
+
+
 def test_pdf_table_section_cuts_only_below_an_unrecognised_chapter_line():
     """归属由**最近的在前**章级事件决定：可能是锚点，也可能是转不成锚点的断点。"""
     headings = [(100.0, "第三章 评审办法"), (400.0, "第四章 合同履约考核")]
@@ -421,6 +447,11 @@ def test_pdf_table_section_cuts_only_below_an_unrecognised_chapter_line():
     assert _pdf_table_section(headings, [200.0], None, "第三章 评审办法") == ("", True)
     # 本页毫无章级信号 → 继承上一页的章
     assert _pdf_table_section([], [], 300.0, "第三章 评审办法") == ("第三章 评审办法", False)
+    # 继承来的空章节若带着上一页的断点 → 断点随页传递（否则合并会把外章行挂回前一章）
+    assert _pdf_table_section([], [], 300.0, "", True) == ("", True)
+    assert _pdf_table_section([], [], None, "", True) == ("", True)
+    # 本页读到锚点 → 章节有了名字，继承来的断点到此结束
+    assert _pdf_table_section(headings, [], 300.0, "", True) == ("第三章 评审办法", False)
 
 
 def test_pdf_table_sections_are_accepted_by_backend_chapter_heading_pattern(tmp_path):

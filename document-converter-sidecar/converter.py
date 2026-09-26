@@ -226,6 +226,7 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
             ocr_pages: set[int] = set()
             table_index = 0
             current_section = ""
+            current_section_cut = False
             for page_index, page in enumerate(pdf.pages):
                 page_number = page_index + 1
                 extract_text = getattr(page, "extract_text", None)
@@ -255,7 +256,8 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                     if _is_pdf_score_table(rows):
                         ocr_pages.add(page_number)
                     section, boundary_cut = _pdf_table_section(
-                        heading_positions, break_tops, table_top, current_section)
+                        heading_positions, break_tops, table_top, current_section,
+                        current_section_cut)
                     extracted_tables.append({
                         "sourcePage": page_number,
                         "sourceTableIndex": table_index,
@@ -265,9 +267,12 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                     })
                     table_index += 1
                 if break_tops:
-                    current_section = ""
+                    # The unnameable chapter owns the rest of the document until an anchor names
+                    # the next one, so the cut travels with the empty section (see
+                    # `_pdf_table_section`'s `inherited_cut`).
+                    current_section, current_section_cut = "", True
                 elif heading_positions:
-                    current_section = heading_positions[-1][1]
+                    current_section, current_section_cut = heading_positions[-1][1], False
             for logical_index, table in enumerate(_merge_pdf_score_table_continuations(extracted_tables)):
                 rows = table["rows"]
                 max_cols = max(len(row) for row in rows)
@@ -494,7 +499,8 @@ def _pdf_page_unresolved_section_break_tops(page) -> list[float]:
 
 
 def _pdf_table_section(heading_positions: list[tuple[float, str]], break_tops: list[float],
-                       table_top: float | None, inherited: str) -> tuple[str, bool]:
+                       table_top: float | None, inherited: str,
+                       inherited_cut: bool = False) -> tuple[str, bool]:
     """Chapter attribution for one table: (sourceSection, boundary_cut).
 
     The nearest *preceding* chapter-level event wins, whether we could write it out as an anchor
@@ -511,9 +517,17 @@ def _pdf_table_section(heading_positions: list[tuple[float, str]], break_tops: l
     the tie goes to the break (`>=`): `_PDF_SECTION_BREAK` exists precisely to prefer manual
     review over adoption, so where "which chapter is this table in" is undecidable, refusing the
     attribution keeps that policy consistent. The cost of the tie is one table plus the rest of
-    the page losing its section."""
+    the page losing its section.
+
+    `inherited_cut` carries the boundary across pages. An unnameable chapter does not end at the
+    page it was announced on: the caller clears `current_section` for the rest of the document,
+    and the next page's tables inherit that empty section with no break of their own — so without
+    this flag they would look like an ordinary unknown-section table and the merge step could
+    still reattach them to the previous chapter's table (the same adoption this function refuses
+    within a page). An anchor on this page ends the cut: it names the chapter, so `inherited` is
+    no longer a value we merely failed to identify."""
     if table_top is None:
-        return ("", True) if break_tops else (inherited, False)
+        return ("", True) if break_tops else (inherited, inherited_cut)
     nearest_heading: tuple[float, str] | None = None
     for heading_top, title in heading_positions:
         if heading_top <= table_top:
@@ -521,7 +535,9 @@ def _pdf_table_section(heading_positions: list[tuple[float, str]], break_tops: l
     nearest_break = max((top for top in break_tops if top <= table_top), default=None)
     if nearest_break is not None and (nearest_heading is None or nearest_break >= nearest_heading[0]):
         return "", True
-    return (nearest_heading[1] if nearest_heading else inherited), False
+    if nearest_heading:
+        return nearest_heading[1], False
+    return inherited, inherited_cut
 
 
 def _pdf_page_tables(page) -> list[tuple[float | None, list]]:
