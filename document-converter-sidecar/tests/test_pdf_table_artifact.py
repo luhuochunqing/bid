@@ -15,6 +15,8 @@ from converter import _is_pdf_score_table
 from converter import _merge_pdf_score_table_continuations
 from converter import _pdf_chapter_heading
 from converter import _pdf_page_chapter_heading
+from converter import _pdf_page_tables
+from converter import _pdf_section_heading
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "sample_multipage.pdf")
 CHINESE_OCR_FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "scanned_chinese_score.png")
@@ -244,6 +246,39 @@ def test_pdf_tables_attribute_nearest_preceding_chapter_heading(tmp_path):
         "第三章 评审办法", "第三章 评审办法", "第三章 评审办法", "第四章 合同履约考核",
     ]
     # 第 4 页表格位于本章标题（top=400）上方 → 归属上一章，验证按位置而非页级首标题归属
+
+
+def test_pdf_section_heading_skips_toc_dot_leader_lines():
+    assert _pdf_section_heading("第三章 评审办法 " + "." * 30 + " 27") == ""
+    assert _pdf_section_heading("\n".join([
+        "目  录",
+        "第三章 评审办法 " + "." * 30 + " 27",
+        "第四章 合同履约考核 " + "." * 30 + " 96",
+    ])) == ""
+    assert _pdf_section_heading("第三章 评审办法\n3.2 评分标准") == "第三章 评审办法"
+
+
+class _TablePageWithoutGeometry:
+    def __init__(self, rows, explode=False):
+        self._rows = rows
+        self._explode = explode
+
+    def extract_tables(self):
+        return self._rows
+
+    def find_tables(self):
+        if self._explode:
+            raise RuntimeError("no geometry available")
+        return []
+
+
+def test_pdf_page_tables_falls_back_to_extract_tables_without_geometry():
+    rows = [["序号", "评分标准"], ["1", "供货方案（10分）"], ["2", "质量方案（10分）"]]
+    page = _TablePageWithoutGeometry([rows])
+    assert _pdf_page_tables(page) == [(None, rows)]
+
+    exploding = _TablePageWithoutGeometry([rows], explode=True)
+    assert _pdf_page_tables(exploding) == [(None, rows)]
 
 
 def test_pdf_score_table_continuation_not_merged_across_known_sections():

@@ -23,6 +23,8 @@ PDF_OCR_MAX_PAGES = 30
 PDF_OCR_MIN_CONFIDENCE = 70.0
 
 # 目录行（点线 + 尾页码）不是标题；章级标题用于 PDF 表格的 sourceSection 归属。
+# 尾页码允许缺省：点线结尾的行一律不当标题——宁可漏一个章锚点（该章表格转为人工复核），
+# 也不让目录行成为方案根（会造成文档级方案歧义，正是本次修复的目标）。
 _PDF_TOC_LEADER = re.compile(r"(?:[.…·•‥∙．]\s*){2,}\d{0,4}\s*$")
 _PDF_CHAPTER_HEADING = re.compile(r"^第[一二三四五六七八九十百\d]+[章节]\s*.{0,40}$")
 

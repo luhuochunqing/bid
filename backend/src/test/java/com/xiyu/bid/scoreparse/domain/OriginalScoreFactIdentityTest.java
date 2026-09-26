@@ -35,6 +35,30 @@ class OriginalScoreFactIdentityTest {
     }
 
     @Test
+    void levelTwoTocLinesNeverBecomeHeadings() {
+        var headings = OriginalScoringTextScopePolicy.headings(new String[]{
+                "三、评分标准..............................12",
+                "(1) 商务部分：15 分..............................15",
+                "三、评分标准",
+                "(1) 商务部分：15 分"});
+
+        assertEquals(List.of("三、评分标准", "(1) 商务部分：15 分"),
+                headings.stream().map(OriginalScoringTextScopePolicy.Heading::title).toList());
+        assertTrue(OriginalScoringSchemePolicy.sameScheme(
+                "三、评分标准..............................12", "三、评分标准"));
+        assertTrue(OriginalScoringSchemePolicy.sameScheme(
+                "(1) 商务部分：15 分………15", "(1) 商务部分：15 分"));
+    }
+
+    @Test
+    void dotLeaderWithoutPageNumberIsTreatedAsTocNotAsHeading() {
+        // 有意的偏向：点线结尾的行一律不当标题（宁可漏一个章锚点转人工，也不让目录行成为方案根）。
+        // 依据：真实招标文件目录行必带页码；反向误判（目录行成为方案根）会造成文档级方案歧义。
+        assertTrue(OriginalScoringTextScopePolicy.headings(new String[]{"第三章 评审办法………"})
+                .stream().noneMatch(heading -> heading.title().contains("………")));
+    }
+
+    @Test
     void blankCodeSiblingFactsGetDistinctModelFactIds() {
         var first = tableFact("供应商业绩", "7", "A");
         var second = tableFact("财务状况", "3", "B");

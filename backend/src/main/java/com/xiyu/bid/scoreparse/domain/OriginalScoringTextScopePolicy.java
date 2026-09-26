@@ -9,7 +9,12 @@ import java.util.regex.Pattern;
 final class OriginalScoringTextScopePolicy {
     private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
     private static final Pattern SOURCE_HEADING = Pattern.compile("^(第[一二三四五六七八九十百0-9]+章\\s*.+|[一二三四五六七八九十]+[、.]\\s*.+|\\([^)]{1,24}\\)\\s*.+)$");
-    /** Table-of-contents lines (dot leaders plus a trailing page number) are not headings. */
+    /**
+     * Table-of-contents lines (dot leaders plus a trailing page number) are not headings.
+     * The page number is optional on purpose: any dot-leader-terminated line is refused as a
+     * heading, preferring a missing chapter anchor (manual review) over a TOC line becoming a
+     * scheme root, which would make the whole document ambiguous.
+     */
     static final Pattern TOC_TRAILER = Pattern.compile("(?:[.…·•‥∙．]\\s*){2,}\\d{0,4}\\s*$");
 
     private OriginalScoringTextScopePolicy() {}
