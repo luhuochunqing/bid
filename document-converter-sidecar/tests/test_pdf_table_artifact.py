@@ -17,9 +17,10 @@ from converter import _is_pdf_score_table
 from converter import _merge_pdf_score_table_continuations
 from converter import _pdf_chapter_heading
 from converter import _pdf_page_chapter_heading_positions
-from converter import _pdf_page_has_unresolved_section_break
+from converter import _pdf_page_unresolved_section_break_tops
 from converter import _pdf_page_tables
 from converter import _pdf_section_heading
+from converter import _pdf_table_section
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "sample_multipage.pdf")
 CHINESE_OCR_FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "scanned_chinese_score.png")
@@ -264,7 +265,7 @@ def test_pdf_page_chapter_heading_positions_rejects_toc_and_non_chapter_lines():
     assert _pdf_page_chapter_heading_positions(object()) == []
 
 
-def test_pdf_page_section_break_flags_only_chapters_without_a_usable_anchor():
+def test_pdf_page_section_break_tops_flag_only_chapters_without_a_usable_anchor():
     cases = {
         "第四章 合同履约考核": False,          # 可转锚点 → 继承合法
         "第4章 合同履约考核": False,           # 阿拉伯数字编号同样被后端接受
@@ -284,19 +285,26 @@ def test_pdf_page_section_break_flags_only_chapters_without_a_usable_anchor():
         "第 三 章 评审办法": True,
         "第一百零一章 合同履约考核": True,        # 「零」不在锚点式的窄字符集内
         "第一〇一章 合同履约考核": True,          # 「〇」同理
-        "第３章 合同履约考核": True,             # 全角数字：后端只认 ASCII → 不可写出去
+        "第一千二百三十四章 合同履约考核": True,   # 7 个数字字符：量词不能给识别面设上限（评审 F-2）
+        "第一百零一亿章 合同履约考核": True,      # 数字类完整：万亿同属中文数字字符集
         "第五卷 商务卷": True,                  # 卷/册同属章级容器
         "第三册 附件": True,
         # 反向：非章级行不得因为放宽而误掐断继承
         "第二十一条 规定说明": False,
         "第一次修改部分内容": False,
         "第三方部分内容": False,
+        # 全角数字章号**可转锚点**，故不在此列：锚点原样写出文档自己的章标题
+        # （见 _PDF_CHAPTER_HEADING 注释）。把它收紧成 ASCII 会让这类表格丢掉本来成立的
+        # 方案归属（评审第 3 轮 F-3），是修复目标的相反方向。
+        "第３章 合同履约考核": False,
     }
     for text, expected in cases.items():
         page = _LinePage([(text, 100.0)])
-        assert _pdf_page_has_unresolved_section_break(page) is expected, text
+        assert bool(_pdf_page_unresolved_section_break_tops(page)) is expected, text
 
-    assert _pdf_page_has_unresolved_section_break(object()) is False
+    # 位置随表返回：只掐断断点下方的表格（见 _pdf_table_section）
+    assert _pdf_page_unresolved_section_break_tops(_LinePage([("第三部分 合同履约考核", 100.0)])) == [100.0]
+    assert _pdf_page_unresolved_section_break_tops(object()) == []
 
 
 def test_pdf_tables_attribute_nearest_preceding_chapter_heading(tmp_path):
@@ -335,9 +343,9 @@ def _make_pdf_with_unrecognised_chapter(path, chapter_line):
     "第三部分 合同履约考核",   # 后端只认「章」→ 不可转锚点
     "第三编 合同履约考核",     # 章级容器（编/篇）同样不可转锚点
     "第三篇 合同履约考核",
-    "第3 章 合同履约考核",      # 数字与「章」间有空白（评审 F-1 的具体输入）
+    "第3 章 合同履约考核",      # 数字与「章」间有空白（评审第 2 轮 F-1 的具体输入）
     "第一百零一章 合同履约考核",  # 「零」不在锚点式的窄字符集内
-    "第３章 合同履约考核",       # 全角数字：锚点式只认 ASCII，写出去后端也解析不了
+    "第一千二百三十四章 合同履约考核",  # 超过 6 个数字字符（评审第 3 轮 F-2）
     "第五卷 商务卷",
 ])
 def test_pdf_tables_on_unrecognised_chapter_page_do_not_inherit_previous_chapter(tmp_path, chapter_line):
@@ -355,6 +363,64 @@ def test_pdf_tables_on_unrecognised_chapter_page_do_not_inherit_previous_chapter
     assert {t["sourceSection"] for t in tables[1:]} == {""}
 
 
+def test_pdf_score_table_continuation_is_not_merged_across_an_unrecognised_chapter(tmp_path):
+    """评审第 3 轮 F-1：把章节置空只是第一步，续表合并会把空章节当通配值并把外章行并回前一章。
+
+    `_same_or_unknown_section` 容许空章节桥接（续页重复标题是例外、不是常态），所以"边界已断开"
+    必须是随表传递的独立信号（`sectionBoundaryCut`），不能靠空字符串表达——否则合并后要沿用
+    前一张表的 `sourceSection`，外章评分项就被挂回前一章并被采纳。"""
+    pdf_path = tmp_path / "continuation-after-cut.pdf"
+    doc = fitz.open()
+    page1 = doc.new_page()
+    page1.insert_text((72, 72), "第三章 评审办法", fontsize=14, fontname="china-s")
+    _draw_grid(page1, 110, [["序号", "评分因素", "评分标准"], ["1", "供应商业绩（3分）", "每项1分，最高3分"]])
+    page2 = doc.new_page()
+    page2.insert_text((72, 72), "第三部分 合同履约考核", fontsize=14, fontname="china-s")
+    _draw_grid(page2, 110, [["2", "响应率（3分）", "最高得3分"], ["3", "投诉率（2分）", "最高得2分"]])
+    doc.save(str(pdf_path))
+    doc.close()
+
+    tables = extract_pdf_tables_artifact(str(pdf_path))["tables"]
+
+    assert [t["sourcePage"] for t in tables] == [1, 2]
+    assert [t["sourceSection"] for t in tables] == ["第三章 评审办法", ""]
+
+
+def test_pdf_table_above_an_unrecognised_chapter_line_keeps_the_previous_chapter(tmp_path):
+    """掐断只针对断点下方的表格：断点上方的表格仍在已知章节内。
+
+    页级一刀切会把断点上方的表格也清空，白白丢掉本可成立的归属（评审第 3 轮 F-4 的过判面）。"""
+    pdf_path = tmp_path / "table-above-break.pdf"
+    doc = fitz.open()
+    page1 = doc.new_page()
+    page1.insert_text((72, 72), "第三章 评审办法", fontsize=14, fontname="china-s")
+    _draw_grid(page1, 110, [["序号", "评审因素", "说明"], ["1", "供应商业绩", "详见正文"]])
+    page2 = doc.new_page()
+    _draw_grid(page2, 72, [["序号", "评审因素", "说明"], ["2", "财务状况", "详见正文"]])
+    page2.insert_text((72, 400), "第三部分 合同履约考核", fontsize=14, fontname="china-s")
+    doc.save(str(pdf_path))
+    doc.close()
+
+    sections = [t["sourceSection"] for t in extract_pdf_tables_artifact(str(pdf_path))["tables"]]
+
+    assert sections == ["第三章 评审办法", "第三章 评审办法"]
+
+
+def test_pdf_table_section_cuts_only_below_an_unrecognised_chapter_line():
+    """归属由**最近的在前**章级事件决定：可能是锚点，也可能是转不成锚点的断点。"""
+    headings = [(100.0, "第三章 评审办法"), (400.0, "第四章 合同履约考核")]
+
+    # 断点（200）在第三章标题之后：断点下第一张表仍归第三章，断点下第二张表叫不出名字
+    assert _pdf_table_section(headings, [200.0], 150.0, "第二章 其他") == ("第三章 评审办法", False)
+    assert _pdf_table_section(headings, [200.0], 300.0, "第三章 评审办法") == ("", True)
+    # 断点之后又读到锚点 → 锚点更近，表格归它
+    assert _pdf_table_section(headings, [200.0], 420.0, "第三章 评审办法") == ("第四章 合同履约考核", False)
+    # 无行几何：按页级规则，本页任何章级行都算在表格之前
+    assert _pdf_table_section(headings, [200.0], None, "第三章 评审办法") == ("", True)
+    # 本页毫无章级信号 → 继承上一页的章
+    assert _pdf_table_section([], [], 300.0, "第三章 评审办法") == ("第三章 评审办法", False)
+
+
 def test_pdf_table_sections_are_accepted_by_backend_chapter_heading_pattern(tmp_path):
     """接缝契约：sidecar 写出的 sourceSection 必须与后端能接受的章标题同构。"""
     pdf_path = tmp_path / "sectioned.pdf"
@@ -369,17 +435,25 @@ def test_pdf_table_sections_are_accepted_by_backend_chapter_heading_pattern(tmp_
         assert BACKEND_CHAPTER_HEADING.match(section), section
 
 
-@pytest.mark.parametrize("line", [
-    "第３章 合同履约考核",       # 全角数字：后端 SOURCE_HEADING 只认 ASCII
-    "第3 章 合同履约考核",        # 数字与「章」间有空白：后端要求「第X章」连续
-    "第一百零一章 合同履约考核",   # 「零」不在后端窄字符集内
-])
-def test_pdf_chapter_anchor_is_never_emitted_when_the_backend_cannot_parse_it(line):
-    """接缝契约的另一半：不可被后端命中的行也不得被写成 sourceSection。
+def test_pdf_full_width_chapter_number_is_emitted_verbatim_as_an_anchor():
+    """接缝契约：锚点原样写出文档自己的章标题，不替后端改写数字形态。
 
-    Python 的 `\\d` 是 Unicode 数字类（连全角「３」也认），后端 `SOURCE_HEADING` 只认 ASCII `0-9`；
-    若锚点式沿用 `\\d`，sidecar 就会写出后端自己解析不了的章节标题——两层对"章标题语法"的口径
-    不一致。这些行必须留在"_PDF_SECTION_BREAK 掐断继承 → 转人工"一侧。"""
+    后端把方案标题与 `sourceSection` 做**字符串**比对（`OriginalScoringSchemePolicy.tableBelongsTo`），
+    而方案标题既可能来自正文标题（通用 Markdown 标题分支不看数字形态），也可能由表格自身的
+    `sourceSection` 依 `isValidSchemeRoot` 建立（`schemeTitleForTable`）——两侧同源时全角章号本就能
+    正常归属。曾按"后端 SOURCE_HEADING 只认 ASCII"把锚点数字类收紧成 `0-9`，结果是这类表格的
+    `sourceSection` 变空、`!section.isBlank()` 分支不成立 → 丢掉本来成立的方案归属（评审第 3 轮 F-3）。"""
+    assert _pdf_chapter_heading("第３章 合同履约考核") == "第３章 合同履约考核"
+    assert _pdf_chapter_heading("第１２章 评分办法") == "第１２章 评分办法"
+
+
+@pytest.mark.parametrize("line", [
+    "第3 章 合同履约考核",        # 数字与「章」间有空白：锚点要求「第X章」连续
+    "第一百零一章 合同履约考核",   # 「零」不在锚点式的数字字符集内
+    "第三部分 合同履约考核",       # 「部分」不是「章」
+])
+def test_pdf_chapter_lines_outside_the_anchor_grammar_are_never_emitted(line):
+    """不可转锚点的章级行必须留在"_PDF_SECTION_BREAK 掐断继承 → 转人工"一侧。"""
     assert not BACKEND_CHAPTER_HEADING.match(line), line
     assert _pdf_chapter_heading(line) == ""
 
@@ -442,7 +516,7 @@ def test_pdf_page_tables_without_a_finder_keep_tables_without_geometry():
     assert _pdf_page_tables(_TablePageWithoutFinder(rows)) == [(None, rows)]
 
 
-def test_pdf_score_table_continuation_not_merged_across_known_sections():
+def test_pdf_score_table_continuation_not_merged_across_known_sections_or_a_cut_boundary():
     first = {
         "sourcePage": 24,
         "sourceTableIndex": 7,
@@ -464,6 +538,15 @@ def test_pdf_score_table_continuation_not_merged_across_known_sections():
         "sourceSection": "第四章 合同履约考核",
         "rows": [["2", "类似业绩（10分）", "每有一个类似服务案例得2分，满分为10分。"]],
     }
+    cut_section = {
+        "sourcePage": 25,
+        "sourceTableIndex": 8,
+        "sourceSection": "",
+        "sectionBoundaryCut": True,
+        "rows": [["2", "类似业绩（10分）", "每有一个类似服务案例得2分，满分为10分。"]],
+    }
 
     assert len(_merge_pdf_score_table_continuations([first, same_section])) == 1
     assert len(_merge_pdf_score_table_continuations([first, other_section])) == 2
+    # 章节被断点清空 → 合并会让续行沿用前一张表的 `sourceSection`，等于把外章行挂回本方案
+    assert len(_merge_pdf_score_table_continuations([first, cut_section])) == 2

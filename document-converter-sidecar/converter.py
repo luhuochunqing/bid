@@ -34,11 +34,15 @@ _PDF_TOC_LEADER = re.compile(
 # 只认「第X章」，且标题必须非空：与 backend SOURCE_HEADING / CHAPTER 保持一致。
 # 不认「第X节」「第X部分」（后端不消费，会变成必然被拒的锚点）；
 # 不认裸「第X章」（无标题的锚点在后端不是合法方案根，只会污染 current_section 继承）。
-# 数字写显式 `0-9` 而不是 `\d`：Python 的 `\d` 是 Unicode 数字类，连全角「第３章」也认，
-# 而后端 SOURCE_HEADING 只认 ASCII `0-9` —— 那样本模块会写出一个后端自己解析不了的锚点，
-# 两个层的章标题语法就不一致了。契约是「只写出后端认得的锚点」，认不出的章级行一律
-# 由 _PDF_SECTION_BREAK 掐断继承（转人工），不猜。
-_PDF_CHAPTER_HEADING = re.compile(r"^第[一二三四五六七八九十百0-9]+章\s*\S.{0,40}$")
+# 数字类保留 Python 的 `\d`（Unicode 数字类，连全角「第３章」也认）：锚点的职责是**原样**
+# 写出文档自己的章标题行，不是替后端猜它能解析什么。后端把 sourceSection 与方案标题做
+# **字符串**比对（`OriginalScoringSchemePolicy.tableBelongsTo`），而方案标题既可能来自正文
+# 标题、也可能由表格自身的 sourceSection 依 `isValidSchemeRoot` 建立
+# （`schemeTitleForTable`）——只要两侧同源（都出自同一份文档的同一行），全角数字标题就能
+# 正常归属。曾按"后端 SOURCE_HEADING 只认 ASCII"把这里收紧成 `0-9`，那会让「第３章 评审办法」
+# 这类表格**丢掉本来成立的方案归属**（`!section.isBlank()` 分支不成立 → 转人工），
+# 是本轮修复目标（恢复归属）的反方向，故回退。
+_PDF_CHAPTER_HEADING = re.compile(r"^第[一二三四五六七八九十百\d]+章\s*\S.{0,40}$")
 # 章级分节信号：只要一行「看起来是新的一章」就记下来（无论我们能否把它变成锚点）。
 # 用于阻断 current_section 跨页继承——继承把无法识别的章标题页的表格挂到上一章，
 # 会把外章表格静默判成 IN_SCHEME（错误采纳），比"无锚点转人工"更危险。
@@ -48,7 +52,11 @@ _PDF_CHAPTER_HEADING = re.compile(r"^第[一二三四五六七八九十百0-9]+�
 # 而退化成"窄字符集之内的章标题"——「第3 章 合同履约考核」（数字与"章"间有空白）、
 # 「第一百零一章 合同履约考核」（"零"不在窄字符集内）两个判定都不命中，继续继承上一章，
 # 外章表格被错误采纳。这正是评审 F-1 的来源。故此处三点都放宽：
-#   1) 数字类放宽到常见中文数字（含「零/〇/两」与大写）与各类数字；
+#   1) 数字类放宽到常见中文数字（含「零/〇/两」与大写）与各类数字，且**不设长度上限**：
+#      有限量词（曾为 `{1,6}`）本身就是"任意中文章号都可检测"的假象——「第一千二百三十四章」
+#      是 7 个字符，既不转锚点也不掐断，正是评审 F-2 指出的漏判窗口。此处只枚举
+#      「中文数字可能用到的字符」（万亿一并列出，不靠"文档里不会出现这么大章号"来省字），
+#      长度不设限：章号再长也是章号。
 #   2) 容器词覆盖章级容器：章 / 部分 / 编 / 篇 / 卷 / 册；
 #   3) 对去空白形态匹配（见 _pdf_heading_form）——PDF 排版常把「第 三 章」提取成带空格的行；
 #      正则自身也保留 `\s*`：宁可对这个已归一化的入参略宽，也不要让后来的调用者误用未归一化的
@@ -57,7 +65,7 @@ _PDF_CHAPTER_HEADING = re.compile(r"^第[一二三四五六七八九十百0-9]+�
 # 合法的延续页归属。（_PDF_TOC_LEADER 里的 `\d` 保持 Unicode 不动：那里只用于"拒绝"，
 # 更宽只会多转人工、方向安全。）
 _PDF_SECTION_BREAK = re.compile(
-    r"^第\s*[〇零一二三四五六七八九十百千万两廿卅壹贰叁肆伍陆柒捌玖拾佰仟\d]{1,6}"
+    r"^第\s*[〇零一二三四五六七八九十百千万亿两廿卅壹贰叁肆伍陆柒捌玖拾佰仟\d]+"
     r"\s*(?:章|部分|编|篇|卷|册)")
 
 # 报价评分参数关键词（与 Java 侧 backend/src/main/java/com/xiyu/bid/biddraftagent/domain/PriceScoringKeywords.java
@@ -235,7 +243,7 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                     if image_area / page_area >= 0.2:
                         ocr_pages.add(page_number)
                 heading_positions = _pdf_page_chapter_heading_positions(page)
-                unresolved_break = _pdf_page_has_unresolved_section_break(page)
+                break_tops = _pdf_page_unresolved_section_break_tops(page)
                 for table_top, raw_table in _pdf_page_tables(page):
                     table = _normalise_pdf_table(raw_table)
                     if not table:
@@ -246,16 +254,17 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                     rows = [row + [""] * (max_cols - len(row)) for row in table]
                     if _is_pdf_score_table(rows):
                         ocr_pages.add(page_number)
+                    section, boundary_cut = _pdf_table_section(
+                        heading_positions, break_tops, table_top, current_section)
                     extracted_tables.append({
                         "sourcePage": page_number,
                         "sourceTableIndex": table_index,
-                        "sourceSection": (
-                            _pdf_nearest_preceding_heading(heading_positions, table_top)
-                            or ("" if unresolved_break else current_section)),
+                        "sourceSection": section,
+                        "sectionBoundaryCut": boundary_cut,
                         "rows": rows,
                     })
                     table_index += 1
-                if unresolved_break:
+                if break_tops:
                     current_section = ""
                 elif heading_positions:
                     current_section = heading_positions[-1][1]
@@ -459,33 +468,54 @@ def _pdf_page_chapter_heading_positions(page) -> list[tuple[float, str]]:
     return positions
 
 
-def _pdf_page_has_unresolved_section_break(page) -> bool:
-    """True when the page carries a chapter-level line we could not turn into an anchor.
+def _pdf_page_unresolved_section_break_tops(page) -> list[float]:
+    """Vertical positions of chapter-level lines on this page we could not turn into an anchor.
 
-    Such a page must not inherit the previous page's chapter. Inheritance exists so that a
-    chapter's later pages (which repeat no title) stay attributed to it; but when the new
-    chapter's title is merely unrecognised, inheriting attributes this chapter's tables to
-    the previous scheme — and the backend treats any table whose section names a scheme as
-    IN_SCHEME, so it would be silently adopted. Refusing to inherit degrades to manual
-    review, which is the safe direction.
+    Inheritance exists so that a chapter's later pages (which repeat no title) stay attributed
+    to it; but when the new chapter's title is merely unrecognised, inheriting attributes this
+    chapter's tables to the previous scheme — and the backend treats a table whose section
+    names a scheme as IN_SCHEME, so it would be silently adopted. Refusing to inherit degrades
+    to manual review, which is the safe direction.
+
+    Positions rather than a page-level flag: only the tables *below* such a line belong to the
+    chapter we cannot name. A table above it is still in the chapter we do know, and cutting it
+    would throw away attribution the guard has no reason to touch.
 
     The two predicates are deliberately asymmetric — `_PDF_SECTION_BREAK` is strictly wider than
     the anchor form (see its definition for which chapter shapes that covers), so every
     chapter-looking line we can neither anchor nor safely inherit from refuses inheritance
     instead of continuing the previous chapter's attribution."""
+    tops: list[float] = []
     for line in _pdf_page_lines(page):
         candidate = _pdf_heading_candidate(str(line.get("text", "")))
         if _PDF_SECTION_BREAK.match(_pdf_heading_form(candidate)) and not _pdf_chapter_heading(candidate):
-            return True
-    return False
+            tops.append(float(line.get("top", 0) or 0))
+    return tops
 
 
-def _pdf_nearest_preceding_heading(positions: list[tuple[float, str]], top: float | None) -> str:
-    """Title of the last heading at or above `top`; positions are in reading order."""
-    if top is None:
-        return ""
-    preceding = [title for heading_top, title in positions if heading_top <= top]
-    return preceding[-1] if preceding else ""
+def _pdf_table_section(heading_positions: list[tuple[float, str]], break_tops: list[float],
+                       table_top: float | None, inherited: str) -> tuple[str, bool]:
+    """Chapter attribution for one table: (sourceSection, boundary_cut).
+
+    The nearest *preceding* chapter-level event wins, whether we could write it out as an anchor
+    or not (see `_PDF_SECTION_BREAK`). A table below a break gets an empty section: its chapter
+    is one we cannot name, and naming the previous chapter would make the backend adopt its
+    facts as that scheme's. `boundary_cut` reports that, so the merge step does not reattach
+    such a table to the previous chapter's table either.
+
+    A page with no line geometry (`table_top is None`) falls back to the page-level rule: no
+    anchor, and every break on the page counts as preceding — the order is unknowable, so such a
+    table is treated as being below it, exactly as its section would have been."""
+    if table_top is None:
+        return ("", True) if break_tops else (inherited, False)
+    nearest_heading: tuple[float, str] | None = None
+    for heading_top, title in heading_positions:
+        if heading_top <= table_top:
+            nearest_heading = (heading_top, title)
+    nearest_break = max((top for top in break_tops if top <= table_top), default=None)
+    if nearest_break is not None and (nearest_heading is None or nearest_break > nearest_heading[0]):
+        return "", True
+    return (nearest_heading[1] if nearest_heading else inherited), False
 
 
 def _pdf_page_tables(page) -> list[tuple[float | None, list]]:
@@ -511,7 +541,11 @@ def _pdf_page_tables(page) -> list[tuple[float | None, list]]:
 
 
 def _same_or_unknown_section(previous: str | None, current: str | None) -> bool:
-    """Only an unknown section may bridge two tables; two known sections must match."""
+    """Only an unknown section may bridge two tables; two known sections must match.
+
+    An empty section is not by itself a licence to merge: a section emptied by an unrecognised
+    chapter boundary is marked on the table (`sectionBoundaryCut`) and refused by the caller —
+    see `_pdf_table_section`."""
     left = (previous or "").strip()
     right = (current or "").strip()
     return not left or not right or left == right
@@ -570,6 +604,11 @@ def _merge_pdf_score_table_continuations(tables: list[dict]) -> list[dict]:
         }
         merges_previous = (
             merged
+            # A table on either side of an unreadable chapter boundary is never merged: merging
+            # adopts the earlier table's section, which would reattach this chapter's rows to
+            # the previous chapter's scheme — the very adoption `_pdf_table_section` refuses.
+            and not merged[-1].get("sectionBoundaryCut")
+            and not table.get("sectionBoundaryCut")
             and _same_or_unknown_section(merged[-1].get("sourceSection"), table.get("sourceSection"))
             and _is_pdf_score_table_continuation(merged[-1]["rows"], rows)
         )

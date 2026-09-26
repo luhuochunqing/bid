@@ -153,6 +153,27 @@ class OriginalScoringContextThreeDefectsTest {
                 .isEqualTo(SCHEME);
     }
 
+    @Test void fullWidthChapterNumberSectionStillOwnsItsTable() {
+        // 跨层契约：sidecar 的章锚点原样写出文档的章标题，不替后端改写数字形态。后端把方案标题与
+        // sourceSection 做字符串比对，而方案标题既可由正文标题建立（通用 Markdown 标题分支不看数字
+        // 形态），也可由表格自身的 section 依 isValidSchemeRoot 建立（schemeTitleForTable）。按
+        // "后端 SOURCE_HEADING 只认 ASCII" 收紧 sidecar 锚点数字类，会让这张表丢掉本来成立的归属
+        // （评审第 3 轮 F-3），故两条来源都在此锁定。
+        String schemeTitle = "第３章 评审办法";
+        DocumentArtifact original = new DocumentArtifact(meta(),
+                List.of(table("t-fullwidth", schemeTitle, "企业业绩", "100", "100")), List.of());
+
+        assertThat(OriginalScoringContext.schemes(original, "# " + schemeTitle + "\n总分100分。"))
+                .hasSize(1).first()
+                .satisfies(scheme -> {
+                    assertThat(scheme.tableIds()).isEqualTo(List.of("t-fullwidth"));
+                    assertThat(scheme.totalEvidenceStatus()).isEqualTo("VERIFIED");
+                });
+        assertThat(OriginalScoringContext.schemes(original, ""))
+                .hasSize(1).first().extracting(OriginalScoringContext.SchemeEvidence::tableIds)
+                .isEqualTo(List.of("t-fullwidth"));
+    }
+
     @Test void sourceTotalCarriesExactOriginalLineAndLocation() {
         var context = OriginalScoringContext.resolve(itemMaximumDocument(false),
                 "本项目评分总分100分。\n# 本项目评分办法\n技术方案细则。");
