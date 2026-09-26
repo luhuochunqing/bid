@@ -28,27 +28,62 @@ public final class OriginalScoreEvidencePolicy {
 
     public static Verification verifyModel(OriginalScoringContext context, DocumentArtifact artifact,
                                            String tenderText, List<MultimodalScoreFact> facts, BigDecimal modelTotal) {
+        // Facts are identified by `modelFactId`, not by their section+code key: two facts may share a
+        // blank code, and keying the parent graph by that key makes one child's parent link overwrite
+        // the other's. The collided node then reports as a leaf, so a SUM parent's own weight is
+        // summed alongside the children that should have replaced it and the table subtotal no longer
+        // closes.
         Map<String, String> parentByFact = new java.util.LinkedHashMap<>();
         for (MultimodalScoreFact fact : facts) {
             if (fact.parentCode().isBlank()) continue;
             MultimodalScoreFact parent = MultimodalFactParentCodeNormalizer.resolveParent(fact, facts);
-            if (parent != null) parentByFact.put(OriginalScoreQualificationPolicy.logicalKey(fact.schemeId(),
-                    fact.scopeStatus(), fact.sectionTitle(), fact.code()), OriginalScoreQualificationPolicy.logicalKey(
-                    parent.schemeId(), parent.scopeStatus(), parent.sectionTitle(), parent.code()));
+            if (parent != null) parentByFact.put(modelFactId(fact), modelFactId(parent));
         }
         Set<String> parentKeys = new LinkedHashSet<>(parentByFact.values());
-        List<ScoreUnitPolicy.Node> nodes = facts.stream().map(f -> {
-            String id = OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code());
-            return new ScoreUnitPolicy.Node(id, parentByFact.getOrDefault(id, ""), f.weight(), f.childAggregation().name());
-        }).toList();
+        List<ScoreUnitPolicy.Node> nodes = facts.stream().map(f -> new ScoreUnitPolicy.Node(
+                modelFactId(f), parentByFact.getOrDefault(modelFactId(f), ""), f.weight(),
+                f.childAggregation().name())).toList();
         Set<String> units = ScoreUnitPolicy.effectiveUnitIds(nodes);
-        List<ScoreEvidenceClaim> claims = facts.stream().map(f -> new ScoreEvidenceClaim(OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code()),
-                modelFactId(f),
-                f.tableId(), f.dimension(), f.sourceCellIds(), f.sourceCellIds(), f.weight(),
-                parentKeys.contains(OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code())),
-                units.contains(OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code())), f.quotedText(), tenderText,
-                f.schemeId(), f.scopeStatus(), f.childAggregation())).toList();
-        return verify(context, artifact, claims, modelTotal, true);
+        List<ScoreEvidenceClaim> claims = facts.stream().map(f -> {
+            String id = modelFactId(f);
+            return new ScoreEvidenceClaim(id, id,
+                    f.tableId(), f.dimension(), f.sourceCellIds(), f.sourceCellIds(), f.weight(),
+                    parentKeys.contains(id), units.contains(id), f.quotedText(), tenderText,
+                    f.schemeId(), f.scopeStatus(), f.childAggregation());
+        }).toList();
+        return rejectAmbiguousIdentity(verify(context, artifact, claims, modelTotal, true), facts);
+    }
+
+    /**
+     * Blocks auto-approval when two facts share one {@code modelFactId}.
+     *
+     * <p>The id covers the fact's scoring identity (scheme, scope, section, code, dimension,
+     * weight, quote, parent). Two facts agreeing on all of it but sourced from different cells are
+     * indistinguishable here, and every structure keyed by the id — the parent graph above all —
+     * would silently merge them: one side's parent link wins, the merged node reports as a leaf,
+     * and a SUM parent's own weight gets summed next to the children that should have replaced it.
+     * Merging is the wrong resolution and arbitrarily picking a winner is worse, so the collision
+     * becomes a blocking problem: the document goes to manual review instead.
+     *
+     * <p>Extending the id with the source locator would narrow the window further, but the locator
+     * is model-produced and re-parse-dependent, so identity built on it would churn between runs.
+     * Refusing is total — it holds for every collision cause, not just the ones we can enumerate.
+     */
+    private static Verification rejectAmbiguousIdentity(Verification verification, List<MultimodalScoreFact> facts) {
+        if (facts == null || facts.isEmpty()) return verification;
+        Map<String, Integer> identityCounts = new java.util.LinkedHashMap<>();
+        for (MultimodalScoreFact fact : facts) identityCounts.merge(modelFactId(fact), 1, Integer::sum);
+        List<Map.Entry<String, Integer>> collisions = identityCounts.entrySet().stream()
+                .filter(entry -> entry.getValue() > 1).toList();
+        if (collisions.isEmpty()) return verification;
+        List<Problem> problems = new ArrayList<>(verification.problems());
+        for (Map.Entry<String, Integer> collision : collisions) {
+            problems.add(new Problem(collision.getKey(), "factId", "ORIGINAL_FACT_IDENTITY_AMBIGUOUS",
+                    "a fact identity unique within the document", collision.getValue(),
+                    verification.total().locator()));
+        }
+        return new Verification(verification.documentId(), verification.scheme(), verification.total(),
+                List.copyOf(problems), verification.qualifications());
     }
 
     public static Verification verifyFacts(DocumentArtifact artifact, String tenderText, List<ScoreFact> facts) {

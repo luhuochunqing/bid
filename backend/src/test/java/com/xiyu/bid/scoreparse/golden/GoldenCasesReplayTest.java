@@ -147,6 +147,74 @@ class GoldenCasesReplayTest {
         assertEquals(expected.path("tableIds").size(), schemes.get(0).tableIds().size());
     }
 
+    @Test
+    void project1382RealPdfShapeReplayKeepsTocLinesOutOfSchemeEvidence() throws Exception {
+        String text = GoldenCasesReplaySupport.readFixture("case-project-1382-pdf-real-shape.md");
+        JsonNode expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(
+                "case-project-1382-pdf-real-shape.expected.json"));
+        DocumentArtifact artifact = project1382RealShapeArtifact(expected);
+        List<MultimodalScoreFact> facts = project1382RealShapeFacts(expected);
+
+        var schemes = OriginalScoringContext.schemes(artifact, text);
+        var verification = OriginalScoreEvidencePolicy.verifyModel(artifact, text, facts,
+                expected.path("declaredTotal").decimalValue());
+        var validation = new MultimodalScoreFactValidator().validate(facts, artifact, text,
+                expected.path("declaredTotal").decimalValue());
+        List<MultimodalScoreFact> eligibleFacts = OriginalScoreEvidencePolicy.eligibleModelFacts(facts, verification);
+
+        assertEquals(1, schemes.size());
+        assertEquals(expected.path("schemeTitle").asText(), schemes.get(0).title());
+        assertEquals(expected.path("layoutStatus").asText(), schemes.get(0).layoutStatus());
+        assertEquals(expected.path("declaredTotal").decimalValue(), schemes.get(0).declaredTotal());
+        assertEquals(expected.path("totalLocator").asText(), schemes.get(0).totalLocator());
+        assertEquals(expected.path("totalQuote").asText(), schemes.get(0).totalQuote());
+        assertEquals(expected.path("tableIds").size(), schemes.get(0).tableIds().size());
+        assertTrue(verification.problems().stream().noneMatch(problem ->
+                "ORIGINAL_SCHEME_AMBIGUOUS".equals(problem.code())), () -> verification.problems().toString());
+        assertEquals(expected.path("expectedEligibleFactCount").asInt(), eligibleFacts.size(),
+                () -> verification.qualifications().toString());
+        assertEquals(expected.path("expectedOutOfSchemeFactCount").asInt(), verification.qualifications().stream()
+                .filter(qualification -> "OUT_OF_SCHEME".equals(qualification.scopeStatus())).count());
+        assertEquals(expected.path("expectedEligibleLeafTotal").decimalValue(), validation.leafTotal());
+        assertTrue(validation.autoApprovable(), () -> validation.violations().toString());
+        assertTrue(validation.violations().stream().noneMatch(violation -> List.of(
+                "ORIGINAL_SCHEME_AMBIGUOUS", "SOURCE_SCHEME_NOT_VERIFIED", "ITEM_SCHEME_SCOPE_MISMATCH",
+                "WEIGHT_SUM_MISMATCH", "DUPLICATE_CODE", "CHILD_AGGREGATION_UNSUPPORTED_BY_SOURCE")
+                .contains(violation.code())), () -> validation.violations().toString());
+        assertEquals("OUT_OF_SCHEME", OriginalScoringContext.textScopeAt(text,
+                expected.path("outOfSchemeLine").asInt()).scopeStatus());
+        assertEquals("IN_SCHEME", OriginalScoringContext.textScopeAt(text,
+                expected.path("inSchemeLine").asInt()).scopeStatus());
+    }
+
+    @Test
+    void project1382RealShapeBlankCodeSiblingsStayIndependentlyEligible() throws Exception {
+        String text = GoldenCasesReplaySupport.readFixture("case-project-1382-pdf-real-shape.md");
+        JsonNode expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(
+                "case-project-1382-pdf-real-shape.expected.json"));
+        DocumentArtifact artifact = project1382RealShapeArtifact(expected);
+        List<MultimodalScoreFact> facts = project1382RealShapeFacts(expected);
+        List<MultimodalScoreFact> blankCodeFacts = facts.stream().filter(fact -> fact.code().isBlank()).toList();
+
+        assertEquals(2, blankCodeFacts.size(), "真实文件同节空 code 兄弟行必须进入金标");
+        // 空 code 让「方案+状态+章节+code」这一维度上必然同键——正是这一碰撞让空 code 兄弟行
+        // 在合格集/小计里互相串台，必须由 modelFactId 的其余判别因子分开。
+        assertEquals(1, blankCodeFacts.stream().map(OriginalScoreEvidencePolicy::qualificationFactKey)
+                .distinct().count());
+        assertEquals(2, blankCodeFacts.stream().map(OriginalScoreEvidencePolicy::modelFactId).distinct().count());
+        assertEquals(2, blankCodeFacts.stream().map(MultimodalScoreFact::sourceCellIds).distinct().count());
+
+        var verification = OriginalScoreEvidencePolicy.verifyModel(artifact, text, facts,
+                expected.path("declaredTotal").decimalValue());
+        assertEquals(2, OriginalScoreEvidencePolicy.eligibleModelFacts(blankCodeFacts, verification).size(),
+                () -> verification.qualifications().toString());
+
+        var validation = new MultimodalScoreFactValidator().validate(facts, artifact, text,
+                expected.path("declaredTotal").decimalValue());
+        assertEquals(expected.path("expectedEligibleLeafTotal").decimalValue(), validation.leafTotal());
+        assertTrue(validation.autoApprovable(), () -> validation.violations().toString());
+    }
+
     private static MultimodalScoreFact textFact(JsonNode expected, String schemeId, String status) {
         String quote = expected.path("quote").asText();
         return new MultimodalScoreFact(expected.path("section").asText("商务"), expected.path("code").asText(),
@@ -217,6 +285,67 @@ class GoldenCasesReplayTest {
                 cell("total-cell", 0, 0, quote));
         return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("project-1382-redacted", "sha-1382", "pdf", "2.0"),
                 List.of(summary), List.of());
+    }
+
+    private static List<MultimodalScoreFact> project1382RealShapeFacts(JsonNode expected) {
+        List<MultimodalScoreFact> facts = new ArrayList<>();
+        realShapeRowsByTable(expected).forEach((tableId, rows) -> {
+            for (int row = 0; row < rows.size(); row++) facts.add(realShapeFact(tableId, row, rows.get(row)));
+        });
+        return facts;
+    }
+
+    /** Rows per table in physical order — parents first, then items, then the out-of-scheme table. */
+    private static Map<String, List<JsonNode>> realShapeRowsByTable(JsonNode expected) {
+        Map<String, List<JsonNode>> rowsByTable = new java.util.LinkedHashMap<>();
+        for (String group : List.of("parents", "facts", "auditFacts")) {
+            expected.path(group).forEach(item -> rowsByTable
+                    .computeIfAbsent(item.path("tableId").asText(), ignored -> new ArrayList<>()).add(item));
+        }
+        return rowsByTable;
+    }
+
+    private static MultimodalScoreFact realShapeFact(String tableId, int row, JsonNode item) {
+        // 引用单元格按「表 + 物理行」派生，不从 code 派生：空 code 的兄弟行会在 -name/-rule/-weight
+        // 上撞成同一组 id，触发 DUPLICATE_SOURCE 并掩盖真正要验证的资格门与身份行为。
+        return new MultimodalScoreFact(item.path("section").asText(), item.path("code").asText(),
+                item.path("parentCode").asText(""), item.path("dimension").asText(),
+                item.path("weight").decimalValue(), item.path("quote").asText(), "OBJECTIVE",
+                item.path("page").intValue(), tableId,
+                List.of(realShapeCellId(tableId, row, 1), realShapeCellId(tableId, row, 2),
+                        realShapeCellId(tableId, row, 3)),
+                item.path("quote").asText(), 0.99,
+                ChildAggregation.valueOf(item.path("childRelation").asText("SUM")), "", "");
+    }
+
+    private static String realShapeCellId(String tableId, int row, int column) {
+        return tableId + "-r" + row + "-c" + column;
+    }
+
+    private static DocumentArtifact project1382RealShapeArtifact(JsonNode expected) {
+        Map<String, List<JsonNode>> rowsByTable = realShapeRowsByTable(expected);
+        List<DocumentArtifact.CanonicalTable> tables = new ArrayList<>();
+        expected.path("tables").forEach(spec -> {
+            String tableId = spec.path("tableId").asText();
+            List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new ArrayList<>(List.of(
+                    cell(tableId + "-h-no", 0, 0, "序号"), cell(tableId + "-h-name", 0, 1, "评审内容"),
+                    cell(tableId + "-h-rule", 0, 2, "评审标准"), cell(tableId + "-h-weight", 0, 3, "评分分值")));
+            int row = 0;
+            for (JsonNode item : rowsByTable.getOrDefault(tableId, List.of())) {
+                int physicalRow = row + 1;
+                cells.add(cell(realShapeCellId(tableId, row, 0), physicalRow, 0, Integer.toString(physicalRow)));
+                cells.add(cell(realShapeCellId(tableId, row, 1), physicalRow, 1, item.path("dimension").asText()));
+                cells.add(cell(realShapeCellId(tableId, row, 2), physicalRow, 2, item.path("quote").asText()));
+                cells.add(cell(realShapeCellId(tableId, row, 3), physicalRow, 3,
+                        item.path("weight").asText() + " 分"));
+                row++;
+            }
+            tables.add(table(tableId, spec.path("page").asInt(), spec.path("section").asText(),
+                    spec.path("score").asBoolean(),
+                    cells.toArray(DocumentArtifact.CanonicalTable.CanonicalCellDto[]::new)));
+        });
+        return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("project-1382-pdf-real-shape",
+                "sha-1382-pdf", "pdf", "2.2"), tables, List.of());
     }
 
     private static int pageForTable(String tableId) {
