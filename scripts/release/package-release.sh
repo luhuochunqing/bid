@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Input: repository source tree, installed toolchains, and release build environment variables
-# Output: versioned release archive containing frontend assets, backend jar, and metadata
+# Output: versioned release archive containing frontend assets, backend jar, and metadata;
+#         then prunes .release/ to keep only the newest $RELEASE_KEEP_COUNT packages
+#         (2026-09-26: auto-cleanup added — old release tarballs had piled up to 17G)
 # Pos: scripts/release/ - Release automation and rehearsal helpers
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 set -euo pipefail
@@ -171,3 +173,23 @@ tar -C "$OUTPUT_DIR" -czf "$ARCHIVE_PATH" .
 
 printf '\nRelease directory: %s\n' "$OUTPUT_DIR"
 printf 'Release archive: %s\n' "$ARCHIVE_PATH"
+
+# 发布包保留策略（2026-09-26）：历史发布包曾在 .release/ 下堆积 48 个、占满约 17G 磁盘。
+# 每次打包完成后自动清理旧发布包，只保留最近 $RELEASE_KEEP_COUNT 个
+# （tar.gz 及其同名解包目录一起删）。保留数量可用环境变量覆盖：
+#   RELEASE_KEEP_COUNT=5 bash scripts/release/package-release.sh
+RELEASE_KEEP_COUNT="${RELEASE_KEEP_COUNT:-3}"
+printf '\n==> 清理旧发布包（仅保留最近 %d 个）\n' "$RELEASE_KEEP_COUNT"
+_pruned_count=0
+while IFS= read -r _old_archive; do
+  _old_id="${_old_archive#xiyu-bid-release-}"
+  _old_id="${_old_id%.tar.gz}"
+  rm -f "$ROOT_DIR/.release/$_old_archive"
+  # 只删与该发布包同名的解包目录，避免误删 .release/ 下其他内容
+  if [[ -d "$ROOT_DIR/.release/$_old_id" ]]; then
+    rm -rf "$ROOT_DIR/.release/$_old_id"
+  fi
+  _pruned_count=$((_pruned_count + 1))
+  printf '  已清理旧发布包：%s\n' "$_old_archive"
+done < <(cd "$ROOT_DIR/.release" && ls -t xiyu-bid-release-*.tar.gz 2>/dev/null | tail -n +"$((RELEASE_KEEP_COUNT + 1))")
+printf '旧发布包清理完成，共清理 %d 个\n' "$_pruned_count"
