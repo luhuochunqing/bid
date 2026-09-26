@@ -305,6 +305,29 @@ describe('ScoreParseDrawer.vue', () => {
     expect(wrapper.find('[data-test="btn-adopt-candidates"]').exists()).toBe(true)
   })
 
+  it('renders latest pending candidates beside existing formal score items', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: { items: itemsFixture, meta: { decisionStatus: 'REVIEW_REQUIRED', reviewReason: '最新解析待确认' } },
+    })
+    scoreParseApi.getReview.mockResolvedValue({
+      data: { facts: [{ factId: 'new-fact', code: 'N1', dimension: '最新待核验项', weight: 7, sourceText: '原文证据' }], audits: [] },
+    })
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId: 123 },
+      global: { stubs: {
+        'el-drawer': { template: '<div v-if="modelValue"><slot /></div>', props: ['modelValue'] },
+        'el-dialog': true, 'el-button': true,
+      } },
+    })
+
+    await wrapper.vm.open({ stage: 1, autoScore: false, autoParse: false })
+
+    expect(wrapper.text()).toContain('2 项')
+    expect(wrapper.text()).toContain('已生效评分项 / 最新候选')
+    expect(wrapper.find('[data-test="score-parse-candidate-review"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('最新解析待确认')
+  })
+
   it('disables reparse button when scoringOverlayVisible is true', async () => {
     const wrapper = mount(ScoreParseDrawer, {
       props: { projectId: 123 },

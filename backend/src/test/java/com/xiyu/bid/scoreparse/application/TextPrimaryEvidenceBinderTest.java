@@ -12,6 +12,89 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TextPrimaryEvidenceBinderTest {
     @Test
+    void bindsPdfNameAndRuleQuoteAcrossCellsInSamePhysicalRowWithoutLogicalRowId() {
+        var table = new DocumentArtifact.CanonicalTable("pdf-p34-t1", 34, "第三章 评审标准", 2, 3,
+                List.of(), List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("name", 1, 0, "商务资信", "商务资信",
+                        1, 1, false, "pdf:page=34;row=1;cell=0", 34, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("rule", 1, 1, "信用记录良好得7分", "信用记录良好得7分",
+                        1, 1, false, "pdf:page=34;row=1;cell=1", 34, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("weight", 1, 2, "7分", "7分",
+                        1, 1, false, "pdf:page=34;row=1;cell=2", 34, "")), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "table-v2"),
+                List.of(table), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审标准", "商务资信", "", "商务", BigDecimal.valueOf(7),
+                "信用记录良好得7分", "OBJECTIVE", 34, "", List.of(),
+                "商务资信 信用记录良好得7分", 0.9, ChildAggregation.SUM);
+
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(bound.tableId()).isEqualTo("pdf-p34-t1");
+        assertThat(bound.sourceCellIds()).containsExactly("name", "rule");
+        assertThat(bound.dimension()).isEqualTo("商务资信");
+    }
+
+    @Test
+    void mixedBundleUsesPerTableFileTypeInsteadOfFirstArtifactFileType() {
+        var docxTable = new DocumentArtifact.CanonicalTable("doc1-t1", 34, "第三章 评审标准", 2, 2,
+                List.of(), List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("doc1-name", 1, 0, "商务资信", "商务资信",
+                        1, 1, false, "word/document.xml", 34, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("doc1-rule", 1, 1, "信用记录良好得7分", "信用记录良好得7分",
+                        1, 1, false, "word/document.xml", 34, "")), true, "DOCX");
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bundle", "sha", "PDF", "bundle"),
+                List.of(docxTable), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审标准", "1", "", "商务资信", BigDecimal.valueOf(7),
+                "信用记录良好得7分", "OBJECTIVE", 34, "", List.of(),
+                "商务资信 信用记录良好得7分", 0.9, ChildAggregation.SUM);
+
+        var unbound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(unbound.tableId()).isBlank();
+        assertThat(unbound.sourceCellIds()).isEmpty();
+    }
+
+    @Test
+    void pdfRuleCellBindingAddsUniqueSameRowItemNameWhenDimensionIsOnlyCategory() {
+        var table = new DocumentArtifact.CanonicalTable("pdf-p35-t1", 35, "第三章 评审标准", 2, 3,
+                List.of(), List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("code", 1, 1, "服务网点及仓储（3分）", "服务网点及仓储（3分）",
+                        1, 1, false, "pdf:page=35;row=1;cell=1", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("rule", 1, 2, "在全国省份设有服务网点得分。", "在全国省份设有服务网点得分。",
+                        1, 1, false, "pdf:page=35;row=1;cell=2", 35, "")), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "table-v2"),
+                List.of(table), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审标准", "服务网点及仓储", "parent", "商务", BigDecimal.valueOf(3),
+                "在全国省份设有服务网点得分。", "OBJECTIVE", 35, "", List.of(),
+                "在全国省份设有服务网点得分。", 0.9, ChildAggregation.SUM);
+
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(bound.dimension()).isEqualTo("服务网点及仓储");
+        assertThat(bound.sourceCellIds()).containsExactly("code", "rule");
+    }
+
+    @Test
+    void doesNotBindPdfQuoteAcrossAnUnrepresentedColumnGap() {
+        var table = new DocumentArtifact.CanonicalTable("pdf-p35-t1", 35, "第三章 评审标准", 2, 3,
+                List.of(), List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("name", 1, 0, "服务网点", "服务网点",
+                        1, 1, false, "pdf:page=35;row=1;cell=0", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("rule", 1, 2, "服务网点覆盖得3分", "服务网点覆盖得3分",
+                        1, 1, false, "pdf:page=35;row=1;cell=2", 35, "")), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "table-v2"),
+                List.of(table), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审标准", "服务网点", "", "商务", BigDecimal.valueOf(3),
+                "服务网点覆盖得3分", "OBJECTIVE", 35, "", List.of(),
+                "服务网点 服务网点覆盖得3分", 0.9, ChildAggregation.SUM);
+
+        var unbound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(unbound.tableId()).isBlank();
+        assertThat(unbound.sourceCellIds()).isEmpty();
+    }
+
+    @Test
     void bindsVerbatimQuoteAcrossOrderedCellsInOneLogicalContinuationRow() throws Exception {
         String json = """
                 {

@@ -55,6 +55,97 @@ def test_pdf_score_table_detection_excludes_preliminary_review_table():
     assert _is_pdf_score_table(rows) is False
 
 
+def test_scoring_part_heading_inside_scoring_table_is_not_a_chapter_boundary():
+    class Table:
+        bbox = (0, 100, 500, 300)
+
+        @staticmethod
+        def extract():
+            return [["序号", "评分因素", "评分标准", "分值"],
+                    ["1", "技术方案", "方案得分20分", "20分"]]
+
+    class Page:
+        @staticmethod
+        def extract_text_lines():
+            return [{"text": "第一部分：技术评审（合计20分）", "top": 120}]
+
+        @staticmethod
+        def find_tables():
+            return [Table()]
+
+    page = Page()
+
+    assert _pdf_page_chapter_heading_positions(page) == []
+    assert _pdf_page_unresolved_section_break_tops(page) == []
+
+
+def test_real_chapter_heading_inside_scoring_table_stays_a_chapter_boundary():
+    class Table:
+        bbox = (0, 100, 500, 300)
+
+        @staticmethod
+        def extract():
+            return [["序号", "评分因素", "评分标准", "分值"],
+                    ["1", "技术方案", "方案得分20分", "20分"]]
+
+    class Page:
+        @staticmethod
+        def extract_text_lines():
+            return [{"text": "第四章：合同履约考核", "top": 120}]
+
+        @staticmethod
+        def find_tables():
+            return [Table()]
+
+    page = Page()
+
+    assert _pdf_page_chapter_heading_positions(page) == [(120.0, "第四章：合同履约考核")]
+
+
+def test_untotaled_part_heading_inside_scoring_table_remains_conservative_break():
+    class Table:
+        bbox = (0, 100, 500, 300)
+
+        @staticmethod
+        def extract():
+            return [["序号", "评分因素", "评分标准", "分值"],
+                    ["1", "技术方案", "方案得分20分", "20分"]]
+
+    class Page:
+        @staticmethod
+        def extract_text_lines():
+            return [{"text": "第二部分：其他要求", "top": 120}]
+
+        @staticmethod
+        def find_tables():
+            return [Table()]
+
+    assert _pdf_page_unresolved_section_break_tops(Page()) == [120.0]
+
+
+def test_part_heading_in_weakly_structured_but_explicit_scoring_table_is_recognized():
+    class Table:
+        bbox = (0, 100, 500, 300)
+
+        @staticmethod
+        def extract():
+            return [["", "", "", "报价评分标准\n办公用品价格分评审（40分）\n价格分（满分40分）=一级集采商品价格分（满分28分）\n第一部分：一级集采商品（合计28分）"]]
+
+    class Page:
+        @staticmethod
+        def extract_text_lines():
+            return [{"text": "第一部分：一级集采商品（合计28分）", "top": 160}]
+
+        @staticmethod
+        def find_tables():
+            return [Table()]
+
+    page = Page()
+
+    assert not _is_pdf_score_table(Table.extract())
+    assert _pdf_page_unresolved_section_break_tops(page) == []
+
+
 def test_pdf_artifact_emits_ocr_text_with_physical_page_and_region(tmp_path):
     image_pdf = fitz.open()
     image_page = image_pdf.new_page(width=595, height=842)

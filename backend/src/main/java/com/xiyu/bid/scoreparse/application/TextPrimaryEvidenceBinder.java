@@ -5,9 +5,7 @@ import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
 import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 /** Builds post-extraction Sidecar evidence and binds text facts back to source cells. */
@@ -37,7 +35,7 @@ final class TextPrimaryEvidenceBinder {
                                 cell.logicalRowId().isBlank() ? "" : prefix + cell.logicalRowId())).toList();
                 tables.add(new DocumentArtifact.CanonicalTable(prefix + table.tableId(), table.sourcePage(),
                         table.sourceSection(), table.rows(), table.columns(), table.mergedRegions(), cells,
-                        table.isScoreTable()));
+                        table.isScoreTable(), current.artifact().fileType()));
             }
         }
         if (meta == null) return null;
@@ -61,10 +59,17 @@ final class TextPrimaryEvidenceBinder {
             List<Object[]> exactCells = artifact == null ? List.of() : artifact.tables().stream()
                     .flatMap(table -> table.cells().stream().map(cell -> new Object[]{table, cell}))
                     .filter(pair -> matches(fact, pair, schemes)).toList();
-            var bound = exactCells.size() == 1 ? exactCells.stream().findFirst().map(pair -> bound(fact, pair))
+            var bound = exactCells.size() == 1 ? exactCells.stream().findFirst()
+                    .map(pair -> {
+                        var table = (DocumentArtifact.CanonicalTable) pair[0];
+                        var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
+                        var exact = bound(fact, pair);
+                        return PdfRowEvidenceBinder.addExactQuoteItemName(fact, exact, table, cell, artifact);
+                    })
                     : exactCells.size() > 1 ? java.util.Optional.<MultimodalScoreFact>empty()
                     : artifact == null ? java.util.Optional.<MultimodalScoreFact>empty()
-                    : LogicalRowEvidenceBinder.bind(fact, artifact, schemes);
+                    : PdfRowEvidenceBinder.bindQuote(fact, artifact, schemes)
+                    .or(() -> LogicalRowEvidenceBinder.bind(fact, artifact, schemes));
             if (bound.isPresent()) return bound.get();
             if (exactCells.isEmpty() && artifact != null) {
                 var ocrBound = textBlockEvidence(fact, artifact);
@@ -72,6 +77,23 @@ final class TextPrimaryEvidenceBinder {
             }
             return textEvidence(fact, tenderText, normalizedText).orElse(fact);
         }).toList();
+    }
+
+    static boolean tableInFactScope(MultimodalScoreFact fact,
+                                    DocumentArtifact.CanonicalTable table,
+                                    List<OriginalScoringContext.SchemeEvidence> schemes) {
+        String tableScheme = OriginalScoringContext.schemeTitleForTable(table);
+        String tableSchemeId = schemes.stream().filter(scheme -> scheme.tableIds().contains(table.tableId()))
+                .map(OriginalScoringContext.SchemeEvidence::schemeId).findFirst()
+                .orElseGet(() -> tableScheme.isBlank() ? "" : OriginalScoringContext.schemeId(tableScheme));
+        if ("IN_SCHEME".equals(fact.scopeStatus()) && !fact.schemeId().isBlank()
+                && !tableSchemeId.isBlank() && !fact.schemeId().equals(tableSchemeId)) return false;
+        if ("OUT_OF_SCHEME".equals(fact.scopeStatus())) {
+            String section = table.sourceSection() == null ? "" : table.sourceSection();
+            return section.matches("(?s).*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*")
+                    && tableScheme.isBlank();
+        }
+        return true;
     }
 
     private static java.util.Optional<MultimodalScoreFact> textBlockEvidence(
@@ -110,7 +132,7 @@ final class TextPrimaryEvidenceBinder {
                 fact.schemeId(), fact.scopeStatus()));
     }
 
-    private static String normalizeForEvidence(String value) {
+    static String normalizeForEvidence(String value) {
         return value == null ? "" : value.replace('\u00a0', ' ')
                 .replace('\u2007', ' ').replace('\u202f', ' ')
                 .replaceAll("\\*\\*|__", "")
@@ -171,19 +193,9 @@ final class TextPrimaryEvidenceBinder {
                                    List<OriginalScoringContext.SchemeEvidence> schemes) {
         var table = (DocumentArtifact.CanonicalTable) pair[0];
         var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
+        if (!tableInFactScope(fact, table, schemes)) return false;
         String raw = cell.rawText() == null ? "" : cell.rawText();
         String normalizedQuote = normalizeForEvidence(fact.quotedText());
-        String tableScheme = OriginalScoringContext.schemeTitleForTable(table);
-        String tableSchemeId = schemes.stream().filter(scheme -> scheme.tableIds().contains(table.tableId()))
-                .map(OriginalScoringContext.SchemeEvidence::schemeId).findFirst()
-                .orElseGet(() -> tableScheme.isBlank() ? "" : OriginalScoringContext.schemeId(tableScheme));
-        if ("IN_SCHEME".equals(fact.scopeStatus()) && !fact.schemeId().isBlank()
-                && !tableSchemeId.isBlank() && !fact.schemeId().equals(tableSchemeId)) return false;
-        if ("OUT_OF_SCHEME".equals(fact.scopeStatus())) {
-            String section = table.sourceSection() == null ? "" : table.sourceSection();
-            if (!section.matches("(?s).*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*")
-                    || !tableScheme.isBlank()) return false;
-        }
         return !fact.quotedText().isBlank()
                 && !normalizedQuote.isBlank()
                 && normalizeForEvidence(raw).contains(normalizedQuote);

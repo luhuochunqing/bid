@@ -7,6 +7,21 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class OriginalScoreEvidencePolicyTest {
+    @Test void categorySubtotalQuoteProvesWeightConsistentlyForTableLocator() {
+        var table = new DocumentArtifact.CanonicalTable("t-category", 33, "第三章 评审办法", 1, 1,
+                List.of(), List.of(cell("category", 0, 0, "（1）商务部分：15分")), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.pdf", "sha-category", "PDF", "2.2"),
+                List.of(table), List.of());
+        var claim = new ScoreEvidenceClaim("fact", "fact", "t-category", "商务", List.of("category"),
+                List.of("category"), new BigDecimal("15"), false, true,
+                "（1）商务部分：15分", "", "", "", ChildAggregation.SUM);
+        var problems = new java.util.ArrayList<OriginalScoreEvidencePolicy.Problem>();
+
+        OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems);
+
+        assertThat(problems).isEmpty();
+    }
+
     @Test void splitDocxRunsStillExposeExplicitWholeDocumentTotal() {
         var source = artifact("评分办法", List.of(
                 cell("n1", 0, 0, "业绩"), cell("r1", 0, 1, "满足条件得10分"), cell("w1", 0, 2, "10分")));
