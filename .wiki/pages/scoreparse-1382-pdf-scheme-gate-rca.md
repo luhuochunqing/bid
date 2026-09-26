@@ -54,11 +54,13 @@ archive: false
 
 ## 验证
 
-- RED-first：改动前 `GoldenCasesReplayTest#project1382RealPdfShapeReplayKeepsTocLinesOutOfSchemeEvidence` + `OriginalScoreFactIdentityTest` 6/6 失败（目录行污染出第二个方案、factId 碰撞、空 code 触发 `DUPLICATE_CODE`）；sidecar 测试因 `_pdf_chapter_heading` 未定义导入失败。
-- GREEN：`mvn test -Dtest='GoldenCasesReplayTest,OriginalScoreFactIdentityTest'` 33 + 5 全绿；`ArchitectureTest`/`FPJavaArchitectureTest`/`MaintainabilityArchitectureTest` 共 81 全绿。
-- sidecar：全量 `pytest` 128 passed / 1 failed，该 1 例为改动前既有失败（本机 tesseract 对该扫描件段落置信度 63.9 < 阈值 70），用 pristine 代码 + pristine 测试复跑结果完全相同。
-- 相邻全量 `com.xiyu.bid.scoreparse.**.*Test`：1068 tests / 7 failures，7 条均为存量失败（回退 5 个 main 文件后复跑同一子集，失败用例名与行号逐一相同）。
-- 真实客户文件端到端重解析未在本任务执行（不入库、不部署测试站），验收需部署后单独进行。
+- RED-first（pristine base 源码 + 本分支测试，`mvn -o test -Dtest=OriginalScoreFactIdentityTest,GoldenCasesReplayTest,TextPrimaryScoreFactMapperTest`）→ exit 1，`48 run / 13 failures + 1 error`：`OriginalScoreFactIdentityTest` 11/11（目录行成为方案根、扩展点线字符集失守、裸尾号目录行、factId 碰撞、`DUPLICATE_CODE`、资格串台、方案比较不对称、空 code 兄弟父链接互相覆盖）、`GoldenCasesReplayTest` 2（目录行污染出第二个方案、16 条事实的 modelFactId 不唯一）、`TextPrimaryScoreFactMapperTest` 1 error（来源侧问题挂不回事实）。
+- sidecar RED：改动前 `converter.py` 无 `_pdf_chapter_heading` / `_pdf_page_has_unresolved_section_break` / `_pdf_page_chapter_heading_positions` → 测试导入失败与守卫缺失（无守卫时三页表格均继承「第三章 评审办法」，有守卫时 `[(1,'第三章 评审办法'),(2,''),(3,'')]`）。
+- GREEN：`mvn -o test -Dtest='GoldenCasesReplayTest,OriginalScoreFactIdentityTest,TextPrimaryScoreFactMapperTest,ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest'` → exit 0，`91 tests / 0 failures`（GoldenCasesReplayTest 34、OriginalScoreFactIdentityTest 11、TextPrimaryScoreFactMapperTest 3、ArchitectureTest 30+2、FPJavaArchitectureTest 8、MaintainabilityArchitectureTest 3）。
+- sidecar 全量 `pytest -q` → exit 1，`139 passed / 1 failed`；该 1 例为**改动前既有**的环境失败（`test_pdf_artifact_emits_ocr_text_with_physical_page_and_region`：本机 tesseract 对该扫描件段落置信度 63.9 < 阈值 70），用同解释器 + pristine `converter.py` 复跑得到完全相同的失败。
+- 相邻全量 `mvn -o test -Dtest='com.xiyu.bid.scoreparse.**.*Test'` → exit 1，`1076 tests / 7 failures`；7 条为存量失败，在 pristine base（`/tmp/xiyu-1382-base`，base `26571d030`）上跑同一子集得到 `24 run / 7 failures`，类名与行号逐一相同（`PdfEvidencePipelineTest:196/76`、`ScorePartialOverwritePersistenceTest:341/315`、`StructuredTableExtractionMarkCompletedTest:140/50/87`）。
+- **回归纠偏（S5 base 对照发现）**：收口 `_pdf_page_tables()` 时一度把整段回退删除，导致既有测试 `test_extract_tables_v2.py::test_pdf_continuation_cells_expose_physical_page`（替身只实现 `extract_tables()`）由绿转红；pristine 对照确认是新引入回归后恢复「缺 finder」分支，现两侧各有测试。
+- 真实客户文件（`办公用品.pdf`）端到端重解析未在本任务执行（不入库、不部署测试站），验收需部署后单独进行。
 
 ## 残留风险
 
