@@ -13,6 +13,8 @@ import fitz
 from converter import extract_pdf_tables_artifact
 from converter import _is_pdf_score_table
 from converter import _merge_pdf_score_table_continuations
+from converter import _pdf_chapter_heading
+from converter import _pdf_page_chapter_heading
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "sample_multipage.pdf")
 CHINESE_OCR_FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "scanned_chinese_score.png")
@@ -23,7 +25,7 @@ def test_extract_pdf_tables_artifact_returns_pdf_document_artifact():
 
     assert artifact["schemaVersion"] == "2.2"
     assert artifact["artifact"]["fileType"] == "PDF"
-    assert artifact["artifact"]["extractionVersion"] == "pdf-table-v1"
+    assert artifact["artifact"]["extractionVersion"] == "pdf-table-v2"
     assert artifact["artifact"]["sha256"]
     assert artifact["tables"], "fixture must expose at least one pdfplumber table"
 
@@ -171,3 +173,101 @@ def test_pdf_score_table_deep_header_and_multipage_continuation_merged_for_proje
     assert rows[13][0] == "5" and rows[13][1] == "企业荣誉" and rows[13][3] == "5.0"
     assert rows[14][0] == "6" and rows[14][1] == "服务方案" and rows[14][3] == "15.0"
     assert rows[15][0] == "7" and rows[15][1] == "应急方案" and rows[15][3] == "10.0"
+
+
+def _draw_grid(page, top, rows, left=60.0, col_width=150.0, row_height=24.0):
+    n_cols = max(len(r) for r in rows)
+    width = col_width * n_cols
+    height = row_height * len(rows)
+    for i in range(n_cols + 1):
+        x = left + i * col_width
+        page.draw_line(fitz.Point(x, top), fitz.Point(x, top + height))
+    for j in range(len(rows) + 1):
+        y = top + j * row_height
+        page.draw_line(fitz.Point(left, y), fitz.Point(left + width, y))
+    for j, row in enumerate(rows):
+        for i, text in enumerate(row):
+            if text:
+                page.insert_text(fitz.Point(left + i * col_width + 6, top + j * row_height + 17),
+                                 text, fontsize=9, fontname="china-s")
+
+
+def _make_sectioned_pdf(path):
+    doc = fitz.open()
+    toc = doc.new_page()
+    toc.insert_text((72, 72), "目  录", fontsize=14, fontname="china-s")
+    toc.insert_text((72, 110), "第三章 评审办法 " + "." * 40 + " 27", fontsize=11, fontname="china-s")
+    toc.insert_text((72, 130), "第四章 合同履约考核 " + "." * 40 + " 96", fontsize=11, fontname="china-s")
+    page2 = doc.new_page()
+    page2.insert_text((72, 72), "第三章 评审办法", fontsize=14, fontname="china-s")
+    _draw_grid(page2, 110, [["序号", "评审因素", "说明"], ["1", "供应商业绩", "详见正文"]])
+    page3 = doc.new_page()
+    _draw_grid(page3, 72, [["序号", "评审因素", "说明"], ["2", "财务状况", "详见正文"]])
+    page4 = doc.new_page()
+    _draw_grid(page4, 72, [["序号", "评审因素", "说明"], ["3", "服务网点", "详见正文"]])
+    page4.insert_text((72, 400), "第四章 合同履约考核", fontsize=14, fontname="china-s")
+    page5 = doc.new_page()
+    _draw_grid(page5, 90, [["序号", "考核项", "说明"], ["1", "响应率", "按季度统计"]])
+    doc.save(str(path))
+    doc.close()
+
+
+def test_pdf_chapter_heading_rejects_toc_dot_leader_lines():
+    assert _pdf_chapter_heading("第三章 评审办法 " + "." * 28 + " 27") == ""
+    assert _pdf_chapter_heading("第三章 评审办法………27") == ""
+    assert _pdf_chapter_heading("第三章 评审办法") == "第三章 评审办法"
+    assert _pdf_chapter_heading("3.2.3 评分标准") == ""
+    assert _pdf_chapter_heading("") == ""
+
+
+def test_pdf_page_chapter_heading_skips_toc_and_non_chapter_lines():
+    page_text = "\n".join([
+        "目  录",
+        "第三章 评审办法 " + "." * 30 + " 27",
+        "3.2.3 评分标准",
+        "第四章 合同履约考核",
+    ])
+
+    assert _pdf_page_chapter_heading(page_text) == "第四章 合同履约考核"
+    assert _pdf_page_chapter_heading("3.2.3 评分标准\n序号 评分因素 评分标准 分值") == ""
+    assert _pdf_page_chapter_heading("") == ""
+
+
+def test_pdf_tables_attribute_nearest_preceding_chapter_heading(tmp_path):
+    pdf_path = tmp_path / "sectioned.pdf"
+    _make_sectioned_pdf(pdf_path)
+
+    artifact = extract_pdf_tables_artifact(str(pdf_path))
+
+    assert [t["sourcePage"] for t in artifact["tables"]] == [2, 3, 4, 5]
+    assert [t["sourceSection"] for t in artifact["tables"]] == [
+        "第三章 评审办法", "第三章 评审办法", "第三章 评审办法", "第四章 合同履约考核",
+    ]
+    # 第 4 页表格位于本章标题（top=400）上方 → 归属上一章，验证按位置而非页级首标题归属
+
+
+def test_pdf_score_table_continuation_not_merged_across_known_sections():
+    first = {
+        "sourcePage": 24,
+        "sourceTableIndex": 7,
+        "sourceSection": "第三章 评审办法",
+        "rows": [
+            ["序号", "评分因素", "评分标准"],
+            ["1", "公司实力（6分）", "证书清单每项1分，最高6分。"],
+        ],
+    }
+    same_section = {
+        "sourcePage": 25,
+        "sourceTableIndex": 8,
+        "sourceSection": "第三章 评审办法",
+        "rows": [["2", "类似业绩（10分）", "每有一个类似服务案例得2分，满分为10分。"]],
+    }
+    other_section = {
+        "sourcePage": 25,
+        "sourceTableIndex": 8,
+        "sourceSection": "第四章 合同履约考核",
+        "rows": [["2", "类似业绩（10分）", "每有一个类似服务案例得2分，满分为10分。"]],
+    }
+
+    assert len(_merge_pdf_score_table_continuations([first, same_section])) == 1
+    assert len(_merge_pdf_score_table_continuations([first, other_section])) == 2

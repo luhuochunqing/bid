@@ -147,6 +147,46 @@ class GoldenCasesReplayTest {
         assertEquals(expected.path("tableIds").size(), schemes.get(0).tableIds().size());
     }
 
+    @Test
+    void project1382RealPdfShapeReplayKeepsTocLinesOutOfSchemeEvidence() throws Exception {
+        String text = GoldenCasesReplaySupport.readFixture("case-project-1382-pdf-real-shape.md");
+        JsonNode expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(
+                "case-project-1382-pdf-real-shape.expected.json"));
+        DocumentArtifact artifact = project1382RealShapeArtifact(expected);
+        List<MultimodalScoreFact> facts = project1382RealShapeFacts(expected);
+
+        var schemes = OriginalScoringContext.schemes(artifact, text);
+        var verification = OriginalScoreEvidencePolicy.verifyModel(artifact, text, facts,
+                expected.path("declaredTotal").decimalValue());
+        var validation = new MultimodalScoreFactValidator().validate(facts, artifact, text,
+                expected.path("declaredTotal").decimalValue());
+        List<MultimodalScoreFact> eligibleFacts = OriginalScoreEvidencePolicy.eligibleModelFacts(facts, verification);
+
+        assertEquals(1, schemes.size());
+        assertEquals(expected.path("schemeTitle").asText(), schemes.get(0).title());
+        assertEquals(expected.path("layoutStatus").asText(), schemes.get(0).layoutStatus());
+        assertEquals(expected.path("declaredTotal").decimalValue(), schemes.get(0).declaredTotal());
+        assertEquals(expected.path("totalLocator").asText(), schemes.get(0).totalLocator());
+        assertEquals(expected.path("totalQuote").asText(), schemes.get(0).totalQuote());
+        assertEquals(expected.path("tableIds").size(), schemes.get(0).tableIds().size());
+        assertTrue(verification.problems().stream().noneMatch(problem ->
+                "ORIGINAL_SCHEME_AMBIGUOUS".equals(problem.code())), () -> verification.problems().toString());
+        assertEquals(expected.path("expectedEligibleFactCount").asInt(), eligibleFacts.size(),
+                () -> verification.qualifications().toString());
+        assertEquals(expected.path("expectedOutOfSchemeFactCount").asInt(), verification.qualifications().stream()
+                .filter(qualification -> "OUT_OF_SCHEME".equals(qualification.scopeStatus())).count());
+        assertEquals(expected.path("expectedEligibleLeafTotal").decimalValue(), validation.leafTotal());
+        assertTrue(validation.autoApprovable(), () -> validation.violations().toString());
+        assertTrue(validation.violations().stream().noneMatch(violation -> List.of(
+                "ORIGINAL_SCHEME_AMBIGUOUS", "SOURCE_SCHEME_NOT_VERIFIED", "ITEM_SCHEME_SCOPE_MISMATCH",
+                "WEIGHT_SUM_MISMATCH", "DUPLICATE_CODE", "CHILD_AGGREGATION_UNSUPPORTED_BY_SOURCE")
+                .contains(violation.code())), () -> validation.violations().toString());
+        assertEquals("OUT_OF_SCHEME", OriginalScoringContext.textScopeAt(text,
+                expected.path("outOfSchemeLine").asInt()).scopeStatus());
+        assertEquals("IN_SCHEME", OriginalScoringContext.textScopeAt(text,
+                expected.path("inSchemeLine").asInt()).scopeStatus());
+    }
+
     private static MultimodalScoreFact textFact(JsonNode expected, String schemeId, String status) {
         String quote = expected.path("quote").asText();
         return new MultimodalScoreFact(expected.path("section").asText("商务"), expected.path("code").asText(),
@@ -217,6 +257,56 @@ class GoldenCasesReplayTest {
                 cell("total-cell", 0, 0, quote));
         return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("project-1382-redacted", "sha-1382", "pdf", "2.0"),
                 List.of(summary), List.of());
+    }
+
+    private static List<MultimodalScoreFact> project1382RealShapeFacts(JsonNode expected) {
+        List<MultimodalScoreFact> facts = new ArrayList<>();
+        expected.path("parents").forEach(item -> facts.add(realShapeFact(item)));
+        expected.path("facts").forEach(item -> facts.add(realShapeFact(item)));
+        expected.path("auditFacts").forEach(item -> facts.add(realShapeFact(item)));
+        return facts;
+    }
+
+    private static MultimodalScoreFact realShapeFact(JsonNode item) {
+        String code = item.path("code").asText();
+        return new MultimodalScoreFact(item.path("section").asText(), code,
+                item.path("parentCode").asText(""), item.path("dimension").asText(),
+                item.path("weight").decimalValue(), item.path("quote").asText(), "OBJECTIVE",
+                item.path("page").intValue(), item.path("tableId").asText(),
+                List.of(code + "-name", code + "-rule", code + "-weight"),
+                item.path("quote").asText(), 0.99,
+                ChildAggregation.valueOf(item.path("childRelation").asText("SUM")), "", "");
+    }
+
+    private static DocumentArtifact project1382RealShapeArtifact(JsonNode expected) {
+        Map<String, List<JsonNode>> rowsByTable = new java.util.LinkedHashMap<>();
+        expected.path("parents").forEach(item -> rowsByTable.computeIfAbsent(item.path("tableId").asText(),
+                ignored -> new ArrayList<>()).add(item));
+        expected.path("facts").forEach(item -> rowsByTable.computeIfAbsent(item.path("tableId").asText(),
+                ignored -> new ArrayList<>()).add(item));
+        expected.path("auditFacts").forEach(item -> rowsByTable.computeIfAbsent(item.path("tableId").asText(),
+                ignored -> new ArrayList<>()).add(item));
+        List<DocumentArtifact.CanonicalTable> tables = new ArrayList<>();
+        expected.path("tables").forEach(spec -> {
+            String tableId = spec.path("tableId").asText();
+            List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new ArrayList<>(List.of(
+                    cell(tableId + "-h-no", 0, 0, "序号"), cell(tableId + "-h-name", 0, 1, "评审内容"),
+                    cell(tableId + "-h-rule", 0, 2, "评审标准"), cell(tableId + "-h-weight", 0, 3, "评分分值")));
+            int row = 1;
+            for (JsonNode item : rowsByTable.getOrDefault(tableId, List.of())) {
+                String code = item.path("code").asText();
+                cells.add(cell(code + "-no", row, 0, Integer.toString(row)));
+                cells.add(cell(code + "-name", row, 1, item.path("dimension").asText()));
+                cells.add(cell(code + "-rule", row, 2, item.path("quote").asText()));
+                cells.add(cell(code + "-weight", row, 3, item.path("weight").asText() + " 分"));
+                row++;
+            }
+            tables.add(table(tableId, spec.path("page").asInt(), spec.path("section").asText(),
+                    spec.path("score").asBoolean(),
+                    cells.toArray(DocumentArtifact.CanonicalTable.CanonicalCellDto[]::new)));
+        });
+        return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("project-1382-pdf-real-shape",
+                "sha-1382-pdf", "pdf", "2.2"), tables, List.of());
     }
 
     private static int pageForTable(String tableId) {

@@ -221,6 +221,7 @@ final class OriginalScoringSchemePolicy {
         if (chapter.matches()) value = chapter.group(2);
         value = value.replaceFirst("^(?:本项目|本标包)\\s*", "");
         value = TABLE_SUFFIX.matcher(value).replaceFirst("");
+        value = OriginalScoringTextScopePolicy.TOC_TRAILER.matcher(value).replaceAll("");
         return value.replaceAll("[\\s　]+", "");
     }
 

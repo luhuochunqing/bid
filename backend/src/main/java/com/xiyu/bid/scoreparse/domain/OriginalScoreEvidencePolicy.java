@@ -42,7 +42,7 @@ public final class OriginalScoreEvidencePolicy {
             return new ScoreUnitPolicy.Node(id, parentByFact.getOrDefault(id, ""), f.weight(), f.childAggregation().name());
         }).toList();
         Set<String> units = ScoreUnitPolicy.effectiveUnitIds(nodes);
-        List<ScoreEvidenceClaim> claims = facts.stream().map(f -> new ScoreEvidenceClaim(OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code()),
+        List<ScoreEvidenceClaim> claims = facts.stream().map(f -> new ScoreEvidenceClaim(modelFactId(f),
                 modelFactId(f),
                 f.tableId(), f.dimension(), f.sourceCellIds(), f.sourceCellIds(), f.weight(),
                 parentKeys.contains(OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code())),

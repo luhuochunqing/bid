@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 final class OriginalScoringTextScopePolicy {
     private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
     private static final Pattern SOURCE_HEADING = Pattern.compile("^(第[一二三四五六七八九十百0-9]+章\\s*.+|[一二三四五六七八九十]+[、.]\\s*.+|\\([^)]{1,24}\\)\\s*.+)$");
+    /** Table-of-contents lines (dot leaders plus a trailing page number) are not headings. */
+    static final Pattern TOC_TRAILER = Pattern.compile("(?:[.…·•‥∙．]\\s*){2,}\\d{0,4}\\s*$");
 
     private OriginalScoringTextScopePolicy() {}
 
@@ -99,6 +101,7 @@ final class OriginalScoringTextScopePolicy {
             } else if (SOURCE_HEADING.matcher(title).matches()) {
                 level = title.startsWith("第") ? 1 : 2;
             } else continue;
+            if (TOC_TRAILER.matcher(title).find()) continue;
             result.add(new Heading(i, level, title));
         }
         return result;

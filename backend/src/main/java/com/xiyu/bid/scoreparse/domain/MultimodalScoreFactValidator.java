@@ -153,7 +153,7 @@ public final class MultimodalScoreFactValidator {
         Set<String> codes = new HashSet<>();
         Set<String> locators = new HashSet<>();
         for (MultimodalScoreFact fact : facts) {
-            if (!codes.add(fact.schemeId() + "\u0000" + fact.scopeStatus() + "\u0000"
+            if (!fact.code().isBlank() && !codes.add(fact.schemeId() + "\u0000" + fact.scopeStatus() + "\u0000"
                     + fact.sectionTitle() + "\u0000" + fact.code())) {
                 violations.add(of(fact, "code", "DUPLICATE_CODE", "同章节序号重复", "unique", fact.code()));
             }

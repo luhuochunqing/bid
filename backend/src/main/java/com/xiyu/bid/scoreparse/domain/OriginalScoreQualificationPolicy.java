@@ -177,7 +177,9 @@ final class OriginalScoreQualificationPolicy {
     }
 
     public static String modelFactId(MultimodalScoreFact fact) {
-        String factKey = qualificationFactKey(fact);
+        String factKey = qualificationFactKey(fact) + "\u0000" + fact.dimension() + "\u0000"
+                + (fact.weight() == null ? "" : fact.weight().stripTrailingZeros().toPlainString())
+                + "\u0000" + fact.quotedText();
         return "fact-" + UUID.nameUUIDFromBytes(factKey.getBytes(StandardCharsets.UTF_8));
     }
 
