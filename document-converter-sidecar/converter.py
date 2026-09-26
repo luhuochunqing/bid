@@ -22,11 +22,25 @@ PDF_TABLE_EXTRACTION_VERSION = "pdf-table-v2"
 PDF_OCR_MAX_PAGES = 30
 PDF_OCR_MIN_CONFIDENCE = 70.0
 
-# 目录行（点线 + 尾页码）不是标题；章级标题用于 PDF 表格的 sourceSection 归属。
-# 尾页码允许缺省：点线结尾的行一律不当标题——宁可漏一个章锚点（该章表格转为人工复核），
-# 也不让目录行成为方案根（会造成文档级方案歧义，正是本次修复的目标）。
-_PDF_TOC_LEADER = re.compile(r"(?:[.…·•‥∙．]\s*){2,}\d{0,4}\s*$")
-_PDF_CHAPTER_HEADING = re.compile(r"^第[一二三四五六七八九十百\d]+[章节]\s*.{0,40}$")
+# 目录行不是标题；章级标题用于 PDF 表格的 sourceSection 归属。
+# 两种目录形状都拒绝：(1) 点线 + 尾页码（页码允许缺省——点线结尾的行一律不当标题）；
+# (2) 无点线、页码排在右侧独立列（真实 PDF 极常见）。选择偏向一贯：宁可漏一个章锚点
+# （该章表格转为人工复核），也不让目录行成为方案根（会造成文档级方案歧义，正是本次修复的目标）。
+# 字符集需与 backend OriginalScoringTextScopePolicy.TOC_ENTRY 保持同构，两处修改必须同步。
+_PDF_TOC_LEADER = re.compile(
+    r"(?:[.…·•‥∙．⋯⋮⋱․‧]\s*){2,}\d{0,4}\s*$"
+    r"|\s\d{1,3}\s*$"
+)
+# 只认「第X章」，且标题必须非空：与 backend SOURCE_HEADING / CHAPTER 保持一致。
+# 不认「第X节」「第X部分」（后端不消费，会变成必然被拒的锚点）；
+# 不认裸「第X章」（无标题的锚点在后端不是合法方案根，只会污染 current_section 继承）。
+_PDF_CHAPTER_HEADING = re.compile(r"^第[一二三四五六七八九十百\d]+章\s*\S.{0,40}$")
+# 章级分节信号：只要一行「看起来是新的一章」就记下来（无论我们能否把它变成锚点）。
+# 用于阻断 current_section 跨页继承——继承把无法识别的章标题页的表格挂到上一章，
+# 会把外章表格静默判成 IN_SCHEME（错误采纳），比"无锚点转人工"更危险。
+# 量词覆盖章级容器：章 / 部分 / 编 / 篇。不含「节」「条」——它们是章内层级，页首出现
+# 「第一节 …」的页仍属本章，掐断会白白丢掉合法的延续页归属。
+_PDF_SECTION_BREAK = re.compile(r"^第[一二三四五六七八九十百\d]+(?:章|部分|编|篇)")
 
 # 报价评分参数关键词（与 Java 侧 backend/src/main/java/com/xiyu/bid/biddraftagent/domain/PriceScoringKeywords.java
 # 的 PRICE_PARAMS 保持同步；两处修改必须同步，Java 侧另有 ScoreParsePromptsTest.buildCandidateExtractionPrompt_mustContainCriticalPriceParams 校验与 prompt 的同步）
@@ -203,7 +217,7 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                     if image_area / page_area >= 0.2:
                         ocr_pages.add(page_number)
                 heading_positions = _pdf_page_chapter_heading_positions(page)
-                page_scoped_heading = "" if heading_positions else _pdf_page_chapter_heading(page_text)
+                unresolved_break = _pdf_page_has_unresolved_section_break(page)
                 for table_top, raw_table in _pdf_page_tables(page):
                     table = _normalise_pdf_table(raw_table)
                     if not table:
@@ -219,14 +233,14 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                         "sourceTableIndex": table_index,
                         "sourceSection": (
                             _pdf_nearest_preceding_heading(heading_positions, table_top)
-                            or page_scoped_heading or current_section),
+                            or ("" if unresolved_break else current_section)),
                         "rows": rows,
                     })
                     table_index += 1
-                if heading_positions:
+                if unresolved_break:
+                    current_section = ""
+                elif heading_positions:
                     current_section = heading_positions[-1][1]
-                elif page_scoped_heading:
-                    current_section = page_scoped_heading
             for logical_index, table in enumerate(_merge_pdf_score_table_continuations(extracted_tables)):
                 rows = table["rows"]
                 max_cols = max(len(row) for row in rows)
@@ -397,33 +411,41 @@ def _pdf_chapter_heading(text: str) -> str:
     return candidate if _PDF_CHAPTER_HEADING.match(candidate) else ""
 
 
-def _pdf_page_chapter_heading(page_text: str) -> str:
-    """First chapter heading of a page's own text; used when line geometry is unavailable."""
-    for line in (page_text or "").splitlines():
-        title = _pdf_chapter_heading(line)
-        if title:
-            return title
-    return ""
-
-
-def _pdf_page_chapter_heading_positions(page) -> list[tuple[float, str]]:
-    """Chapter headings on a page with their vertical position, in reading order.
-
-    Empty when the page exposes no line geometry; callers then degrade to the page-level
-    first heading."""
+def _pdf_page_lines(page) -> list:
+    """Text lines with vertical geometry, or [] when the page exposes none."""
     extract_lines = getattr(page, "extract_text_lines", None)
     if not callable(extract_lines):
         return []
     try:
-        page_lines = extract_lines() or []
+        return list(extract_lines() or [])
     except Exception:
         return []
+
+
+def _pdf_page_chapter_heading_positions(page) -> list[tuple[float, str]]:
+    """Chapter headings on a page with their vertical position, in reading order."""
     positions: list[tuple[float, str]] = []
-    for line in page_lines:
+    for line in _pdf_page_lines(page):
         title = _pdf_chapter_heading(str(line.get("text", "")))
         if title:
             positions.append((float(line.get("top", 0) or 0), title))
     return positions
+
+
+def _pdf_page_has_unresolved_section_break(page) -> bool:
+    """True when the page carries a chapter-level line we could not turn into an anchor.
+
+    Such a page must not inherit the previous page's chapter. Inheritance exists so that a
+    chapter's later pages (which repeat no title) stay attributed to it; but when the new
+    chapter's title is merely unrecognised, inheriting attributes this chapter's tables to
+    the previous scheme — and the backend treats any table whose section names a scheme as
+    IN_SCHEME, so it would be silently adopted. Refusing to inherit degrades to manual
+    review, which is the safe direction."""
+    for line in _pdf_page_lines(page):
+        candidate = _pdf_heading_candidate(str(line.get("text", "")))
+        if _PDF_SECTION_BREAK.match(candidate) and not _pdf_chapter_heading(candidate):
+            return True
+    return False
 
 
 def _pdf_nearest_preceding_heading(positions: list[tuple[float, str]], top: float | None) -> str:
@@ -435,20 +457,25 @@ def _pdf_nearest_preceding_heading(positions: list[tuple[float, str]], top: floa
 
 
 def _pdf_page_tables(page) -> list[tuple[float | None, list]]:
-    """(top, raw rows) for each table on a page, in reading order."""
+    """(top, raw rows) for each table on a page, in reading order.
+
+    Chapter attribution needs each table's vertical position, so tables come from
+    `find_tables()`. Two decisions, both deliberate:
+
+    - No error recovery around the finder. `extract_tables()` is implemented as `find_tables()`
+      plus `table.extract()`, so swallowing a finder failure only turns a failed extraction into
+      "this page has no tables" — silently dropping every fact on the page. It propagates.
+    - A page exposing no finder at all (test doubles, and any pdfplumber without it) still yields
+      its tables, just without geometry: `top` is None and the caller falls back to the inherited
+      section. That is a missing coordinate, not a failure."""
     find_tables = getattr(page, "find_tables", None)
-    if callable(find_tables):
-        try:
-            found_tables = find_tables() or []
-        except Exception:
-            found_tables = []
-        tables: list[tuple[float | None, list]] = []
-        for table in found_tables:
-            bbox = getattr(table, "bbox", None) or ()
-            tables.append((float(bbox[1]) if len(bbox) > 1 else None, table.extract()))
-        if tables:
-            return tables
-    return [(None, raw) for raw in (page.extract_tables() or [])]
+    if not callable(find_tables):
+        return [(None, raw) for raw in (page.extract_tables() or [])]
+    tables: list[tuple[float | None, list]] = []
+    for table in find_tables() or []:
+        bbox = getattr(table, "bbox", None) or ()
+        tables.append((float(bbox[1]) if len(bbox) > 1 else None, table.extract()))
+    return tables
 
 
 def _same_or_unknown_section(previous: str | None, current: str | None) -> bool:

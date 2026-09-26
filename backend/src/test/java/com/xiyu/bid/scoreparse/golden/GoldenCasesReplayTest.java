@@ -187,6 +187,34 @@ class GoldenCasesReplayTest {
                 expected.path("inSchemeLine").asInt()).scopeStatus());
     }
 
+    @Test
+    void project1382RealShapeBlankCodeSiblingsStayIndependentlyEligible() throws Exception {
+        String text = GoldenCasesReplaySupport.readFixture("case-project-1382-pdf-real-shape.md");
+        JsonNode expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(
+                "case-project-1382-pdf-real-shape.expected.json"));
+        DocumentArtifact artifact = project1382RealShapeArtifact(expected);
+        List<MultimodalScoreFact> facts = project1382RealShapeFacts(expected);
+        List<MultimodalScoreFact> blankCodeFacts = facts.stream().filter(fact -> fact.code().isBlank()).toList();
+
+        assertEquals(2, blankCodeFacts.size(), "真实文件同节空 code 兄弟行必须进入金标");
+        // 空 code 让「方案+状态+章节+code」这一维度上必然同键——正是这一碰撞让空 code 兄弟行
+        // 在合格集/小计里互相串台，必须由 modelFactId 的其余判别因子分开。
+        assertEquals(1, blankCodeFacts.stream().map(OriginalScoreEvidencePolicy::qualificationFactKey)
+                .distinct().count());
+        assertEquals(2, blankCodeFacts.stream().map(OriginalScoreEvidencePolicy::modelFactId).distinct().count());
+        assertEquals(2, blankCodeFacts.stream().map(MultimodalScoreFact::sourceCellIds).distinct().count());
+
+        var verification = OriginalScoreEvidencePolicy.verifyModel(artifact, text, facts,
+                expected.path("declaredTotal").decimalValue());
+        assertEquals(2, OriginalScoreEvidencePolicy.eligibleModelFacts(blankCodeFacts, verification).size(),
+                () -> verification.qualifications().toString());
+
+        var validation = new MultimodalScoreFactValidator().validate(facts, artifact, text,
+                expected.path("declaredTotal").decimalValue());
+        assertEquals(expected.path("expectedEligibleLeafTotal").decimalValue(), validation.leafTotal());
+        assertTrue(validation.autoApprovable(), () -> validation.violations().toString());
+    }
+
     private static MultimodalScoreFact textFact(JsonNode expected, String schemeId, String status) {
         String quote = expected.path("quote").asText();
         return new MultimodalScoreFact(expected.path("section").asText("商务"), expected.path("code").asText(),
@@ -261,44 +289,55 @@ class GoldenCasesReplayTest {
 
     private static List<MultimodalScoreFact> project1382RealShapeFacts(JsonNode expected) {
         List<MultimodalScoreFact> facts = new ArrayList<>();
-        expected.path("parents").forEach(item -> facts.add(realShapeFact(item)));
-        expected.path("facts").forEach(item -> facts.add(realShapeFact(item)));
-        expected.path("auditFacts").forEach(item -> facts.add(realShapeFact(item)));
+        realShapeRowsByTable(expected).forEach((tableId, rows) -> {
+            for (int row = 0; row < rows.size(); row++) facts.add(realShapeFact(tableId, row, rows.get(row)));
+        });
         return facts;
     }
 
-    private static MultimodalScoreFact realShapeFact(JsonNode item) {
-        String code = item.path("code").asText();
-        return new MultimodalScoreFact(item.path("section").asText(), code,
+    /** Rows per table in physical order — parents first, then items, then the out-of-scheme table. */
+    private static Map<String, List<JsonNode>> realShapeRowsByTable(JsonNode expected) {
+        Map<String, List<JsonNode>> rowsByTable = new java.util.LinkedHashMap<>();
+        for (String group : List.of("parents", "facts", "auditFacts")) {
+            expected.path(group).forEach(item -> rowsByTable
+                    .computeIfAbsent(item.path("tableId").asText(), ignored -> new ArrayList<>()).add(item));
+        }
+        return rowsByTable;
+    }
+
+    private static MultimodalScoreFact realShapeFact(String tableId, int row, JsonNode item) {
+        // 引用单元格按「表 + 物理行」派生，不从 code 派生：空 code 的兄弟行会在 -name/-rule/-weight
+        // 上撞成同一组 id，触发 DUPLICATE_SOURCE 并掩盖真正要验证的资格门与身份行为。
+        return new MultimodalScoreFact(item.path("section").asText(), item.path("code").asText(),
                 item.path("parentCode").asText(""), item.path("dimension").asText(),
                 item.path("weight").decimalValue(), item.path("quote").asText(), "OBJECTIVE",
-                item.path("page").intValue(), item.path("tableId").asText(),
-                List.of(code + "-name", code + "-rule", code + "-weight"),
+                item.path("page").intValue(), tableId,
+                List.of(realShapeCellId(tableId, row, 1), realShapeCellId(tableId, row, 2),
+                        realShapeCellId(tableId, row, 3)),
                 item.path("quote").asText(), 0.99,
                 ChildAggregation.valueOf(item.path("childRelation").asText("SUM")), "", "");
     }
 
+    private static String realShapeCellId(String tableId, int row, int column) {
+        return tableId + "-r" + row + "-c" + column;
+    }
+
     private static DocumentArtifact project1382RealShapeArtifact(JsonNode expected) {
-        Map<String, List<JsonNode>> rowsByTable = new java.util.LinkedHashMap<>();
-        expected.path("parents").forEach(item -> rowsByTable.computeIfAbsent(item.path("tableId").asText(),
-                ignored -> new ArrayList<>()).add(item));
-        expected.path("facts").forEach(item -> rowsByTable.computeIfAbsent(item.path("tableId").asText(),
-                ignored -> new ArrayList<>()).add(item));
-        expected.path("auditFacts").forEach(item -> rowsByTable.computeIfAbsent(item.path("tableId").asText(),
-                ignored -> new ArrayList<>()).add(item));
+        Map<String, List<JsonNode>> rowsByTable = realShapeRowsByTable(expected);
         List<DocumentArtifact.CanonicalTable> tables = new ArrayList<>();
         expected.path("tables").forEach(spec -> {
             String tableId = spec.path("tableId").asText();
             List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new ArrayList<>(List.of(
                     cell(tableId + "-h-no", 0, 0, "序号"), cell(tableId + "-h-name", 0, 1, "评审内容"),
                     cell(tableId + "-h-rule", 0, 2, "评审标准"), cell(tableId + "-h-weight", 0, 3, "评分分值")));
-            int row = 1;
+            int row = 0;
             for (JsonNode item : rowsByTable.getOrDefault(tableId, List.of())) {
-                String code = item.path("code").asText();
-                cells.add(cell(code + "-no", row, 0, Integer.toString(row)));
-                cells.add(cell(code + "-name", row, 1, item.path("dimension").asText()));
-                cells.add(cell(code + "-rule", row, 2, item.path("quote").asText()));
-                cells.add(cell(code + "-weight", row, 3, item.path("weight").asText() + " 分"));
+                int physicalRow = row + 1;
+                cells.add(cell(realShapeCellId(tableId, row, 0), physicalRow, 0, Integer.toString(physicalRow)));
+                cells.add(cell(realShapeCellId(tableId, row, 1), physicalRow, 1, item.path("dimension").asText()));
+                cells.add(cell(realShapeCellId(tableId, row, 2), physicalRow, 2, item.path("quote").asText()));
+                cells.add(cell(realShapeCellId(tableId, row, 3), physicalRow, 3,
+                        item.path("weight").asText() + " 分"));
                 row++;
             }
             tables.add(table(tableId, spec.path("page").asInt(), spec.path("section").asText(),

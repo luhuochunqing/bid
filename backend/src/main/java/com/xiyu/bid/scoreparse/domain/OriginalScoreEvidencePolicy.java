@@ -28,26 +28,29 @@ public final class OriginalScoreEvidencePolicy {
 
     public static Verification verifyModel(OriginalScoringContext context, DocumentArtifact artifact,
                                            String tenderText, List<MultimodalScoreFact> facts, BigDecimal modelTotal) {
+        // Facts are identified by `modelFactId`, not by their section+code key: two facts may share a
+        // blank code, and keying the parent graph by that key makes one child's parent link overwrite
+        // the other's. The collided node then reports as a leaf, so a SUM parent's own weight is
+        // summed alongside the children that should have replaced it and the table subtotal no longer
+        // closes.
         Map<String, String> parentByFact = new java.util.LinkedHashMap<>();
         for (MultimodalScoreFact fact : facts) {
             if (fact.parentCode().isBlank()) continue;
             MultimodalScoreFact parent = MultimodalFactParentCodeNormalizer.resolveParent(fact, facts);
-            if (parent != null) parentByFact.put(OriginalScoreQualificationPolicy.logicalKey(fact.schemeId(),
-                    fact.scopeStatus(), fact.sectionTitle(), fact.code()), OriginalScoreQualificationPolicy.logicalKey(
-                    parent.schemeId(), parent.scopeStatus(), parent.sectionTitle(), parent.code()));
+            if (parent != null) parentByFact.put(modelFactId(fact), modelFactId(parent));
         }
         Set<String> parentKeys = new LinkedHashSet<>(parentByFact.values());
-        List<ScoreUnitPolicy.Node> nodes = facts.stream().map(f -> {
-            String id = OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code());
-            return new ScoreUnitPolicy.Node(id, parentByFact.getOrDefault(id, ""), f.weight(), f.childAggregation().name());
-        }).toList();
+        List<ScoreUnitPolicy.Node> nodes = facts.stream().map(f -> new ScoreUnitPolicy.Node(
+                modelFactId(f), parentByFact.getOrDefault(modelFactId(f), ""), f.weight(),
+                f.childAggregation().name())).toList();
         Set<String> units = ScoreUnitPolicy.effectiveUnitIds(nodes);
-        List<ScoreEvidenceClaim> claims = facts.stream().map(f -> new ScoreEvidenceClaim(modelFactId(f),
-                modelFactId(f),
-                f.tableId(), f.dimension(), f.sourceCellIds(), f.sourceCellIds(), f.weight(),
-                parentKeys.contains(OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code())),
-                units.contains(OriginalScoreQualificationPolicy.logicalKey(f.schemeId(), f.scopeStatus(), f.sectionTitle(), f.code())), f.quotedText(), tenderText,
-                f.schemeId(), f.scopeStatus(), f.childAggregation())).toList();
+        List<ScoreEvidenceClaim> claims = facts.stream().map(f -> {
+            String id = modelFactId(f);
+            return new ScoreEvidenceClaim(id, id,
+                    f.tableId(), f.dimension(), f.sourceCellIds(), f.sourceCellIds(), f.weight(),
+                    parentKeys.contains(id), units.contains(id), f.quotedText(), tenderText,
+                    f.schemeId(), f.scopeStatus(), f.childAggregation());
+        }).toList();
         return verify(context, artifact, claims, modelTotal, true);
     }
 

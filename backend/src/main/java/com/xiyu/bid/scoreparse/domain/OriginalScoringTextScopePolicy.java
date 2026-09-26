@@ -10,12 +10,29 @@ final class OriginalScoringTextScopePolicy {
     private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
     private static final Pattern SOURCE_HEADING = Pattern.compile("^(第[一二三四五六七八九十百0-9]+章\\s*.+|[一二三四五六七八九十]+[、.]\\s*.+|\\([^)]{1,24}\\)\\s*.+)$");
     /**
-     * Table-of-contents lines (dot leaders plus a trailing page number) are not headings.
+     * Trailer of a dot-leader table-of-contents line (dot leaders plus a trailing page number).
      * The page number is optional on purpose: any dot-leader-terminated line is refused as a
      * heading, preferring a missing chapter anchor (manual review) over a TOC line becoming a
      * scheme root, which would make the whole document ambiguous.
+     *
+     * <p>This is the form {@link OriginalScoringSchemePolicy} strips before comparing two titles,
+     * so it deliberately stays narrower than {@link #TOC_ENTRY}: only dot leaders are removed.
      */
-    static final Pattern TOC_TRAILER = Pattern.compile("(?:[.…·•‥∙．]\\s*){2,}\\d{0,4}\\s*$");
+    static final Pattern TOC_TRAILER = Pattern.compile("(?:[.…·•‥∙．⋯⋮⋱․‧]\\s*){2,}\\d{0,4}\\s*$");
+    /**
+     * A line that is a table-of-contents entry: a dot-leader trailer, or a title with a page
+     * number to its right and no leaders at all — a shape at least as common as dot leaders.
+     * Refusing such a line costs the chapter anchor (that chapter falls back to manual review);
+     * accepting it buys a scheme root built from the table of contents, which makes every fact
+     * in the document ambiguous. The bias is therefore always towards refusal.
+     *
+     * <p>Built from {@link #TOC_TRAILER} rather than repeating its literal: the two must hold
+     * {@code TOC_ENTRY ⊇ TOC_TRAILER}. If the skipping rule missed a form that the stripping rule
+     * removes, a TOC line could become a heading while still comparing equal to the body title —
+     * exactly the ambiguity this class exists to prevent. Concatenation makes that structural.
+     */
+    private static final Pattern TOC_ENTRY = Pattern.compile(
+            TOC_TRAILER.pattern() + "|\\s\\d{1,3}\\s*$");
 
     private OriginalScoringTextScopePolicy() {}
 
@@ -106,7 +123,7 @@ final class OriginalScoringTextScopePolicy {
             } else if (SOURCE_HEADING.matcher(title).matches()) {
                 level = title.startsWith("第") ? 1 : 2;
             } else continue;
-            if (TOC_TRAILER.matcher(title).find()) continue;
+            if (TOC_ENTRY.matcher(title).find()) continue;
             result.add(new Heading(i, level, title));
         }
         return result;
