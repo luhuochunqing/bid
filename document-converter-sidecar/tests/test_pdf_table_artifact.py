@@ -17,6 +17,7 @@ from converter import _is_pdf_score_table
 from converter import _merge_pdf_score_table_continuations
 from converter import _pdf_chapter_heading
 from converter import _pdf_page_chapter_heading_positions
+from converter import _pdf_last_chapter_event
 from converter import _pdf_page_unresolved_section_break_tops
 from converter import _pdf_page_tables
 from converter import _pdf_section_heading
@@ -437,21 +438,76 @@ def test_pdf_table_section_cuts_only_below_an_unrecognised_chapter_line():
     headings = [(100.0, "第三章 评审办法"), (400.0, "第四章 合同履约考核")]
 
     # 断点（200）在第三章标题之后：断点下第一张表仍归第三章，断点下第二张表叫不出名字
-    assert _pdf_table_section(headings, [200.0], 150.0, "第二章 其他") == ("第三章 评审办法", False)
-    assert _pdf_table_section(headings, [200.0], 300.0, "第三章 评审办法") == ("", True)
+    assert _pdf_table_section(headings, [200.0], 150.0, "第二章 其他",
+                              inherited_cut=False) == ("第三章 评审办法", False)
+    assert _pdf_table_section(headings, [200.0], 300.0, "第三章 评审办法",
+                              inherited_cut=False) == ("", True)
     # 断点之后又读到锚点 → 锚点更近，表格归它
-    assert _pdf_table_section(headings, [200.0], 420.0, "第三章 评审办法") == ("第四章 合同履约考核", False)
+    assert _pdf_table_section(headings, [200.0], 420.0, "第三章 评审办法",
+                              inherited_cut=False) == ("第四章 合同履约考核", False)
     # 锚点与断点同行（top 相等）→ 顺序不可判，按本文件的一贯方向取断点（宁可漏归属也不冒错误采纳）
-    assert _pdf_table_section([(200.0, "第三章 评审办法")], [200.0], 300.0, "第三章 评审办法") == ("", True)
+    assert _pdf_table_section([(200.0, "第三章 评审办法")], [200.0], 300.0, "第三章 评审办法",
+                              inherited_cut=False) == ("", True)
     # 无行几何：按页级规则，本页任何章级行都算在表格之前
-    assert _pdf_table_section(headings, [200.0], None, "第三章 评审办法") == ("", True)
+    assert _pdf_table_section(headings, [200.0], None, "第三章 评审办法",
+                              inherited_cut=False) == ("", True)
     # 本页毫无章级信号 → 继承上一页的章
-    assert _pdf_table_section([], [], 300.0, "第三章 评审办法") == ("第三章 评审办法", False)
+    assert _pdf_table_section([], [], 300.0, "第三章 评审办法",
+                              inherited_cut=False) == ("第三章 评审办法", False)
     # 继承来的空章节若带着上一页的断点 → 断点随页传递（否则合并会把外章行挂回前一章）
-    assert _pdf_table_section([], [], 300.0, "", True) == ("", True)
-    assert _pdf_table_section([], [], None, "", True) == ("", True)
+    assert _pdf_table_section([], [], 300.0, "", inherited_cut=True) == ("", True)
+    assert _pdf_table_section([], [], None, "", inherited_cut=True) == ("", True)
     # 本页读到锚点 → 章节有了名字，继承来的断点到此结束
-    assert _pdf_table_section(headings, [], 300.0, "", True) == ("第三章 评审办法", False)
+    assert _pdf_table_section(headings, [], 300.0, "", inherited_cut=True) == ("第三章 评审办法", False)
+
+
+def test_pdf_last_chapter_event_prefers_the_lowest_position_and_breaks_on_ties():
+    """页内"最后一个章级事件"只有一处定义（评审第 4 轮 F-1：页末与逐表两处曾各写一套）。"""
+    anchors = [(100.0, "第三章 评审办法"), (400.0, "第四章 合同履约考核")]
+
+    assert _pdf_last_chapter_event(anchors, []) == (400.0, "第四章 合同履约考核", False)
+    assert _pdf_last_chapter_event([], [200.0]) == (200.0, "", True)
+    # 顺序：断点在前、锚点在后 → 锚点是最后一个事件（页末状态必须取它，否则下一页丢归属）
+    assert _pdf_last_chapter_event(anchors, [200.0]) == (400.0, "第四章 合同履约考核", False)
+    # 顺序：锚点在前、断点在后 → 断点是最后一个事件（跨页掐断必须继续生效）
+    assert _pdf_last_chapter_event([(100.0, "第三章 评审办法")], [200.0]) == (200.0, "", True)
+    # 同行并列（top 相等）→ 不可判，取断点
+    assert _pdf_last_chapter_event([(200.0, "第三章 评审办法")], [200.0]) == (200.0, "", True)
+    # limit_top（逐表查询）：只算表格上方的事件
+    assert _pdf_last_chapter_event(anchors, [200.0], 300.0) == (200.0, "", True)
+    assert _pdf_last_chapter_event(anchors, [200.0], 150.0) == (100.0, "第三章 评审办法", False)
+    # 本页毫无章级信号 → None（调用方保持原状态）
+    assert _pdf_last_chapter_event([], []) is None
+
+
+def test_pdf_page_ending_on_an_anchor_does_not_cut_the_next_page(tmp_path):
+    """评审第 4 轮 F-1：页末状态取"本页最后一个章级事件"，而不是"本页出现过断点"。
+
+    第 2 页先在页首出现不可命名断点、其后又读到有效锚点「第四章 评分办法」——第四章已被点名，
+    第 3 页无标题的续表必须继承它并按合法续表合并。页末只要看到断点就清空，会让已命名章节的
+    合法续页丢掉 `sourceSection` → 后端判 `SOURCE_UNVERIFIED` → 转人工（用户可见症状）。
+    反方向（本页最后一个事件是断点 → 跨页仍须掐断）由
+    `test_pdf_score_table_continuation_is_not_merged_across_a_page_boundary_cut` 覆盖。"""
+    pdf_path = tmp_path / "break-then-anchor.pdf"
+    doc = fitz.open()
+    page1 = doc.new_page()
+    page1.insert_text((72, 72), "第三章 评审办法", fontsize=14, fontname="china-s")
+    _draw_grid(page1, 110, [["序号", "评分因素", "评分标准"], ["1", "供应商业绩（3分）", "每项1分，最高3分"]])
+    page2 = doc.new_page()
+    page2.insert_text((72, 60), "第三部分 合同履约考核", fontsize=14, fontname="china-s")
+    page2.insert_text((72, 150), "第四章 评分办法", fontsize=14, fontname="china-s")
+    _draw_grid(page2, 200, [["序号", "评分因素", "评分标准"], ["2", "财务状况（2分）", "最高得2分"]])
+    page3 = doc.new_page()
+    _draw_grid(page3, 110, [["3", "响应率（3分）", "最高得3分"]])
+    doc.save(str(pdf_path))
+    doc.close()
+
+    tables = extract_pdf_tables_artifact(str(pdf_path))["tables"]
+
+    assert [t["sourcePage"] for t in tables] == [1, 2]
+    assert [t["sourceSection"] for t in tables] == ["第三章 评审办法", "第四章 评分办法"]
+    # 合并确实发生了（第 3 页的续行并进了第四章那张表），不是"两张表恰好章节都不一样"
+    assert tables[1]["rows"] == 3
 
 
 def test_pdf_table_sections_are_accepted_by_backend_chapter_heading_pattern(tmp_path):

@@ -257,7 +257,7 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                         ocr_pages.add(page_number)
                     section, boundary_cut = _pdf_table_section(
                         heading_positions, break_tops, table_top, current_section,
-                        current_section_cut)
+                        inherited_cut=current_section_cut)
                     extracted_tables.append({
                         "sourcePage": page_number,
                         "sourceTableIndex": table_index,
@@ -266,13 +266,17 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                         "rows": rows,
                     })
                     table_index += 1
-                if break_tops:
+                last_event = _pdf_last_chapter_event(heading_positions, break_tops)
+                if last_event is not None and last_event[2]:
                     # The unnameable chapter owns the rest of the document until an anchor names
                     # the next one, so the cut travels with the empty section (see
-                    # `_pdf_table_section`'s `inherited_cut`).
+                    # `_pdf_table_section`'s `inherited_cut`). The page's *last* event decides:
+                    # a break an anchor below it has already named must not keep the next page
+                    # cut, or that anchor's chapter loses the section on its own continuation
+                    # (round-4 review F-1).
                     current_section, current_section_cut = "", True
-                elif heading_positions:
-                    current_section, current_section_cut = heading_positions[-1][1], False
+                elif last_event is not None:
+                    current_section, current_section_cut = last_event[1], False
             for logical_index, table in enumerate(_merge_pdf_score_table_continuations(extracted_tables)):
                 rows = table["rows"]
                 max_cols = max(len(row) for row in rows)
@@ -498,9 +502,34 @@ def _pdf_page_unresolved_section_break_tops(page) -> list[float]:
     return tops
 
 
+def _pdf_last_chapter_event(heading_positions: list[tuple[float, str]], break_tops: list[float],
+                            limit_top: float | None = None) -> tuple[float, str, bool] | None:
+    """The chapter-level event that decides attribution: `(top, title, is_break)`, or None.
+
+    One definition for both callers — the per-table lookup (`limit_top` = the table's top) and the
+    page-end state update (no limit). They have to agree: the page-end state is what the next page
+    inherits, so a page that resolved "the last chapter-level event here" differently from its own
+    tables could name a chapter for them and still hand the next page a cut, which is exactly how
+    a named chapter's continuation lost its section (round-4 review F-1).
+
+    Ties (`top` equal) go to the break — the key is `(top, is_break)`. Two events level with each
+    other cannot be ordered, and `_PDF_SECTION_BREAK` exists to prefer manual review over adoption,
+    so the undecidable case keeps that policy. See `_pdf_table_section` for what the tie costs.
+
+    `limit_top=None` means "no limit", not "no geometry": a page whose tables carry no `top` cannot
+    be ordered against any event, and `_pdf_table_section` handles that case separately."""
+    candidates = [(top, title, False) for top, title in heading_positions]
+    candidates.extend((top, "", True) for top in break_tops)
+    if limit_top is not None:
+        candidates = [event for event in candidates if event[0] <= limit_top]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda event: (event[0], event[2]))
+
+
 def _pdf_table_section(heading_positions: list[tuple[float, str]], break_tops: list[float],
-                       table_top: float | None, inherited: str,
-                       inherited_cut: bool = False) -> tuple[str, bool]:
+                       table_top: float | None, inherited: str, *,
+                       inherited_cut: bool) -> tuple[str, bool]:
     """Chapter attribution for one table: (sourceSection, boundary_cut).
 
     The nearest *preceding* chapter-level event wins, whether we could write it out as an anchor
@@ -509,15 +538,13 @@ def _pdf_table_section(heading_positions: list[tuple[float, str]], break_tops: l
     facts as that scheme's. `boundary_cut` reports that, so the merge step does not reattach
     such a table to the previous chapter's table either.
 
+    A heading and a break on the *same* row (`top` equal) is a tie we cannot order either; it
+    goes to the break, so the cost is one table plus the rest of that page losing its section
+    (see `_pdf_last_chapter_event` for why the undecidable case keeps this policy).
+
     A page with no line geometry (`table_top is None`) falls back to the page-level rule: no
     anchor, and every break on the page counts as preceding — the order is unknowable, so such a
     table is treated as being below it, exactly as its section would have been.
-
-    A heading and a break on the *same* row (equal `top`) is a tie we cannot order either, and
-    the tie goes to the break (`>=`): `_PDF_SECTION_BREAK` exists precisely to prefer manual
-    review over adoption, so where "which chapter is this table in" is undecidable, refusing the
-    attribution keeps that policy consistent. The cost of the tie is one table plus the rest of
-    the page losing its section.
 
     `inherited_cut` carries the boundary across pages. An unnameable chapter does not end at the
     page it was announced on: the caller clears `current_section` for the rest of the document,
@@ -525,19 +552,15 @@ def _pdf_table_section(heading_positions: list[tuple[float, str]], break_tops: l
     this flag they would look like an ordinary unknown-section table and the merge step could
     still reattach them to the previous chapter's table (the same adoption this function refuses
     within a page). An anchor on this page ends the cut: it names the chapter, so `inherited` is
-    no longer a value we merely failed to identify."""
+    no longer a value we merely failed to identify. It is keyword-only and has no default because
+    forgetting to pass it fails silently — it re-opens that adoption rather than raising."""
     if table_top is None:
         return ("", True) if break_tops else (inherited, inherited_cut)
-    nearest_heading: tuple[float, str] | None = None
-    for heading_top, title in heading_positions:
-        if heading_top <= table_top:
-            nearest_heading = (heading_top, title)
-    nearest_break = max((top for top in break_tops if top <= table_top), default=None)
-    if nearest_break is not None and (nearest_heading is None or nearest_break >= nearest_heading[0]):
-        return "", True
-    if nearest_heading:
-        return nearest_heading[1], False
-    return inherited, inherited_cut
+    event = _pdf_last_chapter_event(heading_positions, break_tops, table_top)
+    if event is None:
+        return inherited, inherited_cut
+    _, title, is_break = event
+    return ("", True) if is_break else (title, False)
 
 
 def _pdf_page_tables(page) -> list[tuple[float | None, list]]:
