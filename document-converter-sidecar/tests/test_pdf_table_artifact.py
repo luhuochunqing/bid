@@ -415,6 +415,8 @@ def test_pdf_table_section_cuts_only_below_an_unrecognised_chapter_line():
     assert _pdf_table_section(headings, [200.0], 300.0, "第三章 评审办法") == ("", True)
     # 断点之后又读到锚点 → 锚点更近，表格归它
     assert _pdf_table_section(headings, [200.0], 420.0, "第三章 评审办法") == ("第四章 合同履约考核", False)
+    # 锚点与断点同行（top 相等）→ 顺序不可判，按本文件的一贯方向取断点（宁可漏归属也不冒错误采纳）
+    assert _pdf_table_section([(200.0, "第三章 评审办法")], [200.0], 300.0, "第三章 评审办法") == ("", True)
     # 无行几何：按页级规则，本页任何章级行都算在表格之前
     assert _pdf_table_section(headings, [200.0], None, "第三章 评审办法") == ("", True)
     # 本页毫无章级信号 → 继承上一页的章

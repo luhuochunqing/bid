@@ -505,7 +505,13 @@ def _pdf_table_section(heading_positions: list[tuple[float, str]], break_tops: l
 
     A page with no line geometry (`table_top is None`) falls back to the page-level rule: no
     anchor, and every break on the page counts as preceding — the order is unknowable, so such a
-    table is treated as being below it, exactly as its section would have been."""
+    table is treated as being below it, exactly as its section would have been.
+
+    A heading and a break on the *same* row (equal `top`) is a tie we cannot order either, and
+    the tie goes to the break (`>=`): `_PDF_SECTION_BREAK` exists precisely to prefer manual
+    review over adoption, so where "which chapter is this table in" is undecidable, refusing the
+    attribution keeps that policy consistent. The cost of the tie is one table plus the rest of
+    the page losing its section."""
     if table_top is None:
         return ("", True) if break_tops else (inherited, False)
     nearest_heading: tuple[float, str] | None = None
@@ -513,7 +519,7 @@ def _pdf_table_section(heading_positions: list[tuple[float, str]], break_tops: l
         if heading_top <= table_top:
             nearest_heading = (heading_top, title)
     nearest_break = max((top for top in break_tops if top <= table_top), default=None)
-    if nearest_break is not None and (nearest_heading is None or nearest_break > nearest_heading[0]):
+    if nearest_break is not None and (nearest_heading is None or nearest_break >= nearest_heading[0]):
         return "", True
     return (nearest_heading[1] if nearest_heading else inherited), False
 
