@@ -1,0 +1,18 @@
+{
+  "synthetic": true,
+  "desensitization": "全字段合成，仅保留PDF评分表名称、规则、权重处于同一连续物理行的结构",
+  "focus": "PDF评分项来源结构回归：相邻单元格组成的名称与规则属于同一评分行",
+  "threshold": 0.95,
+  "expectTotal": 3,
+  "strictDim": true,
+  "laneHints": ["table"],
+  "items": [
+    {
+      "code": "1",
+      "dim": "服务网点及仓储",
+      "detail": "在全国省份设有服务网点，覆盖要求满足时得3分。",
+      "weight": 3,
+      "sourceText": "服务网点"
+    }
+  ]
+}

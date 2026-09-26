@@ -133,8 +133,15 @@ public record DocumentArtifact(
             int columns,
             List<MergedRegionDto> mergedRegions,
             List<CanonicalCellDto> cells,
-            Boolean isScoreTable
+            Boolean isScoreTable,
+            String sourceFileType
     ) {
+        public CanonicalTable(String tableId, Integer sourcePage, String sourceSection, int rows, int columns,
+                              List<MergedRegionDto> mergedRegions, List<CanonicalCellDto> cells,
+                              Boolean isScoreTable) {
+            this(tableId, sourcePage, sourceSection, rows, columns, mergedRegions, cells, isScoreTable, "");
+        }
+
         public CanonicalTable {
             if (tableId == null) {
                 tableId = "";
@@ -142,6 +149,7 @@ public record DocumentArtifact(
             if (sourceSection == null) {
                 sourceSection = "";
             }
+            sourceFileType = sourceFileType == null ? "" : sourceFileType;
             cells = cells == null ? List.of() : List.copyOf(cells);
             mergedRegions = mergedRegions == null ? List.of() : List.copyOf(mergedRegions);
         }

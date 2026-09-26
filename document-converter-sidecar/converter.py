@@ -471,7 +471,10 @@ def _pdf_page_chapter_heading_positions(page) -> list[tuple[float, str]]:
     """Chapter headings on a page with their vertical position, in reading order."""
     positions: list[tuple[float, str]] = []
     for line in _pdf_page_lines(page):
-        title = _pdf_chapter_heading(str(line.get("text", "")))
+        raw_text = str(line.get("text", ""))
+        title = _pdf_chapter_heading(raw_text)
+        if title and _pdf_is_scoring_part_subheading(page, line, raw_text):
+            continue
         if title:
             positions.append((float(line.get("top", 0) or 0), title))
     return positions
@@ -496,10 +499,53 @@ def _pdf_page_unresolved_section_break_tops(page) -> list[float]:
     instead of continuing the previous chapter's attribution."""
     tops: list[float] = []
     for line in _pdf_page_lines(page):
-        candidate = _pdf_heading_candidate(str(line.get("text", "")))
-        if _PDF_SECTION_BREAK.match(_pdf_heading_form(candidate)) and not _pdf_chapter_heading(candidate):
+        raw_text = str(line.get("text", ""))
+        candidate = _pdf_heading_candidate(raw_text)
+        if (_PDF_SECTION_BREAK.match(_pdf_heading_form(candidate))
+                and not _pdf_chapter_heading(candidate)
+                and not _pdf_is_scoring_part_subheading(page, line, raw_text)):
             tops.append(float(line.get("top", 0) or 0))
     return tops
+
+
+_PDF_SCORING_PART_TOTAL = re.compile(
+    r"^第[一二三四五六七八九十百\d]+部分.{0,80}(?:合计|共计|总计)\d+(?:\.\d+)?分"
+)
+
+
+def _pdf_is_scoring_part_subheading(page, line: dict, raw_text: str) -> bool:
+    """Only downgrade an explicitly-totaled `第X部分` line inside a scoring table.
+
+    This does not suppress ordinary table headings or true chapter titles. Without both
+    geometric containment and a recognizable scoring table, the existing conservative
+    chapter-break behavior is retained.
+    """
+    candidate = _pdf_heading_form(_pdf_heading_candidate(raw_text))
+    if not _PDF_SCORING_PART_TOTAL.match(candidate):
+        return False
+    line_top = float(line.get("top", 0) or 0)
+    find_tables = getattr(page, "find_tables", None)
+    if not callable(find_tables):
+        return False
+    for table in find_tables() or []:
+        bbox = getattr(table, "bbox", None) or ()
+        if len(bbox) < 4 or not (float(bbox[1]) <= line_top <= float(bbox[3])):
+            continue
+        rows = _normalise_pdf_table(table.extract())
+        if _pdf_is_scoring_table_context(rows):
+            return True
+    return False
+
+
+def _pdf_is_scoring_table_context(rows: list[list[str]]) -> bool:
+    if _is_pdf_score_table(rows):
+        return True
+    text = "\n".join(cell for row in rows for cell in row)
+    has_scoring_heading = bool(re.search(r"(?:评分|评审).{0,12}(?:标准|细则|办法|规则)", text))
+    scoring_signals = sum(bool(re.search(pattern, text)) for pattern in (
+        r"\d+(?:\.\d+)?\s*分", r"(?:得分|扣分|满分|最高得)", r"(?:评价为|按.{0,8}评分|分值)",
+    ))
+    return has_scoring_heading and scoring_signals >= 2
 
 
 def _pdf_last_chapter_event(heading_positions: list[tuple[float, str]], break_tops: list[float],

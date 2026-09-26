@@ -56,16 +56,16 @@
 
         <div class="collapse-item expanded">
           <div class="collapse-header" @click="isSection1Expanded = !isSection1Expanded">
-            <div class="collapse-title">📋 评分标准提取</div>
+            <div class="collapse-title">📋 {{ candidateFacts.length > 0 && scoreItems.length > 0 ? '已生效评分项 / 最新候选' : '评分标准提取' }}</div>
             <div class="collapse-meta">
               <span class="pill ok">{{ scoreItems.length }} 项</span>
               <span class="collapse-arrow">{{ isSection1Expanded ? '▴' : '▾' }}</span>
             </div>
           </div>
           <div v-show="isSection1Expanded" class="collapse-body">
-            <!-- 候选待采纳区：有候选事实且尚未落库时展示 -->
+            <!-- 最新任务的候选与既有正式结果可以并存；新解析待复核时必须仍可见。 -->
             <ScoreCandidateReviewCard
-              v-if="scoreItems.length === 0 && candidateFacts.length > 0"
+              v-if="candidateFacts.length > 0"
               :candidate-facts="candidateFacts"
               :schemes="schemes"
               :selected-scheme-id="selectedSchemeId"

@@ -29,6 +29,7 @@ final class OriginalScoreWeightEvidencePolicy {
             String text = claim.tenderText() == null ? "" : claim.tenderText();
             String quote = claim.quotedText() == null ? "" : claim.quotedText();
             String evidence = text.contains(quote) ? quote : text;
+            if (declaredDimensionSubtotal(claim.dimension(), evidence, claim.weight())) return;
             List<BigDecimal> tiers = tierScores(evidence);
             if (tierSet(evidence, tiers)) {
                 BigDecimal maximum = tiers.stream().max(BigDecimal::compareTo).orElseThrow();
@@ -63,6 +64,8 @@ final class OriginalScoreWeightEvidencePolicy {
             String locator = table.tableId() + ":" + anchor.cellId();
             String rowText = row.stream().map(c -> c.rawText() == null ? "" : c.rawText())
                     .reduce((a, b) -> a + " " + b).orElse("");
+            if (!claim.quotedText().isBlank() && rowText.contains(claim.quotedText())
+                    && declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight())) return;
             boolean itemMatched = (!claim.dimension().isBlank() && rowText.contains(claim.dimension()))
                     || (!claim.quotedText().isBlank() && rowText.contains(claim.quotedText())
                     && (claim.dimension().isBlank() || claim.quotedText().contains(claim.dimension())));
@@ -121,6 +124,21 @@ final class OriginalScoreWeightEvidencePolicy {
         List<BigDecimal> values = new ArrayList<>(first);
         values.addAll(second);
         return values;
+    }
+
+    /** A quoted category subtotal is valid only when the same quote names the dimension and its value. */
+    private static boolean declaredDimensionSubtotal(String dimension, String evidence, BigDecimal weight) {
+        if (dimension == null || dimension.isBlank() || evidence == null || weight == null) return false;
+        String compactDimension = dimension.replaceAll("\\s+", "");
+        String compactEvidence = evidence.replaceAll("\\s+", "");
+        Pattern subtotal = Pattern.compile(Pattern.quote(compactDimension)
+                + "(?:部分)?(?:[：:为]\\s*[（(]?|[（(])"
+                + "(\\d+(?:\\.\\d+)?)\\s*分?[）)]?");
+        Matcher matcher = subtotal.matcher(compactEvidence);
+        while (matcher.find()) {
+            if (new BigDecimal(matcher.group(1)).compareTo(weight) == 0) return true;
+        }
+        return false;
     }
 
     private static List<BigDecimal> tierScores(String source) {
