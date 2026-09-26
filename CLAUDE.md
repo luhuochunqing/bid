@@ -305,16 +305,12 @@ npm run test:e2e
 
 ## 路径提示
 
-- 前端业务代码：`src/`
-- 后端业务代码：`backend/src/main/java/com/xiyu/bid/`
 - 后端启动初始化：`backend/src/main/java/com/xiyu/bid/bootstrap/`（独立于 config 包，避免 ArchitectureTest RULE 9）
-- 后端测试：`backend/src/test/java/com/xiyu/bid/`
-- E2E：`e2e/`
 - 标书生成 Agent：`backend/src/main/java/com/xiyu/bid/biddraftagent/`
 - 文档编辑器草稿树写入：`backend/src/main/java/com/xiyu/bid/documenteditor/`
-- 治理脚本：`scripts/`
-- 交付与规范文档：`docs/`
 - 项目知识库（Wiki）：`.wiki/pages/`（含标书需求追溯、架构、模块、缺口分析等，导航见 `.wiki/pages/_index.md`）
+
+其余目录（`src/`、`backend/src/`、`e2e/`、`scripts/`、`docs/`）按惯例布局，直接 `ls` 即可。
 
 ## 执行原则
 
@@ -358,57 +354,7 @@ cd /Users/user/xiyu/worktrees/xiyu-<agent>-<task-slug>
    - 如遇 Flyway checksum 校验失败，可在 rebase 前手动 `rm -rf backend/target` 清理缓存
   - **创建新迁移文件前必须先运行 `scripts/next-migration-version.sh --reserve` 预约版本号**，防止并行开发时多人取了同一版本
 
-### 1. 快速进入开发状态
-1. **确认路径**：确保你位于开发宿主 `/Users/user/xiyu/worktrees/trae` 或临时任务 worktree `/Users/user/xiyu/worktrees/xiyu-<agent>-<task>`。
-2. **同步环境**：在开发宿主执行 `./scripts/sync-env.sh .`（包含 main-forward rebase）。
-3. **开新任务**：`./scripts/agent-start-task.sh <agent名> <task-slug> origin/main`（自动拉临时 worktree）。
-4. **环境检测**：执行 `source scripts/dev-env.sh`。
-
-### 2. 专属资源映射表（已废弃，统一到开发宿主）
-
-> **⚠️ 自 2026-06-21 起，此映射表已废弃。**
-> 开发环境（前端/后端/sidecar/数据库/Redis）统一在开发宿主 `/Users/user/xiyu/worktrees/trae` 启动。
-> 临时任务 worktree 纯源码，不启动开发环境。
->
-> **开发宿主（trae）资源配置**：
-> | 资源 | 值 |
-> | :--- | :--- |
-> | 前端端口 | 1323 |
-> | 后端端口 | 18089 |
-> | Sidecar 端口 | 8009 |
-> | 数据库名 | xiyu_bid_main |
-> | Redis DB | 0 |
->
-> **历史映射表（仅作参考，不再生效）**：
-> | Agent | 前端端口 | 后端端口 | 数据库名 | Redis DB |
-> | :--- | :--- | :--- | :--- | :--- |
-> | Claude | 1315 | 18081 | xiyu_bid_claude | 1 |
-> | Codex | 1316 | 18082 | xiyu_bid_codex | 2 |
-> | Gemini | 1317 | 18083 | xiyu_bid_gemini | 3 |
-> | Cursor | 1318 | 18084 | xiyu_bid_cursor | 4 |
-> | Integrator | 1319 | 18085 | xiyu_bid_integrator | 5 |
-> | Qoder | 1320 | 18086 | xiyu_bid_qoder | 6 |
-> | Kimi | 1321 | 18087 | xiyu_bid_kimi | 7 |
-> | Mimo | 1322 | 18088 | xiyu_bid_mimo | 8 |
-> | Trae（开发宿主） | 1323 | 18089 | xiyu_bid_main | 0 |
-
-### 3. 协作启动命令（仅开发宿主可用）
-
-> **只有开发宿主（trae）允许启动开发环境。** 临时任务 worktree 的 `start-frontend.sh` / `start-backend.sh` / `dev-services.sh` 有守卫拒绝执行。
-
-Agent 必须使用包装脚本启动（仅限开发宿主）：
-- **启动前端**：`cd /Users/user/xiyu/worktrees/trae && ./scripts/start-frontend.sh`
-- **启动后端**：`cd /Users/user/xiyu/worktrees/trae && ./scripts/start-backend.sh`
-- **启动全部服务（launchd 守护）**：`cd /Users/user/xiyu/worktrees/trae && XIYU_DEV_CONFIRMED=1 ./scripts/dev-services-launchd.sh install`
-
-其他 worktree 如需联调，请切换到开发宿主：
-```bash
-cd /Users/user/xiyu/worktrees/trae
-source scripts/dev-env.sh
-./scripts/start-frontend.sh  # 或 start-backend.sh
-```
-
-### 4. 任务完成门禁
+### 1. 任务完成门禁
 在报告完成前，必须在 **当前 Worktree** 运行：
 1. `npm run build` (前端构建验证)
 2. `cd backend && mvn test` (后端全量/受影响测试验证)
@@ -433,173 +379,13 @@ source scripts/dev-env.sh
 
 永远优先修复导致门禁失败的根本问题，而不是绕过。使用绝对路径 `/usr/bin/git` 绕过同样属于违规。
 
-### 6. 自动合并（已废弃）
+### 6. 任务启动协议、每日 push 纪律、分支策略
 
-> **已废弃（2026-06 迁移到 Gitee 后失效）**：历史上曾用 GitHub Actions auto-merge workflow（审核通过后 `gh pr merge --auto`），依赖 GitHub CLI/Token 与 GitHub branch protection。迁移到 Gitee 后该机制不再生效，相关 workflow 文件已标注 `[STALE for Gitee]` 且不会执行。
-> **当前 PR 合并**：走 Gitee 原生流程（人工点击合并或通过 Gitee API，见 `scripts/gitee-pr-helper.sh`）；本项目无远程 CI，合并前的验证门禁全部在本地跑（`pre-push-gate.sh` + `mvn`/`npm`）。GitHub 实现细节已从本规范文档移除，需要时查 git 历史。
+> 详细流程已迁移到 **`docs/agent-workflow.md`**（已入库，团队共享），不再常驻每个 session 的上下文。
+> 本地 Claude Code 可用 skill **`agent-workflow`** 自动路由到该文件。
+> 开新任务、判断路径是否被别的 agent 改动中、申请/释放文件锁、决定分支归属时，请先读 `docs/agent-workflow.md`。
 
-### 5. 任务启动协议 (Lease + Auto-Detect)
-不画静态目录所有权表 — 任务推进就过时。改用 **git 事实** 当主信号，文件锁仅用于 hot-paths 前置预订。
+一句话速览：开新任务前跑 `./scripts/sync-env.sh .` 同步基线，再对目标路径跑 `./scripts/who-touches.sh <path>` 做租约检测；hot-paths 改动必须先 `npm run agent:lock-acquire`；每个 session 结束前 push 一次 WIP 分支（本地 commit 不算数）；任务分支（`agent/*/*`）在临时 worktree 中开发，`*-init` 分支只做 bootstrap。
 
-#### 5.0 同步基线（**每次开新任务都要跑**，不只是 session 开头）
-"早操"只覆盖 session 开头。**任务之间也必须重新同步** — 否则 5.1 的 `who-touches.sh` 看到的是旧 main 的 diff，可能漏掉别的 agent 中途合的改动，你照样会在过期 base 上累工作。
+当前活跃 feature 规格以 `specs/` 目录为准（每目录含 spec/plan/tasks.md，按 feature 编号递增）。
 
-开新任务前必跑（**一行搞定**）：
-```bash
-./scripts/sync-env.sh .
-```
-- 没改动 → no-op（2-3 秒）
-- 有改动 → 早暴露 conflict，不留给 merge 时再处理
-- `sync-env.sh` 内部已处理 `git fetch origin main` + `git rebase origin/main`，无需单独再跑
-
-> **注意**：`sync-env.sh` 对不同分支有不同的同步策略：
-> - 任务分支（`agent/*/*`）：自动 rebase
-> - init 分支（`agent/*-init`）：自动 ff-only 同步
-> - 保护分支（`main` 等）：跳过
-
-#### 5.1 主信号：git 事实（**所有 agent 通用，必跑**）
-开新任务前对你打算改的路径跑：
-```bash
-./scripts/who-touches.sh <path-or-glob>
-```
-列出有未合 commit 的 `agent/*` 分支（origin + local 去重，跳过自己）。
-- 退出码 `0` + 无输出 → 干净，可以开工
-- 退出码 `1` + 有输出 → 别的 agent 在动这块，看清楚再决定
-
-#### 5.2 文件锁（hot-paths 前置预订）— 已改为 per-task 文件
-`scripts/hot-paths.yml` 列出的高危路径（DB 迁移、entity、application.yml、SecurityConfig 等）改动时**必须**有 active lock。锁文件**自 2026-05-12 起改为 per-task 单文件**：
-
-```
-.agent-locks/<task-slug>.yml      ← 每个任务一个文件，新任务 = 新文件 = 零冲突
-.agent-locks.yml                  ← DEPRECATED；仅做 read-only 兼容层
-```
-
-acquire/release 仍走相同 CLI（自动写到 per-task 文件）：
-```bash
-npm run agent:lock-acquire -- --path <path> --scope file|directory --reason "<reason>"
-npm run agent:lock-release -- --path <path>
-npm run agent:lock-check                # 列所有锁
-npm run agent:lock-check:changed        # 仅检查当前改动是否撞锁
-```
-
-> **为什么换 per-task 文件**：原 `.agent-locks.yml` 单文件被所有 agent 同时写，每次 rebase 都撞冲突，conditioned everyone to ignore lock warnings。Per-task 文件意味着新任务 → 新文件 → 不打架；janitor 也清得更干净（删文件 vs 删行）。
-
-#### 5.3 Gemini 任务声明（**仅当撞到 `agent/gemini-init` 时有用**）
-Gemini 在 `conductor/tracks/` 系统里执行任务，会把 in-progress 任务标 `[~]` 并附 `(@gemini, scope: ...)`。如果 5.1 显示 `agent/gemini-init` 在你的目标路径有未合改动，可以查一眼具体任务上下文：
-```bash
-grep -h "\[~\]" conductor/tracks/*/plan.md | grep gemini
-```
-
-> **重要**：Claude / Codex / Cursor **没有等价的任务声明机制**。撞到这几个 agent 的分支时，**不要假设可以从 plan.md 查到他们的意图** — 直接看 `git log <branch>` 的 commit message，或在 PR 描述里 @ 对方协调。其他 agent 的"意图声明"靠 §6 的 commit message + push 频率自然沉淀。
-
-#### 5.4 撞了的处置
-- 等对方 push 完一个原子 commit / PR merge / Gemini 任务标 `[x]`
-- 换一个不撞的任务先做
-- 在 PR 描述里 @ 对方说明协调结果（"我接着你的 X 改 Y，rebase 你的 PR 后再合"）
-
-#### 5.5 没撞 → 开工
-- 你是 Gemini：在 plan.md 把任务从 `[ ]` 改成 `[~] (@gemini, scope: ...)` 让别人看见你的意图
-- 你是其他 agent：**push commit 时就是你的意图声明** — commit message 写清楚 scope，下个 §6
-
-> 验证脚本：`./scripts/who-touches.sh --self-test` 应该看到 4 个 `[PASS]`。
-
-### 6. 纪律：每日 push WIP 分支
-`who-touches.sh` 是所有 agent 共用的协调机制，准确性靠每天至少 push 一次自己 `agent/*` 分支：
-- **本地 commit 不算数** — 别的 agent / session 看不到，lease 检测会漏。
-- 每个工作 session 结束前推一次（即使没开 PR、即使是半成品）：
-  ```bash
-  git push origin HEAD:$(git rev-parse --abbrev-ref HEAD)
-  ```
-- push 是给 lease 检测看的，**不是为了 merge** — 半成品 WIP 分支允许、欢迎、必须存在。
-
-> 对非 Gemini 的 agent 而言，**commit message + 改动文件就是你的"我在做这事"声明**。所以 commit message 要明确，例如 `wip: add CONTRACT profile (scope: docinsight/contract*)`，即使没 PR 别人也能从 `who-touches.sh` 输出 + `git log <branch> --oneline -5` 推断你在干什么。
-
-### 7. 分支策略：默认分支 + 任务分支
-
-#### 分支分类
-
-| 分支类型 | 示例 | 用途 | 可否直接 commit |
-|---|---|---|---|
-| 基线分支 | `main` | 唯一真值，所有任务分支的最终合入点 | 否（受 Gitee 分支保护） |
-| Bootstrap 种子分支 | `agent/codex-init`, `agent/cursor-init` 等 | 仅承载初始化配置（环境文件、钩子安装） | 否（`agent-worktree-guard.sh` 禁止） |
-| 任务分支 | `agent/codex/project-task-breakdown-from-tender` | 每个原子任务一个独立分支 | 是 |
-
-#### Bootstrap 分支（`*-init`）的定位
-
-```
-仓库远端（origin）：
-  main
-  └── agent/codex-init      ← 仅 bootstrap，不承载业务代码
-  └── agent/cursor-init    ← 仅 bootstrap，不承载业务代码
-  └── agent/claude-init    ← 仅 bootstrap，不承载业务代码
-  └── agent/gemini-init    ← 仅 bootstrap，不承载业务代码
-  └── agent/integrator-init ← 仅 bootstrap，不承载业务代码
-```
-
-Bootstrap worktree（`/Users/user/xiyu/worktrees/codex` 等）的用途：
-- 通过 `agent-worktree-guard.sh` 做身份识别（`worktree_name` 匹配）
-- 安装全局钩子、初始环境配置
-- **不允许直接 commit 业务代码**
-
-#### 任务分支的生命周期
-
-默认（不加 `--in-place`）从主仓库拉一个**独立临时 worktree**（纯源码，不装依赖），收尾自动删除：
-
-```bash
-# 默认：从主仓库拉独立临时 worktree（纯源码，收尾自动删）
-./scripts/agent-start-task.sh codex project-task-breakdown-from-tender origin/main
-# -> worktree: /Users/user/xiyu/worktrees/xiyu-codex-project-task-breakdown-from-tender（临时）
-# → branch:   agent/codex/project-task-breakdown-from-tender
-```
-
-旧持久 worktree 内联模式仍可用，只需显式加 `--in-place`：
-
-```bash
-./scripts/agent-start-task.sh codex quick-fix origin/main --in-place
-```
-
-**生命周期规则：**
-1. 任务分支默认在独立临时 worktree 中开发，完成后执行收尾（`scripts/agent-finish-task.sh`）自动删除临时 worktree + 分支
-2. 任务分支 PR 合入 `main` 后，该分支**视为终结**
-3. 下次新任务 → 再拉起一个新的独立临时 worktree
-4. **不要在 `*-init` bootstrap 分支上做任务开发**
-
-这样做的好处：
-- 每个任务默认隔离，互不污染，用完即删，避免 worktree 长期膨胀
-- 简化资源管理（临时 worktree 纯源码不装依赖）
-- 每个分支天然是 `origin/main` 的最新衍伸，不会积累陈旧
-
-#### 早操 main-forward 的工作原理
-
-`sync-env.sh` 在 `agent/*/*` 任务分支上自动执行：
-
-```
-sync-env.sh .
-  1. env 文件同步（.env.example 等）
-  2. main-forward rebase：
-     git stash (如有未提交变更)
-     git fetch origin main --prune
-     git rebase origin/main
-     git stash pop (rebase 成功后)
-```
-
-保护分支（`main`、`agent/*-init` 等）跳过 rebase。
-
-<!-- SPECKIT START -->
-当前活跃 feature：
-- `specs/040-project-form-custom-fields/plan.md`（项目三表单已有字段锁定 + 自定义字段扩展：projects/project_initiation_details 加 custom_fields JSON 列、设计器按 scope 锁定预置字段、useCustomFields composable 统一收集/回显）
-- `specs/038-tender-reminder-daily/plan.md`（投标关键节点提醒改造：报名截止/开标提前3天每日重复提醒，去重逻辑从"只发一次"改为"每24小时发一次"，默认值24→72）
-- `specs/036-wecom-bid-notifications/plan.md`（投标关键节点企微通知：已评估标讯立即投标发送待立项通知、项目复盘推进至结项发送待结项申请通知）
-- `specs/024-preauthorize-unification/plan.md`（消除 @PreAuthorize hasAnyRole 双轨制技术债）
-- `specs/025-fix-margin-filter/plan.md`（保证金看板状态筛选修复）
-- `specs/026-fix-project-detail-403-frontend/plan.md`（项目详情页 403 错误修复 + 前端权限入口校验）
-- `specs/027-tomap-defensive-collection/plan.md`（防御性 Collection 与优雅降级治理 — Constitution v2.0.0 Principle VII）
-- `specs/028-ai-case-slice-semantic-search/plan.md`（AI 案例切片语义检索 — 历史投标文件章节切片入库 + 向量召回 + 精排推荐）
-- `specs/029-fix-account-password-403/plan.md`（修复平台账号密码查看权限异常类型误用 — IllegalStateException → AccessDeniedException，消除 Sentry XIYU-N 噪声）
-- `specs/030-fix-task-review-notify-403/plan.md`（修复任务审核通知接收人广播导致 403 — 按 ProjectAccessScopeService 项目可见性过滤接收人，新增 NotificationRecipientFilter 纯函数）
-- `specs/031-tender-import-async-perf/plan.md`（标讯批量导入异步化与性能优化 + MDC 修复 — @Async + DB 持久化 + Redis 进度缓存 + MdcTaskDecorator 跨线程 MDC 传递，Nginx 60s 超时根因修复）
-- `specs/032-fix-oss-permission-diffusion/plan.md`（修复 OSS 用户权限扩散导致越权看所有菜单 — OSS admin 用户不扩散 authorities/menuPermissions，前端 hasPermission 对 OSS 用户不短路 all，AuthResponse 新增 isOssUser 字段）
-- `specs/033-oss-local-permission-path-separation/spec.md`（OSS 与本地用户权限代码路径分离 — 根因猎手分析定位零号病人为"共用代码路径"架构决策，提出方案 A 代码路径分离/B 强约束门禁/C 消除 all 短路三选一，根治 CO-361→CO-373→spec 032→CO-551 10+ 轮反复踩坑）
-- `specs/034-friendly-rate-limit/plan.md`（限流提示友好化优化 — 文案/交互/协议三层改造，429 返回统一 ApiResponse + Retry-After，前端合并重复提示并支持轮询静默退避）
-- `specs/037-crm-link-compensation/plan.md`（CRM 商机关联补偿与认证解耦 — 修 linkByChanceIdIfPresent 误把 bidId 当 chanceId 的语义错误、OSS 同步填充 crm_sales_no、generateToken 去掉 OSS token 依赖）
-<!-- SPECKIT END -->
