@@ -168,6 +168,12 @@ public class ScoreVersionActivationService {
         if(snapshot.schemes().size()!=1) return false;
         var scheme=snapshot.schemes().get(0);
         if(scheme.computableCount()==0) return false;
+        // A partial first parse has no active projection to protect. It must still
+        // not become the active version when the extracted total is lower than the
+        // tender's declared total (for example 40/100 in project 1383).
+        if (scheme.declaredTotal()!=null
+                && "KNOWN".equals(scheme.declaredTotalStatus())
+                && scheme.declaredTotal().compareTo(scheme.computableTotal())!=0) return false;
         var current=items.findByProjectIdOrderByItemIndexAsc(projectId);
         if(!current.isEmpty() && (token.versionId()==null || !coversCurrentRules(snapshot,current) || !snapshot.sourceDiagnostics().isEmpty() || !scheme.extractedTotalComplete()
                 || scheme.declaredTotal()==null || !"KNOWN".equals(scheme.declaredTotalStatus())
