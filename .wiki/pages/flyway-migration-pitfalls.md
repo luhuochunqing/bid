@@ -510,7 +510,31 @@ WHERE pa.id IS NULL;  -- LEFT JOIN + IS NULL 幂等
 > 相关：失败迁移处理与回滚纪律见 [[lessons-learned]] 与 [[production-deployment-lessons]]，本页 §16 baseline-on-migrate。
 
 
-## 16. 相关文档
+## 16. CHAR(64) fingerprint 列与 Hibernate varchar 期望不匹配：ddl-auto=validate 启动阻断（V1219/V1220，2026-09-27）
+
+### 16.1 现象
+
+第 211 次测试部署本地打包时，`FlywayMysqlContainerTest` 5 个测试全部 ApplicationContext 加载失败：
+
+```
+Schema-validation: wrong column type encountered in column [projection_fingerprint]
+in table [score_active_version]; found [char (Types#CHAR)], but expecting [varchar(64)]
+```
+
+### 16.2 根因
+
+V1219 用 `CHAR(64)` 定义 fingerprint 列（`projection_fingerprint`、`rule_fingerprint`），但对应 JPA 实体是 `@Column(length=64) private String`。Hibernate 6 MySQL 方言对 String 字段期望 `VARCHAR`，`CHAR`（定长、尾部补空格）不匹配；测试/生产 profile `ddl-auto: validate` 启动即拒绝。与 §8/V1202 的 VARCHAR→ENUM 事故机制同款（方向相反）。
+
+### 16.3 教训
+
+1. **新增 String 指纹/hash 列一律用 `VARCHAR(N)`**，不要用 `CHAR(N)`——Hibernate validate 只接受 VARCHAR；
+2. `FlywayMysqlContainerTest` 容器测试是第一道防线，打包必须通过；绕过后测试/生产后端启动必 crash-loop；
+3. 新迁移 PR 三核对：迁移列类型 ↔ 实体字段类型、回滚脚本 `-- Input:` source header、`U<version>` 命名。
+
+修复案例：V1220（`MODIFY ... VARCHAR(64)`）+ U1220；详细见 [[lessons-learned]] §409。
+
+
+## 17. 相关文档
 
 - [[lessons-learned]] §一 §二 — 数据库迁移目录清理、CI 配置对齐
 - [[production-deployment-lessons]] §1 — collation 冲突案例
@@ -520,7 +544,7 @@ WHERE pa.id IS NULL;  -- LEFT JOIN + IS NULL 幂等
 
 ---
 
-## 17. 变更记录
+## 18. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -530,3 +554,4 @@ WHERE pa.id IS NULL;  -- LEFT JOIN + IS NULL 幂等
 | 2026-08-20 | 新增 §13 已发布迁移的测试重放 collation 冲突（V1198 CONVERT 全表 collation 破坏 V1092 重放，commit 2c90a6f85）；原 §13~§15 顺延为 §14~§16 |
 | 2026-09-03 | 新增 §15 失败迁移阻塞启动（V1209 漏写 updated_at → 1364 → success=0 阻塞后端，CO-606，V1210 修复）；原 §15~§17 顺延为 §16~§17 |
 | 2026-09-03 | 修正 §15 核心教训：#2/#3 由“保留失败记录”“不能用 repair”改为“V1209 失败记录必须 UPDATE success=1 才能解锁 Flyway 启动，仅新增 V1210 无法解锁”；子章节 17.x 改为 15.x |
+| 2026-09-27 | 新增 §16 CHAR(64) 指纹列与 Hibernate varchar 不匹配（V1219/V1220，ddl-auto=validate 启动阻断）；原 §16~§17 顺延为 §17~§18 |

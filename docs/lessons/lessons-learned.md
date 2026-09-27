@@ -6815,3 +6815,38 @@ Lesson 392 的假通过还有一个放大器：Sidecar `/convert-images` 的 `.d
 - 代码默认不开新链路。发布需匹配 V1219、后端、Sidecar、前端，并检查实际运行开关及新任务 `EXTRACTION_VERSION_V1`。部署代码不会重解析旧 task 274。
 
 证据入口：`specs/073-fix-1382-scoreparse/quickstart.md`、`scripts/check-scoreparse-root-cause.sh`、`CrossFormatDocumentSourceReplayTest`、`ScoreExtractionPersistenceMysqlTest`。本次仅本地确定性测试及隔离 MySQL；未部署、未操作共享数据库、未重解析项目、未调用付费模型。
+
+---
+
+## 409. V1219 CHAR(64) 指纹列与 Hibernate varchar(64) 期望不匹配：ddl-auto=validate 启动阻断（2026-09-27）
+
+### 现象
+
+第 211 次测试环境部署本地打包时，`FlywayMysqlContainerTest` 5 个测试全部因 ApplicationContext 加载失败：
+
+```
+Schema-validation: wrong column type encountered in column [projection_fingerprint]
+in table [score_active_version]; found [char (Types#CHAR)], but expecting [varchar(64)]
+```
+
+### 根因分析
+
+1. V1219 迁移用 `CHAR(64)` 定义 fingerprint 列（`projection_fingerprint`、`rule_fingerprint`），但对应 JPA 实体字段是 `@Column(length=64) private String xxx`。Hibernate 6 对 String 字段期望 MySQL `VARCHAR`，`CHAR`（定长、尾部补空格语义）不匹配；
+2. 测试/生产 profile 均启用 `ddl-auto: validate`，后端启动时对全表做 schema-validation，列类型不一致直接拒绝启动；
+3. 若绕过打包门禁直接部署，后端会 crash-loop（与 V1040/V1041、V1196、V1202 历史事故同款——V1202 是 VARCHAR→ENUM，本次是 CHAR→VARCHAR，方向不同但机制相同）。
+
+### 解决方案
+
+- 新增 V1220 修正迁移：`MODIFY projection_fingerprint VARCHAR(64) NOT NULL` + `MODIFY rule_fingerprint VARCHAR(64) NULL`，并配套 U1220 回滚脚本；
+- 本地容器测试复跑 5/5 green 后重新打包部署；
+- 部署验证：V1219 + V1220 均 success=1，后端正常启动，Smoke 全通过。
+
+### 可复用纪律
+
+- 迁移中新增的 fingerprint/hash 列必须用 `VARCHAR(N)` 而非 `CHAR(N)`——Hibernate String 字段在 ddl-auto=validate 下只接受 VARCHAR；
+- `FlywayMysqlContainerTest` 容器测试是此类问题的第一道防线，打包时**必须通过**；任何"迁移能跑、validate 忽略"的侥幸都会在测试/生产后端启动时爆发；
+- 新迁移 PR 需同时核对：迁移列类型 ↔ JPA 实体字段类型（CHAR/VARCHAR/ENUM/JSON）、回滚脚本 source header（`-- Input:` 行）、`U<version>` 命名。
+
+---
+
+## 410. （占位，待后续事件补充）
