@@ -37,7 +37,7 @@
           @submit-to-document="ctx.handleSubmitToDocument"
           @submit-review="ctx.handleSubmitReview"
         />
-        <ScoreParseDrawer ref="scoreParseRef" :project-id="ctx.project?.id" @parsed="handleScoreParsed" />
+        <ScoreParseDrawer ref="scoreParseRef" :project-id="ctx.project?.id" :show-extraction-review="false" @parsed="handleScoreParsed" />
         <TaskDecomposeDialog ref="taskDecomposeRef" :project-id="ctx.project?.id" />
         <DraftingStage
           v-if="ctx.project?.id"

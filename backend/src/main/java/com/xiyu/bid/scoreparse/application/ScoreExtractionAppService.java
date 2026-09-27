@@ -133,7 +133,7 @@ public class ScoreExtractionAppService {
     private final ScoreExtractionCodec codec;
     private final ScoreExtractionVersionFeature feature;
     private final ProjectAccessScopeService projectAccessScopeService;
-    public record Active(Long versionId,Long parseTaskId,String taskId,String fingerprint,LocalDateTime activatedAt,boolean hasManualEdits) {}
+    public record Active(Long versionId,Long parseTaskId,String taskId,String fingerprint,LocalDateTime activatedAt,boolean hasManualEdits,String dataStatus) {}
     public record Adoption(String status,List<String> adoptedItemIds,List<String> remainingItemIds) {}
     public record SchemeView(String schemeId,String title,int extractedCount,BigDecimal extractedKnownTotal,
             boolean extractedTotalComplete,int computableCount,BigDecimal computableTotal,int activeCount,
@@ -167,7 +167,7 @@ public class ScoreExtractionAppService {
         var token=activation.currentToken(projectId);
         var projection=items.findByProjectIdOrderByItemIndexAsc(projectId);
         var activeTask=version==null?null:tasks.findById(version.getParseTaskId()).orElse(null);
-        var active=new Active(token.versionId(),version==null?null:version.getParseTaskId(),activeTask==null?null:activeTask.getTaskId(),token.fingerprint(),version==null?null:version.getCreatedAt(),token.hasManualEdits());
+        var active=new Active(token.versionId(),version==null?null:version.getParseTaskId(),activeTask==null?null:activeTask.getTaskId(),token.fingerprint(),version==null?null:version.getCreatedAt(),token.hasManualEdits(),activeDataStatus(version,task,snapshot,projection));
         Set<String> adoptedFacts=version!=null && version.getParseTaskId().equals(task.getId()) ? projection.stream().map(ScoreItem::getSourceFactId).collect(java.util.stream.Collectors.toSet()):Set.of();
         var adopted=snapshot.items().stream().filter(i->adoptedFacts.contains(i.factId())).map(ExtractedScoreItem::itemId).toList();
         String selectedScope=version!=null && version.getParseTaskId().equals(task.getId())?version.getSchemeId():null;
@@ -180,6 +180,20 @@ public class ScoreExtractionAppService {
         return new View(projectId,task.getTaskId(),task.getId(),task.getStatus(),task.getDecisionStatus(),record==null?null:record.getFrozenAt(),snapshot.payloadVersion(),
                 record==null?"LEGACY_UNKNOWN":record.getFrozenAt()==null?"NOT_FROZEN":"FROZEN",schemeViews,snapshot.items(),snapshot.sourceDiagnostics(),snapshot.runDiagnostics(),
                 new Adoption(adopted.isEmpty()?"NOT_ADOPTED":remaining.isEmpty()?"FULL":"PARTIAL",adopted,remaining),active);
+    }
+    private String activeDataStatus(ScoreActiveVersion version,ScoreParseTask task,ScoreExtractionSnapshot snapshot,List<ScoreItem> projection) {
+        if (version == null) return "NONE";
+        if (!version.getParseTaskId().equals(task.getId())) return "HISTORICAL";
+        var candidates = snapshot.items().stream()
+                .filter(i -> version.getSchemeId().equals(i.schemeId()) && i.computable())
+                .toList();
+        boolean coherent = !projection.isEmpty()
+                && projection.stream().allMatch(item -> item.getParseTaskId().equals(task.getId())
+                && version.getId().equals(item.getActiveVersionId())
+                && candidates.stream().anyMatch(candidate -> Objects.equals(candidate.factId(), item.getSourceFactId())
+                && candidate.effectiveMaximum() != null && item.getWeight() != null
+                && candidate.effectiveMaximum().compareTo(item.getWeight()) == 0));
+        return coherent ? "COHERENT" : "MISMATCHED";
     }
     private ScoreExtractionSnapshot historical(ScoreParseTask task) {
         var source=facts.findByParseTaskId(task.getId()).stream().map(f -> new ScoreFact(f.getFactId(),f.getSourceTableId(),List.of(),f.getSourceText(),f.getCode(),f.getDimension(),f.getWeight(),null,null,f.getParentFactId(),f.getExtractionMethod(),

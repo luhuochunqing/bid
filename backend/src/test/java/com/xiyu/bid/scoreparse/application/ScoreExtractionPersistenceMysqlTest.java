@@ -192,6 +192,16 @@ class ScoreExtractionPersistenceMysqlTest extends AbstractTransactionBoundaryTes
         var full=frozen(2,false);assertThat(activation.currentToken(project).hasManualEdits()).isTrue();
         assertThat(activation.tryAutoActivate(project,full.getTaskId())).isFalse();
     }
+    @Test void incompleteFirstParseNeverAutoActivatesPartialSnapshot() {
+        var partial=task();
+        writer.freeze(project,partial.getId(),snapshotWithDeclaredTotal(partial,4,BigDecimal.valueOf(100)));
+        partial.setStatus("COMPLETED");
+        partial.setDecisionStatus("REVIEW_REQUIRED");
+        tasks.saveAndFlush(partial);
+
+        assertThat(activation.tryAutoActivate(project,partial.getTaskId())).isFalse();
+        assertThat(items.findByProjectIdOrderByItemIndexAsc(project)).isEmpty();
+    }
     @Test void completeReparseAutoReplacesButOldAsynchronousTaskCannotPublish() {
         var first=frozen(2,false);assertThat(activation.tryAutoActivate(project,first.getTaskId())).isTrue();
         var full=frozen(2,false);assertThat(activation.tryAutoActivate(project,full.getTaskId())).isTrue();
@@ -310,6 +320,7 @@ class ScoreExtractionPersistenceMysqlTest extends AbstractTransactionBoundaryTes
         assertThat(active).hasSize(13);
         assertThat(active.stream().map(ScoreItem::getWeight).reduce(BigDecimal.ZERO,BigDecimal::add)).isEqualByComparingTo("100");
         var view=reads.getByTaskId(project,task.getTaskId());assertThat(view.items()).hasSize(40);
+        assertThat(view.active().dataStatus()).isEqualTo("COHERENT");
         assertThat(active.stream().filter(i -> i.getWeight().compareTo(new BigDecimal("12"))==0).findFirst().orElseThrow().getDetail()).startsWith("第二部分").doesNotContain("清单报价");
         assertThat(active.stream().filter(i -> i.getWeight().compareTo(new BigDecimal("28"))==0).findFirst().orElseThrow().getDetail()).contains("覆盖率").contains("扣5分").doesNotContain("第二部分");
         assertThat(view.active().hasManualEdits()).isFalse();
@@ -479,11 +490,17 @@ class ScoreExtractionPersistenceMysqlTest extends AbstractTransactionBoundaryTes
     private ScoreParseTask task(){return state.createTask(UUID.randomUUID().toString(),project,"PARSE",null,null,"MANUAL");}
     private ScoreParseTask frozen(int count,boolean unknown){var t=task();writer.freeze(project,t.getId(),snapshot(t,count,unknown));t.setStatus("COMPLETED");t.setDecisionStatus("REVIEW_REQUIRED");return tasks.saveAndFlush(t);}
     private ScoreExtractionSnapshot snapshot(ScoreParseTask t,int count,boolean unknown) {
+        return snapshotWithDeclaredTotal(t, count, BigDecimal.valueOf(count*10L), unknown);
+    }
+    private ScoreExtractionSnapshot snapshotWithDeclaredTotal(ScoreParseTask t,int count,BigDecimal declaredTotal) {
+        return snapshotWithDeclaredTotal(t, count, declaredTotal, false);
+    }
+    private ScoreExtractionSnapshot snapshotWithDeclaredTotal(ScoreParseTask t,int count,BigDecimal declaredTotal, boolean unknown) {
         List<ScoreFact> fs=new ArrayList<>();List<OriginalScoreEvidencePolicy.Qualification> qs=new ArrayList<>();
         for(int n=0;n<count+(unknown?1:0);n++) {
             var weight=n<count?BigDecimal.TEN:null;String id="f"+n;
             fs.add(new ScoreFact(id,"t",List.of(),"规则原文","same",id,weight,null,null,null,"MODEL",.6,ScoreFact.ValidationStatus.REVIEW_REQUIRED));
-            qs.add(new OriginalScoreEvidencePolicy.Qualification(id,"s","IN_SCHEME",false,"SOURCE_UNVERIFIED","","评分标准",BigDecimal.valueOf(count*10L),"KNOWN","声明","loc","MULTI_TABLE",List.of("t"),ChildAggregation.SUM));
+            qs.add(new OriginalScoreEvidencePolicy.Qualification(id,"s","IN_SCHEME",false,"SOURCE_UNVERIFIED","","评分标准",declaredTotal,"KNOWN","声明","loc","MULTI_TABLE",List.of("t"),ChildAggregation.SUM));
         }
         return ScoreExtractionSnapshot.from(t.getTaskId(),fs,qs,List.of());
     }
