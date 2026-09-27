@@ -14,6 +14,9 @@ final class PdfRowEvidenceBinder {
     private PdfRowEvidenceBinder() {
     }
 
+    private static final java.util.regex.Pattern CATEGORY_DIMENSION =
+            java.util.regex.Pattern.compile("^(?:商务|技术|报价|价格|商务分|技术分|报价分|价格分|商务部分|技术部分|报价部分|价格部分|商务标|技术标|综合|综合部分)$");
+
     static Optional<MultimodalScoreFact> bindQuote(MultimodalScoreFact fact, DocumentArtifact artifact,
                                                     List<OriginalScoringContext.SchemeEvidence> schemes) {
         if (fact.quotedText().isBlank()) return Optional.empty();
@@ -27,9 +30,25 @@ final class PdfRowEvidenceBinder {
         if (matches.isEmpty()) return Optional.empty();
         int shortest = matches.stream().mapToInt(span -> span.cells().size()).min().orElse(Integer.MAX_VALUE);
         List<Span> uniqueShortest = matches.stream().filter(span -> span.cells().size() == shortest).toList();
-        if (uniqueShortest.size() != 1) return Optional.empty();
+        List<Span> candidateSpans = uniqueShortest;
+        if (candidateSpans.size() > 1 && !fact.sourceCellIds().isEmpty()) {
+            List<Span> fullyMatching = candidateSpans.stream()
+                    .filter(s -> s.cells().stream().allMatch(c -> fact.sourceCellIds().contains(c.cellId())))
+                    .toList();
+            if (fullyMatching.size() == 1) {
+                candidateSpans = fullyMatching;
+            } else {
+                List<Span> matchingCited = candidateSpans.stream()
+                        .filter(s -> s.cells().stream().anyMatch(c -> fact.sourceCellIds().contains(c.cellId())))
+                        .toList();
+                if (matchingCited.size() == 1) {
+                    candidateSpans = matchingCited;
+                }
+            }
+        }
+        if (candidateSpans.size() != 1) return Optional.empty();
 
-        Span span = uniqueShortest.get(0);
+        Span span = candidateSpans.get(0);
         var firstCell = span.cells().get(0);
         Integer page = firstCell.sourcePage() == null ? span.table().sourcePage() : firstCell.sourcePage();
         List<String> cellIds = span.cells().stream()
@@ -76,47 +95,73 @@ final class PdfRowEvidenceBinder {
                 .filter(cell -> cell.rawText() != null && !cell.rawText().isBlank())
                 .sorted(java.util.Comparator.comparing(cell -> cell.column() == null ? Integer.MAX_VALUE : cell.column()))
                 .toList();
-        java.util.ArrayList<Span> matches = new java.util.ArrayList<>();
-        for (int start = 0; start < cells.size(); start++) {
-            StringBuilder text = new StringBuilder();
-            java.util.ArrayList<DocumentArtifact.CanonicalTable.CanonicalCellDto> span = new java.util.ArrayList<>();
-            for (int end = start; end < cells.size(); end++) {
-                if (end > start && !adjacent(cells.get(end - 1), cells.get(end))) break;
-                if (!text.isEmpty()) text.append(' ');
-                text.append(cells.get(end).rawText());
-                span.add(cells.get(end));
-                if (span.size() >= 2
-                        && TextPrimaryEvidenceBinder.normalizeForEvidence(text.toString()).contains(quote)) {
-                    matches.add(new Span(table, List.copyOf(span)));
-                }
+        if (cells.isEmpty()) return List.of();
+
+        for (int k = 1; k <= cells.size(); k++) {
+            List<Span> matches = new java.util.ArrayList<>();
+            collectCombinations(table, cells, 0, k, new java.util.ArrayList<>(), quote, matches);
+            if (!matches.isEmpty()) {
+                return matches.stream().distinct().toList();
             }
         }
-        if (matches.isEmpty()) return List.of();
-        int shortest = matches.stream().mapToInt(span -> span.cells().size()).min().orElse(Integer.MAX_VALUE);
-        return matches.stream().filter(span -> span.cells().size() == shortest).toList();
+        return List.of();
+    }
+
+    private static void collectCombinations(DocumentArtifact.CanonicalTable table,
+                                            List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells,
+                                            int start, int k,
+                                            List<DocumentArtifact.CanonicalTable.CanonicalCellDto> current,
+                                            String quote,
+                                            List<Span> matches) {
+        if (current.size() == k) {
+            String combined = current.stream()
+                    .map(DocumentArtifact.CanonicalTable.CanonicalCellDto::rawText)
+                    .collect(java.util.stream.Collectors.joining(" "));
+            if (TextPrimaryEvidenceBinder.normalizeForEvidence(combined).contains(quote)) {
+                matches.add(new Span(table, List.copyOf(current)));
+            }
+            return;
+        }
+        for (int i = start; i <= cells.size() - (k - current.size()); i++) {
+            current.add(cells.get(i));
+            collectCombinations(table, cells, i + 1, k, current, quote, matches);
+            current.remove(current.size() - 1);
+        }
     }
 
     private static String itemName(MultimodalScoreFact fact, Span span) {
         String dimension = TextPrimaryEvidenceBinder.normalizeForEvidence(fact.dimension());
-        if (!dimension.isBlank() && span.cells().stream().map(DocumentArtifact.CanonicalTable.CanonicalCellDto::rawText)
+        if (!dimension.isBlank() && !CATEGORY_DIMENSION.matcher(dimension).matches()
+                && span.cells().stream().map(DocumentArtifact.CanonicalTable.CanonicalCellDto::rawText)
                 .filter(java.util.Objects::nonNull)
-                .anyMatch(raw -> TextPrimaryEvidenceBinder.normalizeForEvidence(raw).equals(dimension))) {
+                .anyMatch(raw -> TextPrimaryEvidenceBinder.normalizeForEvidence(raw).contains(dimension))) {
             return fact.dimension();
         }
         String code = TextPrimaryEvidenceBinder.normalizeForEvidence(fact.code());
-        if (code.isBlank() || code.matches("[\\d.()_-]+")) return fact.dimension();
-        List<String> matches = span.cells().stream().map(DocumentArtifact.CanonicalTable.CanonicalCellDto::rawText)
-                .filter(java.util.Objects::nonNull)
-                .filter(raw -> TextPrimaryEvidenceBinder.normalizeForEvidence(raw).contains(code)).toList();
-        return matches.size() == 1 && TextPrimaryEvidenceBinder.normalizeForEvidence(fact.quotedText()).contains(code)
-                ? fact.code() : fact.dimension();
+        if (!code.isBlank() && !code.matches("[\\d.()_-]+")) {
+            List<String> matches = span.cells().stream().map(DocumentArtifact.CanonicalTable.CanonicalCellDto::rawText)
+                    .filter(java.util.Objects::nonNull)
+                    .filter(raw -> TextPrimaryEvidenceBinder.normalizeForEvidence(raw).contains(code)).toList();
+            if (matches.size() == 1 && TextPrimaryEvidenceBinder.normalizeForEvidence(fact.quotedText()).contains(code)) {
+                return fact.code();
+            }
+        }
+        if (CATEGORY_DIMENSION.matcher(dimension).matches() && !span.cells().isEmpty()) {
+            for (var cell : span.cells()) {
+                String candidate = cleanedName(cell.rawText());
+                if (!candidate.isBlank() && candidate.length() <= 30 && !candidate.matches("[\\d.()_-]+")) {
+                    return candidate;
+                }
+            }
+        }
+        return fact.dimension();
     }
 
-    private static boolean adjacent(DocumentArtifact.CanonicalTable.CanonicalCellDto left,
-                                    DocumentArtifact.CanonicalTable.CanonicalCellDto right) {
-        if (left.column() == null || right.column() == null) return false;
-        int leftSpan = Math.max(1, left.colspan() == null ? 1 : left.colspan());
-        return right.column() == left.column() + leftSpan;
+    private static String cleanedName(String raw) {
+        if (raw == null) return "";
+        return raw.replaceAll("[（(]\\s*\\d+(?:\\.\\d+)?\\s*分\\s*[)）]", "")
+                .replaceAll("^[（(]?\\s*\\d+\\s*[)）]?\\s*[.、]?\\s*", "")
+                .trim();
     }
 
     private static String sourceType(DocumentArtifact.CanonicalTable table, DocumentArtifact artifact) {

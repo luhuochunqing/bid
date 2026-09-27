@@ -92,7 +92,7 @@ class TextPrimaryEvidenceBinderTest {
     }
 
     @Test
-    void doesNotBindPdfQuoteAcrossAnUnrepresentedColumnGap() {
+    void bindsPdfQuoteAcrossColumnGapInSamePhysicalRow() {
         var table = new DocumentArtifact.CanonicalTable("pdf-p35-t1", 35, "第三章 评审标准", 2, 3,
                 List.of(), List.of(
                 new DocumentArtifact.CanonicalTable.CanonicalCellDto("name", 1, 0, "服务网点", "服务网点",
@@ -105,10 +105,91 @@ class TextPrimaryEvidenceBinderTest {
                 "服务网点覆盖得3分", "OBJECTIVE", 35, "", List.of(),
                 "服务网点 服务网点覆盖得3分", 0.9, ChildAggregation.SUM);
 
-        var unbound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
 
-        assertThat(unbound.tableId()).isBlank();
-        assertThat(unbound.sourceCellIds()).isEmpty();
+        assertThat(bound.tableId()).isEqualTo("pdf-p35-t1");
+        assertThat(bound.sourceCellIds()).containsExactly("name", "rule");
+        assertThat(bound.dimension()).isEqualTo("服务网点");
+    }
+
+    @Test
+    void bindsPdfQuoteCombiningNameAndRuleAcrossIntermediateScoreColumn() {
+        var table = new DocumentArtifact.CanonicalTable("pdf-p35-t1", 35, "第三章 评审标准", 2, 4,
+                List.of(), List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("id", 1, 0, "1", "1",
+                        1, 1, false, "pdf:page=35;row=1;cell=0", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("name", 1, 1, "售后服务", "售后服务",
+                        1, 1, false, "pdf:page=35;row=1;cell=1", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("score", 1, 2, "5分", "5分",
+                        1, 1, false, "pdf:page=35;row=1;cell=2", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("rule", 1, 3, "提供7*24小时响应", "提供7*24小时响应",
+                        1, 1, false, "pdf:page=35;row=1;cell=3", 35, "")), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "table-v2"),
+                List.of(table), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审标准", "1", "", "技术", BigDecimal.valueOf(5),
+                "提供7*24小时响应", "OBJECTIVE", 35, "", List.of(),
+                "售后服务 提供7*24小时响应", 0.9, ChildAggregation.SUM);
+
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(bound.tableId()).isEqualTo("pdf-p35-t1");
+        assertThat(bound.sourceCellIds()).containsExactly("name", "rule");
+        assertThat(bound.dimension()).isEqualTo("售后服务");
+    }
+
+    @Test
+    void bindsPdfQuoteWithIdAndNameAndRuleAndResolvesItemNameWhenCategoryDimensionGiven() {
+        var table = new DocumentArtifact.CanonicalTable("pdf-p35-t1", 35, "第三章 评审标准", 2, 4,
+                List.of(), List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("id", 1, 0, "1", "1",
+                        1, 1, false, "pdf:page=35;row=1;cell=0", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("name", 1, 1, "（1）售后服务方案", "（1）售后服务方案",
+                        1, 1, false, "pdf:page=35;row=1;cell=1", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("score", 1, 2, "5分", "5分",
+                        1, 1, false, "pdf:page=35;row=1;cell=2", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("rule", 1, 3, "提供7*24小时响应", "提供7*24小时响应",
+                        1, 1, false, "pdf:page=35;row=1;cell=3", 35, "")), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "table-v2"),
+                List.of(table), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审标准", "1", "", "技术部分", BigDecimal.valueOf(5),
+                "提供7*24小时响应", "OBJECTIVE", 35, "", List.of(),
+                "1 （1）售后服务方案 提供7*24小时响应", 0.9, ChildAggregation.SUM);
+
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(bound.tableId()).isEqualTo("pdf-p35-t1");
+        assertThat(bound.sourceCellIds()).contains("id", "name", "rule");
+        assertThat(bound.dimension()).isEqualTo("售后服务方案");
+    }
+
+    @Test
+    void fullyCitedCandidateSpanIsPreferredWhenDisambiguatingSpans() {
+        var table1 = new DocumentArtifact.CanonicalTable("pdf-p35-t1", 35, "第三章 评审标准", 2, 3,
+                List.of(), List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("n1", 1, 0, "资质要求", "资质要求",
+                        1, 1, false, "pdf:page=35;row=1;cell=0", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("s1", 1, 1, "2分", "2分",
+                        1, 1, false, "pdf:page=35;row=1;cell=1", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("r1", 1, 2, "具备相关认证", "具备相关认证",
+                        1, 1, false, "pdf:page=35;row=1;cell=2", 35, "")), true);
+        var table2 = new DocumentArtifact.CanonicalTable("pdf-p35-t2", 35, "第三章 评审标准", 2, 3,
+                List.of(), List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("n2", 1, 0, "资质要求", "资质要求",
+                        1, 1, false, "pdf:page=35;row=2;cell=0", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("s2", 1, 1, "2分", "2分",
+                        1, 1, false, "pdf:page=35;row=2;cell=1", 35, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("r2", 1, 2, "具备相关认证", "具备相关认证",
+                        1, 1, false, "pdf:page=35;row=2;cell=2", 35, "")), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "table-v2"),
+                List.of(table1, table2), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审标准", "1", "", "商务", BigDecimal.valueOf(2),
+                "具备相关认证", "OBJECTIVE", 35, "", List.of("n2", "r2"),
+                "资质要求 具备相关认证", 0.9, ChildAggregation.SUM);
+
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+
+        assertThat(bound.tableId()).isEqualTo("pdf-p35-t2");
+        assertThat(bound.sourceCellIds()).containsExactly("n2", "r2");
     }
 
     @Test

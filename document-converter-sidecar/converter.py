@@ -481,6 +481,32 @@ def _pdf_page_chapter_heading_positions(page) -> list[tuple[float, str]]:
     return positions
 
 
+def _pdf_line_inside_table(page, line: dict) -> bool:
+    """True when the line's position lies within any table's physical bounding box on the page."""
+    line_top = float(line.get("top", 0) or 0)
+    line_bottom = float(line.get("bottom", line_top) or line_top)
+    find_tables = getattr(page, "find_tables", None)
+    if not callable(find_tables):
+        return False
+    try:
+        tables = find_tables() or []
+    except Exception:
+        return False
+    for table in tables:
+        bbox = getattr(table, "bbox", None) or ()
+        if len(bbox) >= 4:
+            t_y0, t_y1 = float(bbox[1]), float(bbox[3])
+            if not (t_y0 - 1.0 <= line_top <= t_y1 + 1.0 or t_y0 - 1.0 <= line_bottom <= t_y1 + 1.0):
+                continue
+            if "x0" in line and "x1" in line:
+                l_x0, l_x1 = float(line.get("x0") or 0), float(line.get("x1") or 0)
+                t_x0, t_x1 = float(bbox[0]), float(bbox[2])
+                if l_x1 < t_x0 or l_x0 > t_x1:
+                    continue
+            return True
+    return False
+
+
 def _pdf_page_unresolved_section_break_tops(page) -> list[float]:
     """Vertical positions of chapter-level lines on this page we could not turn into an anchor.
 
@@ -504,6 +530,7 @@ def _pdf_page_unresolved_section_break_tops(page) -> list[float]:
         candidate = _pdf_heading_candidate(raw_text)
         if (_PDF_SECTION_BREAK.match(_pdf_heading_form(candidate))
                 and not _pdf_chapter_heading(candidate)
+                and not _pdf_line_inside_table(page, line)
                 and not _pdf_is_scoring_part_subheading(page, line, raw_text)):
             tops.append(float(line.get("top", 0) or 0))
     return tops

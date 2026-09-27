@@ -17,3 +17,4 @@ timestamp	decision	evidence	consequence
 2026-09-24T05:41:00+08:00	Assert mergeable=true and verify origin/main baseline sync for PR 2743	https://gitee.com/allinai888/bid/pulls/2743	Confirmed PR is conflict-free against origin/main 959d2243e and ready for squash merge
 
 
+2026-09-27T21:12:00+08:00	Targeted 3-part algorithm fixes for Project 1382 scoreparse (Sidecar table bbox filtering, ChildAggregation additive/shared-cap decoupling, and PdfRowEvidenceBinder cross-column row cell pairing)	Tender 《办公用品.pdf》 failed on B3 sharedCap misclassification, table-interior section breaks truncating outline, and non-adjacent quote binding rejection; all verified with pytest (61 passed), backend unit tests (25 passed), 35 golden cases replay, and ArchUnit	Enables full 100-point scoreparse extraction for Project 1382 under APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED=false without regressions or schema changes

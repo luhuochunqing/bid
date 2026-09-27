@@ -13,8 +13,8 @@ sources:
 backlinks:
   - .wiki/pages/scoreparse-1382-pdf-scheme-gate-rca.md
 created: 2026-09-26
-updated: 2026-09-26
-health_checked: 2026-09-26
+updated: 2026-09-27
+health_checked: 2026-09-27
 archive: false
 ---
 
@@ -97,3 +97,20 @@ archive: false
 - 本地OCR初始化不可用；探针覆盖原生文本/表格路径。线上 `TextPrimaryEvidenceBinder.bundle` 构造bundle时未携带textBlocks，故不能用本地OCR缺失解释这条绑定路径的失败。
 - 未保存或重放线上模型完整原始响应；通过持久化引文、资格证据与运行日志确定当前拒绝机制。
 - 未运行完整回归，也未实施业务修复。后续修复不能据本报告直接声称可发布或已验收。
+
+## 2026-09-27 终局修复与 91 分留存根因剖析
+
+### 1. 为什么界面长期停留在 91 分？
+- 数据库正式表 `score_item` 数据全部来源于 2026-09-27 17:30:48 admin 手工采纳的 Task 275 快照。
+- `ScoreUnitPolicy` 中间层价格节点因缺少表格被过滤，导致父项 40 分与两个底层叶子（28+12）均被当作独立叶子重复计入（$40+28+12+11=91$ 分）。
+- 随后发起的任务因叶子和不等于声明总分，决策全为 `REVIEW_REQUIRED`，被防洗数门禁拦截无法覆盖正式表。
+
+### 2. 为什么绝对不能直接开全局版本化开关（APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED）？
+- 开启后将引发 8 处致命拦截：8000 字符限制硬崩、轻度残缺置 FAILED、传统召回丢失 Scheme 导致入库 0 项、存量项目 token.versionId 为空锁死、总分零容错强等门禁、多标段拒收、409 互斥锁、前端界面隐藏手动激活面板。
+- 1382 的根因在抽取与对齐层，开关不具备抽取能力，开启后 1382 依然因 $91 \neq 100$ 无法自动激活，且全站常规项目将被打崩。
+
+### 3. 本次落地的 3 处定向算法修复
+- **Sidecar 表内断点误切修复**：`converter.py` 新增 `_pdf_line_inside_table`，带 1.0pt 容差排除位于表格内部的普通文本行断点。
+- **ChildAggregation D6 聚合判定修复**：`ChildAggregation.java` 新增 `additive` 累加判定，收敛 `sharedCap` 关键字，解耦父项自身满分与子项共享上限约束。
+- **跨单元格引文匹配修复**：`PdfRowEvidenceBinder.java` 引入 k-combination 组合搜索与全量匹配优先消解，支持跨过分值列的多格事实绑定与纯正项目名清洗。
+
