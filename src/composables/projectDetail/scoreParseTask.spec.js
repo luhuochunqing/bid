@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { STATUS_MAP, TYPE_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult, mapScoreResults, lookupScoreResult, sanitizeCode, getDecisionBadgeType, getDecisionBadgeText } from './scoreParseTask.js'
+import { STATUS_MAP, TYPE_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult, mapScoreResults, lookupScoreResult, sanitizeCode, getDecisionBadgeType, getDecisionBadgeText, categoryLabel } from './scoreParseTask.js'
 
 describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () => {
   beforeEach(() => {
@@ -70,6 +70,12 @@ describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () 
 
     it('评分类型枚举映射到中文标签', () => {
       expect(TYPE_MAP).toEqual({ OBJECTIVE: '客观项', SUBJECTIVE: '主观项' })
+    })
+
+    it('评分类别统一显示中文', () => {
+      expect(categoryLabel('business')).toBe('商务')
+      expect(categoryLabel('technology')).toBe('技术')
+      expect(categoryLabel('other')).toBe('其他')
     })
   })
 
