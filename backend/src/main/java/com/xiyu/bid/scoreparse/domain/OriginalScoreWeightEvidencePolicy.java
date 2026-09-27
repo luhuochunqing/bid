@@ -64,11 +64,11 @@ final class OriginalScoreWeightEvidencePolicy {
             String locator = table.tableId() + ":" + anchor.cellId();
             String rowText = row.stream().map(c -> c.rawText() == null ? "" : c.rawText())
                     .reduce((a, b) -> a + " " + b).orElse("");
-            if (!claim.quotedText().isBlank() && rowText.contains(claim.quotedText())
+            if (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
                     && declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight())) return;
-            boolean itemMatched = (!claim.dimension().isBlank() && rowText.contains(claim.dimension()))
-                    || (!claim.quotedText().isBlank() && rowText.contains(claim.quotedText())
-                    && (claim.dimension().isBlank() || claim.quotedText().contains(claim.dimension())));
+            boolean itemMatched = (!claim.dimension().isBlank() && contains(rowText, claim.dimension()))
+                    || (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
+                    && (claim.dimension().isBlank() || contains(claim.quotedText(), claim.dimension())));
             if (!itemMatched) {
                 problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "dimension", "ITEM_SOURCE_SCOPE_MISMATCH",
                         claim.dimension(), "not in cited item row", locator));
@@ -118,6 +118,10 @@ final class OriginalScoreWeightEvidencePolicy {
         }
         problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
                 "original item max score", claim.weight(), claim.tableId()));
+    }
+
+    private static boolean contains(String source, String quote) {
+        return EvidenceText.normalize(source).text().contains(EvidenceText.normalize(quote).text());
     }
 
     private static List<BigDecimal> concat(List<BigDecimal> first, List<BigDecimal> second) {

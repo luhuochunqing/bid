@@ -26,12 +26,25 @@ public record DocumentArtifact(
         List<CanonicalTable> tables,
         List<String> warnings,
         List<TextBlockEvidence> textBlocks,
-        String schemaVersion
+        String schemaVersion,
+        List<SourceDocument> documents
 ) {
 
     public static final String SUPPORTED_SCHEMA_VERSION = "2.2";
     public static final String COMPATIBLE_SCHEMA_VERSION = "2.1";
     public static final String LEGACY_SCHEMA_VERSION = "2.0";
+
+    public record SourceDocument(String prefix, ArtifactMeta artifact) {}
+
+    public ArtifactMeta documentFor(String sourceId) {
+        return documents.stream().filter(document -> sourceId.startsWith(document.prefix()))
+                .map(SourceDocument::artifact).findFirst().orElse(artifact);
+    }
+
+    public DocumentArtifact(ArtifactMeta artifact, List<CanonicalTable> tables, List<String> warnings,
+                            List<TextBlockEvidence> textBlocks, String schemaVersion) {
+        this(artifact, tables, warnings, textBlocks, schemaVersion, List.of());
+    }
 
     public DocumentArtifact(ArtifactMeta artifact, List<CanonicalTable> tables, List<String> warnings) {
         this(artifact, tables, warnings, List.of(), SUPPORTED_SCHEMA_VERSION);
@@ -43,6 +56,7 @@ public record DocumentArtifact(
     }
 
     public DocumentArtifact {
+        documents = documents == null ? List.of() : List.copyOf(documents);
         warnings = warnings == null ? List.of() : List.copyOf(warnings);
         tables = tables == null ? List.of() : List.copyOf(tables);
         textBlocks = textBlocks == null ? List.of() : List.copyOf(textBlocks);

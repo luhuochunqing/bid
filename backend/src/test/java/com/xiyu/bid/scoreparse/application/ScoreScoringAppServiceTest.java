@@ -354,7 +354,7 @@ class ScoreScoringAppServiceTest {
         service.triggerScoring(PROJECT_ID);
 
         verify(stateService).markProcessing(anyString());
-        verify(stateService).failTask(anyString(), contains("LLM 超时"));
+        verify(stateService).failTask(anyString(), eq("打分失败，请重试"));
         verify(resultRepository, never()).saveAll(anyList());
     }
 

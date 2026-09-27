@@ -20,7 +20,7 @@ final class PdfRowEvidenceBinder {
         String quote = TextPrimaryEvidenceBinder.normalizeForEvidence(fact.quotedText());
         List<Span> matches = artifact.tables().stream()
                 .filter(table -> "PDF".equalsIgnoreCase(sourceType(table, artifact)))
-                .filter(table -> Boolean.TRUE.equals(table.isScoreTable()))
+                .filter(table -> (Boolean.TRUE.equals(table.isScoreTable()) || !OriginalScoringContext.schemeTitleForTable(table).isBlank()))
                 .filter(table -> TextPrimaryEvidenceBinder.tableInFactScope(fact, table, schemes))
                 .flatMap(table -> rows(table).stream().flatMap(row -> matchingSpans(table, row, quote).stream()))
                 .toList();
@@ -42,7 +42,7 @@ final class PdfRowEvidenceBinder {
                                                       DocumentArtifact.CanonicalTable.CanonicalCellDto ruleCell,
                                                       DocumentArtifact artifact) {
         String code = TextPrimaryEvidenceBinder.normalizeForEvidence(fact.code());
-        if (!"PDF".equalsIgnoreCase(sourceType(table, artifact)) || !Boolean.TRUE.equals(table.isScoreTable())
+        if (!"PDF".equalsIgnoreCase(sourceType(table, artifact)) || !(Boolean.TRUE.equals(table.isScoreTable()) || !OriginalScoringContext.schemeTitleForTable(table).isBlank())
                 || ruleCell.row() == null || code.isBlank() || code.matches("[\\d.()_-]+")) return exact;
         List<DocumentArtifact.CanonicalTable.CanonicalCellDto> names = table.cells().stream()
                 .filter(cell -> ruleCell.row().equals(cell.row()) && !ruleCell.cellId().equals(cell.cellId()))
@@ -51,11 +51,12 @@ final class PdfRowEvidenceBinder {
                 .toList();
         if (names.size() != 1) return exact;
         var name = names.get(0);
-        List<String> ids = table.cells().stream().filter(cell -> ruleCell.row().equals(cell.row()))
-                .filter(cell -> ruleCell.cellId().equals(cell.cellId()) || name.cellId().equals(cell.cellId()))
-                .sorted(java.util.Comparator.comparing(cell -> cell.column() == null ? Integer.MAX_VALUE : cell.column()))
+        var selected = new java.util.LinkedHashSet<>(exact.sourceCellIds());
+        selected.add(name.cellId());
+        List<String> ids = artifact.tables().stream().flatMap(candidate -> candidate.cells().stream())
+                .filter(cell -> selected.contains(cell.cellId()))
                 .map(DocumentArtifact.CanonicalTable.CanonicalCellDto::cellId).toList();
-        return copy(fact, fact.code(), exact.pageNumber(), table.tableId(), ids);
+        return copy(exact, fact.code(), exact.pageNumber(), table.tableId(), ids);
     }
 
     private static List<List<DocumentArtifact.CanonicalTable.CanonicalCellDto>> rows(
@@ -127,7 +128,7 @@ final class PdfRowEvidenceBinder {
                                             String tableId, List<String> cellIds) {
         return new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(), dimension, fact.weight(),
                 fact.ruleText(), fact.scoreType(), page, tableId, cellIds, fact.quotedText(), fact.confidence(),
-                fact.childAggregation(), fact.schemeId(), fact.scopeStatus());
+                fact.childAggregation(), fact.schemeId(), fact.scopeStatus(), fact.sourceMetadata());
     }
 
     private record Span(DocumentArtifact.CanonicalTable table,

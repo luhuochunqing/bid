@@ -37,9 +37,9 @@ class OpenAiMultimodalScoreFactExtractorTest {
                 eq(config), any())).thenReturn(response);
         var extractor = new OpenAiMultimodalScoreFactExtractor(output, resolver, new ObjectMapper());
 
-        var result = extractor.extractWithText(artifact(), "跨页评分规则上下文 marker");
+        var result = extractor.extractWithText(artifact(), "score-cell 跨页评分规则上下文 marker");
 
-        assertThat(prompt.getValue()).contains("跨页评分规则上下文 marker");
+        assertThat(prompt.getValue()).contains("跨页评分规则上下文 marker", "anchor:", "sourceCellIds");
         assertThat(images.getValue()).isEmpty();
         assertThat(result.imageCount()).isZero();
     }

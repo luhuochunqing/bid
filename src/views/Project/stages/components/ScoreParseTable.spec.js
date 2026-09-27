@@ -156,3 +156,26 @@ describe('ScoreParseTable.vue', () => {
     expect(firstRowCells[6].text()).toBe('29')
   })
 })
+
+describe('same-source totals and historical scores', () => {
+  it('does not assume 100 or warn for a genuine 200 point scheme', () => {
+    const w = mount(ScoreParseTable, { props: { items: [], totalWeight: 200, declaredTotal: 200 } })
+    expect(w.find('.weight-warning').exists()).toBe(false)
+  })
+  it('shows unknown total without inventing 100', () => {
+    const w = mount(ScoreParseTable, { props: { items: [] } })
+    expect(w.find('.tfoot-weight').text()).toBe('待确认')
+  })
+  it('retains historical value but excludes it from current total', () => {
+    const w = mount(ScoreParseTable, { props: { mode: 'actual', items: [{ id: 1, scoreType: '客观项', weight: 100 }], results: mapScoreResults([{ scoreItemId: 1, actualScore: 80, status: 'PENDING', reuseKind: 'LEGACY_UNVERIFIED' }]) } })
+    expect(w.text()).toContain('历史评分，需重新评分')
+    expect(w.find('.highlight-score-box').text()).toBe('待确认')
+    expect(w.find('.score-cell').text()).toContain('80')
+  })
+})
+
+it('does not label unverified active candidate text as original source', () => {
+  const w = mount(ScoreParseTable, { props: { items: [{ id: 1, detail: '模型规则', validationStatus: 'REVIEW_REQUIRED' }], versioned: true } })
+  expect(w.findAll('thead th')[1].text()).toBe('当前规则文本')
+  expect(w.text()).toContain('来源未核验')
+})

@@ -26,6 +26,9 @@ public class ScoreParseTaskStateService {
     private final ScoreParseProgressService progressService;
 
     /** 创建 PENDING 任务 */
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private ScoreExtractionSnapshotWriter extractionSnapshotWriter;
+
     @Transactional
     public ScoreParseTask createTask(String taskId, Long projectId, String taskType,
                                      String fileName, String fileUrl) {
@@ -35,8 +38,8 @@ public class ScoreParseTaskStateService {
     @Transactional
     public ScoreParseTask createTask(String taskId, Long projectId, String taskType,
                                      String fileName, String fileUrl, String triggerSource) {
-        // 与采纳共用锁，仅序列化解析任务；打分任务不依赖这份候选快照。
-        if ("PARSE".equals(taskType)) taskRepository.lockProjectForTaskChange(projectId);
+        // 解析/评分任务创建与版本采纳共用项目锁。
+        if ("PARSE".equals(taskType) || "SCORING".equals(taskType)) taskRepository.lockProjectForTaskChange(projectId);
         ScoreParseTask task = ScoreParseTask.builder()
                 .taskId(taskId)
                 .projectId(projectId)
@@ -48,7 +51,9 @@ public class ScoreParseTaskStateService {
                 .fileUrl(fileUrl)
                 .triggerSource(triggerSource == null || triggerSource.isBlank() ? "MANUAL" : triggerSource)
                 .build();
-        return taskRepository.save(task);
+        var saved = taskRepository.save(task);
+        if (extractionSnapshotWriter != null) extractionSnapshotWriter.begin(saved);
+        return saved;
     }
 
     /** PENDING → PROCESSING */

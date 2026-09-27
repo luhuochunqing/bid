@@ -19,6 +19,117 @@ import static org.mockito.Mockito.when;
 
 class MultimodalStructuredExtractionHandlerTest {
 
+    @Test void actualOcrRetryReceivesSelectedBlocksAndPhysicalBounds() throws Exception {
+        var block = new DocumentArtifact.TextBlockEvidence("ocr",2,"评分办法","服务（3分）最高3分",99d,
+                new DocumentArtifact.BoundingBox(1,2,20,30,100,100));
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("scan","sha","PDF","v2"),
+                List.of(),List.of(),List.of(block),"2.2");
+        var sidecar = new SidecarDocumentArtifactExtractor("http://localhost:9","",1,new ObjectMapper()) {
+            public DocumentArtifact extract(byte[] bytes,String name) { return artifact; }
+        };
+        int[] retries={0};
+        var model=new TextAwareScoreFactExtractorTestAdapter() {
+            public boolean supportsTextOnly() { return true; }
+            public ExtractionResult extractWithTextAndProgress(DocumentArtifact input,String text,Runnable heartbeat) {
+                return new ExtractionResult(null,List.of(),"first",0);
+            }
+            public ExtractionResult recheckWithTextAndProgress(DocumentArtifact input,String text,Runnable heartbeat) {
+                retries[0]++;
+                assertThat(input.textBlocks()).singleElement().satisfies(b -> {
+                    assertThat(b.bounds()).isEqualTo(block.bounds());
+                    assertThat(b.sourcePage()).isEqualTo(2);
+                });
+                assertThat(com.xiyu.bid.scoreparse.domain.SourceAnchorCatalog.build(input)).hasSize(1);
+                return new ExtractionResult(null,List.of(),"retry",0);
+            }
+        };
+        MultimodalStructuredExtractionHandler.extract(new TenderTextSource("scan.pdf","memory:scan","服务（3分）最高3分"),
+                new LoadedBidFile.InMemory(new byte[]{1},"scan.pdf","application/pdf"),sidecar,model);
+        assertThat(retries[0]).isEqualTo(1);
+    }
+
+    @Test
+    void mixedFileFailurePreservesSuccessfulArtifactAndReturnedDiagnostics() throws Exception {
+        for (int failedIndex : List.of(0, 1)) {
+            var sidecar = new SidecarDocumentArtifactExtractor("http://localhost:9", "", 1, new ObjectMapper()) {
+                public DocumentArtifact extract(byte[] bytes, String name) throws java.io.IOException {
+                    if (name.equals("file" + failedIndex + ".pdf")) throw new java.io.IOException("private-service-url-and-secret");
+                    return artifact();
+                }
+            };
+            var model = new TextAwareScoreFactExtractorTestAdapter() {
+                public boolean supportsTextOnly() { return true; }
+                public ExtractionResult extractWithTextAndProgress(DocumentArtifact input,String text,Runnable heartbeat) {
+                    assertThat(input.tables()).extracting(DocumentArtifact.CanonicalTable::tableId)
+                            .containsExactly("doc" + (1-failedIndex) + "-t1");
+                    return new ExtractionResult(BigDecimal.TEN, List.of(new MultimodalScoreFact("商务", "1", "", "销售额", BigDecimal.TEN,
+                            "销售额达到1亿元得10分", "OBJECTIVE",1,"",List.of(),"销售额达到1亿元得10分",.99)),"test",0);
+                }
+            };
+            var files = List.<LoadedBidFile>of(new LoadedBidFile.InMemory(new byte[]{1},"file0.pdf","application/pdf"),
+                    new LoadedBidFile.InMemory(new byte[]{2},"file1.pdf","application/pdf"));
+            var sources = List.of(new TenderTextSource("file0.pdf","memory:0","销售额达到1亿元得10分"),
+                    new TenderTextSource("file1.pdf","memory:1",""));
+            var result = MultimodalStructuredExtractionHandler.extractWithTextModelHeartbeat(sources.getFirst(),files,sources,
+                    sidecar,model,()->{});
+            assertThat(result.sourceDiagnostics()).contains("SOURCE_ARTIFACT_UNAVAILABLE:doc" + failedIndex + ":IOException");
+            assertThat(result.sourceDiagnostics().toString()).doesNotContain("private-service-url-and-secret");
+            assertThat(result.facts()).isNotEmpty();
+            assertThat(result.facts().getFirst().sourceMetadata().diagnostics()).containsAll(result.sourceDiagnostics());
+            assertThat(result.originalVerified()).isFalse();
+        }
+    }
+
+    @Test
+    void allSourceFailuresRemainDiagnosableWhenModelReturnsNoFacts() throws Exception {
+        var sidecar = new SidecarDocumentArtifactExtractor("http://localhost:9","",1,new ObjectMapper()) {
+            public DocumentArtifact extract(byte[] bytes,String name) throws java.io.IOException {
+                throw new java.io.IOException("secret");
+            }
+        };
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
+            public boolean supportsTextOnly() { return true; }
+            public ExtractionResult extractTextAndProgress(String text,Runnable heartbeat) {
+                return new ExtractionResult(null,List.of(),"test",0);
+            }
+        };
+        var result = MultimodalStructuredExtractionHandler.extract(new TenderTextSource("bid.pdf","memory:0","正文"),
+                new LoadedBidFile.InMemory(new byte[]{1},"bid.pdf","application/pdf"),sidecar,model);
+        assertThat(result.facts()).isEmpty();
+        assertThat(result.sourceDiagnostics()).contains("SOURCE_ARTIFACT_UNAVAILABLE:doc0:IOException");
+    }
+
+    @Test
+    void anchoredRetryOnlyReceivesMissingSourceAndPreservesFirstFact() throws Exception {
+        var source = originalHundredPointArtifact(false);
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
+        int[] retryCount = {0};
+        var model = new TextAwareScoreFactExtractorTestAdapter() {
+            public boolean supportsTextOnly() { return true; }
+            public ExtractionResult extractWithTextAndProgress(DocumentArtifact input, String text, Runnable heartbeat) {
+                return new ExtractionResult(new BigDecimal("100"), List.of(unbound("1", "10")), "first", 0);
+            }
+            public ExtractionResult recheckWithTextAndProgress(DocumentArtifact input, String text, Runnable heartbeat) {
+                retryCount[0]++;
+                assertThat(text).contains("技术方案").doesNotContain("销售额");
+                assertThat(input.tables().stream().flatMap(t -> t.cells().stream()))
+                        .noneMatch(cell -> cell.cellId().contains("c1-"));
+                return new ExtractionResult(null, List.of(unbound("2", "90")), "retry", 0);
+            }
+            private MultimodalScoreFact unbound(String code,String weight) {
+                var f = sourceFact(code,weight);
+                return new MultimodalScoreFact(f.sectionTitle(), f.code(), f.parentCode(), f.dimension(), f.weight(),
+                        f.ruleText(), f.scoreType(), f.pageNumber(), "", List.of(), f.quotedText(), f.confidence());
+            }
+        };
+        var result = extractSource(source, "本项目评分总分100分", model);
+        assertThat(retryCount[0]).isEqualTo(1);
+        assertThat(result.facts()).extracting(f -> f.code()).containsExactly("1", "2");
+        assertThat(result.facts().stream().map(f -> f.weight()).reduce(BigDecimal.ZERO, BigDecimal::add))
+                .isEqualByComparingTo("100");
+    }
+
     @Test
     void modelFailureRechecksWithModelBeforeShowingIncompleteFallback() throws Exception {
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
@@ -45,7 +156,7 @@ class MultimodalStructuredExtractionHandlerTest {
     }
 
     @Test
-    void textOnlyFactsAreBoundToStructuredEvidenceAfterExtraction() throws Exception {
+    void textExtractionReceivesArtifactBeforeModelAndBindsOriginalEvidence() throws Exception {
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(artifact());
         MultimodalScoreFactExtractor model = new TextAwareScoreFactExtractorTestAdapter() {
@@ -55,7 +166,9 @@ class MultimodalStructuredExtractionHandlerTest {
             }
 
             @Override
-            public ExtractionResult extractTextAndProgress(String text, Runnable heartbeat) {
+            public ExtractionResult extractWithTextAndProgress(DocumentArtifact input, String text, Runnable heartbeat) {
+                assertThat(input).isNotNull();
+                assertThat(input.tables()).extracting(DocumentArtifact.CanonicalTable::tableId).containsExactly("doc0-t1");
                 return new ExtractionResult(BigDecimal.TEN,
                         List.of(new MultimodalScoreFact("商务", "1", "", "销售额", BigDecimal.TEN,
                                 "销售额达到1亿元得10分", "OBJECTIVE", 1, "", List.of(),
@@ -228,7 +341,7 @@ class MultimodalStructuredExtractionHandlerTest {
     @Test
     void initialAndRecheckUseTenderTextWithoutRenderingPageImages() throws Exception {
         var ruleCell = new DocumentArtifact.CanonicalTable.CanonicalCellDto(
-                "rule-p2", 0, 0, "技术方案最高得10分", "技术方案最高得10分", 1, 1, false, "pdf:p=2", 2);
+                "rule-p2", 0, 0, "技术方案最高得10分", "技术方案最高得10分", 1, 1, false, "pdf:p=2", 2, "score-r0");
         var source = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.pdf", "sha", "PDF", "2.0"),
                 List.of(new DocumentArtifact.CanonicalTable("score", 1, "评分办法", 1, 1,
                         List.of(), List.of(ruleCell), true)), List.of());
@@ -356,7 +469,8 @@ class MultimodalStructuredExtractionHandlerTest {
                 default -> c.rawText();
             };
             return new DocumentArtifact.CanonicalTable.CanonicalCellDto(c.cellId(), c.row(), c.column(),
-                    replacement, replacement, c.rowspan(), c.colspan(), c.isMergedContinue(), c.sourceXmlPath());
+                    replacement, replacement, c.rowspan(), c.colspan(), c.isMergedContinue(), c.sourceXmlPath(),
+                    c.sourcePage(), c.logicalRowId());
         }).toList();
         var source = new DocumentArtifact(full.artifact(), List.of(new DocumentArtifact.CanonicalTable(
                 table.tableId(), table.sourcePage(), table.sourceSection(), table.rows(), table.columns(),
@@ -409,8 +523,13 @@ class MultimodalStructuredExtractionHandlerTest {
 
     private static DocumentArtifact.CanonicalTable.CanonicalCellDto sourceCell(
             String id, int row, int column, String text) {
+        return sourceCell("score-t1", 3, id, row, column, text);
+    }
+
+    private static DocumentArtifact.CanonicalTable.CanonicalCellDto sourceCell(
+            String table, int page, String id, int row, int column, String text) {
         return new DocumentArtifact.CanonicalTable.CanonicalCellDto(id, row, column,
-                text, text, 1, 1, false, "");
+                text, text, 1, 1, false, "pdf:page=" + page + ";table=" + table, page, table + "-r" + row);
     }
 
     @Test
@@ -480,9 +599,9 @@ class MultimodalStructuredExtractionHandlerTest {
                 new DocumentArtifact.ArtifactMeta("bid.pdf", "sha", "pdf", "2.0"),
                 List.of(
                         new DocumentArtifact.CanonicalTable("t1", 1, "商务", 1, 2, List.of(),
-                                List.of(sourceCell("t1-rule", 0, 1, "商务服务最高得50分")), true),
+                                List.of(sourceCell("t1", 1, "t1-rule", 0, 1, "商务服务最高得50分")), true),
                         new DocumentArtifact.CanonicalTable("t2", 2, "技术", 1, 2, List.of(),
-                                List.of(sourceCell("t2-rule", 0, 1, "技术方案最高得50分")), true)),
+                                List.of(sourceCell("t2", 2, "t2-rule", 0, 1, "技术方案最高得50分")), true)),
                 List.of());
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
         when(artifactExtractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
@@ -534,14 +653,54 @@ class MultimodalStructuredExtractionHandlerTest {
     }
 
     private static DocumentArtifact artifact() {
-        var total = new DocumentArtifact.CanonicalTable.CanonicalCellDto(
-                "total", 0, 0, "本项目评分总分：10分", "本项目评分总分：10分", 1, 1, false, "");
-        var cell = new DocumentArtifact.CanonicalTable.CanonicalCellDto(
-                "c1", 1, 1, "销售额达到1亿元得10分", "销售额达到1亿元得10分", 1, 1, false, "");
+        var total = sourceCell("t1", 1, "total", 0, 0, "本项目评分总分：10分");
+        var cell = sourceCell("t1", 1, "c1", 1, 1, "销售额达到1亿元得10分");
         var table = new DocumentArtifact.CanonicalTable(
                 "t1", 1, "商务", 2, 2, List.of(), List.of(total, cell), true);
         return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.pdf", "sha", "pdf", "2.0"),
                 List.of(table), List.of());
+    }
+
+    @Test void samePhysicalUnitFromTwoExtractionSetsIsNeverCountedTwice() throws Exception {
+        var artifact=loadCompleteArtifact();
+        var deterministic=fallbackWithOriginalModel(false).facts().getFirst();
+        var duplicate=new MultimodalScoreFact("本项目评分办法",deterministic.code(),"",deterministic.dimension(),deterministic.weight(),deterministic.sourceText(),"SUBJECTIVE",1,deterministic.sourceTableId(),deterministic.sourceCellIds(),deterministic.sourceText(),.8);
+        var result=MultimodalStructuredExtractionHandler.run("probe.pdf","本项目评分总分100分",artifact,
+                com.xiyu.bid.scoreparse.domain.OriginalScoringContext.resolve(artifact,"本项目评分总分100分"),null,()->{},
+                new MultimodalScoreFactExtractor.ExtractionResult(new BigDecimal("100"),List.of(duplicate),"probe",0),true,true,true);
+        var snapshot=com.xiyu.bid.scoreparse.domain.ScoreExtractionSnapshot.from("same-unit",result.facts(),result.qualifications(),result.sourceDiagnostics());
+        assertThat(snapshot.items()).hasSize(5);
+        assertThat(snapshot.items().stream().map(com.xiyu.bid.scoreparse.domain.ExtractedScoreItem::itemId).distinct()).hasSize(5);
+        assertThat(snapshot.items().stream().filter(com.xiyu.bid.scoreparse.domain.ExtractedScoreItem::computable).map(com.xiyu.bid.scoreparse.domain.ExtractedScoreItem::effectiveMaximum).reduce(BigDecimal.ZERO,BigDecimal::add)).isEqualByComparingTo("100");
+    }
+
+    static StructuredTableResult fallbackWithOriginalModel(boolean anchored) throws Exception {
+        var artifact=loadCompleteArtifact();
+        var raw=new MultimodalScoreFact("本项目评分办法","raw-unverified","","审查原始未核验候选",new BigDecimal("6"),"模型原始规则最高6分","SUBJECTIVE",null,"",List.of(),"未定位的原文引文",.6,com.xiyu.bid.scoreparse.domain.ChildAggregation.SUM);
+        if(anchored) {
+            var sidecar=new SidecarDocumentArtifactExtractor("http://localhost:9","",1,new ObjectMapper()) {
+                @Override public DocumentArtifact extract(byte[] bytes,String name) {return artifact;}
+            };
+            var model=new MultimodalScoreFactExtractor() {
+                public boolean supportsTextOnly(){return true;}
+                public ExtractionResult extract(DocumentArtifact a,List<com.xiyu.bid.scoreparse.domain.DocumentImage> images){throw new AssertionError("text path expected");}
+                public ExtractionResult extractWithText(DocumentArtifact a,String text){return new ExtractionResult(new BigDecimal("100"),List.of(raw),"fixed-extraction-port",0);}
+            };
+            var source=new TenderTextSource("probe.pdf",null,"本项目评分总分100分");
+            return MultimodalStructuredExtractionHandler.extractWithTextModelHeartbeat(source,
+                    List.of(new LoadedBidFile.InMemory(new byte[]{1},"probe.pdf","application/pdf")),List.of(source),sidecar,model,()->{});
+        }
+        return MultimodalStructuredExtractionHandler.run("probe.pdf","本项目评分总分100分",artifact,
+            com.xiyu.bid.scoreparse.domain.OriginalScoringContext.resolve(artifact,"本项目评分总分100分"),null,()->{},
+            new MultimodalScoreFactExtractor.ExtractionResult(new BigDecimal("100"),List.of(raw),"probe",0),true,true,anchored);
+    }
+    @Test void anchoredFallbackRetainsModelProposalWithoutMixingScoringSets() throws Exception {
+        var result=fallbackWithOriginalModel(true);
+        assertThat(result.facts()).hasSize(5).anyMatch(f -> f.dimension().equals("审查原始未核验候选"));
+        var snapshot=com.xiyu.bid.scoreparse.domain.ScoreExtractionSnapshot.from("fallback",result.facts(),result.qualifications(),result.sourceDiagnostics());
+        assertThat(snapshot.items().stream().filter(i -> i.name().equals("审查原始未核验候选")).findFirst().orElseThrow().diagnostics()).contains("ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED");
+        assertThat(snapshot.items().stream().filter(com.xiyu.bid.scoreparse.domain.ExtractedScoreItem::computable).map(com.xiyu.bid.scoreparse.domain.ExtractedScoreItem::effectiveMaximum).reduce(BigDecimal.ZERO,BigDecimal::add)).isEqualByComparingTo("100");
+        assertThat(fallbackWithOriginalModel(false).facts()).hasSize(4);
     }
 
     private static DocumentArtifact loadCompleteArtifact() throws Exception {

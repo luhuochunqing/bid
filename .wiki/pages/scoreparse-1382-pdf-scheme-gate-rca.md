@@ -4,6 +4,13 @@ space: engineering
 category: debugging
 tags: [scoreparse, pdf, sidecar, source-evidence, scheme, fact-identity]
 sources:
+  - specs/073-fix-1382-scoreparse/quickstart.md
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreExtractionSnapshot.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/LogicalRowEvidenceBinder.java
+  - backend/src/test/java/com/xiyu/bid/scoreparse/application/CrossFormatDocumentSourceReplayTest.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/LogicalRuleSourceUnit.java
+  - backend/src/test/java/com/xiyu/bid/scoreparse/application/FullRuleSourceReplayTest.java
+  - scripts/check-scoreparse-root-cause.sh
   - document-converter-sidecar/converter.py
   - document-converter-sidecar/tests/test_pdf_table_artifact.py
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoringTextScopePolicy.java
@@ -18,8 +25,8 @@ backlinks:
   - .wiki/pages/scoreparse-multimodal-primary.md
   - .wiki/pages/scoreparse-1384-docx-scheme-contract-rca.md
 created: 2026-09-26
-updated: 2026-09-26
-health_checked: 2026-09-26
+updated: 2026-09-27
+health_checked: 2026-09-27
 archive: false
 ---
 
@@ -82,3 +89,26 @@ archive: false
 
 - [[scoreparse-multimodal-primary]]：文字主链路、原文证据、跨表父子与发布保护契约。
 - [[scoreparse-1384-docx-scheme-contract-rca]]：同类问题的 DOCX 入口版本（方案清单为空、`SOURCE_SCHEME_NOT_VERIFIED`）；本次是 PDF 入口版本，两者共同点是"入口侧缺章节锚点 + 下游资格门直接拒绝"。
+
+
+## 2026-09-27 版本化提取与真实跨层回归（尚未部署）
+
+本节记录 spec 073 新链路；上文历史轮次/历史风险按当时版本保留，不代表本次已部署。
+
+| 边界 | 当前契约与证据 |
+|---|---|
+| 全候选 / 生效项 | `ScoreExtractionSnapshot` 保存全部事实；数值可计算与原文验证分开。物流仓储未逐字绑定仍显示警告；方案外履约考核不进入目标方案。 |
+| DOCX 续行 | 实际 DOCX -> Sidecar -> binder -> qualification；邻接同逻辑行、XML 存在、null 页码正例；段落/新章/编号/列数变化/缺 XML 负例。禁止用首段重建截断完整引文：按原始表格单元闭合性判定，不能按模型标点或子串判断。同表与后表统一检查下一数据行的编号和名称，重复表头只提供列语义，不证明独立；完整标题单元格与不同的编号/名称列才可定义角色，正文关键词不能充当表头。保留同表独立项、新章独立表及重复表头后独立项的完整规则正例。 |
+| 混合文件 | 各文档按实际格式判断；docN 换序不改变稳定 itemId。来源锚点仍原样保存用于证据读取。 |
+| fallback | 版本化冻结保留模型备选；旧证明不覆盖全候选集合，数值选择仅计确定性已选集合。 |
+| 并发 / 打分 | 项目锁 + 激活 CAS；成功、失败回退、旧任务迟到均核验版本和规则指纹。真实 MySQL 8 容器测试，非生产数据库验收。 |
+| 门禁 | `check-scoreparse-root-cause.sh` 离线执行独立摘录及实际 DOCX 转换；配置 `SIDECAR_PYTHON`，缺依赖/超时失败。pre-push 尊重显式 skip 选项；agent 的前端快捷策略不抑制根因/token 检查，实际脚本分发回归覆盖。 |
+| 发布 | 默认 OFF；V1219 + 匹配后端/Sidecar/前端 + 实际开关 true + 新任务 EXTRACTION_VERSION_V1 才能验收新链路。旧任务不被部署动作回填。 |
+
+副作用：激活新版本改变评分规则指纹，旧评分结果不能重用；人工修改阻止自动覆盖。前端同时显示最新提取与当前生效来源，无法确认来源时间时显示未知。独立历史章节标注、固定 task274 40 claims 的 13/100 回放不是新模型召回证明；真实部署、模型三次、HTTP/DB/浏览器多角色验收仍未执行。命令与证据边界见 `specs/073-fix-1382-scoreparse/quickstart.md`。
+
+### 完整规则恢复边界（FBR-I1）
+
+短引文只证明定位。exact-cell、name/score、预绑定 spans、anchor 共同经过纯结构恢复结果，不能再按包含短引文的单个 span 裁剪完整逻辑行。DOCX 的 XML/下一独立数据单元证明与 PDF 的物理页连续性分开；PDF 续页引用从逻辑行首表校验。共用单元格依据真实兄弟事实分界，编号材料条款保留。
+
+已知 DOCX/PDF 缺逻辑行标识也属于未决，不回退为单格已完整。无法证明完整单元时，原始 spans 和完整模型规则分开保存，`ruleText=MODEL_CLAIM` 并带 `FULL_RULE_UNIT_UNRESOLVED`。数值已知候选仍可计算；自动重解析不得覆盖已有完整规则和评分结果，首次或用户显式切换保持可用。纯文本仅定位引文区间时也适用，不把该区间称作完整 SOURCE。`FullRuleSourceReplayTest`、`ScoreExtractionPersistenceMysqlTest` 和根因脚本覆盖实际 DOCX 至生效明细；本地证据见 spec quickstart，未部署。

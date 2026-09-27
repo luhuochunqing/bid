@@ -24,9 +24,11 @@ public record ScoreFact(
         String extractionMethod,
         double confidence,
         ValidationStatus validationStatus,
-        ChildAggregation childAggregation
+        ChildAggregation childAggregation,
+        ScoreSourceMetadata sourceMetadata
 ) {
     public ScoreFact {
+        sourceMetadata = sourceMetadata == null ? ScoreSourceMetadata.EMPTY : sourceMetadata;
         factId = factId == null ? "" : factId;
         sourceTableId = sourceTableId == null ? "" : sourceTableId;
         sourceCellIds = sourceCellIds == null ? List.of() : List.copyOf(sourceCellIds);
@@ -37,6 +39,15 @@ public record ScoreFact(
         scoreRule = scoreRule == null ? ScoreRule.MAX_SCORE : scoreRule;
         validationStatus = validationStatus == null ? ValidationStatus.REVIEW_REQUIRED : validationStatus;
         childAggregation = childAggregation == null ? ChildAggregation.SUM : childAggregation;
+    }
+
+    public ScoreFact(String factId, String sourceTableId, List<String> sourceCellIds, String sourceText,
+                     String code, String dimension, BigDecimal weight, ScoreEvidence weightEvidence,
+                     ScoreRule scoreRule, String parentFactId, String extractionMethod, double confidence,
+                     ValidationStatus validationStatus, ChildAggregation childAggregation) {
+        this(factId, sourceTableId, sourceCellIds, sourceText, code, dimension, weight, weightEvidence,
+                scoreRule, parentFactId, extractionMethod, confidence, validationStatus, childAggregation,
+                ScoreSourceMetadata.EMPTY);
     }
 
     public ScoreFact(String factId, String sourceTableId, List<String> sourceCellIds, String sourceText,
@@ -82,21 +93,21 @@ public record ScoreFact(
     public ScoreFact withParentFactId(String newParentFactId) {
         return new ScoreFact(factId, sourceTableId, sourceCellIds, sourceText, code, dimension,
                 weight, weightEvidence, scoreRule, newParentFactId, extractionMethod,
-                confidence, validationStatus, childAggregation);
+                confidence, validationStatus, childAggregation, sourceMetadata);
     }
 
     /** Returns a copy of this fact with {@code dimension} replaced (semantic classification). */
     public ScoreFact withDimension(String newDimension) {
         return new ScoreFact(factId, sourceTableId, sourceCellIds, sourceText, code, newDimension,
                 weight, weightEvidence, scoreRule, parentFactId, extractionMethod,
-                confidence, validationStatus, childAggregation);
+                confidence, validationStatus, childAggregation, sourceMetadata);
     }
 
     /** Returns a copy of this fact with {@code validationStatus} replaced. */
     public ScoreFact withValidationStatus(ValidationStatus newStatus) {
         return new ScoreFact(factId, sourceTableId, sourceCellIds, sourceText, code, dimension,
                 weight, weightEvidence, scoreRule, parentFactId, extractionMethod,
-                confidence, newStatus, childAggregation);
+                confidence, newStatus, childAggregation, sourceMetadata);
     }
 
     /**

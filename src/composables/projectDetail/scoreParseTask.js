@@ -1,6 +1,6 @@
 // Input: statusFetcher（返回 { data: { status, errorMessage, completedAt } } 的函数）
 // Output: pollTask / formatTime / STATUS_MAP / TYPE_MAP — spec 041 状态映射与任务轮询纯函数
-//         normalizeScoreItem：客观项空 estScore 保留 null（展示层渲染"待确认"，spec 044 FR-001）
+//         normalizeScoreItem：未知 weight/客观项空 estScore 保留 null（展示层渲染"待确认"，spec 044 FR-001）
 //         mapScoreResults / lookupScoreResult：按 scoreItemId 建表，有 id 时不得回退 code
 //         getDecisionBadgeType / getDecisionBadgeText: 评分决策状态徽标映射纯函数
 // Pos: src/composables/projectDetail/ - 无状态辅助模块
@@ -84,7 +84,7 @@ export function normalizeScoreItem(s, i) {
     code: displayCode,
     dim: s.dim || '评分项',
     detail: s.detail || '',
-    weight: s.weight != null ? Number(s.weight) : 0,
+    weight: s.weight != null ? Number(s.weight) : null,
     scoreType: TYPE_MAP[s.scoreType] || s.scoreType || (isSubj ? '主观项' : '客观项'),
     status,
     estScore: isSubj ? '待确认' : (s.estScore != null ? Number(s.estScore) : null),

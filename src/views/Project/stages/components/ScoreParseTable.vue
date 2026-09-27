@@ -1,6 +1,6 @@
 <!--
   Input: items (评分项列表), results (实际打分结果), mode ('est' | 'actual'), statistics
-  Output: AI 评分标准 8 列结构化表格（完全对齐 PRD / 原型 V3 双阶段设计）
+  Output: 生效评分项表格；声明总分同源比较，历史评分不计当前总分；AI 评分标准 8 列结构化表格（完全对齐 PRD / 原型 V3 双阶段设计）
   Pos: src/views/Project/stages/components/ScoreParseTable.vue
 -->
 <template>
@@ -9,7 +9,7 @@
       <thead>
         <tr>
           <th style="width: 72px">编号</th>
-          <th>标书原文</th>
+          <th>{{ versioned ? '当前规则文本' : '标书原文' }}</th>
           <th style="width: 110px">评分项</th>
           <th style="width: 52px; text-align: center">权重</th>
           <th style="width: 80px">满足状态</th>
@@ -21,9 +21,9 @@
       <tbody>
         <tr v-for="(item, index) in items" :key="item.id != null ? 'id-' + item.id : 'row-' + index" :data-item-id="item.id">
           <td class="code-cell">{{ item.code }}</td>
-          <td class="req-cell original-text-cell">{{ item.detail || item.req }}</td>
+          <td class="req-cell original-text-cell">{{ item.detail || item.req }}<span v-if="versioned && item.validationStatus !== 'AUTO_APPROVED'" class="history-label">来源未核验，请结合提取快照核对</span></td>
           <td class="dim-cell">{{ item.dim }}</td>
-          <td class="weight-cell">{{ item.weight }}</td>
+          <td class="weight-cell">{{ item.weight == null ? '待确认' : item.weight }}</td>
           <td>
             <span class="status-cell" :class="getItemStatus(item)">
               <span v-if="getItemStatus(item) === 'neutral'" class="dot">● </span>
@@ -39,6 +39,7 @@
           </td>
           <td class="score-cell" :class="getScoreClass(item)">
             {{ getScoreText(item) }}
+            <span v-if="mode === 'actual' && resultOf(item)?.reuseKind === 'LEGACY_UNVERIFIED'" class="history-label">历史评分，需重新评分</span>
             <span v-if="mode === 'actual' && resultOf(item)?.reuseKind === 'REUSED'" class="pill neutral">沿用</span>
           </td>
           <td style="text-align: center">
@@ -52,9 +53,9 @@
         <tr class="tfoot-row">
           <td colspan="3" class="tfoot-total-cell">
             <span class="tfoot-label">合计</span>
-            <span v-if="totalWeight !== 100" class="weight-warning">权重合计与 100 分不符</span>
+            <span v-if="declaredTotal != null && totalWeight != null && totalWeight !== declaredTotal" class="weight-warning">权重合计与原文声明 {{ declaredTotal }} 分不符</span>
           </td>
-          <td class="weight-cell tfoot-weight">{{ totalWeight }}</td>
+          <td class="weight-cell tfoot-weight">{{ totalWeight == null ? '待确认' : totalWeight }}</td>
           <td class="tfoot-stack-cell">
             <span class="stat-tag ok">{{ currentStats.ok }} 满足</span>
             <span class="stat-tag danger">{{ currentStats.danger }} 不满足</span>
@@ -82,13 +83,15 @@ const props = defineProps({
   items: { type: Array, required: true },
   results: { type: Object, default: () => ({}) },
   mode: { type: String, default: 'est' },
-  totalWeight: { type: Number, default: 100 },
+  versioned: { type: Boolean, default: false },
+  totalWeight: { type: Number, default: null },
+  declaredTotal: { type: Number, default: null },
   statsOkCount: { type: Number, default: 0 },
   statsDangerCount: { type: Number, default: 0 },
   statsNeutralCount: { type: Number, default: 0 },
   objectiveWeight: { type: Number, default: 0 },
   subjectiveWeight: { type: Number, default: 0 },
-  highlightScore: { type: [Number, String], default: 0 },
+  highlightScore: { type: [Number, String], default: null },
 })
 
 defineEmits(['open-detail'])
@@ -115,7 +118,7 @@ function getItemStatusText(item) {
 function getScoreText(item) {
   if (props.mode === 'actual') {
     const res = resultOf(item)
-    if (!res) return '—'
+    if (!res) return '待确认'
     const actual = res.actualScore ?? res.score
     if (res.status === 'subjective' || item.scoreType === '主观项' || actual === null || actual === undefined) return '待确认'
     return actual
@@ -163,28 +166,30 @@ const currentStats = computed(() => {
 
 const currentHighlightScore = computed(() => {
   if (props.mode === 'actual') {
-    let score = 0
+    let score = 0, known = false
     for (const item of props.items) {
       if (item.scoreType === '客观项') {
         const res = resultOf(item)
         const val = res?.actualScore ?? res?.score
-        if (typeof val === 'number') {
+        if (res?.reuseKind !== 'LEGACY_UNVERIFIED' && typeof val === 'number') {
+          known = true
           score += val
         }
       }
     }
-    return score
+    return known ? score : '待确认'
   }
   if (typeof props.highlightScore === 'number' || typeof props.highlightScore === 'string') {
     return props.highlightScore
   }
-  let score = 0
+  let score = 0, known = false
   for (const item of props.items) {
     if (item.scoreType === '客观项' && typeof item.estScore === 'number') {
+      known = true
       score += item.estScore
     }
   }
-  return score
+  return known ? score : '待确认'
 })
 </script>
 
@@ -210,6 +215,7 @@ const currentHighlightScore = computed(() => {
 .status-cell.neutral { color: var(--text-muted); }
 .status-cell .dot { font-size: 9px; vertical-align: middle; color: var(--brand-primary); }
 .score-cell { font-weight: 600; font-family: monospace; text-align: center; font-size: 13px; white-space: nowrap; }
+.history-label { display: block; white-space: normal; font-weight: 400; color: var(--text-muted); }
 .score-cell.full { color: var(--brand-xiyu-logo); font-weight: 700; }
 .score-cell.partial { color: var(--status-warning-color); font-weight: 700; }
 .score-cell.zero { color: var(--status-danger-color); font-weight: 700; }

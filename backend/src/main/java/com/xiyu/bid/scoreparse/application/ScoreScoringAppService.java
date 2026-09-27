@@ -36,16 +36,13 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * 阶段 2 投标文件实际打分应用服务（spec 041 US4 / 044 编排层）。
- */
+/** Version-bound scoring orchestration; slow model work runs outside database transactions. */
 @Service
 @Slf4j
 public class ScoreScoringAppService {
 
     private static final String TASK_TYPE_SCORING = "SCORING";
     private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "PROCESSING");
-
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreItemRepository itemRepository;
     private final ScoreResultRepository resultRepository;
@@ -58,6 +55,9 @@ public class ScoreScoringAppService {
     private final ImageBudget imageBudget;
     private final ScoreScoringResultsAssembler resultsAssembler = new ScoreScoringResultsAssembler();
     private final ScoreScoringItemPicker itemPicker = new ScoreScoringItemPicker();
+
+    @Autowired(required=false)
+    private ScoreScoringVersionService versions;
 
     @Lazy
     @Autowired
@@ -92,8 +92,14 @@ public class ScoreScoringAppService {
 
     public ScoreParseTriggerDTO triggerScoring(Long projectId, ScoreScoringCommand command) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
+        if (versions != null) return versions.prepare(projectId, () -> triggerLocked(projectId, command));
+        return triggerLocked(projectId, command);
+    }
+
+    private ScoreParseTriggerDTO triggerLocked(Long projectId, ScoreScoringCommand command) {
+        var snapshot = versions == null ? null : versions.lockedSnapshot(projectId);
         ScoreScoringCommand cmd = command == null ? ScoreScoringCommand.defaults() : command;
-        List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
+        List<ScoreItem> items = snapshot == null ? itemRepository.findByProjectIdOrderByItemIndexAsc(projectId) : snapshot.items();
         if (items.isEmpty()) {
             throw new IllegalArgumentException("SCORE_ITEMS_NOT_READY");
         }
@@ -101,8 +107,7 @@ public class ScoreScoringAppService {
         if (bidDocs.isEmpty()) {
             throw new IllegalArgumentException("NO_BID_DOCUMENT");
         }
-        List<ScoreParseTask> active = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
-                projectId, TASK_TYPE_SCORING, ACTIVE_STATUSES);
+        List<ScoreParseTask> active = scoringTasks(projectId, ACTIVE_STATUSES);
         if (!active.isEmpty()) {
             if ("AUTO".equals(cmd.normalizedSource())) {
                 ScoreParseTask existing = active.get(0);
@@ -116,12 +121,12 @@ public class ScoreScoringAppService {
         }
         ProjectDocument bidDoc = bidDocs.get(0);
         String taskId = UUID.randomUUID().toString();
-        String itemHash = BidScoreSkipPolicy.hashItems(items.stream()
+        String itemHash = snapshot != null ? snapshot.fingerprint() : BidScoreSkipPolicy.hashItems(items.stream()
                 .map(item -> BidScoreSkipPolicy.itemFingerprint(item.getId(), item.getWeight(), item.getDetail()))
                 .toList());
         ScoreParseTask last = latestCompletedScoring(projectId);
-        // 快速指纹预检：若投标文件 URL 与评分项集均与上次成功任务一致，无需下载直接跳过（0ms 响应，零双重下载）
-        if (last != null && bidDoc.getFileUrl() != null && bidDoc.getFileUrl().equals(last.getFileUrl())
+        if ("ALL".equals(cmd.normalizedScope()) && (snapshot == null || snapshot.results().size() == items.size())
+                && last != null && bidDoc.getFileUrl() != null && bidDoc.getFileUrl().equals(last.getFileUrl())
                 && itemHash != null && itemHash.equals(last.getItemSetHash())) {
             return completeSkipped(projectId, bidDoc, last.getBidContentHash(), itemHash, cmd.normalizedSource());
         }
@@ -129,6 +134,7 @@ public class ScoreScoringAppService {
         ScoreParseTask created = stateService.createTask(
                 taskId, projectId, TASK_TYPE_SCORING, bidDoc.getName(), bidDoc.getFileUrl(), cmd.normalizedSource());
         created.setStage(cmd.normalizedScope());
+        if (versions != null) created.setPipelineVersion("SCORING_VERSION_V1");
         if (last != null && bidDoc.getFileUrl() != null && bidDoc.getFileUrl().equals(last.getFileUrl())) {
             created.setBidContentHash(last.getBidContentHash());
         }
@@ -138,25 +144,31 @@ public class ScoreScoringAppService {
                     .collect(Collectors.joining(",")));
         }
         taskRepository.save(created);
-        self.executeScoringAsync(taskId);
+        ScoreAfterCommit.dispatch(() -> self.executeScoringAsync(taskId));
         return new ScoreParseTriggerDTO(taskId, "PENDING");
     }
 
     @Async("scoreParseExecutor")
+    @org.springframework.transaction.annotation.Transactional(propagation=org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public void executeScoringAsync(String taskId) {
         try {
             doExecuteScoring(taskId);
         } catch (RuntimeException exception) {
             log.error("打分任务异常终止: taskId={}", taskId, exception);
-            stateService.failTask(taskId, "打分失败: " + exception.getMessage());
+            if (versions == null) stateService.failTask(taskId, "打分失败，请重试");
+            else taskRepository.findByTaskId(taskId).ifPresent(t -> versions.finish(t, null, "打分失败，请重试"));
+        } finally {
+            progressService.clearProgress(taskId);
         }
     }
 
     private void doExecuteScoring(String taskId) {
-        stateService.markProcessing(taskId);
+        var snapshot = versions == null ? null : versions.start(taskId);
+        if (versions != null && snapshot == null) return;
+        if (versions == null) stateService.markProcessing(taskId);
         ScoreParseTask task = taskRepository.findByTaskId(taskId)
                 .orElseThrow(() -> new IllegalStateException("任务不存在: " + taskId));
-        List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(task.getProjectId());
+        List<ScoreItem> items = snapshot == null ? itemRepository.findByProjectIdOrderByItemIndexAsc(task.getProjectId()) : snapshot.items();
         updateProgress(taskId, 5, "读取投标文件");
         BidFileLoadingCoordinator.LoadedBidDocument loaded;
         try {
@@ -172,31 +184,35 @@ public class ScoreScoringAppService {
         }
         task.setBidContentHash(loaded.contentHash());
         ScoreParseTask last = latestCompletedScoring(task.getProjectId());
-        if (last != null && BidScoreSkipPolicy.shouldSkip(loaded.contentHash(), task.getItemSetHash(),
+        if ("ALL".equals(task.getStage()) && (snapshot == null || snapshot.results().size() == items.size())
+                && last != null && BidScoreSkipPolicy.shouldSkip(loaded.contentHash(), task.getItemSetHash(),
                 last.getBidContentHash(), last.getItemSetHash())) {
             task.setStatus("COMPLETED");
             task.setProgress(100);
             task.setStage("SKIPPED");
             task.setCompletedAt(java.time.LocalDateTime.now());
-            taskRepository.save(task);
-            stateService.markCompleted(taskId);
-            progressService.clearProgress(taskId);
+            if (versions != null) versions.finish(task, null, null);
+            else { taskRepository.save(task); stateService.markCompleted(taskId); }
             return;
         }
         String bidDocText = loaded.text();
-        Map<Long, ScoreResult> oldResults = resultRepository
+        Map<Long, ScoreResult> oldResults = snapshot != null ? snapshot.results() : resultRepository
                 .findByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList())
                 .stream().collect(Collectors.toMap(ScoreResult::getScoreItemId, Function.identity(), (a, b) -> a));
+        var previousStatuses = new java.util.HashMap<Long, String>();
+        if (snapshot != null) previousStatuses.putAll(snapshot.previousStatuses());
+        else oldResults.forEach((id, result) -> previousStatuses.put(id, result.getStatusStage2()));
         ScoreScoringItemPicker.Plan plan = itemPicker.plan(
-                items, oldResults, bidDocText, last,
-                task.getStage(), parseItemIds(task.getChapterHashes()));
+                items, oldResults, bidDocText, last != null && java.util.Objects.equals(task.getItemSetHash(),last.getItemSetHash()) ? last : null,
+                task.getStage(), parseItemIds(task.getChapterHashes()), previousStatuses);
         ScoreItemAssessor assessor = new ScoreItemAssessor(scoreAnalyzer, imageBudget);
         List<ScoreResult> results = new ArrayList<>(items.size());
         java.util.Set<Long> assessIds = plan.toAssess().stream().map(ScoreItem::getId).collect(Collectors.toSet());
         for (int i = 0; i < items.size(); i++) {
             ScoreItem item = items.get(i);
-            if (!assessIds.contains(item.getId()) && oldResults.containsKey(item.getId())) {
-                results.add(assessor.reuse(task, oldResults.get(item.getId())));
+            if (!assessIds.contains(item.getId())) {
+                results.add(oldResults.containsKey(item.getId()) ? assessor.reuse(task, oldResults.get(item.getId()))
+                        : assessor.fallbackPending(task, List.of(item), "本次未选择此项，暂无当前规则评分").get(0));
                 continue;
             }
             updateProgress(taskId, 10 + 80 * (i + 1) / items.size(),
@@ -206,12 +222,10 @@ public class ScoreScoringAppService {
         task.setStage(plan.stageToken());
         task.setChapterHashes(BidChapterHashCodec.encode(
                 BidChapterDirtySet.toHashMap(BidChapterDirtySet.split(bidDocText))));
-        taskRepository.save(task);
         updateProgress(taskId, 95, "打分结果落库");
-        resultOverwriter.replaceAtomically(items.stream().map(ScoreItem::getId).toList(), results);
+        if (versions != null && !versions.finish(task, results, null)) return;
+        if (versions == null) { taskRepository.save(task); resultOverwriter.replaceAtomically(items.stream().map(ScoreItem::getId).toList(), results); stateService.markCompleted(taskId); }
         log.info("打分任务完成: taskId={}, items={}", taskId, results.size());
-        stateService.markCompleted(taskId);
-        progressService.clearProgress(taskId);
     }
 
     public ScoreParseProgressDTO getStatus(Long projectId) {
@@ -221,6 +235,7 @@ public class ScoreScoringAppService {
 
     public ScoreScoringResultsDTO getResults(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
+        if (versions != null) return versions.read(projectId);
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
         Map<Long, ScoreResult> resultMap = resultRepository
                 .findByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList())
@@ -233,6 +248,7 @@ public class ScoreScoringAppService {
         String taskId = UUID.randomUUID().toString();
         ScoreParseTask created = stateService.createTask(
                 taskId, projectId, TASK_TYPE_SCORING, bidDoc.getName(), bidDoc.getFileUrl(), source);
+        if (versions != null) created.setPipelineVersion("SCORING_VERSION_V1");
         created.setStatus("COMPLETED");
         created.setProgress(100);
         created.setStage("SKIPPED");
@@ -245,16 +261,19 @@ public class ScoreScoringAppService {
 
     private void failScoringWithPending(String taskId, ScoreParseTask task, List<ScoreItem> items, String message) {
         // 原子覆盖走独立组件拿事务（@Async 线程无事务，AppService 内直调派生 delete 会抛 TransactionRequiredException）
-        resultOverwriter.replaceAtomically(
-                items.stream().map(ScoreItem::getId).toList(),
-                new ScoreItemAssessor(scoreAnalyzer, imageBudget).fallbackPending(task, items, message));
-        stateService.failTask(taskId, message);
-        progressService.clearProgress(taskId);
+        var pending = new ScoreItemAssessor(scoreAnalyzer, imageBudget).fallbackPending(task, items, message);
+        if (versions != null) versions.finish(task, pending, message);
+        else { resultOverwriter.replaceAtomically(items.stream().map(ScoreItem::getId).toList(), pending); stateService.failTask(taskId, message); }
     }
 
     private ScoreParseTask latestCompletedScoring(Long projectId) {
-        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, TASK_TYPE_SCORING, List.of("COMPLETED"))
+        return scoringTasks(projectId, List.of("COMPLETED"))
                 .stream().max(Comparator.comparing(ScoreParseTask::getId)).orElse(null);
+    }
+
+    private List<ScoreParseTask> scoringTasks(Long projectId, List<String> statuses) {
+        return versions != null && org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
+                ? versions.lockedTasks(projectId, statuses) : taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, TASK_TYPE_SCORING, statuses);
     }
 
     private List<Long> parseItemIds(String raw) {

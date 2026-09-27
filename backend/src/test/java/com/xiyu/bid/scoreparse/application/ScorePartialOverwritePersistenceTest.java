@@ -485,6 +485,6 @@ class ScorePartialOverwritePersistenceTest {
             }
         }
         return new DocumentArtifact.CanonicalTable(
-                tableId, 1, "", rows.size(), rows.get(0).size(), List.of(), cells, true);
+                tableId, 1, "本项目评分办法", rows.size(), rows.get(0).size(), List.of(), cells, true);
     }
 }

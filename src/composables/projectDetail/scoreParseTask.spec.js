@@ -300,3 +300,7 @@ describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () 
     })
   })
 })
+
+it('preserves unknown active weight instead of inventing zero', () => {
+  expect(normalizeScoreItem({ id: 9, weight: null, scoreType: 'OBJECTIVE' }).weight).toBeNull()
+})

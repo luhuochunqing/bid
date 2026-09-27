@@ -13,6 +13,9 @@ vi.mock('element-plus', async (importOriginal) => {
 
 vi.mock('@/api/modules/scoreParse.js', () => ({
   scoreParseApi: {
+    getLatestExtraction: vi.fn(),
+    getExtraction: vi.fn(),
+    activateExtraction: vi.fn(),
     getItems: vi.fn(),
     getReview: vi.fn(),
     submitReview: vi.fn(),
@@ -41,6 +44,7 @@ const resultsFixture = {
 describe('ScoreParseDrawer.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    scoreParseApi.getLatestExtraction.mockRejectedValue({ response: { status: 409, data: { msg: 'EXTRACTION_FEATURE_DISABLED' } } })
     scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, summary: null } })
     scoreParseApi.getReview.mockResolvedValue({ data: { facts: [], audits: [] } })
     scoreParseApi.submitReview.mockResolvedValue({ data: { facts: [], audits: [{ action: 'RETAIN_ORIGINAL' }] } })
@@ -347,5 +351,63 @@ describe('ScoreParseDrawer.vue', () => {
     wrapper.vm.scoringOverlayVisible = true
     await wrapper.vm.$nextTick()
     expect(reparseBtn.attributes('disabled')).toBeDefined()
+  })
+})
+
+describe('versioned drawer coexistence', () => {
+  it('renders failed latest candidates alongside current active table and historical scoring', async () => {
+    scoreParseApi.getLatestExtraction.mockResolvedValue({ data: {
+      taskId: 'new-failed', taskStatus: 'FAILED', snapshotStatus: 'FROZEN', payloadVersion: 1,
+      schemes: [], items: [{ itemId: 'unknown', name: '待核验新候选', schemeId: '', computable: false, diagnostics: ['WEIGHT_UNKNOWN'] }],
+      active: { taskId: 'old', fingerprint: 'old-fp' }, adoption: { adoptedItemIds: [], remainingItemIds: ['unknown'] },
+    } })
+    scoreParseApi.getExtraction.mockResolvedValue({ data: { taskId: 'old', active: { fingerprint: 'old-fp' }, schemes: [] } })
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, parseTime: '2026-09-20T12:00:00', meta: { lastParseStatus: 'FAILED', lastParseError: '新文件失败' } } })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [{ scoreItemId: 2, status: 'PENDING', actualScore: 5, reuseKind: 'LEGACY_UNVERIFIED' }] } })
+    const w = mount(ScoreParseDrawer, { props: { projectId: 123 }, global: { stubs: { 'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true, 'el-alert': { props: ['description'], template: '<div>{{ description }}</div>' } } } })
+    await w.vm.open({ stage: 2, autoParse: false })
+    expect(w.text()).toContain('待核验新候选')
+    expect(w.text()).toContain('总体架构设计')
+    expect(w.text()).toContain('历史评分，需重新评分')
+    expect(w.find('[data-test="activate-extraction"]').attributes('disabled')).toBeDefined()
+  })
+})
+
+describe('active source time provenance', () => {
+  const createDrawer = () => mount(ScoreParseDrawer, { props: { projectId: 123 }, global: { stubs: {
+    'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true,
+  } } })
+  const latest = (taskId = null) => ({ taskId: 'new', taskStatus: 'COMPLETED', extractedAt: '2026-09-27T12:00:00',
+    snapshotStatus: taskId ? 'FROZEN' : 'LEGACY_UNKNOWN', payloadVersion: taskId ? 1 : 0, schemes: [], items: [],
+    active: { taskId, fingerprint: 'fp' }, adoption: { adoptedItemIds: [] } })
+  beforeEach(() => {
+    vi.resetAllMocks()
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, meta: { parseTime: '2026-09-27T12:00:00', lastParseStatus: 'COMPLETED' } } })
+  })
+  it('cold opens and reopens legacy active with unknown source time despite a new task timestamp', async () => {
+    scoreParseApi.getLatestExtraction.mockResolvedValue({ data: latest() })
+    const w = createDrawer()
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await w.vm.open({ autoParse: false, autoScore: false })
+      expect(w.text()).toContain('生效规则来源时间 未知')
+      expect(w.text()).toContain('总体架构设计')
+      expect(w.text()).toContain('历史版本，来源待确认')
+      w.vm.visible = false
+    }
+    expect(scoreParseApi.triggerParse).not.toHaveBeenCalled()
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+  })
+  it('keeps known versioned active time separate from latest snapshot time on cold open and reopen', async () => {
+    scoreParseApi.getLatestExtraction.mockResolvedValue({ data: latest('old') })
+    scoreParseApi.getExtraction.mockResolvedValue({ data: { ...latest('old'), taskId: 'old', schemes: [{ schemeId: 's', activeCount: 2, declaredTotal: 100, declaredTotalStatus: 'KNOWN' }] } })
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, meta: { parseTime: '2026-09-20T12:00:00', lastParseStatus: 'COMPLETED' } } })
+    const w = createDrawer()
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await w.vm.open({ autoParse: false, autoScore: false })
+      expect(w.text()).toContain('生效规则来源时间 ' + new Date('2026-09-20T12:00:00').toLocaleString('zh-CN', { hour12: false }))
+      expect(w.text()).not.toContain('生效规则来源时间 ' + new Date('2026-09-27T12:00:00').toLocaleString('zh-CN', { hour12: false }))
+      w.vm.visible = false
+    }
   })
 })

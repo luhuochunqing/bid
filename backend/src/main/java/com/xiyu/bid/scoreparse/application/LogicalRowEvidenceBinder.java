@@ -12,15 +12,13 @@ import java.util.regex.Pattern;
 /** Binds a fact to original cells when one DOCX row spans adjacent physical tables. */
 final class LogicalRowEvidenceBinder {
     private static final Pattern SCORE_COLUMN = Pattern.compile("(?:分值|分数|得分)");
+    private static final Pattern NAME_COLUMN = Pattern.compile("(?:评分因素|评分项目|评分项|评审因素|评审项目)");
     private static final Pattern ID_COLUMN = Pattern.compile("(?:序号|编号)");
 
     private LogicalRowEvidenceBinder() { }
 
     private static String normalize(String value) {
-        return value == null ? "" : value.replace('\u00a0', ' ')
-                .replace('\u2007', ' ').replace('\u202f', ' ')
-                .replaceAll("\\*\\*|__", "")
-                .replaceAll("[\\t\\r\\n]+", " ").replaceAll(" +", " ").trim();
+        return com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(value).text();
     }
 
     static java.util.Optional<MultimodalScoreFact> bind(
@@ -45,6 +43,7 @@ final class LogicalRowEvidenceBinder {
                 .filter(row -> normalize(row.stream()
                         .map(pair -> ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).rawText())
                         .filter(text -> text != null && !text.isBlank()).reduce("", String::concat)).contains(quote))
+                .filter(row -> sourceUnitClosed(row, artifact))
                 .map(row -> boundLogicalRow(fact, row, quote))
                 .toList();
         if (exactMatches.size() == 1) return exactMatches.stream().findFirst();
@@ -52,9 +51,15 @@ final class LogicalRowEvidenceBinder {
 
         List<MultimodalScoreFact> rebuilt = eligibleRows.stream()
                 .filter(row -> hasExactDimensionAndScore(row, fact, headers))
+                .filter(row -> sourceUnitClosed(row, artifact))
                 .map(row -> rebuildFromOriginalRuleCells(fact, row, headers))
                 .filter(java.util.Objects::nonNull).toList();
         return rebuilt.size() == 1 ? rebuilt.stream().findFirst() : java.util.Optional.empty();
+    }
+
+    private static boolean sourceUnitClosed(List<Object[]> row, DocumentArtifact artifact) {
+        return com.xiyu.bid.scoreparse.domain.LogicalRuleSourceUnit.closed(artifact, row.stream()
+                .map(pair -> ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).cellId()).toList());
     }
 
     private static boolean hasExactDimensionAndScore(List<Object[]> row, MultimodalScoreFact fact,
@@ -165,7 +170,9 @@ final class LogicalRowEvidenceBinder {
                 .map(pair -> ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).cellId()).toList();
         return new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(), fact.dimension(),
                 fact.weight(), fact.ruleText(), fact.scoreType(), page, firstTable.tableId(), sourceCellIds,
-                fact.quotedText(), fact.confidence(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus());
+                TextPrimaryEvidenceBinder.restoredQuote(citations.stream().map(pair ->
+                        ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).rawText()).reduce("", String::concat),
+                        fact.quotedText()), fact.confidence(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus(), fact.sourceMetadata());
     }
 
 }

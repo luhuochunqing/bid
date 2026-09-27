@@ -130,8 +130,25 @@ final class OriginalScoreQualificationPolicy {
         if (cited.stream().map(source -> source.table().tableId()).distinct().count() == 1) return List.copyOf(cited);
         String logicalRowId = cited.get(0).cell().logicalRowId();
         String section = cited.get(0).table().sourceSection();
-        if (logicalRowId.isBlank() || cited.stream().anyMatch(source -> !logicalRowId.equals(source.cell().logicalRowId())
+        if (logicalRowId.isBlank() || section.isBlank()
+                || cited.stream().anyMatch(source -> !logicalRowId.equals(source.cell().logicalRowId())
                 || !section.equals(source.table().sourceSection()))) return List.of();
+        var document = artifact.documentFor(cited.getFirst().cell().cellId());
+        if (cited.stream().anyMatch(source -> !java.util.Objects.equals(document,
+                artifact.documentFor(source.cell().cellId())))) return List.of();
+        List<String> types = cited.stream().map(source -> source.table().sourceFileType().isBlank()
+                ? document == null ? "" : document.fileType() : source.table().sourceFileType())
+                .map(type -> type.toUpperCase(java.util.Locale.ROOT)).distinct().toList();
+        if (types.size() != 1) return List.of();
+        if ("DOCX".equals(types.getFirst())) {
+            return cited.stream().allMatch(source -> source.cell().sourceXmlPath() != null
+                    && !source.cell().sourceXmlPath().isBlank()) ? List.copyOf(cited) : List.of();
+        }
+        if (!"PDF".equals(types.getFirst())) return List.of();
+        List<Integer> pages = cited.stream().map(source -> source.cell().sourcePage() == null
+                ? source.table().sourcePage() : source.cell().sourcePage()).distinct().toList();
+        if (pages.stream().anyMatch(java.util.Objects::isNull)) return List.of();
+        for (int i = 1; i < pages.size(); i++) if (pages.get(i) != pages.get(i - 1) + 1) return List.of();
         return List.copyOf(cited);
     }
 
@@ -167,9 +184,7 @@ final class OriginalScoreQualificationPolicy {
     }
 
     private static String normalizeSource(String value) {
-        return value == null ? "" : value.replaceAll("[\\u00a0\\u2007\\u202f\\t\\r\\n]+", " ")
-                .replaceAll("\\*\\*|__", "")
-                .replaceAll(" +", " ").trim();
+        return com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(value).text();
     }
 
     public static String qualificationFactKey(MultimodalScoreFact fact) {

@@ -9,12 +9,9 @@ import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.ScoreTableRecallLane;
-import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseProgressDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
-import com.xiyu.bid.scoreparse.dto.ScoreItemDTO;
-import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.infrastructure.openai.LlmTableScoreExtractor;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
@@ -66,12 +63,12 @@ public class ScoreParseAppService {
     private final ScoreCandidatePostProcessor postProcessor;
     private final ObjectProvider<LlmTableScoreExtractor> llmTableScoreExtractorProvider;
     private final ObjectProvider<ScoreTableSchemaMapper> schemaMapperProvider;
-    private final SummaryAggregator summaryAggregator = new SummaryAggregator();
     /** 自身代理（解决 @Async 自调用失效）；@Lazy 避免循环依赖 */
     @Lazy
     @Autowired
     private ScoreParseAppService self;
     @Autowired(required = false) private MultimodalScoreFactExtractor multimodalScoreFactExtractor;
+    @Autowired(required = false) private VersionedScoreParseCompletion versionedCompletion;
     public ScoreParseTriggerDTO triggerParse(Long projectId) {
         return triggerParse(projectId, "MANUAL");
     }
@@ -135,6 +132,7 @@ public class ScoreParseAppService {
             doExecuteParse(taskId);
         } catch (RuntimeException exception) {
             log.error("解析任务异常终止: taskId={}", taskId, exception);
+            if (versionedCompletion != null) versionedCompletion.failure(taskId);
             stateService.failTask(taskId, "解析失败: " + exception.getMessage());
         }
     }
@@ -143,11 +141,13 @@ public class ScoreParseAppService {
         stateService.markProcessing(taskId);
         ScoreParseTask task = taskRepository.findByTaskId(taskId)
                 .orElseThrow(() -> new IllegalStateException("任务不存在: " + taskId));
+        boolean versioned = versionedCompletion != null && versionedCompletion.enabledFor(task);
         TenderExecutionSource intake = resolveExecutionSource(task.getProjectId());
         try {
             if (intake == null || intake.source() == null) {
                 String reason = intake == null || intake.emptyReason() == null ? NO_SNAPSHOT_MESSAGE : intake.emptyReason();
                 log.warn("读取立项招标文件失败: taskId={}, msg={}", taskId, reason);
+                if (versionedCompletion != null) versionedCompletion.failure(taskId);
                 stateService.failTask(taskId, reason);
                 progressService.clearProgress(taskId);
                 return;
@@ -155,16 +155,23 @@ public class ScoreParseAppService {
             TenderTextSource source = intake.source();
             task.setFileName(source.fileName());
             task.setFileUrl(source.fileUrl());
-            taskRepository.save(task);
+            if (versioned && !versionedCompletion.source(task, source)) return;
+            if (!versioned) taskRepository.save(task);
             updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
 
             SidecarDocumentArtifactExtractor artifactExtractor = artifactExtractorProvider == null
                     ? null : artifactExtractorProvider.getIfAvailable();
             var structuredCandidates = multimodalScoreFactExtractor == null
                     ? StructuredTableExtractionHandler.extract(source, intake.loaded(), artifactExtractor, sidecarTableExtractor)
+                    : !versioned ? LegacyTextScoreExtraction.extract(source, intake.loadedFiles(), intake.sources(), artifactExtractor, multimodalScoreFactExtractor,
+                            () -> updateProgress(taskId, 5, "READ_DOCUMENT", "正在识别招标文件评分内容"))
                     : StructuredTableExtractionHandler.extractWithTextModelHeartbeat(source, intake.loadedFiles(), intake.sources(), artifactExtractor,
                             multimodalScoreFactExtractor,
                             () -> updateProgress(taskId, 5, "READ_DOCUMENT", "正在识别招标文件评分内容"));
+            if (versioned && (structuredCandidates.structureIncomplete() || structuredCandidates.evidencePipeline())) {
+                versionedCompletion.structured(task, structuredCandidates);
+                return;
+            }
             if (structuredCandidates.structureIncomplete()) {
                 StructuredTableExtractionHandler.markIncomplete(task, taskId, structuredCandidates.failureReason(),
                         taskRepository, stateService, progressService);
@@ -176,6 +183,7 @@ public class ScoreParseAppService {
                         progressService, itemPersistenceService, estimatedScoreService);
                 return;
             }
+            if (versioned) versionedCompletion.legacyDraft(task, structuredCandidates.candidates(), 0);
             RecallOutcome outcome = scoreAnalyzer.recallCandidates(source.text(), null,
                     (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
             task.setSkippedChunks(outcome.skippedChunks());
@@ -185,6 +193,10 @@ public class ScoreParseAppService {
             } else {
                 tableCandidates = recallTableCandidates(source.text());
             }
+            var rawCandidates = new java.util.ArrayList<>(outcome.candidates());
+            rawCandidates.addAll(tableCandidates);
+            if (tableCandidates != structuredCandidates.candidates()) rawCandidates.addAll(structuredCandidates.candidates());
+            var draft = versioned ? versionedCompletion.legacyDraft(task, rawCandidates, outcome.skippedChunks()) : null;
             updateProgress(taskId, 70, "GOVERN", "候选治理、归并裁决与权重收敛");
             var processed = postProcessor.process(taskId, source.text(), outcome, tableCandidates,
                     (progress, stageKey) -> updateProgress(taskId, progress, stageKey,
@@ -194,6 +206,10 @@ public class ScoreParseAppService {
             task.setPipelineVersion(processed.pipelineVersion());
             task.setDecisionStatus(processed.decisionStatus() == null ? null : processed.decisionStatus().name());
             task.setFallbackReason(processed.fallbackReason());
+            if (versioned) {
+                versionedCompletion.legacyFinish(task, draft, processed.failMessage());
+                return;
+            }
             if (processed.failMessage() != null) {
                 taskRepository.save(task);
                 stateService.failTask(taskId, processed.failMessage());
@@ -241,20 +257,8 @@ public class ScoreParseAppService {
 
     public ScoreParseItemsDTO getItems(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
-        List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
-        List<ScoreItemDTO> itemDTOs = items.stream().map(this::toDTO).toList();
-
-        SummaryAggregator.Result summary = summaryAggregator.aggregate(items.stream()
-                .map(item -> new SummaryAggregator.Item(item.getWeight(), item.getScoreType(), item.getEstScore(), item.getStatusStage1()))
-                .toList());
-        ScoreParseTask latest = latestTaskOrNull(projectId, TASK_TYPE_PARSE);
-        return new ScoreParseItemsDTO(itemDTOs, new ScoreParseItemsDTO.Summary(
-                summary.totalWeight(), summary.totalEstScore(), summary.okCount(), summary.dangerCount(), summary.pendingCount(),
-                summary.objectiveWeight(), summary.subjectiveWeight(), summary.weightWarning(),
-                latest == null ? null : latest.getOriginalTotalWeight(), latest == null ? null : latest.getNormalizationWarning()),
-                new ScoreParseItemsMetaBuilder(initiationTenderTextResolver, snapshotRepository, taskRepository,
-                        itemRepository, resultRepository, new ScoreBidDocumentLookup(projectDocumentRepository, null, null, null, null))
-                        .build(projectId, latest, latestTaskOrNull(projectId, "SCORING")));
+        return new ScoreParseItemsReadSupport(itemRepository,taskRepository,resultRepository,initiationTenderTextResolver,
+                snapshotRepository,projectDocumentRepository).read(projectId,latestTaskOrNull(projectId,TASK_TYPE_PARSE),latestTaskOrNull(projectId,"SCORING"));
     }
 
     private ScoreParseTask latestTaskOrNull(Long projectId, String taskType) {
@@ -291,10 +295,4 @@ public class ScoreParseAppService {
         progressService.updateProgress(taskId, new ScoreParseProgressDTO(taskId, "PROCESSING", progress, stageText, null, null, null));
     }
 
-    private ScoreItemDTO toDTO(ScoreItem item) {
-        return new ScoreItemDTO(item.getId(), item.getCode(), item.getDim(), item.getDetail(),
-                item.getWeight(), item.getScoreType(), item.getStatusStage1(), item.getEstScore(),
-                item.getEstBasis(), item.getKbHit(), item.getLocation(), item.getSourceCellIds(),
-                item.getWeightEvidence(), item.getExtractionMethod(), item.getConfidence(), item.getValidationStatus(), item.getParentScoreItemId());
-    }
 }

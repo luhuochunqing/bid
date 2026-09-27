@@ -21,7 +21,23 @@ record StructuredTableResult(List<ScoreCandidate> candidates,
                              List<TableCompleteness> tableCompletenesses,
                              List<OriginalScoreEvidencePolicy.PublicationProof> originalProofs,
                              AiProviderDiagnostics aiProviderDiagnostics,
-                             List<OriginalScoreEvidencePolicy.Qualification> qualifications) {
+                             List<OriginalScoreEvidencePolicy.Qualification> qualifications,
+                             List<String> sourceDiagnostics) {
+
+    StructuredTableResult {
+        sourceDiagnostics = sourceDiagnostics == null ? List.of() : List.copyOf(sourceDiagnostics);
+    }
+
+    StructuredTableResult(List<ScoreCandidate> candidates, boolean structureIncomplete, String failureReason,
+                          boolean evidencePipeline, List<ScoreFact> facts,
+                          ScoreCompletenessPolicy.ScoreCompletenessResult completeness,
+                          List<TableCompleteness> tableCompletenesses,
+                          List<OriginalScoreEvidencePolicy.PublicationProof> originalProofs,
+                          AiProviderDiagnostics aiProviderDiagnostics,
+                          List<OriginalScoreEvidencePolicy.Qualification> qualifications) {
+        this(candidates, structureIncomplete, failureReason, evidencePipeline, facts, completeness,
+                tableCompletenesses, originalProofs, aiProviderDiagnostics, qualifications, List.of());
+    }
 
     StructuredTableResult(List<ScoreCandidate> candidates,
                           boolean structureIncomplete,
@@ -49,7 +65,7 @@ record StructuredTableResult(List<ScoreCandidate> candidates,
     }
 
     boolean originalVerified() {
-        return originalProofs != null && originalProofs.size() == 1
+        return sourceDiagnostics.isEmpty() && originalProofs != null && originalProofs.size() == 1
                 && originalProofs.get(0).matches(facts, candidates);
     }
 

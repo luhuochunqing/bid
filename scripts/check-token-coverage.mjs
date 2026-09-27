@@ -13,7 +13,7 @@
 //   - 扫描所有 CSS/Vue 文件
 //   - 总数超出阈值则失败，约束存量债务总量
 import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 const ROOT = process.cwd();
@@ -92,9 +92,12 @@ if (IS_DELTA || IS_STAGED) {
 // Full codebase scan (no --delta)
 // ============================================================
 function findAllFiles(dir, ext) {
-  try {
-    return run('find ' + dir + ' -name *.' + ext + ' -not -path */node_modules/*').trim().split('\n').filter(Boolean);
-  } catch { return []; }
+  return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+    if (entry.name === 'node_modules') return [];
+    const file = join(dir, entry.name);
+    if (entry.isDirectory()) return findAllFiles(file, ext);
+    return entry.isFile() && entry.name.endsWith('.' + ext) ? [file] : [];
+  });
 }
 
 const cssFiles = findAllFiles(SRC, 'css');

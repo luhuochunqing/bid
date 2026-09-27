@@ -26,8 +26,16 @@ final class ScoreScoringItemPicker {
 
     Plan plan(List<ScoreItem> items, Map<Long, ScoreResult> oldResults, String bidText,
               ScoreParseTask lastSuccess, String scope, List<Long> itemIds) {
-        List<ScoreItem> scoped = applyScope(items, oldResults, scope, itemIds);
-        if (lastSuccess == null || lastSuccess.getChapterHashes() == null) {
+        Map<Long, String> previousStatuses = new java.util.HashMap<>();
+        oldResults.forEach((id, result) -> previousStatuses.put(id, result.getStatusStage2()));
+        return plan(items, oldResults, bidText, lastSuccess, scope, itemIds, previousStatuses);
+    }
+
+    Plan plan(List<ScoreItem> items, Map<Long, ScoreResult> oldResults, String bidText,
+              ScoreParseTask lastSuccess, String scope, List<Long> itemIds,
+              Map<Long, String> previousStatuses) {
+        List<ScoreItem> scoped = applyScope(items, previousStatuses, scope, itemIds);
+        if (scoped.stream().anyMatch(i -> !oldResults.containsKey(i.getId())) || lastSuccess == null || lastSuccess.getChapterHashes() == null) {
             return new Plan(scoped, "FULL", "全量打分", List.of());
         }
         var chapters = BidChapterDirtySet.split(bidText);
@@ -54,17 +62,16 @@ final class ScoreScoringItemPicker {
                 "重评 " + related.size() + " 项（" + String.join("、", dirty) + "）", dirty);
     }
 
-    private List<ScoreItem> applyScope(List<ScoreItem> items, Map<Long, ScoreResult> oldResults,
+    private List<ScoreItem> applyScope(List<ScoreItem> items, Map<Long, String> previousStatuses,
                                        String scope, List<Long> itemIds) {
-        if ("ITEMS".equals(scope) && itemIds != null && !itemIds.isEmpty()) {
-            Set<Long> want = Set.copyOf(itemIds);
+        if ("ITEMS".equals(scope)) {
+            Set<Long> want = itemIds == null ? Set.of() : Set.copyOf(itemIds);
             return items.stream().filter(item -> want.contains(item.getId())).toList();
         }
         if ("UNSATISFIED".equals(scope)) {
-            return items.stream().filter(item -> {
-                ScoreResult old = oldResults.get(item.getId());
-                return old != null && "DANGER".equals(old.getStatusStage2());
-            }).toList();
+            return items.stream()
+                    .filter(item -> "DANGER".equals(previousStatuses.get(item.getId())))
+                    .toList();
         }
         return items;
     }

@@ -13,18 +13,18 @@
     :close-on-click-modal="false"
     class="score-parse-drawer"
   >
-    <div v-if="loading" class="loading-state">
+    <div v-if="loading && !scoreItems.length && !latestExtraction" class="loading-state">
       <div class="loading-icon">🤖</div>
       <div class="loading-text">AI 正在解析评分标准，联动知识库做智能比对<span class="dots"></span></div>
     </div>
-    <div v-else-if="error" class="error-state">
+    <div v-if="error" class="error-state">
       <el-alert :title="errorPresentation.title" :description="errorPresentation.message" type="error" show-icon :closable="false" class="ai-document-error-alert" />
       <div v-if="errorPresentation.detail && errorPresentation.scanned" class="error-detail">原始错误：{{ errorPresentation.detail }}</div>
       <div class="error-hint">扫描大 PDF 可压缩后在立项未提交前替换文件；也可以先进行 OCR，再重新解析。</div>
       <el-button size="small" style="margin-top: 12px" :disabled="loading || scoringOverlayVisible" @click="reparse">重新解析</el-button>
     </div>
 
-    <div v-else class="drawer-content-wrapper" :class="{ 'scroll-locked': scoringOverlayVisible }" data-test="score-parse-content">
+    <div v-if="!loading || scoreItems.length || latestExtraction" class="drawer-content-wrapper" :class="{ 'scroll-locked': scoringOverlayVisible }" data-test="score-parse-content">
       <div class="scoring-overlay" :class="{ show: scoringOverlayVisible }">
         <div class="spinner"></div>
         <div class="scoring-text" data-test="score-parse-overlay-text">AI 正在对标已上传标书进行实际打分...</div>
@@ -41,16 +41,18 @@
           </div>
         </div>
 
+        <p v-if="extractionWarning" role="alert">{{ extractionWarning }}</p>
+        <button v-if="latestExtraction || extractionWarning || error" class="btn-tool" :disabled="loading" @click="refreshExtraction">刷新并重新核对版本</button>
         <div class="toolbar">
           <div class="toolbar-info">
             <span class="doc-tag">📄 招标文件：{{ sourceFileName }}</span>
-            <span v-if="decisionStatus" :class="['doc-tag', 'decision-tag', decisionBadgeType]" data-test="score-parse-decision-status">
+            <span v-if="decisionStatus && !latestExtraction" :class="['doc-tag', 'decision-tag', decisionBadgeType]" data-test="score-parse-decision-status">
               {{ decisionBadgeText }}
             </span>
-            <span v-if="reviewReason" class="doc-tag review-reason-tag" :title="reviewReason">
+            <span v-if="reviewReason && !latestExtraction" class="doc-tag review-reason-tag" :title="reviewReason">
               理由: {{ reviewReason }}
             </span>
-            <span class="doc-time">解析时间 {{ parseTime }}</span>
+            <span class="doc-time">生效规则来源时间 {{ activeParseTime }}</span>
           </div>
         </div>
 
@@ -64,8 +66,17 @@
           </div>
           <div v-show="isSection1Expanded" class="collapse-body">
             <!-- 最新任务的候选与既有正式结果可以并存；新解析待复核时必须仍可见。 -->
+            <ScoreExtractionPanel
+              v-if="latestExtraction"
+              :snapshot="latestExtraction"
+              :active-items="scoreItems"
+              :active-total="totalWeight"
+              :blocked="activationBlocked || loading || scoringOverlayVisible"
+              :busy="activating"
+              @activate="activateExtraction"
+            />
             <ScoreCandidateReviewCard
-              v-if="candidateFacts.length > 0"
+              v-if="!latestExtraction && candidateFacts.length > 0"
               :candidate-facts="candidateFacts"
               :schemes="schemes"
               :selected-scheme-id="selectedSchemeId"
@@ -80,19 +91,22 @@
               @reparse="reparse"
             />
 
-            <div v-else-if="scoreItems.length === 0" class="scoring-placeholder">
+            <div v-if="scoreItems.length === 0 && !latestExtraction && !candidateFacts.length" class="scoring-placeholder">
               <div class="placeholder-icon">📋</div>
               <div class="placeholder-text">尚未解析到评分标准，将使用立项招标文件解析。若立项尚未上传，请先在立项阶段上传招标文件。</div>
               <div class="placeholder-sub">
                 <button class="btn-tool" :disabled="loading || scoringOverlayVisible" @click="reparse">重新解析</button>
               </div>
             </div>
+            <h3 v-if="scoreItems.length">当前生效评分项</h3>
             <ScoreParseTable
-              v-else
+              v-if="scoreItems.length"
               mode="est"
               :items="scoreItems"
               :results="scoreResults"
               :total-weight="totalWeight"
+              :declared-total="activeDeclaredTotal"
+              :versioned="Boolean(latestExtraction)"
               :stats-ok-count="statsOkCount"
               :stats-danger-count="statsDangerCount"
               :stats-neutral-count="statsNeutralCount"
@@ -141,7 +155,7 @@
           <div class="placeholder-sub">在标书制作中上传投标文件后，AI 将自动对标评分标准进行实际打分</div>
         </div>
 
-        <div v-else-if="!scored" class="scoring-placeholder">
+        <div v-else-if="!scored && !hasScoreResults" class="scoring-placeholder">
           <div class="placeholder-icon">⚡</div>
           <div class="placeholder-text">已检测到投标文件，尚未打分</div>
           <div class="placeholder-sub">点击上方「AI 实际打分」按钮开始对标打分</div>
@@ -153,6 +167,8 @@
             :items="scoreItems"
             :results="scoreResults"
             :total-weight="totalWeight"
+              :declared-total="activeDeclaredTotal"
+              :versioned="Boolean(latestExtraction)"
             :stats-ok-count="statsOkCount"
             :stats-danger-count="statsDangerCount"
             :stats-neutral-count="statsNeutralCount"
@@ -195,6 +211,7 @@
 
 <script setup>
 import { useScoreParseDrawer } from '@/composables/projectDetail/useScoreParseDrawer.js'
+import ScoreExtractionPanel from './ScoreExtractionPanel.vue'
 import ScoreCandidateReviewCard from './ScoreCandidateReviewCard.vue'
 import ScoreItemDetailModal from './ScoreItemDetailModal.vue'
 import ScoreParseTable from './ScoreParseTable.vue'
@@ -206,6 +223,7 @@ const props = defineProps({
 const emit = defineEmits(['parsed'])
 
 const {
+  latestExtraction, activeParseTime, activeDeclaredTotal, extractionWarning, activationBlocked, activating, activateExtraction, refreshExtraction, hasScoreResults,
   visible, loading, error, errorPresentation, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
   sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
@@ -219,75 +237,7 @@ const {
 defineExpose({ open, runScoring, scoringOverlayVisible, loading })
 </script>
 
-<style scoped>
-.drawer-content-wrapper { position: relative; flex: 1; overflow-y: auto; padding: 8px 24px 24px; background: var(--bg-white); }
-.drawer-content-wrapper.scroll-locked { overflow-y: hidden; }
-.loading-state, .error-state { text-align: center; padding: 80px 20px; color: var(--text-muted); }
-.error-hint { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
-.error-detail { margin-top: 8px; font-size: 12px; color: var(--text-muted); word-break: break-word; }
-.ai-document-error-alert { max-width: 680px; margin: 0 auto; text-align: left; }
-.loading-icon { font-size: 32px; margin-bottom: 12px; }
-.dots::after { content: '...'; animation: d 1.4s infinite; }
-@keyframes d { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
-
-.btn-tool { padding: 5px 12px; background: var(--bg-white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; color: var(--border-focus); transition: all 0.16s ease; display: inline-flex; align-items: center; gap: 4px; }
-.btn-tool:hover:not(:disabled) { border-color: var(--brand-xiyu-logo); color: var(--brand-xiyu-logo); }
-.btn-tool:disabled { background: var(--gray-100); border-color: var(--gray-100); color: var(--gray-300); cursor: not-allowed; }
-
-.section-divider { margin-top: 20px; margin-bottom: 16px; }
-.section-divider:first-of-type { margin-top: 0; }
-.section-title-bar { font-size: 15px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 2px solid var(--brand-xiyu-logo); margin-bottom: 12px; }
-.section-num { width: 22px; height: 22px; background: var(--brand-xiyu-logo); color: var(--bg-white); border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
-.section-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
-.btn-primary-sm { padding: 4px 12px; background: var(--brand-xiyu-logo); border: 1px solid var(--brand-xiyu-logo); border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; color: var(--bg-white); transition: all 0.16s ease; display: inline-flex; align-items: center; gap: 4px; }
-.btn-primary-sm:hover:not(:disabled) { background: var(--brand-xiyu-logo-hover); border-color: var(--brand-xiyu-logo-hover); }
-.normalization-warning { display: flex; align-items: center; gap: 6px; padding: 6px 10px; margin-top: 8px; background: var(--status-warning-bg, #fff7e6); border: 1px solid var(--status-warning-color, #fa8c16); border-radius: var(--radius-sm); font-size: 12px; color: var(--status-warning-color, #d46b08); }
-.normalization-warning .warning-icon { font-size: 14px; line-height: 1; }
-.normalization-warning .warning-text { font-weight: 500; }
-.btn-primary-sm:disabled { background: var(--gray-100); border-color: var(--gray-100); color: var(--gray-300); cursor: not-allowed; }
-.toolbar { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-.toolbar-info { display: flex; align-items: center; gap: 12px; width: 100%; }
-.toolbar-info .doc-tag { display: inline-flex; align-items: center; gap: 4px; }
-.toolbar-info .doc-time { margin-left: auto; white-space: nowrap; }
-
-.collapse-item { background: var(--bg-white); border: 1px solid var(--border-base); border-radius: var(--radius-md); margin-bottom: 8px; overflow: hidden; }
-.collapse-header { padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: var(--bg-white); transition: background 0.16s ease; }
-.collapse-header:hover { background: var(--bg-muted); }
-.collapse-title { font-size: 13px; font-weight: 600; color: var(--gray-700); display: flex; align-items: center; gap: 6px; }
-.collapse-meta { display: flex; align-items: center; gap: 8px; }
-.collapse-arrow { color: var(--text-lighter); font-size: 14px; }
-.collapse-body { padding: 12px 14px; border-top: 1px solid var(--gray-100); }
-
-.scoring-placeholder { text-align: center; padding: 36px 20px; background: var(--bg-muted); border-radius: var(--radius-md); border: 1px dashed var(--gray-200); }
-.placeholder-icon { font-size: 32px; margin-bottom: 10px; }
-.placeholder-text { font-size: 14px; font-weight: 600; color: var(--text-primary-ui); margin-bottom: 6px; }
-.placeholder-sub { font-size: 12px; color: var(--text-muted); }
-
-.scoring-overlay { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.92); display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 100; border-radius: var(--radius-md); }
-.scoring-overlay.show { display: flex; }
-.spinner { width: 42px; height: 42px; border: 3px solid var(--gray-100); border-top-color: var(--brand-xiyu-logo); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 14px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.scoring-text { font-size: 14px; color: var(--text-primary-ui); font-weight: 600; }
-.scoring-sub { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
-
-.legend { font-size: 12px; color: var(--gray-650); line-height: 1.8; margin-top: 14px; padding: 10px 14px; background: var(--bg-muted); border-radius: var(--radius-sm); border: 1px solid var(--gray-100); }
-.legend-title { color: var(--brand-xiyu-logo); }
-.pill { font-size: 11px; padding: 1px 6px; border-radius: 3px; font-weight: 600; display: inline-block; }
-.pill.ok { background: var(--status-success-bg); color: var(--status-success-color); }
-.pill.info { background: var(--status-info-bg); color: var(--status-info-color); }
-.pill.neutral { background: var(--status-neutral-bg); color: var(--status-neutral-color); }
-.status-cell { font-size: 12px; font-weight: 500; }
-.status-cell.ok { color: var(--status-success-color); }
-.status-cell.danger { color: var(--status-danger-color); }
-.status-cell.neutral { color: var(--text-muted); }
-
-.decision-tag.success { background: var(--status-success-bg); color: var(--status-success-color); border: 1px solid var(--status-success-border); font-weight: 600; }
-.decision-tag.warning { background: var(--status-warning-bg); color: var(--status-warning-color); border: 1px solid var(--status-warning-border); font-weight: 600; }
-.decision-tag.danger { background: var(--status-danger-bg); color: var(--status-danger-color); border: 1px solid var(--status-danger-border); font-weight: 600; }
-.decision-tag.info { background: var(--status-info-bg); color: var(--status-info-color); border: 1px solid var(--status-info-border); }
-.review-reason-tag { background: var(--status-warning-bg-soft); color: var(--status-warning-color); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-</style>
+<style scoped src="./scoreParseDrawer.css"></style>
 
 <!-- 全局：el-drawer teleport 后根元素不带 scoped data-v，scoped/:deep 选择器无法命中，必须用类前缀全局规则 -->
 <style>

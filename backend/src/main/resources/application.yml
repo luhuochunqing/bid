@@ -125,6 +125,8 @@ app:
     memory-threshold: ${APP_TENDER_MEMORY_THRESHOLD:0.92}
     worker-fixed-delay-ms: ${APP_TENDER_WORKER_DELAY_MS:5000}
   score-parse:
+    extraction-version:
+      enabled: ${APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED:false}
     # 打分侧投标文件解析配额
     bid-file:
       # 1GiB 覆盖生产项目 1120 的 1,039,096,020 字节投标文件；流式下载超限仍立即拒绝

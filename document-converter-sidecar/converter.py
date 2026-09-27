@@ -313,6 +313,7 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                     "cells": cells,
                     "isScoreTable": _is_pdf_score_table(rows),
                 })
+            _link_pdf_logical_rows(artifact["tables"])
             text_blocks, ocr_warnings = _extract_pdf_ocr_text_blocks(
                 pdf_path, sorted(ocr_pages), page_texts
             )
@@ -963,3 +964,32 @@ def extract_headings(markdown_text: str) -> list[dict[str, object]]:
 def _strip_markdown_emphasis(value: str) -> str:
     """Remove bold markers without changing source offsets used by callers."""
     return value.replace("**", "").replace("__", "").strip()
+
+
+def _link_pdf_logical_rows(tables: list[dict]) -> None:
+    """Attach business row identities without replacing physical source coordinates."""
+    for table in tables:
+        for cell in table["cells"]:
+            cell["logicalRowId"] = f"{table['tableId']}-r{cell['row']}"
+    for previous, current in zip(tables, tables[1:]):
+        if (not previous.get("sourceSection")
+                or previous.get("sourceSection") != current.get("sourceSection")
+                or current.get("sourcePage") != previous.get("sourcePage", 0) + 1
+                or previous.get("columns") != current.get("columns")
+                or previous.get("columns", 0) < 3):
+            continue
+        columns = current["columns"]
+        last = [cell for cell in previous["cells"] if cell["row"] == previous["rows"] - 1]
+        first = [cell for cell in current["cells"] if cell["row"] == 0]
+        if len(last) != columns or len(first) != columns:
+            continue
+        # Only the rule column may continue; any new identifier, category or item ends the row.
+        if any(cell.get("rawText", "").strip() for cell in first[:-1]):
+            continue
+        if not first[-1].get("rawText", "").strip() or not last[-1].get("rawText", "").strip():
+            continue
+        identity = "".join(cell.get("rawText", "") for cell in last[:-1])
+        if not re.search(r"[（(]\s*\d+(?:\.\d+)?\s*分\s*[）)]|评分\s*标准", identity):
+            continue
+        for cell in first:
+            cell["logicalRowId"] = last[0]["logicalRowId"]

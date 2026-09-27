@@ -36,12 +36,10 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
         this.configurationResolver = configurationResolver;
         this.objectMapper = objectMapper;
     }
-
     @Override
     public boolean supportsTextOnly() {
         return true;
     }
-
     @Override
     public ExtractionResult extract(DocumentArtifact artifact, List<DocumentImage> pageImages) {
         var config = configurationResolver.resolve(USE_CASE);
@@ -55,28 +53,23 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
         return new ExtractionResult(response == null ? null : response.declaredTotal,
                 facts, config.model(), images.size());
     }
-
     @Override
     public ExtractionResult extractWithText(DocumentArtifact artifact, String sourceText) {
         return extractWithTextAndProgress(artifact, sourceText, () -> {});
     }
-
     @Override
     public ExtractionResult extractWithTextAndProgress(DocumentArtifact artifact, String sourceText,
                                                        Runnable chunkCompleted) {
         return extractTextChunks(artifact, sourceText, false, chunkCompleted);
     }
-
     @Override
     public ExtractionResult extractTextAndProgress(String sourceText, Runnable chunkCompleted) {
         return extractTextChunks(null, sourceText, false, chunkCompleted);
     }
-
     @Override
     public ExtractionResult recheck(DocumentArtifact artifact) {
         return recheck(artifact, List.of());
     }
-
     @Override
     public ExtractionResult recheck(DocumentArtifact artifact, List<DocumentImage> pageImages) {
         var config = configurationResolver.resolve(USE_CASE);
@@ -90,18 +83,15 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
         return new ExtractionResult(response == null ? null : response.declaredTotal,
                 facts, config.model(), images.size());
     }
-
     @Override
     public ExtractionResult recheckWithText(DocumentArtifact artifact, String sourceText) {
         return recheckWithTextAndProgress(artifact, sourceText, () -> {});
     }
-
     @Override
     public ExtractionResult recheckWithTextAndProgress(DocumentArtifact artifact, String sourceText,
                                                        Runnable chunkCompleted) {
         return extractTextChunks(artifact, sourceText, true, chunkCompleted);
     }
-
     @Override
     public ExtractionResult recheckTextAndProgress(String sourceText, Runnable chunkCompleted) {
         return extractTextChunks(null, sourceText, true, chunkCompleted);
@@ -111,11 +101,11 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
                                                Runnable chunkCompleted) {
         List<OriginalScoringContext.TextScope> scopes = OriginalScoringContext.textScopes(sourceText).stream()
                 .filter(scope -> scope.schemeId() != null && !scope.schemeId().isBlank()).toList();
-        if (scopes.isEmpty()) return extractTextChunksInScope(sourceText, recheck, chunkCompleted, null);
+        if (scopes.isEmpty()) return extractTextChunksInScope(artifact, sourceText, recheck, chunkCompleted, null);
         java.util.Map<String, List<ExtractionResult>> grouped = new java.util.LinkedHashMap<>();
         java.util.Map<String, OriginalScoringContext.TextScope> groupScopes = new java.util.LinkedHashMap<>();
         for (OriginalScoringContext.TextScope scope : scopes) {
-            ExtractionResult extracted = extractTextChunksInScope(scope.text(), recheck, chunkCompleted, scope);
+            ExtractionResult extracted = extractTextChunksInScope(artifact, scope.text(), recheck, chunkCompleted, scope);
             String key = scope.schemeId() + "\u0000" + scope.scopeStatus();
             grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(extracted);
             groupScopes.putIfAbsent(key, scope);
@@ -135,12 +125,14 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
         return new ExtractionResult(declaredTotal, facts, model, 0);
     }
 
-    private ExtractionResult extractTextChunksInScope(String sourceText, boolean recheck,
+    private ExtractionResult extractTextChunksInScope(DocumentArtifact artifact, String sourceText, boolean recheck,
                                                        Runnable chunkCompleted,
                                                        OriginalScoringContext.TextScope scope) {
+        var anchors = com.xiyu.bid.scoreparse.domain.SourceAnchorCatalog.build(artifact).stream()
+                .filter(anchor -> scope == null || anchor.schemeId().equals(scope.schemeId())).toList();
         var config = configurationResolver.resolve(USE_CASE);
         String text = ScoreParsePrompts.promptSafe(sourceText);
-        int basePromptChars = (recheck ? buildTextRecheckPrompt("") : buildTextPrompt("")).length();
+        int basePromptChars = 8_000 + (recheck ? buildTextRecheckPrompt("") : buildTextPrompt("")).length();
         int chunkChars = Math.min(ScoreTextChunker.MAX_CHARS, MAX_PROMPT_CHARS - basePromptChars - 256);
         if (chunkChars < MIN_TEXT_CHUNK_CHARS) {
             throw new IllegalStateException("Structured scoring evidence leaves no safe prompt budget for full tender text");
@@ -153,7 +145,9 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
                     + scope.scopeStatus() + "。若范围状态为 OUT_OF_SCHEME，仍保留可回指事实供审计，不将其视作当前方案候选。\n";
             String chunkContext = scopeHeader + "全文范围分片 " + (index + 1) + "/" + chunks.size()
                     + "；只输出本分片原文范围内有依据的评分事实，边界重叠处允许重复：\n" + chunks.get(index).text();
-            String prompt = recheck ? buildTextRecheckPrompt(chunkContext) : buildTextPrompt(chunkContext);
+            var chunkAnchors = ScoreAnchorPrompt.select(anchors, chunks.get(index).text());
+            String anchorPrompt = ScoreAnchorPrompt.build(chunkAnchors, objectMapper);
+            String prompt = (recheck ? buildTextRecheckPrompt(chunkContext) : buildTextPrompt(chunkContext)) + anchorPrompt;
             if (prompt.length() > MAX_PROMPT_CHARS) {
                 throw new IllegalStateException("Score extraction prompt exceeds the configured safe character budget");
             }
@@ -164,6 +158,7 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
             List<MultimodalScoreFact> facts = response == null || response.facts == null ? List.of()
                     : response.facts.stream().map(Item::toDomain).toList();
             if (scope != null) facts = facts.stream().map(fact -> fact.withScope(scope.schemeId(), scope.scopeStatus())).toList();
+            facts = facts.stream().map(fact -> com.xiyu.bid.scoreparse.domain.SourceAnchorCatalog.restore(fact, chunkAnchors)).toList();
             results.add(new ExtractionResult(response == null ? null : response.declaredTotal,
                     facts, config.model(), 0));
         }
@@ -172,7 +167,7 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
 
     private String buildTextPrompt(String sourceText) {
         return """
-                你是招标文件评分办法事实抽取器。只分析下面的招标文件文字，不要依赖图片或结构化表格 JSON。
+                你是招标文件评分办法事实抽取器。分析下面的招标文件文字与原文锚点。
                 输出文字中明确出现的全部正式评分项，包括父项和子项。保留原文中的章节、编号、权重、最高分、完整规则、页码和逐字 quotedText。
                 不要把资格审查、报价品类权重表、响应模板当成评分项，不要折算权重，不要为了总分闭合而编造缺项。
                 父项和子项都输出。childAggregation 只能为 SUM、SHARED_CAP、BEST_OF、MUTUALLY_EXCLUSIVE、UNKNOWN；原文无法证明时使用 UNKNOWN。
@@ -276,6 +271,7 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
         public String code;
         public String parentCode;
         public String dimension;
+        public String category;
         public BigDecimal weight;
         public String ruleText;
         public String scoreType;
@@ -288,7 +284,10 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
         MultimodalScoreFact toDomain() {
             return new MultimodalScoreFact(sectionTitle, code, parentCode, dimension, weight, ruleText,
                     scoreType, pageNumber, tableId, sourceCellIds, quotedText, confidence,
-                    ChildAggregation.modelValue(childAggregation));
+                    ChildAggregation.modelValue(childAggregation), "", "",
+                    new com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata(ruleText, quotedText, List.of(), List.of(),
+                            category == null ? dimension : category, scoreType,
+                            new com.xiyu.bid.scoreparse.domain.ModelSourceClaim(sectionTitle, pageNumber, tableId, sourceCellIds, "", "")));
         }
     }
 }

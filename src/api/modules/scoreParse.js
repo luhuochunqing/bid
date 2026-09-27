@@ -1,5 +1,5 @@
 // Input: httpClient and score-parse backend endpoints (spec 041, PR !2293)
-// Output: scoreParseApi - items/review/scoring/status/results accessors
+// Output: scoreParseApi - active items, immutable extraction snapshots, CAS activation and scoring
 // Pos: src/api/modules/ - Frontend API module layer
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -10,6 +10,18 @@ import httpClient from '../client.js'
  * 后端 ScoreParseController：/api/projects/{projectId}/score-parse/*
  */
 export const scoreParseApi = {
+  /** 最新提取快照和当前生效版本身份，保持所有候选可见 */
+  async getLatestExtraction(projectId) {
+    return httpClient.get(`/api/projects/${projectId}/score-parse/extraction/latest`)
+  },
+  async getExtraction(projectId, taskId) {
+    return httpClient.get(`/api/projects/${projectId}/score-parse/extraction/${encodeURIComponent(taskId)}`)
+  },
+  /** selectedItemIds 为完整替换集合，expectedActiveFingerprint 为读取时的 CAS 值 */
+  async activateExtraction(projectId, taskId, body) {
+    return httpClient.post(`/api/projects/${projectId}/score-parse/extraction/${encodeURIComponent(taskId)}/activate`, body)
+  },
+
   /** 阶段 1 评分项清单（含 estScore/estBasis/kbHit 与 summary 统计） */
   async getItems(projectId) {
     return httpClient.get(`/api/projects/${projectId}/score-parse/items`)

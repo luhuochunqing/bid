@@ -80,7 +80,7 @@ class ScoreTotalEvidencePublicationAcceptanceTest {
                 String value = rows.get(row).get(column);
                 cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto(
                         "t-items-r" + row + "-c" + column, row, column, value, value,
-                        1, 1, false, "pdf:page=1;table=t-items"));
+                        1, 1, false, "pdf:page=1;table=t-items", 1, "t-items-r" + row));
             }
         }
         return new DocumentArtifact(new DocumentArtifact.ArtifactMeta(

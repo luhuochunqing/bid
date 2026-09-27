@@ -76,6 +76,7 @@ public class ScoreParseTask {
     @Column(name = "bid_content_hash", length = 64)
     private String bidContentHash;
 
+    /** Scoring v1: SHA256 of domain prefix + complete active projection; legacy hashes are never reused. */
     @Column(name = "item_set_hash", length = 64)
     private String itemSetHash;
 

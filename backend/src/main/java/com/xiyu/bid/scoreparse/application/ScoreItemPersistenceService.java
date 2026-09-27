@@ -35,6 +35,12 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ScoreItemPersistenceService {
 
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.xiyu.bid.scoreparse.repository.ScoreActiveVersionRepository activeVersionRepository;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository taskRepository;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.xiyu.bid.scoreparse.repository.ScoreExtractionRecordRepository extractionSnapshotRepository;
     private final ScoreItemRepository itemRepository;
     private final ScoreResultRepository resultRepository;
     private final com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository factRepository;
@@ -73,6 +79,11 @@ public class ScoreItemPersistenceService {
     /** 候选覆盖落库：比对指纹，结构变化时清理旧打分，未变化时保留旧打分并重挂 */
     @Transactional
     public void persistItems(Long projectId, Long parseTaskId, List<ScoreCandidate> candidates) {
+        if (taskRepository != null) taskRepository.lockProjectForTaskChange(projectId);
+        if (activeVersionRepository != null && activeVersionRepository.currentIdForUpdate(projectId).isPresent())
+            throw new ScoreExtractionException(409, "VERSIONED_PROJECT_REQUIRES_ACTIVATION");
+        if (extractionSnapshotRepository != null && parseTaskId != null && extractionSnapshotRepository.currentIdForUpdate(parseTaskId).isPresent())
+            throw new ScoreExtractionException(409, "VERSIONED_TASK_REQUIRES_ACTIVATION");
         List<ScoreCandidate> ordered = orderPolicy.sort(candidates);
         List<ScoreItem> oldItems = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
         boolean fingerprintUnchanged = isFingerprintUnchanged(oldItems, ordered);

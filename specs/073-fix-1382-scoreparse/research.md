@@ -17,3 +17,11 @@
 - PDF-specific evidence path only when provenance is positively known. DOCX and text paths retain existing binder.
 - Ambiguous duplicates, cross-chapter collisions, discontinuous continuations and conflicting weight statements remain review-required.
 - The server backend is not healthy due Flyway 1218 failure; no live E2E in this implementation run.
+
+## Current evidence 2026-09-27 (supersedes stale environment notes above)
+- 运行0d8543c92，任务274；40facts中目标13叶子100分已出现，人工部分采纳8项44分，缺少56分。
+- 五项未绑定：中文换行、三种跨页引文、物流引文包含模型错字/重复。当前Sidecar真实原始80cells与存档一致；旧artifact的section需重新生成。
+- 当前阻塞还含类别/名称混用、源规则被model summary替换、验证状态覆盖、按物理表丢总分、MANUAL_APPROVED后隐藏未采纳项。
+- PDF重新下载SHA18061117e166335881c6a1864f708e5109988af773aea321b26c0f4b751ae18f，1607617bytes。当前40facts通过只读事务取证，私有.runtime/root-cause/1382-v2。
+- 用户确认：候选允许评分；首次可用、不完整重解析保留旧版、显式切换。故旧“不迁移/不改prompt”约束由批准的新设计替代：增量持久化与来源锚点prompt，但模型配置不改。
+- 本次不从旧Flyway失败笔记推断当前服务不可用；真实部署和重解析另验收。

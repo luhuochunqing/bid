@@ -38,7 +38,9 @@ final class ScoreParseItemsMetaBuilder {
     }
 
     ScoreParseItemsDTO.Meta build(Long projectId, ScoreParseTask parseTask, ScoreParseTask scoringTask) {
-        String source = tenderResolver.findLatestTenderDocument(projectId)
+        ScoreParseTask activeSource = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId).stream()
+                .filter(i -> i.getActiveVersionId() != null).findFirst().flatMap(i -> taskRepository.findById(i.getParseTaskId())).orElse(null);
+        String source = activeSource != null ? activeSource.getFileName() : tenderResolver.findLatestTenderDocument(projectId)
                 .map(ProjectDocument::getName)
                 .or(() -> snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
                         .map(BidTenderDocumentSnapshot::getFileName))
@@ -52,7 +54,7 @@ final class ScoreParseItemsMetaBuilder {
         int total = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId).size();
         return new ScoreParseItemsDTO.Meta(
                 source,
-                parseTask == null ? null : parseTask.getCompletedAt(),
+                activeSource != null ? activeSource.getCompletedAt() : parseTask == null ? null : parseTask.getCompletedAt(),
                 bidName,
                 scoringTask == null ? null : scoringTask.getCompletedAt(),
                 parseTask == null ? null : parseTask.getStatus(),

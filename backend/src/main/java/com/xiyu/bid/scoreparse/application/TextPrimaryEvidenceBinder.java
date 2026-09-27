@@ -19,28 +19,7 @@ final class TextPrimaryEvidenceBinder {
     static DocumentArtifact bundle(List<LoadedBidFile> loadedFiles, List<TenderTextSource> sources,
                                    SidecarDocumentArtifactExtractor extractor)
             throws IOException, InterruptedException {
-        List<DocumentArtifact.CanonicalTable> tables = new java.util.ArrayList<>();
-        DocumentArtifact.ArtifactMeta meta = null;
-        for (int i = 0; i < loadedFiles.size(); i++) {
-            String name = i < sources.size() ? sources.get(i).fileName() : "tender-" + i;
-            DocumentArtifact current = extract(loadedFiles.get(i), name, extractor);
-            if (current == null) continue;
-            if (meta == null) meta = current.artifact();
-            String prefix = "doc" + i + "-";
-            for (DocumentArtifact.CanonicalTable table : current.tables()) {
-                List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = table.cells().stream()
-                        .map(cell -> new DocumentArtifact.CanonicalTable.CanonicalCellDto(prefix + cell.cellId(), cell.row(),
-                                cell.column(), cell.rawText(), cell.normalizedText(), cell.rowspan(), cell.colspan(),
-                                cell.isMergedContinue(), cell.sourceXmlPath(), cell.sourcePage(),
-                                cell.logicalRowId().isBlank() ? "" : prefix + cell.logicalRowId())).toList();
-                tables.add(new DocumentArtifact.CanonicalTable(prefix + table.tableId(), table.sourcePage(),
-                        table.sourceSection(), table.rows(), table.columns(), table.mergedRegions(), cells,
-                        table.isScoreTable(), current.artifact().fileType()));
-            }
-        }
-        if (meta == null) return null;
-        return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("tender-bundle", meta.sha256(),
-                meta.fileType(), meta.extractionVersion()), tables, List.of());
+        return SourceArtifactAcquisition.acquire(loadedFiles, sources, extractor).artifact();
     }
 
     static List<MultimodalScoreFact> bind(List<MultimodalScoreFact> facts, DocumentArtifact artifact) {
@@ -54,10 +33,12 @@ final class TextPrimaryEvidenceBinder {
                 ? null : normalizeWithOffsets(tenderText);
         List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact, tenderText);
         return facts.stream().map(fact -> {
-            if (!fact.tableId().isBlank() && !fact.sourceCellIds().isEmpty()) return fact;
+            if (!fact.sourceMetadata().sourceSpans().isEmpty()) return fact;
             // Page hints may be printed page labels; an exact unique artifact match owns the physical locator.
             List<Object[]> exactCells = artifact == null ? List.of() : artifact.tables().stream()
                     .flatMap(table -> table.cells().stream().map(cell -> new Object[]{table, cell}))
+                    .filter(pair -> fact.sourceCellIds().isEmpty() || fact.sourceCellIds().contains(
+                            ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).cellId()))
                     .filter(pair -> matches(fact, pair, schemes)).toList();
             var bound = exactCells.size() == 1 ? exactCells.stream().findFirst()
                     .map(pair -> {
@@ -70,12 +51,12 @@ final class TextPrimaryEvidenceBinder {
                     : artifact == null ? java.util.Optional.<MultimodalScoreFact>empty()
                     : PdfRowEvidenceBinder.bindQuote(fact, artifact, schemes)
                     .or(() -> LogicalRowEvidenceBinder.bind(fact, artifact, schemes));
-            if (bound.isPresent()) return bound.get();
+            if (bound.isPresent()) return withOriginalMetadata(fact, addLogicalItemName(fact, bound.get(), artifact));
             if (exactCells.isEmpty() && artifact != null) {
                 var ocrBound = textBlockEvidence(fact, artifact);
-                if (ocrBound.isPresent()) return ocrBound.get();
+                if (ocrBound.isPresent()) return withOriginalMetadata(fact, ocrBound.get());
             }
-            return textEvidence(fact, tenderText, normalizedText).orElse(fact);
+            return textEvidence(fact, tenderText, normalizedText).map(value -> withOriginalMetadata(fact, value)).orElse(fact);
         }).toList();
     }
 
@@ -123,20 +104,24 @@ final class TextPrimaryEvidenceBinder {
         String normalizedQuote = normalizeForEvidence(quote);
         if (normalizedQuote.isBlank()) return java.util.Optional.empty();
         int offset = normalizedText.text().indexOf(normalizedQuote);
-        if (offset < 0) return java.util.Optional.empty();
+        if (offset < 0 || normalizedText.text().indexOf(normalizedQuote, offset + 1) >= 0) return java.util.Optional.empty();
         int sourceOffset = normalizedText.sourceOffsets().get(offset);
         int line = lineOfOffset(tenderText, sourceOffset);
+        int sourceEnd = normalizedText.sourceOffsets().get(offset + normalizedQuote.length() - 1) + 1;
+        String raw = tenderText.substring(sourceOffset, sourceEnd);
+        String locator = "text:line[" + line + "]";
+        var span = new com.xiyu.bid.scoreparse.domain.SourceSpan("", "", "TEXT", fact.schemeId(), null,
+                "", locator, sourceOffset, sourceEnd, raw, locator);
+        var metadata = new com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata(fact.ruleText(), fact.quotedText(),
+                List.of(span), fact.sourceMetadata().diagnostics(), fact.dimension(), fact.scoreType(),
+                com.xiyu.bid.scoreparse.domain.ModelSourceClaim.from(fact));
         return java.util.Optional.of(new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(),
                 fact.dimension(), fact.weight(), fact.ruleText(), fact.scoreType(), fact.pageNumber(), "",
-                List.of("text:line[" + line + "]"), fact.quotedText(), fact.confidence(), fact.childAggregation(),
-                fact.schemeId(), fact.scopeStatus()));
+                List.of(locator), raw, fact.confidence(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus(), metadata));
     }
 
     static String normalizeForEvidence(String value) {
-        return value == null ? "" : value.replace('\u00a0', ' ')
-                .replace('\u2007', ' ').replace('\u202f', ' ')
-                .replaceAll("\\*\\*|__", "")
-                .replaceAll("[\\t\\r\\n]+", " ").replaceAll(" +", " ").trim();
+        return com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(value).text();
     }
 
     private static String normalizeOcrForMatching(String value) {
@@ -150,34 +135,8 @@ final class TextPrimaryEvidenceBinder {
     }
 
     private static NormalizedEvidence normalizeWithOffsets(String source) {
-        StringBuilder normalized = new StringBuilder();
-        List<Integer> offsets = new java.util.ArrayList<>();
-        boolean pendingSpace = false;
-        for (int i = 0; i < source.length(); i++) {
-            if (isMarkdownEmphasis(source, i)) {
-                i++;
-                continue;
-            }
-            char c = source.charAt(i);
-            boolean whitespace = c == '\u00a0' || c == '\u2007' || c == '\u202f'
-                    || c == '\t' || c == '\r' || c == '\n' || c == ' ';
-            if (whitespace) {
-                pendingSpace = normalized.length() > 0;
-                continue;
-            }
-            if (pendingSpace && normalized.length() > 0) {
-                normalized.append(' ');
-                offsets.add(i);
-            }
-            pendingSpace = false;
-            normalized.append(c);
-            offsets.add(i);
-        }
-        while (normalized.length() > 0 && normalized.charAt(normalized.length() - 1) == ' ') {
-            normalized.setLength(normalized.length() - 1);
-            offsets.remove(offsets.size() - 1);
-        }
-        return new NormalizedEvidence(normalized.toString(), offsets);
+        var normalized = com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(source);
+        return new NormalizedEvidence(normalized.text(), normalized.offsets());
     }
 
     private static boolean isMarkdownEmphasis(String source, int index) {
@@ -206,8 +165,39 @@ final class TextPrimaryEvidenceBinder {
         var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
         Integer page = cell.sourcePage() == null ? table.sourcePage() : cell.sourcePage();
         return new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(), fact.dimension(), fact.weight(),
-                fact.ruleText(), fact.scoreType(), page, table.tableId(), List.of(cell.cellId()), fact.quotedText(),
+                fact.ruleText(), fact.scoreType(), page, table.tableId(), List.of(cell.cellId()), restoredQuote(cell.rawText(), fact.quotedText()),
                 fact.confidence(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus());
+    }
+
+    private static MultimodalScoreFact addLogicalItemName(MultimodalScoreFact original, MultimodalScoreFact bound,
+                                                          DocumentArtifact artifact) {
+        if (artifact == null || bound.sourceCellIds().isEmpty()) return bound;
+        for (var table : artifact.tables()) {
+            if (!table.tableId().equals(bound.tableId())) continue;
+            for (var cell : table.cells()) {
+                if (cell.cellId().equals(bound.sourceCellIds().getFirst()))
+                    return PdfRowEvidenceBinder.addExactQuoteItemName(original, bound, table, cell, artifact);
+            }
+        }
+        return bound;
+    }
+
+    private static MultimodalScoreFact withOriginalMetadata(MultimodalScoreFact original, MultimodalScoreFact bound) {
+        var metadata = bound.sourceMetadata().sourceSpans().isEmpty() ? original.sourceMetadata() : bound.sourceMetadata();
+        if (metadata.modelRuleText().isBlank() && metadata.modelQuotedText().isBlank()) {
+            metadata = new com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata(original.ruleText(), original.quotedText(),
+                    metadata.sourceSpans(), metadata.diagnostics(), original.dimension(), original.scoreType(),
+                    com.xiyu.bid.scoreparse.domain.ModelSourceClaim.from(original));
+        }
+        return new MultimodalScoreFact(bound.sectionTitle(), bound.code(), bound.parentCode(), bound.dimension(),
+                bound.weight(), bound.ruleText(), bound.scoreType(), bound.pageNumber(), bound.tableId(),
+                bound.sourceCellIds(), bound.quotedText(), bound.confidence(), bound.childAggregation(),
+                bound.schemeId(), bound.scopeStatus(), metadata);
+    }
+
+    static String restoredQuote(String raw, String quote) {
+        return com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(raw).uniqueSpan(quote)
+                .map(span -> raw.substring(span.start(), span.end())).orElse(quote);
     }
 
     private static DocumentArtifact extract(LoadedBidFile loaded, String fileName,

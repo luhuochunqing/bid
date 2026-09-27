@@ -114,6 +114,15 @@ public class ScoreItem {
     @Column(name = "validation_status", length = 32)
     private String validationStatus;
 
+    @Column(name="source_fact_id", length=64)
+    private String sourceFactId;
+
+    @Column(name="active_version_id")
+    private Long activeVersionId;
+
+    @Column(name="rule_fingerprint", length=64)
+    private String ruleFingerprint;
+
     /** spec 059 Phase 5：父级评分项 ID */
     @Column(name = "parent_score_item_id")
     private Long parentScoreItemId;

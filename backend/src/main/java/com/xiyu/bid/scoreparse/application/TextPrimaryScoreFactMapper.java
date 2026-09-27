@@ -36,12 +36,41 @@ final class TextPrimaryScoreFactMapper {
         boolean candidateEligible = validation.sourceVerification().qualifications().stream()
                 .anyMatch(qualification -> factId.equals(qualification.factId())
                         && qualification.candidateEligible());
-        var status = candidateEligible && violations.isBlank() && validation.autoApprovable()
+        var restored = com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration.restore(fact, artifact, validation.facts());
+        var status = candidateEligible && !restored.text().isBlank() && violations.isBlank() && validation.autoApprovable()
                 ? ScoreFact.ValidationStatus.AUTO_APPROVED : ScoreFact.ValidationStatus.REVIEW_REQUIRED;
-        return new ScoreFact(factId, fact.tableId(), fact.sourceCellIds(), fact.ruleText(), fact.code(), fact.dimension(),
+        return new ScoreFact(factId, fact.tableId(), fact.sourceCellIds(), restored.text(), fact.code(), fact.dimension(),
                 fact.weight(), new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, fact.quotedText(), cellId,
                 start, start < 0 ? -1 : start + fact.quotedText().length(), "page=" + fact.pageNumber() + "; scoreType="
                 + fact.scoreType() + (violations.isBlank() ? "" : "; validationDiff=" + violations)), ScoreRule.MAX_SCORE,
-                parentId, "MULTIMODAL", fact.confidence(), status, fact.childAggregation());
+                parentId, "MULTIMODAL", fact.confidence(), status, fact.childAggregation(), sourceMetadata(fact, artifact, validation, restored));
     }
+    private static com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata sourceMetadata(
+            MultimodalScoreFact fact, DocumentArtifact artifact, MultimodalScoreFactValidator.ValidationReport validation, com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration.Result restored) {
+        var existing = fact.sourceMetadata();
+        var diagnostics = new java.util.ArrayList<>(existing.diagnostics());
+        if (restored.text().isBlank()) diagnostics.add("FULL_RULE_UNIT_UNRESOLVED");
+        var sourceSpans = new java.util.LinkedHashMap<String, com.xiyu.bid.scoreparse.domain.SourceSpan>();
+        existing.sourceSpans().forEach(span -> sourceSpans.put(span.sourceId(), span));
+        com.xiyu.bid.scoreparse.domain.SourceSpanResolver.resolve(artifact, fact.sourceCellIds())
+                .forEach(span -> sourceSpans.putIfAbsent(span.sourceId(), span));
+        restored.spans().forEach(span -> sourceSpans.putIfAbsent(span.sourceId(), span));
+        String identity=com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.modelFactId(fact);
+        String locator=fact.tableId()+":"+String.join(",",fact.sourceCellIds());
+        String coarse=fact.sectionTitle()+"/"+fact.code();
+        boolean unique=validation.facts().stream().filter(f -> (f.sectionTitle()+"/"+f.code()).equals(coarse)
+                && (f.tableId()+":"+String.join(",",f.sourceCellIds())).equals(locator)).count()==1;
+        validation.violations().stream().filter(v -> v.factId().isBlank() || v.factId().equals(identity)
+                || unique && v.factId().equals(coarse) && v.evidence().equals(locator))
+                .map(MultimodalScoreFactValidator.Violation::code).forEach(diagnostics::add);
+        return new com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata(
+                existing.modelRuleText().isBlank() ? fact.ruleText() : existing.modelRuleText(),
+                existing.modelQuotedText().isBlank() ? fact.quotedText() : existing.modelQuotedText(),
+                java.util.List.copyOf(sourceSpans.values()), diagnostics.stream().distinct().toList(),
+                existing.modelCategory().isBlank() ? fact.dimension() : existing.modelCategory(),
+                existing.modelScoreType().isBlank() ? fact.scoreType() : existing.modelScoreType(),
+                existing.modelSourceClaim().sectionTitle().isBlank()
+                        ? com.xiyu.bid.scoreparse.domain.ModelSourceClaim.from(fact) : existing.modelSourceClaim());
+    }
+
 }

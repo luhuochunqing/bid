@@ -56,8 +56,14 @@ public class ScoreParseFact {
     @Column(nullable = false, length = 200)
     private String dimension;
 
-    @Column(nullable = false, precision = 6, scale = 2)
+    @Column(precision = 6, scale = 2)
     private BigDecimal weight;
+
+    @Column(name = "item_payload", columnDefinition = "JSON")
+    private String itemPayload;
+
+    @Column(name = "payload_version")
+    private Integer payloadVersion;
 
     @Column(name = "weight_evidence", columnDefinition = "JSON")
     private String weightEvidence;

@@ -52,6 +52,9 @@ public class EstimatedScoreService {
     private static final String TYPE_OBJECTIVE = "OBJECTIVE";
     private static final int KEYWORD_LIMIT = 6;
 
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private ScoreScoringVersionService versions;
+
     private final ScoreItemRepository itemRepository;
     private final CertMatchService certMatchService;
     private final PersonMatchService personMatchService;
@@ -67,9 +70,17 @@ public class EstimatedScoreService {
     private final EstimatedScoreBasisFormatter basisFormatter = new EstimatedScoreBasisFormatter();
 
     /** 对项目全部评分项执行预计得分计算（挂入解析编排链尾）。 */
-    @Transactional
-    public void estimateForProject(Long projectId) {
-        List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
+    @Transactional(propagation=org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    public void estimateForProject(Long projectId) { estimateForVersion(projectId, null); }
+
+    @Transactional(propagation=org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    @org.springframework.scheduling.annotation.Async("scoreParseExecutor")
+    public void estimateForVersion(Long projectId, String expectedFingerprint) {
+        var snapshot = versions == null ? null : versions.capture(projectId);
+        if (snapshot != null && expectedFingerprint != null && !snapshot.fingerprint().equals(expectedFingerprint)) return;
+        List<ScoreItem> items = snapshot == null ? itemRepository.findByProjectIdOrderByItemIndexAsc(projectId)
+                : snapshot.items().stream().map(i -> ScoreItem.builder().id(i.getId()).code(i.getCode()).dim(i.getDim())
+                .detail(i.getDetail()).weight(i.getWeight()).scoreType(i.getScoreType()).build()).toList();
         for (ScoreItem item : items) {
             try {
                 estimateItem(item);
@@ -82,10 +93,15 @@ public class EstimatedScoreService {
                 item.setEstBasis("预计得分计算失败，未沿用历史匹配结果，待人工确认");
             }
         }
-        itemRepository.saveAll(items);
+        if (versions == null) itemRepository.saveAll(items);
+        else versions.saveEstimates(projectId, snapshot.fingerprint(), items);
     }
 
     private void estimateItem(ScoreItem item) {
+        if (item.getWeight() == null) {
+            item.setEstScore(null); item.setStatusStage1(ScoreStatusPolicy.PENDING); item.setKbHit(false);
+            item.setEstBasis("评分权重未知，无法计算"); return;
+        }
         if (TYPE_SUBJECTIVE.equals(item.getScoreType())) {
             // FR-014 / SC-003：主观项强制 null，任何渠道零泄漏
             item.setEstScore(null);

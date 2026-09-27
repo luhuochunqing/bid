@@ -220,6 +220,10 @@ class MultimodalScoreFactValidatorTest {
 
         assertThat(result.violations()).extracting(MultimodalScoreFactValidator.Violation::code)
                 .doesNotContain("SOURCE_LOCATOR_INVALID", "QUOTE_NOT_VERBATIM");
+        var inventedPage = new MultimodalScoreFact("技术", "1", "", "方案", new BigDecimal("5"),
+                "方案最高得5分", "OBJECTIVE", 99, "t1", List.of("p1", "p2"), "方案最高得5分", 0.9);
+        assertThat(validator.validate(List.of(inventedPage), source, new BigDecimal("5")).violations())
+                .extracting(MultimodalScoreFactValidator.Violation::code).contains("SOURCE_LOCATOR_INVALID");
     }
 
     @Test void unknownOrUnprovenAggregationCannotBeAutoApproved() {
@@ -323,7 +327,7 @@ class MultimodalScoreFactValidatorTest {
     private static DocumentArtifact.CanonicalTable.CanonicalCellDto logicalCell(
             String id, int row, int column, String text, String logicalRowId) {
         return new DocumentArtifact.CanonicalTable.CanonicalCellDto(id, row, column,
-                text, text, 1, 1, false, "", 3, logicalRowId);
+                text, text, 1, 1, false, "/w:document/w:body/w:tbl/w:tr[" + row + "]/w:tc[" + column + "]", 3, logicalRowId);
     }
 
     private static MultimodalScoreFact fact(String section, String code, String parent, String name,

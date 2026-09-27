@@ -17,15 +17,16 @@ set -euo pipefail
 
 # ── 参数解析 ──────────────────────────────────────────────────
 SKIP_TESTS=false
+EXPLICIT_SKIP_TESTS=false
 SKIP_E2E_CHECK=false
 
 for arg in "$@"; do
   case "$arg" in
-    --skip-tests)      SKIP_TESTS=true ;;
+    --skip-tests)      SKIP_TESTS=true; EXPLICIT_SKIP_TESTS=true ;;
     --skip-e2e-check)   SKIP_E2E_CHECK=true ;;
     --help|-h)
       echo "用法: $0 [--skip-tests] [--skip-e2e-check]"
-      echo "  --skip-tests      跳过前端单元测试 + 前端构建（节省约 30-60s）"
+      echo "  --skip-tests      显式跳过前端测试/构建及新增根因/token 回归"
       echo "  --skip-e2e-check  跳过 E2E-UI 联动检查"
       echo "  PRE_PUSH_GATE=0    完全跳过门禁（等同于 --skip-tests --skip-e2e-check）"
       exit 0
@@ -639,7 +640,7 @@ fi
 # 逃生阀：SCOREPARSE_GATE_SKIP=1（仅限非版式逻辑变更，需在 PR 描述说明理由）
 echo "── scoreparse 金标门禁 ──"
 SP_PROD_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^backend/src/main/java/.*/scoreparse/(domain|application|infrastructure)/' || true)
-SP_FIXTURE_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE 'scoreparse-golden/|GoldenCasesReplayTest\.java|CellAnchoredScoreExtractorTest\.java|StructuredTableCandidateExtractorTest\.java|ScoreTableRecallLaneTest\.java|ScoreItemMergePolicyTest\.java|ScoreGlobalMergeOrchestratorTest\.java' || true)
+SP_FIXTURE_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE 'scoreparse-golden/|scoreparse/source-evidence-real-excerpts\.json|scoreparse/docx-continuity/|RealSourceExcerptReplayTest\.java|CrossFormatDocumentSourceReplayTest\.java|GoldenCasesReplayTest\.java|CellAnchoredScoreExtractorTest\.java|StructuredTableCandidateExtractorTest\.java|ScoreTableRecallLaneTest\.java|ScoreItemMergePolicyTest\.java|ScoreGlobalMergeOrchestratorTest\.java' || true)
 if [ ! -d "$ROOT_DIR/backend/src/main" ]; then
   skip "scoreparse 金标门禁（无 Java 源码）"
 elif [ "${SP_PROD_CHANGED:-0}" -eq 0 ]; then
@@ -681,6 +682,27 @@ else
     fi
   else
     pass "E2E-UI 联动"
+  fi
+fi
+
+# Bounded executable source regressions complement the changed-fixture check above.
+# Agent frontend shortcuts never silently suppress these backend/governance regressions.
+if [ "$EXPLICIT_SKIP_TESTS" = "true" ]; then
+  skip "scoreparse 根因回归 / token CLI 回归 (--skip-tests)"
+else
+  if node --test "$ROOT_DIR/scripts/check-token-coverage.test.mjs" "$ROOT_DIR/scripts/check-pre-push-dispatch.test.mjs"; then
+    pass "token CLI 回归"
+  else
+    fail "token CLI 回归"
+  fi
+  if [ "$SP_PROD_CHANGED" -gt 0 ] && [ "${SCOREPARSE_GATE_SKIP:-0}" != "1" ]; then
+    if bash "$ROOT_DIR/scripts/check-scoreparse-root-cause.sh"; then
+      pass "scoreparse 可执行根因回归"
+    else
+      fail "scoreparse 可执行根因回归"
+    fi
+  else
+    skip "scoreparse 可执行根因回归（未变更解析主代码或显式 SCOREPARSE_GATE_SKIP）"
   fi
 fi
 
