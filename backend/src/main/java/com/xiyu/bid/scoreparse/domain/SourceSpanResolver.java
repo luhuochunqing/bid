@@ -7,6 +7,8 @@ import java.util.List;
 /** Resolves only actual cited physical cells; unknown locators do not manufacture provenance. */
 public final class SourceSpanResolver {
     private SourceSpanResolver() {}
+    // REUSE-OK: backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/OpenAiBidAgentConfigurationResolver.java
+    // — this resolver maps physical score-source cells to immutable provenance spans; the existing method resolves model configuration.
     public static List<SourceSpan> resolve(DocumentArtifact artifact, List<String> ids) {
         if (artifact == null) return List.of();
         List<SourceSpan> spans = new ArrayList<>();
