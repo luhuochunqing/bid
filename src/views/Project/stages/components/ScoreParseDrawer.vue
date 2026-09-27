@@ -37,12 +37,12 @@
           <span class="section-num">1</span>
           招标文件解析
           <div class="section-actions">
-            <button class="btn-primary-sm" data-test="score-parse-reparse" :disabled="loading || scoringOverlayVisible" @click="reparse">🔄 重新解析</button>
+            <button v-if="showExtractionReview" class="btn-primary-sm" data-test="score-parse-reparse" :disabled="loading || scoringOverlayVisible" @click="reparse">🔄 重新解析</button>
           </div>
         </div>
 
-        <p v-if="extractionWarning" role="alert">{{ extractionWarning }}</p>
-        <button v-if="latestExtraction || extractionWarning || error" class="btn-tool" :disabled="loading" @click="refreshExtraction">刷新并重新核对版本</button>
+        <p v-if="showExtractionReview && extractionWarning" role="alert">{{ extractionWarning }}</p>
+        <button v-if="showExtractionReview && (latestExtraction || extractionWarning || error)" class="btn-tool" :disabled="loading" @click="refreshExtraction">刷新并重新核对版本</button>
         <div class="toolbar">
           <div class="toolbar-info">
             <span class="doc-tag">📄 招标文件：{{ sourceFileName }}</span>
@@ -52,13 +52,13 @@
             <span v-if="reviewReason && !latestExtraction" class="doc-tag review-reason-tag" :title="reviewReason">
               理由: {{ reviewReason }}
             </span>
-            <span class="doc-time">生效规则来源时间 {{ activeParseTime }}</span>
+            <span v-if="showExtractionReview" class="doc-time">生效规则来源时间 {{ activeParseTime }}</span>
           </div>
         </div>
 
         <div class="collapse-item expanded">
           <div class="collapse-header" @click="isSection1Expanded = !isSection1Expanded">
-            <div class="collapse-title">📋 {{ candidateFacts.length > 0 && scoreItems.length > 0 ? '已生效评分项 / 最新候选' : '评分标准提取' }}</div>
+            <div class="collapse-title">📋 {{ showExtractionReview && candidateFacts.length > 0 && scoreItems.length > 0 ? '已生效评分项 / 最新候选' : '当前生效评分项' }}</div>
             <div class="collapse-meta">
               <span class="pill ok">{{ scoreItems.length }} 项</span>
               <span class="collapse-arrow">{{ isSection1Expanded ? '▴' : '▾' }}</span>
@@ -67,7 +67,7 @@
           <div v-show="isSection1Expanded" class="collapse-body">
             <!-- 最新任务的候选与既有正式结果可以并存；新解析待复核时必须仍可见。 -->
             <ScoreExtractionPanel
-              v-if="latestExtraction"
+              v-if="latestExtraction && showExtractionReview"
               :snapshot="latestExtraction"
               :active-items="scoreItems"
               :active-total="totalWeight"
@@ -76,7 +76,7 @@
               @activate="activateExtraction"
             />
             <ScoreCandidateReviewCard
-              v-if="!latestExtraction && candidateFacts.length > 0"
+              v-if="showExtractionReview && !latestExtraction && candidateFacts.length > 0"
               :candidate-facts="candidateFacts"
               :schemes="schemes"
               :selected-scheme-id="selectedSchemeId"
@@ -218,6 +218,7 @@ import ScoreParseTable from './ScoreParseTable.vue'
 
 const props = defineProps({
   projectId: { type: [String, Number], required: true },
+  showExtractionReview: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['parsed'])

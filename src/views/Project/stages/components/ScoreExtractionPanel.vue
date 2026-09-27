@@ -85,7 +85,8 @@ const missingExtractedTotal = computed(() => {
   const known = scheme.value?.extractedKnownTotal
   return declared != null && known != null && Number(declared) > Number(known) ? Number(declared) - Number(known) : null
 })
-const isHistoricalActive = computed(() => Boolean(props.snapshot.active?.taskId && props.snapshot.active.taskId !== props.snapshot.taskId))
+const isHistoricalActive = computed(() => props.snapshot.active?.dataStatus !== 'COHERENT'
+  || Boolean(props.snapshot.active?.taskId && props.snapshot.active.taskId !== props.snapshot.taskId))
 const activeMissingTotal = computed(() => {
   const declared = scheme.value?.declaredTotal
   if (scheme.value?.declaredTotalStatus !== 'KNOWN' || declared == null || props.activeTotal == null) return null

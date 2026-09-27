@@ -364,7 +364,7 @@ describe('versioned drawer coexistence', () => {
     scoreParseApi.getExtraction.mockResolvedValue({ data: { taskId: 'old', active: { fingerprint: 'old-fp' }, schemes: [] } })
     scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, parseTime: '2026-09-20T12:00:00', meta: { lastParseStatus: 'FAILED', lastParseError: '新文件失败' } } })
     scoreParseApi.getResults.mockResolvedValue({ data: { results: [{ scoreItemId: 2, status: 'PENDING', actualScore: 5, reuseKind: 'LEGACY_UNVERIFIED' }] } })
-    const w = mount(ScoreParseDrawer, { props: { projectId: 123 }, global: { stubs: { 'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true, 'el-alert': { props: ['description'], template: '<div>{{ description }}</div>' } } } })
+    const w = mount(ScoreParseDrawer, { props: { projectId: 123, showExtractionReview: true }, global: { stubs: { 'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true, 'el-alert': { props: ['description'], template: '<div>{{ description }}</div>' } } } })
     await w.vm.open({ stage: 2, autoParse: false })
     expect(w.text()).toContain('待核验新候选')
     expect(w.text()).toContain('总体架构设计')
@@ -374,7 +374,7 @@ describe('versioned drawer coexistence', () => {
 })
 
 describe('active source time provenance', () => {
-  const createDrawer = () => mount(ScoreParseDrawer, { props: { projectId: 123 }, global: { stubs: {
+  const createDrawer = () => mount(ScoreParseDrawer, { props: { projectId: 123, showExtractionReview: true }, global: { stubs: {
     'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true,
   } } })
   const latest = (taskId = null) => ({ taskId: 'new', taskStatus: 'COMPLETED', extractedAt: '2026-09-27T12:00:00',
@@ -392,7 +392,7 @@ describe('active source time provenance', () => {
       await w.vm.open({ autoParse: false, autoScore: false })
       expect(w.text()).toContain('生效规则来源时间 未知')
       expect(w.text()).toContain('总体架构设计')
-      expect(w.text()).toContain('历史版本，来源待确认')
+      expect(w.text()).toContain('当前使用的是历史版本；最新提取结果尚未切换。')
       w.vm.visible = false
     }
     expect(scoreParseApi.triggerParse).not.toHaveBeenCalled()
@@ -409,5 +409,21 @@ describe('active source time provenance', () => {
       expect(w.text()).not.toContain('生效规则来源时间 ' + new Date('2026-09-27T12:00:00').toLocaleString('zh-CN', { hour12: false }))
       w.vm.visible = false
     }
+  })
+
+  it('hides extraction review details while retaining the formal score table for customers', async () => {
+    scoreParseApi.getLatestExtraction.mockResolvedValue({ data: {
+      taskId: 'latest', taskStatus: 'COMPLETED', snapshotStatus: 'FROZEN', payloadVersion: 1,
+      schemes: [{ schemeId: 's', extractedCount: 2, extractedKnownTotal: 43, declaredTotal: 100, declaredTotalStatus: 'KNOWN' }],
+      items: [{ itemId: 'candidate', name: '内部候选', schemeId: 's', computable: true, effectiveMaximum: 43 }],
+      active: { taskId: 'latest', dataStatus: 'MISMATCHED', fingerprint: 'fp' }, adoption: { adoptedItemIds: [] },
+    } })
+    const w = mount(ScoreParseDrawer, { props: { projectId: 123, showExtractionReview: false }, global: { stubs: { 'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true } } })
+    await w.vm.open({ stage: 1, autoParse: false })
+    expect(w.text()).toContain('总体架构设计')
+    expect(w.text()).toContain('合计')
+    expect(w.text()).not.toContain('内部候选')
+    expect(w.text()).not.toContain('本次解析仍有')
+    expect(w.find('[data-test="activate-extraction"]').exists()).toBe(false)
   })
 })

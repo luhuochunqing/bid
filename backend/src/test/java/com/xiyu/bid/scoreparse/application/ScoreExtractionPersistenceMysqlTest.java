@@ -310,6 +310,7 @@ class ScoreExtractionPersistenceMysqlTest extends AbstractTransactionBoundaryTes
         assertThat(active).hasSize(13);
         assertThat(active.stream().map(ScoreItem::getWeight).reduce(BigDecimal.ZERO,BigDecimal::add)).isEqualByComparingTo("100");
         var view=reads.getByTaskId(project,task.getTaskId());assertThat(view.items()).hasSize(40);
+        assertThat(view.active().dataStatus()).isEqualTo("COHERENT");
         assertThat(active.stream().filter(i -> i.getWeight().compareTo(new BigDecimal("12"))==0).findFirst().orElseThrow().getDetail()).startsWith("第二部分").doesNotContain("清单报价");
         assertThat(active.stream().filter(i -> i.getWeight().compareTo(new BigDecimal("28"))==0).findFirst().orElseThrow().getDetail()).contains("覆盖率").contains("扣5分").doesNotContain("第二部分");
         assertThat(view.active().hasManualEdits()).isFalse();
