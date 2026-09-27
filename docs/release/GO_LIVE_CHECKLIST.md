@@ -16,6 +16,7 @@
   - [ ] 跨浏览器测试通过（Chrome + Firefox + Safari）
 - [ ] API 冒烟测试通过（`api-tests/` 各模块核心端点正常）
 - [ ] MySQL 8.0 baseline Testcontainers 验证通过
+- [ ] backend.env 功能开关已核对：`APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED=true`（scoreparse 版本化提取，缺省 `false`，缺配 → 接口报 409 `EXTRACTION_FEATURE_DISABLED`）
 - [ ] 数据库备份已执行并校验产物存在
 - [ ] 数据库引擎已确认：MySQL 8.0（`DB_ENGINE=mysql`，`SPRING_PROFILES_ACTIVE=prod,mysql`）
 - [ ] 监控面板与告警规则已配置
