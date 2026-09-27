@@ -14,7 +14,7 @@
       <span>识别到：{{ scheme.extractedCount }} 项</span>
       <span>已确认分值：{{ scoreNumber(scheme.extractedKnownTotal) }} 分</span>
       <span>招标文件总分：{{ declaredTotalLabel }}</span>
-      <span v-if="missingExtractedTotal != null" class="metric-warning">仍有 {{ missingExtractedTotal }} 分待核对</span>
+      <span v-if="missingExtractedTotal != null" class="metric-warning">本次解析仍有 {{ missingExtractedTotal }} 分待核对</span>
     </div>
     <div class="active-identity">
       <strong>当前用于评分：{{ activeItems.length }} 项 / {{ activeTotal == null ? '待确认' : activeTotal + ' 分' }}</strong>

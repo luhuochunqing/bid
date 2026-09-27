@@ -57,6 +57,6 @@ it('shows the unresolved gap when the extracted result is short of the declared 
   data.schemes[0].declaredTotalStatus = 'KNOWN'
   data.schemes[0].extractedKnownTotal = 91
   const w = mount(ScoreExtractionPanel, { props: { snapshot: data, activeItems: [{ id: 9, weight: 91 }], activeTotal: 91 } })
-  expect(w.text()).toContain('仍有 9 分待核对')
+  expect(w.text()).toContain('本次解析仍有 9 分待核对')
   expect(w.text()).toContain('距招标文件声明总分还差 9 分')
 })
