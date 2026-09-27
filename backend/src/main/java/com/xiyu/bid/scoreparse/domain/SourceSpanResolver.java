@@ -8,7 +8,8 @@ import java.util.List;
 public final class SourceSpanResolver {
     private SourceSpanResolver() {}
     // REUSE-OK: backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/OpenAiBidAgentConfigurationResolver.java
-    // — this resolver maps physical score-source cells to immutable provenance spans; the existing method resolves model configuration.
+    // REUSE-OK: backend/src/main/java/com/xiyu/bid/bidresult/core/ReminderTypeResolver.java
+    // This resolver maps physical score-source cells to immutable provenance spans; those methods resolve configuration/reminder types.
     public static List<SourceSpan> resolve(DocumentArtifact artifact, List<String> ids) {
         if (artifact == null) return List.of();
         List<SourceSpan> spans = new ArrayList<>();
