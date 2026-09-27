@@ -7,9 +7,9 @@ describe('ScoreExtractionPanel', () => {
   it('shows effective scheme metrics and all candidates including unadopted and structural rows', () => {
     const w = mount(ScoreExtractionPanel, { props: { snapshot: snapshot(), activeItems: [{ id: 9, weight: 100 }], activeTotal: 100 } })
     expect(w.text()).toContain('13 项')
-    expect(w.text()).toContain('100 分（已知部分）')
-    expect(w.text()).toContain('声明总分：未知')
-    for (const label of ['可计算', '未知项', '父项', '方案外', '未采纳', '未核验', '不计分', '当前生效：1 项 / 100 分']) expect(w.text()).toContain(label)
+    expect(w.text()).toContain('已确认分值：100 分')
+    expect(w.text()).toContain('招标文件总分：待确认')
+    for (const label of ['可计算', '未知项', '父项', '方案外', '未采纳', '未核验', '暂不计入总分', '当前用于评分：1 项 / 100 分']) expect(w.text()).toContain(label)
     expect(w.findAll('input[type="checkbox"]:not(:disabled)')).toHaveLength(1)
     expect(w.text()).not.toContain('已完成复核')
   })
@@ -39,13 +39,24 @@ it('requires explicit scheme choice and never selects other-scheme or unsupporte
   const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
   expect(w.findAll('input[type="checkbox"]:not(:disabled)')).toHaveLength(0)
   await w.get('select').setValue('other')
-  expect(w.text()).toContain('声明总分：200 分')
+  expect(w.text()).toContain('招标文件总分：200 分')
   expect(w.findAll('input[type="checkbox"]:not(:disabled)')).toHaveLength(1)
-  expect(w.text()).toContain('比例换算依据待确认')
+  expect(w.text()).toContain('方案比例：未提供')
   expect(w.text()).not.toContain('RATIO_UNRESOLVED')
 })
 
 it('does not invent a zero active total for an absent active version', () => {
   const w = mount(ScoreExtractionPanel, { props: { snapshot: snapshot() } })
-  expect(w.text()).toContain('当前生效：0 项 / 待确认')
+  expect(w.text()).toContain('当前用于评分：0 项 / 待确认')
+  expect(w.text()).not.toContain('还差 0 分')
+})
+
+it('shows the unresolved gap when the extracted result is short of the declared total', () => {
+  const data = snapshot()
+  data.schemes[0].declaredTotal = 100
+  data.schemes[0].declaredTotalStatus = 'KNOWN'
+  data.schemes[0].extractedKnownTotal = 91
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data, activeItems: [{ id: 9, weight: 91 }], activeTotal: 91 } })
+  expect(w.text()).toContain('仍有 9 分待核对')
+  expect(w.text()).toContain('距招标文件声明总分还差 9 分')
 })

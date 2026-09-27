@@ -9,6 +9,18 @@
 // spec 041 真接口的状态枚举 → 抽屉 UI 语义
 export const STATUS_MAP = { OK: 'ok', DANGER: 'danger', PENDING: 'neutral' }
 export const TYPE_MAP = { OBJECTIVE: '客观项', SUBJECTIVE: '主观项' }
+export const CATEGORY_MAP = {
+  business: '商务', commercial: '商务',
+  technology: '技术', technical: '技术',
+  finance: '财务', financial: '财务',
+  service: '服务', other: '其他',
+}
+
+export function categoryLabel(value) {
+  if (value == null || value === '') return '评分项'
+  const raw = String(value).trim()
+  return CATEGORY_MAP[raw.toLowerCase()] || raw
+}
 
 const POLL_INTERVAL_MS = 2000
 const POLL_MAX_ATTEMPTS = 900 // 前后端统一 30 分钟超时上限（900 × 2s）
@@ -82,7 +94,7 @@ export function normalizeScoreItem(s, i) {
   return {
     id: s.id,
     code: displayCode,
-    dim: s.dim || '评分项',
+    dim: categoryLabel(s.dim),
     detail: s.detail || '',
     weight: s.weight != null ? Number(s.weight) : null,
     scoreType: TYPE_MAP[s.scoreType] || s.scoreType || (isSubj ? '主观项' : '客观项'),
