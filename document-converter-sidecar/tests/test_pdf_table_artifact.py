@@ -102,7 +102,7 @@ def test_real_chapter_heading_inside_scoring_table_stays_a_chapter_boundary():
     assert _pdf_page_chapter_heading_positions(page) == [(120.0, "第四章：合同履约考核")]
 
 
-def test_untotaled_part_heading_inside_scoring_table_remains_conservative_break():
+def test_part_heading_inside_table_boundary_is_not_section_break():
     class Table:
         bbox = (0, 100, 500, 300)
 
@@ -111,16 +111,46 @@ def test_untotaled_part_heading_inside_scoring_table_remains_conservative_break(
             return [["序号", "评分因素", "评分标准", "分值"],
                     ["1", "技术方案", "方案得分20分", "20分"]]
 
-    class Page:
+    class PageInside:
         @staticmethod
         def extract_text_lines():
-            return [{"text": "第二部分：其他要求", "top": 120}]
+            return [
+                {"text": "第一部分", "top": 120},
+                {"text": "第二部分：其他要求", "top": 180},
+            ]
 
         @staticmethod
         def find_tables():
             return [Table()]
 
-    assert _pdf_page_unresolved_section_break_tops(Page()) == [120.0]
+    class PageOutside:
+        @staticmethod
+        def extract_text_lines():
+            return [{"text": "第三部分 合同履约考核", "top": 50}]
+
+        @staticmethod
+        def find_tables():
+            return [Table()]
+
+    assert _pdf_page_unresolved_section_break_tops(PageInside()) == []
+    assert _pdf_page_unresolved_section_break_tops(PageOutside()) == [50.0]
+
+
+def test_line_on_table_border_with_tolerance_is_inside_table():
+    class Table:
+        bbox = (0, 100, 500, 300)
+
+    class PageBorder:
+        @staticmethod
+        def extract_text_lines():
+            # Line top is slightly outside (99.5) but bottom is inside (109.5)
+            return [{"text": "第一部分", "top": 99.5, "bottom": 109.5}]
+
+        @staticmethod
+        def find_tables():
+            return [Table()]
+
+    assert _pdf_page_unresolved_section_break_tops(PageBorder()) == []
 
 
 def test_part_heading_in_weakly_structured_but_explicit_scoring_table_is_recognized():

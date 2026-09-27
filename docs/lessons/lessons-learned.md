@@ -6849,4 +6849,35 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 
 ---
 
-## 410. （占位，待后续事件补充）
+## 410. 评分标准解析开关陷阱与底层算法三大根因（Sidecar 表内断点、ChildAggregation D6 误判、跨格引文匹配）（2026-09-27）
+
+### 现象
+
+项目 1382（标书《办公用品.pdf》）AI 评分标准解析改了一周依然卡在 91 分（标准为 100 分）。排查过程中若将测试环境 `/etc/xiyu-bid/backend.env` 中的 `APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED` 改为 `true`，全站其他原本解析正确的常规项目大面积变成解析失败（硬报错 FAILED 或入库 0 项）。
+
+### 根因分析
+
+1. **版本化开关的 8 大拦截陷阱**：
+   - 8000 字符限制硬崩：`ScoreAnchorPrompt` 超过 8000 字符抛出 `IllegalStateException`，导致大表格任务直接硬报错 FAILED；
+   - 轻度残缺降级为 FAILED：`STRUCTURE_INCOMPLETE` 由原有的平稳展示退化为强制置任务为 FAILED；
+   - 传统召回入库 0 项：`legacyDraft` 缺少 qualifications 导致快照中方案为空，`tryAutoActivate` 一票否决，评分项入库 0 条；
+   - 存量老项目锁死：`token.versionId() == null` 导致存量老项目点击重新解析永远返回 false，无法生效；
+   - 总分零容错门禁拦截：提取总分与声明总分差 0.01 即拒绝自动激活；
+   - 多标段标书一票否决：`snapshot.schemes().size() != 1` 拒绝激活；
+   - 409 互斥锁：版本化标记任务直接调用 `persistItems` 会被抛出 409 异常阻断兜底；
+   - 前端隐藏手动激活面板：`:show-extraction-review="false"` 导致自动激活失败时前端无处人工采纳，形成死锁。
+2. **项目 1382 缺失 9 分的真实根因在底层算法层**：
+   - Sidecar 表内断点误切：PDF 表格物理边界内的文本行（如“第一部分/第二部分”）被误判为大纲章节断点，导致跨页表格后续内容丢失；
+   - ChildAggregation D6 聚合误判：父项自身的满分描述（如“合计最高得3分”）被误判为子项共享上限约束（`sharedCap`），导致有效评分项被剔除；
+   - 跨格引文匹配拒绑：多列组合事实（如“序号 + 名称 + 规则”跨过分值列）因两格相邻限制无法匹配。
+
+### 解决方案
+
+- 严格保持测试/生产环境 `APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED=false`，杜绝次生灾害；
+- Sidecar 修复：在 `converter.py` 中引入 `_pdf_line_inside_table`，带 1.0pt 浮点容差过滤表内断点；
+- ChildAggregation 修复：新增 `additive` 判定，收敛 `sharedCap` 关键字，解耦父项自身满分与子项共享上限；
+- 跨格引文匹配修复：在 `PdfRowEvidenceBinder` 中引入 k-combination 组合搜索与全量匹配优先消解。
+
+---
+
+## 411. （占位，待后续事件补充）
