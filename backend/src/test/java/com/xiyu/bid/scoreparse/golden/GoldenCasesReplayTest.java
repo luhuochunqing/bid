@@ -520,4 +520,9 @@ class GoldenCasesReplayTest {
         // AI Provider 诊断遥测追加到 RunSummary 时，既有金标回放断言与结构不受影响
         org.junit.jupiter.api.Assertions.assertFalse(cases().toList().isEmpty());
     }
+
+    @org.junit.jupiter.api.Test
+    void childAggregationSupportsAdditiveTotalWithoutMisclassifyingAsSharedCap() {
+        assertTrue(ChildAggregation.SUM.supportedByOriginalText("服务网点及仓储（3分）：提供网点证明，合计最高得3分，各网点分值累加计算。"));
+    }
 }

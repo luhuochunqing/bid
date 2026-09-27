@@ -6847,9 +6847,11 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - `FlywayMysqlContainerTest` 容器测试是此类问题的第一道防线，打包时**必须通过**；任何"迁移能跑、validate 忽略"的侥幸都会在测试/生产后端启动时爆发；
 - 新迁移 PR 需同时核对：迁移列类型 ↔ JPA 实体字段类型（CHAR/VARCHAR/ENUM/JSON）、回滚脚本 source header（`-- Input:` 行）、`U<version>` 命名。
 
+## 410. （占位，待后续事件补充）
+
 ---
 
-## 410. 评分标准解析开关陷阱与底层算法三大根因（Sidecar 表内断点、ChildAggregation D6 误判、跨格引文匹配）（2026-09-27）
+## 411. 评分标准解析开关陷阱与底层算法三大根因（Sidecar 表内断点、ChildAggregation D6 误判、跨格引文匹配）（2026-09-27）
 
 ### 现象
 
@@ -6880,4 +6882,5 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 
 ---
 
-## 411. （占位，待后续事件补充）
+## 412. （占位，待后续事件补充）
+
