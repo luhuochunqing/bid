@@ -63,6 +63,10 @@ public final class MultimodalScoreFactValidator {
         List<MultimodalScoreFact> validationFacts = facts.stream()
                 .filter(fact -> !outOfSchemeIds.contains(OriginalScoreEvidencePolicy.modelFactId(fact)))
                 .map(fact -> applyQualification(fact, qualificationsByFact)).toList();
+        facts.stream().flatMap(fact -> fact.sourceMetadata().diagnostics().stream())
+                .filter(note -> note.startsWith("SOURCE_RECHECK_LIMIT_REMAINING:"))
+                .distinct().forEach(note -> violations.add(new Violation("", "sourceCoverage", "SOURCE_RECHECK_INCOMPLETE",
+                        "定向复核仍有未处理来源", "all selected source fragments processed", note, "source anchors")));
         validateRequiredFields(validationFacts, violations);
         validateEvidence(validationFacts, cells, artifact, tenderText, violations);
         validateDuplicates(validationFacts, violations);
@@ -120,11 +124,9 @@ public final class MultimodalScoreFactValidator {
             List<OriginalScoreQualificationPolicy.ReferencedCell> cited = OriginalScoreQualificationPolicy
                     .resolveReferencedCells(artifact, fact.tableId(), fact.sourceCellIds());
             boolean crossTable = cited.stream().map(source -> source.table().tableId()).distinct().count() > 1;
-            boolean samePage = !cited.isEmpty() && (crossTable ? cited.stream().allMatch(source -> java.util.Objects.equals(
-                    source.cell().sourcePage() == null ? source.table().sourcePage() : source.cell().sourcePage(),
-                    fact.pageNumber())) : cited.stream().anyMatch(source -> java.util.Objects.equals(
-                    source.cell().sourcePage() == null ? source.table().sourcePage() : source.cell().sourcePage(),
-                    fact.pageNumber())));
+            boolean samePage = cited.stream().anyMatch(source -> java.util.Objects.equals(
+                    source.cell().sourcePage() == null ? source.table().sourcePage()
+                            : source.cell().sourcePage(), fact.pageNumber()));
             boolean sameScheme = !crossTable || OriginalScoreQualificationPolicy.sameScheme(cited,
                     OriginalScoringContext.schemes(artifact, tenderText));
             boolean locatorValid = textLocator || (!fact.tableId().isBlank() && !cited.isEmpty()
@@ -143,10 +145,7 @@ public final class MultimodalScoreFactValidator {
     }
 
     private static String normalizeEvidence(String value) {
-        return value == null ? "" : value.replace('\u00a0', ' ')
-                .replace('\u2007', ' ').replace('\u202f', ' ')
-                .replaceAll("\\*\\*|__", "")
-                .replaceAll("[\\t\\r\\n]+", " ").replaceAll(" +", " ").trim();
+        return com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(value).text();
     }
 
     private static void validateDuplicates(List<MultimodalScoreFact> facts, List<Violation> violations) {

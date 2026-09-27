@@ -149,7 +149,9 @@ def test_part_heading_in_weakly_structured_but_explicit_scoring_table_is_recogni
 def test_pdf_artifact_emits_ocr_text_with_physical_page_and_region(tmp_path):
     image_pdf = fitz.open()
     image_page = image_pdf.new_page(width=595, height=842)
-    image_page.insert_image(image_page.rect, filename=CHINESE_OCR_FIXTURE)
+    # Calibrated real rendering: full-page placement yields a 63.9-confidence token.
+    # 400-point width preserves image-area detection and gives >96 at production 2x OCR.
+    image_page.insert_image(fitz.Rect(0, 0, 400, 566), filename=CHINESE_OCR_FIXTURE)
     path = tmp_path / "ocr-only.pdf"
     image_pdf.save(path)
     image_pdf.close()

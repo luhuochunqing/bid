@@ -44,6 +44,7 @@ final class ScoreItemAssessor {
     }
 
     ScoreResult assess(ScoreParseTask task, ScoreItem item, String bidDocText, List<DocumentImage> images) {
+        if (item.getWeight() == null) return fallbackPending(task, List.of(item), "评分权重未知，无法计算").get(0);
         String excerpt = ScoreDocExcerptExtractor.extractRelevantExcerpt(
                 bidDocText, item, BID_DOC_EXCERPT_MAX_CHARS);
         boolean subjective = ScoreAssessmentGuard.TYPE_SUBJECTIVE.equals(item.getScoreType());

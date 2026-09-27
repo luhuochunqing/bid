@@ -19,6 +19,9 @@ vi.mock('element-plus', async (importOriginal) => {
 
 vi.mock('@/api/modules/scoreParse.js', () => ({
   scoreParseApi: {
+    getLatestExtraction: vi.fn(),
+    getExtraction: vi.fn(),
+    activateExtraction: vi.fn(),
     getItems: vi.fn(),
     getReview: vi.fn(),
     submitReview: vi.fn(),
@@ -47,6 +50,7 @@ describe('useScoreParseDrawer.js', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    scoreParseApi.getLatestExtraction.mockRejectedValue({ response: { status: 409, data: { msg: 'EXTRACTION_FEATURE_DISABLED' } } })
     emit = vi.fn()
     scoreParseApi.getItems.mockResolvedValue({ data: { items: REAL_ITEMS, summary: null, sourceFileName: '国家级数据中心扩容项目招标文件.pdf', parseTime: '2026-08-15T14:00:00' } })
     scoreParseApi.getReview.mockResolvedValue({ data: { facts: [], audits: [] } })
@@ -361,7 +365,9 @@ describe('useScoreParseDrawer.js', () => {
     const drawer = useScoreParseDrawer(props, emit)
     await drawer.open({ stage: 2, autoScore: true })
 
-    expect(drawer.scored.value).toBe(true)
+    expect(drawer.scored.value).toBe(false)
+    expect(drawer.hasScoreResults.value).toBe(true)
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
     expect(lookupScoreResult(drawer.scoreResults.value, { id: 1, code: 'A1' }).evalText).toBe('待确认')
     expect(lookupScoreResult(drawer.scoreResults.value, { id: 1, code: 'A1' }).missedReason).toContain('投标文件解析失败')
   })

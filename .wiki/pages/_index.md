@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-09-18
-health_checked: 2026-09-25
+updated: 2026-09-27
+health_checked: 2026-09-27
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -107,7 +107,7 @@ backlinks:
 - [[score-parse-service]] — AI 评分标准解析后端服务
 - [[scoreparse-performance-evidence-clarity]] — 业绩预计得分证据可信度、保守计分与中文解释契约
 - [[scoreparse-1384-docx-scheme-contract-rca]] — 项目 1384 DOCX 评分方案资格失效根因（PR #2757 真实输入契约）
-- [[scoreparse-1382-pdf-scheme-gate-rca]] — 项目 1382 PDF 评分方案资格门失效根因（PDF 表格章节归属 / 目录点线行排除 / factId 唯一性）
+- [[scoreparse-1382-pdf-scheme-gate-rca]] — 项目 1382 PDF 评分方案资格门失效根因（PDF 章节 / DOCX 真实跨层 / 全候选快照 / 生效版本与评分指纹 / 发布开关）
 - [[scoreparse-multimodal-primary]] — 评分方案资格、原文总分、跨表父子、OCR 引文定位与文本分片审核契约
 - [[spec059-score-parse-evidence-pipeline]] — spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构
 - [[score-parse-split-completeness-and-partial-overwrite-fix]] — 评分解析分表完整性范围误判 + 部分通过覆盖正式结果双修复

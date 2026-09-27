@@ -12,6 +12,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TextPrimaryEvidenceBinderTest {
     @Test
+    void bindsChineseLayoutBreakAndRestoresActualRawQuote() {
+        var cell = new DocumentArtifact.CanonicalTable.CanonicalCellDto("rule", 1, 2,
+                "供应商提供一条有效可行的增值服\n务方案得1分，满分4分。", "", 1, 1, false, "pdf:page=2", 2, "t-r1");
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "v2"),
+                List.of(new DocumentArtifact.CanonicalTable("t", 2, "第三章 评审办法", 2, 3,
+                        List.of(), List.of(cell), true)), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审办法", "增值服务", "", "增值服务", BigDecimal.valueOf(4),
+                "模型概要", "OBJECTIVE", 2, "", List.of(), "供应商提供一条有效可行的增值服务方案得1分，满分4分。", .9);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").getFirst();
+        assertThat(bound.sourceCellIds()).containsExactly("rule");
+        assertThat(bound.quotedText()).isEqualTo(cell.rawText());
+        var validation = new com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator().validate(
+                List.of(bound), artifact, BigDecimal.valueOf(4));
+        assertThat(TextPrimaryScoreFactMapper.map(bound, artifact, validation).sourceText()).isEqualTo(cell.rawText());
+    }
+
+    @Test
     void bindsPdfNameAndRuleQuoteAcrossCellsInSamePhysicalRowWithoutLogicalRowId() {
         var table = new DocumentArtifact.CanonicalTable("pdf-p34-t1", 34, "第三章 评审标准", 2, 3,
                 List.of(), List.of(
@@ -200,7 +217,12 @@ class TextPrimaryEvidenceBinderTest {
 
         assertThat(bound).hasSize(1);
         assertThat(bound.get(0).sourceCellIds()).containsExactly("text:line[0]");
-        assertThat(bound.get(0).quotedText()).isEqualTo("满足条件得 10 分");
+        assertThat(bound.get(0).quotedText()).isEqualTo("满足条件得\n10\u00a0分");
+        assertThat(bound.get(0).sourceMetadata().sourceSpans()).singleElement().satisfies(span -> {
+            assertThat(span.startOffset()).isEqualTo(3);
+            assertThat(span.rawText()).isEqualTo("满足条件得\n10\u00a0分");
+            assertThat(span.fileType()).isEqualTo("TEXT");
+        });
     }
 
     @Test

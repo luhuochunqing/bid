@@ -20,6 +20,9 @@ vi.mock('element-plus', async (importOriginal) => {
 
 vi.mock('@/api/modules/scoreParse.js', () => ({
   scoreParseApi: {
+    getLatestExtraction: vi.fn(),
+    getExtraction: vi.fn(),
+    activateExtraction: vi.fn(),
     getItems: vi.fn(),
     triggerParse: vi.fn(),
     getParseStatus: vi.fn(),
@@ -61,6 +64,7 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    scoreParseApi.getLatestExtraction.mockRejectedValue({ response: { status: 409, data: { msg: 'EXTRACTION_FEATURE_DISABLED' } } })
     scoreParseApi.getItems.mockResolvedValue({ data: { items: qaItemsFixture, summary: null } })
     scoreParseApi.triggerParse.mockResolvedValue({ data: { taskId: 't-parse', status: 'PENDING' } })
     scoreParseApi.getParseStatus.mockResolvedValue({ data: { taskId: 't-parse', status: 'COMPLETED', progress: 100, completedAt: '2026-08-15T14:00:00' } })

@@ -1,5 +1,5 @@
 // Input: props.projectId, emit callbacks
-// Output: state and handlers for score parse drawer (real API driven, no mock fallbacks)
+// Output: coherent extraction/active state, explicit CAS selection and separate historical scoring
 // Pos: src/composables/projectDetail/ - Presentation domain composable
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -8,6 +8,7 @@ import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { getAiDocumentErrorPresentation } from '@/utils/aiDocumentError.js'
 import { formatTime, pollTask, normalizeScoreItem, mapScoreResults, lookupScoreResult, getDecisionBadgeType, getDecisionBadgeText } from './scoreParseTask.js'
 import { parseTriggerSource, scoringBody, scoringSkipHint, hasMeaningfulResults, circuitHintFromMeta } from './scoreParseSpendGuard.js'
+import { useScoreExtraction } from './useScoreExtraction.js'
 import { useScoreCandidateAdoption } from './useScoreCandidateAdoption.js'
 
 export function useScoreParseDrawer(props, emit) {
@@ -43,26 +44,31 @@ export function useScoreParseDrawer(props, emit) {
   const reviewFacts = computed(() => Array.isArray(reviewSnapshot.value?.facts) ? reviewSnapshot.value.facts : [])
   const reviewAudits = computed(() => Array.isArray(reviewSnapshot.value?.audits) ? reviewSnapshot.value.audits : [])
 
+  const extraction = useScoreExtraction(props, fetchAnalysisData)
+  const hasHistoricalResults = ref(false), hasScoreResults = ref(false)
   const scoreItems = ref([])
   const scoreResults = ref({})
+  const activeParseTime = computed(() => extraction.latestExtraction.value?.active?.taskId && scoreItems.value.length && parseTime.value !== '—' ? parseTime.value : '未知')
   const detailModalVisible = ref(false)
   const detailMode = ref('est')
   const selectedItem = ref(null)
   const selectedResult = ref(null)
-  const totalWeight = computed(() => scoreItems.value.reduce((sum, item) => sum + (Number(item.weight) || 0), 0))
+  const totalWeight = computed(() => scoreItems.value.length && scoreItems.value.every(i => i.weight != null) ? scoreItems.value.reduce((sum, item) => sum + (Number(item.weight) || 0), 0) : null)
   const objectiveWeight = computed(() => scoreItems.value.filter((i) => i.scoreType === '客观项').reduce((sum, item) => sum + (Number(item.weight) || 0), 0))
   const subjectiveWeight = computed(() => scoreItems.value.filter((i) => i.scoreType === '主观项').reduce((sum, item) => sum + (Number(item.weight) || 0), 0))
   const statsOkCount = computed(() => scoreItems.value.filter((i) => i.status === 'ok').length)
   const statsDangerCount = computed(() => scoreItems.value.filter((i) => i.status === 'danger').length)
   const statsNeutralCount = computed(() => scoreItems.value.filter((i) => i.status === 'neutral').length)
 
-  const estTotalScore = computed(() => scoreItems.value.reduce((sum, i) => sum + (i.scoreType === '客观项' && typeof i.estScore === 'number' ? i.estScore : 0), 0))
-  const actualTotalScore = computed(() => scoreItems.value.reduce((sum, i) => {
-    if (i.scoreType !== '客观项') return sum
-    const res = lookupScoreResult(scoreResults.value, i)
-    const val = res?.actualScore ?? res?.score
-    return sum + (typeof val === 'number' ? val : 0)
-  }, 0))
+  const estTotalScore = computed(() => {
+    const known = scoreItems.value.filter(i => i.scoreType === '客观项' && typeof i.estScore === 'number')
+    return known.length ? known.reduce((sum, i) => sum + i.estScore, 0) : null
+  })
+  const actualTotalScore = computed(() => {
+    const known = scoreItems.value.filter(i => i.scoreType === '客观项').map(i => lookupScoreResult(scoreResults.value, i))
+      .filter(r => r?.reuseKind !== 'LEGACY_UNVERIFIED' && typeof r?.actualScore === 'number')
+    return known.length ? known.reduce((sum, r) => sum + r.actualScore, 0) : null
+  })
 
   function openDetail(item, result, mode = 'est') {
     selectedItem.value = item
@@ -80,12 +86,13 @@ export function useScoreParseDrawer(props, emit) {
     loading.value = true
     error.value = ''
     try {
-      const res = await scoreParseApi.getItems(props.projectId)
+      const { itemsResponse: res, resultsData, readError } = await extraction.readBundle()
+      if (readError) error.value = readError
       const data = res?.data
       const apiItems = data?.items
 
-      if (data?.sourceFileName) sourceFileName.value = data.sourceFileName
-      if (data?.parseTime) parseTime.value = formatTime(data.parseTime) || data.parseTime
+      sourceFileName.value = data?.sourceFileName || '—'
+      parseTime.value = formatTime(data?.parseTime) || '—'
       scoreItems.value = Array.isArray(apiItems) && apiItems.length > 0 ? apiItems.map(normalizeScoreItem) : []
       normalizationWarning.value = data?.summary?.normalizationWarning || ''
       const meta = res?.data?.meta || {}
@@ -104,34 +111,30 @@ export function useScoreParseDrawer(props, emit) {
       if (meta.lastParseStatus && meta.lastParseStatus !== 'COMPLETED') {
         reviewSnapshot.value = null
         decisionStatus.value = meta.lastParseStatus === 'FAILED' ? 'PARSE_FAILED' : ''
-      } else await loadReviewSnapshotIfNeeded()
+      } else if (!extraction.latestExtraction.value || extraction.latestExtraction.value.payloadVersion === 0) await loadReviewSnapshotIfNeeded()
       emit('parsed', { dangerCount: statsDangerCount.value, warnCount: statsNeutralCount.value })
-      let hasResults = false
-      try {
-        const resultsData = (await scoreParseApi.getResults(props.projectId))?.data
-        const results = resultsData?.results
-        if (resultsData?.bidFileName && !meta.bidFileName) bidFileName.value = resultsData.bidFileName
-        if (resultsData?.scoreTime && !meta.scoreTime) scoreTime.value = formatTime(resultsData.scoreTime) || resultsData.scoreTime
-        if (Array.isArray(results) && results.length > 0) {
-          scoreResults.value = mapScoreResults(results)
-          hasResults = hasMeaningfulResults(results)
-        }
-      } catch { /* results 不存在时忽略 */ }
+      const results = resultsData?.results || []
+      scoreResults.value = mapScoreResults(results)
+      hasHistoricalResults.value = results.some(r => r.reuseKind === 'LEGACY_UNVERIFIED')
+      hasScoreResults.value = hasMeaningfulResults(results)
+      const hasResults = results.some(r => r.reuseKind !== 'LEGACY_UNVERIFIED' && r.status !== 'PENDING' && hasMeaningfulResults([r]))
+      if (resultsData?.bidFileName && !meta.bidFileName) bidFileName.value = resultsData.bidFileName
+      if (resultsData?.scoreTime && !meta.scoreTime) scoreTime.value = formatTime(resultsData.scoreTime)
       const hasBidDoc = Boolean(meta.bidFileName || (bidFileName.value && bidFileName.value !== '—') || props.hasBidDocument)
-      currentStage.value = options.stage !== undefined ? options.stage : ((hasResults || hasBidDoc) ? 2 : 1)
-      scored.value = options.scored !== undefined ? options.scored : hasResults
+      currentStage.value = options.stage !== undefined ? options.stage : ((hasScoreResults.value || hasBidDoc) ? 2 : 1)
+      scored.value = hasHistoricalResults.value && !hasResults ? false : options.scored !== undefined ? options.scored : hasResults
       const lastParseStatus = meta.lastParseStatus ?? null
       const inFlight = lastParseStatus === 'PENDING' || lastParseStatus === 'PROCESSING'
-      if (scoreItems.value.length === 0 && (lastParseStatus == null || inFlight) && options.autoParse !== false) {
+      if (!readError && !extraction.latestExtraction.value && scoreItems.value.length === 0 && (lastParseStatus == null || inFlight) && options.autoParse !== false) {
         await startParse({ silent: true })
-      } else if (lastParseStatus === 'FAILED') {
+      } else if (!readError && lastParseStatus === 'FAILED') {
         error.value = meta.lastParseError || '评分标准解析失败，请重新解析'
       }
-      if (currentStage.value === 2 && !hasResults && options.autoScore === true) {
+      if (!readError && currentStage.value === 2 && !hasScoreResults.value && options.autoScore === true) {
         await runScoring({ auto: true })
       }
     } catch (e) {
-      error.value = e?.response?.data?.msg || '评分标准解析加载失败'
+      error.value = e?.response?.data?.msg || e?.message || '评分标准解析加载失败'
     } finally {
       loading.value = false
     }
@@ -162,7 +165,7 @@ export function useScoreParseDrawer(props, emit) {
         const skipHint = scoringSkipHint(triggered?.data)
         if (skipHint) scoringHint.value = skipHint
         if (triggered?.data?.outcome === 'SKIPPED') {
-          scored.value = true
+          await fetchAnalysisData({ stage: currentStage.value, autoScore: false, autoParse: false })
           ElMessage.info(skipHint || '文件未变化')
           return
         }
@@ -175,21 +178,11 @@ export function useScoreParseDrawer(props, emit) {
           pollError = err
         }
 
-        try {
-          const resultsData = (await scoreParseApi.getResults(props.projectId))?.data
-          const results = resultsData?.results
-          if (resultsData?.bidFileName) bidFileName.value = resultsData.bidFileName
-          if (resultsData?.scoreTime) scoreTime.value = formatTime(resultsData.scoreTime) || resultsData.scoreTime
-          if (Array.isArray(results) && results.length > 0) {
-            scoreResults.value = mapScoreResults(results)
-            if (hasMeaningfulResults(results)) scored.value = true
-          }
-        } catch { /* 降级忽略 */ }
+        await fetchAnalysisData({ stage: currentStage.value, autoScore: false, autoParse: false })
 
         if (pollError) {
           notifyErrorUnlessRateLimit(pollError, '打分失败')
-        } else {
-          scored.value = true
+        } else if (!error.value) {
           ElMessage.success(isAuto ? 'AI 自动打分完成' : 'AI 实际打分完成')
         }
       }
@@ -211,14 +204,14 @@ export function useScoreParseDrawer(props, emit) {
       }
       reviewSnapshot.value = null
       decisionStatus.value = ''
-      const done = await pollTask(() => scoreParseApi.getParseStatus(props.projectId), '解析')
-      if (done?.completedAt) parseTime.value = formatTime(done.completedAt)
+      await pollTask(() => scoreParseApi.getParseStatus(props.projectId), '解析')
       await fetchAnalysisData({ stage: currentStage.value, autoScore: false, autoParse: false })
       if (!silent) {
         ElMessage.success('已重新解析评分标准')
       }
     } catch (e) {
       const msg = e?.response?.data?.msg || e?.message || '重新解析失败'
+      await fetchAnalysisData({ stage: currentStage.value, autoScore: false, autoParse: false })
       reviewSnapshot.value = null
       decisionStatus.value = 'PARSE_FAILED'
       if (silent) error.value = msg
@@ -272,6 +265,7 @@ export function useScoreParseDrawer(props, emit) {
 
   const {
     candidateFacts,
+    schemes, selectedSchemeId, schemeSelectionRequired,
     candidateTotalWeight,
     declaredTotalWeight,
     adoptionStatus,
@@ -287,6 +281,7 @@ export function useScoreParseDrawer(props, emit) {
   })
 
   return {
+    ...extraction, activeParseTime, hasHistoricalResults, hasScoreResults,
     visible, loading, error, errorPresentation, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
     sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
     scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult,
@@ -295,6 +290,6 @@ export function useScoreParseDrawer(props, emit) {
     decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason, fallbackReason, pipelineVersion, artifactSha256,
     reviewRequired, reviewSnapshot, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewSubmitted, reviewError,
     loadReviewSnapshotIfNeeded, submitReviewRetention,
-    candidateFacts, candidateTotalWeight, declaredTotalWeight, adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,
+    candidateFacts, schemes, selectedSchemeId, schemeSelectionRequired, candidateTotalWeight, declaredTotalWeight, adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,
   }
 }

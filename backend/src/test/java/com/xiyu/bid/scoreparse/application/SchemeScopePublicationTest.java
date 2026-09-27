@@ -77,13 +77,30 @@ class SchemeScopePublicationTest {
     }
 
     @Test void completeDeterministicFallbackPublishesItsOwnFactsAfterIncompleteModel() throws Exception {
-        var result = modelExtract(threeDetailTables(true), TEXT,
+        var result = legacyModelExtract(threeDetailTables(true), TEXT,
                 List.of(modelFact("t-business", "1", "履约能力", "20")), "20");
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
         assertThat(result.completeness().declaredTotalScore()).isEqualByComparingTo("100");
         assertThat(result.originalVerified()).isTrue();
         assertThat(result.candidates()).extracting(candidate -> candidate.weight())
                 .containsExactly(new BigDecimal("20"), new BigDecimal("30"), new BigDecimal("50"));
+    }
+
+    @Test void anchoredFallbackRetainsModelAlternativeWithoutReusingWholeSetPublicationProof() throws Exception {
+        var result = modelExtract(threeDetailTables(true), TEXT,
+                List.of(modelFact("t-business", "1", "履约能力", "20")), "20");
+        assertThat(result.facts()).hasSize(4);
+        assertThat(result.originalVerified()).isFalse();
+        assertThat(result.facts()).filteredOn(f -> f.sourceMetadata().diagnostics()
+                .contains("ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED")).hasSize(1);
+        var snapshot=com.xiyu.bid.scoreparse.domain.ScoreExtractionSnapshot.from("anchored",
+                result.facts(),result.qualifications(),result.sourceDiagnostics());
+        assertThat(snapshot.items()).hasSize(4);
+        assertThat(snapshot.items().stream().filter(com.xiyu.bid.scoreparse.domain.ExtractedScoreItem::computable)
+                .map(com.xiyu.bid.scoreparse.domain.ExtractedScoreItem::effectiveMaximum)
+                .reduce(BigDecimal.ZERO,BigDecimal::add)).isEqualByComparingTo("100");
+        assertThat(snapshot.items()).filteredOn(i -> i.diagnostics().contains("ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED"))
+                .noneMatch(com.xiyu.bid.scoreparse.domain.ExtractedScoreItem::computable);
     }
 
     @Test void completeModelFactsWithIndependentSummaryPublishBothDetails() throws Exception {
@@ -93,6 +110,28 @@ class SchemeScopePublicationTest {
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
         assertThat(result.candidates()).extracting(candidate -> candidate.weight())
                 .containsExactly(new BigDecimal("20"), new BigDecimal("80"));
+    }
+
+    @Test void originalFixtureWithoutLogicalMetadataRetainsModelRulesWithoutSourceCertification() throws Exception {
+        var full = summaryAndTwoDetails();
+        var tables = full.tables().stream().map(t -> new DocumentArtifact.CanonicalTable(t.tableId(),
+                t.sourcePage(), t.sourceSection(), t.rows(), t.columns(), t.mergedRegions(),
+                t.cells().stream().map(c -> new DocumentArtifact.CanonicalTable.CanonicalCellDto(c.cellId(),
+                        c.row(), c.column(), c.rawText(), c.normalizedText(), c.rowspan(), c.colspan(),
+                        c.isMergedContinue(), c.sourceXmlPath())).toList(), t.isScoreTable())).toList();
+        var result = modelExtract(new DocumentArtifact(full.artifact(), tables, full.warnings()),
+                List.of(modelFact("t-business", "1", "履约能力", "20"),
+                        modelFact("t-technical", "2", "实施方案", "80")), "100");
+        assertThat(result.candidates()).isEmpty();
+        var snapshot = com.xiyu.bid.scoreparse.domain.ScoreExtractionSnapshot.from("missing-structure",
+                result.facts(), result.qualifications(), result.sourceDiagnostics());
+        assertThat(snapshot.items()).hasSize(2).allSatisfy(item -> {
+            assertThat(item.fieldSources().get("ruleText")).isEqualTo("MODEL_CLAIM");
+            assertThat(item.diagnostics()).contains("FULL_RULE_UNIT_UNRESOLVED");
+            assertThat(item.ruleText()).isEqualTo(item.fact().sourceMetadata().modelRuleText());
+            assertThat(item.computable()).isTrue();
+        });
+        assertThat(snapshot.schemes()).allMatch(scheme -> !scheme.extractedTotalComplete());
     }
 
     @Test void allThreeLocallyCompleteTablesCanPublishOneHundredPointScheme() throws Exception {
@@ -156,6 +195,16 @@ class SchemeScopePublicationTest {
     static StructuredTableResult modelExtract(DocumentArtifact source, String text,
                                                        List<MultimodalScoreFact> facts,
                                                        String declaredTotal) throws Exception {
+        return modelExtract(source, text, facts, declaredTotal, false);
+    }
+
+    private static StructuredTableResult legacyModelExtract(DocumentArtifact source, String text,
+            List<MultimodalScoreFact> facts, String declaredTotal) throws Exception {
+        return modelExtract(source, text, facts, declaredTotal, true);
+    }
+
+    private static StructuredTableResult modelExtract(DocumentArtifact source, String text,
+            List<MultimodalScoreFact> facts, String declaredTotal, boolean legacy) throws Exception {
         var extractor = mock(SidecarDocumentArtifactExtractor.class);
         when(extractor.extract(any(byte[].class), eq("bid.pdf"))).thenReturn(source);
         MultimodalScoreFactExtractor model = new TextAwareScoreFactExtractorTestAdapter() {
@@ -169,6 +218,10 @@ class SchemeScopePublicationTest {
                 return new ExtractionResult(new BigDecimal(declaredTotal), facts, "recheck", 0);
             }
         };
+        if (legacy) return MultimodalStructuredExtractionHandler.run("bid.pdf", text, source,
+                com.xiyu.bid.scoreparse.domain.OriginalScoringContext.resolve(source, text), model, () -> {},
+                new MultimodalScoreFactExtractor.ExtractionResult(new BigDecimal(declaredTotal), facts, "first", 0),
+                true, false, false);
         return MultimodalStructuredExtractionHandler.extract(
                 new TenderTextSource("bid.pdf", "obs://bid.pdf", text),
                 new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "application/pdf"),
@@ -215,11 +268,11 @@ class SchemeScopePublicationTest {
         first.cells().forEach(c -> cells.add("t-business-r1-c2".equals(c.cellId())
                 ? new DocumentArtifact.CanonicalTable.CanonicalCellDto(c.cellId(), c.row(), c.column(),
                         "满分10分，销售额达到1亿元得10分。", "满分10分，销售额达到1亿元得10分。",
-                        1, 1, false, "pdf:page=1;table=t-business") : c));
+                        c.rowspan(), c.colspan(), c.isMergedContinue(), c.sourceXmlPath(), c.sourcePage(), c.logicalRowId()) : c));
         for (int col = 0; col < 4; col++) {
             String value = List.of("2", "技术方案", "技术方案按完整性与可行性评议，最高得90分。", "90").get(col);
             cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-business-r2-c" + col,
-                    2, col, value, value, 1, 1, false, "pdf:page=1;table=t-business"));
+                    2, col, value, value, 1, 1, false, "pdf:page=1;table=t-business", 1, "t-business-r2"));
         }
         var table = new DocumentArtifact.CanonicalTable("t-business", 1,
                 "本项目评分办法 / 评分明细", 3, 4, List.of(), cells, true);
@@ -254,7 +307,8 @@ class SchemeScopePublicationTest {
     private static DocumentArtifact.CanonicalTable withSubtotal(DocumentArtifact.CanonicalTable table, String score) {
         var cells = table.cells().stream().map(c -> c.cellId().equals(table.tableId() + "-r2-c3")
                 ? new DocumentArtifact.CanonicalTable.CanonicalCellDto(c.cellId(), c.row(), c.column(),
-                        score, score, 1, 1, false, "pdf:page=1;table=" + table.tableId()) : c).toList();
+                        score, score, c.rowspan(), c.colspan(), c.isMergedContinue(), c.sourceXmlPath(),
+                        c.sourcePage(), c.logicalRowId()) : c).toList();
         return new DocumentArtifact.CanonicalTable(table.tableId(), table.sourcePage(), table.sourceSection(),
                 table.rows(), table.columns(), table.mergedRegions(), cells, table.isScoreTable());
     }
@@ -283,7 +337,7 @@ class SchemeScopePublicationTest {
             for (int col = 0; col < 4; col++) {
                 String value = rows.get(row).get(col);
                 cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto(id + "-r" + row + "-c" + col,
-                        row, col, value, value, 1, 1, false, "pdf:page=1;table=" + id));
+                        row, col, value, value, 1, 1, false, "pdf:page=1;table=" + id, 1, id + "-r" + row));
             }
         }
         return new DocumentArtifact.CanonicalTable(id, 1, section, rows.size(), 4, List.of(), cells, scoreTable);

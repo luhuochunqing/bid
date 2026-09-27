@@ -162,6 +162,11 @@ public class ScoreParseController {
         return ResponseEntity.ok(ApiResponse.success(scoreScoringAppService.getResults(projectId)));
     }
 
+    @org.springframework.web.bind.annotation.ExceptionHandler(com.xiyu.bid.scoreparse.application.ScoreExtractionException.class)
+    public ResponseEntity<ApiResponse<Void>> extractionConflict(com.xiyu.bid.scoreparse.application.ScoreExtractionException ex) {
+        return ResponseEntity.status(ex.status()).body(ApiResponse.error(ex.status(), ex.getMessage()));
+    }
+
     @org.springframework.web.bind.annotation.ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)

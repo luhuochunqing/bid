@@ -1,118 +1,63 @@
-# 项目1382解析修复与跨文件回归防护计划
+# Score extraction and active-version implementation
 
-> 执行方式：使用 executing-plans 按任务顺序实施；本文件是待执行计划，未修改业务实现。
+## Global Constraints
+- 用户已批准实现。候选允许评分；未知/冲突数值及未确定聚合不可计算，不伪造0/100。
+- 首次可计算解析立即可用；不完整重解析保留旧版本并可显式切换；人工编辑不可自动覆盖。部分采纳保持兼容。
+- 原文、模型解释、人工修改分开。没有来源证明不能标为已验证。完整快照一直可见。
+- 无1382/页码/名称/分数生产硬编码，无任意模糊匹配，无跨文档跨方案拼接。
+- Java纯领域无框架，新增类尽量200行内，兼容旧API/产物。新链路开关默认关闭。
+- 每项先根因测试再实现。真实fixture与预期独立。不得部署、改线上数据、启动共享服务、push或merge。工作树交付，不自动提交。
 
-**Goal:** 真实1382文件得到可追溯的13个计分叶子、合计100分；其他文件无未获解释和验证的语义变化。
+### Task 1: Source evidence and anchored extraction
+范围：Sidecar PDF logical rows、后端 evidence binders/grid、OpenAI anchored prompts及mapper、对应测试。
+1. 从私有真实artifact而非expected建失败输入；五个漏项覆盖中文换行、跨页引用、模型错字/重复。真实PDF SHA 18061117e166335881c6a1864f708e5109988af773aea321b26c0f4b751ae18f。
+2. 补充可追溯 SourceSpan：文件身份/格式/方案/页/表格/单元格或文本块/字符偏移；原文不覆盖。规范化保留偏移映射，只消除确定布局空白。
+3. 同一业务项跨页连续性要求同文件同方案相邻页、连续表结构和空标识续行；有新项、新章、未知来源或歧义不得连接。保留原物理坐标。
+4. bundle保留全部文档textBlocks及源类型；不能只用首文件meta分流。
+5. artifact锚点在模型调用前构造，prompt带可引用ID；模型引用ID校验后恢复原文。没有锚点的旧模型输出走兼容保守路径。已有模型配置不变；未解析片段最多一次有界定向重试，禁止全文件无限重采样。
+6. 源名称/类别/最大分明确区分；共享格最大分按名称/父级语义归属，不借相邻数字；mapper原文使用已验证原文，不以ruleText概括替代。
+7. 保持负例（跨章、同名、共享上限、否定、更正、比例歧义）拒绝验证；允许保存未验证候选。
+8. 测试PDF/DOCX/text/OCR、混合顺序；真实回放应识别13叶子、业务15技术45价格40，但这些仅测试预期。错误物流引文必须被诊断或凭有效锚点恢复，不能模糊升格。
+报告记录实际命令、RED/GREEN、未覆盖边界。只做本任务，不实现数据库/API/UI。
 
-**Architecture:** 在PDF结构识别与证据绑定边界补足原文条目范围。仅对已被原文结构唯一证明的条目生成名称、类别、权重及引用片段，保持方案归属与发布保护。共享策略的变更必须通过跨格式差分验收。
+### Task 2: Extraction snapshots and version activation
+范围：后端domain/application/entity/repository/dto/controller、迁移和测试。
+1. 版本化 ExtractedScoreItem payload保存所有候选：stable itemId、scheme/file、name/category/rules/docs、rawMaximum/schemeRatio/effectiveMaximum可空、parent/aggregation、字段来源、独立diagnostics/computability。兼容历史facts。
+2. facts增加版本化item_payload且weight可空，正式项source_fact_id；迁移增量、回滚完整，不重写历史数据。必要新增版本记录支持CAS/活动版本；先阅读create-migration技能。
+3. scheme级归集独立提取/可计算/生效/声明总分，未知不默认100；物理表拆分不能丢方案总分。保留未验证项，不将validation失败当提取失败。
+4. 增加 GET extraction/latest、GET extraction/{taskId} 和 POST extraction/{taskId}/activate（现有score-parse base下）；激活请求包括schemeId、expectedActiveFingerprint、reason。保持项目权限/任务归属/旧review和items兼容；接口明确400/403/404/409。
+5. 原子激活使用项目锁和当前指纹CAS；首次单方案可计算候选可立即用。不完整/未知声明总分/冲突/减少/人工改旧版本的重解析不自动替换。失败/空/多方案不清空旧结果。用户显式选择可部分采纳。
+6. 成功采纳不覆盖验证质量，不清除未采纳快照；正式项保留原fact身份/原文/scoreType/confidence/validation。未知权重不可0。
+7. 特性开关默认关闭，关闭保持旧路径；开启贯穿新解析保存/读/激活。校验两种行为。
+8. 测试首次、完整/不完整重解析、手改保护、部分切换、旧任务、跨项目、权限、双并发、事务回滚、历史payload缺失。DTO契约写specs/073.../contracts。
+不改前端；交付接口说明供下一任务。
 
-**Tech Stack:** Java 21 / JUnit；Python Sidecar / pytest；Vue / Vitest / Playwright。
+### Task 3: Scoring version consistency
+范围：ScoreScoringAppService、persistence fingerprint、result保存边界及测试。
+- 可计算候选能评分；不可计算项显式原因，不强制weight0。
+- 指纹至少包括来源版本/fact身份、名称、规则、weight、scoreType、父子/聚合；同code不同规则不复用结果。
+- 异步评分启动和最终落库校验相同生效版本，旧任务不能覆盖新版本；项目并发边界与激活一致。
+- 版本切换和结果保留有确定性测试；保持旧API兼容。
 
-## 状态与前置
+### Task 4: Frontend snapshots and active versions
+范围：API、projectDetail composables、ScoreParseDrawer/卡片/表格及Vitest。
+- 同时展示最新提取结果和当前生效结果；所有候选始终可见，部分采纳后也不隐藏。
+- 展示提取/可计算/生效/声明总分及对应未知状态；不能默认100或把缺失权重显示0。
+- 单项原文、模型说明、来源位置、诊断、可计算状态分开。完整规则/材料要求可展开。
+- 显式版本切换调用activation接口并携带当前指纹；显示差异，409刷新提示，保留ACL。
+- 首次可用、不完整重解析旧版保留、MANUAL_APPROVED仍有未采纳项、失败/解析中、多方案与旧接口兼容覆盖。
+- 完成复核与已生效不等于完整/已验证；时间和taskId各归所属。
 
-- 基础证据：`.wiki/pages/scoreparse-1382-post2767-runtime-rca.md`、`.runtime/root-cause/1382-post2767/evidence.json`。
-- 故障运行版本：e2502f5de；任务272、273；正式评分项仍来自266。
-- 本次只制定计划。编码前按PLANS.md完成speckit-specify → speckit-plan → speckit-tasks，并固定Candidate及基准提交；此计划作为输入，不冒充已完成Spec Kit。
-- 原始PDF重新从当前文件引用读取并核对SHA，避免沿用旧副本；客户原文和模型响应保留在私有忽略目录。
-- 采用原文结构证明方案。仅调提示词无法保证绑定稳定；全局放宽章节、引文或总分约束会产生错误自动采纳，因此均不作为主修复路线。
+### Task 5: Regression and delivery evidence
+- 全部Sidecar、scoreparse Java、前端受影响测试和构建；真实artifact固定候选回放以及跨格式负例差分。
+- 独立审查全分支：Spec合规、行为、结构、交付；修复load-bearing findings。
+- 工程教训追加现有lessons，Wiki回填；既有pre-push接入根因回归（有界，不依赖私有原件或网络）。
+- 更新spec/tasks/quickstart与证据命令、精确pass/fail/skip。真实测试环境三次模型/HTTP/DB/浏览器验证若未获部署执行条件，明确未验收，不冒充完成。
 
-## 全局约束
+## 2026-09-27 实施状态：最终审查未通过
 
-1. 不硬编码1382、文件名、页码、15/45/40或100分；这些只属于测试预期。
-2. 不采用任意模糊匹配、强制补齐分数、无依据父子关系、跨章拼接。
-3. 歧义仍进入REVIEW_REQUIRED；格式处理差异不能绕过同一证据要求。
-4. PDF专属规则按每个源文件的真实类型分流。当前bundle仅沿用首个artifact.fileType，不能据此识别混合PDF+DOCX；实施时保留源文档→表格的类型映射，禁止用首文件类型给整批分流。
-5. 不修改模型供应商、温度、通用提示词或OCR规则作为本次主修复手段；若证据要求变更其中任一项，重新评估范围并扩充回归矩阵。
-6. 新的证据关系优先使用内部不可变对象；默认无数据库迁移，无外部API破坏性改动。确需改变产物字段时明确版本与旧产物行为，缺新字段仍保持原判定，不能自动升级资格。
-7. 不自动修改任何历史正式评分项；新解析通过发布门槛才能替换。
+T001–T004 已完成各自审查，T005 保持未完成。最后全量1312条中1310通过、2历史环境跳过，根因门禁153通过，但独立复审仍发现跨页28/12项规则污染：物理引用不相交、同属一个逻辑行时，完整行扩展发生在peer识别之后，两项均被恢复为含双方规则的整行并标为SOURCE。此项不能用数值合计正确豁免。
 
-## 任务0：先建立真实失败基线
+剩余修复：先在已证明完整来源单元上识别同父子项，再分隔各项规则；无法证明则保留MODEL_CLAIM及未决诊断。须加入真实1382互不重叠引用的28/12反例，并验证生效明细/评分输入。完整证据见 `.superpowers/sdd/scoreparse-1382-post2767-plan/final-rereview.md` 和 `final-fix-report.md`。
 
-文件：现有GoldenCasesReplayTest、TextPrimaryEvidenceBinderTest、Sidecar test_pdf_table_artifact.py；新增私有真实文件回放记录及脱敏结构fixture。
-
-- [ ] 保存原PDF、转换产物、任务272/273候选与引用，计算SHA并固定运行配置。
-- [ ] 把真实PDF经Sidecar形成的结构作为后端回放输入，禁止用expected里的分数和引文反向构造输入。
-- [ ] 对当前版本记录四个失败：表内部分标题断章、名称+规则跨格引用、dimension类别/名称混用、共享格权重路由差异。
-- [ ] 人工依据原文独立标注目标叶子及父子关系；不把模型结果作为正确答案。
-- [ ] 建立其他文件基线，保存每个样本的源SHA、候选、资格、叶子、父子关系、权重、引用和发布状态。先复现，再实施。
-
-## 任务1：修正PDF的章级事件判定
-
-修改：`document-converter-sidecar/converter.py`；必要时将几何判定放入独立纯函数文件，避免继续增大converter。
-测试：`document-converter-sidecar/tests/test_pdf_table_artifact.py`。
-
-- [ ] 先写真实38/39页结构的失败用例；正对照为真正跨章，反例包含表外部分标题及位于表格内的真正新章标题。
-- [ ] 联合标题类型、表格边界、评分条目上下文判断事件层级；明确“评分条目内部子部分”不得关闭外层章节。
-- [ ] 不采取“表内所有标题均忽略”规则；无法证明层级的事件继续保守阻断。
-- [ ] 逐表归属与页末继承使用同一事件序列；避免两处判断再次漂移。
-- [ ] 验证跨页归属恢复，同时原有真正跨章断开、目录排除、未知章阻断仍成立。
-
-## 任务2：补全PDF条目的原文证据范围
-
-修改：`TextPrimaryEvidenceBinder.java`、PDF产物构建；新增PDF专属绑定策略及测试。复用`LogicalRowEvidenceBinder`的契约，但不改变DOCX路径。
-
-- [ ] 为“只引规则”“名称+规则”“同一规则多处出现”“跨页续行”“跨章同名条目”建立对照。
-- [ ] 原有成功的单格绑定保持优先；失败后，仅对已知PDF来源尝试结构化条目范围绑定。
-- [ ] 绑定输出保留文档、章节、表格、行、单元格及片段偏移；名称与规则必须来自同一已证实条目，不由字符串相似度建立关系。
-- [ ] 跨页合并要求同一方案、连续关系和条目结构相容；证据不足返回不可绑定。
-- [ ] 验证同一事实的两种合法引文形式得到相同业务条目；原本存在多个匹配的引文不能被随意选中。
-
-## 任务3：统一条目名称、类别与最大分证据
-
-修改：PDF绑定后的规范化步骤、`OriginalScoreWeightEvidencePolicy.java`及其调用处；必要时新增纯领域条目证据对象。检查`TextPrimaryScoreFactMapper`、身份生成及父子归属的调用者。
-
-- [ ] 名称从已绑定原文名称格/标题片段取得；类别保留为上级分组语义。不能将所有“商务/技术”全局替换成任意行标题。
-- [ ] 无法确认名称时保留复核，不取消dimension校验；原始模型值可供取证。
-- [ ] 最大分只从该条目绑定的声明片段读取；共享格中的类别15/45/40分别绑定到相应类别，报价父级40与子级28/12分别证明。
-- [ ] 表格与文本路径消费同一已证明条目范围；不得通过改走较宽松的文本路径规避表格校验。
-- [ ] 同时覆盖区间、最高分、扣分、比例、共享上限、择优、否定、更正及多候选歧义；后者继续复核。
-- [ ] 规范化在身份/父子关系确定前有明确顺序；保证事实不碰撞、不重复计分，人工采纳不会误作用于另一事实。
-- [ ] 回放全套模型候选及确定性fallback，验证不会被后续分表拆分重新判为未知总分。
-
-## 任务4：新候选与旧正式结果同时可见
-
-修改：`ScoreParseDrawer.vue`、`useScoreParseDrawer.js`及对应测试，按需补DTO来源字段。
-
-- [ ] 构造“旧3项58分＋新任务待复核”的真实API状态测试。
-- [ ] 新任务待复核时展示候选和阻断原因，不受旧正式项数量限制。
-- [ ] 正式结果标注其任务来源/更新时间；最新解析状态单独展示，避免新时间冒充旧项版本。
-- [ ] 保持人工采纳的任务版本检查、权限和不可采纳项限制。
-- [ ] 核对无历史项、解析中、失败、已通过、已人工采纳及过期任务等相邻状态。
-
-## 任务5：跨文件差分门槛
-
-| 样本族 | 最低覆盖 | 判定 |
-| --- | --- | --- |
-| 目标真实PDF | 1382整份文件及两次保存候选 | 13叶子100，分组15/45/40，原文可追溯，外章不混入 |
-| 其他PDF | 1381、普通评分表、跨页、合并格、单格多分值 | 原成功样本无非预期业务变化 |
-| DOCX | 1384真实续表、合并单元格、run拆分 | 表格/章节和原成功结果保持一致 |
-| 文本/OCR | text-peer-scope、OCR中文间距及无可验证证据 | 原安全拒绝不能变成误采纳 |
-| 多文件 | text-primary-multi-document；PDF+DOCX及调换文件顺序 | 无跨文档、跨方案串联；分流不依赖首文件格式 |
-| 权重/方案 | 总分80、多方案、未知总分、比例、共享上限、择优 | 不强制100；保留原业务规则与拒绝原因 |
-| 真实历史项目 | 可取到的1381/1384/1385及原成功文件 | 人工审查差异；无法取得时明确缺口，不声称已验证 |
-
-- [ ] 同一输入分别跑基准与Candidate，固定已保存模型输出，先隔离代码差异。
-- [ ] 对已成功样本要求叶子集合、分值、分组、父子关系、原文范围及发布状态无非预期差异；内部ID变化须检查唯一性和引用完整性。
-- [ ] 对原拒绝样本，任何变为AUTO_APPROVED的变化都逐条证明，不以“通过更多”为好结果。
-- [ ] 新增PDF真实结构夹具必须经过Sidecar→Java；已有Golden继续跑全套，不能替代跨层回放。
-- [ ] 恢复关键缺陷后新回归应再次失败，证明测试确实覆盖该因果链。
-
-## 执行测试入口与发布门槛
-
-按任务先定向RED/GREEN，再运行相邻集；完成后集中跑一次全scoreparse集、Golden、Sidecar相关集及前端受影响集。具体计数由实际输出记录，计划不预填通过数量。
-
-```bash
-python3.13 -m pytest document-converter-sidecar/tests/test_pdf_table_artifact.py document-converter-sidecar/tests/test_converter_pdf.py document-converter-sidecar/tests/test_extract_tables_v2.py
-mvn -f backend/pom.xml test -Dtest='TextPrimaryEvidenceBinderTest,GoldenCasesReplayTest,ScoreParseEvidencePipelineGoldenReplayTest,ScoreReviewAdoptionPolicyTest,SchemeScopePublicationTest'
-npm run eval:scoreparse:report
-```
-
-- [ ] 运行当前仓库要求的构建、架构、文档与pre-push门禁，记录通过/失败/跳过和精确SHA。
-- [ ] 基准失败单列，不掩盖新增回归；关键样本缺失、跳过或未解释差异均不能签署“其他文件未受影响”。
-- [ ] 测试环境部署后，以真实模型重解析目标文件至少3次，比较13叶子及100分稳定性；每次保留实际模型输出与来源，不混同固定候选回放。
-- [ ] 在隔离项目副本验证其他真实文件，避免批量覆盖已有项目正式项；检查真实API、数据库及浏览器显示。
-- [ ] 若获授权发布，先在测试环境验收；任何其他文件退化则停止推广并回滚整组发布版本。回滚程序不会自动回滚已写业务数据，需记录受影响任务与正式项版本。
-
-## 完成定义
-
-只有真实1382端到端通过、跨文件差分通过、拒绝负例未误采纳、UI来源一致，才能声明本轮修复完成。有限样本不能数学证明任意未来文件零影响；交付必须明确已覆盖的样本、格式及未验证边界。
+本轮SDD最终修复/复审额度已用尽，已向用户请求解除流程上限后继续。当前不能标为已修复或可合入；保留未提交工作区，未部署/重解析/付费模型调用。上述审查后仅追加本状态记录，业务及测试仍为冻结字节。

@@ -1,0 +1,165 @@
+package com.xiyu.bid.scoreparse.application;
+
+import com.fasterxml.jackson.databind.*;
+import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
+import com.xiyu.bid.scoreparse.domain.WeightNormalizationPolicy;
+import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
+import com.xiyu.bid.scoreparse.domain.AutoFailCircuit;
+import com.xiyu.bid.scoreparse.domain.ScoreFactValidator;
+import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
+import com.xiyu.bid.scoreparse.domain.ScoreAssessmentGuard;
+import com.xiyu.bid.scoreparse.domain.ScoreItemChapterMatch;
+import com.xiyu.bid.scoreparse.domain.RecallOutcome;
+import com.xiyu.bid.scoreparse.domain.ScoreTableSectionPolicy;
+import com.xiyu.bid.scoreparse.domain.StructuredTableCandidateExtractor;
+import com.xiyu.bid.scoreparse.domain.SourceSpan;
+import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
+import com.xiyu.bid.scoreparse.domain.ScoreStatusPolicy;
+import com.xiyu.bid.scoreparse.domain.ModelSourceClaim;
+import com.xiyu.bid.scoreparse.domain.ChildAggregation;
+import com.xiyu.bid.scoreparse.domain.ScoreVersionFingerprint;
+import com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy;
+import com.xiyu.bid.scoreparse.domain.MatchTierPolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreExtractionSnapshot;
+import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
+import com.xiyu.bid.scoreparse.domain.BidChapterDirtySet;
+import com.xiyu.bid.scoreparse.domain.ScoreParsePipeline;
+import com.xiyu.bid.scoreparse.domain.ScoreVocabularyRegistry;
+import com.xiyu.bid.scoreparse.domain.ScoreItemTitleExtractor;
+import com.xiyu.bid.scoreparse.domain.ScoreTableRecallLane;
+import com.xiyu.bid.scoreparse.domain.EvidenceText;
+import com.xiyu.bid.scoreparse.domain.ScoreRangeGuard;
+import com.xiyu.bid.scoreparse.domain.ScoreTableBlockLocator;
+import com.xiyu.bid.scoreparse.domain.ScoreUnitPolicy;
+import com.xiyu.bid.scoreparse.domain.AutoParseGate;
+import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
+import com.xiyu.bid.scoreparse.domain.TableSplitResult;
+import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
+import com.xiyu.bid.scoreparse.domain.AiProviderDiagnostics;
+import com.xiyu.bid.scoreparse.domain.ScoreItemOrderPolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer;
+import com.xiyu.bid.scoreparse.domain.TableCompleteness;
+import com.xiyu.bid.scoreparse.domain.SourceAnchorCatalog;
+import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
+import com.xiyu.bid.scoreparse.domain.DocumentImage;
+import com.xiyu.bid.scoreparse.domain.ScoreTableSummaryPolicy;
+import com.xiyu.bid.scoreparse.domain.DeterministicScoreFactExtractor;
+import com.xiyu.bid.scoreparse.domain.MultimodalFactParentCodeNormalizer;
+import com.xiyu.bid.scoreparse.domain.UnknownDeclaredTotalReviewPolicy;
+import com.xiyu.bid.scoreparse.domain.ItemCountCheck;
+import com.xiyu.bid.scoreparse.domain.SidecarTableExtraction;
+import com.xiyu.bid.scoreparse.domain.OriginalRuleUnitText;
+import com.xiyu.bid.scoreparse.domain.ExtractedScoreItem;
+import com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata;
+import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
+import com.xiyu.bid.scoreparse.domain.ScoreTableSplitPolicy;
+import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
+import com.xiyu.bid.scoreparse.domain.SourceRecheckPlan;
+import com.xiyu.bid.scoreparse.domain.ScoreMergeResultGuard;
+import com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreTableRowParser;
+import com.xiyu.bid.scoreparse.domain.ScoreOriginalTextAligner;
+import com.xiyu.bid.scoreparse.domain.ImageBudget;
+import com.xiyu.bid.scoreparse.domain.WeightOverloadTrimPolicy;
+import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
+import com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator;
+import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
+import com.xiyu.bid.scoreparse.domain.SourceSpanResolver;
+import com.xiyu.bid.scoreparse.domain.ScoreParseReviewSnapshot;
+import com.xiyu.bid.scoreparse.domain.ScoreEvidence;
+import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreRule;
+import com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration;
+import com.xiyu.bid.scoreparse.domain.ProjectEvidenceRequirementPolicy;
+import com.xiyu.bid.scoreparse.domain.LogicalRuleSourceUnit;
+import com.xiyu.bid.scoreparse.domain.DeductionItemPolicy;
+import com.xiyu.bid.scoreparse.domain.ImageAssignmentPlan;
+import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
+import java.math.BigDecimal;
+import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Queue;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+class PrivateExtractionSnapshotReplayTest {
+    @Test void allFortyCandidatesRetainedAndThirteenTargetUnitsAreComputableAt100WithUnverifiedLogistics() throws Exception {
+        var snapshot=replay("task274");
+        assertThat(replay("task274-reordered", true).items().stream().filter(ExtractedScoreItem::computable)
+                .map(ExtractedScoreItem::factId).sorted().toList()).isEqualTo(snapshot.items().stream()
+                .filter(ExtractedScoreItem::computable).map(ExtractedScoreItem::factId).sorted().toList());
+        assertThat(snapshot.items()).hasSize(40);
+        var computable=snapshot.items().stream().filter(ExtractedScoreItem::computable).toList();
+        assertThat(computable).as("computable code/diagnostics %s",snapshot.items().stream().map(i->i.fact().code()+":"+i.computable()+":"+i.diagnostics()).toList()).hasSize(13);
+        assertThat(computable.stream().map(ExtractedScoreItem::effectiveMaximum).reduce(BigDecimal.ZERO,BigDecimal::add)).isEqualByComparingTo("100");
+        assertThat(computable).extracting(ExtractedScoreItem::itemId).doesNotHaveDuplicates();
+        var logistics=computable.stream().filter(i->i.fact().code().contains("物流仓储")).findFirst().orElseThrow();
+        assertThat(logistics.validationStatus()).isEqualTo("REVIEW_REQUIRED");
+        assertThat(logistics.fact().sourceMetadata().modelQuotedText()).isNotBlank();
+        assertThat(logistics.fact().sourceCellIds()).isEmpty();
+        assertThat(snapshot.items().stream().filter(i->i.diagnostics().contains("OUT_OF_SCHEME"))).noneMatch(ExtractedScoreItem::computable);
+        var price12=snapshot.items().stream().filter(i -> i.rawMaximum()!=null && i.rawMaximum().compareTo(new BigDecimal("12"))==0).findFirst().orElseThrow();
+        assertThat(price12.ruleText()).startsWith("第二部分").doesNotContain("清单报价").contains("0.5分");
+        var price28=snapshot.items().stream().filter(i -> i.rawMaximum()!=null && i.rawMaximum().compareTo(new BigDecimal("28"))==0).findFirst().orElseThrow();
+        assertThat(price28.ruleText()).doesNotContain("第二部分").contains("覆盖率").contains("扣5分");
+        assertThat(snapshot.schemes()).anySatisfy(s->{assertThat(s.computableCount()).isEqualTo(13);assertThat(s.declaredTotal()).isEqualByComparingTo("100");});
+    }
+    static ScoreExtractionSnapshot replay(String taskId) throws Exception {
+        return replay(taskId, false);
+    }
+    private static ScoreExtractionSnapshot replay(String taskId, boolean reverse) throws Exception {
+        Path directory=Path.of("../.runtime/root-cause/1382-v2");
+        assumeTrue(Files.exists(directory.resolve("logical-artifact.json")),"private source local only");
+        ObjectMapper json=new ObjectMapper();
+        var artifact=SourceArtifactBundle.combine(List.of(json.readValue(Files.readString(directory.resolve("logical-artifact.json")),DocumentArtifact.class)));
+        List<JsonNode> nodes=Files.readAllLines(directory.resolve("task274-facts.jsonl")).stream().map(line->{try{return json.readTree(line);}catch(Exception e){throw new IllegalStateException(e);}}).toList();
+        var annotations=json.readTree(Files.readString(directory.resolve("task274-scope-annotations.json")));
+        assertThat(java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(Files.readAllBytes(directory.resolve("source-local.md")))))
+                .isEqualTo(annotations.path("sourceSha256").asText());
+        var sourceLines=Files.readAllLines(directory.resolve("source-local.md"));
+        if (reverse) nodes=nodes.reversed();
+        final List<JsonNode> allNodes=nodes;
+        List<MultimodalScoreFact> raw=new ArrayList<>();
+        for(int index=0;index<nodes.size();index++) {
+            var n=nodes.get(index);String parentId=n.path("parentFactId").asText();
+            String parent=allNodes.stream().filter(x->x.path("factId").asText().equals(parentId)).map(x->x.path("code").asText()).findFirst().orElse("");
+            List<String> sourceIds=new ArrayList<>();n.path("sourceCellIds").forEach(x->sourceIds.add(x.asText()));
+            var scope=annotations.path("facts").path(n.path("factId").asText());
+            assertThat(scope.isMissingNode()).isFalse();
+            assertThat(sourceLines.get(scope.path("headingLine").asInt()-1).trim()).isEqualTo(scope.path("sectionTitle").asText());
+            raw.add(new MultimodalScoreFact(scope.path("sectionTitle").asText(),n.path("code").asText(),parent,n.path("dimension").asText(),n.path("weight").decimalValue(),n.path("sourceText").asText(),"SUBJECTIVE",null,n.path("sourceTableId").asText(),sourceIds,n.path("weightEvidence").path("quotedText").asText(),.9,ChildAggregation.SUM));
+        }
+        String text=Files.readString(directory.resolve("source-local.md"));
+        var bound=TextPrimaryEvidenceBinder.bind(raw,artifact,text);
+        var validation=new MultimodalScoreFactValidator().validate(bound,artifact,OriginalScoringContext.resolve(artifact,text),text,null);
+        var fs=bound.stream().map(f->TextPrimaryScoreFactMapper.map(f,artifact,validation)).toList();
+        var snapshot=ScoreExtractionSnapshot.from(taskId,fs,validation.sourceVerification().qualifications(),List.of());
+        return snapshot;
+    }
+}

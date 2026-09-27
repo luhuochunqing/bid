@@ -193,7 +193,13 @@ class PdfEvidencePipelineTest {
         assertThat(result.completeness().declaredTotalScore()).isNull();
         assertThat(result.completeness().declaredTotalSource())
                 .isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.UNKNOWN);
-        assertThat(result.completeness().leafWeightSum()).isEqualByComparingTo("100.00");
+        assertThat(result.completeness().leafWeightSum()).isEqualByComparingTo("0");
+        var snapshot = com.xiyu.bid.scoreparse.domain.ScoreExtractionSnapshot.from("unknown-section",
+                result.facts(), List.of(), List.of());
+        assertThat(snapshot.items().stream().map(com.xiyu.bid.scoreparse.domain.ExtractedScoreItem::rawMaximum)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("100");
+        assertThat(snapshot.items()).noneMatch(com.xiyu.bid.scoreparse.domain.ExtractedScoreItem::computable);
+        assertThat(snapshot.schemes()).allSatisfy(s -> assertThat(s.declaredTotal()).isNull());
         // 分表小计仍可分别核验，且两表事实都作为复核材料保留。
         assertThat(result.tableCompletenesses()).hasSize(2);
         assertThat(result.tableCompletenesses())
@@ -202,6 +208,24 @@ class PdfEvidencePipelineTest {
         assertThat(result.tableCompletenesses())
                 .extracting(table -> table.completeness().declaredTotalScore())
                 .containsExactly(new BigDecimal("60.00"), new BigDecimal("40.00"));
+    }
+
+    @Test
+    void namedSchemeWithoutDeclarationKeepsExtractedHundredSeparateFromUnknownDeclaredTotal() throws Exception {
+        var original = multiTableScoreArtifact();
+        var named = new DocumentArtifact(original.artifact(), original.tables().stream().map(t ->
+                new DocumentArtifact.CanonicalTable(t.tableId(), t.sourcePage(), "本项目评分办法",
+                        t.rows(), t.columns(), t.mergedRegions(), t.cells(), t.isScoreTable())).toList(), List.of());
+        var result = extractMultiTable(named);
+        assertThat(result.originalVerified()).isFalse();
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        var snapshot = com.xiyu.bid.scoreparse.domain.ScoreExtractionSnapshot.from("named-no-total",
+                result.facts(), result.qualifications(), List.of());
+        assertThat(snapshot.schemes()).singleElement().satisfies(scheme -> {
+            assertThat(scheme.extractedKnownTotal()).isEqualByComparingTo("100");
+            assertThat(scheme.declaredTotal()).isNull();
+            assertThat(scheme.declaredTotalStatus()).isEqualTo("UNKNOWN");
+        });
     }
 
     @Test
@@ -241,6 +265,11 @@ class PdfEvidencePipelineTest {
 
     private static StructuredTableResult extractMultiTable()
             throws IOException, InterruptedException {
+        return extractMultiTable(multiTableScoreArtifact());
+    }
+
+    private static StructuredTableResult extractMultiTable(DocumentArtifact artifact)
+            throws IOException, InterruptedException {
         byte[] pdfBytes = "%PDF-1.4 multi-table tender".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         TenderTextSource source = new TenderTextSource(
                 "multi-table.pdf",
@@ -257,7 +286,7 @@ class PdfEvidencePipelineTest {
                 new SidecarDocumentArtifactExtractor("http://localhost:9", "", 1, new ObjectMapper()) {
                     @Override
                     public DocumentArtifact extract(byte[] content, String fileName) {
-                        return multiTableScoreArtifact();
+                        return artifact;
                     }
                 };
         return StructuredTableExtractionHandler.extract(source, resolver, artifactExtractor, null);
@@ -388,7 +417,7 @@ class PdfEvidencePipelineTest {
         return new DocumentArtifact(
                 new DocumentArtifact.ArtifactMeta("sha256:project-1381", "project-1381", "PDF", "pdf-table-v1"),
                 List.of(new DocumentArtifact.CanonicalTable(
-                        "p24-t0007", 24, "", rows.size(), 3, List.of(), cells, true)),
+                        "p24-t0007", 24, "本项目评分办法", rows.size(), 3, List.of(), cells, true)),
                 List.of());
     }
 }

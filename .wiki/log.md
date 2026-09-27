@@ -1244,3 +1244,17 @@
 ## [2026-09-25] compound | 项目 1384 DOCX 评分方案资格失效根因
 - 测试站任务 261：13 条事实、0 条合格候选、方案清单为空；真实 DOCX 经 Sidecar 转换后标题/总分包含 Markdown 加粗，表格章节全部为空。
 - 回填：新增 [[scoreparse-1384-docx-scheme-contract-rca]]，记录跨转换/方案/资格/前端的根因与真实文件回归判据。
+
+## [2026-09-27] compound | scoreparse-1382-pdf-scheme-gate-rca
+
+补充 spec 073 全候选/版本激活、真实 DOCX 续行截断证明、混合文件稳定身份、可执行根因门禁；记录默认 OFF、新任务模式与固定历史 claims 回放边界。尚未部署或真实重解析。
+
+## [2026-09-27] review-fix | scoreparse-1382-pdf-scheme-gate-rca
+
+独立审查修正：DOCX 非逐字重建按后续首个数据单元独立性判断，同表和后表共用；重复表头不能证明独立，保留完整单行、邻接连续行及独立后项正例；pre-push 显式跳过与 agent 前端快捷策略分离。
+
+Task5 第二轮审查回填：真实 DOCX 规则正文增加“各评分项目应按编号提供资料”不改变结构角色，不能使无名称续段升级来源资格；表头证明收紧为完整标题与唯一不同列。已有显式 skip 修复保持不变。
+
+## [2026-09-27] final-rule-fix | scoreparse-1382-pdf-scheme-gate-rca
+
+FBR-I1：统一完整来源单元恢复，覆盖短引文/预绑定/anchor/纯文本；保留 PDF 28/12 peer 与编号材料，真实 MySQL 证明未决重解析不覆盖旧规则和评分结果。

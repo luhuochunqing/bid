@@ -233,11 +233,8 @@ public class ScoreParseReviewAppService {
         task.setFallbackReason(null);
         taskRepository.save(task);
         if (estimatedScoreService != null) {
-            try {
-                estimatedScoreService.estimateForProject(projectId);
-            } catch (RuntimeException e) {
-                log.warn("预估得分计算未完成（非致命，保留采纳结果）: projectId={}", projectId, e);
-            }
+            // The caller owns the project lock until its actual commit, including outer transactions.
+            ScoreAfterCommit.dispatch(() -> estimatedScoreService.estimateForProject(projectId));
         }
         reviewRepository.save(ScoreParseReview.builder()
                 .projectId(projectId)

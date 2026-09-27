@@ -48,10 +48,10 @@ class ScoreParseTaskStateServiceTest {
     }
 
     @Test
-    void createScoringTask_doesNotWaitForParseAdoptionLock() {
+    void createScoringTaskSharesVersionActivationLock() {
         stateService.createTask("new-scoring", 100L, "SCORING", null, null, "MANUAL");
 
-        verify(taskRepository, never()).lockProjectForTaskChange(100L);
+        verify(taskRepository).lockProjectForTaskChange(100L);
         verify(taskRepository).save(any(ScoreParseTask.class));
     }
 

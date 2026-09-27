@@ -26,7 +26,7 @@ class ScoreScoringResultsAssembler {
                 .map(item -> toResultDTO(item, resultMap.get(item.getId()))).toList();
         SummaryAggregator.Result summary = summaryAggregator.aggregate(items.stream()
                 .map(item -> new SummaryAggregator.Item(item.getWeight(), item.getScoreType(),
-                        valueOrNull(resultMap.get(item.getId()), ScoreResult::getActualScore),
+                        valueOrNull(resultMap.get(item.getId()), r -> "LEGACY_UNVERIFIED".equals(r.getReuseKind()) ? null : r.getActualScore()),
                         valueOrNull(resultMap.get(item.getId()), ScoreResult::getStatusStage2)))
                 .toList());
         return new ScoreScoringResultsDTO(resultDTOs, new ScoreScoringResultsDTO.Summary(

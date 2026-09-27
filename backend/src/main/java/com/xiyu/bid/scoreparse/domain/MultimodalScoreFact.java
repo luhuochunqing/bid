@@ -19,9 +19,11 @@ public record MultimodalScoreFact(
         double confidence,
         ChildAggregation childAggregation,
         String schemeId,
-        String scopeStatus
+        String scopeStatus,
+        ScoreSourceMetadata sourceMetadata
 ) {
     public MultimodalScoreFact {
+        sourceMetadata = sourceMetadata == null ? ScoreSourceMetadata.EMPTY : sourceMetadata;
         sectionTitle = safe(sectionTitle);
         code = safe(code);
         parentCode = safe(parentCode);
@@ -34,6 +36,14 @@ public record MultimodalScoreFact(
         childAggregation = childAggregation == null ? ChildAggregation.UNKNOWN : childAggregation;
         schemeId = safe(schemeId);
         scopeStatus = safe(scopeStatus);
+    }
+
+    public MultimodalScoreFact(String sectionTitle, String code, String parentCode, String dimension,
+                              BigDecimal weight, String ruleText, String scoreType, Integer pageNumber,
+                              String tableId, List<String> sourceCellIds, String quotedText, double confidence,
+                              ChildAggregation childAggregation, String schemeId, String scopeStatus) {
+        this(sectionTitle, code, parentCode, dimension, weight, ruleText, scoreType, pageNumber, tableId,
+                sourceCellIds, quotedText, confidence, childAggregation, schemeId, scopeStatus, ScoreSourceMetadata.EMPTY);
     }
 
     public MultimodalScoreFact(String sectionTitle, String code, String parentCode, String dimension,
@@ -54,12 +64,12 @@ public record MultimodalScoreFact(
     public MultimodalScoreFact withScope(String newSchemeId, String newScopeStatus) {
         return new MultimodalScoreFact(sectionTitle, code, parentCode, dimension, weight, ruleText, scoreType,
                 pageNumber, tableId, sourceCellIds, quotedText, confidence, childAggregation,
-                newSchemeId, newScopeStatus);
+                newSchemeId, newScopeStatus, sourceMetadata);
     }
 
     public MultimodalScoreFact withParentCode(String newParentCode) {
         return new MultimodalScoreFact(sectionTitle, code, newParentCode, dimension, weight, ruleText, scoreType,
-                pageNumber, tableId, sourceCellIds, quotedText, confidence, childAggregation, schemeId, scopeStatus);
+                pageNumber, tableId, sourceCellIds, quotedText, confidence, childAggregation, schemeId, scopeStatus, sourceMetadata);
     }
 
     private static String safe(String value) {

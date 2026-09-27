@@ -28,6 +28,12 @@ final class ScoreParseFactEvidenceWriter {
     void persist(Long projectId, Long parseTaskId,
                                         List<com.xiyu.bid.scoreparse.domain.ScoreFact> facts,
                                         List<com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.Qualification> qualifications) {
+        persist(projectId,parseTaskId,facts,qualifications,false);
+    }
+    void persist(Long projectId,Long parseTaskId,List<com.xiyu.bid.scoreparse.domain.ScoreFact> facts,
+            List<com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.Qualification> qualifications,boolean preserveUnknown) {
+        if (factRepository != null && factRepository.findByParseTaskId(parseTaskId).stream().anyMatch(f -> f.getPayloadVersion()!=null))
+            throw new ScoreExtractionException(409,"EXTRACTION_FACTS_ALREADY_FROZEN");
         if (facts == null || facts.isEmpty()) {
             return;
         }
@@ -80,7 +86,7 @@ final class ScoreParseFactEvidenceWriter {
                     .sourceText(f.sourceText() == null ? "" : f.sourceText())
                     .code(com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer.clean(f.code()))
                     .dimension(f.dimension() == null ? "" : f.dimension())
-                    .weight(f.weight() == null ? BigDecimal.ZERO : f.weight())
+                    .weight(preserveUnknown?storableWeight(f.weight()):f.weight()==null?BigDecimal.ZERO:f.weight())
                     .weightEvidence(evidenceJson)
                     .parentFactId(f.parentFactId())
                     .childAggregation(f.childAggregation().name())
@@ -102,6 +108,12 @@ final class ScoreParseFactEvidenceWriter {
                 evidenceRepository.saveAll(evidenceEntities);
             }
         }
+    }
+
+    /** The exact model value remains in versioned JSON; never round it to fit the legacy DECIMAL column. */
+    static BigDecimal storableWeight(BigDecimal value) {
+        return value!=null && value.stripTrailingZeros().scale()<=2
+                && value.abs().compareTo(new BigDecimal("9999.99"))<=0?value:null;
     }
 
     private String serializeQualification(

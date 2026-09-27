@@ -7,6 +7,9 @@
 
 | 文件 | 地位 | 功能 |
 |------|------|------|
+| `check-scoreparse-root-cause.sh` | 根因回归门禁 | 离线运行独立原文夹具及真实 DOCX 转换跨层回归；需设置含 Sidecar 依赖的 `SIDECAR_PYTHON`，失败不跳过 |
+| `check-pre-push-dispatch.test.mjs` | 分发回归 | 执行实际脚本的参数/分支/新增检查分发段；记录调用，保证 agent 默认不跳过新增根因和 token 检查，显式 skip 生效 |
+| `check-token-coverage.test.mjs` | CLI 回归 | 临时目录实测扫描空格路径、嵌套 node_modules 和扫描失败；不吞错伪造 0/0 |
 | `check-doc-consistency.sh` | 兼容入口脚本 | 保留旧命令入口，转调新的文档治理检查器 |
 | `agent-worktree-guard.sh` | 门禁脚本 | 阻止在基础分支、共享 bootstrap worktree 或缺少 `.agent-task-context` 的任务 worktree 中提交 |
 | `check-doc-governance.mjs` | 门禁脚本 | 检查强制目录 README 和强制文件头注释是否符合规范 |
@@ -46,3 +49,5 @@
 | `who-touches.sh` | 协作诊断脚本 | 列出未合并且触碰指定路径的 `agent/*` 分支，辅助多 Agent 冲突排查 |
 | `release/` | 发布脚本目录 | 管理发布演练、后端预编译与启动诊断、复用演练栈的 E2E 门禁、产物打包、远端激活、备份恢复和生产 smoke 验活；生产 smoke 包含 CRM page-list 只读探针（`CRM_SMOKE_MODE`）和部署后 CRM token/config 日志回归扫描；数据库口径统一为 MySQL 8.0。一键部署脚本 `deploy-prod.sh`（生产）/ `deploy-test.sh`（测试）固化环境变量（含 `VITE_OBS_ENABLED=true`）并自动执行打包→上传→部署→验证全流程，`package-release.sh` 含 OBS 启用硬门禁（`VITE_OBS_ENABLED=true` 时校验 `Detail-*.js` 中 `.upload(` 调用数 ≥ 2） |
 | `test/` | 测试基线目录 | Playwright 与 API 联调测试的启动、停止和说明脚本；其中 `agent-start-task-dryrun-contract.sh` 用于守护 `agent-start-task.sh --dry-run` 的输出契约，防止 touch/lock/push 协作提示回退；可通过 `npm run test:agent-start-task-contract` 执行 |
+
+`check-scoreparse-root-cause.sh` 包含 `FullRuleSourceReplayTest` / `TextPrimaryScoreFactMapperTest`：actual DOCX 四入口、文本后置材料、PDF 首页/续页短引文与页码反例；完整规则恢复与数值可计算性分别验证。

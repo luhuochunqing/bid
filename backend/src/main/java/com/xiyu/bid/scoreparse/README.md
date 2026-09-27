@@ -26,6 +26,7 @@
 | `application/BidDocumentUploadService.java` | Application Service | 投标文件上传（阶段 2 前置） |
 | `application/TenderDocumentStoredListener.java` | Listener | 监听招标文件快照落库事件 |
 | `application/match/*MatchService.java` | Application Service | 资质/人员/业绩/仓储/品牌五大匹配 |
+| `domain/OriginalRuleRestoration.java` + `LogicalRuleSourceUnit.java` | Domain 纯核心 | 从闭合来源单元恢复完整规则/材料；XML 与物理页证明分开，未知范围保留完整模型候选并阻止自动覆盖 |
 | `domain/ScoreTypeClassificationPolicy.java` 等 | Domain 纯核心 | 评分类型判定、满足状态判定、打分结果守卫 |
 | `entity/` + `repository/` | 持久层 | `score_parse_tasks` / `score_items` / `score_results` 等表 |
 | `infrastructure/openai/OpenAiScoreAnalyzer.java` | Infrastructure | LLM 解析与打分适配 |

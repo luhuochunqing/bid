@@ -59,43 +59,45 @@ final class MultimodalStructuredExtractionHandler {
         if (!extractor.supportsTextOnly()) {
             return legacyModelPath(source, loadedFiles.isEmpty() ? null : loadedFiles.get(0), artifactExtractor, extractor, chunkCompleted);
         }
+        var acquired = SourceArtifactAcquisition.acquire(loadedFiles, sources, artifactExtractor);
         try {
-            return runTextFirst(source.fileName(), source.text(), loadedFiles, sources,
-                    artifactExtractor, extractor, chunkCompleted);
+            return StructuredSourceDiagnostics.attach(runTextFirst(source.fileName(), source.text(), acquired.artifact(),
+                    extractor, chunkCompleted), acquired.diagnostics());
         } catch (RuntimeException exception) {
-            log.warn("文字评分事实提取失败，进入异常复核且禁止正则自动发布: file={}, msg={}",
-                    source.fileName(), exception.getMessage());
-            return StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_FAILED");
+            log.warn("文字评分事实提取失败: file={}, cause={}", source.fileName(), exception.getClass().getSimpleName());
+            return StructuredSourceDiagnostics.attach(StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_FAILED"),
+                    acquired.diagnostics());
         }
     }
 
-    private static StructuredTableResult runTextFirst(String fileName, String text,
-                                                       List<LoadedBidFile> loadedFiles,
-                                                       List<TenderTextSource> sources,
-                                                       SidecarDocumentArtifactExtractor artifactExtractor,
-                                                       MultimodalScoreFactExtractor extractor,
-                                                       Runnable chunkCompleted) {
+    private static StructuredTableResult runTextFirst(String fileName, String text, DocumentArtifact artifact,
+                                                       MultimodalScoreFactExtractor extractor, Runnable chunkCompleted) {
         MultimodalScoreFactExtractor.ExtractionResult extracted;
         boolean rechecked = false;
+        List<String> initialRetryDiagnostics = List.of();
         try {
-            extracted = extractor.extractTextAndProgress(text, chunkCompleted);
+            extracted = artifact == null ? extractor.extractTextAndProgress(text, chunkCompleted)
+                    : extractor.extractWithTextAndProgress(artifact, text, chunkCompleted);
         } catch (RuntimeException firstFailure) {
-            log.warn("文字证据首次提取失败，尝试独立模型复核: file={}, cause={}", fileName,
+            log.warn("文字证据首次提取失败，尝试一次独立模型复核: file={}, cause={}", fileName,
                     firstFailure.getClass().getSimpleName());
-            extracted = extractor.recheckTextAndProgress(text, chunkCompleted);
+            if (artifact == null) {
+                extracted = extractor.recheckTextAndProgress(text, chunkCompleted);
+            } else {
+                var plan = com.xiyu.bid.scoreparse.domain.SourceRecheckPlan.build(artifact, List.of(), List.of());
+                initialRetryDiagnostics = plan.diagnostics();
+                extracted = plan.text().isBlank()
+                        ? new MultimodalScoreFactExtractor.ExtractionResult(null, List.of(), "", 0)
+                        : extractor.recheckWithTextAndProgress(plan.artifact(), plan.text(), chunkCompleted);
+                extracted = new MultimodalScoreFactExtractor.ExtractionResult(extracted.declaredTotal(),
+                        com.xiyu.bid.scoreparse.domain.SourceRecheckPlan.merge(extracted.facts(), List.of(), List.of(),
+                                plan.diagnostics()), extracted.model(), extracted.imageCount());
+            }
             rechecked = true;
         }
-        DocumentArtifact artifact = null;
-        if (!loadedFiles.isEmpty() && artifactExtractor != null) {
-            try {
-                artifact = TextPrimaryEvidenceBinder.bundle(loadedFiles, sources, artifactExtractor);
-            } catch (IOException | InterruptedException exception) {
-                if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
-                log.warn("结构化证据后校验不可用，保留文字候选复核: file={}, msg={}", fileName, exception.getMessage());
-            }
-        }
         OriginalScoringContext context = OriginalScoringContext.resolve(artifact, text);
-        return run(fileName, text, artifact, context, extractor, chunkCompleted, extracted, true, rechecked);
+        return StructuredSourceDiagnostics.attach(run(fileName, text, artifact, context, extractor, chunkCompleted,
+                extracted, true, rechecked), initialRetryDiagnostics);
     }
 
     private static StructuredTableResult legacyArtifactOnly(TenderTextSource source, LoadedBidFile loaded,
@@ -113,7 +115,7 @@ final class MultimodalStructuredExtractionHandler {
         }
     }
 
-    private static StructuredTableResult legacyModelPath(TenderTextSource source, LoadedBidFile loaded,
+    static StructuredTableResult legacyModelPath(TenderTextSource source, LoadedBidFile loaded,
                                                           SidecarDocumentArtifactExtractor artifactExtractor,
                                                           MultimodalScoreFactExtractor extractor,
                                                           Runnable chunkCompleted) {
@@ -158,6 +160,11 @@ final class MultimodalStructuredExtractionHandler {
                                               MultimodalScoreFactExtractor extractor, Runnable chunkCompleted,
                                               MultimodalScoreFactExtractor.ExtractionResult extracted,
                                               boolean textOnly, boolean alreadyRechecked) {
+        return run(fileName,tenderSectionText,artifact,originalContext,extractor,chunkCompleted,extracted,textOnly,alreadyRechecked,true);
+    }
+    static StructuredTableResult run(String fileName,String tenderSectionText,DocumentArtifact artifact,
+            OriginalScoringContext originalContext,MultimodalScoreFactExtractor extractor,Runnable chunkCompleted,
+            MultimodalScoreFactExtractor.ExtractionResult extracted,boolean textOnly,boolean alreadyRechecked,boolean anchored) {
         extracted = MultimodalExtractionReviewPolicy.normalized(extracted, originalContext, artifact, tenderSectionText);
         extracted = new MultimodalScoreFactExtractor.ExtractionResult(extracted.declaredTotal(), TextPrimaryEvidenceBinder.bind(extracted.facts(), artifact, tenderSectionText), extracted.model(), extracted.imageCount());
         var validator = new MultimodalScoreFactValidator();
@@ -168,11 +175,21 @@ final class MultimodalStructuredExtractionHandler {
         boolean multiTableModelScopeUnknown = MultimodalExtractionReviewPolicy.hasMultipleTables(eligibleModelFacts)
                 && !MultimodalExtractionReviewPolicy.hasIndependentTableTotals(originalContext, eligibleModelFacts)
                 && !MultimodalExtractionReviewPolicy.documentTotalCloses(originalContext, validation);
-        if (!alreadyRechecked && (!validation.autoApprovable() || multiTableModelScopeUnknown)) {
+        var retryPlan = artifact == null || !textOnly || !anchored ? null : com.xiyu.bid.scoreparse.domain.SourceRecheckPlan.build(
+                artifact, extracted.facts(), validation.violations());
+        if (retryPlan != null && !retryPlan.diagnostics().isEmpty()) {
+            extracted = new MultimodalScoreFactExtractor.ExtractionResult(extracted.declaredTotal(),
+                    com.xiyu.bid.scoreparse.domain.SourceRecheckPlan.merge(extracted.facts(), List.of(), List.of(),
+                            retryPlan.diagnostics()), extracted.model(), extracted.imageCount());
+            validation = validator.validate(extracted.facts(), artifact, originalContext, tenderSectionText, extracted.declaredTotal());
+        }
+        if (!alreadyRechecked && (!validation.autoApprovable() || multiTableModelScopeUnknown)
+                && (retryPlan == null || !retryPlan.text().isBlank())) {
             try {
-                var rechecked = MultimodalExtractionReviewPolicy.normalized(textOnly
+                var rechecked = MultimodalExtractionReviewPolicy.normalized(textOnly && artifact == null
                         ? extractor.recheckTextAndProgress(tenderSectionText, chunkCompleted)
-                        : extractor.recheckWithTextAndProgress(artifact, tenderSectionText, chunkCompleted),
+                        : extractor.recheckWithTextAndProgress(retryPlan == null ? artifact : retryPlan.artifact(),
+                                retryPlan == null ? tenderSectionText : retryPlan.text(), chunkCompleted),
                         originalContext, artifact, tenderSectionText);
                 rechecked = new MultimodalScoreFactExtractor.ExtractionResult(rechecked.declaredTotal(), TextPrimaryEvidenceBinder.bind(rechecked.facts(), artifact, tenderSectionText), rechecked.model(), rechecked.imageCount());
                 var recheckValidation = validator.validate(rechecked.facts(), artifact, originalContext,
@@ -182,7 +199,21 @@ final class MultimodalStructuredExtractionHandler {
                 boolean recheckScopeUnknown = MultimodalExtractionReviewPolicy.hasMultipleTables(recheckEligibleFacts)
                         && !MultimodalExtractionReviewPolicy.hasIndependentTableTotals(originalContext, recheckEligibleFacts)
                         && !MultimodalExtractionReviewPolicy.documentTotalCloses(originalContext, recheckValidation);
-                if (recheckValidation.autoApprovable() && !recheckScopeUnknown) {
+                if (retryPlan != null) {
+                    var retryReport = recheckValidation;
+                    List<String> verifiedIds = recheckEligibleFacts.stream()
+                            .map(OriginalScoreEvidencePolicy::modelFactId)
+                            .filter(id -> retryReport.violations().stream().noneMatch(v -> id.equals(v.factId())))
+                            .toList();
+                    var merged = retryPlan.merge(extracted.facts(), rechecked.facts(), verifiedIds);
+                    extracted = new MultimodalScoreFactExtractor.ExtractionResult(extracted.declaredTotal(), merged,
+                            extracted.model(), extracted.imageCount());
+                    validation = validator.validate(merged, artifact, originalContext, tenderSectionText, extracted.declaredTotal());
+                    eligibleModelFacts = OriginalScoreEvidencePolicy.eligibleModelFacts(merged, validation.sourceVerification());
+                    multiTableModelScopeUnknown = MultimodalExtractionReviewPolicy.hasMultipleTables(eligibleModelFacts)
+                            && !MultimodalExtractionReviewPolicy.hasIndependentTableTotals(originalContext, eligibleModelFacts)
+                            && !MultimodalExtractionReviewPolicy.documentTotalCloses(originalContext, validation);
+                } else if (recheckValidation.autoApprovable() && !recheckScopeUnknown) {
                     extracted = rechecked;
                     validation = recheckValidation;
                     eligibleModelFacts = recheckEligibleFacts;
@@ -201,7 +232,9 @@ final class MultimodalStructuredExtractionHandler {
             StructuredTableResult deterministicFallback = artifact == null ? null : MultimodalReviewFallback.completeDeterministic(
                     originalContext, artifact, tenderSectionText, validation);
             if (deterministicFallback != null) {
-                return deterministicFallback;
+                return StructuredSourceDiagnostics.attach(anchored
+                        ? FallbackCandidateRetention.retain(deterministicFallback, validation, artifact) : deterministicFallback,
+                        retryPlan == null ? List.of() : retryPlan.diagnostics());
             }
         }
         var finalValidation = validation;
@@ -249,7 +282,8 @@ final class MultimodalStructuredExtractionHandler {
                 validation.leafTotal(), validation.violations().size());
         var proof = validation.autoApprovable() ? OriginalScoreEvidencePolicy.publicationProof(
                 validation.sourceVerification(), validation.leafTotal(), facts, candidates) : null;
-        return StructuredTableResult.evidencePipeline(facts, candidates, completeness, tables,
-                proof == null ? List.of() : List.of(proof), validation.sourceVerification().qualifications(), null);
+        return StructuredSourceDiagnostics.attach(StructuredTableResult.evidencePipeline(facts, candidates, completeness, tables,
+                proof == null ? List.of() : List.of(proof), validation.sourceVerification().qualifications(), null),
+                retryPlan == null ? List.of() : retryPlan.diagnostics());
     }
 }

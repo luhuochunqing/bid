@@ -48,10 +48,15 @@ class ScoreScoringItemPickerTest {
                 .weight(new BigDecimal("10")).build();
 
         ScoreScoringItemPicker.Plan plan = picker.plan(
-                List.of(item), Map.of(), changed, last, "ALL", List.of());
+                List.of(item), Map.of(1L, ScoreResult.builder().scoreItemId(1L).build()), changed, last, "ALL", List.of());
 
         assertThat(plan.outcome()).isEqualTo("INCREMENTAL");
         assertThat(plan.hint()).contains("技术");
         assertThat(plan.stageToken()).startsWith("INCREMENTAL|").contains("技术");
+    }
+    @Test
+    void emptyExplicitSelectionNeverExpandsToAll() {
+        var item=ScoreItem.builder().id(1L).build();
+        assertThat(picker.plan(List.of(item),Map.of(),"bid",null,"ITEMS",List.of()).toAssess()).isEmpty();
     }
 }
