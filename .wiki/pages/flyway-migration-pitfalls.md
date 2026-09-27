@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [Flyway, 数据库迁移, MySQL, collation, 版本号冲突, baseline-on-migrate, 回滚脚本, 失败迁移, 事务回滚]
 created: 2026-07-10
-updated: 2026-09-03
-health_checked: 2026-09-18
+updated: 2026-09-27
+health_checked: 2026-09-27
 sources:
   - backend/src/main/resources/db/migration-mysql/
   - backend/src/main/resources/application-mysql.yml
@@ -534,7 +534,46 @@ V1219 用 `CHAR(64)` 定义 fingerprint 列（`projection_fingerprint`、`rule_f
 修复案例：V1220（`MODIFY ... VARCHAR(64)`）+ U1220；详细见 [[lessons-learned]] §409。
 
 
-## 17. 相关文档
+## 17. 服务器侧迁移源目录过时：validate 报「Detected applied migration not resolved locally」（第 212 次部署，2026-09-27）
+
+### 17.1 现象
+
+第 212 次测试部署，`remote-deploy.sh` 激活前自动 validate 失败：
+
+```
+Validate failed: Migrations have failed validation
+Detected applied migration not resolved locally: 1219.
+Detected applied migration not resolved locally: 1220.
+```
+
+DB 里 V1219/V1220 已 `success=1`（上一部署已应用），但 validate 仍报「应用了但本地找不到」。
+
+### 17.2 根因
+
+`flyway-repair-runner.sh` 的 `MIGRATION_SOURCE` 默认指向服务器 `/tmp/migration-mysql`，该目录**未随仓库同步**（缺 V1219/V1220 源码）。Flyway 用过时的迁移源对比 DB 历史 → 认为「已应用的迁移本地不存在」。
+
+### 17.3 处置（正确做法）
+
+1. **不要用 repair**：repair 会把「成功迁移」标记为 deleted（`success=1` → 从 schema_history 摘除），等于误删已应用的迁移记录，污染状态。
+2. **同步迁移源目录后重跑**（服务器无 rsync，用 tar-over-ssh）：
+
+```bash
+cd backend/src/main/resources/db
+COPYFILE_DISABLE=1 tar czf - migration-mysql | \
+  ssh jetty@${TARGET_HOST} 'cd /tmp && tar xzf -'
+# 重跑 remote-deploy.sh，validate 通过（280 migrations, all checksums match）
+```
+
+3. 同步后确认目标文件存在：`ls /tmp/migration-mysql/ | grep V1219`。
+
+### 17.4 教训
+
+- 服务器 `/tmp/migration-mysql/` 是**部署时迁移源快照**，需与仓库保持同步；部署前 validate 报「resolved locally」类错误时，**先检查该目录是否过时**，再考虑 repair。
+- repair 只用于真正需要「标记删除/更新 checksum」的场景，绝不能用来「让 validate 通过」。
+- 迁移源目录过时属**良性 mismatch**，不阻断旧服务（validate 在激活新 jar 前执行，失败则旧版本继续运行），处置正确后重跑即可。
+
+
+## 18. 相关文档
 
 - [[lessons-learned]] §一 §二 — 数据库迁移目录清理、CI 配置对齐
 - [[production-deployment-lessons]] §1 — collation 冲突案例
@@ -544,7 +583,7 @@ V1219 用 `CHAR(64)` 定义 fingerprint 列（`projection_fingerprint`、`rule_f
 
 ---
 
-## 18. 变更记录
+## 19. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -555,3 +594,4 @@ V1219 用 `CHAR(64)` 定义 fingerprint 列（`projection_fingerprint`、`rule_f
 | 2026-09-03 | 新增 §15 失败迁移阻塞启动（V1209 漏写 updated_at → 1364 → success=0 阻塞后端，CO-606，V1210 修复）；原 §15~§17 顺延为 §16~§17 |
 | 2026-09-03 | 修正 §15 核心教训：#2/#3 由“保留失败记录”“不能用 repair”改为“V1209 失败记录必须 UPDATE success=1 才能解锁 Flyway 启动，仅新增 V1210 无法解锁”；子章节 17.x 改为 15.x |
 | 2026-09-27 | 新增 §16 CHAR(64) 指纹列与 Hibernate varchar 不匹配（V1219/V1220，ddl-auto=validate 启动阻断）；原 §16~§17 顺延为 §17~§18 |
+| 2026-09-27 | 新增 §17 服务器侧迁移源目录过时：validate 报「Detected applied migration not resolved locally」（第 212 次部署，用 tar-over-ssh 同步而非 repair）；原 §17~§18 顺延为 §18~§19 |
