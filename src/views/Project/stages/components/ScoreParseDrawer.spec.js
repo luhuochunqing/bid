@@ -418,12 +418,13 @@ describe('active source time provenance', () => {
       items: [{ itemId: 'candidate', name: '内部候选', schemeId: 's', computable: true, effectiveMaximum: 43 }],
       active: { taskId: 'latest', dataStatus: 'MISMATCHED', fingerprint: 'fp' }, adoption: { adoptedItemIds: [] },
     } })
-    const w = mount(ScoreParseDrawer, { props: { projectId: 123, showExtractionReview: false }, global: { stubs: { 'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true } } })
+    const w = mount(ScoreParseDrawer, { props: { projectId: 123, showExtractionReview: false, allowExtractionActions: true }, global: { stubs: { 'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true } } })
     await w.vm.open({ stage: 1, autoParse: false })
     expect(w.text()).toContain('总体架构设计')
     expect(w.text()).toContain('合计')
     expect(w.text()).not.toContain('内部候选')
     expect(w.text()).not.toContain('本次解析仍有')
     expect(w.find('[data-test="activate-extraction"]').exists()).toBe(false)
+    expect(w.find('[data-test="score-parse-reparse"]').exists()).toBe(true)
   })
 })
