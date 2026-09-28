@@ -640,7 +640,7 @@ fi
 # 逃生阀：SCOREPARSE_GATE_SKIP=1（仅限非版式逻辑变更，需在 PR 描述说明理由）
 echo "── scoreparse 金标门禁 ──"
 SP_PROD_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^backend/src/main/java/.*/scoreparse/(domain|application|infrastructure)/' || true)
-SP_FIXTURE_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE 'scoreparse-golden/|scoreparse/source-evidence-real-excerpts\.json|scoreparse/docx-continuity/|RealSourceExcerptReplayTest\.java|CrossFormatDocumentSourceReplayTest\.java|GoldenCasesReplayTest\.java|CellAnchoredScoreExtractorTest\.java|StructuredTableCandidateExtractorTest\.java|ScoreTableRecallLaneTest\.java|ScoreItemMergePolicyTest\.java|ScoreGlobalMergeOrchestratorTest\.java' || true)
+SP_FIXTURE_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE 'scoreparse-golden/|scoreparse/source-evidence-real-excerpts\.json|scoreparse/docx-continuity/|RealSourceExcerptReplayTest\.java|CrossFormatDocumentSourceReplayTest\.java|GoldenCasesReplayTest\.java|LiveScorePublicationGateTest\.java|CellAnchoredScoreExtractorTest\.java|StructuredTableCandidateExtractorTest\.java|ScoreTableRecallLaneTest\.java|ScoreItemMergePolicyTest\.java|ScoreGlobalMergeOrchestratorTest\.java' || true)
 if [ ! -d "$ROOT_DIR/backend/src/main" ]; then
   skip "scoreparse 金标门禁（无 Java 源码）"
 elif [ "${SP_PROD_CHANGED:-0}" -eq 0 ]; then

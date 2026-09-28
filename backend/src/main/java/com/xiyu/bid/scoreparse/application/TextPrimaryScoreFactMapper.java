@@ -39,7 +39,9 @@ final class TextPrimaryScoreFactMapper {
         var restored = com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration.restore(fact, artifact, validation.facts());
         var status = candidateEligible && !restored.text().isBlank() && violations.isBlank() && validation.autoApprovable()
                 ? ScoreFact.ValidationStatus.AUTO_APPROVED : ScoreFact.ValidationStatus.REVIEW_REQUIRED;
-        return new ScoreFact(factId, fact.tableId(), fact.sourceCellIds(), restored.text(), fact.code(), fact.dimension(),
+        String dimension = com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.publishedDimension(
+                fact.dimension(), restored.text(), fact.weight());
+        return new ScoreFact(factId, fact.tableId(), fact.sourceCellIds(), restored.text(), fact.code(), dimension,
                 fact.weight(), new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, fact.quotedText(), cellId,
                 start, start < 0 ? -1 : start + fact.quotedText().length(), "page=" + fact.pageNumber() + "; scoreType="
                 + fact.scoreType() + (violations.isBlank() ? "" : "; validationDiff=" + violations)), ScoreRule.MAX_SCORE,

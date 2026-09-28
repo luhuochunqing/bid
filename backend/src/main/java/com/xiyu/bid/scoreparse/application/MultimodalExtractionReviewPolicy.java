@@ -10,6 +10,7 @@ import com.xiyu.bid.scoreparse.domain.ScoreTableSummaryPolicy;
 import com.xiyu.bid.scoreparse.domain.TableSplitResult;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.List;
 
 /** Projection helpers for the multimodal score extraction result. */
@@ -28,10 +29,14 @@ final class MultimodalExtractionReviewPolicy {
     static MultimodalScoreFactExtractor.ExtractionResult normalized(
             MultimodalScoreFactExtractor.ExtractionResult extraction, OriginalScoringContext context,
             DocumentArtifact artifact, String tenderText) {
+        BigDecimal declaredTotal = extraction.declaredTotal();
+        if (declaredTotal == null && context != null && context.total() != null && context.total().value() != null) {
+            declaredTotal = context.total().value();
+        }
         List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact, tenderText);
         List<MultimodalScoreFact> scopedFacts = extraction.facts().stream()
                 .map(fact -> assignScope(fact, context, artifact, tenderText, schemes)).toList();
-        return new MultimodalScoreFactExtractor.ExtractionResult(extraction.declaredTotal(),
+        return new MultimodalScoreFactExtractor.ExtractionResult(declaredTotal,
                 MultimodalFactParentCodeNormalizer.normalize(scopedFacts), extraction.model(),
                 extraction.imageCount());
     }
@@ -40,9 +45,23 @@ final class MultimodalExtractionReviewPolicy {
                                                    DocumentArtifact artifact, String tenderText,
                                                    List<OriginalScoringContext.SchemeEvidence> schemes) {
         if (!fact.scopeStatus().isBlank() && !fact.schemeId().isBlank()) return fact;
-        if (fact.sectionTitle() != null && context != null && !context.scheme().isBlank()
-                && fact.sectionTitle().matches("(?s).*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*")) {
-            return fact.withScope(OriginalScoringContext.schemeId(context.scheme()), "OUT_OF_SCHEME");
+        if (context != null && !context.scheme().isBlank()) {
+            String contextSchemeId = OriginalScoringContext.schemeId(context.scheme());
+            if (fact.sectionTitle() != null && fact.sectionTitle().matches("(?s).*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*")) {
+                return fact.withScope(contextSchemeId, "OUT_OF_SCHEME");
+            }
+            if ("performance".equalsIgnoreCase(fact.dimension())
+                    || (fact.code() != null && fact.code().matches("(?i).*(?:evaluation_metric|evaluation_indicator|_evaluation|evaluation_index).*"))
+                    || (fact.quotedText() != null && fact.quotedText().matches("(?s).*(?:考核指标|履约考核|绩效考核).*") && fact.tableId().isBlank())) {
+                return fact.withScope(contextSchemeId, "OUT_OF_SCHEME");
+            }
+            if (fact.tableId().isBlank() && (fact.weight() == null || fact.weight().compareTo(java.math.BigDecimal.ZERO) <= 0)) {
+                return fact.withScope(contextSchemeId, "OUT_OF_SCHEME");
+            }
+            boolean hasScoringTables = artifact != null && artifact.tables().stream().anyMatch(candidate -> Boolean.TRUE.equals(candidate.isScoreTable()));
+            if (hasScoringTables && fact.tableId().isBlank() && (fact.sourceCellIds() == null || fact.sourceCellIds().isEmpty())) {
+                return fact.withScope(contextSchemeId, "OUT_OF_SCHEME");
+            }
         }
         if (!fact.tableId().isBlank() && artifact != null) {
             var table = artifact.tables().stream().filter(candidate -> fact.tableId().equals(candidate.tableId()))

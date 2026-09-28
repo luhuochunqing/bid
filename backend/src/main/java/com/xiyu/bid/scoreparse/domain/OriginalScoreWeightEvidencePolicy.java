@@ -67,13 +67,9 @@ final class OriginalScoreWeightEvidencePolicy {
             String rowText = directRowText + " " + inheritedCategoryText(table, anchor.row());
             if (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
                     && declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight())) return;
-            boolean itemMatched = (!claim.dimension().isBlank() && contains(rowText, claim.dimension()))
+            boolean itemMatched = (!claim.dimension().isBlank() && containsDimension(rowText, claim.dimension()))
                     || (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
-                    && (claim.dimension().isBlank() || contains(claim.quotedText(), claim.dimension())));
-            if (!itemMatched) {
-                problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "dimension", "ITEM_SOURCE_SCOPE_MISMATCH",
-                        claim.dimension(), "not in cited item row", locator));
-            }
+                    && (claim.dimension().isBlank() || containsDimension(claim.quotedText(), claim.dimension())));
             List<BigDecimal> explicit = new ArrayList<>();
             List<BigDecimal> capped = new ArrayList<>();
             List<BigDecimal> title = new ArrayList<>();
@@ -104,6 +100,14 @@ final class OriginalScoreWeightEvidencePolicy {
                     && (!claim.parent() || claim.childAggregation() == ChildAggregation.MUTUALLY_EXCLUSIVE)) {
                 authoritative = List.of(tierValues.stream().max(BigDecimal::compareTo).orElseThrow());
             }
+            // 父类词写在 dimension、项名写在行标题时，行内分值已经证明就是这一行。
+            // 具体项名对到另一行（分值碰巧相同）仍然拒绝。
+            boolean categoryRowProven = OriginalScoreEvidencePolicy.sectionCategory(claim.dimension())
+                    && rowProvesWeight(claim, authoritative, title);
+            if (!itemMatched && !categoryRowProven) {
+                problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "dimension", "ITEM_SOURCE_SCOPE_MISMATCH",
+                        claim.dimension(), "not in cited item row", locator));
+            }
             Pattern claimWeightPattern = claim.weight() == null ? null
                     : Pattern.compile("(?<!\\d)" + Pattern.quote(claim.weight().stripTrailingZeros().toPlainString()) + "\\s*分");
             if (explicit.isEmpty() && claim.weight() != null
@@ -128,6 +132,16 @@ final class OriginalScoreWeightEvidencePolicy {
                 "original item max score", claim.weight(), claim.tableId()));
     }
 
+
+    private static boolean rowProvesWeight(ScoreEvidenceClaim claim, List<BigDecimal> authoritative,
+                                           List<BigDecimal> title) {
+        if (claim.weight() == null) return false;
+        if (!authoritative.isEmpty() && distinct(authoritative).size() == 1
+                && distinct(authoritative).iterator().next().compareTo(claim.weight()) == 0) return true;
+        return !claim.parent() && distinct(title).size() == 1
+                && distinct(title).iterator().next().compareTo(claim.weight()) == 0;
+    }
+
     private static boolean contains(String source, String quote) {
         return EvidenceText.normalize(source).text().contains(EvidenceText.normalize(quote).text());
     }
@@ -138,12 +152,22 @@ final class OriginalScoreWeightEvidencePolicy {
         return values;
     }
 
+    private static boolean isPriceDimension(String dim) {
+        return dim != null && (dim.contains("价格") || dim.contains("报价"));
+    }
+
+    private static boolean containsDimension(String source, String dimension) {
+        if (contains(source, dimension)) return true;
+        return isPriceDimension(dimension) && (contains(source, "价格") || contains(source, "报价"));
+    }
+
     /** A quoted category subtotal is valid only when the same quote names the dimension and its value. */
     private static boolean declaredDimensionSubtotal(String dimension, String evidence, BigDecimal weight) {
         if (dimension == null || dimension.isBlank() || evidence == null || weight == null) return false;
         String compactDimension = dimension.replaceAll("\\s+", "");
         String compactEvidence = evidence.replaceAll("\\s+", "");
-        Pattern subtotal = Pattern.compile(Pattern.quote(compactDimension)
+        String dimPattern = isPriceDimension(compactDimension) ? "(?:价格|报价)" : Pattern.quote(compactDimension);
+        Pattern subtotal = Pattern.compile(dimPattern
                 + "(?:部分)?(?:[：:为]\\s*[（(]?|[（(])"
                 + "(\\d+(?:\\.\\d+)?)\\s*分?[）)]?");
         Matcher matcher = subtotal.matcher(compactEvidence);

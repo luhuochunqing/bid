@@ -20,6 +20,14 @@ public record EvidenceText(String text, List<Integer> offsets) {
                 i++;
                 continue;
             }
+            if (c == '\\' && i + 1 < raw.length()) {
+                char next = raw.charAt(i + 1);
+                if (next == 'n' || next == 'r' || next == 't') {
+                    if (pending < 0) pending = i;
+                    i++;
+                    continue;
+                }
+            }
             if (Character.isWhitespace(c) || Character.isSpaceChar(c)) {
                 if (pending < 0) pending = i;
                 continue;
