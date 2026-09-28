@@ -165,8 +165,8 @@ final class MultimodalStructuredExtractionHandler {
     static StructuredTableResult run(String fileName,String tenderSectionText,DocumentArtifact artifact,
             OriginalScoringContext originalContext,MultimodalScoreFactExtractor extractor,Runnable chunkCompleted,
             MultimodalScoreFactExtractor.ExtractionResult extracted,boolean textOnly,boolean alreadyRechecked,boolean anchored) {
-        extracted = MultimodalExtractionReviewPolicy.normalized(extracted, originalContext, artifact, tenderSectionText);
         extracted = new MultimodalScoreFactExtractor.ExtractionResult(extracted.declaredTotal(), TextPrimaryEvidenceBinder.bind(extracted.facts(), artifact, tenderSectionText), extracted.model(), extracted.imageCount());
+        extracted = MultimodalExtractionReviewPolicy.normalized(extracted, originalContext, artifact, tenderSectionText);
         var validator = new MultimodalScoreFactValidator();
         var validation = validator.validate(extracted.facts(), artifact, originalContext, tenderSectionText,
                 extracted.declaredTotal());
@@ -175,7 +175,9 @@ final class MultimodalStructuredExtractionHandler {
         boolean multiTableModelScopeUnknown = MultimodalExtractionReviewPolicy.hasMultipleTables(eligibleModelFacts)
                 && !MultimodalExtractionReviewPolicy.hasIndependentTableTotals(originalContext, eligibleModelFacts)
                 && !MultimodalExtractionReviewPolicy.documentTotalCloses(originalContext, validation);
-        var retryPlan = artifact == null || !textOnly || !anchored ? null : com.xiyu.bid.scoreparse.domain.SourceRecheckPlan.build(
+        var retryPlan = artifact == null || !textOnly || !anchored
+                || (validation.autoApprovable() && !multiTableModelScopeUnknown)
+                ? null : com.xiyu.bid.scoreparse.domain.SourceRecheckPlan.build(
                 artifact, extracted.facts(), validation.violations());
         if (retryPlan != null && !retryPlan.diagnostics().isEmpty()) {
             extracted = new MultimodalScoreFactExtractor.ExtractionResult(extracted.declaredTotal(),
@@ -186,12 +188,12 @@ final class MultimodalStructuredExtractionHandler {
         if (!alreadyRechecked && (!validation.autoApprovable() || multiTableModelScopeUnknown)
                 && (retryPlan == null || !retryPlan.text().isBlank())) {
             try {
-                var rechecked = MultimodalExtractionReviewPolicy.normalized(textOnly && artifact == null
+                var recheckedExtraction = textOnly && artifact == null
                         ? extractor.recheckTextAndProgress(tenderSectionText, chunkCompleted)
                         : extractor.recheckWithTextAndProgress(retryPlan == null ? artifact : retryPlan.artifact(),
-                                retryPlan == null ? tenderSectionText : retryPlan.text(), chunkCompleted),
-                        originalContext, artifact, tenderSectionText);
-                rechecked = new MultimodalScoreFactExtractor.ExtractionResult(rechecked.declaredTotal(), TextPrimaryEvidenceBinder.bind(rechecked.facts(), artifact, tenderSectionText), rechecked.model(), rechecked.imageCount());
+                                retryPlan == null ? tenderSectionText : retryPlan.text(), chunkCompleted);
+                recheckedExtraction = new MultimodalScoreFactExtractor.ExtractionResult(recheckedExtraction.declaredTotal(), TextPrimaryEvidenceBinder.bind(recheckedExtraction.facts(), artifact, tenderSectionText), recheckedExtraction.model(), recheckedExtraction.imageCount());
+                var rechecked = MultimodalExtractionReviewPolicy.normalized(recheckedExtraction, originalContext, artifact, tenderSectionText);
                 var recheckValidation = validator.validate(rechecked.facts(), artifact, originalContext,
                         tenderSectionText, rechecked.declaredTotal());
                 List<MultimodalScoreFact> recheckEligibleFacts = OriginalScoreEvidencePolicy.eligibleModelFacts(

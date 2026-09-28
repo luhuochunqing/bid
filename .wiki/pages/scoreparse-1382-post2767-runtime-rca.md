@@ -138,3 +138,13 @@ archive: false
 - **阻断 1 (ITEM_WEIGHT_SOURCE_UNKNOWN)**：第 33 页大纲表一个单元格内同时写了商务 15、技术 45、报价 40，历史代码在 `OriginalScoreWeightEvidencePolicy.java:109` 限制了 `!claim.parent()`，导致 3 个父项全部在此单元格被判权重未知；修复：解除 `!claim.parent()` 限制，允许父项在同单元格多分值时精确匹配自身权重。
 - **阻断 2 (MULTI_TABLE_DECLARED_TOTAL_UNKNOWN)**：线上大模型将第 33 页识别为表 1、第 34 页识别为表 2，两张表各自末尾都没有独立“合计100分”，历史分表策略简单按 `tablesById.size() > 1` 判定为多表，强行要求每张表都有独立声明总分；修复：在 `ScoreTableSplitPolicy` 与 `MultimodalExtractionReviewPolicy` 中重构多表识别逻辑，仅基于包含有效叶子项的表格数量判定多表，纯父项大纲表不触发独立总分门禁，使 13 个有效叶子项顺畅对齐文档级 100 分声明总分。
 - **全链路端到端闭环验证**：引入 Task 285 线上真实 37 项 facts（双表拓扑），在 `Project1382FullPipelineIntegrationTest` 走通全链路测试，验证 `AUTO_APPROVED`、13 个候选落库、满分 100 分无 warning。
+
+### 7. 2026-09-28 线上 Task 288 大模型 declaredTotal 留空与表外 0 分指引句误阻自动发布门禁根治
+
+针对测试服务器 Task 288 触发 `REVIEW_REQUIRED` 导致保留旧 91 分数据的 5 项关键阻断根治：
+- **阻断 1 (MODEL_TOTAL_MISSING)**：大模型按 prompt「无法确认就填空」将 `declaredTotal` 留空，发布门禁先前一票否决整单；修复：`MultimodalExtractionReviewPolicy.normalized` 优雅回退到原文证据证实的 100 分，`OriginalScoreEvidencePolicy.verify` 仅在原文也缺失总分时才拦截；
+- **阻断 2~4 (0分指引句报权重来源不明)**：商务、技术、其他评分标准 3 句表外“见评审办法前附表”指引句被收为评分项且权重为 0，正文无 0 分依据报 `ORIGINAL_WEIGHT_SOURCE_UNVERIFIED`；修复：在 `MultimodalExtractionReviewPolicy.assignScope` 确立表外 0 分守卫（`tableId.isBlank() && weight <= 0` 统一划为 `OUT_OF_SCHEME`），并在 `OriginalScoreQualificationPolicy` 快速放行；
+- **阻断 5 (报价公式说明报 SOURCE_LOCATOR_NOT_VERIFIED)**：报价方法公式段落因排版多行跨度产生行号差异，划入 `OUT_OF_SCHEME` 后快速放行，消除误拦截；
+- **盲区修复 (转义空白字符兼容)**：在 `EvidenceText.normalize` 中将字面量 `\n`、`\r`、`\t` 兼容为空白符，杜绝跨页引文在长段落首页截断处比对失败；
+- **全链路闭环验证**：在 `Project1382FullPipelineIntegrationTest` 中重放线上 Task 286 真实 37 项事实，判定 `AUTO_APPROVED`，过滤出 13 项有效叶子评分项，总分精确 100 分自动入库。
+

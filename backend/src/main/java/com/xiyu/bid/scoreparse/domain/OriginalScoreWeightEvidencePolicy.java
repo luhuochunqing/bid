@@ -67,9 +67,9 @@ final class OriginalScoreWeightEvidencePolicy {
             String rowText = directRowText + " " + inheritedCategoryText(table, anchor.row());
             if (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
                     && declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight())) return;
-            boolean itemMatched = (!claim.dimension().isBlank() && contains(rowText, claim.dimension()))
+            boolean itemMatched = (!claim.dimension().isBlank() && containsDimension(rowText, claim.dimension()))
                     || (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
-                    && (claim.dimension().isBlank() || contains(claim.quotedText(), claim.dimension())));
+                    && (claim.dimension().isBlank() || containsDimension(claim.quotedText(), claim.dimension())));
             List<BigDecimal> explicit = new ArrayList<>();
             List<BigDecimal> capped = new ArrayList<>();
             List<BigDecimal> title = new ArrayList<>();
@@ -152,12 +152,22 @@ final class OriginalScoreWeightEvidencePolicy {
         return values;
     }
 
+    private static boolean isPriceDimension(String dim) {
+        return dim != null && (dim.contains("价格") || dim.contains("报价"));
+    }
+
+    private static boolean containsDimension(String source, String dimension) {
+        if (contains(source, dimension)) return true;
+        return isPriceDimension(dimension) && (contains(source, "价格") || contains(source, "报价"));
+    }
+
     /** A quoted category subtotal is valid only when the same quote names the dimension and its value. */
     private static boolean declaredDimensionSubtotal(String dimension, String evidence, BigDecimal weight) {
         if (dimension == null || dimension.isBlank() || evidence == null || weight == null) return false;
         String compactDimension = dimension.replaceAll("\\s+", "");
         String compactEvidence = evidence.replaceAll("\\s+", "");
-        Pattern subtotal = Pattern.compile(Pattern.quote(compactDimension)
+        String dimPattern = isPriceDimension(compactDimension) ? "(?:价格|报价)" : Pattern.quote(compactDimension);
+        Pattern subtotal = Pattern.compile(dimPattern
                 + "(?:部分)?(?:[：:为]\\s*[（(]?|[（(])"
                 + "(\\d+(?:\\.\\d+)?)\\s*分?[）)]?");
         Matcher matcher = subtotal.matcher(compactEvidence);
