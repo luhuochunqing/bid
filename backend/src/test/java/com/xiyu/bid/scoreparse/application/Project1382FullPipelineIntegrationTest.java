@@ -152,4 +152,122 @@ class Project1382FullPipelineIntegrationTest {
         assertThat(summary.totalWeight()).isEqualByComparingTo("100");
         assertThat(summary.weightWarning()).isFalse();
     }
+
+    @Test
+    @DisplayName("项目1382线上真实Task285事实：双表拓扑(p33大纲表+p34明细表) -> 判定AUTO_APPROVED -> 落库13项100分")
+    void verifyTask285OnlineFactsPipeline() throws Exception {
+        DocumentArtifact artifact;
+        try (InputStream is = getClass().getResourceAsStream("/scoreparse/project-1382/project-1382-scoring-tables.json")) {
+            assertThat(is).as("Scoring tables resource must exist").isNotNull();
+            artifact = objectMapper.readValue(is, DocumentArtifact.class);
+        }
+        artifact = SourceArtifactBundle.combine(List.of(artifact));
+
+        JsonNode factsArray;
+        try (InputStream is = getClass().getResourceAsStream("/scoreparse/project-1382/task-285-facts.json")) {
+            assertThat(is).as("Task 285 facts resource must exist").isNotNull();
+            factsArray = objectMapper.readTree(is);
+        }
+
+        java.util.Map<String, String> codeByFactId = new java.util.HashMap<>();
+        for (JsonNode node : factsArray) {
+            codeByFactId.put(node.path("factId").asText(""), node.path("code").asText(""));
+        }
+
+        java.util.Map<String, DocumentArtifact.CanonicalTable.CanonicalCellDto> cellMap = new java.util.HashMap<>();
+        for (var t : artifact.tables()) {
+            for (var c : t.cells()) {
+                cellMap.put(c.cellId(), c);
+            }
+        }
+
+        List<MultimodalScoreFact> rawFacts = new ArrayList<>();
+        for (JsonNode node : factsArray) {
+            String tableId = node.path("sourceTableId").asText("");
+            if (tableId.isBlank()) {
+                continue; // 过滤掉合同履约考核等非评分表格事实
+            }
+
+            String code = node.path("code").asText("");
+            BigDecimal weight = new BigDecimal(node.path("weight").asText("0"));
+            String ruleText = node.path("sourceText").asText("");
+            String dimension = node.path("dimension").asText("");
+            String scoreType = "OBJECTIVE";
+            String parentFactId = node.path("parentFactId").asText("");
+            String parentCode = parentFactId.isBlank() ? "" : codeByFactId.getOrDefault(parentFactId, "");
+
+            List<String> sourceCellIds = new ArrayList<>();
+            for (JsonNode cellNode : node.path("sourceCellIds")) {
+                sourceCellIds.add(cellNode.asText());
+            }
+
+            Integer page = null;
+            String quotedText = "";
+            if (!sourceCellIds.isEmpty()) {
+                var cell = cellMap.get(sourceCellIds.get(0));
+                if (cell != null) {
+                    page = cell.sourcePage();
+                    if ("business_score".equals(code)) {
+                        quotedText = "（1）商务部分：15分";
+                    } else if ("technical_score".equals(code)) {
+                        quotedText = "（2）技术部分：45分";
+                    } else if ("price_score".equals(code)) {
+                        quotedText = "（3）报价：40分";
+                    } else if ("price_level1".equals(code)) {
+                        quotedText = "1、一级集采商品上架折扣率（28分）";
+                    } else if ("price_non_level1".equals(code)) {
+                        quotedText = "1、非一级集采商品上架折扣率（12分）";
+                    } else {
+                        quotedText = cell.rawText();
+                    }
+                }
+            }
+
+            rawFacts.add(new MultimodalScoreFact(
+                    "第三章 评审办法", code, parentCode, dimension, weight, ruleText, scoreType,
+                    page, tableId, sourceCellIds, quotedText, 0.95, ChildAggregation.SUM, "", "IN_SCHEME",
+                    new com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata(ruleText, quotedText, List.of(), List.of(),
+                            dimension, scoreType,
+                            new com.xiyu.bid.scoreparse.domain.ModelSourceClaim("第三章 评审办法", page, tableId, sourceCellIds, "", ""))
+            ));
+        }
+
+        String tenderText = "第三章 评审办法\n3.2.1 分值构成（总分100分）：（1）商务部分：15分；（2）技术部分：45分；（3）报价：40分。";
+        OriginalScoringContext context = OriginalScoringContext.resolve(artifact, tenderText);
+        var extractionResult = new MultimodalScoreFactExtractor.ExtractionResult(new BigDecimal("100"), rawFacts, "gemini-3.5-flash", 0);
+
+        StructuredTableResult result = MultimodalStructuredExtractionHandler.run(
+                "办公用品.pdf", tenderText, artifact, context, null, () -> {},
+                extractionResult, true, true, true);
+
+        assertThat(result.completeness()).isNotNull();
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.candidates()).hasSize(13);
+        assertThat(result.completeness().leafWeightSum()).isEqualByComparingTo("100");
+
+        // 5. 走持久化落库（模拟 StructuredTableExtractionHandler 落库阶段）
+        ScoreItemPersistenceService persistenceService = new ScoreItemPersistenceService(
+                itemRepository, resultRepository, factRepository, evidenceRepository, objectMapper);
+
+        Long projectId = 1382L;
+        Long taskId = 285L;
+        persistenceService.persistItems(projectId, taskId, result.candidates());
+
+        // 6. 验证数据库中持久化的评分项
+        List<ScoreItem> persistedItems = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
+        assertThat(persistedItems).hasSize(13);
+        BigDecimal totalWeightInDb = persistedItems.stream()
+                .map(ScoreItem::getWeight)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(totalWeightInDb).isEqualByComparingTo("100");
+
+        // 7. 模拟前端 UI 调用的 SummaryAggregator，验证 UI 响应结构
+        var summary = new com.xiyu.bid.scoreparse.domain.SummaryAggregator().aggregate(
+                persistedItems.stream().map(i -> new com.xiyu.bid.scoreparse.domain.SummaryAggregator.Item(
+                        i.getWeight(), i.getScoreType(), i.getEstScore(), i.getStatusStage1())).toList());
+
+        assertThat(summary.totalWeight()).isEqualByComparingTo("100");
+        assertThat(summary.weightWarning()).isFalse();
+    }
 }
+

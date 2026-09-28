@@ -21,7 +21,8 @@ import java.util.regex.Pattern;
 public final class ScoreTableSplitPolicy {
 
     public static final String NO_DECLARED_TOTAL = "NO_DECLARED_TOTAL";
-    private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包)[^\\n]{0,40}(?:总分|满分)\\s*(?:为|：|:)\\s*(\\d+(?:\\.\\d+)?)\\s*分");
+    private static final Pattern DOCUMENT_TOTAL = Pattern.compile(
+            "(?:(?:本项目|本标包|评分办法|评审办法|评标办法|分值构成|评分标准|评审标准)[^。；;\\n]{0,80})?(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
 
     private ScoreTableSplitPolicy() {
     }
@@ -45,7 +46,15 @@ public final class ScoreTableSplitPolicy {
 
         List<TableCompleteness> results = new ArrayList<>();
         List<ScoreFact> noEvidenceFacts = new ArrayList<>();
-        boolean multipleTables = tablesById.size() > 1;
+        java.util.Set<String> allParentIds = tablesById.values().stream()
+                .flatMap(t -> t.facts().stream())
+                .map(ScoreFact::parentFactId)
+                .filter(pid -> pid != null && !pid.isBlank())
+                .collect(java.util.stream.Collectors.toSet());
+        long leafBearingTablesCount = tablesById.values().stream()
+                .filter(t -> t.facts().stream().anyMatch(f -> !allParentIds.contains(f.factId())))
+                .count();
+        boolean multipleTables = (leafBearingTablesCount > 1) || (tablesById.size() > 1 && leafBearingTablesCount == 0);
         for (ScoreTableInput table : tablesById.values()) {
             if (!table.structurallyValid()) {
                 results.add(new TableCompleteness(table.tableId(), false,

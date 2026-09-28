@@ -77,13 +77,23 @@ final class MultimodalExtractionReviewPolicy {
     }
 
     static boolean hasMultipleTables(List<MultimodalScoreFact> facts) {
-        return facts != null && facts.stream().map(MultimodalScoreFact::tableId)
-                .filter(tableId -> tableId != null && !tableId.isBlank()).distinct().count() > 1;
+        if (facts == null) return false;
+        java.util.Set<String> parentCodes = facts.stream().map(MultimodalScoreFact::parentCode)
+                .filter(p -> p != null && !p.isBlank()).collect(java.util.stream.Collectors.toSet());
+        long leafTables = facts.stream().filter(f -> !parentCodes.contains(f.code()))
+                .map(MultimodalScoreFact::tableId).filter(t -> t != null && !t.isBlank())
+                .distinct().count();
+        return leafTables > 1;
     }
 
     static boolean hasMultipleFactTables(List<ScoreFact> facts) {
-        return facts != null && facts.stream().map(ScoreFact::sourceTableId)
-                .filter(tableId -> tableId != null && !tableId.isBlank()).distinct().count() > 1;
+        if (facts == null) return false;
+        java.util.Set<String> parentIds = facts.stream().map(ScoreFact::parentFactId)
+                .filter(p -> p != null && !p.isBlank()).collect(java.util.stream.Collectors.toSet());
+        long leafTables = facts.stream().filter(f -> !parentIds.contains(f.factId()))
+                .map(ScoreFact::sourceTableId).filter(t -> t != null && !t.isBlank())
+                .distinct().count();
+        return leafTables > 1;
     }
 
     static boolean hasIndependentTableTotals(OriginalScoringContext context,

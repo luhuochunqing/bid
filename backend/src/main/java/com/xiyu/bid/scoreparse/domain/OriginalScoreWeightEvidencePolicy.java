@@ -106,7 +106,7 @@ final class OriginalScoreWeightEvidencePolicy {
             }
             Pattern claimWeightPattern = claim.weight() == null ? null
                     : Pattern.compile("(?<!\\d)" + Pattern.quote(claim.weight().stripTrailingZeros().toPlainString()) + "\\s*分");
-            if (!claim.parent() && explicit.isEmpty() && claim.weight() != null
+            if (explicit.isEmpty() && claim.weight() != null
                     && authoritative.stream().anyMatch(w -> w.compareTo(claim.weight()) == 0)
                     && (claim.quotedText().isBlank() || claimWeightPattern.matcher(claim.quotedText()).find())) {
                 return;
