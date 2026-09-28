@@ -7,34 +7,33 @@
   "totalLocator": "text:line[7]",
   "layoutStatus": "MULTI_TABLE_SAME_SCHEME",
   "tables": [
-    { "tableId": "t-business", "page": 34, "section": "第三章 评审办法", "score": true },
-    { "tableId": "t-technical", "page": 35, "section": "第三章 评审办法", "score": true },
-    { "tableId": "t-price", "page": 38, "section": "第三章 评审办法", "score": true },
-    { "tableId": "t-audit", "page": 98, "section": "第四章 合同履约考核", "score": false }
+    { "tableId": "p33-t0009", "page": 33, "section": "第三章 评审办法", "score": false },
+    { "tableId": "p34-t0010", "page": 34, "section": "第三章 评审办法", "score": true },
+    { "tableId": "p40-t0011", "page": 40, "section": "第三章 评审办法", "score": false }
   ],
-  "tableIds": ["t-business", "t-technical", "t-price"],
+  "tableIds": ["p33-t0009", "p34-t0010", "p40-t0011"],
   "parents": [
-    { "section": "商务", "code": "BUSINESS", "dimension": "商务部分", "weight": 15, "tableId": "t-business", "page": 34, "quote": "（1）商务部分：15 分", "childRelation": "SUM" },
-    { "section": "技术", "code": "TECHNICAL", "dimension": "技术部分", "weight": 45, "tableId": "t-technical", "page": 35, "quote": "（2）技术部分：45 分", "childRelation": "SUM" },
-    { "section": "报价", "code": "PRICE", "dimension": "报价", "weight": 40, "tableId": "t-price", "page": 38, "quote": "办公用品价格分评审（40 分）：一级集采商品价格分（满分 28 分）+非一级集采商品价格分（满分 12 分）。", "childRelation": "SUM" }
+    { "section": "商务", "code": "BUSINESS", "dimension": "商务部分", "weight": 15, "tableId": "", "quote": "（1）商务部分：15 分", "childRelation": "SUM", "sourceCellIds": ["text:line[8]"] },
+    { "section": "技术", "code": "TECHNICAL", "dimension": "技术部分", "weight": 45, "tableId": "", "quote": "（2）技术部分：45 分", "childRelation": "SUM", "sourceCellIds": ["text:line[8]"] },
+    { "section": "报价", "code": "PRICE", "dimension": "报价", "weight": 40, "tableId": "", "quote": "（3）报价：40 分", "childRelation": "SUM", "sourceCellIds": ["text:line[8]"] }
   ],
   "facts": [
-    { "section": "商务", "code": "B1", "parentCode": "BUSINESS", "dimension": "供应商业绩", "weight": 7, "tableId": "t-business", "page": 34, "quote": "供应商业绩（7 分）：近三年相关服务业绩，每增加一项得 1 分，最高得 7 分。" },
-    { "section": "商务", "code": "B2", "parentCode": "BUSINESS", "dimension": "财务状况", "weight": 3, "tableId": "t-business", "page": 34, "quote": "财务状况（3 分）：现金流量与净利润连续三年为正，最高得 3 分。" },
-    { "section": "商务", "code": "B3", "parentCode": "BUSINESS", "dimension": "服务网点及仓储", "weight": 3, "tableId": "t-business", "page": 34, "quote": "服务网点及仓储（3 分）：服务网点与仓储分别计分，最高得 3 分。" },
-    { "section": "商务", "code": "", "parentCode": "BUSINESS", "dimension": "电子商城运营时间", "weight": 1, "tableId": "t-business", "page": 34, "quote": "电子商城运营时间（1 分）：运营时间达到要求得 1 分。" },
-    { "section": "商务", "code": "", "parentCode": "BUSINESS", "dimension": "授信额度", "weight": 1, "tableId": "t-business", "page": 34, "quote": "授信额度（1 分）：符合授信要求得 1 分。" },
-    { "section": "技术", "code": "T1", "parentCode": "TECHNICAL", "dimension": "综合服务方案", "weight": 10, "tableId": "t-technical", "page": 35, "quote": "针对办公用品的综合服务方案（10 分）：评价为优得 8-10 分，良得 6-7 分，中得 4-5 分，差得 0-3 分。" },
-    { "section": "技术", "code": "T2", "parentCode": "TECHNICAL", "dimension": "产品质量及价格管控方案", "weight": 10, "tableId": "t-technical", "page": 35, "quote": "针对办公用品的产品质量及价格管控方案（10 分）：评价为优得 8-10 分，良得 6-7 分，中得 4-5 分，差得 0-3 分。" },
-    { "section": "技术", "code": "T3", "parentCode": "TECHNICAL", "dimension": "物流仓储方案", "weight": 8, "tableId": "t-technical", "page": 35, "quote": "针对办公用品的物流仓储方案（8 分）：评价为优得 7-8 分，良得 5-6 分，中得 3-4 分，差得 0-2 分。" },
-    { "section": "技术", "code": "T4", "parentCode": "TECHNICAL", "dimension": "服务团队方案", "weight": 10, "tableId": "t-technical", "page": 35, "quote": "针对办公用品服务团队方案（10 分）：评价为优得 8-10 分，良得 5-7 分，中得 3-4 分，差得 0-2 分。" },
-    { "section": "技术", "code": "T5", "parentCode": "TECHNICAL", "dimension": "平台系统对接方案", "weight": 3, "tableId": "t-technical", "page": 35, "quote": "平台系统对接方案（3 分）：评价为优得 3 分，良得 2 分，中得 1 分，差得 0 分。" },
-    { "section": "技术", "code": "T6", "parentCode": "TECHNICAL", "dimension": "增值服务方案", "weight": 4, "tableId": "t-technical", "page": 35, "quote": "针对办公用品增值服务方案（4 分）：每增加一条有效方案得 1 分，最高 4 分。" },
-    { "section": "报价", "code": "P1", "parentCode": "PRICE", "dimension": "一级集采商品价格分", "weight": 28, "tableId": "t-price", "page": 38, "quote": "（1）一级集采商品：满分 28 分。" },
-    { "section": "报价", "code": "P2", "parentCode": "PRICE", "dimension": "非一级集采商品价格分", "weight": 12, "tableId": "t-price", "page": 38, "quote": "（2）非一级集采商品：满分 12 分。" }
+    { "section": "商务", "code": "B1", "parentCode": "BUSINESS", "dimension": "供应商业绩", "weight": 7, "tableId": "p34-t0010", "page": 34, "quote": "供应商业绩 （7分）", "sourceCellIds": ["p34-t0010-r2-c2", "p34-t0010-r2-c3"] },
+    { "section": "商务", "code": "B2", "parentCode": "BUSINESS", "dimension": "财务状况", "weight": 3, "tableId": "p34-t0010", "page": 34, "quote": "财务状况 （3分）", "sourceCellIds": ["p34-t0010-r3-c2", "p34-t0010-r3-c3"] },
+    { "section": "商务", "code": "B3", "parentCode": "BUSINESS", "dimension": "服务网点及仓储", "weight": 3, "tableId": "p34-t0010", "page": 35, "quote": "服务网点及仓储 （3分）", "sourceCellIds": ["p34-t0010-r5-c2", "p34-t0010-r5-c3"] },
+    { "section": "商务", "code": "", "parentCode": "BUSINESS", "dimension": "电子商城运营时间", "weight": 1, "tableId": "p34-t0010", "page": 35, "quote": "电子商城运营时间 （1分）", "sourceCellIds": ["p34-t0010-r6-c2", "p34-t0010-r6-c3"] },
+    { "section": "商务", "code": "", "parentCode": "BUSINESS", "dimension": "授信额度", "weight": 1, "tableId": "p34-t0010", "page": 35, "quote": "授信额度（1分）", "sourceCellIds": ["p34-t0010-r7-c2", "p34-t0010-r7-c3"] },
+    { "section": "技术", "code": "T1", "parentCode": "TECHNICAL", "dimension": "综合服务方案", "weight": 10, "tableId": "p34-t0010", "page": 35, "quote": "针对办公用品的 综合服务方案 （10分）", "sourceCellIds": ["p34-t0010-r8-c2", "p34-t0010-r8-c3"] },
+    { "section": "技术", "code": "T2", "parentCode": "TECHNICAL", "dimension": "产品质量及价格管控方案", "weight": 10, "tableId": "p34-t0010", "page": 36, "quote": "针对办公用品的 产品质量及价格 管控方案 （10分）", "sourceCellIds": ["p34-t0010-r10-c2", "p34-t0010-r10-c3"] },
+    { "section": "技术", "code": "T3", "parentCode": "TECHNICAL", "dimension": "物流仓储方案", "weight": 8, "tableId": "p34-t0010", "page": 36, "quote": "针对办公用品的 物流仓储方案 （8分）", "sourceCellIds": ["p34-t0010-r11-c2", "p34-t0010-r11-c3"] },
+    { "section": "技术", "code": "T4", "parentCode": "TECHNICAL", "dimension": "服务团队方案", "weight": 10, "tableId": "p34-t0010", "page": 37, "quote": "针对办公用品 服务团队方案 （10分）", "sourceCellIds": ["p34-t0010-r13-c2", "p34-t0010-r13-c3"] },
+    { "section": "技术", "code": "T5", "parentCode": "TECHNICAL", "dimension": "平台系统对接方案", "weight": 3, "tableId": "p34-t0010", "page": 38, "quote": "平台系统对接方案 （3分）", "sourceCellIds": ["p34-t0010-r14-c2", "p34-t0010-r14-c3"] },
+    { "section": "技术", "code": "T6", "parentCode": "TECHNICAL", "dimension": "增值服务方案", "weight": 4, "tableId": "p34-t0010", "page": 38, "quote": "针对办公用品增值服 务方案（4分）", "sourceCellIds": ["p34-t0010-r15-c2", "p34-t0010-r15-c3"] },
+    { "section": "报价", "code": "P1", "parentCode": "PRICE", "dimension": "一级集采商品上架折扣率", "weight": 28, "tableId": "p34-t0010", "page": 38, "quote": "1、一级集采商品上架折扣率（28分）", "sourceCellIds": ["p34-t0010-r16-c3"] },
+    { "section": "报价", "code": "P2", "parentCode": "PRICE", "dimension": "非一级集采商品上架折扣率", "weight": 12, "tableId": "p34-t0010", "page": 39, "quote": "1、非一级集采商品上架折扣率（12分）", "sourceCellIds": ["p34-t0010-r17-c3"] }
   ],
   "auditFacts": [
-    { "section": "合同履约考核", "code": "A1", "dimension": "合同履约响应率", "weight": 100, "tableId": "t-audit", "page": 98, "quote": "合同履约响应率（100 分）：回复率须达到 100%。" }
+    { "section": "合同履约考核", "code": "A1", "dimension": "合同履约响应率", "weight": 100, "tableId": "", "page": 98, "quote": "4.2.13 乙方须在 2 日内完成回复与响应，回复率须达到 100%。", "sourceCellIds": ["text:line[10]"] }
   ],
   "outOfSchemeLine": 10,
   "inSchemeLine": 7,

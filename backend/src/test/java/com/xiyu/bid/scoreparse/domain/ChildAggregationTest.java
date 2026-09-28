@@ -33,5 +33,11 @@ class ChildAggregationTest {
                 .isTrue();
         assertThat(ChildAggregation.SHARED_CAP.supportedByOriginalText("商务部分（15分）：各项合计最高得15分"))
                 .isFalse();
+
+        // "其中：" is a common enumeration clause, not a "中：" rating tier
+        assertThat(ChildAggregation.SUM.supportedByOriginalText("价格分合计40分，其中：一级集采商品28分，非一级集采商品12分"))
+                .isTrue();
+        assertThat(ChildAggregation.MUTUALLY_EXCLUSIVE.supportedByOriginalText("价格分合计40分，其中：一级集采商品28分，非一级集采商品12分"))
+                .isFalse();
     }
 }

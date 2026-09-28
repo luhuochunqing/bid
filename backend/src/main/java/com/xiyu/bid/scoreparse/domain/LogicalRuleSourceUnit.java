@@ -100,11 +100,11 @@ public final class LogicalRuleSourceUnit {
                 .filter(Objects::nonNull).mapToInt(Integer::intValue).max().orElse(-1);
         if (lastRow < 0 || lastTable.rows() <= 0) return false;
         var headers = rowHeaders(row);
-        if (lastRow < lastTable.rows() - 1) return independent(lastTable, lastRow + 1, headers);
+        if (lastRow < lastTable.rows() - 1) return independent(lastTable, lastRow + 1, headers, type);
         var next = artifact.tables().subList(artifact.tables().indexOf(lastTable) + 1, artifact.tables().size()).stream()
                 .filter(t -> Objects.equals(document, artifact.documentFor(t.tableId()))).findFirst();
         if (next.isEmpty()) return true;
-        return independent(next.get(), 0, lastTable.columns() == next.get().columns() ? headers : Map.of());
+        return independent(next.get(), 0, lastTable.columns() == next.get().columns() ? headers : Map.of(), type);
     }
 
     private static List<Cell> logicalRow(DocumentArtifact artifact, Cell first) {
@@ -127,7 +127,8 @@ public final class LogicalRuleSourceUnit {
         cells.stream().filter(c -> c.column() != null).forEach(c -> titles.put(c.column(), text(c.rawText())));
         return titles;
     }
-    private static boolean independent(CanonicalTable table, int from, Map<Integer, String> inherited) {
+    private static boolean independent(CanonicalTable table, int from, Map<Integer, String> inherited, String type) {
+        if ("PDF".equalsIgnoreCase(type) && inScoringSection(table)) return true;
         var headers = inherited;
         for (int number : table.cells().stream().map(CanonicalCellDto::row).filter(Objects::nonNull)
                 .filter(n -> n >= from).distinct().sorted().toList()) {
@@ -144,6 +145,11 @@ public final class LogicalRuleSourceUnit {
             return id && name;
         }
         return false;
+    }
+    private static boolean inScoringSection(CanonicalTable table) {
+        if (table == null || table.sourceSection() == null || table.sourceSection().isBlank()) return false;
+        String root = table.sourceSection().split("[/＞>]", 2)[0].trim();
+        return OriginalScoringSchemePolicy.isValidSchemeRoot(root);
     }
     private static boolean independentColumns(Map<Integer, String> titles) {
         var ids = titles.entrySet().stream().filter(e -> ID.matcher(e.getValue()).matches()).map(Map.Entry::getKey).toList();
