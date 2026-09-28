@@ -21,8 +21,7 @@ import java.util.regex.Pattern;
 public final class ScoreTableSplitPolicy {
 
     public static final String NO_DECLARED_TOTAL = "NO_DECLARED_TOTAL";
-    private static final Pattern DOCUMENT_TOTAL = Pattern.compile(
-            "(?:(?:本项目|本标包|评分办法|评审办法|评标办法|分值构成|评分标准|评审标准)[^。；;\\n]{0,80})?(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
+    private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包)[^\\n]{0,40}(?:总分|满分)\\s*(?:为|：|:)\\s*(\\d+(?:\\.\\d+)?)\\s*分");
 
     private ScoreTableSplitPolicy() {
     }

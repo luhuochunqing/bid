@@ -138,4 +138,3 @@ archive: false
 - **阻断 1 (ITEM_WEIGHT_SOURCE_UNKNOWN)**：第 33 页大纲表一个单元格内同时写了商务 15、技术 45、报价 40，历史代码在 `OriginalScoreWeightEvidencePolicy.java:109` 限制了 `!claim.parent()`，导致 3 个父项全部在此单元格被判权重未知；修复：解除 `!claim.parent()` 限制，允许父项在同单元格多分值时精确匹配自身权重。
 - **阻断 2 (MULTI_TABLE_DECLARED_TOTAL_UNKNOWN)**：线上大模型将第 33 页识别为表 1、第 34 页识别为表 2，两张表各自末尾都没有独立“合计100分”，历史分表策略简单按 `tablesById.size() > 1` 判定为多表，强行要求每张表都有独立声明总分；修复：在 `ScoreTableSplitPolicy` 与 `MultimodalExtractionReviewPolicy` 中重构多表识别逻辑，仅基于包含有效叶子项的表格数量判定多表，纯父项大纲表不触发独立总分门禁，使 13 个有效叶子项顺畅对齐文档级 100 分声明总分。
 - **全链路端到端闭环验证**：引入 Task 285 线上真实 37 项 facts（双表拓扑），在 `Project1382FullPipelineIntegrationTest` 走通全链路测试，验证 `AUTO_APPROVED`、13 个候选落库、满分 100 分无 warning。
-

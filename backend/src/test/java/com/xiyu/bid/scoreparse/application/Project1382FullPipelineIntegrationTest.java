@@ -270,4 +270,3 @@ class Project1382FullPipelineIntegrationTest {
         assertThat(summary.weightWarning()).isFalse();
     }
 }
-
