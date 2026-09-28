@@ -130,3 +130,11 @@ archive: false
 - **PDF 表内续行逻辑行聚合**：在 `converter.py` 的 `_link_pdf_logical_rows` 与 `LogicalRuleSourceUnit.java` 中增加表内续行检测（前置序号/名称列为空且末列非空时，双向扩展纳入同一逻辑行），完整拼接跨行规则文本，恢复 `uniqueSpan` 闭合能力；
 - **同格多 Peer 标题模糊对齐**：在 `OriginalRuleUnitText.java` 中增加第一行标题匹配，精准切分同单元格内的“第一部分/第二部分”多 Candidate 规则边界；
 - **Sidecar→后端→落库→UI 全闭环真实测试**：新建 `Project1382FullPipelineIntegrationTest`，使用物理抽取导出的 178 表产物与真实 45 项事实，打通提取判定（`AUTO_APPROVED`）、叶子项转换（13 项）、数据库持久化（`ScoreItemPersistenceService.persistItems`）、UI 聚合器（`SummaryAggregator` 100.00 分，无警告）全链路。
+
+### 6. 2026-09-28 线上 Task 285 真实双表拓扑（大纲表+明细表）与同格多分值解耦：彻底达成 AUTO_APPROVED 覆写落库
+
+针对部署到测试服务器后，重新解析触发 Task 285 依然停留在 91 分的排查闭环：
+- **线上旧数据不被覆盖的根因**：`StructuredTableExtractionHandler.java:244` 具有防洗数守卫，只有当 `decision == AUTO_APPROVED` 时才会调用 `persistItems` 刷新 `score_item`；一旦为 `REVIEW_REQUIRED`，系统打印 `保留现有评分项不覆盖`，页面永远显示旧的 91 分。
+- **阻断 1 (ITEM_WEIGHT_SOURCE_UNKNOWN)**：第 33 页大纲表一个单元格内同时写了商务 15、技术 45、报价 40，历史代码在 `OriginalScoreWeightEvidencePolicy.java:109` 限制了 `!claim.parent()`，导致 3 个父项全部在此单元格被判权重未知；修复：解除 `!claim.parent()` 限制，允许父项在同单元格多分值时精确匹配自身权重。
+- **阻断 2 (MULTI_TABLE_DECLARED_TOTAL_UNKNOWN)**：线上大模型将第 33 页识别为表 1、第 34 页识别为表 2，两张表各自末尾都没有独立“合计100分”，历史分表策略简单按 `tablesById.size() > 1` 判定为多表，强行要求每张表都有独立声明总分；修复：在 `ScoreTableSplitPolicy` 与 `MultimodalExtractionReviewPolicy` 中重构多表识别逻辑，仅基于包含有效叶子项的表格数量判定多表，纯父项大纲表不触发独立总分门禁，使 13 个有效叶子项顺畅对齐文档级 100 分声明总分。
+- **全链路端到端闭环验证**：引入 Task 285 线上真实 37 项 facts（双表拓扑），在 `Project1382FullPipelineIntegrationTest` 走通全链路测试，验证 `AUTO_APPROVED`、13 个候选落库、满分 100 分无 warning。
