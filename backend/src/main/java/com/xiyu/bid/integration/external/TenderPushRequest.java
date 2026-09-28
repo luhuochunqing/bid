@@ -38,6 +38,8 @@ public class TenderPushRequest {
     @Size(max = 500)
     private String title;
 
+    /** 招标主体（招标单位全称，必填） */
+    @NotBlank(message = "招标主体不能为空")
     @Size(max = 500)
     private String customerName;
 

@@ -4,8 +4,8 @@ space: engineering
 category: integration
 tags: [integration, api, tender, crm, callback, x-api-key]
 created: 2026-06-21
-updated: 2026-09-24
-health_checked: 2026-09-24
+updated: 2026-09-28
+health_checked: 2026-09-28
 sources:
   - docs/integration/标讯集成接口文档-v3.8.md
   - docs/integration/外部业务系统对接技术设计与接口规范说明.md
@@ -198,6 +198,7 @@ Body: {"name":"可选，空/缺省保留原名","scopes":["tender:read","ca:read
 | v3.12 | 2026-08-25 | 新增接口六：项目修改 `PUT /api/integration/projects/{sourceSystem}/{sourceId}`（§3.6）；评估表客户信息「对接人手机号」改名并新增 TEL 座机号维度（依赖 !2366） |
 | — | 2026-08-27 | **接口六契约修正（接口未投产，非破坏性）**：定位参数 sourceId → tenderId（平台标讯主键），单通道替换无双通道；新增 applied=false 跳过语义；误传来源编号在绑定层 400。背景：CRM 联调时以商机编号/未推送主键作 sourceId 触发 27 连 404，根因=定位键与数据签发方不同源 + M 链路数据无 external_id 天然不可达 |
 | — | 2026-09-24 | **接口 2（标讯创建推送）`bidOpeningTime` / `registrationDeadline` 改为必填**：缺失或空白返回 400（报错：开标时间不能为空 / 报名截止时间不能为空）；CRM 推送报文本就携带两字段（CO-262 契约），零兼容影响；接口 3（修改）保持可选。落点：TenderPushRequest @NotBlank + TenderPushRequestValidationTest；事实源文档 v3.11 |
+| — | 2026-09-28 | **接口 2（标讯创建推送）`customerName`（招标主体）改为必填**：缺失或空白返回 400（报错：招标主体不能为空）；该字段为业务去重键（招标单位+报名截止+开标时间，`rejectDuplicateBusinessTender`）组成部分，必填后去重判定不再有“缺字段即跳过”的旁路；CRM 推送报文本就携带（CO-262 契约）；接口 3（修改）保持可选。事实源文档 v3.12 |
 
 ## 11. 待确认事项
 

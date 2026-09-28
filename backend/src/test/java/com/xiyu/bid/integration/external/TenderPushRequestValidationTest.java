@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * TenderPushRequest Bean Validation 校验规则测试。
  * <p>覆盖 /api/integration/tenders/push 必填字段约束：
- * bidOpeningTime（开标时间）、registrationDeadline（报名截止时间）。
+ * customerName（招标主体）、bidOpeningTime（开标时间）、registrationDeadline（报名截止时间）。
  */
 class TenderPushRequestValidationTest {
 
@@ -39,6 +39,7 @@ class TenderPushRequestValidationTest {
         req.setSourceSystem("CRM");
         req.setSourceId("900");
         req.setTitle("测试推送");
+        req.setCustomerName("西域智慧供应链（上海）股份公司");
         req.setRegistrationDeadline("2026-07-15T18:20:00");
         req.setBidOpeningTime("2026-07-18T18:20:00");
         return req;
@@ -49,6 +50,34 @@ class TenderPushRequestValidationTest {
     void validRequest_shouldPass() {
         Set<ConstraintViolation<TenderPushRequest>> violations = validator.validate(buildValidRequest());
         assertThat(violations).isEmpty();
+    }
+
+    @Test
+    @DisplayName("customerName 为 null → 校验失败")
+    void nullCustomerName_shouldFail() {
+        TenderPushRequest req = buildValidRequest();
+        req.setCustomerName(null);
+
+        Set<ConstraintViolation<TenderPushRequest>> violations = validator.validate(req);
+
+        assertThat(violations).anySatisfy(v -> {
+            assertThat(v.getPropertyPath().toString()).isEqualTo("customerName");
+            assertThat(v.getMessage()).isEqualTo("招标主体不能为空");
+        });
+    }
+
+    @Test
+    @DisplayName("customerName 为空白字符串 → 校验失败")
+    void blankCustomerName_shouldFail() {
+        TenderPushRequest req = buildValidRequest();
+        req.setCustomerName("  ");
+
+        Set<ConstraintViolation<TenderPushRequest>> violations = validator.validate(req);
+
+        assertThat(violations).anySatisfy(v -> {
+            assertThat(v.getPropertyPath().toString()).isEqualTo("customerName");
+            assertThat(v.getMessage()).isEqualTo("招标主体不能为空");
+        });
     }
 
     @Test
