@@ -81,6 +81,20 @@ class TenderPushRequestValidationTest {
     }
 
     @Test
+    @DisplayName("customerName 超过 255 字符（purchaser_name 列长）→ 校验失败")
+    void tooLongCustomerName_shouldFail() {
+        TenderPushRequest req = buildValidRequest();
+        req.setCustomerName("长".repeat(256));
+
+        Set<ConstraintViolation<TenderPushRequest>> violations = validator.validate(req);
+
+        assertThat(violations).anySatisfy(v -> {
+            assertThat(v.getPropertyPath().toString()).isEqualTo("customerName");
+            assertThat(v.getMessage()).contains("255");
+        });
+    }
+
+    @Test
     @DisplayName("registrationDeadline 为 null → 校验失败")
     void nullRegistrationDeadline_shouldFail() {
         TenderPushRequest req = buildValidRequest();

@@ -39,7 +39,8 @@ public class TenderIntegrationMapper {
         Tender t = new Tender();
         t.setTitle(InputSanitizer.sanitizeString(r.getTitle(), 500));
         if (r.getCustomerName() != null) {
-            t.setPurchaserName(InputSanitizer.sanitizeString(r.getCustomerName(), 500));
+            // purchaser_name 列长 255，与 TenderPushRequest.customerName @Size(max=255) 对齐，避免超长落库阶段才报错
+            t.setPurchaserName(InputSanitizer.sanitizeString(r.getCustomerName(), 255));
         }
         if (r.getPublishDate() != null) {
             t.setPublishDate(r.getPublishDate());
