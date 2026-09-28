@@ -27,19 +27,26 @@ public final class OriginalRuleRestoration {
                 || OriginalRuleUnitText.precedingContinuation(citedRaw,target,unit(other)))).toList();
         var ids=new java.util.LinkedHashSet<>(fact.sourceCellIds());
         if (structural.applicable()) structural.spans().forEach(span -> ids.add(span.sourceId()));
+        var validPeers = new java.util.ArrayList<MultimodalScoreFact>();
+        validPeers.add(fact);
         if (peers.size() > 1) for (var peer : peers) {
-            ids.addAll(peer.sourceCellIds());
+            if (java.util.Objects.equals(peer, fact)) continue;
             var peerUnit = LogicalRuleSourceUnit.resolve(artifact, peer);
-            if (peerUnit.applicable() && !peerUnit.closed()) return new Result("", cited);
+            if (peerUnit.applicable() && !peerUnit.closed()) {
+                if (structural.applicable() && structural.closed()) continue;
+                return new Result("", cited);
+            }
+            ids.addAll(peer.sourceCellIds());
             peerUnit.spans().forEach(span -> ids.add(span.sourceId()));
+            validPeers.add(peer);
         }
         var ordered=new java.util.ArrayList<String>();
         if(artifact!=null) artifact.tables().forEach(t -> t.cells().forEach(c -> {if(ids.contains(c.cellId())) ordered.add(c.cellId());}));
         ids.stream().filter(id -> !ordered.contains(id)).forEach(ordered::add);
-        var spans = structural.applicable() && peers.size() == 1 ? structural.spans()
+        var spans = structural.applicable() && validPeers.size() == 1 ? structural.spans()
                 : SourceSpanResolver.resolve(artifact, ordered);
         String raw = spans.stream().map(SourceSpan::rawText).collect(Collectors.joining("\n"));
-        String rule = OriginalRuleUnitText.restore(raw,target,peers.stream()
+        String rule = OriginalRuleUnitText.restore(raw,target,validPeers.stream()
                 .map(OriginalRuleRestoration::unit).toList());
         return new Result(rule, spans);
     }

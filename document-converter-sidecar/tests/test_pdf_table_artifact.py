@@ -762,3 +762,28 @@ def test_pdf_score_table_continuation_not_merged_across_known_sections_or_a_cut_
     assert len(_merge_pdf_score_table_continuations([first, other_section])) == 2
     # 章节被断点清空 → 合并会让续行沿用前一张表的 `sourceSection`，等于把外章行挂回本方案
     assert len(_merge_pdf_score_table_continuations([first, cut_section])) == 2
+
+
+def test_pdf_score_table_continuation_allows_empty_first_cell():
+    first = {
+        "sourcePage": 34,
+        "sourceTableIndex": 0,
+        "sourceSection": "第三章 评审办法",
+        "rows": [
+            ["条款号及名称", "评分因素", "评分标准", "分值"],
+            ["3.2.3（1）", "商务评分标准", "供应商业绩（7分）", "相关服务业绩"],
+        ],
+    }
+    continuation_blank_first_cell = {
+        "sourcePage": 35,
+        "sourceTableIndex": 1,
+        "sourceSection": "第三章 评审办法",
+        "rows": [
+            ["", "", "", "财务会计报表复印件（满分3分）"],
+            ["3.2.3（2）", "技术评分标准", "综合服务方案（10分）", "服务方案评分"],
+        ],
+    }
+    merged = _merge_pdf_score_table_continuations([first, continuation_blank_first_cell])
+    assert len(merged) == 1
+    assert len(merged[0]["rows"]) == 4
+    assert merged[0]["rows"][2][3] == "财务会计报表复印件（满分3分）"

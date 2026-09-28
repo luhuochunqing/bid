@@ -6,9 +6,11 @@
 package com.xiyu.bid.scoreparse.golden;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
 import com.xiyu.bid.scoreparse.domain.ChildAggregation;
 import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
+import com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
 import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
 import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
@@ -23,6 +25,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -185,6 +189,19 @@ class GoldenCasesReplayTest {
                 expected.path("outOfSchemeLine").asInt()).scopeStatus());
         assertEquals("IN_SCHEME", OriginalScoringContext.textScopeAt(text,
                 expected.path("inSchemeLine").asInt()).scopeStatus());
+
+        var p1 = facts.stream().filter(f -> "P1".equals(f.code())).findFirst().orElseThrow();
+        var p2 = facts.stream().filter(f -> "P2".equals(f.code())).findFirst().orElseThrow();
+        var r1 = OriginalRuleRestoration.restore(p1, artifact, validation.facts());
+        var r2 = OriginalRuleRestoration.restore(p2, artifact, validation.facts());
+        assertTrue(!r1.text().isBlank(), "P1 restored text must not be blank");
+        assertTrue(!r2.text().isBlank(), "P2 restored text must not be blank");
+
+        for (var fact : eligibleFacts) {
+            if (fact.tableId().isBlank()) continue;
+            var restored = OriginalRuleRestoration.restore(fact, artifact, validation.facts());
+            assertTrue(!restored.text().isBlank(), () -> "Fact " + fact.code() + " (" + fact.dimension() + ") restored text must not be blank");
+        }
     }
 
     @Test
@@ -289,63 +306,43 @@ class GoldenCasesReplayTest {
 
     private static List<MultimodalScoreFact> project1382RealShapeFacts(JsonNode expected) {
         List<MultimodalScoreFact> facts = new ArrayList<>();
-        realShapeRowsByTable(expected).forEach((tableId, rows) -> {
-            for (int row = 0; row < rows.size(); row++) facts.add(realShapeFact(tableId, row, rows.get(row)));
-        });
+        for (String group : List.of("parents", "facts", "auditFacts")) {
+            expected.path(group).forEach(item -> facts.add(realShapeFact(item)));
+        }
         return facts;
     }
 
-    /** Rows per table in physical order — parents first, then items, then the out-of-scheme table. */
-    private static Map<String, List<JsonNode>> realShapeRowsByTable(JsonNode expected) {
-        Map<String, List<JsonNode>> rowsByTable = new java.util.LinkedHashMap<>();
-        for (String group : List.of("parents", "facts", "auditFacts")) {
-            expected.path(group).forEach(item -> rowsByTable
-                    .computeIfAbsent(item.path("tableId").asText(), ignored -> new ArrayList<>()).add(item));
+    private static MultimodalScoreFact realShapeFact(JsonNode item) {
+        List<String> sourceCellIds = new ArrayList<>();
+        if (item.has("sourceCellIds")) {
+            item.path("sourceCellIds").forEach(cell -> sourceCellIds.add(cell.asText()));
         }
-        return rowsByTable;
-    }
-
-    private static MultimodalScoreFact realShapeFact(String tableId, int row, JsonNode item) {
-        // 引用单元格按「表 + 物理行」派生，不从 code 派生：空 code 的兄弟行会在 -name/-rule/-weight
-        // 上撞成同一组 id，触发 DUPLICATE_SOURCE 并掩盖真正要验证的资格门与身份行为。
-        return new MultimodalScoreFact(item.path("section").asText(), item.path("code").asText(),
-                item.path("parentCode").asText(""), item.path("dimension").asText(),
-                item.path("weight").decimalValue(), item.path("quote").asText(), "OBJECTIVE",
-                item.path("page").intValue(), tableId,
-                List.of(realShapeCellId(tableId, row, 1), realShapeCellId(tableId, row, 2),
-                        realShapeCellId(tableId, row, 3)),
-                item.path("quote").asText(), 0.99,
-                ChildAggregation.valueOf(item.path("childRelation").asText("SUM")), "", "");
-    }
-
-    private static String realShapeCellId(String tableId, int row, int column) {
-        return tableId + "-r" + row + "-c" + column;
+        return new MultimodalScoreFact(
+                item.path("section").asText(),
+                item.path("code").asText(),
+                item.path("parentCode").asText(""),
+                item.path("dimension").asText(),
+                item.path("weight").decimalValue(),
+                item.path("quote").asText(),
+                "OBJECTIVE",
+                item.has("page") ? item.path("page").intValue() : null,
+                item.path("tableId").asText(""),
+                sourceCellIds,
+                item.path("quote").asText(),
+                0.99,
+                ChildAggregation.valueOf(item.path("childRelation").asText("SUM")),
+                "",
+                ""
+        );
     }
 
     private static DocumentArtifact project1382RealShapeArtifact(JsonNode expected) {
-        Map<String, List<JsonNode>> rowsByTable = realShapeRowsByTable(expected);
-        List<DocumentArtifact.CanonicalTable> tables = new ArrayList<>();
-        expected.path("tables").forEach(spec -> {
-            String tableId = spec.path("tableId").asText();
-            List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new ArrayList<>(List.of(
-                    cell(tableId + "-h-no", 0, 0, "序号"), cell(tableId + "-h-name", 0, 1, "评审内容"),
-                    cell(tableId + "-h-rule", 0, 2, "评审标准"), cell(tableId + "-h-weight", 0, 3, "评分分值")));
-            int row = 0;
-            for (JsonNode item : rowsByTable.getOrDefault(tableId, List.of())) {
-                int physicalRow = row + 1;
-                cells.add(cell(realShapeCellId(tableId, row, 0), physicalRow, 0, Integer.toString(physicalRow)));
-                cells.add(cell(realShapeCellId(tableId, row, 1), physicalRow, 1, item.path("dimension").asText()));
-                cells.add(cell(realShapeCellId(tableId, row, 2), physicalRow, 2, item.path("quote").asText()));
-                cells.add(cell(realShapeCellId(tableId, row, 3), physicalRow, 3,
-                        item.path("weight").asText() + " 分"));
-                row++;
-            }
-            tables.add(table(tableId, spec.path("page").asInt(), spec.path("section").asText(),
-                    spec.path("score").asBoolean(),
-                    cells.toArray(DocumentArtifact.CanonicalTable.CanonicalCellDto[]::new)));
-        });
-        return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("project-1382-pdf-real-shape",
-                "sha-1382-pdf", "pdf", "2.2"), tables, List.of());
+        try {
+            String json = GoldenCasesReplaySupport.readFixture("case-project-1382-pdf-real-shape.artifact.json");
+            return new ObjectMapper().readValue(json, DocumentArtifact.class);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static int pageForTable(String tableId) {

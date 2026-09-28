@@ -13,8 +13,8 @@ sources:
 backlinks:
   - .wiki/pages/scoreparse-1382-pdf-scheme-gate-rca.md
 created: 2026-09-26
-updated: 2026-09-27
-health_checked: 2026-09-27
+updated: 2026-09-28
+health_checked: 2026-09-28
 archive: false
 ---
 
@@ -113,4 +113,13 @@ archive: false
 - **Sidecar 表内断点误切修复**：`converter.py` 新增 `_pdf_line_inside_table`，带 1.0pt 容差排除位于表格内部的普通文本行断点。
 - **ChildAggregation D6 聚合判定修复**：`ChildAggregation.java` 新增 `additive` 累加判定，收敛 `sharedCap` 关键字，解耦父项自身满分与子项共享上限约束。
 - **跨单元格引文匹配修复**：`PdfRowEvidenceBinder.java` 引入 k-combination 组合搜索与全量匹配优先消解，支持跨过分值列的多格事实绑定与纯正项目名清洗。
+
+### 4. 2026-09-28 标书原文恢复与多 Peer 兄弟项全盘熔断修复
+
+针对项目 1382 评分项在界面上标书原文列显示为破折号 "—"（报价 28 分与 12 分项原文缺失）的物理根因与落地修复：
+- **Sidecar 表格跨页续页判定放宽**：`converter.py` 的 `_is_pdf_score_table_continuation` 增加 `not first_cell` 判定，允许续页首单元格为空字符串时继续合并，保持第 34~39 页物理表完整合并为单张物理表（p34-t0010）；
+- **续表上下文闭合放宽**：`LogicalRuleSourceUnit.closed()` 在检测到单元格处于第三章评审办法等评分方案根章节时，放宽对 PDF 跨页续表严格独立序号列的限制，允许按方案范围闭合；
+- **解除兄弟项连带熔断**：`OriginalRuleRestoration` 中移除连带未闭合判断，当前项规则自身闭合且有结构性证据时，不再被未闭合的兄弟 Peer 连带清空原文；
+- **ChildAggregation 枚举词解冲突**：移除 `exclusive` 正则中的 `中\s*[：:为]`，收敛为 `优/良/差` 档位匹配，杜绝标书原文中“其中：”枚举引导词将 SUM 父子项误伤为互斥分档；
+- **真实 PDF 178 表 Artifact 替换人造假夹具**：以 Sidecar 对《办公用品.pdf》真实抽取的 178 表 Artifact 作为唯一金标测试源，彻底杜绝手工拼接表头带来的虚假安全感。
 

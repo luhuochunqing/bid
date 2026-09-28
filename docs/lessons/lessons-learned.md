@@ -6882,4 +6882,26 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - ChildAggregation 修复：新增 `additive` 判定，收敛 `sharedCap` 关键字，解耦父项自身满分与子项共享上限；
 - 跨格引文匹配修复：在 `PdfRowEvidenceBinder` 中引入 k-combination 组合搜索与全量匹配优先消解。
 
+---
 
+## 412. PDF 续表空单元格截断与多 Peer 兄弟项全盘熔断致标书原文缺失（项目 1382 原文恢复）（2026-09-28）
+
+### 现象
+
+项目 1382（标书《办公用品.pdf》）AI 评分标准解析总分达到 100 分后，界面标书原文列对报价评分项（如 28 分项、12 分项）显示为破折号 "—"，未能正确恢复标书原文。
+
+### 根因分析
+
+1. **Sidecar 表格跨页续页判定中断**：PDF 跨页表格续页首单元格为空字符串 `""` 时，`prev_first_cell != next_first_cell` 判断认为两表非续表关系，导致 34~39 页物理表在最后一页被硬切断；
+2. **`LogicalRuleSourceUnit.closed()` 过度严苛**：对 PDF 续表行强制要求每页必须具备独立“序号/编号”表头，忽略了处于“第三章 评审办法”等统一评分章节下的连续性继承；
+3. **`OriginalRuleRestoration` 多 Peer 连带熔断**：在同一物理单元格包含多个兄弟评分项（如 28 分与 12 分项）时，`peerUnit.applicable() && !peerUnit.closed()` 逻辑一旦有任一兄弟项未闭合，便将所有兄弟项的原文全部清空熔断；
+4. **`ChildAggregation` exclusive 正则误伤中文枚举词“其中：”**：`exclusive` 匹配模式包含 `中\s*[：:为]`（用于优良中差分档），但标书原文中“其中：一级集采商品28分，非一级集采商品12分”（甚至因换行跨成 `其\n中：`）匹配到该模式，误将父项子项关系判为 `MUTUALLY_EXCLUSIVE`，导致 `SUM` 校验失败；
+5. **人造金标夹具虚假安全**：旧测试采用 3 个假表格手动构造，掩盖了真实 PDF 抽取下 178 个物理表格、跨页合并与真实文本行定位的物理断裂。
+
+### 解决方案
+
+- **Sidecar 续表判定放宽**：在 `converter.py` 的 `_is_table_continuation` 中，允许续页首单元格为空字符串时继续合并，保持 34~39 页为完整物理表；
+- **续表上下文闭合**：在 `LogicalRuleSourceUnit.closed()` 中，当单元格处于已认定的评分章节（`sourceSection`）内时，放宽纯序号列必须闭合的限制；
+- **解除多 Peer 连带熔断**：在 `OriginalRuleRestoration` 中移除连带未闭合判断，允许自身闭合的项独立恢复完整原文；
+- **修复 ChildAggregation 模式**：`ChildAggregation.java` 移除孤立的 `中\s*[：:为]`，收敛为 `优\s*[：:为]|良\s*[：:为]|差\s*[：:为]`（真实评分标准必然包含优/良/差档位），彻底消除“其中：”或“其\n中：”枚举词造成的误伤；
+- **全真实 Artifact 金标回放**：采用 Sidecar 对《办公用品.pdf》真实抽取的 178 表 Artifact 作为回归测试唯一源，文本大纲行与表格单元格混合定位，端到端防退化。

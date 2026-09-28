@@ -749,7 +749,7 @@ def _is_pdf_score_table_continuation(previous: list[list[str]], current: list[li
     if _has_pdf_score_header(current):
         return False
     first_cell = _normalise_cell_text(current[0][0] if current[0] else "")
-    if not (re.fullmatch(r"\d+(?:[.、]\d+)?", first_cell) or "合计" in first_cell):
+    if not (not first_cell or re.fullmatch(r"\d+(?:[.、]\d+)?", first_cell) or "合计" in first_cell):
         return False
     return (
         _has_pdf_weighted_score_item(current)
@@ -766,7 +766,7 @@ def _is_genuine_header_row(row: list[str]) -> bool:
     if not row or len(row) < 3 or len(row) > 15:
         return False
     first = _normalise_cell_text(row[0])
-    if re.fullmatch(r"\d+(?:[.、]\d+)?", first):
+    if re.match(r"^\d", first) or re.fullmatch(r"\d+(?:[.、]\d+)?", first):
         return False
     if any(len(_normalise_cell_text(c)) > 40 for c in row):
         return False
