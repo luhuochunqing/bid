@@ -70,10 +70,6 @@ final class OriginalScoreWeightEvidencePolicy {
             boolean itemMatched = (!claim.dimension().isBlank() && contains(rowText, claim.dimension()))
                     || (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
                     && (claim.dimension().isBlank() || contains(claim.quotedText(), claim.dimension())));
-            if (!itemMatched) {
-                problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "dimension", "ITEM_SOURCE_SCOPE_MISMATCH",
-                        claim.dimension(), "not in cited item row", locator));
-            }
             List<BigDecimal> explicit = new ArrayList<>();
             List<BigDecimal> capped = new ArrayList<>();
             List<BigDecimal> title = new ArrayList<>();
@@ -104,6 +100,14 @@ final class OriginalScoreWeightEvidencePolicy {
                     && (!claim.parent() || claim.childAggregation() == ChildAggregation.MUTUALLY_EXCLUSIVE)) {
                 authoritative = List.of(tierValues.stream().max(BigDecimal::compareTo).orElseThrow());
             }
+            // 父类词写在 dimension、项名写在行标题时，行内分值已经证明就是这一行。
+            // 具体项名对到另一行（分值碰巧相同）仍然拒绝。
+            boolean categoryRowProven = OriginalScoreEvidencePolicy.sectionCategory(claim.dimension())
+                    && rowProvesWeight(claim, authoritative, title);
+            if (!itemMatched && !categoryRowProven) {
+                problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "dimension", "ITEM_SOURCE_SCOPE_MISMATCH",
+                        claim.dimension(), "not in cited item row", locator));
+            }
             Pattern claimWeightPattern = claim.weight() == null ? null
                     : Pattern.compile("(?<!\\d)" + Pattern.quote(claim.weight().stripTrailingZeros().toPlainString()) + "\\s*分");
             if (explicit.isEmpty() && claim.weight() != null
@@ -126,6 +130,16 @@ final class OriginalScoreWeightEvidencePolicy {
         }
         problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
                 "original item max score", claim.weight(), claim.tableId()));
+    }
+
+
+    private static boolean rowProvesWeight(ScoreEvidenceClaim claim, List<BigDecimal> authoritative,
+                                           List<BigDecimal> title) {
+        if (claim.weight() == null) return false;
+        if (!authoritative.isEmpty() && distinct(authoritative).size() == 1
+                && distinct(authoritative).iterator().next().compareTo(claim.weight()) == 0) return true;
+        return !claim.parent() && distinct(title).size() == 1
+                && distinct(title).iterator().next().compareTo(claim.weight()) == 0;
     }
 
     private static boolean contains(String source, String quote) {

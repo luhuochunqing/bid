@@ -124,9 +124,12 @@ public final class OriginalScoreEvidencePolicy {
         problems.addAll(context.problems());
         if (claims.isEmpty()) problems.add(new Problem("", "facts", "ORIGINAL_FACTS_MISSING",
                 "non-empty scoring facts", 0, total.locator()));
-        if (requireModelTotal && modelTotal == null) {
+        // 抽取提示要求模型拿不准时把 declaredTotal 留空。原文总分已经核验时，留空不再否决；
+        // 只有模型给出了另一个总分才记冲突。
+        if (requireModelTotal && modelTotal == null && total.value() == null) {
             problems.add(new Problem("", "declaredTotal", "MODEL_TOTAL_MISSING", total.value(), null, total.locator()));
-        } else if (requireModelTotal && total.value() != null && modelTotal.compareTo(total.value()) != 0) {
+        } else if (requireModelTotal && modelTotal != null && total.value() != null
+                && modelTotal.compareTo(total.value()) != 0) {
             problems.add(new Problem("", "declaredTotal", "MODEL_TOTAL_SOURCE_MISMATCH",
                     total.value(), modelTotal, total.locator()));
         }
@@ -137,6 +140,9 @@ public final class OriginalScoreEvidencePolicy {
         for (ScoreEvidenceClaim claim : claims) {
             Qualification qualification = OriginalScoreQualificationPolicy.qualify(context, artifact, claim, schemes);
             qualifications.add(qualification);
+            // 权重为 0 且不是父项的行是「见评审办法前附表」这类指引，不是评分单位。
+            // 资格仍要记下，方案外的 0 分项才能继续被校验器排除。
+            if (claim.weight() != null && claim.weight().signum() <= 0 && !claim.parent()) continue;
             if (qualification.candidateEligible()) {
                 eligibleClaimIds.add(claim.id());
                 OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems);
@@ -229,6 +235,37 @@ public final class OriginalScoreEvidencePolicy {
         public boolean matches(List<ScoreFact> currentFacts, List<ScoreCandidate> currentCandidates) {
             return facts.equals(currentFacts) && candidates.equals(currentCandidates);
         }
+    }
+
+    /** 模型常把「商务/技术/报价」写进 dimension，项名和分值在原文标题里。 */
+    static boolean sectionCategory(String dimension) {
+        if (dimension == null || dimension.isBlank()) return false;
+        return dimension.replaceAll("\\s+", "")
+                .matches("(?:商务|技术|报价|价格|其他)(?:部分|评分标准|评分|标准|因素)?");
+    }
+
+    public static String publishedDimension(String dimension, String sourceText, BigDecimal weight) {
+        if (!sectionCategory(dimension) || weight == null || sourceText == null || sourceText.isBlank()) {
+            return dimension == null ? "" : dimension;
+        }
+        String number = weight.stripTrailingZeros().toPlainString();
+        String compact = sourceText.replaceAll("\\s+", "");
+        int at = markerAt(compact, "（" + number + "分）");
+        if (at < 0) at = markerAt(compact, "(" + number + "分)");
+        if (at <= 0) return dimension;
+        int start = at;
+        while (start > 0 && nameChar(compact.charAt(start - 1))) start--;
+        String name = compact.substring(start, at).replaceFirst(
+                "^(?:商务|技术|报价|价格|其他)?(?:评分标准|评分|标准)?", "");
+        return name.length() >= 2 && name.length() <= 24 ? name : dimension;
+    }
+
+    private static int markerAt(String compact, String marker) {
+        return compact.indexOf(marker);
+    }
+
+    private static boolean nameChar(char value) {
+        return Character.isLetterOrDigit(value) || (value >= 0x4e00 && value <= 0x9fff);
     }
 
     public static PublicationProof publicationProof(Verification verification, BigDecimal leafTotal,
