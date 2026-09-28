@@ -95,6 +95,9 @@ node_modules
 # Cursor IDE 本地规则
 .cursor/
 
+# Qoder CLI 本地运行时目录
+.qoder/
+
 # 本地 universal-skills symlink
 skills/universal-skills
 test-output/
