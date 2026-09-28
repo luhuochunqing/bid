@@ -30,6 +30,14 @@ final class OriginalScoreQualificationPolicy {
             return qualification(claim, null, "SOURCE_UNVERIFIED", false,
                     "SOURCE_SCHEME_NOT_VERIFIED", "", schemes);
         }
+        if ("OUT_OF_SCHEME".equals(claim.scopeStatus())
+                && (claim.weight() == null || claim.weight().compareTo(java.math.BigDecimal.ZERO) <= 0)) {
+            String locator = claim.sourceCellIds() == null || claim.sourceCellIds().isEmpty()
+                    ? (claim.tableId() == null ? "" : claim.tableId())
+                    : claim.sourceCellIds().get(0);
+            return qualification(claim, schemeId, "OUT_OF_SCHEME", false,
+                    "ITEM_SCHEME_SCOPE_MISMATCH", locator, schemes);
+        }
         if (claim.textLocator()) {
             String locator = claim.sourceCellIds().get(0);
             if (!textLocatorContainsQuote(locator, claim.tenderText(), claim.quotedText())) {

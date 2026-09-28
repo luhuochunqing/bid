@@ -124,9 +124,9 @@ public final class OriginalScoreEvidencePolicy {
         problems.addAll(context.problems());
         if (claims.isEmpty()) problems.add(new Problem("", "facts", "ORIGINAL_FACTS_MISSING",
                 "non-empty scoring facts", 0, total.locator()));
-        if (requireModelTotal && modelTotal == null) {
+        if (requireModelTotal && modelTotal == null && total.value() == null) {
             problems.add(new Problem("", "declaredTotal", "MODEL_TOTAL_MISSING", total.value(), null, total.locator()));
-        } else if (requireModelTotal && total.value() != null && modelTotal.compareTo(total.value()) != 0) {
+        } else if (requireModelTotal && modelTotal != null && total.value() != null && modelTotal.compareTo(total.value()) != 0) {
             problems.add(new Problem("", "declaredTotal", "MODEL_TOTAL_SOURCE_MISMATCH",
                     total.value(), modelTotal, total.locator()));
         }
