@@ -42,8 +42,17 @@ public final class OriginalRuleUnitText {
                 && EvidenceText.normalize(peer.quote()).uniqueSpan(prefix).isPresent();
     }
     private static boolean identified(String heading,Unit unit) {
-        return unit.code()!=null && unit.code().length()>1 && heading.contains(unit.code())
-                || unit.name()!=null && unit.name().length()>1 && heading.contains(unit.name());
+        if (unit.code()!=null && unit.code().length()>1 && heading.contains(unit.code())) return true;
+        if (unit.name()!=null && unit.name().length()>1 && heading.contains(unit.name())) return true;
+        String firstLine = unit.quote() == null ? "" : unit.quote().lines().findFirst().orElse("").strip();
+        if (!firstLine.isBlank()) {
+            String normHeading = EvidenceText.normalize(heading).text();
+            String normFirst = EvidenceText.normalize(firstLine).text();
+            if (!normHeading.isBlank() && normHeading.length() >= 2 && normFirst.length() >= 2) {
+                if (normHeading.contains(normFirst) || normFirst.contains(normHeading)) return true;
+            }
+        }
+        return false;
     }
 
 }

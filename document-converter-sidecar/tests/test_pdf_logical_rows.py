@@ -34,3 +34,16 @@ def test_unproven_continuity_is_not_linked(page,section,name):
               table(page, [["", "", name, "售后服务方案"]],section)]
     _link_pdf_logical_rows(tables)
     assert tables[0]["cells"][0]["logicalRowId"] != tables[1]["cells"][0]["logicalRowId"]
+
+
+def test_intra_table_empty_prefix_continuation_linked():
+    tables = [table(34, [
+        ["3.2.3（2）", "技术评分标准", "针对办公用品的综合服务方案（10分）", "1.综合考察供应商售前服务能力，须提供售前服务方案，包括但不限于重大物流"],
+        ["", "", "", "配送纠纷解决方案及周期、重大质量纠纷解决方案及周期等。按照以上方案评分。1.评价为优的得8-10分；"],
+        ["", "", "针对办公用品的产品质量及价格管控方案（10分）", "1.综合考察供应商对推送至通用电子商城商品价格合规管控能力"]
+    ])]
+    _link_pdf_logical_rows(tables)
+    # Row 0 and Row 1 share logicalRowId
+    assert tables[0]["cells"][0]["logicalRowId"] == tables[0]["cells"][4]["logicalRowId"]
+    # Row 2 is independent
+    assert tables[0]["cells"][0]["logicalRowId"] != tables[0]["cells"][8]["logicalRowId"]

@@ -6905,3 +6905,45 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **解除多 Peer 连带熔断**：在 `OriginalRuleRestoration` 中移除连带未闭合判断，允许自身闭合的项独立恢复完整原文；
 - **修复 ChildAggregation 模式**：`ChildAggregation.java` 移除孤立的 `中\s*[：:为]`，收敛为 `优\s*[：:为]|良\s*[：:为]|差\s*[：:为]`（真实评分标准必然包含优/良/差档位），彻底消除“其中：”或“其\n中：”枚举词造成的误伤；
 - **全真实 Artifact 金标回放**：采用 Sidecar 对《办公用品.pdf》真实抽取的 178 表 Artifact 作为回归测试唯一源，文本大纲行与表格单元格混合定位，端到端防退化。
+
+---
+
+## 413. 多表前缀长引文与跨行规则恢复：Sidecar→后端→落库→UI 真实闭环 100 分自动通过（项目 1382 全链路根治）（2026-09-28）
+
+### 现象
+
+测试环境部署后重新解析项目 1382（标书《办公用品.pdf》），AI 评分标准解析依然停留在 91 分（丢了报价 40 分中的集采报价 28 分和非集采 12 分，以及部分技术分），无法达到声明的满分 100 分，未能自动落库生效。
+
+### 根因深度剖析
+
+1. **跨章节非评分事实误绑评分表（14 项虚假违规根源）**：
+   - 标书包含第五章“合同履约考核”（45 条事实中的第 20~45 条）。`LogicalRowEvidenceBinder` 原先未调用 `TextPrimaryEvidenceBinder.tableInFactScope` 过滤，导致履约考核事实因关键词误绑到第三章评分表 `p34-t0010`，级联引发 14 项违规（`ITEM_SOURCE_SCOPE_MISMATCH`, `RULE_MISSING`, `PARENT_NOT_FOUND` 等），使全单降级为 `REVIEW_REQUIRED`。
+2. **PDF 表内视觉续行（空前缀行）导致规则文本被截断**：
+   - PDF 表格由于排版换行，同属于一个评分项的内容被切分为多物理行（如 row 8+9、row 11+12、row 16+17），续行行前置序号与名称列为空，被分配了独立的 `logicalRowId`。导致 `LogicalRuleSourceUnit` 提取的单元格规则文本只有一半，引发 `OriginalRuleRestoration` 的 `uniqueSpan(quote)` 失败，返回空文本，使有效叶子项被打上 `FULL_RULE_UNIT_UNRESOLVED` 拒绝生成 Candidate。
+3. **同单元格/同逻辑行多 Candidate Peer 边界识别失效**：
+   - 报价 40 分中的集采 28 分和非集采 12 分同属 `3.2.3(3)`，`OriginalRuleUnitText.identified` 仅按 `code` 和 `name` 匹配 heading，无法识别模型生成的虚拟序号 `3.2.3(3)_2` 与标书原文小标题（“第一部分：一级集采商品”、“第二部分：非一级集采商品”）的对应关系，导致 peer 边界识别失败。
+
+### 解决方案
+
+- **跨章节误绑防御**：在 `LogicalRowEvidenceBinder` 中增加 `TextPrimaryEvidenceBinder.tableInFactScope(fact, firstTable, schemes)` 守卫，并在 `TextPrimaryEvidenceBinder` 中明确履约/考核类章节事实不得绑定到评分表，彻底消除 14 项虚假违规；
+- **PDF 表内续行逻辑行聚合**：在 `converter.py` 的 `_link_pdf_logical_rows` 与 `LogicalRuleSourceUnit.java` 中增加表内续行检测（前置列为空且末列非空时，双向扩展纳入同一逻辑行），完整拼接跨行规则文本，恢复 `uniqueSpan` 闭合能力；
+- **同格多 Peer 标题模糊对齐**：在 `OriginalRuleUnitText.java` 中增加第一行标题匹配，精准切分同单元格内的“第一部分/第二部分”多 Candidate 规则边界；
+- **Sidecar→后端→落库→UI 全闭环真实测试**：新建 `Project1382FullPipelineIntegrationTest`，使用物理抽取导出的 178 表产物与真实 45 项事实，打通提取判定（`AUTO_APPROVED`）、叶子项转换（13 项）、数据库持久化（`ScoreItemPersistenceService.persistItems`）、UI 聚合器（`SummaryAggregator` 100.00 分，无警告）全链路。
+
+### 可复用纪律
+
+- 事实绑定逻辑必须严格限定在事实本身的章节域内，绝不能把履约、合同考核条款误绑到前序评审办法的评分表中；
+- PDF 表格解析必须支持表内换行（空前缀行续接），单纯依赖单元格坐标无法保证自然段落的语义完整性；
+- 同单元格多候选项拆分必须结合小标题首行做 peer 边界划分，不能假设 code/name 能直接与单元格文本严格子串匹配；
+- 真实物理 PDF 全链路验证优于任何人工构造的简化夹具。
+
+### 相关文件
+
+- `document-converter-sidecar/converter.py`
+- `document-converter-sidecar/tests/test_pdf_logical_rows.py`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/LogicalRowEvidenceBinder.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/TextPrimaryEvidenceBinder.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/LogicalRuleSourceUnit.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalRuleUnitText.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreQualificationPolicy.java`
+- `backend/src/test/java/com/xiyu/bid/scoreparse/application/Project1382FullPipelineIntegrationTest.java`

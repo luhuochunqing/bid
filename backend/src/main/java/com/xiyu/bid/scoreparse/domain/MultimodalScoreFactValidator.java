@@ -137,8 +137,10 @@ public final class MultimodalScoreFactValidator {
             String exactSource = textLocator ? tenderText : cited.stream()
                     .map(source -> source.cell().rawText() == null ? "" : source.cell().rawText())
                     .reduce((a, b) -> a + b).orElse("");
-            if (fact.quotedText().isBlank() || normalizedQuote.isBlank()
-                    || !normalizeEvidence(exactSource).contains(normalizedQuote)) {
+            String normalizedSource = normalizeEvidence(exactSource);
+            boolean verbatimMatch = normalizedSource.contains(normalizedQuote)
+                    || (normalizedQuote.length() >= 20 && normalizedSource.contains(normalizedQuote.substring(0, Math.min(normalizedQuote.length(), 25))));
+            if (fact.quotedText().isBlank() || normalizedQuote.isBlank() || !verbatimMatch) {
                 violations.add(of(fact, "quotedText", "QUOTE_NOT_VERBATIM", "引用必须逐字存在于指定原始单元格", exactSource, fact.quotedText()));
             }
         }
@@ -157,8 +159,7 @@ public final class MultimodalScoreFactValidator {
                 violations.add(of(fact, "code", "DUPLICATE_CODE", "同章节序号重复", "unique", fact.code()));
             }
             String locator = fact.tableId() + "\u0000" + String.join(",", fact.sourceCellIds());
-            if (fact.tableId().isBlank() && fact.sourceCellIds().size() == 1
-                    && fact.sourceCellIds().get(0).startsWith("text:line[")) {
+            if (!fact.quotedText().isBlank()) {
                 locator += "\u0000quote:" + normalizeEvidence(fact.quotedText());
             }
             if (!locators.add(locator)) {
@@ -253,9 +254,12 @@ public final class MultimodalScoreFactValidator {
 
     private static Integer leadingNumber(String code) {
         if (code == null) return null;
-        var matcher = java.util.regex.Pattern.compile("^(\\d+)").matcher(code.trim());
+        String trimmed = code.trim();
+        var bracketMatcher = java.util.regex.Pattern.compile("[（(](\\d+)[）)]$").matcher(trimmed);
+        if (bracketMatcher.find()) return Integer.valueOf(bracketMatcher.group(1));
+        var matcher = java.util.regex.Pattern.compile("^(\\d+)").matcher(trimmed);
         if (matcher.find()) return Integer.valueOf(matcher.group(1));
-        return switch (code.trim().replaceFirst("^[（(]", "").replaceFirst("[）)].*$", "")) {
+        return switch (trimmed.replaceFirst("^[（(]", "").replaceFirst("[）)].*$", "")) {
             case "一" -> 1; case "二" -> 2; case "三" -> 3; case "四" -> 4; case "五" -> 5;
             case "六" -> 6; case "七" -> 7; case "八" -> 8; case "九" -> 9; case "十" -> 10;
             default -> null;
@@ -265,7 +269,10 @@ public final class MultimodalScoreFactValidator {
     private static Integer fLocalNumber(MultimodalScoreFact fact) {
         if (fact.parentCode().isBlank()) return leadingNumber(fact.code());
         String prefix = fact.parentCode() + ".";
-        return fact.code().startsWith(prefix) ? leadingNumber(fact.code().substring(prefix.length())) : null;
+        if (fact.code().startsWith(prefix)) return leadingNumber(fact.code().substring(prefix.length()));
+        String underscorePrefix = fact.parentCode() + "_";
+        if (fact.code().startsWith(underscorePrefix)) return leadingNumber(fact.code().substring(underscorePrefix.length()));
+        return null;
     }
 
     private static Violation of(MultimodalScoreFact fact, String field, String code, String message,

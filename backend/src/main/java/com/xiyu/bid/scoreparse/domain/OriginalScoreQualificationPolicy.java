@@ -47,6 +47,10 @@ final class OriginalScoreQualificationPolicy {
                 return qualification(claim, schemeId, "OUT_OF_SCHEME", false,
                         "ITEM_SCHEME_SCOPE_MISMATCH", locator, schemes);
             }
+            if ("OUT_OF_SCHEME".equals(claim.scopeStatus())) {
+                return qualification(claim, schemeId, "OUT_OF_SCHEME", false,
+                        "ITEM_SCHEME_SCOPE_MISMATCH", locator, schemes);
+            }
             if (claim.scopeStatus().isBlank() && textLocatorInScheme(locator, claim.tenderText(), context.scheme()))
                 return qualification(claim, schemeId, "IN_SCHEME", true, null, locator, schemes);
             return qualification(claim, schemeId, "SOURCE_UNVERIFIED", false,
@@ -54,12 +58,20 @@ final class OriginalScoreQualificationPolicy {
         }
         if (artifact == null || claim.tableId() == null || claim.tableId().isBlank()
                 || claim.sourceCellIds() == null || claim.sourceCellIds().isEmpty()) {
+            if ("OUT_OF_SCHEME".equals(claim.scopeStatus())) {
+                return qualification(claim, schemeId, "OUT_OF_SCHEME", false,
+                        "ITEM_SCHEME_SCOPE_MISMATCH", claim.tableId() == null ? "" : claim.tableId(), schemes);
+            }
             return qualification(claim, schemeId, "SOURCE_UNVERIFIED", false,
                     "SOURCE_LOCATOR_NOT_VERIFIED", claim.tableId(), schemes);
         }
         List<ReferencedCell> cited = resolveReferencedCells(artifact, claim.tableId(), claim.sourceCellIds());
         var table = cited.isEmpty() ? null : cited.get(0).table();
         if (table == null) {
+            if ("OUT_OF_SCHEME".equals(claim.scopeStatus())) {
+                return qualification(claim, schemeId, "OUT_OF_SCHEME", false,
+                        "ITEM_SCHEME_SCOPE_MISMATCH", claim.tableId(), schemes);
+            }
             return qualification(claim, schemeId, "SOURCE_UNVERIFIED", false,
                     "SOURCE_LOCATOR_NOT_VERIFIED", claim.tableId(), schemes);
         }
@@ -70,8 +82,11 @@ final class OriginalScoreQualificationPolicy {
         }
         String quotedCells = cited.stream().map(source -> source.cell().rawText() == null ? "" : source.cell().rawText())
                 .collect(java.util.stream.Collectors.joining(crossTable ? "" : " "));
-        if (claim.quotedText().isBlank()
-                || !normalizeSource(quotedCells).contains(normalizeSource(claim.quotedText()))) {
+        String normalizedCells = normalizeSource(quotedCells);
+        String normalizedQuote = normalizeSource(claim.quotedText());
+        boolean quoteMatches = normalizedCells.contains(normalizedQuote)
+                || (normalizedQuote.length() >= 20 && normalizedCells.contains(normalizedQuote.substring(0, Math.min(normalizedQuote.length(), 25))));
+        if (claim.quotedText().isBlank() || !quoteMatches) {
             return qualification(claim, schemeId, "SOURCE_UNVERIFIED", false,
                     "SOURCE_QUOTE_NOT_VERIFIED", claim.tableId() + ":" + claim.sourceCellIds().get(0), schemes);
         }

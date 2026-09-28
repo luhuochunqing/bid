@@ -62,8 +62,9 @@ final class OriginalScoreWeightEvidencePolicy {
                     && c.row() <= anchor.row() && c.row() + Math.max(1, c.rowspan() == null ? 1 : c.rowspan()) > anchor.row())
                     .toList();
             String locator = table.tableId() + ":" + anchor.cellId();
-            String rowText = row.stream().map(c -> c.rawText() == null ? "" : c.rawText())
+            String directRowText = row.stream().map(c -> c.rawText() == null ? "" : c.rawText())
                     .reduce((a, b) -> a + " " + b).orElse("");
+            String rowText = directRowText + " " + inheritedCategoryText(table, anchor.row());
             if (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
                     && declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight())) return;
             boolean itemMatched = (!claim.dimension().isBlank() && contains(rowText, claim.dimension()))
@@ -102,6 +103,13 @@ final class OriginalScoreWeightEvidencePolicy {
             if (tierSet(rowText, tierValues)
                     && (!claim.parent() || claim.childAggregation() == ChildAggregation.MUTUALLY_EXCLUSIVE)) {
                 authoritative = List.of(tierValues.stream().max(BigDecimal::compareTo).orElseThrow());
+            }
+            Pattern claimWeightPattern = claim.weight() == null ? null
+                    : Pattern.compile("(?<!\\d)" + Pattern.quote(claim.weight().stripTrailingZeros().toPlainString()) + "\\s*分");
+            if (!claim.parent() && explicit.isEmpty() && claim.weight() != null
+                    && authoritative.stream().anyMatch(w -> w.compareTo(claim.weight()) == 0)
+                    && (claim.quotedText().isBlank() || claimWeightPattern.matcher(claim.quotedText()).find())) {
+                return;
             }
             if (authoritative.isEmpty() || distinct(authoritative).size() != 1) {
                 if (!claim.parent() && distinct(title).size() == 1 && claim.weight() != null
@@ -163,6 +171,24 @@ final class OriginalScoreWeightEvidencePolicy {
         Set<BigDecimal> distinct = new LinkedHashSet<>();
         values.forEach(value -> distinct.add(value.stripTrailingZeros()));
         return distinct;
+    }
+
+    private static String inheritedCategoryText(DocumentArtifact.CanonicalTable table, int targetRow) {
+        StringBuilder sb = new StringBuilder();
+        int maxCol = Math.min(table.columns(), 3);
+        for (int col = 0; col < maxCol; col++) {
+            final int c = col;
+            for (int r = targetRow; r >= 0; r--) {
+                final int curR = r;
+                var cell = table.cells().stream().filter(cellDto -> cellDto.row() != null && cellDto.row() == curR
+                        && cellDto.column() != null && cellDto.column() == c).findFirst().orElse(null);
+                if (cell != null && cell.rawText() != null && !cell.rawText().isBlank()) {
+                    sb.append(" ").append(cell.rawText());
+                    break;
+                }
+            }
+        }
+        return sb.toString();
     }
 
     private static void collect(Pattern pattern, String raw, List<BigDecimal> values) {
