@@ -6947,3 +6947,41 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalRuleUnitText.java`
 - `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreQualificationPolicy.java`
 - `backend/src/test/java/com/xiyu/bid/scoreparse/application/Project1382FullPipelineIntegrationTest.java`
+
+---
+
+## 414. 大模型未声明总分与表外 0 分指引句误阻自动发布门禁（项目 1382 全链路根治第二阶段）（2026-09-28）
+
+### 现象
+
+测试环境重新解析项目 1382（标书《办公用品.pdf》）后，服务端日志判定结果仍为 `REVIEW_REQUIRED`，触发保留现有 91 分项不覆盖的安全保护，未落库最新 100 分评分项。
+
+### 根因深度剖析
+
+1. **大模型 Prompt 留空 `declaredTotal` 遭遇死板门禁一票否决**：
+   - Prompt 要求“无法确认就填空”，大模型将 `declaredTotal` 留空。发布门禁 `OriginalScoreEvidencePolicy.verify` 一看到 `modelTotal == null` 即记 `MODEL_TOTAL_MISSING`，即使正文已确证原文总分为 100 分且叶子项合计也是 100 分，依然直接拒绝整单。
+2. **表外 0 权重指引句被误收为评分项且报权重来源不明**：
+   - 3.2.3(1) 商务评分标准、3.2.3(2) 技术评分标准、3.2.3(4) 其他因素评分标准是表外“见评审办法前附表”指引句，模型抽取时权重填 0。原逻辑将其作为方案内评分项审核，正文无“0分”依据，被判定为 `ORIGINAL_WEIGHT_SOURCE_UNVERIFIED`。
+3. **表外公式说明段落报 `SOURCE_LOCATOR_NOT_VERIFIED`**：
+   - 3.2.3(3) 报价方法公式描述段落因跨多行排版格式差异，导致 `textLocatorContainsQuote` 失败，被改写为 `SOURCE_UNVERIFIED` 报阻断性缺陷。
+4. **反序列化转义符导致引文比对误判 `QUOTE_NOT_VERBATIM`**：
+   - 真实快照中大模型引文带字面量 `\n`，`EvidenceText.normalize` 未兼容字面量转义换行，导致跨页大段引文在首页截断处比对失败。
+
+### 解决方案
+
+- **模型未声明总分优雅回退**：`MultimodalExtractionReviewPolicy.normalized` 在 `declaredTotal == null` 时安全回退到已证实的 `context.total().value()`（100分）；并在 `OriginalScoreEvidencePolicy.verify` 中仅在模型与原文均缺失总分时才报 `MODEL_TOTAL_MISSING`，原文闭合时安全放行；
+- **表外 0 权重指引句划定 OUT_OF_SCHEME 并快速放行**：凡 `tableId.isBlank() && weight <= 0` 的项直接划定为 `OUT_OF_SCHEME`，并在 `OriginalScoreQualificationPolicy` 中 fast-path 排除，不再参与方案内评分项审核；
+- **转义空白鲁棒兼容**：在 `EvidenceText.normalize` 中将字面量 `\n`、`\r`、`\t` 兼容视为空白符，杜绝因格式差异导致引文比对误判；
+- **真实全链路测试闭环**：在 `Project1382FullPipelineIntegrationTest` 中重放线上 Task 286 真实 37 项事实，无任何人工过滤，直接判定 `AUTO_APPROVED`，过滤出 13 项有效叶子项，满分 100 分自动入库。
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalExtractionReviewPolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalStructuredExtractionHandler.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreEvidencePolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreQualificationPolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreWeightEvidencePolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/EvidenceText.java`
+- `backend/src/test/java/com/xiyu/bid/scoreparse/application/Project1382FullPipelineIntegrationTest.java`
+- `backend/src/test/resources/scoreparse/project-1382/task-286-facts.json`
+
