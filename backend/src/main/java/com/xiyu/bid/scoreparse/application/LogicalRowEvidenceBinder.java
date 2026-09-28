@@ -120,6 +120,7 @@ final class LogicalRowEvidenceBinder {
         String section = firstTable.sourceSection();
         if (row.stream().map(pair -> (DocumentArtifact.CanonicalTable) pair[0])
                 .anyMatch(table -> !section.equals(table.sourceSection()))) return false;
+        if (!TextPrimaryEvidenceBinder.tableInFactScope(fact, firstTable, schemes)) return false;
 
         List<String> schemeIds = row.stream().map(pair -> (DocumentArtifact.CanonicalTable) pair[0])
                 .map(table -> schemes.stream().filter(scheme -> scheme.tableIds().contains(table.tableId()))

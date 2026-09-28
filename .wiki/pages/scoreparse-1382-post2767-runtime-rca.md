@@ -123,3 +123,10 @@ archive: false
 - **ChildAggregation 枚举词解冲突**：移除 `exclusive` 正则中的 `中\s*[：:为]`，收敛为 `优/良/差` 档位匹配，杜绝标书原文中“其中：”枚举引导词将 SUM 父子项误伤为互斥分档；
 - **真实 PDF 178 表 Artifact 替换人造假夹具**：以 Sidecar 对《办公用品.pdf》真实抽取的 178 表 Artifact 作为唯一金标测试源，彻底杜绝手工拼接表头带来的虚假安全感。
 
+### 5. 2026-09-28 跨章节隔离与表内续行聚合：Sidecar→后端→落库→UI 真实闭环 100 分自动通过
+
+针对测试环境部署后重新解析依然停留在 91 分（丢了报价 28 分和 12 分等关键叶子项，且出现 14 项虚假违规导致降级为 REVIEW_REQUIRED）的底层根因与根治方案：
+- **跨章节误绑防御**：在 `LogicalRowEvidenceBinder` 中增加 `TextPrimaryEvidenceBinder.tableInFactScope(fact, firstTable, schemes)` 守卫，并在 `TextPrimaryEvidenceBinder` 中明确履约/考核类章节事实不得绑定到评分表，彻底消除误绑导致的 14 项虚假违规（`ITEM_SOURCE_SCOPE_MISMATCH`, `RULE_MISSING`, `PARENT_NOT_FOUND` 等）；
+- **PDF 表内续行逻辑行聚合**：在 `converter.py` 的 `_link_pdf_logical_rows` 与 `LogicalRuleSourceUnit.java` 中增加表内续行检测（前置序号/名称列为空且末列非空时，双向扩展纳入同一逻辑行），完整拼接跨行规则文本，恢复 `uniqueSpan` 闭合能力；
+- **同格多 Peer 标题模糊对齐**：在 `OriginalRuleUnitText.java` 中增加第一行标题匹配，精准切分同单元格内的“第一部分/第二部分”多 Candidate 规则边界；
+- **Sidecar→后端→落库→UI 全闭环真实测试**：新建 `Project1382FullPipelineIntegrationTest`，使用物理抽取导出的 178 表产物与真实 45 项事实，打通提取判定（`AUTO_APPROVED`）、叶子项转换（13 项）、数据库持久化（`ScoreItemPersistenceService.persistItems`）、UI 聚合器（`SummaryAggregator` 100.00 分，无警告）全链路。

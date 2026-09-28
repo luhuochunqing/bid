@@ -39,7 +39,14 @@ final class TextPrimaryEvidenceBinder {
                     .flatMap(table -> table.cells().stream().map(cell -> new Object[]{table, cell}))
                     .filter(pair -> fact.sourceCellIds().isEmpty() || fact.sourceCellIds().contains(
                             ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).cellId()))
-                    .filter(pair -> matches(fact, pair, schemes)).toList();
+                    .filter(pair -> matchesExact(fact, pair, schemes)).toList();
+            if (exactCells.isEmpty() && artifact != null) {
+                exactCells = artifact.tables().stream()
+                        .flatMap(table -> table.cells().stream().map(cell -> new Object[]{table, cell}))
+                        .filter(pair -> fact.sourceCellIds().isEmpty() || fact.sourceCellIds().contains(
+                                ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).cellId()))
+                        .filter(pair -> matchesPrefix(fact, pair, schemes)).toList();
+            }
             var bound = exactCells.size() == 1 ? exactCells.stream().findFirst()
                     .map(pair -> {
                         var table = (DocumentArtifact.CanonicalTable) pair[0];
@@ -73,6 +80,12 @@ final class TextPrimaryEvidenceBinder {
             String section = table.sourceSection() == null ? "" : table.sourceSection();
             return section.matches("(?s).*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*")
                     && tableScheme.isBlank();
+        }
+        if (fact.sectionTitle() != null && !fact.sectionTitle().isBlank()) {
+            if (fact.sectionTitle().matches("(?s).*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*")
+                    && (!tableScheme.isBlank() || Boolean.TRUE.equals(table.isScoreTable()))) {
+                return false;
+            }
         }
         return true;
     }
@@ -148,8 +161,8 @@ final class TextPrimaryEvidenceBinder {
     private record NormalizedEvidence(String text, List<Integer> sourceOffsets) {
     }
 
-    private static boolean matches(MultimodalScoreFact fact, Object[] pair,
-                                   List<OriginalScoringContext.SchemeEvidence> schemes) {
+    private static boolean matchesExact(MultimodalScoreFact fact, Object[] pair,
+                                        List<OriginalScoringContext.SchemeEvidence> schemes) {
         var table = (DocumentArtifact.CanonicalTable) pair[0];
         var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
         if (!tableInFactScope(fact, table, schemes)) return false;
@@ -160,12 +173,25 @@ final class TextPrimaryEvidenceBinder {
                 && normalizeForEvidence(raw).contains(normalizedQuote);
     }
 
+    private static boolean matchesPrefix(MultimodalScoreFact fact, Object[] pair,
+                                         List<OriginalScoringContext.SchemeEvidence> schemes) {
+        var table = (DocumentArtifact.CanonicalTable) pair[0];
+        var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
+        if (!tableInFactScope(fact, table, schemes)) return false;
+        String raw = cell.rawText() == null ? "" : cell.rawText();
+        String normalizedQuote = normalizeForEvidence(fact.quotedText());
+        if (fact.quotedText().isBlank() || normalizedQuote.isBlank() || normalizedQuote.length() < 20) return false;
+        String prefix = normalizedQuote.substring(0, Math.min(normalizedQuote.length(), 25));
+        return normalizeForEvidence(raw).contains(prefix);
+    }
+
     private static MultimodalScoreFact bound(MultimodalScoreFact fact, Object[] pair) {
         var table = (DocumentArtifact.CanonicalTable) pair[0];
         var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
         Integer page = cell.sourcePage() == null ? table.sourcePage() : cell.sourcePage();
+        String ruleText = fact.ruleText().isBlank() ? (fact.quotedText().isBlank() ? cell.rawText() : fact.quotedText()) : fact.ruleText();
         return new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(), fact.dimension(), fact.weight(),
-                fact.ruleText(), fact.scoreType(), page, table.tableId(), List.of(cell.cellId()), restoredQuote(cell.rawText(), fact.quotedText()),
+                ruleText, fact.scoreType(), page, table.tableId(), List.of(cell.cellId()), restoredQuote(cell.rawText(), fact.quotedText()),
                 fact.confidence(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus());
     }
 

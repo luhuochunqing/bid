@@ -998,6 +998,22 @@ def _link_pdf_logical_rows(tables: list[dict]) -> None:
     for table in tables:
         for cell in table["cells"]:
             cell["logicalRowId"] = f"{table['tableId']}-r{cell['row']}"
+        num_rows = table.get("rows", 0)
+        num_cols = table.get("columns", 0)
+        if num_rows > 1 and num_cols >= 2:
+            row_map = {}
+            for cell in table["cells"]:
+                row_map.setdefault(cell["row"], []).append(cell)
+            for r in range(1, num_rows):
+                curr_row = sorted(row_map.get(r, []), key=lambda c: c["column"])
+                prev_row = sorted(row_map.get(r - 1, []), key=lambda c: c["column"])
+                if len(curr_row) == num_cols and len(prev_row) == num_cols:
+                    prefix_empty = all(not (c.get("rawText") or "").strip() for c in curr_row[:-1])
+                    rule_has_text = bool((curr_row[-1].get("rawText") or "").strip())
+                    prev_rule_has_text = bool((prev_row[-1].get("rawText") or "").strip())
+                    if prefix_empty and rule_has_text and prev_rule_has_text:
+                        for c in curr_row:
+                            c["logicalRowId"] = prev_row[0]["logicalRowId"]
     for previous, current in zip(tables, tables[1:]):
         if (not previous.get("sourceSection")
                 or previous.get("sourceSection") != current.get("sourceSection")

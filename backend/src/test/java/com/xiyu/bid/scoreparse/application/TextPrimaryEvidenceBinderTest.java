@@ -516,4 +516,28 @@ class TextPrimaryEvidenceBinderTest {
         assertThat(unbound.pageNumber()).isEqualTo(29);
         assertThat(unbound.sourceCellIds()).isEmpty();
     }
+
+    @Test
+    void bindsMultiRowQuoteByUniqueSignificantPrefix() {
+        var cell1 = new DocumentArtifact.CanonicalTable.CanonicalCellDto("r16-c3", 16, 3,
+                "第一部分：一级集采商品（合计28分）\n1、一级集采商品上架折扣率（28分）：供应商在响应文件格式响应函附件1：报价表-1.1一级集采商品上架折扣率报价表的“三级分类品类上架折扣率”填报折扣率...",
+                "", 1, 1, false, "pdf:page=38", 38, "");
+        var cell2 = new DocumentArtifact.CanonicalTable.CanonicalCellDto("r17-c3", 17, 3,
+                "2、一级集采商品清单报价：供应商在响应文件格式响应函附件1：报价表-1.2一级集采商品清单报价中按要求进行报价...",
+                "", 1, 1, false, "pdf:page=39", 39, "");
+        var table = new DocumentArtifact.CanonicalTable("p34-t0010", 34, "第三章 评审办法", 20, 4,
+                List.of(), List.of(cell1, cell2), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "v2"),
+                List.of(table), List.of());
+
+        // Quote is longer than cell1 because it continues into cell2
+        String longQuote = "第一部分：一级集采商品（合计28分）\n1、一级集采商品上架折扣率（28分）：供应商在响应文件格式响应函附件1：报价表-1.1一级集采商品上架折扣率报价表的“三级分类品类上架折扣率”填报折扣率... 2、一级集采商品清单报价：供应商在响应文件格式响应函附件1：报价表-1.2一级集采商品清单报价中按要求进行报价...";
+        var fact = new MultimodalScoreFact("第三章 评审办法", "3.2.3(3)_1", "", "报价", BigDecimal.valueOf(28),
+                "一级集采", "OBJECTIVE", 38, "", List.of(), longQuote, 0.9, ChildAggregation.SUM);
+
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
+        assertThat(bound.tableId()).isEqualTo("p34-t0010");
+        assertThat(bound.sourceCellIds()).containsExactly("r16-c3");
+        assertThat(bound.pageNumber()).isEqualTo(38);
+    }
 }

@@ -40,6 +40,10 @@ final class MultimodalExtractionReviewPolicy {
                                                    DocumentArtifact artifact, String tenderText,
                                                    List<OriginalScoringContext.SchemeEvidence> schemes) {
         if (!fact.scopeStatus().isBlank() && !fact.schemeId().isBlank()) return fact;
+        if (fact.sectionTitle() != null && context != null && !context.scheme().isBlank()
+                && fact.sectionTitle().matches("(?s).*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*")) {
+            return fact.withScope(OriginalScoringContext.schemeId(context.scheme()), "OUT_OF_SCHEME");
+        }
         if (!fact.tableId().isBlank() && artifact != null) {
             var table = artifact.tables().stream().filter(candidate -> fact.tableId().equals(candidate.tableId()))
                     .findFirst().orElse(null);

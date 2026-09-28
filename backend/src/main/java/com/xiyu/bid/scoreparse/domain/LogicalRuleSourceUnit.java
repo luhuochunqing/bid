@@ -110,9 +110,43 @@ public final class LogicalRuleSourceUnit {
     private static List<Cell> logicalRow(DocumentArtifact artifact, Cell first) {
         if (first.cell().logicalRowId().isBlank()) return List.of();
         var document = artifact.documentFor(first.cell().cellId());
-        return cells(artifact).stream().filter(c -> first.cell().logicalRowId().equals(c.cell().logicalRowId())
+        List<Cell> baseRow = cells(artifact).stream().filter(c -> first.cell().logicalRowId().equals(c.cell().logicalRowId())
                 && first.table().sourceSection().equals(c.table().sourceSection())
                 && Objects.equals(document, artifact.documentFor(c.cell().cellId()))).toList();
+        if (baseRow.isEmpty()) return baseRow;
+        var table = first.table();
+        String type = table.sourceFileType().isBlank() ? (document == null ? "" : document.fileType()) : table.sourceFileType();
+        if (!"PDF".equalsIgnoreCase(type) || table.rows() <= 1) {
+            return baseRow;
+        }
+        int minRow = baseRow.stream().map(c -> c.cell().row()).filter(Objects::nonNull).mapToInt(Integer::intValue).min().orElse(-1);
+        int maxRow = baseRow.stream().map(c -> c.cell().row()).filter(Objects::nonNull).mapToInt(Integer::intValue).max().orElse(-1);
+        if (minRow < 0) return baseRow;
+        while (minRow > 0 && isContinuationRow(table, minRow)) {
+            minRow--;
+        }
+        while (maxRow + 1 < table.rows() && isContinuationRow(table, maxRow + 1)) {
+            maxRow++;
+        }
+        final int fromRow = minRow;
+        final int toRow = maxRow;
+        return table.cells().stream()
+                .filter(c -> c.row() != null && c.row() >= fromRow && c.row() <= toRow)
+                .map(c -> new Cell(table, c)).toList();
+    }
+
+    private static boolean isContinuationRow(CanonicalTable table, int rowIdx) {
+        List<CanonicalCellDto> rowCells = table.cells().stream().filter(c -> Integer.valueOf(rowIdx).equals(c.row())).toList();
+        if (rowCells.isEmpty()) return false;
+        int maxCol = rowCells.stream().map(CanonicalCellDto::column).filter(Objects::nonNull).mapToInt(Integer::intValue).max().orElse(0);
+        if (maxCol <= 0) return false;
+        boolean prefixBlank = rowCells.stream()
+                .filter(c -> c.column() != null && c.column() < maxCol)
+                .allMatch(c -> text(c.rawText()).isBlank());
+        if (!prefixBlank) return false;
+        return rowCells.stream()
+                .filter(c -> Integer.valueOf(maxCol).equals(c.column()))
+                .anyMatch(c -> !text(c.rawText()).isBlank());
     }
     private static List<Cell> cells(DocumentArtifact artifact) {
         return artifact.tables().stream().flatMap(t -> t.cells().stream().map(c -> new Cell(t, c))).toList();
