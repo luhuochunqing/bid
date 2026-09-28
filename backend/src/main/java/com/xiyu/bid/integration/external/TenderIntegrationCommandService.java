@@ -120,7 +120,8 @@ public class TenderIntegrationCommandService {
             return;
         }
         tenderDeduplicationService.rejectIfDuplicate(
-                InputSanitizer.sanitizeString(request.getCustomerName(), 500),
+                // 与 TenderPushRequest.customerName @Size(255)/mapper 落库截断对齐，保证去重键与落库值同口径
+                InputSanitizer.sanitizeString(request.getCustomerName(), 255),
                 request.getProjectType() != null ? InputSanitizer.sanitizeString(request.getProjectType(), 20) : null,
                 TenderIntegrationMapper.parseDateTime("registrationDeadline", request.getRegistrationDeadline()),
                 TenderIntegrationMapper.parseDateTime("bidOpeningTime", request.getBidOpeningTime()));

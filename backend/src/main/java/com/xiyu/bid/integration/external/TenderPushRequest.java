@@ -38,7 +38,9 @@ public class TenderPushRequest {
     @Size(max = 500)
     private String title;
 
-    @Size(max = 500)
+    /** 招标主体（招标单位全称，必填，与 purchaser_name 列长对齐） */
+    @NotBlank(message = "招标主体不能为空")
+    @Size(max = 255)
     private String customerName;
 
     private LocalDate publishDate;
