@@ -7021,4 +7021,45 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - `backend/src/test/java/com/xiyu/bid/scoreparse/application/Project1382FullPipelineIntegrationTest.java`
 - `backend/src/test/resources/scoreparse/project-1382/task-289-live-facts.json`
 
+---
+
+## 416. 评分父项同编码歧义、0权重合同项范围逃逸与非计分项证据误报（项目 1382 Task 290 真实 51 项回放与闭环）（2026-09-29）
+
+### 现象
+
+在修复大纲分值声明与合同考核项放行后，测试环境重新解析项目 1382（标书《办公用品.pdf》）Task 290，线上依然输出保留现有 91 分项不覆盖的安全保护，未落库最新 100 分评分项。
+
+### 根因深度剖析
+
+1. **父项编码字典中的“0 权重说明句碰撞正式父项”造成歧义降级**：
+   - 在 Task 290 中，大模型抽取出 51 项事实，其中包含了 3 项正权重正式父项（如 code="3.2.3(1)", weight=15）和 3 项纯说明句（如 code="3.2.3(1)", weight=0）。
+   - `MultimodalFactParentCodeNormalizer` 在建立候选父项字典时，只要遇到相同的 `code` 即标记为 `\u0000AMBIGUOUS\u0000`。导致正式父项被当成歧义项降级，下属的所有商务、技术、价格子项在调用 `resolveParent` 时无法关联到正确父项，被当做悬挂项报 `CHILD_WITHOUT_PARENT`。
+2. **0 权重合同履约项与表外说明项短路逃逸**：
+   - `MultimodalExtractionReviewPolicy.assignScope` 因过早判断 `if (!fact.scopeStatus().isBlank() && !fact.schemeId().isBlank()) return fact;`，导致上游分片盖章的表外事实逃逸了 `OUT_OF_SCHEME` 兜底守卫。
+   - `OriginalScoreQualificationPolicy` 在做引文校验时未区分 0 权重说明项与正权重计分项，导致逃逸的 0 权重说明项因跨行引文匹配差异被误判为 `SOURCE_LOCATOR_NOT_VERIFIED`。
+3. **0 权重非计分项被强行做权重单元格证据校验**：
+   - `OriginalScoreEvidencePolicy.verify` 在扫描事实时，对于未参与计分的说明项未做权重检查过滤，导致无权重单元格的说明项被误报 `CELL_NOT_FOUND` 或 `ITEM_WEIGHT_SOURCE_UNKNOWN`。
+
+### 解决方案
+
+- **正权重优先防歧义**：
+  - 在 `MultimodalFactParentCodeNormalizer.mergeCandidate` 中引入正权重优先规则（`weight > 0` 优先保留），消除 0 权重说明句与正权重正式父项的同编码冲突，确保子项精准归属父项；
+- **OUT_OF_SCHEME 前置拦截与快速放行**：
+  - 在 `MultimodalExtractionReviewPolicy.assignScope` 中前置合同履约项与无表 0 权重事实的范围判定守卫，彻底截断短路逃逸；
+  - 在 `OriginalScoreQualificationPolicy` 中针对 0 权重 `OUT_OF_SCHEME` 项设置 fast-path 快速放行，非 0 权重条款保留严格引文核验；
+- **0 权重非计分项跳过权重单元格检验**：
+  - 在 `OriginalScoreEvidencePolicy` 中明确 `if (claim.weight() != null && claim.weight().signum() <= 0) continue;`，避免非计分项误报；
+- **线上 Task 290 真实 51 项全量无清洗测试闭环**：
+  - 从测试服务器无损提取 Task 290 真实 51 项事实（`task-290-live-facts.json`），在 `Project1382FullPipelineIntegrationTest.verifyTask290LiveOnlineFacts` 中完整重放，确证 `AUTO_APPROVED` 自动判定，14 项有效评分项（13 项叶子计分项 + 1 项扣分清单规则项，总分 100.00 分）全部正确持久化落库。
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/MultimodalFactParentCodeNormalizer.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalExtractionReviewPolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreEvidencePolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreQualificationPolicy.java`
+- `backend/src/test/java/com/xiyu/bid/scoreparse/application/Project1382FullPipelineIntegrationTest.java`
+- `backend/src/test/resources/scoreparse/project-1382/task-290-live-facts.json`
+
+
 

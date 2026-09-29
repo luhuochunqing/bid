@@ -112,7 +112,11 @@ class CrossFormatDocumentSourceReplayTest {
     static DocumentArtifact convert(String variant) throws Exception {
         Path sidecar=Path.of("../document-converter-sidecar").toAbsolutePath();
         Path file=Path.of("src/test/resources/scoreparse/docx-continuity/"+variant+"-score-language.docx").toAbsolutePath();
-        String python=System.getenv().getOrDefault("SIDECAR_PYTHON", "python3");
+        String python = System.getenv("SIDECAR_PYTHON");
+        if (python == null || python.isBlank()) {
+            Path venv = sidecar.resolve(".venv/bin/python");
+            python = Files.exists(venv) ? venv.toString() : "python3";
+        }
         Path output=Files.createTempFile("docx-source-replay-", ".json");
         Process process=null;
         try {
