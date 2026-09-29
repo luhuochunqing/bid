@@ -168,9 +168,11 @@ final class TextPrimaryEvidenceBinder {
         if (!tableInFactScope(fact, table, schemes)) return false;
         String raw = cell.rawText() == null ? "" : cell.rawText();
         String normalizedQuote = normalizeForEvidence(fact.quotedText());
-        return !fact.quotedText().isBlank()
-                && !normalizedQuote.isBlank()
-                && normalizeForEvidence(raw).contains(normalizedQuote);
+        if (fact.quotedText().isBlank() || normalizedQuote.isBlank()) return false;
+        String normalizedRaw = normalizeForEvidence(raw);
+        if (normalizedRaw.contains(normalizedQuote)) return true;
+        String cleanQuote = normalizedQuote.replaceAll("\\s+", "");
+        return cleanQuote.length() >= 4 && normalizedRaw.replaceAll("\\s+", "").contains(cleanQuote);
     }
 
     private static boolean matchesPrefix(MultimodalScoreFact fact, Object[] pair,
@@ -182,7 +184,10 @@ final class TextPrimaryEvidenceBinder {
         String normalizedQuote = normalizeForEvidence(fact.quotedText());
         if (fact.quotedText().isBlank() || normalizedQuote.isBlank() || normalizedQuote.length() < 20) return false;
         String prefix = normalizedQuote.substring(0, Math.min(normalizedQuote.length(), 25));
-        return normalizeForEvidence(raw).contains(prefix);
+        String normalizedRaw = normalizeForEvidence(raw);
+        if (normalizedRaw.contains(prefix)) return true;
+        String cleanPrefix = prefix.replaceAll("\\s+", "");
+        return cleanPrefix.length() >= 10 && normalizedRaw.replaceAll("\\s+", "").contains(cleanPrefix);
     }
 
     private static MultimodalScoreFact bound(MultimodalScoreFact fact, Object[] pair) {

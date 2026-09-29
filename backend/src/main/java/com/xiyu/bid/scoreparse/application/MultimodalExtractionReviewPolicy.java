@@ -61,6 +61,10 @@ final class MultimodalExtractionReviewPolicy {
             }
             boolean hasScoringTables = artifact != null && artifact.tables().stream().anyMatch(candidate -> Boolean.TRUE.equals(candidate.isScoreTable()));
             if (hasScoringTables && fact.tableId().isBlank() && (fact.sourceCellIds() == null || fact.sourceCellIds().isEmpty())) {
+                if (isScoringSection(fact.sectionTitle()) && hasScoringCode(fact.code())
+                        && fact.weight() != null && fact.weight().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                    return fact.withScope(contextSchemeId, "IN_SCHEME");
+                }
                 return fact.withScope(contextSchemeId, "OUT_OF_SCHEME");
             }
         }
@@ -145,5 +149,16 @@ final class MultimodalExtractionReviewPolicy {
                         entry.getKey(), -1, entry.getValue().locator(), entry.getValue().locator()))
                 .toList();
         return ScoreTableSplitPolicy.split(inputs, totals, tenderSectionText);
+    }
+
+    private static boolean isScoringSection(String sectionTitle) {
+        if (sectionTitle == null || sectionTitle.isBlank()) return true;
+        return sectionTitle.matches("(?s).*(?:评审办法|评标办法|评分办法|评分标准|评审标准|综合评估法|分值构成|综合评分).*")
+                || (sectionTitle.matches("(?s).*第[一二三四五六七八九十0-9]+章.*") && !sectionTitle.matches("(?s).*(?:合同|履约|考核).*"));
+    }
+
+    private static boolean hasScoringCode(String code) {
+        if (code == null || code.isBlank()) return false;
+        return code.matches("^(?:3\\.2\\.\\d|\\d+[._()（）\\-0-9]|\\d+（\\d+）|\\d+\\(\\d+\\)|(?i)(?:BIZ|TECH|PRICE)[_\\d]).*");
     }
 }

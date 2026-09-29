@@ -542,15 +542,6 @@ class Project1382FullPipelineIntegrationTest {
             String scoreType = "OBJECTIVE";
             String parentFactId = node.path("parentFactId").asText("");
             String parentCode = parentFactId.isBlank() ? "" : codeByFactId.getOrDefault(parentFactId, "");
-            if (parentCode.isBlank()) {
-                if (code.startsWith("3.2.3(1).")) {
-                    parentCode = "3.2.3(1)";
-                } else if (code.startsWith("3.2.3(2).")) {
-                    parentCode = "3.2.3(2)";
-                } else if ("3.2.3(3).1".equals(code) || "3.2.3(3).2".equals(code)) {
-                    parentCode = "3.2.3(3)";
-                }
-            }
             String tableId = node.path("sourceTableId").asText("");
 
             List<String> sourceCellIds = new ArrayList<>();

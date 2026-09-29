@@ -17,4 +17,13 @@ class EvidenceTextTest {
         assertThat(source.uniqueSpan("物流服务")).isEmpty();
         assertThat(source.uniqueSpan("物流服物")).isEmpty();
     }
+    @Test void numberAndChineseNewlineRetainsNoWhitespace() {
+        String raw = "一级集采商品价格分（满分28\n分）+非一级集采商品价格分（满分12分）";
+        var normalized = EvidenceText.normalize(raw);
+        assertThat(normalized.text()).isEqualTo("一级集采商品价格分（满分28分）+非一级集采商品价格分（满分12分）");
+        var span = normalized.uniqueSpan("28分").orElseThrow();
+        assertThat(raw.substring(span.start(), span.end())).isEqualTo("28\n分");
+        var spanWithSpace = normalized.uniqueSpan("28 分").orElseThrow();
+        assertThat(raw.substring(spanWithSpace.start(), spanWithSpace.end())).isEqualTo("28\n分");
+    }
 }

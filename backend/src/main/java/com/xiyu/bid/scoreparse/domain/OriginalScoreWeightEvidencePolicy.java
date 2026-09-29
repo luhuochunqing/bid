@@ -176,7 +176,8 @@ final class OriginalScoreWeightEvidencePolicy {
 
     private static boolean containsDimension(String source, String dimension) {
         if (contains(source, dimension)) return true;
-        return isPriceDimension(dimension) && (contains(source, "价格") || contains(source, "报价"));
+        if (isPriceDimension(dimension) && (contains(source, "价格") || contains(source, "报价"))) return true;
+        return OriginalScoreEvidencePolicy.matchesDimensionAlias(source, dimension);
     }
 
     /** A quoted category subtotal is valid only when the same quote names the dimension and its value. */

@@ -209,12 +209,10 @@ public final class OriginalScoreEvidencePolicy {
 
         public Qualification(String factId, String schemeId, String scopeStatus, boolean candidateEligible,
                              String reason, String locator) {
-            this(factId, schemeId, scopeStatus, candidateEligible, reason, locator, "", null,
-                    "UNKNOWN", "", "", "UNKNOWN", List.of(), ChildAggregation.UNKNOWN);
+            this(factId, schemeId, scopeStatus, candidateEligible, reason, locator, "", null, "UNKNOWN", "", "", "UNKNOWN", List.of(), ChildAggregation.UNKNOWN);
         }
     }
-    public record Verification(String documentId, String scheme, Total total, List<Problem> problems,
-                               List<Qualification> qualifications) {
+    public record Verification(String documentId, String scheme, Total total, List<Problem> problems, List<Qualification> qualifications) {
         public Verification(String documentId, String scheme, Total total, List<Problem> problems) {
             this(documentId, scheme, total, problems, List.of());
         }
@@ -241,7 +239,15 @@ public final class OriginalScoreEvidencePolicy {
     static boolean sectionCategory(String dimension) {
         if (dimension == null || dimension.isBlank()) return false;
         return dimension.replaceAll("\\s+", "")
-                .matches("(?:商务|技术|报价|价格|其他)(?:部分|评分标准|评分|标准|因素)?");
+                .matches("(?:商务|技术|报价|价格|其他|财务|运营|业绩|资质)(?:部分|评分标准|评分|标准|因素|状况|经验|要求)?");
+    }
+
+    static boolean matchesDimensionAlias(String source, String dimension) {
+        if (dimension == null || dimension.isBlank() || source == null || source.isBlank()) return false;
+        String dim = dimension.replaceAll("\\s+", "");
+        String normSource = EvidenceText.normalize(source).text();
+        return (dim.contains("运营") && normSource.contains("电子商城运营时间"))
+                || (dim.contains("财务") && normSource.contains("授信额度"));
     }
 
     public static String publishedDimension(String dimension, String sourceText, BigDecimal weight) {
@@ -256,7 +262,7 @@ public final class OriginalScoreEvidencePolicy {
         int start = at;
         while (start > 0 && nameChar(compact.charAt(start - 1))) start--;
         String name = compact.substring(start, at).replaceFirst(
-                "^(?:商务|技术|报价|价格|其他)?(?:评分标准|评分|标准)?", "");
+                "^(?:商务|技术|报价|价格|其他)?(?:评分标准|评分|标准|部分)?", "");
         return name.length() >= 2 && name.length() <= 24 ? name : dimension;
     }
 
