@@ -13,8 +13,8 @@ sources:
 backlinks:
   - .wiki/pages/scoreparse-1382-pdf-scheme-gate-rca.md
 created: 2026-09-26
-updated: 2026-09-28
-health_checked: 2026-09-28
+updated: 2026-09-29
+health_checked: 2026-09-29
 archive: false
 ---
 
@@ -148,3 +148,9 @@ archive: false
 - **盲区修复 (转义空白字符兼容)**：在 `EvidenceText.normalize` 中将字面量 `\n`、`\r`、`\t` 兼容为空白符，杜绝跨页引文在长段落首页截断处比对失败；
 - **全链路闭环验证**：在 `Project1382FullPipelineIntegrationTest` 中重放线上 Task 286 真实 37 项事实，判定 `AUTO_APPROVED`，过滤出 13 项有效叶子评分项，总分精确 100 分自动入库。
 
+### 8. 2026-09-29 线上 Task 289 父项权重同行跨列分值读取碰撞与合同考核项范围误报彻底根治
+
+针对部署后重新解析 Task 289 日志显示 `fallback=ITEM_WEIGHT_SOURCE_MISMATCH, decision=REVIEW_REQUIRED` 保留旧 91 分的根因与闭环：
+- **阻断 1 (ITEM_WEIGHT_SOURCE_MISMATCH)**：在明细评分表 `p34-t0010` 第 2 行第 1 列为父项“商务评分标准”（15分在大纲表声明），第 2 列为子项“供应商业绩（7分）”。历史代码扫描整行提取 title 分值，误将子项的 7 分赋给父项导致 `15 != 7` 报错；同理技术评分标准被子项 10 分报错，报价评分标准被 `[40, 28]` 报 `ITEM_WEIGHT_SOURCE_UNKNOWN`；修复：在 `OriginalScoreWeightEvidencePolicy` 中增加列守卫（`cell.column() <= anchor.column()`），严禁读取右侧子项列分值；并在 `declaredDimensionSubtotal` 中剥离 `(?:评分)?标准$` 后缀，支持大纲正文/表格的分值构成声明比对；
+- **阻断 2 (合同条款考核项报 SOURCE_LOCATOR_NOT_VERIFIED)**：大模型从合同章节提取的 17 项合同履约考核指标（`dimension="service"`，code 含 `_KH`/`_PJ`，分值 5/10/15 分），因历史代码将 `OUT_OF_SCHEME` 早期返回逻辑限制在 `weight <= 0`，导致带分值的考核项进入逐字引文校验被误杀；修复：在 `OriginalScoreQualificationPolicy` 中只要是 `OUT_OF_SCHEME`（不限权重）一律短路排除，并在引文比对前优先校验作用域；并在 `MultimodalExtractionReviewPolicy` 中准确将无表 service 维度考核项归入 `OUT_OF_SCHEME`；
+- **全链路真实重现与验证**：导出线上 Task 289 全量 37 项事实（`task-289-live-facts.json`），在 `Project1382FullPipelineIntegrationTest.verifyTask289LiveOnlineFacts` 中 100% 真实重放，确证 `AUTO_APPROVED`，过滤出 13 项有效叶子项，满分 100 分自动入库。

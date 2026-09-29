@@ -67,6 +67,20 @@ final class OriginalScoreWeightEvidencePolicy {
             String rowText = directRowText + " " + inheritedCategoryText(table, anchor.row());
             if (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
                     && declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight())) return;
+            if (claim.parent()) {
+                if (declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight())
+                        || declaredDimensionSubtotal(claim.dimension(), rowText, claim.weight())
+                        || (claim.tenderText() != null && declaredDimensionSubtotal(claim.dimension(), claim.tenderText(), claim.weight()))) {
+                    return;
+                }
+                for (var anyTable : artifact.tables()) {
+                    for (var anyCell : anyTable.cells()) {
+                        if (anyCell.rawText() != null && declaredDimensionSubtotal(claim.dimension(), anyCell.rawText(), claim.weight())) {
+                            return;
+                        }
+                    }
+                }
+            }
             boolean itemMatched = (!claim.dimension().isBlank() && containsDimension(rowText, claim.dimension()))
                     || (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
                     && (claim.dimension().isBlank() || containsDimension(claim.quotedText(), claim.dimension())));
@@ -75,6 +89,10 @@ final class OriginalScoreWeightEvidencePolicy {
             List<BigDecimal> title = new ArrayList<>();
             List<BigDecimal> awarded = new ArrayList<>();
             for (var cell : row) {
+                if (claim.parent() && cell.column() != null && anchor.column() != null
+                        && cell.column() > anchor.column()) {
+                    continue;
+                }
                 String raw = cell.rawText() == null ? "" : cell.rawText();
                 Matcher numeric = SCORE_CELL.matcher(raw);
                 boolean scoreColumn = cell.column() != null && table.cells().stream()
@@ -164,11 +182,13 @@ final class OriginalScoreWeightEvidencePolicy {
     /** A quoted category subtotal is valid only when the same quote names the dimension and its value. */
     private static boolean declaredDimensionSubtotal(String dimension, String evidence, BigDecimal weight) {
         if (dimension == null || dimension.isBlank() || evidence == null || weight == null) return false;
-        String compactDimension = dimension.replaceAll("\\s+", "");
+        String compactDimension = dimension.replaceAll("\\s+", "").replaceAll("(?:评分)?标准$", "");
+        if ("business".equalsIgnoreCase(compactDimension)) compactDimension = "商务";
+        if ("technical".equalsIgnoreCase(compactDimension)) compactDimension = "技术";
         String compactEvidence = evidence.replaceAll("\\s+", "");
         String dimPattern = isPriceDimension(compactDimension) ? "(?:价格|报价)" : Pattern.quote(compactDimension);
         Pattern subtotal = Pattern.compile(dimPattern
-                + "(?:部分)?(?:[：:为]\\s*[（(]?|[（(])"
+                + "(?:部分|分评审|分)?(?:[：:为\\s]*[（(]?|[（(])(?:满分)?"
                 + "(\\d+(?:\\.\\d+)?)\\s*分?[）)]?");
         Matcher matcher = subtotal.matcher(compactEvidence);
         while (matcher.find()) {

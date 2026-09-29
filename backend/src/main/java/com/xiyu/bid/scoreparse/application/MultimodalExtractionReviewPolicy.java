@@ -50,9 +50,11 @@ final class MultimodalExtractionReviewPolicy {
             if (fact.sectionTitle() != null && fact.sectionTitle().matches("(?s).*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*")) {
                 return fact.withScope(contextSchemeId, "OUT_OF_SCHEME");
             }
-            if ("performance".equalsIgnoreCase(fact.dimension())
-                    || (fact.code() != null && fact.code().matches("(?i).*(?:evaluation_metric|evaluation_indicator|_evaluation|evaluation_index).*"))
-                    || (fact.quotedText() != null && fact.quotedText().matches("(?s).*(?:考核指标|履约考核|绩效考核).*") && fact.tableId().isBlank())) {
+            if (fact.tableId().isBlank() && (
+                    "performance".equalsIgnoreCase(fact.dimension())
+                    || "service".equalsIgnoreCase(fact.dimension())
+                    || (fact.code() != null && fact.code().matches("(?i).*(?:evaluation_metric|evaluation_indicator|_evaluation|evaluation_index|.*_KH$|.*_PJ$).*"))
+                    || (fact.quotedText() != null && fact.quotedText().matches("(?s).*(?:考核指标|履约考核|绩效考核|动销率|合格率|时效考核|核销考核|故障处理).*")))) {
                 return fact.withScope(contextSchemeId, "OUT_OF_SCHEME");
             }
             if (fact.tableId().isBlank() && (fact.weight() == null || fact.weight().compareTo(java.math.BigDecimal.ZERO) <= 0)) {
