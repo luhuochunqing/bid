@@ -6985,3 +6985,40 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - `backend/src/test/java/com/xiyu/bid/scoreparse/application/Project1382FullPipelineIntegrationTest.java`
 - `backend/src/test/resources/scoreparse/project-1382/task-286-facts.json`
 
+---
+
+## 415. 评分父项跨列分值提取碰撞与合同条款考核项引文校验误杀（项目 1382 Task 289 本地 100% 真实重现与根治）（2026-09-29）
+
+### 现象
+
+在修复大模型未声明总分与 0 权重指引句后，测试环境重新解析项目 1382（标书《办公用品.pdf》）Task 289 结果仍为 `REVIEW_REQUIRED`，触发保留现有 91 分项不覆盖的安全保护，未落库最新 100 分评分项。
+
+### 根因深度剖析
+
+1. **父项权重校验中的“同行跨列越权读取”**：
+   - 在明细评分表 `p34-t0010` 中，第 2 行第 1 列是父项“商务评分标准”（无分值，15分在大纲表声明），第 2 列是子项“供应商业绩（7分）”。`OriginalScoreWeightEvidencePolicy` 扫描整行单元格提取 title 分值，把第 2 列子项的“7分”当成了第 1 列父项“商务评分标准”（15分）的期望分值，比对判定 `15 != 7`，报错 `ITEM_WEIGHT_SOURCE_MISMATCH`；同理技术评分标准（45分）被子项 10 分比对报错，报价评分标准（40分）被 `[40, 28]` 报 `ITEM_WEIGHT_SOURCE_UNKNOWN`。
+   - `declaredDimensionSubtotal` 正则使用 `Pattern.quote(compactDimension)`，要求包含“商务评分标准”，而大纲正文写的是“商务部分：15分”，因未剥离“评分标准”后缀导致大纲声明未被命中。
+2. **合同条款考核项未短路放行，被引文逐字校验误杀**：
+   - 大模型从标书第五章“合同条款及格式”中提取了 17 个合同履约考核项（`dimension="service"`，code 包含 `_KH` / `_PJ`，分值为 5分、10分、15分）。
+   - 在 `OriginalScoreQualificationPolicy` 中，`textLocatorContainsQuote` 校验排在 `OUT_OF_SCHEME` 检查之前，且 `OUT_OF_SCHEME` 早期返回逻辑被人为限制在 `weight <= 0`。导致带分值的合同考核项因跨行排版差异无法逐字匹配引文，被误判为 `SOURCE_LOCATOR_NOT_VERIFIED` 阻断全单自动发布。
+
+### 解决方案
+
+- **父项权重校验列守卫与大纲声明贯通**：
+  - 在 `OriginalScoreWeightEvidencePolicy` 中，当 `claim.parent()` 为真时，严格限制单元格遍历 `cell.column() <= anchor.column()`，严禁越权读取右侧子项列分值；
+  - 在 `declaredDimensionSubtotal` 中剥离 `(?:评分)?标准$` 后缀（如“商务评分标准”->“商务”），并支持跨大纲表、全文 text 的分值构成声明比对，父项权重直接由正文大纲证实放行；
+- **OUT_OF_SCHEME 无差别短路放行**：
+  - 在 `OriginalScoreQualificationPolicy` 中，只要判定为 `OUT_OF_SCHEME`（无论权重是否为 0），一律直接短路排除（`candidateEligible = false`），绝不调用 `textLocatorContainsQuote`；且在 `textLocator` 校验前优先检查文本作用域；
+  - 在 `MultimodalExtractionReviewPolicy.assignScope` 中，针对无表考核项（`tableId.isBlank()` 且包含 `service` 维度或 `_KH` / `_PJ` 指标）精确划定为 `OUT_OF_SCHEME`；
+- **100% 真实线上夹具本地重放**：
+  - 从线上导出 Task 289 全量 37 项事实（`task-289-live-facts.json`），在 `Project1382FullPipelineIntegrationTest.verifyTask289LiveOnlineFacts` 中无任何人工过滤重放全链路，确证判定结果为 `AUTO_APPROVED`，过滤出 13 项有效叶子项，满分 100 分自动落库。
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreWeightEvidencePolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreQualificationPolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalExtractionReviewPolicy.java`
+- `backend/src/test/java/com/xiyu/bid/scoreparse/application/Project1382FullPipelineIntegrationTest.java`
+- `backend/src/test/resources/scoreparse/project-1382/task-289-live-facts.json`
+
+
