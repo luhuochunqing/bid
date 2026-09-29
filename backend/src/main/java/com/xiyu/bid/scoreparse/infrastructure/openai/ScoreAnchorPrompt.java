@@ -23,8 +23,8 @@ final class ScoreAnchorPrompt {
         for (var anchor : anchors) {
             try {
                 String json = objectMapper.writeValueAsString(new PromptAnchor(anchor.id(), anchor.sectionTitle(), anchor.tableId(), anchor.rawText()));
-                if (prompt.length() + json.length() > 8_000)
-                    throw new IllegalStateException("Source anchor exceeds bounded prompt budget");
+                if (prompt.length() + json.length() + 1 > 8_000)
+                    break;
                 prompt.append(json).append('\n');
             } catch (JsonProcessingException exception) {
                 throw new IllegalStateException("无法序列化源锚点", exception);

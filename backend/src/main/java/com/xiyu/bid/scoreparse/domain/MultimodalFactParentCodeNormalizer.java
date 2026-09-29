@@ -30,9 +30,21 @@ public final class MultimodalFactParentCodeNormalizer {
             }
         }
         return facts.stream().map(fact -> {
-            if (fact == null || fact.parentCode().isBlank()) {
-                return fact;
+            if (fact == null) return null;
+            String parentCode = fact.parentCode();
+            if (parentCode.isBlank() && !fact.code().isBlank()) {
+                int lastDot = Math.max(fact.code().lastIndexOf('.'), fact.code().lastIndexOf('_'));
+                if (lastDot > 0) {
+                    String prefix = fact.code().substring(0, lastDot).trim();
+                    if (canonicalCodes.containsKey(key(fact.tableId(), fact.schemeId(), fact.scopeStatus(), fact.sectionTitle(), prefix))
+                            || schemeCodes.containsKey(key("", fact.schemeId(), fact.scopeStatus(), fact.sectionTitle(), prefix))
+                            || schemeWideCodes.containsKey(key("", fact.schemeId(), fact.scopeStatus(), "", prefix))) {
+                        parentCode = prefix;
+                    }
+                }
             }
+            if (parentCode.isBlank()) return fact;
+            fact = parentCode.equals(fact.parentCode()) ? fact : fact.withParentCode(parentCode);
             String canonical = canonicalParentCode(fact, canonicalCodes, schemeCodes, schemeWideCodes);
             if (canonical == null && structuralParentReference(fact)) {
                 // A text chunk can contain children while the parent heading is

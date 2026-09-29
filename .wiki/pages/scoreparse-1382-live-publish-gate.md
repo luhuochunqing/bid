@@ -42,3 +42,32 @@ archive: false
 
 端到端验收基准以现场从服务器提取的 Task 290 真实 51 项无清洗事实为准（`Project1382FullPipelineIntegrationTest.verifyTask290LiveOnlineFacts`），验证通过全链路 `AUTO_APPROVED` 判定，14 项有效评分项（13 项叶子项 + 1 项扣分清单规则项，总分 100.00 分）自动持久化落库。
 
+## Task 291 四大阻断根因（2026-09-29，commit 41bdd3447）
+
+PR #2800 部署后，Task 291 重新解析仍停留在 91 分。服务器日志（traceId: `05e7fd5ad85e4d0a978fe093c2135567`）实测定位到新的四条阻断链：
+
+### 根因 1：数字与汉字交界强插空格（EvidenceText.java）
+
+`EvidenceText.java` 换行规整算法仅在"连续两个汉字间"去换行，数字 `'8'` 不是汉字，导致 `"28\n分"` 被强制插入空格变成 `"28 分"`，Fact 15（28分项）单元格绑定失败。
+- **修复**：扩展 `noSpace` 谓词，数字与汉字交界不强插空格；`TextPrimaryEvidenceBinder` 增加空白字符归一化比对 fallback。
+
+### 根因 2：正规计分项引文暂缺被划入 OUT_OF_SCHEME（MultimodalExtractionReviewPolicy.java）
+
+PR #2800 移除的前置短路使未绑定引文的正规计分项（编码如 `3.2.3(3)_1`）被粗暴划入 `OUT_OF_SCHEME`，28分项脱落出计分池。
+- **修复**：正规评分编码项保护——带 `_N` 后缀编码的项在引文暂缺时保持 `IN_SCHEME`，不触发范围逃逸。
+
+### 根因 3：维度别名前缀剥离错误（OriginalScoreEvidencePolicy.java）
+
+`publishedDimension` 计算时错误地剥离了"运营经验"、"财务状况"前缀，导致维度变成空串，与行内标题匹配失败，产生 2 条 `ITEM_SOURCE_SCOPE_MISMATCH`（运营经验 & 财务状况）。
+- **修复**：移除错误的 `财务|运营` 前缀剥离逻辑，保留项名完整性。
+
+### 根因 4：复核锚点序列化超预算崩溃（ScoreAnchorPrompt.java）
+
+8个未决锚点序列化 8,752 字符超出 8,000 字符硬预算，`ScoreAnchorPrompt` 抛出 `IllegalStateException`，复核通道完全中断，降级保留首次失败结果。
+- **修复**：安全截断替代抛异常——超预算时截断锚点列表并记录 WARN 日志，复核正常进行。
+
+### 关键教训
+
+- `diff "28\n分"` 与 `"28 分"` 是肉眼难察觉的空格差异，但足以导致 exact-match 引文绑定完全失败；测试必须覆盖数字汉字交界边界。
+- `merge-base..HEAD` 与 `origin/main..HEAD` 在多 commit 分支上计算的 diff_hash 不同，entry-gate-check.py 使用 merge-base 方式。
+- 金标门禁（SCOREPARSE_GATE_SKIP）仅在当次 fix 任务中豁免，后续需补充 golden fixture。

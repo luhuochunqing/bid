@@ -318,6 +318,25 @@ class OriginalScoreEvidencePolicyTest {
                 .contains("ITEM_WEIGHT_SOURCE_UNKNOWN");
     }
 
+    @Test void publishedDimensionAndAliasSupportFinancialAndOperationalDimensions() {
+        assertThat(OriginalScoreEvidencePolicy.publishedDimension(
+                "财务", "财务状况（3分）", new BigDecimal("3"))).isEqualTo("财务状况");
+        assertThat(OriginalScoreEvidencePolicy.publishedDimension(
+                "财务状况", "财务状况（3分）", new BigDecimal("3"))).isEqualTo("财务状况");
+        assertThat(OriginalScoreEvidencePolicy.publishedDimension(
+                "运营", "电子商城运营时间（1分）", new BigDecimal("1"))).isEqualTo("电子商城运营时间");
+        assertThat(OriginalScoreEvidencePolicy.publishedDimension(
+                "运营经验", "电子商城运营时间（1分）", new BigDecimal("1"))).isEqualTo("电子商城运营时间");
+        assertThat(OriginalScoreEvidencePolicy.publishedDimension(
+                "财务", "授信额度（1分）", new BigDecimal("1"))).isEqualTo("授信额度");
+
+        assertThat(OriginalScoreEvidencePolicy.matchesDimensionAlias("电子商城运营时间（1分）", "运营")).isTrue();
+        assertThat(OriginalScoreEvidencePolicy.matchesDimensionAlias("电子商城运营时间（1分）", "运营经验")).isTrue();
+        assertThat(OriginalScoreEvidencePolicy.matchesDimensionAlias("授信额度（1分）", "财务")).isTrue();
+        assertThat(OriginalScoreEvidencePolicy.matchesDimensionAlias("授信额度（1分）", "财务状况")).isTrue();
+        assertThat(OriginalScoreEvidencePolicy.matchesDimensionAlias("电子商城运营时间（1分）", "技术方案")).isFalse();
+    }
+
     @Test void mutuallyExclusiveGradeTiersUseTheHighestFivePointScore() {
         String tiers = "按优良中差分档评定：5分、4分、3分或2分。";
         var source = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.pdf", "sha-tiers", "pdf", "2.0"),

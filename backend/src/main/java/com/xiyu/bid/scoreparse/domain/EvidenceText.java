@@ -33,7 +33,7 @@ public record EvidenceText(String text, List<Integer> offsets) {
                 continue;
             }
             if (pending >= 0 && !out.isEmpty()
-                    && !(layout(out.charAt(out.length() - 1)) && layout(c))) {
+                    && !noSpace(out.charAt(out.length() - 1), c)) {
                 out.append(' ');
                 offsets.add(pending);
             }
@@ -51,6 +51,16 @@ public record EvidenceText(String text, List<Integer> offsets) {
         if (start < 0 || text.indexOf(target, start + 1) >= 0) return Optional.empty();
         Integer[] originalOffsets = offsets.toArray(Integer[]::new);
         return Optional.of(new Span(originalOffsets[start], originalOffsets[start + target.length() - 1] + 1));
+    }
+
+    private static boolean noSpace(char a, char b) {
+        return (layout(a) && layout(b))
+                || (Character.isDigit(a) && isNonLatin(b))
+                || (isNonLatin(a) && Character.isDigit(b));
+    }
+
+    private static boolean isNonLatin(char c) {
+        return han(c) || c > 127 || "，。；：！？（）【】、《》、“”‘’%％".indexOf(c) >= 0;
     }
 
     private static boolean layout(char c) {
