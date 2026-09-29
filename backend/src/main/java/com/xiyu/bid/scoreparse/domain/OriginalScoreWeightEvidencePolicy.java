@@ -83,7 +83,8 @@ final class OriginalScoreWeightEvidencePolicy {
             }
             boolean itemMatched = (!claim.dimension().isBlank() && containsDimension(rowText, claim.dimension()))
                     || (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
-                    && (claim.dimension().isBlank() || containsDimension(claim.quotedText(), claim.dimension())));
+                    && (claim.dimension().isBlank() || containsDimension(claim.quotedText(), claim.dimension())
+                    || (quoteDeclaresClaimWeight(claim) && quoteNamesClaimedItem(claim.quotedText(), claim.dimension()))));
             List<BigDecimal> explicit = new ArrayList<>();
             List<BigDecimal> capped = new ArrayList<>();
             List<BigDecimal> title = new ArrayList<>();
@@ -178,6 +179,27 @@ final class OriginalScoreWeightEvidencePolicy {
         if (contains(source, dimension)) return true;
         if (isPriceDimension(dimension) && (contains(source, "价格") || contains(source, "报价"))) return true;
         return OriginalScoreEvidencePolicy.matchesDimensionAlias(source, dimension);
+    }
+
+    /**
+     * 模型可能改写项名（"非一级集采商品价格分"→"非一级集采商品上架折扣率"）。引文逐字在被引用行内、
+     * 引文自身声明的分值等于主张分值、且引文与 dimension 共享项名前缀时，项身份由引文+分值闭合证明。
+     */
+    private static boolean quoteDeclaresClaimWeight(ScoreEvidenceClaim claim) {
+        if (claim.weight() == null || claim.quotedText().isBlank()) return false;
+        Matcher matcher = MAX_SCORE.matcher(EvidenceText.normalize(claim.quotedText()).text());
+        while (matcher.find()) {
+            if (new BigDecimal(matcher.group(1)).compareTo(claim.weight()) == 0) return true;
+        }
+        return false;
+    }
+
+    /** 引文须与 dimension 共享项名前缀，防止拿另一项的规则文本冒充本项证据（如用"证书"引文声称"销售额"项）。 */
+    private static boolean quoteNamesClaimedItem(String quote, String dimension) {
+        if (dimension == null || dimension.isBlank() || quote == null || quote.isBlank()) return false;
+        String dim = dimension.replaceAll("\\s+", "");
+        String normalizedQuote = EvidenceText.normalize(quote).text();
+        return normalizedQuote.contains(dim.length() < 5 ? dim : dim.substring(0, 5));
     }
 
     /** A quoted category subtotal is valid only when the same quote names the dimension and its value. */
