@@ -86,6 +86,22 @@ surefire_failed() {
   grep -qE '<testsuite[^>]*((failures|errors)="[1-9])' "$xml"
 }
 
+# FBR-I1 真实 DOCX→Sidecar 回放所需的 Python（import docx, lxml），候选顺序与
+# CrossFormatDocumentSourceReplayTest/根因脚本一致：env SIDECAR_PYTHON → sidecar .venv → python3。
+# 命中时 export SIDECAR_PYTHON，供随后 mvn JVM 继承。
+sidecar_python_usable() {
+  local cand
+  for cand in "${SIDECAR_PYTHON:-}" "$ROOT_DIR/document-converter-sidecar/.venv/bin/python" python3; do
+    [ -n "$cand" ] || continue
+    command -v "$cand" >/dev/null 2>&1 || continue
+    if (cd "$ROOT_DIR/document-converter-sidecar" && "$cand" -B -c 'import docx, lxml' >/dev/null 2>&1); then
+      export SIDECAR_PYTHON="$cand"
+      return 0
+    fi
+  done
+  return 1
+}
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -209,6 +225,27 @@ else
     fail "EntityTableMigrationCoverageTest — @Table 实体缺 CREATE TABLE 迁移，或迁移误放 db/migration/。修复：在 db/migration-mysql/ 创建 V<version>__create_<table>.sql，或将误放文件 git mv 到 migration-mysql/"
   else
     pass "EntityTableMigrationCoverageTest"
+  fi
+fi
+
+# ── 2.6. FBR-I1 真实 DOCX→Sidecar 全规则绑定回放 ────────
+# 2026-09-29 教训（lesson 418）：FullRuleSourceReplayTest/CrossFormatDocumentSourceReplayTest
+# 从未进入 pre-push 列表，纯靠人肉全量跑；无 sidecar Python 依赖时又产生 8F+19E 环境污染假红，
+# 误导 1382 排查方向。现纳入门禁：有可用 Python 就实跑（真实守卫），没有则显式黄灯 skip
+# （不是静默放行——skip 消息给出修复命令，开发宿主必须实跑）。
+echo "── 真实 Sidecar 全规则绑定回放 ──"
+if [ ! -d "$ROOT_DIR/backend" ]; then
+  skip "FBR-I1 回放（非 Java 项目）"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "FBR-I1 回放（无 backend/ 变更）"
+elif ! sidecar_python_usable; then
+  skip "FBR-I1 回放（sidecar Python 缺 python-docx/lxml — 本机未实跑；安装: python3 -m venv document-converter-sidecar/.venv && document-converter-sidecar/.venv/bin/pip install -r document-converter-sidecar/requirements.txt）"
+else
+  ( cd "$ROOT_DIR/backend" && mvn test -Dtest='FullRuleSourceReplayTest,CrossFormatDocumentSourceReplayTest' -q >/dev/null 2>&1 || true )
+  if surefire_failed FullRuleSourceReplayTest || surefire_failed CrossFormatDocumentSourceReplayTest; then
+    fail "FullRule/CrossFormat 真实 DOCX 绑定回放红 — 评分项规则原文恢复（SOURCE vs MODEL_CLAIM）或 Sidecar 转换形状回归，运行 mvn test -Dtest='FullRuleSourceReplayTest,CrossFormatDocumentSourceReplayTest' 查看"
+  else
+    pass "FullRule/CrossFormat 真实 DOCX 绑定回放"
   fi
 fi
 

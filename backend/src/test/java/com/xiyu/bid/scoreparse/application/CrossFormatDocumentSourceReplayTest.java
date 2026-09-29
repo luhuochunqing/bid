@@ -112,11 +112,7 @@ class CrossFormatDocumentSourceReplayTest {
     static DocumentArtifact convert(String variant) throws Exception {
         Path sidecar=Path.of("../document-converter-sidecar").toAbsolutePath();
         Path file=Path.of("src/test/resources/scoreparse/docx-continuity/"+variant+"-score-language.docx").toAbsolutePath();
-        String python = System.getenv("SIDECAR_PYTHON");
-        if (python == null || python.isBlank()) {
-            Path venv = sidecar.resolve(".venv/bin/python");
-            python = Files.exists(venv) ? venv.toString() : "python3";
-        }
+        String python = usableSidecarPython(sidecar);
         Path output=Files.createTempFile("docx-source-replay-", ".json");
         Process process=null;
         try {
@@ -129,6 +125,35 @@ class CrossFormatDocumentSourceReplayTest {
         } finally {
             if(process!=null && process.isAlive()) process.destroyForcibly();
             Files.deleteIfExists(output);
+        }
+    }
+    /**
+     * 对齐 scripts/check-scoreparse-root-cause.sh：候选 SIDECAR_PYTHON → .venv/bin/python → python3，
+     * 逐个真实验证 import docx,lxml，选中第一个可用的。存在但缺依赖的 venv 不再产生成片假红
+     * （2026-09-29 教训：Task 291 排查被 8F+19E 环境污染红误导），全部不可用时给出可操作信息。
+     */
+    private static String usableSidecarPython(Path sidecar) {
+        String env = System.getenv("SIDECAR_PYTHON");
+        List<String> candidates = new ArrayList<>();
+        if (env != null && !env.isBlank()) candidates.add(env);
+        candidates.add(sidecar.resolve(".venv/bin/python").toString());
+        candidates.add("python3");
+        for (String candidate : candidates) {
+            if (sidecarPythonUsable(candidate, sidecar)) return candidate;
+        }
+        throw new AssertionError("Sidecar 真实 DOCX 转换回放需要可用的 Python（import docx, lxml）。"
+                + "候选均不可用: " + candidates + "。修复：python3 -m venv document-converter-sidecar/.venv "
+                + "&& document-converter-sidecar/.venv/bin/pip install -r document-converter-sidecar/requirements.txt，"
+                + "或 export SIDECAR_PYTHON=<可用的 python>");
+    }
+    private static boolean sidecarPythonUsable(String python, Path sidecar) {
+        try {
+            Process probe = new ProcessBuilder(python, "-B", "-c", "import docx, lxml")
+                    .directory(sidecar.toFile()).redirectErrorStream(true).start();
+            probe.getInputStream().readAllBytes();
+            return probe.waitFor(15, java.util.concurrent.TimeUnit.SECONDS) && probe.exitValue() == 0;
+        } catch (Exception unavailable) {
+            return false;
         }
     }
     private static DocumentArtifact pdf() {
