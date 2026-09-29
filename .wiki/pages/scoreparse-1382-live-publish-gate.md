@@ -95,3 +95,12 @@ PR #2802 部署后，用户重新触发 Task 292（54 条模型事实），叶�
 ### 验收证据
 
 现场导出 Task 292 全部 54 条真实事实（`task-292-live-facts.json`），在 `Project1382FullPipelineIntegrationTest.verifyTask292LiveOnlineFacts` 中端到端重放，确证 `decision=AUTO_APPROVED`, `violations=0`, `leafTotal=100.0`, 13 项有效叶子评分项全部自动入库。
+
+## Task 291 项名改写与通用引文闭合规则（2026-09-29）
+
+!2802/!2804 部署后 Task 293 侥幸 AUTO_APPROVED 落 100 分；但 Task 291 线上真实 50 项忠实重放仍剩 1 条 `ITEM_SOURCE_SCOPE_MISMATCH`（`3.2.3(3)_2` 项名被改写为"非一级集采商品上架折扣率"，原文"非一级集采商品价格分（满分12分）"）。逐对同义词表（`matchesDimensionAlias`）永远落后模型改写一轮。
+
+- **修复（通用规则，非枚举）**：`itemMatched` 第三接受形态 = 引文逐字在被引用行内 ∧ 引文自声明分值==主张分值 ∧ 引文含 dimension 项名前缀；对抗冒充用例继续拒绝，验证为与 !2804 互补（回退即红）。
+- **重放忠实性**：回放构造必须用模型原始输入形态（空 schemeId/scopeStatus）；此前 289/290 重放塞假值导致 binder 从未被真正验证。
+- **recheck 可诊断性**：catch 输出完整堆栈（原先只打类名，自愈崩溃无法归因）。
+- 详见 lessons-learned.md §418。

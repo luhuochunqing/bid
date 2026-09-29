@@ -7100,3 +7100,38 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - `backend/src/main/java/com/xiyu/bid/scoreparse/domain/MultimodalScoreFactValidator.java`
 - `backend/src/test/java/com/xiyu/bid/scoreparse/application/Project1382FullPipelineIntegrationTest.java`
 - `backend/src/test/resources/scoreparse/project-1382/task-292-live-facts.json`
+
+---
+
+## 418. 项名改写类违规的通用引文闭合规则与"逐对同义词表"收敛性教训（项目 1382 Task 291/292/293，2026-09-29）
+
+### 现象
+
+!2802（Task 291 四大根因）与 !2804（Task 292 四大违规，逐对同义词表）相继合入部署后，Task 293 以 `AUTO_APPROVED` 落库 100 分，页面摆脱 91 分。但对 **Task 291 的线上真实 50 项事实**做忠实重放（`task-291-live-facts.json`），叠加两轮修复后仍剩 1 条阻断：`3.2.3(3)_2` 的维度被模型改写为"非一级集采商品上架折扣率"（原文为"非一级集采商品价格分（满分12分）"），`ITEM_SOURCE_SCOPE_MISMATCH` 依旧一票否决。293 过关实为模型当轮恰好吐出同义词表已覆盖的项名——**通过靠形状运气，不是收敛**。
+
+### 根因深度剖析
+
+1. **逐对同义词表在 LLM 非确定管线上不可收敛**：`matchesDimensionAlias` 每轮枚举一对别名（运营↔电子商城运营时间、财务↔授信额度、实施↔服务方案），改写形态永远领先修复一轮。8 轮修 8 道门禁的打地鼠循环根源即在此。
+2. **字面 dimension 匹配缺少"引文+分值"通用闭合兜底**：项身份的真正证据是"引文逐字在被引用行内 + 引文自声明分值==主张分值"，dimension 只是标签；原实现要求标签字面出现，改写即误杀。
+3. **既有回放测试构造不忠实**：289/290 重放把 `schemeId="第三章 评标办法（综合评估法）"`、`scopeStatus="IN_SCHEME"` 当构造参数塞入，`tableInFactScope` 直接拒绝所有单元格，等于从未真正验证过 binder 的重绑能力；本次修正为空串（模型原始输入形态）后才暴露真实行为。
+
+### 解决方案
+
+- **通用引文闭合规则**：`OriginalScoreWeightEvidencePolicy.itemMatched` 新增第三接受形态——引文逐字在被引用行内 ∧ 引文经 `MAX_SCORE` 自声明分值等于主张分值 ∧ 引文包含 dimension 项名前缀（<5 字全名、≥5 字取前 5 字）。前缀校验封住对抗面：既有防护用例 `sourceWeightUsesItemMaximumNotIncrementOrAmountThreshold`（"销售额"项用"每份证书得2分最高10分"引文冒充）继续拒绝。
+- **可诊断性**：`MultimodalStructuredExtractionHandler` recheck catch 由只打 `getSimpleName()` 改为传递异常对象输出完整堆栈。
+- **互补性实验**：在合并 !2804 后的代码上临时回退本改动，291 重放立刻回红——证明与 zcode 两轮修复互补而非冗余。
+
+### 可复用纪律
+
+- LLM 提取 + 确定性校验的管线，修复必须是"证据闭合类通用规则"，禁止"逐对枚举同义词"式补丁——后者验证的是上一轮快照，不是下一轮线上；
+- "回放 N/N PASS" 的结论只对第 N 轮形状成立；回归资产应以**最近失败轮次的线上无损导出**为准；
+- `MANUAL_APPROVED` × "REVIEW_REQUIRED 不覆盖现有评分项" 会把错误基线锁成化石（91 分 = 人工批准的机器判失败结果：多计报价父项 40 + 丢 49 分叶子，净差恰 9 分）；人工批准前应核对构成一致性；
+- catch 只打异常类名 = 每次自愈失败都无法归因；
+- main 上存量红：`FullRuleSourceReplayTest`（8F+19E）、`CrossFormatDocumentSourceReplayTest`（2F）、`ScoreExtractionPersistenceMysqlTest`（1F）在 !2800/!2802/!2804 合入时已红，门禁覆盖缺口需单独处理。
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreWeightEvidencePolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalStructuredExtractionHandler.java`
+- `backend/src/test/resources/scoreparse/project-1382/task-291-live-facts.json`
+- `backend/src/test/java/com/xiyu/bid/scoreparse/application/Project1382FullPipelineIntegrationTest.java`
