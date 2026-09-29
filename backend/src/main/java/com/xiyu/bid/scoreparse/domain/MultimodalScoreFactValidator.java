@@ -173,6 +173,7 @@ public final class MultimodalScoreFactValidator {
         facts.forEach(f -> siblings.computeIfAbsent(f.schemeId() + "\u0000" + f.scopeStatus() + "\u0000" + f.sectionTitle()
                 + "\u0000" + f.parentCode(), key -> new ArrayList<>()).add(f));
         siblings.forEach((group, rows) -> {
+            if (rows.size() <= 1) return;
             boolean numbered = rows.stream().anyMatch(row -> fLocalNumber(row) != null);
             if (!numbered) return;
             for (int i = 0; i < rows.size(); i++) {

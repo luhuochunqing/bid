@@ -71,3 +71,27 @@ PR #2800 移除的前置短路使未绑定引文的正规计分项（编码如 `
 - `diff "28\n分"` 与 `"28 分"` 是肉眼难察觉的空格差异，但足以导致 exact-match 引文绑定完全失败；测试必须覆盖数字汉字交界边界。
 - `merge-base..HEAD` 与 `origin/main..HEAD` 在多 commit 分支上计算的 diff_hash 不同，entry-gate-check.py 使用 merge-base 方式。
 - 金标门禁（SCOREPARSE_GATE_SKIP）仅在当次 fix 任务中豁免，后续需补充 golden fixture。
+
+## Task 292 阻断根因与现场闭环（2026-09-29）
+
+PR #2802 部署后，用户重新触发 Task 292（54 条模型事实），叶子总分达到 100 分，但因 `decision=REVIEW_REQUIRED, violations=4` 触发安全保护未自动落库，页面仍显示 91 分。
+
+### 根因 1：根父项“分值构成”总分声明维度未覆盖（`3.2.1` 100分）
+
+模型提取 `3.2.1`（分值构成，100分），引用单元格 `doc0-p33-t0009-r18-c1`（`分值构成\n（总分100分）`）。
+- `OriginalScoreWeightEvidencePolicy.declaredDimensionSubtotal` 原本维度匹配正则仅匹配具体维度（`商务|技术|报价|价格`），未覆盖“综合/总分/合计/满分/分值构成”这类总体章节维度，导致 100 分根父项被误判 `ITEM_WEIGHT_SOURCE_UNKNOWN`。
+- `OriginalScoreEvidencePolicy.sectionCategory` 缺少“方案/实施/服务”分类，导致维度匹配报 `ITEM_SOURCE_SCOPE_MISMATCH`。
+- **修复**：`declaredDimensionSubtotal` 中的 `dimPattern` 增加 `(?:综合|总分|合计|满分|分值构成)`；`sectionCategory` 支持服务/实施/方案。
+
+### 根因 2：“针对办公用品的综合服务方案”同义词别名缺失（`3.2.3(2)_1` 10分）
+
+模型提取事实维度为“实施方案”，原文单元格为“针对办公用品的综合服务方案（10分）”。
+- **修复**：`OriginalScoreEvidencePolicy.matchesDimensionAlias` 增加 `((dim.contains("实施") || dim.contains("方案")) && normSource.contains("服务方案"))` 映射。
+
+### 根因 3：单个根父项误报序列断号 `SEQUENCE_GAP`
+
+- **修复**：`MultimodalScoreFactValidator.validateSequences` 增加 `if (rows.size() <= 1) return;` 保护，单项孤立或无同级项时不判定序列断号。
+
+### 验收证据
+
+现场导出 Task 292 全部 54 条真实事实（`task-292-live-facts.json`），在 `Project1382FullPipelineIntegrationTest.verifyTask292LiveOnlineFacts` 中端到端重放，确证 `decision=AUTO_APPROVED`, `violations=0`, `leafTotal=100.0`, 13 项有效叶子评分项全部自动入库。

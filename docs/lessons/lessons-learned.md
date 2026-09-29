@@ -7063,3 +7063,40 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 
 
 
+---
+
+## 417. 项目 1382 Task 292 现场事实闭环：根父项分值构成声明放行、实施/服务方案别名对齐与单项序列保护（2026-09-29）
+
+### 现象
+
+在 PR !2802 部署后，用户重新解析项目 1382（Task 292，54 条模型事实），叶子总分已闭合为 100 分，但结果为 `decision=REVIEW_REQUIRED, violations=4`。因非 `AUTO_APPROVED`，系统安全守卫拒绝覆写，前端仍展示旧的 91 分。
+
+### 根因深度剖析
+
+1. **根父项“分值构成”总分声明维度未覆盖（`3.2.1` 100 分）**：
+   - 模型提取 `3.2.1`（分值构成，100分，父项为商务15/技术45/报价40），引用单元格 `doc0-p33-t0009-r18-c1`（`分值构成\n（总分100分）`）。
+   - `OriginalScoreWeightEvidencePolicy.declaredDimensionSubtotal` 原本维度匹配正则仅匹配具体维度（`商务|技术|报价|价格`），未覆盖“综合/总分/合计/满分/分值构成”这类总体章节维度，导致 100 分根父项被误判 `ITEM_WEIGHT_SOURCE_UNKNOWN`。
+   - `OriginalScoreEvidencePolicy.sectionCategory` 缺少“方案/实施/服务”分类，导致维度匹配报 `ITEM_SOURCE_SCOPE_MISMATCH`。
+2. **“针对办公用品的综合服务方案”同义词别名缺失（`3.2.3(2)_1` 10 分）**：
+   - 模型提取事实维度为“实施方案”，原文单元格为“针对办公用品的综合服务方案（10分）”。
+   - `OriginalScoreEvidencePolicy.matchesDimensionAlias` 未建立“实施/方案”与“服务方案”的别名映射，导致被判 `ITEM_SOURCE_SCOPE_MISMATCH`。
+3. **单个根父项被误触发序列断号 `SEQUENCE_GAP`**：
+   - `MultimodalScoreFactValidator.validateSequences` 对同组同父项兄弟节点做序号连续性校验时，若分组内只有 1 个根父项（`rows.size() == 1`，如 3.2.1 抽取 leadingNumber=3），会因期望首项从 1 开始而误判断号。
+
+### 解决方案
+
+- **支持总体分值构成声明放行**：
+  - `OriginalScoreWeightEvidencePolicy.declaredDimensionSubtotal` 中的 `dimPattern` 增加 `(?:综合|总分|合计|满分|分值构成)`，根父项 100 分直接命中单元格声明放行；
+  - `OriginalScoreEvidencePolicy.sectionCategory` 与 `matchesDimensionAlias` 支持“实施方案/服务方案”别名贯通；
+- **单项序列跳号保护**：
+  - `MultimodalScoreFactValidator.validateSequences` 增加 `if (rows.size() <= 1) return;` 保护，单项孤立或无同级项时不判定序列断号；
+- **线上 Task 292 真实 54 项全量无清洗测试闭环**：
+  - 提取线上 Task 292 全部 54 条真实事实（`task-292-live-facts.json`），在 `Project1382FullPipelineIntegrationTest.verifyTask292LiveOnlineFacts` 中完整重放，确证 `AUTO_APPROVED` 判定，0 违规，13 项叶子项总分 100.00 分自动入库。
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreEvidencePolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreWeightEvidencePolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/MultimodalScoreFactValidator.java`
+- `backend/src/test/java/com/xiyu/bid/scoreparse/application/Project1382FullPipelineIntegrationTest.java`
+- `backend/src/test/resources/scoreparse/project-1382/task-292-live-facts.json`

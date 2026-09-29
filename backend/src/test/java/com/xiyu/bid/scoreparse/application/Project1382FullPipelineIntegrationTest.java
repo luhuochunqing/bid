@@ -649,4 +649,129 @@ class Project1382FullPipelineIntegrationTest {
         assertThat(summary.totalWeight()).isEqualByComparingTo("100");
         assertThat(summary.weightWarning()).isFalse();
     }
+
+    @Test
+    @DisplayName("项目1382 Task 292现场事实回放验证")
+    void verifyTask292LiveOnlineFacts() throws Exception {
+        DocumentArtifact artifact;
+        try (InputStream is = getClass().getResourceAsStream("/scoreparse/project-1382/project-1382-scoring-tables.json")) {
+            assertThat(is).as("Scoring tables resource must exist").isNotNull();
+            artifact = objectMapper.readValue(is, DocumentArtifact.class);
+        }
+        artifact = SourceArtifactBundle.combine(List.of(artifact));
+        java.util.Map<String, DocumentArtifact.CanonicalTable.CanonicalCellDto> cellMap = new java.util.HashMap<>();
+        for (var table : artifact.tables()) {
+            for (var cell : table.cells()) {
+                cellMap.put(cell.cellId(), cell);
+            }
+        }
+
+        JsonNode factsNode;
+        try (InputStream is = getClass().getResourceAsStream("/scoreparse/project-1382/task-292-live-facts.json")) {
+            assertThat(is).isNotNull();
+            factsNode = objectMapper.readTree(is);
+        }
+
+        var codeByFactId = new java.util.HashMap<String, String>();
+        for (JsonNode node : factsNode) {
+            codeByFactId.put(node.path("factId").asText(), node.path("code").asText());
+        }
+
+        List<MultimodalScoreFact> rawFacts = new ArrayList<>();
+        for (JsonNode node : factsNode) {
+            String code = node.path("code").asText();
+            BigDecimal weight = node.hasNonNull("weight") ? new BigDecimal(node.path("weight").asText()) : null;
+            String ruleText = node.path("sourceText").asText("");
+            String dimension = node.path("dimension").asText("");
+            String scoreType = "OBJECTIVE";
+            String parentFactId = node.path("parentFactId").asText("");
+            String parentCode = parentFactId.isBlank() ? "" : codeByFactId.getOrDefault(parentFactId, "");
+            String tableId = node.path("sourceTableId").asText("");
+
+            List<String> sourceCellIds = new ArrayList<>();
+            for (JsonNode cellNode : node.path("sourceCellIds")) {
+                sourceCellIds.add(cellNode.asText());
+            }
+
+            Integer page = null;
+            String quotedText = "";
+            if (node.hasNonNull("weightEvidence")) {
+                quotedText = node.path("weightEvidence").path("quotedText").asText("");
+            }
+            if (!sourceCellIds.isEmpty()) {
+                var cell = cellMap.get(sourceCellIds.get(0));
+                if (cell != null) {
+                    page = cell.sourcePage();
+                    if (quotedText.isBlank()) {
+                        quotedText = cell.rawText() == null ? "" : cell.rawText();
+                    }
+                }
+            }
+
+            rawFacts.add(new MultimodalScoreFact(
+                    "第三章 评审办法", code, parentCode, dimension, weight, ruleText, scoreType,
+                    page, tableId, sourceCellIds, quotedText, 0.95, ChildAggregation.SUM,
+                    "", "",
+                    new com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata(ruleText, quotedText, List.of(), List.of(),
+                            dimension, scoreType,
+                            new com.xiyu.bid.scoreparse.domain.ModelSourceClaim("第三章 评审办法", page, tableId, sourceCellIds, "", ""))
+            ));
+        }
+
+        StringBuilder tenderTextBuilder = new StringBuilder();
+        tenderTextBuilder.append("第三章 评审办法\n3.2.1 分值构成（总分100分）：（1）商务部分：15分；（2）技术部分：45分；（3）报价：40分。\n");
+        for (int i = 2; i <= 6000; i++) {
+            if (i == 1052) {
+                tenderTextBuilder.append("3.2.1 分值构成（总分100分）：（1）商务部分：15分；（2）技术部分：45分；（3）报价：40分。\n");
+            } else if (i == 1426) {
+                tenderTextBuilder.append("（1）商务评分标准：见评审办法前附表；\n");
+            } else if (i == 1427) {
+                tenderTextBuilder.append("（2）技术评分标准：见评审办法前附表；\n");
+            } else if (i == 1428) {
+                tenderTextBuilder.append("（3）报价评分标准：\n报价得分可采用如下方法计算：\n方法一：偏差率=（供应商\n");
+            } else if (i == 1440) {
+                tenderTextBuilder.append("（4）其他因素评分标准：见评审办法前附表。\n");
+            } else if (i == 5200) {
+                tenderTextBuilder.append("# 第五章 合同条款及格式\n");
+            } else if (i == 5275) {
+                tenderTextBuilder.append("商品质量评价 5\n当B》=A时，得分权重为1，得分=1*订单评价的平均值（一星\n");
+            } else if (i == 5280) {
+                tenderTextBuilder.append("配送服务评价 5 全部5星\n考核指标 当B》=A时，得分权重为1，得分=1*订\n");
+            } else if (i == 5285) {
+                tenderTextBuilder.append("服务水平评价 5\n当B》=A时，得分权重为1，得分=1*订单评价的平均值（一星\n");
+            } else if (i == 5303) {
+                tenderTextBuilder.append("协议商品动销率 考核规则：动销率排名第1名的得满分，其余按照第1名动销率为基准进\n");
+            } else if (i == 5308) {
+                tenderTextBuilder.append("协议商品价格合\n15 系统根据自动计算 协议商品价格合格率（X）=当月度价格合\n");
+            } else if (i == 5352) {
+                tenderTextBuilder.append("根据供应商判断办公用品专区采购需求，供应商需回复所属专区采购需求（是否响应：是）\n");
+            } else if (i == 5358) {
+                tenderTextBuilder.append("系统自动计算 发货时效（X）=当月符合约定（审核人审核通过后48小时内）发货时效\n");
+            } else if (i == 5361) {
+                tenderTextBuilder.append("系统自动计算 办公用品专区分别计算：X=当月平均到货时效，Y=各供应商当月平均到\n");
+            } else if (i == 5403) {
+                tenderTextBuilder.append("收款核销考核 10 2026年每月25号进行计算：收款核销率（X）=累计已核销付\n");
+            } else if (i == 5411) {
+                tenderTextBuilder.append("系统及时 系统故障处理时 当故障发生时由平台正式向供应商报障，供应商故障处理人接\n");
+            } else {
+                tenderTextBuilder.append("\n");
+            }
+        }
+        String tenderText = tenderTextBuilder.toString();
+        OriginalScoringContext context = OriginalScoringContext.resolve(artifact, tenderText);
+        var extractionResult = new MultimodalScoreFactExtractor.ExtractionResult(new BigDecimal("100"), rawFacts, "gemini-3.5-flash", 0);
+
+        StructuredTableResult result = MultimodalStructuredExtractionHandler.run(
+                "办公用品.pdf", tenderText, artifact, context, null, () -> {},
+                extractionResult, true, true, true);
+
+        System.out.println("=== TASK 292 RESULT ===");
+        System.out.println("decision: " + (result.completeness() == null ? "null" : result.completeness().decision()));
+        System.out.println("fallbackReason: " + (result.completeness() == null ? "null" : result.completeness().fallbackReason()));
+        if (result.completeness() != null) {
+            System.out.println("defects: " + result.completeness().defects());
+        }
+        assertThat(result.completeness()).isNotNull();
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+    }
 }
