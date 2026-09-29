@@ -226,8 +226,7 @@ final class MultimodalStructuredExtractionHandler {
                             rechecked.facts().size(), rechecked.declaredTotal());
                 }
             } catch (RuntimeException recheckFailure) {
-                log.warn("紧凑模型复核失败，保留首次提取结果: file={}, cause={}", fileName,
-                        recheckFailure.getClass().getSimpleName());
+                log.warn("紧凑模型复核失败，保留首次提取结果: file={}", fileName, recheckFailure);
             }
         }
         if (!validation.autoApprovable() || multiTableModelScopeUnknown) {
