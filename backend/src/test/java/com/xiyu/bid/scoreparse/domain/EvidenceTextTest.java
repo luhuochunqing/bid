@@ -26,4 +26,14 @@ class EvidenceTextTest {
         var spanWithSpace = normalized.uniqueSpan("28 分").orElseThrow();
         assertThat(raw.substring(spanWithSpace.start(), spanWithSpace.end())).isEqualTo("28\n分");
     }
+
+    @Test void pdfHardLineBreakBetweenDigitAndHanIsLayoutNoise() {
+        // 项目1382 Task 291：PDF 单元格把「满分28分」硬换行成「满分28\n分」，模型引文无换行。
+        // 反向边界（汉字↔数字，"达到 5 年"）同样视为排版噪声；数字↔数字空格保留（千分位）。
+        var cell = EvidenceText.normalize("一级集采商品价格分（满分28\n分）");
+        assertThat(cell.text()).isEqualTo("一级集采商品价格分（满分28分）");
+        assertThat(cell.uniqueSpan("一级集采商品价格分（满分28分）")).isPresent();
+        assertThat(EvidenceText.normalize("运营时间达到 5 年以上").text()).isEqualTo("运营时间达到5年以上");
+        assertThat(EvidenceText.normalize("合计 1 000").text()).isEqualTo("合计1 000");
+    }
 }
