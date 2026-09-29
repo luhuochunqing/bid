@@ -6,6 +6,11 @@
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export SIDECAR_PYTHON="${SIDECAR_PYTHON:-python3}"
+if ! "$SIDECAR_PYTHON" -B -c 'import docx, lxml' >/dev/null 2>&1; then
+  if [ -x "$ROOT_DIR/document-converter-sidecar/.venv/bin/python" ]; then
+    export SIDECAR_PYTHON="$ROOT_DIR/document-converter-sidecar/.venv/bin/python"
+  fi
+fi
 "$SIDECAR_PYTHON" -B -c 'import docx, lxml'
 cd "$ROOT_DIR"
 mvn -o -q -f backend/pom.xml '-Dtest=RealSourceExcerptReplayTest,CrossFormatDocumentSourceReplayTest,FullRuleSourceReplayTest,TextPrimaryScoreFactMapperTest,MultimodalScoreFactValidatorTest,TextPrimaryEvidenceBinderTest,ScoreExtractionSnapshotTest,SchemeScopePublicationTest' test
