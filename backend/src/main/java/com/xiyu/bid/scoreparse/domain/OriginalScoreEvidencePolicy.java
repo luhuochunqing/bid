@@ -140,9 +140,9 @@ public final class OriginalScoreEvidencePolicy {
         for (ScoreEvidenceClaim claim : claims) {
             Qualification qualification = OriginalScoreQualificationPolicy.qualify(context, artifact, claim, schemes);
             qualifications.add(qualification);
-            // 权重为 0 且不是父项的行是「见评审办法前附表」这类指引，不是评分单位。
+            // 权重为 0 的行是「见评审办法前附表」这类指引或大纲，不是评分单位。
             // 资格仍要记下，方案外的 0 分项才能继续被校验器排除。
-            if (claim.weight() != null && claim.weight().signum() <= 0 && !claim.parent()) continue;
+            if (claim.weight() != null && claim.weight().signum() <= 0) continue;
             if (qualification.candidateEligible()) {
                 eligibleClaimIds.add(claim.id());
                 OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems);

@@ -44,7 +44,6 @@ final class MultimodalExtractionReviewPolicy {
     static MultimodalScoreFact assignScope(MultimodalScoreFact fact, OriginalScoringContext context,
                                                    DocumentArtifact artifact, String tenderText,
                                                    List<OriginalScoringContext.SchemeEvidence> schemes) {
-        if (!fact.scopeStatus().isBlank() && !fact.schemeId().isBlank()) return fact;
         if (context != null && !context.scheme().isBlank()) {
             String contextSchemeId = OriginalScoringContext.schemeId(context.scheme());
             if (fact.sectionTitle() != null && fact.sectionTitle().matches("(?s).*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*")) {
@@ -94,6 +93,7 @@ final class MultimodalExtractionReviewPolicy {
                 return fact;
             }
         }
+        if (!fact.scopeStatus().isBlank() && !fact.schemeId().isBlank()) return fact;
         return fact;
     }
 

@@ -30,7 +30,8 @@ final class OriginalScoreQualificationPolicy {
             return qualification(claim, null, "SOURCE_UNVERIFIED", false,
                     "SOURCE_SCHEME_NOT_VERIFIED", "", schemes);
         }
-        if ("OUT_OF_SCHEME".equals(claim.scopeStatus())) {
+        if ("OUT_OF_SCHEME".equals(claim.scopeStatus())
+                && (claim.weight() == null || claim.weight().compareTo(java.math.BigDecimal.ZERO) <= 0)) {
             String locator = claim.sourceCellIds() == null || claim.sourceCellIds().isEmpty()
                     ? (claim.tableId() == null ? "" : claim.tableId())
                     : claim.sourceCellIds().get(0);
@@ -39,14 +40,18 @@ final class OriginalScoreQualificationPolicy {
         }
         if (claim.textLocator()) {
             String locator = claim.sourceCellIds().get(0);
+            if (!textLocatorContainsQuote(locator, claim.tenderText(), claim.quotedText())) {
+                return qualification(claim, schemeId, "SOURCE_UNVERIFIED", false,
+                        "SOURCE_LOCATOR_NOT_VERIFIED", locator, schemes);
+            }
             int line = textLine(locator);
             OriginalScoringContext.TextScope scope = OriginalScoringContext.textScopeAt(claim.tenderText(), line);
             if (scope != null && "OUT_OF_SCHEME".equals(scope.scopeStatus()))
                 return qualification(claim, schemeId, "OUT_OF_SCHEME", false,
                         "ITEM_SCHEME_SCOPE_MISMATCH", locator, schemes);
-            if (!textLocatorContainsQuote(locator, claim.tenderText(), claim.quotedText())) {
-                return qualification(claim, schemeId, "SOURCE_UNVERIFIED", false,
-                        "SOURCE_LOCATOR_NOT_VERIFIED", locator, schemes);
+            if ("OUT_OF_SCHEME".equals(claim.scopeStatus())) {
+                return qualification(claim, schemeId, "OUT_OF_SCHEME", false,
+                        "ITEM_SCHEME_SCOPE_MISMATCH", locator, schemes);
             }
             if (scope != null && "IN_SCHEME".equals(scope.scopeStatus())) {
                 if (claim.schemeId().isBlank() || claim.schemeId().equals(scope.schemeId()))
@@ -58,6 +63,13 @@ final class OriginalScoreQualificationPolicy {
                 return qualification(claim, schemeId, "IN_SCHEME", true, null, locator, schemes);
             return qualification(claim, schemeId, "SOURCE_UNVERIFIED", false,
                     "SOURCE_SCHEME_NOT_VERIFIED", locator, schemes);
+        }
+        if ("OUT_OF_SCHEME".equals(claim.scopeStatus())) {
+            String locator = claim.sourceCellIds() == null || claim.sourceCellIds().isEmpty()
+                    ? (claim.tableId() == null ? "" : claim.tableId())
+                    : claim.sourceCellIds().get(0);
+            return qualification(claim, schemeId, "OUT_OF_SCHEME", false,
+                    "ITEM_SCHEME_SCOPE_MISMATCH", locator, schemes);
         }
         if (artifact == null || claim.tableId() == null || claim.tableId().isBlank()
                 || claim.sourceCellIds() == null || claim.sourceCellIds().isEmpty()) {
@@ -190,8 +202,12 @@ final class OriginalScoreQualificationPolicy {
         String[] lines = text.split("\\R", -1);
         if (line < 0 || line >= lines.length || quote.isBlank()) return false;
         String sourceWindow = String.join(" ", java.util.Arrays.copyOfRange(lines, line,
-                Math.min(lines.length, line + 3)));
-        return normalizeSource(sourceWindow).contains(normalizeSource(quote));
+                Math.min(lines.length, line + 5)));
+        String normalizedWindow = normalizeSource(sourceWindow);
+        String normalizedQuote = normalizeSource(quote);
+        if (normalizedWindow.isBlank()) return false;
+        return normalizedWindow.contains(normalizedQuote)
+                || (normalizedQuote.length() >= 10 && normalizedWindow.contains(normalizedQuote.substring(0, Math.min(normalizedQuote.length(), 20))));
     }
 
     private static int textLine(String locator) {

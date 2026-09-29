@@ -1,0 +1,833 @@
+[
+  {
+    "code": "3.2.3(1)",
+    "factId": "fact-378684ee-32fa-3101-83e6-bb14f957ad9f",
+    "weight": 15.0,
+    "dimension": "商务",
+    "sourceText": "（1）商务部分：15分",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p33-t0009-r18-c3"
+    ],
+    "sourceTableId": "doc0-p33-t0009",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p33-t0009-r18-c3",
+      "quotedText": "（1）商务部分：15分"
+    }
+  },
+  {
+    "code": "3.2.3(1).1",
+    "factId": "fact-7fc7532d-14e6-3442-ac9a-b8cd91a21d1c",
+    "weight": 7.0,
+    "dimension": "供应商业绩",
+    "sourceText": "3.2.3\n（1）\n商务评分\n标准\n供应商业绩\n（7分）\n供应商具有近三年内（2023年1月1日起至今，供应商具有1\n项大型集团型国央企电子商城办公用品服务业绩的不得分，每\n增加1个得1分，最高得7分。\n注：\n1.大型集团型国央企指：1）国务院国资委代表国务院履行出资\n人职责的中央企业；2）以及国务院授权财政部履行出资人职责\n的企业；3）各省、自治区、直辖市人民政府授权本级国资委履\n行出资人职责的省属国有独资、全资、控股企业。\n2.供应商应同时提供以下证明材料：\n（1）服务业绩时间以合同/协议签订时间为准，提供内容须包\n含：合同/协议首页、签字盖章页、体现工作内容主要页。合同\n/协议的甲方签订主体应是国央企总部或其所属物资公司、电商\n专业公司等，服务范围应为国央企全集团提供电商服务。\n（2）提供大型集团型国央企在国家企业信用信息公示系统中的\n股权关系截图（需与供应商所投业绩中的服务对象匹配，如签\n约主体为大型集团型国央企所述的物资公司、电商专业公司\n等，需提供从大型集团型国央企至签约主体公司的股权关系截\n图），无法证明甲方为央企、省属国企的业绩不予认可。",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r2-c2"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r2-c2",
+      "quotedText": "供应商业绩\n（7分）"
+    }
+  },
+  {
+    "code": "3.2.3(1).2",
+    "factId": "fact-65fa10d0-101b-307c-aaa3-f46f7eb688f3",
+    "weight": 3.0,
+    "dimension": "财务状况",
+    "sourceText": "财务状况\n（3分）\n1.供应商近三年（2023年-2025年）经营活动产生的现金流量\n净额连续三年为正的得1.5分，有两年为正的得1分，有一年\n为正的得0.5分，其他不得分。\n2.供应商近三年（2023年-2025年）连续三年净利润连续三年\n为正的得1.5分，有两年为正的得 1 分，有一年为正的得0.5\n分，其他不得分。\n注：供应商须提供2023年度、2024年度、2025年度经会计师\n事务所或审计机构审计的近年财务会计报表复印件，包括资产\n负债表、现金流量表、利润表。（供应商的成立时间少于该规\n定年份的，应提供成立以来的财务会计报表）",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r3-c2"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r3-c2",
+      "quotedText": "财务状况\n（3分）"
+    }
+  },
+  {
+    "code": "3.2.3(1).3",
+    "factId": "fact-12297faf-5f03-38cc-8410-bfbba48ebf04",
+    "weight": 3.0,
+    "dimension": "服务网点及仓储",
+    "sourceText": "服务网点及仓储\n（3分）\n1.供应商须在全国所有省份（含直辖市）中均设有服务网点的\n得1.5分，每少一个扣0.1分，扣完为止。\n注：服务网点应为供应商具有实际经营场所的分子公司或办事\n处等，须提供服务网点统计表，统计表中须包含省份、各网点\n的服务名称、详细地址、联系人、联系电话（手机）以及经营\n场所证明。（营业执照、租赁合同复印件或产权证明）\n2.供应商须在全国所有省份（含直辖市）中均设有仓储地点的\n得1.5分，每少一个扣0.1分，扣完为止。\n注：须提供全国各省仓储地点的统计表，内容包含不限于所在\n省、所在市、仓库面积、类型等信息，须提供租赁合同复印件\n或产权证明。（如自有产权仓库为同一法人或者同一集团下的\n需要提供相关股权和房产证明文件）",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r5-c2"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r5-c2",
+      "quotedText": "服务网点及仓储\n（3分）"
+    }
+  },
+  {
+    "code": "3.2.3(1).4",
+    "factId": "fact-f357a69c-cfd6-3e59-bc7d-73c71e452e3c",
+    "weight": 1.0,
+    "dimension": "电子商城运营时间",
+    "sourceText": "电子商城运营时间\n（1分）\n供应商具有稳定的电子商城并运营时间达到 5 年以上的得 1\n分;3-5年的（含3年）得0.5分，3年以下的不得分。（提供\n电子商城平台运行时间以 ICP备案时间为准）",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r6-c2"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r6-c2",
+      "quotedText": "电子商城运营时间\n（1分）"
+    }
+  },
+  {
+    "code": "3.2.3(1).5",
+    "factId": "fact-6fc6326e-0473-37cc-b460-e4478074a16c",
+    "weight": 1.0,
+    "dimension": "授信额度",
+    "sourceText": "授信额度（1分）\n对本集团及下属单位授信总额≥1亿元（含）人民币，并出具\n授信承诺书的得1分，未出具不得分。（承诺书格式自拟）",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r7-c2"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r7-c2",
+      "quotedText": "授信额度（1分）"
+    }
+  },
+  {
+    "code": "3.2.3(2)",
+    "factId": "fact-0f47702d-6ab9-3e4b-94df-4b8fdaaee3b5",
+    "weight": 45.0,
+    "dimension": "技术",
+    "sourceText": "（2）技术部分：45分",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p33-t0009-r18-c3"
+    ],
+    "sourceTableId": "doc0-p33-t0009",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p33-t0009-r18-c3",
+      "quotedText": "（2）技术部分：45分"
+    }
+  },
+  {
+    "code": "3.2.3(2).1",
+    "factId": "fact-aebf789c-9aff-3139-bfe2-81e4caaeae3d",
+    "weight": 10.0,
+    "dimension": "针对办公用品的综合服务方案",
+    "sourceText": "3.2.3\n（2）\n技术评分\n标准\n针对办公用品的\n综合服务方案\n（10分）\n1.综合考察供应商售前服务能力，须提供售前服务方案，包括\n但不限于商品咨询解答、商品上架管理品类及主流品牌覆盖管\n理、商品下架管理、售前库存管理、采购新增需求响应、定制\n品需求响应、商品议价响应、商品竞价响应、促销活动响应、\n供应商服务诚信等；\n2.综合考察供应商售中服务能力，须提供售中服务方案，包括\n但不限于商品销售、售中库存管理、订单运营管理（含供应商\n系统订单状态与商城系统订单状态的一致性管控）、出库配送\n保障（包括但不限于配送物流保障、配送商品与订单的一致\n性、物流异常处理、大件/易碎等特殊商品的物流保障等）等；\n3.综合考察供应商售后服务能力，须提供售后服务方案，包括\n但不限于标配售后安装服务保障、退换货响应、三包服务、热\n线服务、商品开票服务、收款确认、报修响应及上门服务流\n程、售后问题处理周期、普通纠纷解决方案及周期、重大物流\n配送纠纷解决方案及周期、重大质量纠纷解决方案及周期等。\n按照以上方案的完整、合理、可操作性、可实施性情况进行评\n分。\n1.评价为优的，得8-10分；\n2.评价为良的，得6-7分；\n3.评价为中的，得4-5分；\n4.评价为差的，得0-3分。",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r8-c2"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r8-c2",
+      "quotedText": "针对办公用品的\n综合服务方案\n（10分）"
+    }
+  },
+  {
+    "code": "3.2.3(2).2",
+    "factId": "fact-de57d4da-27f4-3491-9a43-5c285d936185",
+    "weight": 10.0,
+    "dimension": "针对办公用品的产品质量及价格管控方案",
+    "sourceText": "针对办公用品的\n产品质量及价格\n管控方案\n（10分）\n1.综合考察供应商对推送至通用电子商城商品价格合规管控能\n力，制定价格管控方案，涵盖内容包括但不限于：商品上架价\n格管控、在售商品价格巡检稽查管控、定制商品价格管控，对\n推送商品价格合规管控方案进行详细说明，可举例说明；\n2.综合考察供应商对推送至通用电子商城的商品质量合规管控\n能力，对自营商品质量管控、合作商品质量管控、强制认证商\n品质量管控、原厂商品合法销售授权管控等措施进行详细说\n明，可举例说明；\n3.综合考察供应商的商品授权情况，包括供应商所获授权对应\n本项目要求供应的商品品类的覆盖程度，以及各品类中商品授\n权的丰富程度。（详见：“响应文件第六项：供应商应提交的\n其他资料中1.《商品授权清单》”）;\n4.综合考察供应商对对推送至通用电子商城的商品信息规范合\n规（包含商品名称、主图、详情、规格型号、关键属性参数）\n管理能力，制定商品规范合规方案，对推送商品规范合规方案\n进行详细说明，可举例说明；\n5.综合考察供应商供应链能力包括不限于上游企业情况、自有\n品牌情况、自有品牌占比、授权品牌占比、产业链综合能力等\n进行详细说明。\n按照以上方案的可行、完善、便捷、合理性进行评分。\n1.评价为优的，得8-10分；\n2.评价为良的，得6-7分；\n3.评价为中的，得4-5分；\n4.评价为差的，得0-3分。",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r10-c2"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r10-c2",
+      "quotedText": "针对办公用品的\n产品质量及价格\n管控方案\n（10分）"
+    }
+  },
+  {
+    "code": "3.2.3(2).3",
+    "factId": "fact-0b80071f-543b-383f-bff6-88e18cd3822e",
+    "weight": 8.0,
+    "dimension": "针对办公用品的物流仓储方案",
+    "sourceText": "针对办公用品的\n物流仓储方案\n（8分）\n综合考察供应商配送响应速度能力，各家供应商进行横向比\n较，有针对大客户的优惠配送方案及针对偏远地区物流配送保\n障措施。对发货时效、具体各省份到货时效进行综合评价。\n1.综合考察供应商配送响应速度能力，各家供应商进行横向比\n较，有针对大客户的优惠配送方案及针对偏远地区物流配送保\n障措施。对发货时效、具体各省份到货时效进行综合评价；\n2.综合考察供应商物流配送车辆情况。属于自有车辆的，应提\n供包括但不限于以下材料：行驶证以及能够证明车辆行驶证主\n体和响应主体属于同一集团公司的证明材料等）；属于非自有\n车辆的，应提供与快递、物流公司等签署的相关协议扫描件证\n明；\n3.对供应商承诺的交货地点情况进行评估，承诺配送至采购单\n位采购人指定任何具体地点（如工位、厂区仓库、货架等）解\n决方案进行评估；\n4.仓储方案须涵盖省、市、区（县）各层级详细内容。\n针对上述方案进行综合评分。\n1.评价为优的，得7-8分；\n2.评价为良的，得5-6分；\n3.评价为中的，得3-4分；\n4.评价为差的，得0-2分。",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r11-c2"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r11-c2",
+      "quotedText": "针对办公用品的\n物流仓储方案\n（8分）"
+    }
+  },
+  {
+    "code": "3.2.3(2).4",
+    "factId": "fact-5202413b-e7f3-3c83-9d96-699bc2f4c6d3",
+    "weight": 10.0,
+    "dimension": "针对办公用品服务团队方案",
+    "sourceText": "针对办公用品\n服务团队方案\n（10分）\n根据服务团队能力、针对办公用品的售前服务、售中服务、售\n后服务等方面综合评价。\n内容包括但不限于：\n1.人员配置方面：为通用技术筹备的服务团队及人员情况，包\n括项目经理、技术人员、项目成员及客服人员的花名册，具体\n包括学历、履历介绍等；\n2.售前服务方面：商品基础信息咨询、商品技术咨询、包安\n装、包装卸等的产品范围、采购需求寻源保障措施、售前库存\n运营管理、寻源响应及时性以及其他服务承诺；\n3.售中服务方面：订单处理服务措施、商品质量与打包防护保\n障措施、售中库存运营管理、错发/漏发/破损应急处理措施、\n包安装及包装卸等特殊商品售后保障措施等；\n4.售后服务方面：售后服务响应和处理时效、备品替代、上门\n服务、售后维护、普通纠纷解决、重大纠纷解决、其他问题处\n理周期等。\n1.评价为优的，得8-10分；\n2.评价为良的，得5-7分；\n3.评价为中的，得3-4分；\n4.评价为差的，得0-2分。",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r13-c2"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r13-c2",
+      "quotedText": "针对办公用品\n服务团队方案\n（10分）"
+    }
+  },
+  {
+    "code": "3.2.3(2).5",
+    "factId": "fact-80c9aaf5-496c-3c0c-9a54-f0e6ac576322",
+    "weight": 3.0,
+    "dimension": "平台系统对接方案",
+    "sourceText": "平台系统对接方案\n（3分）\n供应商提供科学合理的前期平台对接及上线实施方案，实施内\n容须完整、可行，工期短，须按照采购人电子商城接口标准进\n行对接（包含电子商城接口更新），便于采购人进行采购管\n理，针对上述方案进行综合评分。\n1.评价为优的，得3分；\n2.评价为良的，得2分；\n3.评价为中的，得1分；\n4.评价为差的，得0分。",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r14-c2"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r14-c2",
+      "quotedText": "平台系统对接方案\n（3分）"
+    }
+  },
+  {
+    "code": "3.2.3(2).6",
+    "factId": "fact-5ee15c16-a274-36b5-81b2-17d39ae1d06e",
+    "weight": 4.0,
+    "dimension": "针对办公用品增值服务方案",
+    "sourceText": "针对办公用品增值服\n务方案（4分）\n供应商提供一条有效可行的增值服务方案得1分，满分4分。",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r15-c2"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r15-c2",
+      "quotedText": "针对办公用品增值服\n务方案（4分）"
+    }
+  },
+  {
+    "code": "3.2.3(3)",
+    "factId": "fact-d0d36782-f057-3402-b3d0-d9ac89f313bb",
+    "weight": 40.0,
+    "dimension": "价格",
+    "sourceText": "（3）报价：40分\n（4）其他评分因素：/分（如有）",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p33-t0009-r18-c3"
+    ],
+    "sourceTableId": "doc0-p33-t0009",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p33-t0009-r18-c3",
+      "quotedText": "（3）报价：40分"
+    }
+  },
+  {
+    "code": "3.2.3(3).1",
+    "factId": "fact-70036ec0-1c92-370d-b652-ad8bd0262143",
+    "weight": 28.0,
+    "dimension": "一级集采商品上架折扣率",
+    "sourceText": "第一部分：一级集采商品（合计28分）\n1、一级集采商品上架折扣率（28分）：供应商在响应文件格\n式响应函附件1：报价表-1.1一级集采商品上架折扣率报价表\n的“三级分类品类上架折扣率”填报折扣率，该三级分类所有\n折扣率的平均折扣率作为最终折扣率报价。供应商报价高于评\n审基准价（详见本章前附表3.2.2（2））时，其所报折扣率每\n高于平均折扣率1个百分点（不足1个百分点按1个百分点计\n算）扣0.2分；供应商报价低于评审基准价时，其所报折扣率\n每低于平均折扣率1个百分点（不足1个百分点按1个百分点\n计算）扣0.5分，所有得分保留两位小数。\n注：一级集采品类上架折扣率应在京东自营旗舰店或京东官方\n旗舰店铺的商品日常划线价格（不含活动促销、国家补贴、政\n府补贴、会员折扣）基础上下浮报价，该报价须不高于京东自\n营旗舰店或京东官方旗舰店铺的非会员促销价格（不含国家补\n贴、政府补贴）。\n示例如下：\n2、一级集采商品清单报价：供应商在响应文件格式响应函附件\n1：报价表-1.2一级集采商品清单报价中按要求进行报价，其\n中：\n（1）供应商有效报价覆盖率占比＜60%时，在一级集采商品折\n扣率得分基础上扣5分；供应商所报商品与清单内商品不一致\n时，视为无效报价；\n（2）评审小组在报价表中随机选取5个商品核查价格，若抽查\n商品价格高于对应品类折扣率价格、京东自营旗舰店或京东官\n方旗舰店铺的非会员活动促销价格，在一级集采商品上架折扣\n率得分基础上每个扣0.5分。",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r16-c3"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r16-c3",
+      "quotedText": "第一部分：一级集采商品（合计28分）"
+    }
+  },
+  {
+    "code": "3.2.3(3).1.1",
+    "factId": "fact-32867944-fea8-301f-88db-6026cef24f81",
+    "weight": 28.0,
+    "dimension": "一级集采商品上架折扣率",
+    "sourceText": "1、一级集采商品上架折扣率（28分）：供应商在响应文件格\n式响应函附件1：报价表-1.1一级集采商品上架折扣率报价表\n的“三级分类品类上架折扣率”填报折扣率，该三级分类所有\n折扣率的平均折扣率作为最终折扣率报价。供应商报价高于评\n审基准价（详见本章前附表3.2.2（2））时，其所报折扣率每\n高于平均折扣率1个百分点（不足1个百分点按1个百分点计\n算）扣0.2分；供应商报价低于评审基准价时，其所报折扣率\n每低于平均折扣率1个百分点（不足1个百分点按1个百分点\n计算）扣0.5分，所有得分保留两位小数。\n注：一级集采品类上架折扣率应在京东自营旗舰店或京东官方\n旗舰店铺的商品日常划线价格（不含活动促销、国家补贴、政\n府补贴、会员折扣）基础上下浮报价，该报价须不高于京东自\n营旗舰店或京东官方旗舰店铺的非会员促销价格（不含国家补\n贴、政府补贴）。\n示例如下：",
+    "parentFactId": "fact-70036ec0-1c92-370d-b652-ad8bd0262143",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r16-c3"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r16-c3",
+      "quotedText": "1、一级集采商品上架折扣率（28分）"
+    }
+  },
+  {
+    "code": "3.2.3(3).1.2",
+    "factId": "fact-c89bd54b-a8dc-37ef-bda4-cd40d7978d49",
+    "weight": 0.0,
+    "dimension": "价格",
+    "sourceText": "2、一级集采商品清单报价：供应商在响应文件格式响应函附件\n1：报价表-1.2一级集采商品清单报价中按要求进行报价，其\n中：\n（1）供应商有效报价覆盖率占比＜60%时，在一级集采商品折\n扣率得分基础上扣5分；供应商所报商品与清单内商品不一致\n时，视为无效报价；\n（2）评审小组在报价表中随机选取5个商品核查价格，若抽查\n商品价格高于对应品类折扣率价格、京东自营旗舰店或京东官\n方旗舰店铺的非会员活动促销价格，在一级集采商品上架折扣\n率得分基础上每个扣0.5分。\n第二部分：非一级集采商品（合计12分）\n1、非一级集采商品上架折扣率（12分）。供应商在响应文件\n格式响应函附件1：报价表-2.1非一级集采商品上架折扣率报\n价表的“三级分类品类上架折扣率”填报折扣率，该三级分类\n所有折扣率的平均折扣率作为最终折扣率报价，供应商报价高\n于评审基准价（详见本章前附表3.2.2（2））时，其所报折扣\n率每高于平均折扣率1个百分点（不足1个百分点按1个百分\n点计算）扣0.2分；供应商报价低于评审基准价时，其所报折\n扣率每低于平均折扣率1个百分点（不足1个百分点按1个百\n分点计算）扣0.5分，所有得分保留两位小数。\n注：非一级集采商品上架折扣率应在京东自营店铺/旗舰店/超\n市/五星店铺（不含仅打“自营”标识但无店铺名的商品）的\n商品日常划线价格（不含活动促销、国家补贴、政府补贴、会\n员折扣）基础上下浮报价，商品比价链接的优先级依次为“京\n东自营店铺、旗舰店、超市、五星店铺”。",
+    "parentFactId": "fact-70036ec0-1c92-370d-b652-ad8bd0262143",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r17-c3"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r17-c3",
+      "quotedText": "2、一级集采商品清单报价"
+    }
+  },
+  {
+    "code": "3.2.3(3).2",
+    "factId": "fact-aba4334d-feeb-31a8-9a77-7da29ddad73e",
+    "weight": 12.0,
+    "dimension": "非一级集采商品上架折扣率",
+    "sourceText": "第二部分：非一级集采商品（合计12分）\n1、非一级集采商品上架折扣率（12分）。供应商在响应文件\n格式响应函附件1：报价表-2.1非一级集采商品上架折扣率报\n价表的“三级分类品类上架折扣率”填报折扣率，该三级分类\n所有折扣率的平均折扣率作为最终折扣率报价，供应商报价高\n于评审基准价（详见本章前附表3.2.2（2））时，其所报折扣\n率每高于平均折扣率1个百分点（不足1个百分点按1个百分\n点计算）扣0.2分；供应商报价低于评审基准价时，其所报折\n扣率每低于平均折扣率1个百分点（不足1个百分点按1个百\n分点计算）扣0.5分，所有得分保留两位小数。\n注：非一级集采商品上架折扣率应在京东自营店铺/旗舰店/超\n市/五星店铺（不含仅打“自营”标识但无店铺名的商品）的\n商品日常划线价格（不含活动促销、国家补贴、政府补贴、会\n员折扣）基础上下浮报价，商品比价链接的优先级依次为“京\n东自营店铺、旗舰店、超市、五星店铺”。",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "doc0-p34-t0010-r17-c3"
+    ],
+    "sourceTableId": "doc0-p34-t0010",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "doc0-p34-t0010-r17-c3",
+      "quotedText": "第二部分：非一级集采商品（合计12分）\n1、非一级集采商品上架折扣率（12分）。"
+    }
+  },
+  {
+    "code": "3.2.3",
+    "factId": "fact-df62841d-257b-36d5-a615-1f58e9f15652",
+    "weight": 0.0,
+    "dimension": "综合评估",
+    "sourceText": "",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "text:line[1425]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[1425]",
+      "quotedText": "3.2.3 评分标准"
+    }
+  },
+  {
+    "code": "3.2.3(1)",
+    "factId": "fact-ad44f388-dd51-30cc-971c-a1b1d5bcccbc",
+    "weight": 0.0,
+    "dimension": "商务评分",
+    "sourceText": "",
+    "parentFactId": "fact-df62841d-257b-36d5-a615-1f58e9f15652",
+    "sourceCellIds": [
+      "text:line[1426]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[1426]",
+      "quotedText": "（1）商务评分标准：见评审办法前附表；"
+    }
+  },
+  {
+    "code": "3.2.3(2)",
+    "factId": "fact-17b05bb1-2d5d-3318-b61a-a937c013c7e8",
+    "weight": 0.0,
+    "dimension": "技术评分",
+    "sourceText": "",
+    "parentFactId": "fact-df62841d-257b-36d5-a615-1f58e9f15652",
+    "sourceCellIds": [
+      "text:line[1427]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[1427]",
+      "quotedText": "（2）技术评分标准：见评审办法前附表；"
+    }
+  },
+  {
+    "code": "3.2.3(3)",
+    "factId": "fact-3a8e894d-8923-3257-ad1f-a13bba895828",
+    "weight": 0.0,
+    "dimension": "报价评分",
+    "sourceText": "",
+    "parentFactId": "fact-df62841d-257b-36d5-a615-1f58e9f15652",
+    "sourceCellIds": [
+      "text:line[1428]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[1428]",
+      "quotedText": "（3）报价评分标准：\n报价得分可采用如下方法计算：\n方法一：偏差率=（供应商评审价格-评审基准价）/评审基准价×100%\n①如果供应商的评审价格＞评审基准价，则报价得分=F-偏差率×100×E1；\n②如果供应商的评审价格≤评审基准价，则报价得分=F+偏差率×100×E2。\n其中 F 为本章第 3.2.1（3）目规定的报价所占的分值；E1 是评审价格每高于评审\n基准价一个百分点的扣分值、E2 是评审价格每低于评审基准价一个百分点的扣分值，\nE1可大于或等于E2。E1、E2的取值见评审办法前附表。\n方法二：报价得分=（递交最终报价的所有供应商的最低评审价格/供应商评审价\n格）×F，F为本章第3.2.1（3）目规定的报价所占的分值。\n方法三：采购人确定的其他方法。\n报价得分计算方法见评审办法前附表。"
+    }
+  },
+  {
+    "code": "3.2.3(4)",
+    "factId": "fact-50297cc8-e336-32c0-8510-88d559332e79",
+    "weight": 0.0,
+    "dimension": "其他因素评分",
+    "sourceText": "",
+    "parentFactId": "fact-df62841d-257b-36d5-a615-1f58e9f15652",
+    "sourceCellIds": [
+      "text:line[1440]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[1440]",
+      "quotedText": "（4）其他因素评分标准：见评审办法前附表。"
+    }
+  },
+  {
+    "code": "user_evaluation",
+    "factId": "fact-47f28fc6-52a3-3b20-8d67-ef32155cc0c9",
+    "weight": 15.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "用户评价"
+    }
+  },
+  {
+    "code": "user_evaluation_quality",
+    "factId": "fact-3a98fdaf-b6b8-309f-8504-25d54df67437",
+    "weight": 5.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-47f28fc6-52a3-3b20-8d67-ef32155cc0c9",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "商品质量评价"
+    }
+  },
+  {
+    "code": "user_evaluation_delivery",
+    "factId": "fact-bf67e611-ccaa-3893-bde4-86a42ce78b5f",
+    "weight": 5.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-47f28fc6-52a3-3b20-8d67-ef32155cc0c9",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "配送服务评价"
+    }
+  },
+  {
+    "code": "user_evaluation_service",
+    "factId": "fact-dc0d9c96-1e3a-37bc-aecd-a1c70fd79914",
+    "weight": 5.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-47f28fc6-52a3-3b20-8d67-ef32155cc0c9",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "服务水平评价"
+    }
+  },
+  {
+    "code": "product_evaluation",
+    "factId": "fact-8eb8a690-3237-36d8-b1ab-6a28b98552ad",
+    "weight": 40.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "商品考核"
+    }
+  },
+  {
+    "code": "product_link_eval",
+    "factId": "fact-948e9143-3820-31ca-b272-f40f94d4aa1a",
+    "weight": 10.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-8eb8a690-3237-36d8-b1ab-6a28b98552ad",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "协议商品链接考"
+    }
+  },
+  {
+    "code": "product_turnover_eval",
+    "factId": "fact-c4d25407-8d79-3ce5-9fc2-b7249ec3b28c",
+    "weight": 5.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-8eb8a690-3237-36d8-b1ab-6a28b98552ad",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "协议商品动销率"
+    }
+  },
+  {
+    "code": "product_price_eligibility_eval",
+    "factId": "fact-220accac-a255-3115-ad93-e85c13e629a7",
+    "weight": 15.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-8eb8a690-3237-36d8-b1ab-6a28b98552ad",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "协议商品价格合"
+    }
+  },
+  {
+    "code": "product_shelf_spec_eval",
+    "factId": "fact-43e05580-d13b-3dc4-acf7-3964d94169c6",
+    "weight": 10.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-8eb8a690-3237-36d8-b1ab-6a28b98552ad",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "协议商品上架规"
+    }
+  },
+  {
+    "code": "service_evaluation",
+    "factId": "fact-349736a0-6240-30dd-aa76-3b1686a41baa",
+    "weight": 30.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "服务考核"
+    }
+  },
+  {
+    "code": "service_procurement_response_eval",
+    "factId": "fact-a4d048d1-ef0d-3f5c-bdce-701454cbfe3e",
+    "weight": 5.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-349736a0-6240-30dd-aa76-3b1686a41baa",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "采购需求回复"
+    }
+  },
+  {
+    "code": "service_delivery_time_eval",
+    "factId": "fact-d47d0399-6b4d-3420-b77d-83756f90e189",
+    "weight": 10.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-349736a0-6240-30dd-aa76-3b1686a41baa",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "发货时效考核"
+    }
+  },
+  {
+    "code": "service_shipping_time_eval",
+    "factId": "fact-7e414493-94d7-3b92-bda1-b705457328fa",
+    "weight": 15.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-349736a0-6240-30dd-aa76-3b1686a41baa",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "配送时效考核"
+    }
+  },
+  {
+    "code": "financial_evaluation",
+    "factId": "fact-4f0b761b-706d-3402-b20f-8f06b021889b",
+    "weight": 10.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "财务考核"
+    }
+  },
+  {
+    "code": "financial_reconciliation_eval",
+    "factId": "fact-64c1cf34-ef96-33de-8f50-f81bcfd10919",
+    "weight": 10.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-4f0b761b-706d-3402-b20f-8f06b021889b",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "收款核销考核"
+    }
+  },
+  {
+    "code": "system_response_evaluation",
+    "factId": "fact-63eb253f-08b1-3d00-bcdd-8dc4b517eff6",
+    "weight": 5.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "系统及时"
+    }
+  },
+  {
+    "code": "system_fault_resolution_time_eval",
+    "factId": "fact-b710e1bc-5c8e-3add-bfb8-c1faa7a7959b",
+    "weight": 5.0,
+    "dimension": "运营考核",
+    "sourceText": "",
+    "parentFactId": "fact-63eb253f-08b1-3d00-bcdd-8dc4b517eff6",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "系统故障处理时"
+    }
+  },
+  {
+    "code": "1",
+    "factId": "fact-a5afc3cb-5350-3b23-8cf1-cb822b691b42",
+    "weight": 0.0,
+    "dimension": "服务",
+    "sourceText": "",
+    "parentFactId": "",
+    "sourceCellIds": [],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "",
+      "quotedText": "商<br>品<br>管<br>理"
+    }
+  },
+  {
+    "code": "1.1",
+    "factId": "fact-88e0a680-5a64-3993-aaeb-fe4a3744be29",
+    "weight": 0.0,
+    "dimension": "服务",
+    "sourceText": "",
+    "parentFactId": "fact-a5afc3cb-5350-3b23-8cf1-cb822b691b42",
+    "sourceCellIds": [
+      "text:line[5617]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[5617]",
+      "quotedText": "2）框架协议内入围品类商品，绕开电子商<br>城线下同用户交易的（用户通过招标等公<br>开形式的除外）。"
+    }
+  },
+  {
+    "code": "1.2",
+    "factId": "fact-1412519b-8171-36aa-b1e3-e4f80c93ca6e",
+    "weight": 0.0,
+    "dimension": "服务",
+    "sourceText": "",
+    "parentFactId": "fact-a5afc3cb-5350-3b23-8cf1-cb822b691b42",
+    "sourceCellIds": [
+      "text:line[5620]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[5620]",
+      "quotedText": "2）电子商城已有对应类目但商品随意上架<br>至其他类目中的。"
+    }
+  },
+  {
+    "code": "1.3",
+    "factId": "fact-6b52174d-6b29-362b-8902-e84e135c0c12",
+    "weight": 0.0,
+    "dimension": "服务",
+    "sourceText": "",
+    "parentFactId": "fact-a5afc3cb-5350-3b23-8cf1-cb822b691b42",
+    "sourceCellIds": [
+      "text:line[5621]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[5621]",
+      "quotedText": "3）上架同一SKU的商品关键信息不符合通<br>用电子商城要求被重复同送的次数大于2<br>次的。"
+    }
+  },
+  {
+    "code": "2",
+    "factId": "fact-d5b61d39-1f11-3c4c-b5cc-f3dc935bd147",
+    "weight": 0.0,
+    "dimension": "服务",
+    "sourceText": "",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "text:line[5662]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[5662]",
+      "quotedText": "理<br>订<br>单<br>管<br>理"
+    }
+  },
+  {
+    "code": "2.1",
+    "factId": "fact-b1830f6f-2f72-3c0b-9687-6d69a5f5ff32",
+    "weight": 0.0,
+    "dimension": "服务",
+    "sourceText": "",
+    "parentFactId": "fact-d5b61d39-1f11-3c4c-b5cc-f3dc935bd147",
+    "sourceCellIds": [
+      "text:line[5624]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[5624]",
+      "quotedText": "每家供应商订单到货时效考核占比 T=每<br>家供应商月度超过 5 天妥投的订单数/每<br>家月度考核订单总数，规定如下："
+    }
+  },
+  {
+    "code": "2.2",
+    "factId": "fact-7abc4bf4-7544-315b-8c26-0daef81304cb",
+    "weight": 0.0,
+    "dimension": "服务",
+    "sourceText": "",
+    "parentFactId": "fact-d5b61d39-1f11-3c4c-b5cc-f3dc935bd147",
+    "sourceCellIds": [
+      "text:line[5664]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[5664]",
+      "quotedText": "每家供应商月度发货时效考核占比 S=每<br>家供应商超 48 小时发货订单数/每家月<br>度考核订单总数，规定如下："
+    }
+  },
+  {
+    "code": "2.3",
+    "factId": "fact-7e6d0192-b33f-3dc9-ba08-2094877b3c8f",
+    "weight": 0.0,
+    "dimension": "服务",
+    "sourceText": "",
+    "parentFactId": "fact-d5b61d39-1f11-3c4c-b5cc-f3dc935bd147",
+    "sourceCellIds": [
+      "text:line[5665]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[5665]",
+      "quotedText": "用户申请订单售后（维修、换货、退<br>货），超48小时内未响应处理或被运营方<br>预警后，未在12小时内响应处理的；"
+    }
+  },
+  {
+    "code": "3",
+    "factId": "fact-d867d0b5-d674-3acb-ae83-81c087c147c8",
+    "weight": 0.0,
+    "dimension": "服务",
+    "sourceText": "",
+    "parentFactId": "",
+    "sourceCellIds": [
+      "text:line[5712]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[5712]",
+      "quotedText": "服<br>务<br>管<br>理"
+    }
+  },
+  {
+    "code": "3.1",
+    "factId": "fact-f6a6a5ae-0a0e-3947-9300-eee182a66de5",
+    "weight": 0.0,
+    "dimension": "服务",
+    "sourceText": "",
+    "parentFactId": "fact-d867d0b5-d674-3acb-ae83-81c087c147c8",
+    "sourceCellIds": [
+      "text:line[5714]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[5714]",
+      "quotedText": "用户申请开票后，超48小时内未完成开票<br>的订单或被运营方预警后，未在24小时内<br>处理完成的；因开票时效问题被采购单位<br>投诉的；"
+    }
+  },
+  {
+    "code": "3.2",
+    "factId": "fact-51172f9a-fd49-3bac-b12a-f2aae171c517",
+    "weight": 0.0,
+    "dimension": "服务",
+    "sourceText": "",
+    "parentFactId": "fact-d867d0b5-d674-3acb-ae83-81c087c147c8",
+    "sourceCellIds": [
+      "text:line[5723]"
+    ],
+    "sourceTableId": "",
+    "weightEvidence": {
+      "kind": "EXPLICIT_WEIGHT_COLUMN",
+      "cellId": "text:line[5723]",
+      "quotedText": "采购单位付款后未在7个工作日内完成收<br>款核销工作被客户投诉的。"
+    }
+  }
+]

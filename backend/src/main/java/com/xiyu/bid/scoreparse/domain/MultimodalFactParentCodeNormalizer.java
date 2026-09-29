@@ -13,20 +13,20 @@ public final class MultimodalFactParentCodeNormalizer {
         if (facts == null || facts.isEmpty()) {
             return List.of();
         }
-        Map<String, String> canonicalCodes = new HashMap<>();
-        Map<String, String> schemeCodes = new HashMap<>();
-        Map<String, String> schemeWideCodes = new HashMap<>();
+        Map<String, MultimodalScoreFact> canonicalCodes = new HashMap<>();
+        Map<String, MultimodalScoreFact> schemeCodes = new HashMap<>();
+        Map<String, MultimodalScoreFact> schemeWideCodes = new HashMap<>();
         for (MultimodalScoreFact fact : facts) {
             if (fact == null || fact.code().isBlank()) {
                 continue;
             }
-            canonicalCodes.merge(key(fact.tableId(), fact.schemeId(), fact.scopeStatus(), fact.sectionTitle(), fact.code()), fact.code(),
-                    (existing, ignored) -> "\u0000AMBIGUOUS\u0000");
+            canonicalCodes.merge(key(fact.tableId(), fact.schemeId(), fact.scopeStatus(), fact.sectionTitle(), fact.code()), fact,
+                    MultimodalFactParentCodeNormalizer::mergeCandidate);
             if (!fact.schemeId().isBlank()) {
-                schemeCodes.merge(key("", fact.schemeId(), fact.scopeStatus(), fact.sectionTitle(), fact.code()), fact.code(),
-                        (existing, ignored) -> "\u0000AMBIGUOUS\u0000");
-                schemeWideCodes.merge(key("", fact.schemeId(), fact.scopeStatus(), "", fact.code()), fact.code(),
-                        (existing, ignored) -> "\u0000AMBIGUOUS\u0000");
+                schemeCodes.merge(key("", fact.schemeId(), fact.scopeStatus(), fact.sectionTitle(), fact.code()), fact,
+                        MultimodalFactParentCodeNormalizer::mergeCandidate);
+                schemeWideCodes.merge(key("", fact.schemeId(), fact.scopeStatus(), "", fact.code()), fact,
+                        MultimodalFactParentCodeNormalizer::mergeCandidate);
             }
         }
         return facts.stream().map(fact -> {
@@ -55,8 +55,19 @@ public final class MultimodalFactParentCodeNormalizer {
         List<MultimodalScoreFact> sameSection = candidates.stream()
                 .filter(parent -> compact(parent.sectionTitle()).equals(compact(child.sectionTitle()))).toList();
         if (sameSection.size() == 1) return sameSection.get(0);
-        if (!sameSection.isEmpty()) return null;
-        return !child.schemeId().isBlank() && candidates.size() == 1 ? candidates.get(0) : null;
+        if (sameSection.size() > 1) {
+            List<MultimodalScoreFact> positive = sameSection.stream()
+                    .filter(p -> p.weight() != null && p.weight().compareTo(java.math.BigDecimal.ZERO) > 0).toList();
+            if (positive.size() == 1) return positive.get(0);
+            return null;
+        }
+        if (!child.schemeId().isBlank()) {
+            if (candidates.size() == 1) return candidates.get(0);
+            List<MultimodalScoreFact> positive = candidates.stream()
+                    .filter(p -> p.weight() != null && p.weight().compareTo(java.math.BigDecimal.ZERO) > 0).toList();
+            if (positive.size() == 1) return positive.get(0);
+        }
+        return null;
     }
 
     private static boolean structuralParentReference(MultimodalScoreFact fact) {
@@ -66,9 +77,9 @@ public final class MultimodalFactParentCodeNormalizer {
                 && (code.startsWith(parent + "_") || code.startsWith(parent + "."));
     }
 
-    private static String canonicalParentCode(MultimodalScoreFact fact, Map<String, String> canonicalCodes,
-                                              Map<String, String> schemeCodes,
-                                              Map<String, String> schemeWideCodes) {
+    private static String canonicalParentCode(MultimodalScoreFact fact, Map<String, MultimodalScoreFact> canonicalCodes,
+                                              Map<String, MultimodalScoreFact> schemeCodes,
+                                              Map<String, MultimodalScoreFact> schemeWideCodes) {
         String raw = fact.parentCode().trim();
         String direct = unique(canonicalCodes.get(key(fact.tableId(), fact.schemeId(), fact.scopeStatus(), fact.sectionTitle(), raw)));
         if (direct != null) {
@@ -100,8 +111,33 @@ public final class MultimodalFactParentCodeNormalizer {
         return null;
     }
 
-    private static String unique(String value) {
-        return value == null || value.startsWith("\u0000AMBIGUOUS\u0000") ? null : value;
+    private static final MultimodalScoreFact AMBIGUOUS_FACT = new MultimodalScoreFact(
+            "", "\u0000AMBIGUOUS\u0000", "", "", null, "", "", null, "", List.of(), "", 0.0,
+            ChildAggregation.SUM, "", "", ScoreSourceMetadata.EMPTY);
+
+    private static MultimodalScoreFact mergeCandidate(MultimodalScoreFact existing, MultimodalScoreFact incoming) {
+        if (existing == null) return incoming;
+        if (incoming == null) return existing;
+        if (isAmbiguous(existing) || isAmbiguous(incoming)) {
+            return AMBIGUOUS_FACT;
+        }
+        boolean existingPositive = existing.weight() != null && existing.weight().compareTo(java.math.BigDecimal.ZERO) > 0;
+        boolean incomingPositive = incoming.weight() != null && incoming.weight().compareTo(java.math.BigDecimal.ZERO) > 0;
+        if (existingPositive && !incomingPositive) {
+            return existing;
+        }
+        if (!existingPositive && incomingPositive) {
+            return incoming;
+        }
+        return AMBIGUOUS_FACT;
+    }
+
+    private static boolean isAmbiguous(MultimodalScoreFact fact) {
+        return fact == AMBIGUOUS_FACT || (fact != null && "\u0000AMBIGUOUS\u0000".equals(fact.code()));
+    }
+
+    private static String unique(MultimodalScoreFact value) {
+        return value == null || isAmbiguous(value) ? null : value.code();
     }
 
     private static String key(String tableId, String schemeId, String scopeStatus, String sectionTitle, String code) {
