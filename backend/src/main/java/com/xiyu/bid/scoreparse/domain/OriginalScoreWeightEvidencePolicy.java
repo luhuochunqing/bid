@@ -187,7 +187,9 @@ final class OriginalScoreWeightEvidencePolicy {
         if ("business".equalsIgnoreCase(compactDimension)) compactDimension = "商务";
         if ("technical".equalsIgnoreCase(compactDimension)) compactDimension = "技术";
         String compactEvidence = evidence.replaceAll("\\s+", "");
-        String dimPattern = isPriceDimension(compactDimension) ? "(?:价格|报价)" : Pattern.quote(compactDimension);
+        String dimPattern = isPriceDimension(compactDimension) ? "(?:价格|报价)"
+                : compactDimension.matches("(?i).*(?:综合|总分|合计|满分|分值构成).*") ? "(?:综合|总分|合计|满分|分值构成)"
+                : Pattern.quote(compactDimension);
         Pattern subtotal = Pattern.compile(dimPattern
                 + "(?:部分|分评审|分)?(?:[：:为\\s]*[（(]?|[（(])(?:满分)?"
                 + "(\\d+(?:\\.\\d+)?)\\s*分?[）)]?");
