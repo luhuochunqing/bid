@@ -55,4 +55,28 @@ class SourceItemNameTest {
         String row = "商务评审 供应商业绩（满分5分） 提供合同扫描件";
         assertThat(SourceItemName.recover("业绩（5分）", new BigDecimal("5"), row)).isEmpty();
     }
+
+    @Test void punctuationInsideItemNameIsNotProvableAndNeverTruncates() {
+        // 评审反例 3a（二次评审）：名称含顿号"质量、环境管理体系认证"，正则字符类不含顿号，
+        // 引文与行会截出同一段残文"环境管理体系认证"，逐字全等不设防 → 必须证明完整名，不恢复
+        String row = "资格评审 质量、环境管理体系认证（满分5分） 提供证书扫描件";
+        assertThat(SourceItemName.recover("质量、环境管理体系认证（满分5分）", new BigDecimal("5"), row)).isEmpty();
+        // 名称内顿号即使单格出现也不恢复（引文侧同样无法证明完整名）
+        assertThat(SourceItemName.recover("质量、环境管理体系认证（满分5分）", new BigDecimal("5"),
+                "质量、环境管理体系认证（满分5分）")).isEmpty();
+    }
+
+    @Test void overLengthItemNameIsNotProvableAndNeverTruncates() {
+        // 评审反例 3b（二次评审）：超过 24 字的完整名称，正则从名字中间起匹配只留末 24 字 → 不恢复
+        String longName = "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十"; // 30 字
+        assertThat(longName).hasSize(30);
+        assertThat(SourceItemName.recover(longName + "（满分3分）", new BigDecimal("3"),
+                "评分 " + longName + "（满分3分） 说明")).isEmpty();
+    }
+
+    @Test void numberedPunctuationStartIsStillACompleteName() {
+        // "1、xxx" 式序号后是合法名称起点，不得被顿号规则误杀（Task291 行内裸锚点保持可辨识）
+        assertThat(SourceItemName.recover("一级集采商品上架折扣率（28分）", new BigDecimal("28"),
+                "1、一级集采商品上架折扣率（28分）：报价表-1.1")).isPresent();
+    }
 }

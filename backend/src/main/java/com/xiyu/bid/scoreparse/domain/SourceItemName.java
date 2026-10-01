@@ -16,9 +16,12 @@ import java.util.regex.Pattern;
  *
  * 规则：
  * 1. 引文必须恰含一个自声明分值锚点 "NAME（[满分]W分）"，且 W == 主张分值；
- * 2. 被引用行内同分值项名锚点恰有一个且与引文锚点逐字全等（"（合计W分）"是分组小写，不算项锚点）；
+ * 2. 锚点 NAME 必须是可证明的完整名：捕获起点不得紧贴名称字符（正则 24 字上限截断、邻格粘连）
+ *    或名称内顿号/间隔号（"质量、环境管理体系认证" 被截成 "环境管理体系认证"）——引文与行同样
+ *    截断时逐字全等不设防，故两侧都要过完整性证明；无法证明 → 保留原名进人工复核；
+ * 3. 被引用行内同分值项名锚点恰有一个且与引文锚点逐字全等（"（合计W分）"是分组小写，不算项锚点）；
  *    前后缀包含关系不构成同一项的身份证明——歧义一律不恢复；
- * 3. 满足则规范项名 = 锚点 NAME；模型改写名保留在 ScoreSourceMetadata.modelCategory 作诊断。
+ * 4. 满足则规范项名 = 锚点 NAME；模型改写名保留在 ScoreSourceMetadata.modelCategory 作诊断。
  */
 public final class SourceItemName {
     private static final Pattern ANCHOR = Pattern.compile(
@@ -26,15 +29,36 @@ public final class SourceItemName {
 
     private SourceItemName() {}
 
-    /** 引文是否恰含一个自声明分值锚点 "NAME（[满分]W分）" 且 W == 主张分值；是则返回原文项名。 */
+    private static boolean isNameChar(char c) {
+        return (c >= '一' && c <= '龥') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+    }
+
+    /**
+     * 捕获名能否证明为完整项名：起点紧贴名称字符说明正则从名字中间起匹配（>24 字截断、
+     * 去空白后的邻格粘连）；紧贴顿号/间隔号且其前一字符不是序号数字，说明分隔符是名称的一部分
+     * （"质量、环境…"），而 "1、xxx" 式序号后是合法起点。
+     */
+    private static boolean completeNameStart(CharSequence text, int nameStart) {
+        if (nameStart == 0) return true;
+        char prev = text.charAt(nameStart - 1);
+        if (isNameChar(prev)) return false;
+        if (prev == '、' || prev == '·') {
+            return nameStart >= 2 && Character.isDigit(text.charAt(nameStart - 2));
+        }
+        return true;
+    }
+
+    /** 引文是否恰含一个自声明分值锚点 "NAME（[满分]W分）" 且 W == 主张分值、名称完整；是则返回原文项名。 */
     public static Optional<String> quoteAnchor(String quote, BigDecimal weight) {
         if (quote == null || quote.isBlank() || weight == null) return Optional.empty();
-        Matcher own = ANCHOR.matcher(EvidenceText.normalize(quote).text());
+        String quoteText = EvidenceText.normalize(quote).text();
+        Matcher own = ANCHOR.matcher(quoteText);
         String name = null;
         int anchors = 0;
         while (own.find()) {
             anchors++;
             if (new BigDecimal(own.group(2)).compareTo(weight) != 0) return Optional.empty();
+            if (!completeNameStart(quoteText, own.start(1))) return Optional.empty();
             name = own.group(1);
         }
         if (anchors != 1 || name == null) return Optional.empty();
@@ -43,19 +67,21 @@ public final class SourceItemName {
     }
 
     /**
-     * 引文锚点 + 被引用行唯一性：行内同分值项名锚点必须恰有一个、且与引文锚点逐字全等，
-     * 才证明"原文唯一锚点"。互为前后缀（一级集采/非一级集采）或引文截短（业绩 vs 供应商业绩）
-     * 都不是同一项的身份证明 → 歧义，不恢复，落人工复核。
+     * 引文锚点 + 完整名 + 被引用行唯一性：行内同分值项名锚点必须恰有一个、且与引文锚点逐字全等，
+     * 才证明"原文唯一锚点"。互为前后缀（一级集采/非一级集采）、引文截短（业绩 vs 供应商业绩）
+     * 或任一同分值锚点无法证明完整名，都是歧义 → 不恢复，保留原名落人工复核。
      */
     public static Optional<String> recover(String quote, BigDecimal weight, String rowText) {
         Optional<String> self = quoteAnchor(quote, weight);
         if (self.isEmpty() || rowText == null || rowText.isBlank()) return Optional.empty();
         String compactName = self.get();
+        String row = rowText.replaceAll("\\s+", "");
         Set<String> sameWeightNames = new HashSet<>();
-        Matcher row = ANCHOR.matcher(rowText.replaceAll("\\s+", ""));
-        while (row.find()) {
-            if (new BigDecimal(row.group(2)).compareTo(weight) != 0) continue;
-            sameWeightNames.add(row.group(1));
+        Matcher candidate = ANCHOR.matcher(row);
+        while (candidate.find()) {
+            if (new BigDecimal(candidate.group(2)).compareTo(weight) != 0) continue;
+            if (!completeNameStart(row, candidate.start(1))) return Optional.empty();
+            sameWeightNames.add(candidate.group(1));
         }
         return sameWeightNames.size() == 1 && sameWeightNames.contains(compactName)
                 ? Optional.of(compactName) : Optional.empty();
