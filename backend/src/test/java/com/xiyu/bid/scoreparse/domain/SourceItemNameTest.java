@@ -29,9 +29,9 @@ class SourceItemNameTest {
     }
 
     @Test void groupSubtotalMarkersAreNotItemAnchors() {
-        // "（合计W分）"是分组小计，不构成同分值歧义
+        // "（合计W分）"是分组小计，不构成同分值歧义（正则本身不匹配"（合计"前缀）
         assertThat(SourceItemName.recover("一级集采商品价格分（满分28分）", new BigDecimal("28"),
-                "第一部分：一级集采商品（合计28分） 一级集采商品价格分（满分28分）=折扣率评分")).isPresent();
+                "第一部分：一级集采商品（合计28分）+一级集采商品价格分（满分28分）=折扣率评分")).isPresent();
     }
 
     @Test void multiItemQuoteIsAmbiguousAndNeverRecovered() {
@@ -78,5 +78,30 @@ class SourceItemNameTest {
         // "1、xxx" 式序号后是合法名称起点，不得被顿号规则误杀（Task291 行内裸锚点保持可辨识）
         assertThat(SourceItemName.recover("一级集采商品上架折扣率（28分）", new BigDecimal("28"),
                 "1、一级集采商品上架折扣率（28分）：报价表-1.1")).isPresent();
+    }
+
+    @Test void slashInsideItemNameCannotProveCompletenessAndIsRejected() {
+        // 评审反例 4a（四次评审）："质量/环境管理体系认证"、"A/B对比" 被斜杠切开时残文在引文与
+        // 行两侧同形，逐字全等不设防 → 起点非白名单边界一律不恢复
+        assertThat(SourceItemName.recover("质量/环境管理体系认证（满分5分）", new BigDecimal("5"),
+                "资格要求 质量/环境管理体系认证（满分5分） 提供认证证书")).isEmpty();
+        assertThat(SourceItemName.recover("A/B方案对比（满分4分）", new BigDecimal("4"),
+                "评分标准 A/B方案对比（满分4分） 择优")).isEmpty();
+    }
+
+    @Test void bracketOrFullwidthInsideItemNameCannotProveCompleteness() {
+        // 评审反例 4b（四次评审）：名称含括号 "ISO9001（质量）认证"、全角字母数字 "ISO9001认证"
+        // 被切出的残段起点紧贴 "）"/全角字符，不在边界白名单内 → 不恢复
+        assertThat(SourceItemName.recover("ISO9001（质量管理体系）认证（满分5分）", new BigDecimal("5"),
+                "ISO9001（质量管理体系）认证（满分5分）")).isEmpty();
+        assertThat(SourceItemName.recover("ISO9001认证（满分5分）", new BigDecimal("5"),
+                "证书要求 ISO9001认证（满分5分）")).isEmpty();
+    }
+
+    @Test void hyphenInsideItemNameCannotProveCompletenessAndIsRejected() {
+        // 评审反例 4c（四次评审）："ISO-9001质量管理体系认证" 被连字符切开，两侧同形残段
+        // "9001质量管理体系认证" 逐字全等不设防 → 起点 '-' 不在边界白名单 → 不恢复
+        assertThat(SourceItemName.recover("ISO-9001质量管理体系认证（满分5分）", new BigDecimal("5"),
+                "评分标准 ISO-9001质量管理体系认证（满分5分） 提供证书")).isEmpty();
     }
 }
