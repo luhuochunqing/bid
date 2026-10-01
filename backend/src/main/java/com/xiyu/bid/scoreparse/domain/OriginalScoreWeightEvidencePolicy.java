@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -21,8 +22,22 @@ final class OriginalScoreWeightEvidencePolicy {
 
     private OriginalScoreWeightEvidencePolicy() {}
 
+    /**
+     * 身份由原文恢复（评审结论）：引文锚点在被引用行内同分值唯一，且主张项名不撞其他事实的原文锚点名
+     * （撞名 = 把另一项的身份张冠李戴，如"供应商履约业绩"冒充"供应商履约能力"），二者同时满足才免检。
+     */
+    private static boolean identityRecoveredFromSource(ScoreEvidenceClaim claim, String rowText,
+                                                       Map<String, String> claimQuoteAnchors) {
+        if (SourceItemName.recover(claim.quotedText(), claim.weight(), rowText).isEmpty()) return false;
+        String claimedName = claim.dimension() == null ? "" : claim.dimension().replaceAll("\\s+", "");
+        if (claimedName.isBlank()) return true;
+        return claimQuoteAnchors.entrySet().stream().noneMatch(entry ->
+                !entry.getKey().equals(claim.id()) && entry.getValue().equals(claimedName));
+    }
+
     static void verifyWeight(DocumentArtifact artifact, ScoreEvidenceClaim claim,
-                             List<OriginalScoreEvidencePolicy.Problem> problems) {
+                             List<OriginalScoreEvidencePolicy.Problem> problems,
+                             Map<String, String> claimQuoteAnchors) {
         if (claim.weight() == null && !claim.parent()) return;
         if (claim.textLocator()) {
             if (claim.weight() == null) return;
@@ -83,8 +98,7 @@ final class OriginalScoreWeightEvidencePolicy {
             }
             boolean itemMatched = (!claim.dimension().isBlank() && containsDimension(rowText, claim.dimension()))
                     || (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
-                    && (claim.dimension().isBlank() || containsDimension(claim.quotedText(), claim.dimension())
-                    || (quoteDeclaresClaimWeight(claim) && quoteNamesClaimedItem(claim.quotedText(), claim.dimension()))));
+                    && (claim.dimension().isBlank() || containsDimension(claim.quotedText(), claim.dimension())));
             List<BigDecimal> explicit = new ArrayList<>();
             List<BigDecimal> capped = new ArrayList<>();
             List<BigDecimal> title = new ArrayList<>();
@@ -123,7 +137,7 @@ final class OriginalScoreWeightEvidencePolicy {
             // 具体项名对到另一行（分值碰巧相同）仍然拒绝。
             boolean categoryRowProven = OriginalScoreEvidencePolicy.sectionCategory(claim.dimension())
                     && rowProvesWeight(claim, authoritative, title);
-            if (!itemMatched && !categoryRowProven) {
+            if (!itemMatched && !categoryRowProven && !identityRecoveredFromSource(claim, rowText, claimQuoteAnchors)) {
                 problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "dimension", "ITEM_SOURCE_SCOPE_MISMATCH",
                         claim.dimension(), "not in cited item row", locator));
             }
@@ -179,27 +193,6 @@ final class OriginalScoreWeightEvidencePolicy {
         if (contains(source, dimension)) return true;
         if (isPriceDimension(dimension) && (contains(source, "价格") || contains(source, "报价"))) return true;
         return OriginalScoreEvidencePolicy.matchesDimensionAlias(source, dimension);
-    }
-
-    /**
-     * 模型可能改写项名（"非一级集采商品价格分"→"非一级集采商品上架折扣率"）。引文逐字在被引用行内、
-     * 引文自身声明的分值等于主张分值、且引文与 dimension 共享项名前缀时，项身份由引文+分值闭合证明。
-     */
-    private static boolean quoteDeclaresClaimWeight(ScoreEvidenceClaim claim) {
-        if (claim.weight() == null || claim.quotedText().isBlank()) return false;
-        Matcher matcher = MAX_SCORE.matcher(EvidenceText.normalize(claim.quotedText()).text());
-        while (matcher.find()) {
-            if (new BigDecimal(matcher.group(1)).compareTo(claim.weight()) == 0) return true;
-        }
-        return false;
-    }
-
-    /** 引文须与 dimension 共享项名前缀，防止拿另一项的规则文本冒充本项证据（如用"证书"引文声称"销售额"项）。 */
-    private static boolean quoteNamesClaimedItem(String quote, String dimension) {
-        if (dimension == null || dimension.isBlank() || quote == null || quote.isBlank()) return false;
-        String dim = dimension.replaceAll("\\s+", "");
-        String normalizedQuote = EvidenceText.normalize(quote).text();
-        return normalizedQuote.contains(dim.length() < 5 ? dim : dim.substring(0, 5));
     }
 
     /** A quoted category subtotal is valid only when the same quote names the dimension and its value. */

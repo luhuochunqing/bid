@@ -687,15 +687,6 @@ class Project1382FullPipelineIntegrationTest {
             String scoreType = "OBJECTIVE";
             String parentFactId = node.path("parentFactId").asText("");
             String parentCode = parentFactId.isBlank() ? "" : codeByFactId.getOrDefault(parentFactId, "");
-            if (parentCode.isBlank()) {
-                if (code.startsWith("3.2.3(1).")) {
-                    parentCode = "3.2.3(1)";
-                } else if (code.startsWith("3.2.3(2).")) {
-                    parentCode = "3.2.3(2)";
-                } else if ("3.2.3(3).1".equals(code) || "3.2.3(3).2".equals(code)) {
-                    parentCode = "3.2.3(3)";
-                }
-            }
             String tableId = node.path("sourceTableId").asText("");
 
             List<String> sourceCellIds = new ArrayList<>();
@@ -892,20 +883,48 @@ class Project1382FullPipelineIntegrationTest {
         }
         System.out.println("candidates.size=" + (result.candidates() == null ? -1 : result.candidates().size()));
 
-        // 回归钉死 Fix A（EvidenceText 数字↔汉字边界空白删除）：
-        // 28分孤儿必须重新绑回物理来源并计入 leafTotal；总分闭合不得再出现 WEIGHT_SUM_MISMATCH。
+        // 回归钉死（评审合同）：28分孤儿绑回物理来源；0 违规；每个评分项对应正确原文——
+        // 正式项名来自原文锚点（非模型改写名），分值/父子/引用全断言，不以"凑齐100分"为验收。
         MultimodalScoreFact boundOrphan = boundFacts.stream()
                 .filter(f -> "3.2.3(3)_1".equals(f.code())).findFirst().orElseThrow();
         assertThat(boundOrphan.tableId()).isEqualTo("doc0-p34-t0010");
         assertThat(boundOrphan.sourceCellIds()).containsExactly("doc0-p34-t0010-r16-c3");
         assertThat(validation.leafTotal()).isEqualByComparingTo("100");
-        // Task 291 线上真实形状在 !2802（四项修复）+ 引文分值闭合判定后全量闭环：0 违规、可自动发布
         assertThat(validation.violations()).isEmpty();
         assertThat(validation.autoApprovable()).isTrue();
         MultimodalScoreFact normalizedOrphan = normalizedExtraction.facts().stream()
                 .filter(f -> "3.2.3(3)_1".equals(f.code())).findFirst().orElseThrow();
         assertThat(normalizedOrphan.scopeStatus()).isEqualTo("IN_SCHEME");
         assertThat(normalizedOrphan.parentCode()).isEqualTo("3.2.3(3)");
+
+        java.util.function.Function<String, com.xiyu.bid.scoreparse.domain.ScoreFact> byCode = c ->
+                result.facts().stream().filter(f -> c.equals(f.code())).findFirst().orElseThrow();
+        // 报价侧规范项名必须恢复为原文"××价格分"，模型改写名"××上架折扣率"只作诊断
+        var nonCentralized = byCode.apply("3.2.3(3)_2");
+        assertThat(nonCentralized.dimension()).isEqualTo("非一级集采商品价格分");
+        assertThat(nonCentralized.weight()).isEqualByComparingTo("12");
+        assertThat(nonCentralized.sourceCellIds()).contains("doc0-p34-t0010-r16-c3");
+        assertThat(nonCentralized.parentFactId()).isEqualTo(byCode.apply("3.2.3(3)").factId());
+        assertThat(nonCentralized.sourceMetadata().modelCategory()).isEqualTo("非一级集采商品上架折扣率");
+        var centralized = byCode.apply("3.2.3(3)_1");
+        assertThat(centralized.weight()).isEqualByComparingTo("28");
+        assertThat(centralized.parentFactId()).isEqualTo(byCode.apply("3.2.3(3)").factId());
+        assertThat(centralized.sourceCellIds()).contains("doc0-p34-t0010-r16-c3");
+        // 28分项同行存在第二个同分值锚点（"上架折扣率（28分）"裸式）→ 按评审规则歧义不恢复名称；
+        // 其身份本就经"报价"类别路径成立（无违规），保守保留原标签，只核对引文证据
+        assertThat(centralized.sourceMetadata().modelQuotedText()).isEqualTo("一级集采商品价格分（满分28分）");
+        // 商务/技术侧项名与父子保持原文
+        assertThat(byCode.apply("3.2.3(1)_1").dimension()).isEqualTo("供应商业绩");
+        assertThat(byCode.apply("3.2.3(1)_1").parentFactId()).isEqualTo(byCode.apply("3.2.3(1)").factId());
+        java.util.function.Function<String, java.math.BigDecimal> childrenSum = parentCode -> {
+            String pid = byCode.apply(parentCode).factId();
+            return result.facts().stream().filter(f -> pid.equals(f.parentFactId()))
+                    .map(com.xiyu.bid.scoreparse.domain.ScoreFact::weight)
+                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        };
+        assertThat(childrenSum.apply("3.2.3(1)")).as("商务叶子分值合计").isEqualByComparingTo("15");
+        assertThat(childrenSum.apply("3.2.3(2)")).as("技术叶子分值合计").isEqualByComparingTo("45");
+        assertThat(childrenSum.apply("3.2.3(3)")).as("报价叶子分值合计").isEqualByComparingTo("40");
         // 完整 handler 链路：AUTO_APPROVED 且生成候选（非空才可落库替换 91 分化石）
         assertThat(completeness).isNotNull();
         assertThat(completeness.decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);

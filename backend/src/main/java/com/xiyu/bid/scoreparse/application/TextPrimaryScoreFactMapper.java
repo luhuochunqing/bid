@@ -41,6 +41,11 @@ final class TextPrimaryScoreFactMapper {
                 ? ScoreFact.ValidationStatus.AUTO_APPROVED : ScoreFact.ValidationStatus.REVIEW_REQUIRED;
         String dimension = com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.publishedDimension(
                 fact.dimension(), restored.text(), fact.weight());
+        // 评审结论：模型改写项名时，正式项名用原文锚点名称（与验证侧同一唯一性判定），
+        // 改写名保留在 ScoreSourceMetadata.modelCategory 作诊断。
+        var canonicalName = com.xiyu.bid.scoreparse.domain.SourceItemName.recoverFromArtifact(
+                artifact, fact.tableId(), fact.sourceCellIds(), fact.quotedText(), fact.weight());
+        if (canonicalName.isPresent()) dimension = canonicalName.get();
         return new ScoreFact(factId, fact.tableId(), fact.sourceCellIds(), restored.text(), fact.code(), dimension,
                 fact.weight(), new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, fact.quotedText(), cellId,
                 start, start < 0 ? -1 : start + fact.quotedText().length(), "page=" + fact.pageNumber() + "; scoreType="
