@@ -7115,11 +7115,13 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 2. **字面 dimension 匹配缺少"引文+分值"通用闭合兜底**：项身份的真正证据是"引文逐字在被引用行内 + 引文自声明分值==主张分值"，dimension 只是标签；原实现要求标签字面出现，改写即误杀。
 3. **既有回放测试构造不忠实**：289/290 重放把 `schemeId="第三章 评标办法（综合评估法）"`、`scopeStatus="IN_SCHEME"` 当构造参数塞入，`tableInFactScope` 直接拒绝所有单元格，等于从未真正验证过 binder 的重绑能力；本次修正为空串（模型原始输入形态）后才暴露真实行为。
 
-### 解决方案
+### 解决方案（2026-10-01 评审定稿）
 
-- **通用引文闭合规则**：`OriginalScoreWeightEvidencePolicy.itemMatched` 新增第三接受形态——引文逐字在被引用行内 ∧ 引文经 `MAX_SCORE` 自声明分值等于主张分值 ∧ 引文包含 dimension 项名前缀（<5 字全名、≥5 字取前 5 字）。前缀校验封住对抗面：既有防护用例 `sourceWeightUsesItemMaximumNotIncrementOrAmountThreshold`（"销售额"项用"每份证书得2分最高10分"引文冒充）继续拒绝。
+- **第一版"前缀相同即放行"被评审否决**：分值相同、前缀相同都不能证明项身份（"供应商履约业绩"与"供应商履约能力"前缀相同却是两个项）。教训：**放宽验证门禁的接受条件必须能证明"是同一个项"，而不是"看起来像"**。
+- **最终机制 = 原文唯一锚点恢复规范名**（`SourceItemName`）：引文恰含一个自声明锚点 "NAME（[满分]W分）" 且 W==主张分值，被引用行内不存在同分值的其他项名锚点（"（合计W分）"是分组小计不算项锚点），且主张项名不撞其他事实的原文锚点名（池级"张冠李戴"守卫）——三者同时满足才**用原文名称作为正式项名**，模型改写名保留在 `ScoreSourceMetadata.modelCategory` 作诊断；任何一环歧义 → 维持 `ITEM_SOURCE_SCOPE_MISMATCH` 进人工复核。验收合同：断言最终项名/分值/父子/原文引用，不是只断言 `AUTO_APPROVED`；凑齐 100 分不算通过。
 - **可诊断性**：`MultimodalStructuredExtractionHandler` recheck catch 由只打 `getSimpleName()` 改为传递异常对象输出完整堆栈。
 - **互补性实验**：在合并 !2804 后的代码上临时回退本改动，291 重放立刻回红——证明与 zcode 两轮修复互补而非冗余。
+- **反例回归配套**：同行同分值双锚点拒绝、无锚点引文拒绝（"每份证书得2分最高10分"）、多分项引文拒绝、跨事实撞名拒绝——正反各就位后才允许收紧/放宽任何一条。
 
 ### 可复用纪律
 
@@ -7131,6 +7133,7 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 
 ### 相关文件
 
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/SourceItemName.java`
 - `backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoreWeightEvidencePolicy.java`
 - `backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalStructuredExtractionHandler.java`
 - `backend/src/test/resources/scoreparse/project-1382/task-291-live-facts.json`
