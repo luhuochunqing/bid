@@ -2,6 +2,7 @@ package com.xiyu.bid.scoreparse.domain;
 
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -16,73 +17,105 @@ import java.util.regex.Pattern;
  *
  * 规则：
  * 1. 引文必须恰含一个自声明分值锚点 "NAME（[满分]W分）"，且 W == 主张分值；
- * 2. 锚点 NAME 必须是可证明的完整名：正则字符类会在名称内任何被排除字符处切开（顿号、斜杠、
- *    括号、连字符、全角字符、>24 字上限、去空白粘连），捕获起点只认明确边界白名单（空白、算符、
- *    句读、"1、"式序号），引文与行两侧分别证明，无法证明 → 保留原名进人工复核
- *    （引文/行同源截断时逐字全等不设防，"质量、环境…"→"环境…"即此坑）；
- * 3. 被引用行内同分值项名锚点恰有一个且与引文锚点逐字全等（"（合计W分）"是分组小写，不算项锚点）；
- *    前后缀包含关系不构成同一项的身份证明——歧义一律不恢复；
- * 4. 满足则规范项名 = 锚点 NAME；模型改写名保留在 ScoreSourceMetadata.modelCategory 作诊断。
+ * 2. NAME 由**锚点回溯到明确结构边界**证明完整性：从锚点左括号向前取极大跨度，直到
+ *    空白（含单元格拼接缝）、前一个分数锚点/分组小计的右括号、或文本起点；名称内部的
+ *    冒号/加号/斜杠/顿号/连字符/正文括号（"ISO9001:2015…"、"C++…"、"质量/环境…"、
+ *    "ISO9001（质量管理体系）认证"）都在跨度内被完整保留。字符类/起点白名单无法区分
+ *    句读与名称内部字符（五次评审否决），只有结构边界才能证明；跨度首尾算符与 "1、" 式
+ *    序号剥离后仍不落在合法名称长度 → 不可证明；
+ * 3. 引文侧与行侧各自按同一结构规则提取，逐字全等且行内同分值锚点恰有一个才恢复
+ *    （"（合计W分）"是分组小计边界，不是项锚点）；前后缀包含、任一侧不可证明 → 歧义不恢复；
+ * 4. 满足则规范项名 = 原文完整跨度；模型改写名保留在 ScoreSourceMetadata.modelCategory 作诊断。
  */
 public final class SourceItemName {
-    private static final Pattern ANCHOR = Pattern.compile(
-            "([\\u4e00-\\u9fa5A-Za-z0-9]{2,24})（(?:满分)?(\\d+(?:\\.\\d+)?)分）");
+    /**
+     * 结构边界括号：项分值锚点（满分W分/W分）或分组小计（合计W分）。
+     * 括号内容允许 DOCX 单元格换行造成的散落空白（1382 真实行 "（满分28\n分）"），
+     * 但空白不得进入分值数字本身。
+     */
+    private static final Pattern BOUNDARY_PAREN =
+            Pattern.compile("（\\s*(?:满分|合计)?\\s*(\\d+(?:\\.\\s*\\d+)?)\\s*分\\s*）");
+    /** 名称跨度首尾可剥离的算符/连接符——完整项名不会以它们开始或结束。 */
+    private static final String TRIMMED_EDGE_CHARS = "=+-*/×÷><~≈&|｜@＃_";
+    /** "1、" 式条目序号前缀——序号是编号结构，不是名称的一部分。 */
+    private static final Pattern NUMBERING_PREFIX = Pattern.compile("^\\d{1,3}、");
 
     private SourceItemName() {}
 
-    /**
-     * 完整名起点白名单：锚点捕获默认不可信（正则字符类会在名称内任何被排除字符处切开，
-     * 如 "A/B对比"、"ISO9001（质量）认证"、全角字母数字），只有起点紧贴明确的名称边界
-     * （空白、算符/比较符、句读）或 "1、" 式序号才算完整名开头；其余一律拒绝恢复。
-     */
-    private static final String NAME_BOUNDARY_CHARS = " =+><×÷~≈%％,，;；:：!！?？";
+    private record Paren(int start, int end, String weight, boolean subtotal) {}
 
-    private static boolean completeNameStart(CharSequence text, int nameStart) {
-        if (nameStart == 0) return true;
-        char prev = text.charAt(nameStart - 1);
-        if (prev == '、' || prev == '·') {
-            return nameStart >= 2 && Character.isDigit(text.charAt(nameStart - 2));
+    private static List<Paren> boundaryParens(String text) {
+        List<Paren> parens = new ArrayList<>();
+        Matcher m = BOUNDARY_PAREN.matcher(text);
+        while (m.find()) {
+            parens.add(new Paren(m.start(), m.end(),
+                    m.group(1).replaceAll("\\s+", ""),
+                    m.group().replaceAll("\\s+", "").startsWith("（合计")));
         }
-        return NAME_BOUNDARY_CHARS.indexOf(prev) >= 0;
+        return parens;
     }
 
-    /** 引文是否恰含一个自声明分值锚点 "NAME（[满分]W分）" 且 W == 主张分值、名称完整；是则返回原文项名。 */
+    /** 从锚点左括号向前回溯到最近结构边界，提取并剥离得到完整项名跨度。 */
+    private static Optional<String> nameBeforeAnchor(String text, int anchorStart, List<Paren> parens) {
+        int nameStart = 0;
+        for (int i = anchorStart - 1; i >= 0; i--) {
+            char c = text.charAt(i);
+            if (Character.isWhitespace(c) || Character.isSpaceChar(c)) {
+                nameStart = i + 1;
+                break;
+            }
+            for (Paren p : parens) {
+                if (p.end() == i + 1) {
+                    nameStart = p.end();
+                    break;
+                }
+            }
+            if (nameStart > 0) break;
+        }
+        String span = text.substring(nameStart, anchorStart).strip();
+        int s = 0;
+        int e = span.length();
+        while (s < e && TRIMMED_EDGE_CHARS.indexOf(span.charAt(s)) >= 0) s++;
+        while (e > s && TRIMMED_EDGE_CHARS.indexOf(span.charAt(e - 1)) >= 0) e--;
+        String name = NUMBERING_PREFIX.matcher(span.substring(s, e)).replaceFirst("").strip();
+        return name.length() >= 2 && name.length() <= 40 ? Optional.of(name) : Optional.empty();
+    }
+
+    /** 引文是否恰含一个自声明分值锚点 "NAME（[满分]W分）" 且 W == 主张分值、NAME 结构完整；是则返回原文项名。 */
     public static Optional<String> quoteAnchor(String quote, BigDecimal weight) {
         if (quote == null || quote.isBlank() || weight == null) return Optional.empty();
-        String quoteText = EvidenceText.normalize(quote).text();
-        Matcher own = ANCHOR.matcher(quoteText);
-        String name = null;
+        String text = EvidenceText.normalize(quote).text();
+        List<Paren> parens = boundaryParens(text);
+        Paren anchor = null;
         int anchors = 0;
-        while (own.find()) {
+        for (Paren p : parens) {
+            if (p.subtotal()) continue;
             anchors++;
-            if (new BigDecimal(own.group(2)).compareTo(weight) != 0) return Optional.empty();
-            if (!completeNameStart(quoteText, own.start(1))) return Optional.empty();
-            name = own.group(1);
+            anchor = p;
         }
-        if (anchors != 1 || name == null) return Optional.empty();
-        String compactName = name.strip();
-        return compactName.length() >= 2 && compactName.length() <= 24 ? Optional.of(compactName) : Optional.empty();
+        if (anchors != 1 || new BigDecimal(anchor.weight()).compareTo(weight) != 0) return Optional.empty();
+        return nameBeforeAnchor(text, anchor.start(), parens);
     }
 
     /**
-     * 引文锚点 + 完整名 + 被引用行唯一性：行内同分值项名锚点必须恰有一个、且与引文锚点逐字全等，
-     * 才证明"原文唯一锚点"。互为前后缀（一级集采/非一级集采）、引文截短（业绩 vs 供应商业绩）
-     * 或任一同分值锚点无法证明完整名，都是歧义 → 不恢复，保留原名落人工复核。
+     * 引文锚点 + 结构完整名 + 被引用行唯一性：行内同分值项名锚点必须恰有一个、其结构跨度
+     * 与引文提取的完整项名逐字全等，才证明"原文唯一锚点"。互为前后缀、引文截短、任一侧
+     * 跨度剥离后不合法或与他项同分值并存，都是歧义 → 不恢复，保留原名落人工复核。
      */
     public static Optional<String> recover(String quote, BigDecimal weight, String rowText) {
-        Optional<String> self = quoteAnchor(quote, weight);
-        if (self.isEmpty() || rowText == null || rowText.isBlank()) return Optional.empty();
-        String compactName = self.get();
-        String row = rowText.replaceAll("\\s+", "");
-        Set<String> sameWeightNames = new HashSet<>();
-        Matcher candidate = ANCHOR.matcher(row);
-        while (candidate.find()) {
-            if (new BigDecimal(candidate.group(2)).compareTo(weight) != 0) continue;
-            if (!completeNameStart(row, candidate.start(1))) return Optional.empty();
-            sameWeightNames.add(candidate.group(1));
-        }
-        return sameWeightNames.size() == 1 && sameWeightNames.contains(compactName)
-                ? Optional.of(compactName) : Optional.empty();
+        if (rowText == null || rowText.isBlank()) return Optional.empty();
+        return quoteAnchor(quote, weight).flatMap(name -> {
+            List<Paren> parens = boundaryParens(rowText);
+            Set<String> sameWeightNames = new HashSet<>();
+            for (Paren p : parens) {
+                if (p.subtotal() || new BigDecimal(p.weight()).compareTo(weight) != 0) continue;
+                Optional<String> candidate = nameBeforeAnchor(rowText, p.start(), parens);
+                if (candidate.isEmpty()) return Optional.empty();
+                candidate.ifPresent(sameWeightNames::add);
+            }
+            return sameWeightNames.size() == 1 && sameWeightNames.contains(name)
+                    ? Optional.of(name) : Optional.empty();
+        });
     }
 
     /** 池级视图：各事实引文的原文锚点名（供"张冠李戴"歧义判定）。 */

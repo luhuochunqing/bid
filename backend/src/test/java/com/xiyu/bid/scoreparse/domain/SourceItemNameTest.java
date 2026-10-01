@@ -5,7 +5,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 评审合同：项身份必须由原文唯一锚点证明；同分值歧义、无锚点引文一律不恢复。 */
+/** 评审合同：项身份必须由原文唯一锚点证明；完整名由锚点回溯到结构边界的极大跨度证明，歧义不恢复。 */
 class SourceItemNameTest {
 
     @Test void recoversCanonicalNameFromUniqueFullScoreAnchor() {
@@ -29,9 +29,10 @@ class SourceItemNameTest {
     }
 
     @Test void groupSubtotalMarkersAreNotItemAnchors() {
-        // "（合计W分）"是分组小计，不构成同分值歧义（正则本身不匹配"（合计"前缀）
+        // "（合计W分）"是分组小计（结构边界），不构成同分值项锚点，其右括号终止名称跨度
         assertThat(SourceItemName.recover("一级集采商品价格分（满分28分）", new BigDecimal("28"),
-                "第一部分：一级集采商品（合计28分）+一级集采商品价格分（满分28分）=折扣率评分")).isPresent();
+                "第一部分：一级集采商品（合计28分）+一级集采商品价格分（满分28分）=折扣率评分"))
+                .contains("一级集采商品价格分");
     }
 
     @Test void multiItemQuoteIsAmbiguousAndNeverRecovered() {
@@ -42,8 +43,8 @@ class SourceItemNameTest {
     }
 
     @Test void suffixRelatedSameWeightNamesAreAmbiguousNotSameItem() {
-        // 评审反例 1："非一级集采商品价格分".endsWith("一级集采商品价格分") 纯属后缀巧合，
-        // 同行两个同分值项 → 身份歧义，任何一侧引文都不得恢复
+        // 评审反例 1："非一级集采商品价格分"与"一级集采商品价格分"是两个同分值项，
+        // 结构跨度逐字不同 → 同行双同分值锚点歧义，任何一侧引文都不得恢复
         String row = "价格分计算 一级集采商品价格分（满分12分） 非一级集采商品价格分（满分12分）";
         assertThat(SourceItemName.recover("一级集采商品价格分（满分12分）", new BigDecimal("12"), row)).isEmpty();
         assertThat(SourceItemName.recover("非一级集采商品价格分（满分12分）", new BigDecimal("12"), row)).isEmpty();
@@ -56,52 +57,85 @@ class SourceItemNameTest {
         assertThat(SourceItemName.recover("业绩（5分）", new BigDecimal("5"), row)).isEmpty();
     }
 
-    @Test void punctuationInsideItemNameIsNotProvableAndNeverTruncates() {
-        // 评审反例 3a（二次评审）：名称含顿号"质量、环境管理体系认证"，正则字符类不含顿号，
-        // 引文与行会截出同一段残文"环境管理体系认证"，逐字全等不设防 → 必须证明完整名，不恢复
+    @Test void punctuationInsideItemNameIsRecoveredInFullNotTruncated() {
+        // 评审反例 3a（二次/五次评审）：顿号是名称内部字符——锚点回溯到结构边界（空白/单元格起点）
+        // 的极大跨度完整保留"质量、环境管理体系认证"，任何截短覆盖都不再可能
         String row = "资格评审 质量、环境管理体系认证（满分5分） 提供证书扫描件";
-        assertThat(SourceItemName.recover("质量、环境管理体系认证（满分5分）", new BigDecimal("5"), row)).isEmpty();
-        // 名称内顿号即使单格出现也不恢复（引文侧同样无法证明完整名）
+        assertThat(SourceItemName.recover("质量、环境管理体系认证（满分5分）", new BigDecimal("5"), row))
+                .contains("质量、环境管理体系认证");
         assertThat(SourceItemName.recover("质量、环境管理体系认证（满分5分）", new BigDecimal("5"),
-                "质量、环境管理体系认证（满分5分）")).isEmpty();
+                "质量、环境管理体系认证（满分5分）")).contains("质量、环境管理体系认证");
     }
 
-    @Test void overLengthItemNameIsNotProvableAndNeverTruncates() {
-        // 评审反例 3b（二次评审）：超过 24 字的完整名称，正则从名字中间起匹配只留末 24 字 → 不恢复
+    @Test void overLengthItemNameIsRecoveredInFullNotTruncated() {
+        // 评审反例 3b（二次评审）：>24 字完整名称由结构跨度自然容纳，不再只保留末段
         String longName = "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十"; // 30 字
         assertThat(longName).hasSize(30);
         assertThat(SourceItemName.recover(longName + "（满分3分）", new BigDecimal("3"),
-                "评分 " + longName + "（满分3分） 说明")).isEmpty();
+                "评分 " + longName + "（满分3分） 说明")).contains(longName);
     }
 
     @Test void numberedPunctuationStartIsStillACompleteName() {
-        // "1、xxx" 式序号后是合法名称起点，不得被顿号规则误杀（Task291 行内裸锚点保持可辨识）
+        // "1、xxx" 式序号是编号结构不是名称成分，剥离后与引文跨度全等 → 恢复
         assertThat(SourceItemName.recover("一级集采商品上架折扣率（28分）", new BigDecimal("28"),
-                "1、一级集采商品上架折扣率（28分）：报价表-1.1")).isPresent();
+                "1、一级集采商品上架折扣率（28分）：报价表-1.1")).contains("一级集采商品上架折扣率");
     }
 
-    @Test void slashInsideItemNameCannotProveCompletenessAndIsRejected() {
-        // 评审反例 4a（四次评审）："质量/环境管理体系认证"、"A/B对比" 被斜杠切开时残文在引文与
-        // 行两侧同形，逐字全等不设防 → 起点非白名单边界一律不恢复
+    @Test void slashInsideItemNameIsRecoveredInFullNotTruncated() {
+        // 评审反例 4a（四次评审）：斜杠属于名称内部字符，结构跨度完整保留，两侧全等才恢复
         assertThat(SourceItemName.recover("质量/环境管理体系认证（满分5分）", new BigDecimal("5"),
-                "资格要求 质量/环境管理体系认证（满分5分） 提供认证证书")).isEmpty();
+                "资格要求 质量/环境管理体系认证（满分5分） 提供认证证书"))
+                .contains("质量/环境管理体系认证");
         assertThat(SourceItemName.recover("A/B方案对比（满分4分）", new BigDecimal("4"),
-                "评分标准 A/B方案对比（满分4分） 择优")).isEmpty();
+                "评分标准 A/B方案对比（满分4分） 择优")).contains("A/B方案对比");
     }
 
-    @Test void bracketOrFullwidthInsideItemNameCannotProveCompleteness() {
-        // 评审反例 4b（四次评审）：名称含括号 "ISO9001（质量）认证"、全角字母数字 "ISO9001认证"
-        // 被切出的残段起点紧贴 "）"/全角字符，不在边界白名单内 → 不恢复
+    @Test void bracketInsideItemNameIsRecoveredInFullNotTruncated() {
+        // 评审反例 4b（四次评审）：正文括号"（质量管理体系）"不是分数锚点，属于名称内部，
+        // 回溯遇非边界括号继续包含 → 完整恢复
         assertThat(SourceItemName.recover("ISO9001（质量管理体系）认证（满分5分）", new BigDecimal("5"),
-                "ISO9001（质量管理体系）认证（满分5分）")).isEmpty();
+                "ISO9001（质量管理体系）认证（满分5分）")).contains("ISO9001（质量管理体系）认证");
         assertThat(SourceItemName.recover("ISO9001认证（满分5分）", new BigDecimal("5"),
-                "证书要求 ISO9001认证（满分5分）")).isEmpty();
+                "证书要求 ISO9001认证（满分5分）")).contains("ISO9001认证");
     }
 
-    @Test void hyphenInsideItemNameCannotProveCompletenessAndIsRejected() {
-        // 评审反例 4c（四次评审）："ISO-9001质量管理体系认证" 被连字符切开，两侧同形残段
-        // "9001质量管理体系认证" 逐字全等不设防 → 起点 '-' 不在边界白名单 → 不恢复
+    @Test void hyphenInsideItemNameIsRecoveredInFullNotTruncated() {
+        // 评审反例 4c（四次评审）：连字符属于名称（ISO-9001），跨度完整保留
         assertThat(SourceItemName.recover("ISO-9001质量管理体系认证（满分5分）", new BigDecimal("5"),
-                "评分标准 ISO-9001质量管理体系认证（满分5分） 提供证书")).isEmpty();
+                "评分标准 ISO-9001质量管理体系认证（满分5分） 提供证书"))
+                .contains("ISO-9001质量管理体系认证");
+    }
+
+    @Test void colonInsideItemNameIsRecoveredInFullNotTruncated() {
+        // 评审反例 5a（五次评审）：冒号既可能是句读也可能是标准号成分（ISO9001:2015）——
+        // 起点字符判定无法区分，结构回溯把冒号留在名称跨度内，两侧全等才恢复
+        assertThat(SourceItemName.recover("ISO9001:2015质量管理体系认证（满分5分）", new BigDecimal("5"),
+                "ISO9001:2015质量管理体系认证（满分5分）")).contains("ISO9001:2015质量管理体系认证");
+        assertThat(SourceItemName.recover("ISO9001:2015质量管理体系认证（满分5分）", new BigDecimal("5"),
+                "资格评审 ISO9001:2015质量管理体系认证（满分5分） 提供证书"))
+                .contains("ISO9001:2015质量管理体系认证");
+    }
+
+    @Test void plusInsideItemNameIsRecoveredInFullNotTruncated() {
+        // 评审反例 5b（五次评审）：加号既是公式连接符也可能是语言名（C++）——内部加号保留，
+        // 仅剥离跨度首尾的连接符（Task291 "…（28分）+非一级…" 的前导 '+'）
+        assertThat(SourceItemName.recover("C++软件开发能力（满分4分）", new BigDecimal("4"),
+                "C++软件开发能力（满分4分）")).contains("C++软件开发能力");
+        assertThat(SourceItemName.recover("C++软件开发能力（满分4分）", new BigDecimal("4"),
+                "技术评审 C++软件开发能力（满分4分） 上机测试")).contains("C++软件开发能力");
+    }
+
+    @Test void quoteTruncatedMidParenGroupIsNotProvableAndRejected() {
+        // 引文从名称中间的正文括号截断 → 行侧完整跨度 ≠ 引文残段 → 不恢复（同源截断防线）
+        assertThat(SourceItemName.recover("质量管理体系）认证（满分5分）", new BigDecimal("5"),
+                "ISO9001（质量管理体系）认证（满分5分）")).isEmpty();
+    }
+
+    @Test void anchorBrokenByCellLineWrapIsStillAStructuralBoundary() {
+        // 1382 真实单元格换行把锚点拆成 "（满分28\n分）"——该锚点仍是结构边界，
+        // 否则 12 分项名称跨度会粘连整段公式导致 Task291 恢复失败
+        String row = "办公用品价格分（满分40分）=一级集采商品价格分（满分28\n分）+非一级集采商品价格分（满分12分） 注：按3个月账期";
+        assertThat(SourceItemName.recover("非一级集采商品价格分（满分12分）", new BigDecimal("12"), row))
+                .contains("非一级集采商品价格分");
     }
 }
