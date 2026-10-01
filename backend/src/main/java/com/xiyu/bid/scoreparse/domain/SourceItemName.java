@@ -16,7 +16,8 @@ import java.util.regex.Pattern;
  *
  * 规则：
  * 1. 引文必须恰含一个自声明分值锚点 "NAME（[满分]W分）"，且 W == 主张分值；
- * 2. 被引用行内不存在"W 分值的其他项名锚点"（"（合计W分）"是分组小写，不算项锚点）；
+ * 2. 被引用行内同分值项名锚点恰有一个且与引文锚点逐字全等（"（合计W分）"是分组小写，不算项锚点）；
+ *    前后缀包含关系不构成同一项的身份证明——歧义一律不恢复；
  * 3. 满足则规范项名 = 锚点 NAME；模型改写名保留在 ScoreSourceMetadata.modelCategory 作诊断。
  */
 public final class SourceItemName {
@@ -41,7 +42,11 @@ public final class SourceItemName {
         return compactName.length() >= 2 && compactName.length() <= 24 ? Optional.of(compactName) : Optional.empty();
     }
 
-    /** 引文锚点 + 被引用行唯一性：行内存在同分值的其他项名 → 歧义，不恢复。 */
+    /**
+     * 引文锚点 + 被引用行唯一性：行内同分值项名锚点必须恰有一个、且与引文锚点逐字全等，
+     * 才证明"原文唯一锚点"。互为前后缀（一级集采/非一级集采）或引文截短（业绩 vs 供应商业绩）
+     * 都不是同一项的身份证明 → 歧义，不恢复，落人工复核。
+     */
     public static Optional<String> recover(String quote, BigDecimal weight, String rowText) {
         Optional<String> self = quoteAnchor(quote, weight);
         if (self.isEmpty() || rowText == null || rowText.isBlank()) return Optional.empty();
@@ -52,15 +57,8 @@ public final class SourceItemName {
             if (new BigDecimal(row.group(2)).compareTo(weight) != 0) continue;
             sameWeightNames.add(row.group(1));
         }
-        boolean selfPresent = false;
-        for (String candidate : sameWeightNames) {
-            if (candidate.endsWith(compactName) || compactName.endsWith(candidate)) {
-                selfPresent = true;
-            } else {
-                return Optional.empty();  // 同一被引用行存在同分值的另一个项名 → 歧义
-            }
-        }
-        return selfPresent ? Optional.of(compactName) : Optional.empty();
+        return sameWeightNames.size() == 1 && sameWeightNames.contains(compactName)
+                ? Optional.of(compactName) : Optional.empty();
     }
 
     /** 池级视图：各事实引文的原文锚点名（供"张冠李戴"歧义判定）。 */

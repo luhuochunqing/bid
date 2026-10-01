@@ -40,4 +40,19 @@ class SourceItemNameTest {
                 "一级集采商品价格分（满分28分）+非一级集采商品价格分（满分12分）");
         assertThat(recovered).isEmpty();
     }
+
+    @Test void suffixRelatedSameWeightNamesAreAmbiguousNotSameItem() {
+        // 评审反例 1："非一级集采商品价格分".endsWith("一级集采商品价格分") 纯属后缀巧合，
+        // 同行两个同分值项 → 身份歧义，任何一侧引文都不得恢复
+        String row = "价格分计算 一级集采商品价格分（满分12分） 非一级集采商品价格分（满分12分）";
+        assertThat(SourceItemName.recover("一级集采商品价格分（满分12分）", new BigDecimal("12"), row)).isEmpty();
+        assertThat(SourceItemName.recover("非一级集采商品价格分（满分12分）", new BigDecimal("12"), row)).isEmpty();
+    }
+
+    @Test void truncatedQuoteNameNeverOverwritesOriginalFullName() {
+        // 评审反例 2：原文"供应商业绩（满分5分）"，引文只截"业绩（5分）"→ 短名不是唯一锚点，
+        // 不恢复，正式项名不得被改写为"业绩"
+        String row = "商务评审 供应商业绩（满分5分） 提供合同扫描件";
+        assertThat(SourceItemName.recover("业绩（5分）", new BigDecimal("5"), row)).isEmpty();
+    }
 }
