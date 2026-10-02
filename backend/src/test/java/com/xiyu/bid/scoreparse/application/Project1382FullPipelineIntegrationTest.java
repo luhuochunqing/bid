@@ -651,6 +651,316 @@ class Project1382FullPipelineIntegrationTest {
     }
 
     @Test
+    @DisplayName("项目1382线上真实Task291全量50项事实本地回放：Fix A 生效后 28分孤儿绑回 r16-c3、leafTotal=100、总分级联消除")
+    void verifyTask291LiveDiagnostic() throws Exception {
+        DocumentArtifact artifact;
+        try (InputStream is = getClass().getResourceAsStream("/scoreparse/project-1382/project-1382-scoring-tables.json")) {
+            assertThat(is).as("Scoring tables resource must exist").isNotNull();
+            artifact = objectMapper.readValue(is, DocumentArtifact.class);
+        }
+        artifact = SourceArtifactBundle.combine(List.of(artifact));
+
+        JsonNode factsArray;
+        try (InputStream is = getClass().getResourceAsStream("/scoreparse/project-1382/task-291-live-facts.json")) {
+            assertThat(is).as("Task 291 facts resource must exist").isNotNull();
+            factsArray = objectMapper.readTree(is);
+        }
+
+        java.util.Map<String, String> codeByFactId = new java.util.HashMap<>();
+        for (JsonNode node : factsArray) {
+            codeByFactId.put(node.path("factId").asText(""), node.path("code").asText(""));
+        }
+
+        java.util.Map<String, DocumentArtifact.CanonicalTable.CanonicalCellDto> cellMap = new java.util.HashMap<>();
+        for (var t : artifact.tables()) {
+            for (var c : t.cells()) {
+                cellMap.put(c.cellId(), c);
+            }
+        }
+
+        List<MultimodalScoreFact> rawFacts = new ArrayList<>();
+        for (JsonNode node : factsArray) {
+            String code = node.path("code").asText("");
+            BigDecimal weight = new BigDecimal(node.path("weight").asText("0"));
+            String ruleText = node.path("sourceText").asText("");
+            String dimension = node.path("dimension").asText("");
+            String scoreType = "OBJECTIVE";
+            String parentFactId = node.path("parentFactId").asText("");
+            String parentCode = parentFactId.isBlank() ? "" : codeByFactId.getOrDefault(parentFactId, "");
+            String tableId = node.path("sourceTableId").asText("");
+
+            List<String> sourceCellIds = new ArrayList<>();
+            for (JsonNode cellNode : node.path("sourceCellIds")) {
+                sourceCellIds.add(cellNode.asText());
+            }
+
+            Integer page = null;
+            String quotedText = "";
+            if (node.hasNonNull("weightEvidence")) {
+                quotedText = node.path("weightEvidence").path("quotedText").asText("");
+            }
+            if (!sourceCellIds.isEmpty()) {
+                var cell = cellMap.get(sourceCellIds.get(0));
+                if (cell != null) {
+                    page = cell.sourcePage();
+                    if (quotedText.isBlank()) {
+                        quotedText = cell.rawText() == null ? "" : cell.rawText();
+                    }
+                }
+            }
+
+            rawFacts.add(new MultimodalScoreFact(
+                    "第三章 评审办法", code, parentCode, dimension, weight, ruleText, scoreType,
+                    page, tableId, sourceCellIds, quotedText, 0.95, ChildAggregation.SUM,
+                    "", "",
+                    new com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata(ruleText, quotedText, List.of(), List.of(),
+                            dimension, scoreType,
+                            new com.xiyu.bid.scoreparse.domain.ModelSourceClaim("第三章 评审办法", page, tableId, sourceCellIds, "", ""))
+            ));
+        }
+
+        StringBuilder tenderTextBuilder = new StringBuilder();
+        tenderTextBuilder.append("第三章 评审办法\n3.2.1 分值构成（总分100分）：（1）商务部分：15分；（2）技术部分：45分；（3）报价：40分。\n");
+        for (int i = 2; i <= 6000; i++) {
+            if (i == 1052) {
+                tenderTextBuilder.append("3.2.1 分值构成（总分100分）：（1）商务部分：15分；（2）技术部分：45分；（3）报价：40分。\n");
+            } else if (i == 1426) {
+                tenderTextBuilder.append("（1）商务评分标准：见评审办法前附表；\n");
+            } else if (i == 1427) {
+                tenderTextBuilder.append("（2）技术评分标准：见评审办法前附表；\n");
+            } else if (i == 1428) {
+                tenderTextBuilder.append("（3）报价评分标准：\n报价得分可采用如下方法计算：\n方法一：偏差率=（供应商\n");
+            } else if (i == 1440) {
+                tenderTextBuilder.append("（4）其他因素评分标准：见评审办法前附表。\n");
+            } else if (i == 5200) {
+                tenderTextBuilder.append("# 第五章 合同条款及格式\n");
+            } else if (i == 5275) {
+                tenderTextBuilder.append("商品质量评价 5\n当B》=A时，得分权重为1，得分=1*订单评价的平均值（一星\n");
+            } else if (i == 5280) {
+                tenderTextBuilder.append("配送服务评价 5 全部5星\n考核指标 当B》=A时，得分权重为1，得分=1*订\n");
+            } else if (i == 5285) {
+                tenderTextBuilder.append("服务水平评价 5\n当B》=A时，得分权重为1，得分=1*订单评价的平均值（一星\n");
+            } else if (i == 5303) {
+                tenderTextBuilder.append("协议商品动销率 考核规则：动销率排名第1名的得满分，其余按照第1名动销率为基准进\n");
+            } else if (i == 5308) {
+                tenderTextBuilder.append("协议商品价格合\n15 系统根据自动计算 协议商品价格合格率（X）=当月度价格合\n");
+            } else if (i == 5352) {
+                tenderTextBuilder.append("根据供应商判断办公用品专区采购需求，供应商需回复所属专区采购需求（是否响应：是）\n");
+            } else if (i == 5358) {
+                tenderTextBuilder.append("系统自动计算 发货时效（X）=当月符合约定（审核人审核通过后48小时内）发货时效\n");
+            } else if (i == 5361) {
+                tenderTextBuilder.append("系统自动计算 办公用品专区分别计算：X=当月平均到货时效，Y=各供应商当月平均到\n");
+            } else if (i == 5403) {
+                tenderTextBuilder.append("收款核销考核 10 2026年每月25号进行计算：收款核销率（X）=累计已核销付\n");
+            } else if (i == 5411) {
+                tenderTextBuilder.append("系统及时 系统故障处理时 当故障发生时由平台正式向供应商报障，供应商故障处理人接\n");
+            } else {
+                tenderTextBuilder.append("\n");
+            }
+        }
+        String tenderText = tenderTextBuilder.toString();
+        OriginalScoringContext context = OriginalScoringContext.resolve(artifact, tenderText);
+
+        // ===== 诊断部分 A：直接复刻 run() 内部首轮管线（bind -> normalized -> validate），打印完整明细 =====
+        var boundFacts = TextPrimaryEvidenceBinder.bind(rawFacts, artifact, tenderText);
+        var firstExtraction = new MultimodalScoreFactExtractor.ExtractionResult(new BigDecimal("100"), boundFacts, "gemini-3.5-flash", 0);
+        var normalizedExtraction = MultimodalExtractionReviewPolicy.normalized(firstExtraction, context, artifact, tenderText);
+        var validator = new com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator();
+        var validation = validator.validate(normalizedExtraction.facts(), artifact, context, tenderText,
+                normalizedExtraction.declaredTotal());
+
+        System.out.println("==== TASK291-DIAG A: direct pipeline (bind -> normalized -> validate) ====");
+        System.out.println("rawFacts=" + rawFacts.size() + " boundFacts=" + boundFacts.size()
+                + " normalizedFacts=" + normalizedExtraction.facts().size());
+        System.out.println("declaredTotal=" + validation.declaredTotal()
+                + " originalTotal=" + validation.originalTotal()
+                + " leafTotal=" + validation.leafTotal()
+                + " autoApprovable=" + validation.autoApprovable());
+        System.out.println("sourceVerification.total=" + validation.sourceVerification().total());
+        System.out.println("sourceVerification.scheme=" + validation.sourceVerification().scheme()
+                + " publishable=" + validation.sourceVerification().publishable());
+        System.out.println("sourceVerification.problems=" + validation.sourceVerification().problems());
+        System.out.println("sourceVerification.qualifications.size=" + validation.sourceVerification().qualifications().size());
+        for (var q : validation.sourceVerification().qualifications()) {
+            System.out.println("  QUALIFICATION: " + q);
+        }
+
+        // factId -> (code/dimension/weight) 映射（violation.factId 形如 sectionTitle/code）
+        System.out.println("violations.size=" + validation.violations().size());
+        int vIdx = 0;
+        for (var v : validation.violations()) {
+            vIdx++;
+            String vCode = v.factId();
+            String factCodePart = vCode.contains("/") ? vCode.substring(vCode.indexOf('/') + 1) : vCode;
+            MultimodalScoreFact mapped = normalizedExtraction.facts().stream()
+                    .filter(f -> f.code().equals(factCodePart)).findFirst().orElse(null);
+            System.out.println("  VIOLATION[" + vIdx + "] code=" + v.code()
+                    + " factId=" + v.factId()
+                    + " field=" + v.field()
+                    + " evidence=" + v.evidence()
+                    + " message=" + v.message()
+                    + " expected=" + v.expected()
+                    + " actual=" + v.actual()
+                    + " || mappedFact: code=" + (mapped == null ? "?" : mapped.code())
+                    + " dimension=" + (mapped == null ? "?" : mapped.dimension())
+                    + " weight=" + (mapped == null ? "?" : mapped.weight())
+                    + " tableId=" + (mapped == null ? "?" : mapped.tableId())
+                    + " scopeStatus=" + (mapped == null ? "?" : mapped.scopeStatus())
+                    + " parentCode=" + (mapped == null ? "?" : mapped.parentCode()));
+        }
+
+        // 28分孤儿在各环节的状态
+        String orphanCode = "3.2.3(3)_1";
+        System.out.println("---- ORPHAN (28分, code=" + orphanCode + ") trace ----");
+        for (MultimodalScoreFact f : rawFacts) {
+            if (orphanCode.equals(f.code())) {
+                System.out.println("  RAW: modelFactId=" + com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.modelFactId(f)
+                        + " scopeStatus=" + f.scopeStatus() + " schemeId=" + f.schemeId()
+                        + " tableId='" + f.tableId() + "' cellIds=" + f.sourceCellIds()
+                        + " parentCode='" + f.parentCode() + "' quotedText='" + f.quotedText() + "'");
+            }
+        }
+        for (MultimodalScoreFact f : normalizedExtraction.facts()) {
+            if (orphanCode.equals(f.code())) {
+                System.out.println("  NORMALIZED: modelFactId=" + com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.modelFactId(f)
+                        + " scopeStatus=" + f.scopeStatus() + " schemeId=" + f.schemeId()
+                        + " tableId='" + f.tableId() + "' cellIds=" + f.sourceCellIds()
+                        + " parentCode='" + f.parentCode() + "' quotedText='" + f.quotedText() + "'");
+            }
+        }
+        List<MultimodalScoreFact> eligibleModelFacts = com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy
+                .eligibleModelFacts(normalizedExtraction.facts(), validation.sourceVerification());
+        System.out.println("  eligibleModelFacts.size=" + eligibleModelFacts.size() + " / " + normalizedExtraction.facts().size());
+        boolean orphanEligible = eligibleModelFacts.stream().anyMatch(f -> orphanCode.equals(f.code()));
+        System.out.println("  orphanEligible=" + orphanEligible);
+        for (MultimodalScoreFact f : eligibleModelFacts) {
+            System.out.println("    ELIGIBLE: code=" + f.code() + " dimension=" + f.dimension()
+                    + " weight=" + f.weight() + " scopeStatus=" + f.scopeStatus() + " tableId='" + f.tableId() + "'");
+        }
+        boolean orphanInViolations = validation.violations().stream().anyMatch(v -> v.factId().contains(orphanCode));
+        System.out.println("  orphanInViolations=" + orphanInViolations);
+        boolean multiTable = MultimodalExtractionReviewPolicy.hasMultipleTables(eligibleModelFacts);
+        boolean independentTotals = MultimodalExtractionReviewPolicy.hasIndependentTableTotals(context, eligibleModelFacts);
+        boolean totalCloses = MultimodalExtractionReviewPolicy.documentTotalCloses(context, validation);
+        System.out.println("  hasMultipleTables=" + multiTable + " hasIndependentTableTotals=" + independentTotals
+                + " documentTotalCloses=" + totalCloses
+                + " => multiTableModelScopeUnknown=" + (multiTable && !independentTotals && !totalCloses));
+
+        // ===== 诊断部分 B：完整 handler.run（alreadyRechecked=true，等价于线上复核失败后保留首轮结果）=====
+        System.out.println("==== TASK291-DIAG B: MultimodalStructuredExtractionHandler.run ====");
+        var extractionResult = new MultimodalScoreFactExtractor.ExtractionResult(new BigDecimal("100"), rawFacts, "gemini-3.5-flash", 0);
+        StructuredTableResult result = MultimodalStructuredExtractionHandler.run(
+                "办公用品.pdf", tenderText, artifact, context, null, () -> {},
+                extractionResult, true, true, true);
+
+        var completeness = result.completeness();
+        System.out.println("completeness=" + (completeness == null ? "null" : "present"));
+        if (completeness != null) {
+            System.out.println("decision=" + completeness.decision()
+                    + " fallbackReason=" + completeness.fallbackReason()
+                    + " declaredTotalScore=" + completeness.declaredTotalScore()
+                    + " declaredTotalSource=" + completeness.declaredTotalSource()
+                    + " leafWeightSum=" + completeness.leafWeightSum()
+                    + " leafCount=" + completeness.leafCount()
+                    + " parentCount=" + completeness.parentCount()
+                    + " missingEvidenceCount=" + completeness.missingEvidenceCount());
+            System.out.println("defects.size=" + completeness.defects().size());
+            for (String d : completeness.defects()) {
+                System.out.println("  DEFECT: " + d);
+            }
+            System.out.println("leafFacts (计入leafTotal):");
+            for (var lf : completeness.leafFacts()) {
+                System.out.println("  LEAF: code=" + lf.code() + " dimension=" + lf.dimension()
+                        + " weight=" + lf.weight() + " factId=" + lf.factId()
+                        + " tableId='" + lf.sourceTableId() + "'");
+            }
+            System.out.println("parentFacts:");
+            for (var pf : completeness.parentFacts()) {
+                System.out.println("  PARENT: code=" + pf.code() + " dimension=" + pf.dimension()
+                        + " weight=" + pf.weight() + " factId=" + pf.factId()
+                        + " tableId='" + pf.sourceTableId() + "'");
+            }
+        }
+        System.out.println("candidates.size=" + (result.candidates() == null ? -1 : result.candidates().size()));
+
+        // 回归钉死（评审合同）：28分孤儿绑回物理来源；0 违规；每个评分项对应正确原文——
+        // 正式项名来自原文锚点（非模型改写名），分值/父子/引用全断言，不以"凑齐100分"为验收。
+        MultimodalScoreFact boundOrphan = boundFacts.stream()
+                .filter(f -> "3.2.3(3)_1".equals(f.code())).findFirst().orElseThrow();
+        assertThat(boundOrphan.tableId()).isEqualTo("doc0-p34-t0010");
+        assertThat(boundOrphan.sourceCellIds()).containsExactly("doc0-p34-t0010-r16-c3");
+        assertThat(validation.leafTotal()).isEqualByComparingTo("100");
+        assertThat(validation.violations()).isEmpty();
+        assertThat(validation.autoApprovable()).isTrue();
+        MultimodalScoreFact normalizedOrphan = normalizedExtraction.facts().stream()
+                .filter(f -> "3.2.3(3)_1".equals(f.code())).findFirst().orElseThrow();
+        assertThat(normalizedOrphan.scopeStatus()).isEqualTo("IN_SCHEME");
+        assertThat(normalizedOrphan.parentCode()).isEqualTo("3.2.3(3)");
+
+        java.util.function.Function<String, com.xiyu.bid.scoreparse.domain.ScoreFact> byCode = c ->
+                result.facts().stream().filter(f -> c.equals(f.code())).findFirst().orElseThrow();
+        // 报价侧规范项名必须恢复为原文"××价格分"，模型改写名"××上架折扣率"只作诊断
+        var nonCentralized = byCode.apply("3.2.3(3)_2");
+        assertThat(nonCentralized.dimension()).isEqualTo("非一级集采商品价格分");
+        assertThat(nonCentralized.weight()).isEqualByComparingTo("12");
+        assertThat(nonCentralized.sourceCellIds()).contains("doc0-p34-t0010-r16-c3");
+        assertThat(nonCentralized.parentFactId()).isEqualTo(byCode.apply("3.2.3(3)").factId());
+        assertThat(nonCentralized.sourceMetadata().modelCategory()).isEqualTo("非一级集采商品上架折扣率");
+        var centralized = byCode.apply("3.2.3(3)_1");
+        assertThat(centralized.weight()).isEqualByComparingTo("28");
+        assertThat(centralized.parentFactId()).isEqualTo(byCode.apply("3.2.3(3)").factId());
+        assertThat(centralized.sourceCellIds()).contains("doc0-p34-t0010-r16-c3");
+        // 28分项同行存在第二个同分值锚点（"上架折扣率（28分）"裸式）→ 按评审规则歧义不恢复名称；
+        // 其身份本就经"报价"类别路径成立（无违规），保守保留原标签，只核对引文证据
+        assertThat(centralized.sourceMetadata().modelQuotedText()).isEqualTo("一级集采商品价格分（满分28分）");
+        // 商务/技术侧项名与父子保持原文
+        assertThat(byCode.apply("3.2.3(1)_1").dimension()).isEqualTo("供应商业绩");
+        assertThat(byCode.apply("3.2.3(1)_1").parentFactId()).isEqualTo(byCode.apply("3.2.3(1)").factId());
+        java.util.function.Function<String, java.math.BigDecimal> childrenSum = parentCode -> {
+            String pid = byCode.apply(parentCode).factId();
+            return result.facts().stream().filter(f -> pid.equals(f.parentFactId()))
+                    .map(com.xiyu.bid.scoreparse.domain.ScoreFact::weight)
+                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        };
+        assertThat(childrenSum.apply("3.2.3(1)")).as("商务叶子分值合计").isEqualByComparingTo("15");
+        assertThat(childrenSum.apply("3.2.3(2)")).as("技术叶子分值合计").isEqualByComparingTo("45");
+        assertThat(childrenSum.apply("3.2.3(3)")).as("报价叶子分值合计").isEqualByComparingTo("40");
+        // 完整 handler 链路：AUTO_APPROVED 且生成候选（非空才可落库替换 91 分化石）
+        assertThat(completeness).isNotNull();
+        assertThat(completeness.decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(completeness.leafWeightSum()).isEqualByComparingTo("100");
+        assertThat(result.candidates()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("Task291 28分孤儿：忠实模型原始输入（空 locator/schemeId）经 bind 应命中 r16-c3")
+    void verifyTask291OrphanBindsAfterDigitHanNormalizeFix() throws Exception {
+        DocumentArtifact artifact;
+        try (InputStream is = getClass().getResourceAsStream("/scoreparse/project-1382/project-1382-scoring-tables.json")) {
+            assertThat(is).as("Scoring tables resource must exist").isNotNull();
+            artifact = objectMapper.readValue(is, DocumentArtifact.class);
+        }
+        artifact = SourceArtifactBundle.combine(List.of(artifact));
+
+        MultimodalScoreFact orphan = new MultimodalScoreFact(
+                "第三章 评审办法", "3.2.3(3)_1", "3.2.3(3)", "报价", new BigDecimal("28"),
+                "", "SUBJECTIVE", null, "", List.of(), "一级集采商品价格分（满分28分）", 0.95,
+                ChildAggregation.SUM, "", "",
+                new com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata("", "一级集采商品价格分（满分28分）",
+                        List.of(), List.of(), "报价", "SUBJECTIVE",
+                        new com.xiyu.bid.scoreparse.domain.ModelSourceClaim("第三章 评审办法", null, "", List.of(), "", "")));
+
+        List<MultimodalScoreFact> bound = TextPrimaryEvidenceBinder.bind(List.of(orphan), artifact, null);
+
+        assertThat(bound).hasSize(1);
+        MultimodalScoreFact fact = bound.get(0);
+        assertThat(fact.tableId()).as("28分孤儿必须绑定到报价细则表")
+                .isEqualTo("doc0-p34-t0010");
+        assertThat(fact.sourceCellIds()).as("28分孤儿必须绑定到 r16-c3（含「满分28\\n分」硬换行的单元格）")
+                .containsExactly("doc0-p34-t0010-r16-c3");
+    }
+
+    @Test
     @DisplayName("项目1382 Task 292现场事实回放验证")
     void verifyTask292LiveOnlineFacts() throws Exception {
         DocumentArtifact artifact;

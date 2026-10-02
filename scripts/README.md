@@ -7,7 +7,7 @@
 
 | 文件 | 地位 | 功能 |
 |------|------|------|
-| `check-scoreparse-root-cause.sh` | 根因回归门禁 | 离线运行独立原文夹具及真实 DOCX 转换跨层回归；需设置含 Sidecar 依赖的 `SIDECAR_PYTHON`，失败不跳过 |
+| `check-scoreparse-root-cause.sh` | 根因回归门禁 | 离线运行独立原文夹具及真实 DOCX 转换跨层回归，含 1382 Task291 线上事实全链路重放（`Project1382FullPipelineIntegrationTest`）；需设置含 Sidecar 依赖的 `SIDECAR_PYTHON`，失败不跳过 |
 | `check-pre-push-dispatch.test.mjs` | 分发回归 | 执行实际脚本的参数/分支/新增检查分发段；记录调用，保证 agent 默认不跳过新增根因和 token 检查，显式 skip 生效 |
 | `check-token-coverage.test.mjs` | CLI 回归 | 临时目录实测扫描空格路径、嵌套 node_modules 和扫描失败；不吞错伪造 0/0 |
 | `check-doc-consistency.sh` | 兼容入口脚本 | 保留旧命令入口，转调新的文档治理检查器 |
