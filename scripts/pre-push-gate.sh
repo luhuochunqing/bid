@@ -241,8 +241,18 @@ elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
 elif ! sidecar_python_usable; then
   skip "FBR-I1 回放（sidecar Python 缺 python-docx/lxml — 本机未实跑；安装: python3 -m venv document-converter-sidecar/.venv && document-converter-sidecar/.venv/bin/pip install -r document-converter-sidecar/requirements.txt）"
 else
-  ( cd "$ROOT_DIR/backend" && mvn test -Dtest='FullRuleSourceReplayTest,CrossFormatDocumentSourceReplayTest' -q >/dev/null 2>&1 || true )
-  if surefire_failed FullRuleSourceReplayTest || surefire_failed CrossFormatDocumentSourceReplayTest; then
+  # 评审 P2（2026-10-02）：旧写法 `|| true` 吞掉 Maven 失败，残留的上一次绿色 Surefire
+  # 报告会让本段误报 PASS。修复：先删除这两个类的旧报告，再检查 Maven 真实退出码，
+  # 最后才读本次报告（缺报告仍由 surefire_failed 保守判失败）。
+  find "$ROOT_DIR/backend/target/surefire-reports" -maxdepth 1 \
+    \( -name 'TEST-*.FullRuleSourceReplayTest.xml' -o -name 'TEST-*.CrossFormatDocumentSourceReplayTest.xml' \
+       -o -name '*FullRuleSourceReplayTest.txt' -o -name '*CrossFormatDocumentSourceReplayTest.txt' \) \
+    -delete 2>/dev/null || true
+  replay_rc=0
+  ( cd "$ROOT_DIR/backend" && mvn test -Dtest='FullRuleSourceReplayTest,CrossFormatDocumentSourceReplayTest' -q >/dev/null 2>&1 ) || replay_rc=$?
+  if [ "$replay_rc" -ne 0 ]; then
+    fail "FullRule/CrossFormat 回放 Maven 执行失败（exit=${replay_rc}，含编译/依赖错误，勿只看报告）— 运行 mvn test -Dtest='FullRuleSourceReplayTest,CrossFormatDocumentSourceReplayTest' 查看"
+  elif surefire_failed FullRuleSourceReplayTest || surefire_failed CrossFormatDocumentSourceReplayTest; then
     fail "FullRule/CrossFormat 真实 DOCX 绑定回放红 — 评分项规则原文恢复（SOURCE vs MODEL_CLAIM）或 Sidecar 转换形状回归，运行 mvn test -Dtest='FullRuleSourceReplayTest,CrossFormatDocumentSourceReplayTest' 查看"
   else
     pass "FullRule/CrossFormat 真实 DOCX 绑定回放"

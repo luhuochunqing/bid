@@ -147,13 +147,25 @@ class CrossFormatDocumentSourceReplayTest {
                 + "或 export SIDECAR_PYTHON=<可用的 python>");
     }
     private static boolean sidecarPythonUsable(String python, Path sidecar) {
+        Process probe = null;
         try {
-            Process probe = new ProcessBuilder(python, "-B", "-c", "import docx, lxml")
-                    .directory(sidecar.toFile()).redirectErrorStream(true).start();
-            probe.getInputStream().readAllBytes();
-            return probe.waitFor(15, java.util.concurrent.TimeUnit.SECONDS) && probe.exitValue() == 0;
+            // 评审 P2（2026-10-02）：旧写法先 readAllBytes 等 EOF，15 秒 waitFor 形同虚设，
+            // 缓慢 Python 可无限卡住门禁。输出重定向 DISCARD 让 waitFor 成为真实期限；
+            // 超时/异常统一 destroyForcibly，不留僵尸探测进程。
+            probe = new ProcessBuilder(python, "-B", "-c", "import docx, lxml")
+                    .directory(sidecar.toFile())
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .start();
+            if (!probe.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)) return false;
+            return probe.exitValue() == 0;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
         } catch (Exception unavailable) {
             return false;
+        } finally {
+            if (probe != null && probe.isAlive()) probe.destroyForcibly();
         }
     }
     private static DocumentArtifact pdf() {
