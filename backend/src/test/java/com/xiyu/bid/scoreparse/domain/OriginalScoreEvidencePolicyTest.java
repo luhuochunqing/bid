@@ -17,7 +17,7 @@ class OriginalScoreEvidencePolicyTest {
                 "（1）商务部分：15分", "", "", "", ChildAggregation.SUM);
         var problems = new java.util.ArrayList<OriginalScoreEvidencePolicy.Problem>();
 
-        OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems, java.util.Map.of());
+        OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems);
 
         assertThat(problems).isEmpty();
     }
@@ -305,22 +305,6 @@ class OriginalScoreEvidencePolicyTest {
         assertThat(otherItem.publishable()).isFalse();
         assertThat(otherItem.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
                 .contains("ITEM_SOURCE_SCOPE_MISMATCH");
-    }
-
-    @Test void renamedClaimIsRefusedWhenAnotherFactLegitimatelyBearsThatName() {
-        // 评审反例："供应商履约业绩"冒充"供应商履约能力"——即使能力行内锚点唯一，
-        // 主张项名撞上另一事实的原文锚点名 → 池级歧义 → 不自动通过，继续人工复核
-        var source = artifact("本项目评分办法", List.of(
-                cell("total", 0, 0, "本项目评分总分10分"),
-                cell("r1", 1, 1, "供应商履约能力（满分5分）按季度评价"), cell("w1", 1, 2, "5分"),
-                cell("r2", 2, 1, "供应商履约业绩（满分5分）按合同评价"), cell("w2", 2, 2, "5分")));
-        var genuine = fact("2", "供应商履约业绩", "5", "供应商履约业绩（满分5分）按合同评价", "r2");
-        var impostor = fact("1", "供应商履约业绩", "5", "供应商履约能力（满分5分）按季度评价", "r1");
-        var verification = OriginalScoreEvidencePolicy.verifyModel(source, "",
-                List.of(impostor, genuine), new BigDecimal("10"));
-        assertThat(verification.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
-                .contains("ITEM_SOURCE_SCOPE_MISMATCH");
-        assertThat(verification.publishable()).isFalse();
     }
 
     @Test void perCertificateIncrementWithoutCapIsNotItemMaximum() {
