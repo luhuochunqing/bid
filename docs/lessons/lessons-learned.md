@@ -7135,6 +7135,8 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - "回放 N/N PASS" 的结论只对第 N 轮形状成立；回归资产应以**最近失败轮次的线上无损导出**为准；
 - `MANUAL_APPROVED` × "REVIEW_REQUIRED 不覆盖现有评分项" 会把错误基线锁成化石（91 分 = 人工批准的机器判失败结果：多计报价父项 40 + 丢 49 分叶子，净差恰 9 分）；人工批准前应核对构成一致性；
 - catch 只打异常类名 = 每次自愈失败都无法归因；
+- bash 双引号串里 `$变量` 直接紧贴全角标点（中文括号/逗号）会被 UTF-8 locale 解析进变量名，`set -u` 下直接炸 unbound variable——中文消息内引用变量一律写 `${变量}`（撤除后严格审查的 P2 修复中实测踩中）；
+- 门禁"跑测试→读 surefire 报告"必须**先删本次目标类的旧报告 + 检查 Maven 真实退出码**，否则损坏 POM + 残留绿报告会让门禁误报 PASS（PR !2807 后严格审查 P2-1，探针复现）；子进程探测超时必须把输出重定向 DISCARD 再 `waitFor(限时)`——先 `readAllBytes` 会等 EOF 令超时形同虚设，并在 finally `destroyForcibly`（P2-2，18s 慢 Python 实测修复后 15.0s 返回 false）；
 - main 上存量红：`FullRuleSourceReplayTest`（8F+19E）、`CrossFormatDocumentSourceReplayTest`（2F）、`ScoreExtractionPersistenceMysqlTest`（1F）在 !2800/!2802/!2804 合入时已红，门禁覆盖缺口需单独处理。
 
 ### 相关文件
