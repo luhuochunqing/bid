@@ -135,7 +135,6 @@ public final class OriginalScoreEvidencePolicy {
         }
         List<Qualification> qualifications = new ArrayList<>();
         Set<String> eligibleClaimIds = new LinkedHashSet<>();
-        Map<String, String> claimQuoteAnchors = SourceItemName.anchorsOf(claims);  // 池级"张冠李戴"歧义判定
         List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact,
                 claims.stream().map(ScoreEvidenceClaim::tenderText).filter(java.util.Objects::nonNull).findFirst().orElse(null));
         for (ScoreEvidenceClaim claim : claims) {
@@ -146,7 +145,7 @@ public final class OriginalScoreEvidencePolicy {
             if (claim.weight() != null && claim.weight().signum() <= 0) continue;
             if (qualification.candidateEligible()) {
                 eligibleClaimIds.add(claim.id());
-                OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems, claimQuoteAnchors);
+                OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems);
             } else if (!"OUT_OF_SCHEME".equals(qualification.scopeStatus())) {
                 problems.add(new Problem(claim.id(), "tableId",
                         qualification.reason() == null ? "SOURCE_SCHEME_NOT_VERIFIED" : qualification.reason(),
