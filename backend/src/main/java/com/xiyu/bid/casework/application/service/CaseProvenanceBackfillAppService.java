@@ -1,6 +1,6 @@
 // Input: ACTIVE 状态且来源章节不是已验证章节的存量知识案例（空标题 / 句子型伪标题 / 无编号小标题）
 // Output: BackfillResult 统计（扫描项目/案例数、写回数、清空数、未变数、失败项目数；标书不可用按失败计、不写库）
-// Pos: Backend/casework 模块应用服务——存量案例来源章节重算（幂等，按项目分组装载标书）
+// Pos: Backend/casework 应用编排——通过不可变端口回填来源，按项目分组装载标书
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 package com.xiyu.bid.casework.application.service;
@@ -8,8 +8,9 @@ package com.xiyu.bid.casework.application.service;
 import com.xiyu.bid.casework.application.BidDocumentLoader;
 import com.xiyu.bid.casework.application.MarkdownSourceSectionIndex;
 import com.xiyu.bid.casework.application.MarkdownTitleRules;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
+import com.xiyu.bid.casework.application.port.CaseProvenanceBackfillPort;
+import com.xiyu.bid.casework.application.port.CaseProvenanceBackfillPort.Candidate;
+import com.xiyu.bid.casework.application.port.CaseProvenanceBackfillPort.Update;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.repository.ProjectRepository;
 import lombok.RequiredArgsConstructor;
@@ -43,9 +44,7 @@ import java.util.Map;
 @Slf4j
 public class CaseProvenanceBackfillAppService {
 
-    private static final String ACTIVE_STATUS = "ACTIVE";
-
-    private final KnowledgeCaseRepository caseRepository;
+    private final CaseProvenanceBackfillPort caseRepository;
     private final ProjectRepository projectRepository;
     private final BidDocumentLoader bidDocumentLoader;
 
@@ -60,15 +59,15 @@ public class CaseProvenanceBackfillAppService {
 
     public BackfillResult recomputeAll() {
         // 需要重算的判据 = "现有标题不是已验证章节"（isChapterTitle 对 null/空白/句子型/无编号一律 false）
-        List<KnowledgeCase> candidates = caseRepository.findByStatus(ACTIVE_STATUS).stream()
-                .filter(kase -> !MarkdownTitleRules.isChapterTitle(kase.getSourceSectionTitle()))
+        List<Candidate> candidates = caseRepository.findActiveCandidates().stream()
+                .filter(kase -> !MarkdownTitleRules.isChapterTitle(kase.sourceSectionTitle()))
                 .toList();
         if (candidates.isEmpty()) {
             log.info("案例来源章节回填：无可重算案例（ACTIVE 案例来源标题均为已验证章节）");
             return new BackfillResult(0, 0, 0, 0, 0, 0);
         }
 
-        Map<Long, List<KnowledgeCase>> grouped = groupByProject(candidates);
+        Map<Long, List<Candidate>> grouped = groupByProject(candidates);
         int orphanCount = candidates.size() - grouped.values().stream().mapToInt(List::size).sum();
         if (orphanCount > 0) {
             log.warn("案例来源章节回填：{} 条案例缺少 sourceProjectId，无法定位标书，保持原值", orphanCount);
@@ -79,7 +78,7 @@ public class CaseProvenanceBackfillAppService {
         int unchanged = orphanCount;
         int failed = 0;
 
-        for (Map.Entry<Long, List<KnowledgeCase>> entry : grouped.entrySet()) {
+        for (Map.Entry<Long, List<Candidate>> entry : grouped.entrySet()) {
             Long projectId = entry.getKey();
             LoadedBid loadedBid = loadUsableBid(projectId, entry.getValue().size());
             if (loadedBid == null) {
@@ -87,8 +86,8 @@ public class CaseProvenanceBackfillAppService {
                 continue;
             }
 
-            List<KnowledgeCase> dirty = new ArrayList<>();
-            for (KnowledgeCase kase : entry.getValue()) {
+            List<Update> dirty = new ArrayList<>();
+            for (Candidate kase : entry.getValue()) {
                 Outcome outcome = recomputeOne(kase, loadedBid, dirty);
                 if (outcome == Outcome.UPDATED) {
                     updated++;
@@ -139,29 +138,23 @@ public class CaseProvenanceBackfillAppService {
     }
 
     private Outcome recomputeOne(
-            KnowledgeCase kase,
+            Candidate kase,
             LoadedBid loadedBid,
-            List<KnowledgeCase> dirty) {
+            List<Update> dirty) {
         MarkdownSourceSectionIndex.Provenance provenance = locate(kase, loadedBid.sectionIndex());
         if (provenance != null) {
             // loadedBid 只在装载成功时构造，document() 非空
             BidDocumentLoader.BidDocument bidDocument = loadedBid.document();
-            kase.setSourceSectionTitle(provenance.title());
-            kase.setSourceSectionPath(provenance.path());
-            kase.setSourceSectionIndex(provenance.index());
-            kase.setSourceDocumentName(bidDocument.documentName());
-            kase.setSourcePageNumber(provenance.pageNumber() != null
-                    ? provenance.pageNumber()
-                    : bidDocument.pageNumber());
-            dirty.add(kase);
+            dirty.add(new Update(kase.id(), provenance.title(), provenance.path(), provenance.index(),
+                    bidDocument.documentName(), provenance.pageNumber() != null
+                            ? provenance.pageNumber() : bidDocument.pageNumber()));
             return Outcome.UPDATED;
         }
 
         if (hasNoSourceProvenance(kase)) {
             return Outcome.UNCHANGED;
         }
-        clearSourceProvenance(kase);
-        dirty.add(kase);
+        dirty.add(new Update(kase.id(), null, null, null, null, null));
         return Outcome.CLEARED;
     }
 
@@ -170,35 +163,27 @@ public class CaseProvenanceBackfillAppService {
      * 路径/页码仍残留"的部分写入状态（早期只写标题、或定位失败只清了标题的旧版本所为），
      * 只看标题会把这些字段留在库里，与其他消费者（导出、检索、后台排查）对同一案例的认知不一致。
      */
-    private static boolean hasNoSourceProvenance(KnowledgeCase kase) {
-        return isBlank(kase.getSourceSectionTitle())
-                && isBlank(kase.getSourceSectionPath())
-                && isBlank(kase.getSourceDocumentName())
-                && kase.getSourceSectionIndex() == null
-                && kase.getSourcePageNumber() == null;
+    private static boolean hasNoSourceProvenance(Candidate kase) {
+        return isBlank(kase.sourceSectionTitle())
+                && isBlank(kase.sourceSectionPath())
+                && isBlank(kase.sourceDocumentName())
+                && kase.sourceSectionIndex() == null
+                && kase.sourcePageNumber() == null;
     }
 
     private static boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
 
-    private static void clearSourceProvenance(KnowledgeCase kase) {
-        kase.setSourceSectionTitle(null);
-        kase.setSourceSectionPath(null);
-        kase.setSourceSectionIndex(null);
-        kase.setSourceDocumentName(null);
-        kase.setSourcePageNumber(null);
-    }
-
-    private MarkdownSourceSectionIndex.Provenance locate(KnowledgeCase kase, MarkdownSourceSectionIndex sectionIndex) {
-        String snippet = kase.getResponseText();
+    private MarkdownSourceSectionIndex.Provenance locate(Candidate kase, MarkdownSourceSectionIndex sectionIndex) {
+        String snippet = kase.responseText();
         if (sectionIndex == null || snippet == null || snippet.isBlank()) {
             return null;
         }
         try {
-            return sectionIndex.locate(snippet, kase.getScoringPointTitle());
+            return sectionIndex.locate(snippet, kase.scoringPointTitle());
         } catch (RuntimeException e) {
-            log.warn("案例 {} 来源章节定位异常，降级为清空：{}", kase.getId(), e.getMessage());
+            log.warn("案例 {} 来源章节定位异常，降级为清空：{}", kase.id(), e.getMessage());
             return null;
         }
     }
@@ -216,13 +201,13 @@ public class CaseProvenanceBackfillAppService {
         }
     }
 
-    private Map<Long, List<KnowledgeCase>> groupByProject(List<KnowledgeCase> candidates) {
-        Map<Long, List<KnowledgeCase>> grouped = new LinkedHashMap<>();
-        for (KnowledgeCase kase : candidates) {
-            if (kase.getSourceProjectId() == null) {
+    private Map<Long, List<Candidate>> groupByProject(List<Candidate> candidates) {
+        Map<Long, List<Candidate>> grouped = new LinkedHashMap<>();
+        for (Candidate kase : candidates) {
+            if (kase.sourceProjectId() == null) {
                 continue;
             }
-            grouped.computeIfAbsent(kase.getSourceProjectId(), key -> new ArrayList<>()).add(kase);
+            grouped.computeIfAbsent(kase.sourceProjectId(), key -> new ArrayList<>()).add(kase);
         }
         return grouped;
     }

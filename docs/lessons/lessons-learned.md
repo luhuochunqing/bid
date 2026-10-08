@@ -7153,3 +7153,10 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **根因**：`useScoreExtraction.latest` 已将 409 `EXTRACTION_FEATURE_DISABLED` 和指定的 404 视为无快照，继续读取原有 items/results；但 `client.js` 在拒绝 Promise 前已调用 `ElMessage.error`，业务层捕获无法撤销提示。
 - **处理**：仅 `scoreParseApi.getLatestExtraction` 使用现有 `skipGlobalErrorMessage: true`，由评分抽屉管理降级和错误显示，不开启 `app.score-parse.extraction-version.enabled`。403/500 仍进入页面错误状态，激活写入和其他评分请求沿用原配置。
 - **验证**：`src/api/client.spec.js` 通过 API 模块调用真实拦截器错误分支，修改前重现红色提示、修改后无全局提示且保留 rejection；抽屉既有测试验证功能关闭回退与权限/服务错误。
+
+
+## 420. 案例来源回填必须通过专用端口隔离持久化（2026-10-09）
+
+- **根因**：`CaseProvenanceBackfillAppService` 直接使用本模块JPA实体与仓库，导致应用层依赖infrastructure，原ArchUnit规则发现32处违规。
+- **处理**：专用`CaseProvenanceBackfillPort`传递不可变候选与五字段更新，适配器严格查询ACTIVE并按项目独立事务保存。现有通用查询把空状态视作ACTIVE，不能直接复用以免扩大回填范围。
+- **防回归**：保留业务定位/清空/标书不可用跳过与统计；真实MySQL验证五字段映射、不覆盖其他业务字段、缺失案例拒绝和数据库错误整批回滚。架构规则保持不变，不通过迁移业务判断或新增豁免隐藏违规。

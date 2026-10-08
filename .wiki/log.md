@@ -1258,3 +1258,8 @@ Task5 第二轮审查回填：真实 DOCX 规则正文增加“各评分项目�
 ## [2026-09-27] final-rule-fix | scoreparse-1382-pdf-scheme-gate-rca
 
 FBR-I1：统一完整来源单元恢复，覆盖短引文/预绑定/anchor/纯文本；保留 PDF 28/12 peer 与编号材料，真实 MySQL 证明未决重解析不覆盖旧规则和评分结果。
+
+
+## [2026-10-09] architecture-repair | case-source-actions-and-import-pitfalls
+
+补充案例来源回填专用应用端口、不可变五字段更新与独立事务适配器边界，保留严格ACTIVE与标书不可用整批跳过；真实MySQL验证缺失案例及数据库错误回滚。

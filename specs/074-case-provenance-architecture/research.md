@@ -1,0 +1,5 @@
+# 研究结论
+
+现有KnowledgeCaseQueryPort把空状态纳入ACTIVE查询，不能复用其筛选契约。专用端口严格调用findByStatus("ACTIVE")，避免扩大回填范围。
+现有架构规则明确应用层不能依赖本模块infrastructure，违规32处。业务判断留在应用服务；端口不可变候选和更新替换JPA实体。
+原项目批量saveAll传播写入异常；新适配器在修改前验证全部ID存在，REQUIRES_NEW方法事务覆盖读写，避免缺失案例重新创建和局部提交。
