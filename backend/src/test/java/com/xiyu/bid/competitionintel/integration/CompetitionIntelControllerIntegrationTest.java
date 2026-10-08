@@ -1,6 +1,7 @@
 package com.xiyu.bid.competitionintel.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.competitionintel.dto.AnalysisCreateRequest;
 import com.xiyu.bid.competitionintel.dto.CompetitorUpsertRequest;
 import com.xiyu.bid.competitionintel.entity.CompetitionAnalysis;
@@ -18,6 +19,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -33,7 +38,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 竞争情报控制器集成测试
  * 测试HTTP端点的完整请求响应流程
  */
-@SpringBootTest(properties = "spring.main.allow-bean-definition-overriding=true")
+// The real repository uses MySQL ON DUPLICATE KEY UPDATE; scope compatibility to this test.
+@SpringBootTest(properties = {"spring.main.allow-bean-definition-overriding=true",
+        "spring.datasource.url=jdbc:h2:mem:competition-${random.uuid};MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import(NoOpPasswordEncryptionTestConfig.class)
@@ -97,7 +104,7 @@ class CompetitionIntelControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(authorities = {"ROLE_ADMIN", RoleProfileCatalog.COMPETITOR_CREATE_PERMISSION})
     void upsertCompetitor_WithValidName_ShouldReturnCompetitor() throws Exception {
         CompetitorUpsertRequest request = CompetitorUpsertRequest.builder()
                 .name("新竞企")
@@ -113,7 +120,7 @@ class CompetitionIntelControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(authorities = {"ROLE_ADMIN", RoleProfileCatalog.COMPETITOR_CREATE_PERMISSION})
     void upsertCompetitor_WithBlankName_ShouldReturnBadRequest() throws Exception {
         CompetitorUpsertRequest request = CompetitorUpsertRequest.builder()
                 .name(" ")
@@ -235,16 +242,19 @@ class CompetitionIntelControllerIntegrationTest {
                 .andExpect(jsonPath("$.data", hasSize(0)));
     }
 
-    @Test
-    @WithMockUser(username = "user", roles = {"USER"})
-    void upsertCompetitor_WithInsufficientPermissions_ShouldReturnForbidden() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"USER", "ADMIN"})
+    void upsertCompetitor_WithInsufficientPermissions_ShouldReturnForbidden(String role) throws Exception {
+        long before = competitorRepository.count();
         CompetitorUpsertRequest request = CompetitorUpsertRequest.builder()
                 .name("新竞企")
                 .build();
 
         mockMvc.perform(post("/api/ai/competition/competitors")
+                        .with(user("user").roles(role))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
+        assertThat(competitorRepository.count()).isEqualTo(before);
     }
 }

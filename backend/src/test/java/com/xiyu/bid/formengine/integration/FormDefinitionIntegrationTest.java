@@ -246,10 +246,13 @@ class FormDefinitionIntegrationTest {
         }
 
         @Test
-        @DisplayName("Unauthenticated → 403 (AuthorizationFilter denies unauthenticated requests)")
-        void unauthenticated_returns403() throws Exception {
+        @DisplayName("Unauthenticated → 401 JSON (production authentication entry point)")
+        void unauthenticated_returns401() throws Exception {
             mockMvc.perform(get("/api/form-definitions/tender.entry/active"))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.code").value(401));
         }
     }
 

@@ -7171,3 +7171,14 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **根因**：`CaseProvenanceBackfillAppService` 直接使用本模块JPA实体与仓库，导致应用层依赖infrastructure，原ArchUnit规则发现32处违规。
 - **处理**：专用`CaseProvenanceBackfillPort`传递不可变候选与五字段更新，适配器严格查询ACTIVE并按项目独立事务保存。现有通用查询把空状态视作ACTIVE，不能直接复用以免扩大回填范围。
 - **防回归**：保留业务定位/清空/标书不可用跳过与统计；真实MySQL验证五字段映射、不覆盖其他业务字段、缺失案例拒绝和数据库错误整批回滚。架构规则保持不变，不通过迁移业务判断或新增豁免隐藏违规。
+
+## 422. 安全契约更新后的集成测试身份漂移与共享覆盖率产物损坏（2026-10-08）
+
+- **未登录契约**：`SecurityConfig` 的 authentication entry point 明确返回 401 JSON，以触发前端登录刷新。`FormDefinitionIntegrationTest`、`TenderPermissionIntegrationTest` 与 `CaCommitmentLetterUploadIntegrationTest` 的匿名 403 断言已经过时，应断言 401、JSON 类型、`success=false` 与 `code=401`，不能回退生产 entry point。
+- **角色不等于权限**：`CompetitionIntelController.upsertCompetitor` 已要求 `RoleProfileCatalog.COMPETITOR_CREATE_PERMISSION`。成功与参数校验用例须提供该 authority；只有 `ROLE_ADMIN` 或 `ROLE_USER` 的身份必须仍返回 403，且竞品库记录数不增加。不能放宽生产权限让旧测试变绿。
+- **测试数据库方言**：权限补齐后真实 upsert 使用 MySQL `ON DUPLICATE KEY UPDATE`，默认 H2 模式会返回 SQL 语法错误。仅在竞争情报集成测试的数据源 URL 启用 `MODE=MySQL`，保留真实 repository/service，不修改生产 SQL，也不把参数校验用例的 400 当作授权成功证据。
+- **JaCoCo 执行纪律**：同一 worktree 的 Maven 运行共享 `target/jacoco.exec`，并发写入或强行中断后不可把 `Unknown block type` 视为业务测试失败。先归档日志，再从 `mvn clean test` 的干净输出串行复跑，并确认 `jacoco:report` 成功生成报告。`jacoco.skip=true` 只能分离诊断，不能代替覆盖率报告修复证据。
+
+- **全量环境闭合**：真实 MySQL 集成测试基类本地要求 `127.0.0.1:13306/xiyu_bid_verify`；使用任务独立容器，不连接开发库。评分 DOCX 回放显式设置 `SIDECAR_PYTHON` 为经过 `import docx,lxml,fitz` 验证的现有解释器，无需启动 Sidecar 服务。
+
+- **验证边界**：上述契约与环境修复后的受影响子集运行 `mvn test`，238 项中 234 通过、4 跳过，0 failures/0 errors，JaCoCo 保持启用并成功生成报告。整仓全量仍发现独立的 `BidCaseSliceArchitectureTest` 违规（案例回填应用服务直接依赖 infrastructure），不得把子集成功写成整仓可合并。

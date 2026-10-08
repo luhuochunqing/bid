@@ -21,6 +21,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 /**
  * 标讯关键写接口的权限集成/契约测试。
@@ -53,9 +55,9 @@ class TenderPermissionIntegrationTest {
     }
 
     @Test
-    @DisplayName("PUT /api/tenders/{id}: 匿名用户应返回 403")
+    @DisplayName("PUT /api/tenders/{id}: 匿名用户应返回 401 JSON")
     @WithAnonymousUser
-    void updateTender_byAnonymous_returnsForbidden() throws Exception {
+    void updateTender_byAnonymous_returnsUnauthorized() throws Exception {
         mockMvc.perform(put("/api/tenders/1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -64,7 +66,10 @@ class TenderPermissionIntegrationTest {
                                   "deadline": "2026-12-31T18:00:00"
                                 }
                                 """))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value(401));
     }
 
     @Test
@@ -110,9 +115,9 @@ class TenderPermissionIntegrationTest {
     }
 
     @Test
-    @DisplayName("POST /api/tenders/{id}/transfer: 匿名用户应返回 403")
+    @DisplayName("POST /api/tenders/{id}/transfer: 匿名用户应返回 401 JSON")
     @WithAnonymousUser
-    void transferTender_byAnonymous_returnsForbidden() throws Exception {
+    void transferTender_byAnonymous_returnsUnauthorized() throws Exception {
         mockMvc.perform(post("/api/tenders/1/transfer")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -120,7 +125,10 @@ class TenderPermissionIntegrationTest {
                                   "newOwnerId": 2
                                 }
                                 """))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value(401));
     }
 
     @Test
