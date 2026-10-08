@@ -1,0 +1,6 @@
+{
+  "focus": "项目1359真实最低分与最高分合计列；满分仅以最高分列为证据",
+  "sourceContractOnly": true,
+  "originalFixture": "1359_tables_v1.json",
+  "subtotals": {"t-0002": 100, "t-0003": 100}
+}

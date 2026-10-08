@@ -17,8 +17,8 @@ import java.util.regex.Pattern;
 public record OriginalScoringContext(String documentId, String scheme, OriginalScoreEvidencePolicy.Total total,
                                      Map<String, Subtotal> subtotals,
                                      List<OriginalScoreEvidencePolicy.Problem> problems) {
-    private static final Pattern TOTAL = Pattern.compile("(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
-    private static final Pattern NUMBER = Pattern.compile("^\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
+    private static final Pattern TOTAL = ScoreSubtotalColumnPolicy.EXPLICIT_TOTAL;
+    private static final Pattern NUMBER = ScoreSubtotalColumnPolicy.NUMBER;
     private static final Pattern SCORE_DISTRIBUTION_TOTAL = Pattern.compile("(?s).*(?:分值构成|分数构成|评分构成)[^。；;\\n]{0,40}总分\\s*[：:（(为]?\\s*\\d+(?:\\.\\d+)?\\s*分.*");
     private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
     private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包|评分办法|评审办法|评标办法|评分标准|评审标准)[^。；;\\n]{0,80}?总分\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
@@ -83,6 +83,9 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 var row = entry.getValue();
                 boolean summary = row.stream().anyMatch(c -> c.rawText() != null
                         && c.rawText().replaceAll("\\s+", "").matches("^(?:合计|总计)(?:得分)?$"));
+                var selection = summary ? ScoreSubtotalColumnPolicy.select(table, mapping.headerRows(), row)
+                        : new ScoreSubtotalColumnPolicy.Selection(-1, false);
+                if (summary && selection.unresolved()) localProblems.add(selection.problem(table.tableId()));
                 // A detail row is not a scheme declaration even when OCR yields only its rule cell.
                 boolean detailRow = detail && !summary && entry.getKey() >= mapping.headerRows();
                 for (var cell : row) {
@@ -90,6 +93,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                     String locator = table.tableId() + ":" + cell.cellId();
                     Matcher explicit = TOTAL.matcher(raw);
                     while (explicit.find()) {
+                        if (summary && cell.column() != null && cell.column() > 0 && cell.column() != selection.column()) continue;
                         String prefix = raw.substring(0, explicit.start());
                         if (OriginalScoringSchemePolicy.categoryTitle(prefix) || detailRow) continue;
                         BigDecimal value = new BigDecimal(explicit.group(1));
@@ -107,7 +111,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                         }
                     }
                     Matcher numeric = NUMBER.matcher(raw);
-                    if (summary && cell.column() != null && cell.column() > 0 && numeric.matches()) {
+                    if (summary && cell.column() != null && cell.column() == selection.column() && numeric.matches()) {
                         BigDecimal value = new BigDecimal(numeric.group(1));
                         if (!detail && !OriginalScoringSchemePolicy.category(table.sourceSection()) && !scheme.isBlank()
                                 && table.sourceSection() != null && table.sourceSection().contains(scheme)) {
