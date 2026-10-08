@@ -685,3 +685,8 @@ trigger（同步<1s，互斥校验+建任务）
 ## 29. 纯文本候选的方案范围（2026-09-24）
 
 `text:line[n]` 事实必须按 locator 对应行的 Markdown 标题栈证明属于当前评分方案。评分办法下的子标题继承方案范围；同级“履约考核”等标题关闭前一方案范围。全文引文匹配不能代替归属验证；没有可识别方案标题的文本证据不得自动发布。回归覆盖同方案子标题正例与异方案同级标题反例，pre-push 由 `check-scoreparse-text-scope.mjs` 防止无条件接受文本 locator。
+
+
+## 30. 可选提取版本功能关闭时的页面兼容（2026-10-08）
+
+最新提取快照读取返回 409 `EXTRACTION_FEATURE_DISABLED` 时，评分抽屉继续读取原有评分项与结果，无需启用提取版本功能。`src/api/modules/scoreParse.js` 的 `getLatestExtraction` 使用 `skipGlobalErrorMessage: true`，防止 HTTP 拦截器在页面捕获前弹错；真实读取错误仍由 `useScoreExtraction.js` / 评分抽屉显示。此配置只作用于最新快照读取，不影响激活写入。根因与回归证据见 `docs/lessons/lessons-learned.md` §419。
