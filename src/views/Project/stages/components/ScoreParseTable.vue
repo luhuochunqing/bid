@@ -8,13 +8,13 @@
     <table class="parse-table">
       <thead>
         <tr>
-          <th style="width: 72px">编号</th>
+          <th style="width: 68px">编号</th>
           <th>{{ versioned ? '当前规则文本' : '标书原文' }}</th>
           <th style="width: 110px">评分项</th>
           <th style="width: 52px; text-align: center">权重</th>
-          <th style="width: 80px">满足状态</th>
-          <th style="width: 80px; text-align: center">评分类别</th>
-          <th style="width: 80px; text-align: center">{{ mode === 'actual' ? '实际得分' : '预计得分' }}</th>
+          <th style="width: 88px">满足状态</th>
+          <th style="width: 116px; text-align: center">评分类别</th>
+          <th style="width: 92px; text-align: center">{{ mode === 'actual' ? '实际得分' : '预计得分' }}</th>
           <th style="width: 68px; text-align: center">得分依据</th>
         </tr>
       </thead>
@@ -62,11 +62,11 @@
             <span class="stat-tag neutral">{{ currentStats.neutral }} 待确认</span>
           </td>
           <td class="tfoot-stack-cell">
-            <span class="obj-text">客观项权重 {{ objectiveWeight }}</span>
-            <span class="subj-text">主观项权重 {{ subjectiveWeight }}</span>
+            <span class="obj-text">客观项权重 {{ displayObjectiveWeight }}</span>
+            <span class="subj-text">主观项权重 {{ displaySubjectiveWeight }}</span>
           </td>
           <td class="tfoot-score-cell">
-            <span class="highlight-score-box">{{ currentHighlightScore }}</span>
+            <span class="highlight-score-box" :class="{ 'is-text': typeof currentHighlightScore === 'string' }">{{ currentHighlightScore }}</span>
           </td>
           <td></td>
         </tr>
@@ -191,6 +191,19 @@ const currentHighlightScore = computed(() => {
   }
   return known ? score : '待确认'
 })
+
+const isTotal100 = computed(() => Math.round(Number(props.totalWeight) || 0) === 100)
+
+const displayObjectiveWeight = computed(() => {
+  const rounded = Math.round(Number(props.objectiveWeight) || 0)
+  return isTotal100.value ? Math.max(0, Math.min(100, rounded)) : rounded
+})
+
+const displaySubjectiveWeight = computed(() => {
+  return isTotal100.value
+    ? Math.max(0, 100 - displayObjectiveWeight.value)
+    : Math.round(Number(props.subjectiveWeight) || 0)
+})
 </script>
 
 <style scoped>
@@ -235,5 +248,6 @@ const currentHighlightScore = computed(() => {
 .tfoot-stack-cell .obj-text { color: var(--status-info-color); font-weight: 600; }
 .tfoot-stack-cell .subj-text { color: var(--text-muted); }
 .tfoot-score-cell { text-align: center; }
-.highlight-score-box { display: inline-flex; align-items: center; justify-content: center; min-width: 64px; height: 32px; padding: 0 12px; background: var(--brand-xiyu-logo-light); color: var(--brand-xiyu-logo-active); font-size: 16px; font-weight: 700; border-radius: 4px; }
+.highlight-score-box { display: inline-flex; align-items: center; justify-content: center; min-width: 56px; height: 30px; padding: 0 10px; background: var(--brand-xiyu-logo-light); color: var(--brand-xiyu-logo-active); font-size: 15px; font-weight: 700; border-radius: 4px; box-sizing: border-box; white-space: nowrap; }
+.highlight-score-box.is-text { font-size: 12px; font-weight: 500; min-width: 48px; padding: 0 8px; }
 </style>
