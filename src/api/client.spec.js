@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
   const responseHandlers = {}
   const httpClient = {
     post: vi.fn(),
+    get: vi.fn(),
     interceptors: {
       request: {
         use: vi.fn(),
@@ -77,6 +78,33 @@ describe('httpClient response errors', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.resetModules()
+  })
+
+  it('lets the score drawer handle disabled optional extraction without a global toast', async () => {
+    await import('./client.js')
+    const { scoreParseApi } = await import('./modules/scoreParse.js')
+    const error = { response: { status: 409, data: { msg: 'EXTRACTION_FEATURE_DISABLED' } } }
+    mocks.httpClient.get.mockImplementationOnce((url, config) => {
+      error.config = { ...config, url, method: 'get' }
+      return mocks.responseHandlers.rejected(error)
+    })
+
+    await expect(scoreParseApi.getLatestExtraction(9)).rejects.toBe(error)
+    expect(mocks.error).not.toHaveBeenCalled()
+    expect(mocks.httpClient.get.mock.calls[0][0]).toBe('/api/projects/9/score-parse/extraction/latest')
+  })
+
+  it('keeps extraction activation conflicts globally visible', async () => {
+    await import('./client.js')
+    const { scoreParseApi } = await import('./modules/scoreParse.js')
+    const error = { response: { status: 409, data: { msg: 'ACTIVE_FINGERPRINT_CONFLICT' } } }
+    mocks.httpClient.post.mockImplementationOnce((url, body, config) => {
+      error.config = { ...config, url, method: 'post' }
+      return mocks.responseHandlers.rejected(error)
+    })
+
+    await expect(scoreParseApi.activateExtraction(9, 'task', {})).rejects.toBe(error)
+    expect(mocks.error).toHaveBeenCalledWith('ACTIVE_FINGERPRINT_CONFLICT')
   })
 
   it('skips global error toast when silentError is enabled', async () => {

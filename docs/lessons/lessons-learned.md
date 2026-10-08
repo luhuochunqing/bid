@@ -7146,3 +7146,10 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - `backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalStructuredExtractionHandler.java`
 - `backend/src/test/resources/scoreparse/project-1382/task-291-live-facts.json`
 - `backend/src/test/java/com/xiyu/bid/scoreparse/application/Project1382FullPipelineIntegrationTest.java`
+
+
+## 419. 可选评分提取功能关闭时，全局拦截器先于页面降级弹错（2026-10-08）
+
+- **根因**：`useScoreExtraction.latest` 已将 409 `EXTRACTION_FEATURE_DISABLED` 和指定的 404 视为无快照，继续读取原有 items/results；但 `client.js` 在拒绝 Promise 前已调用 `ElMessage.error`，业务层捕获无法撤销提示。
+- **处理**：仅 `scoreParseApi.getLatestExtraction` 使用现有 `skipGlobalErrorMessage: true`，由评分抽屉管理降级和错误显示，不开启 `app.score-parse.extraction-version.enabled`。403/500 仍进入页面错误状态，激活写入和其他评分请求沿用原配置。
+- **验证**：`src/api/client.spec.js` 通过 API 模块调用真实拦截器错误分支，修改前重现红色提示、修改后无全局提示且保留 rejection；抽屉既有测试验证功能关闭回退与权限/服务错误。
