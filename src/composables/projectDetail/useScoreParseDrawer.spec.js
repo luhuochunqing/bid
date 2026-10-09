@@ -656,4 +656,22 @@ describe('useScoreParseDrawer.js', () => {
 
     expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
   })
+
+  it('rounds objective and subjective weights to integers and ensures sum is strictly 100', async () => {
+    scoreParseApi.getItems.mockResolvedValueOnce({
+      data: {
+        items: [
+          { id: 10, code: 'O1', weight: 43.4, scoreType: 'OBJECTIVE', status: 'OK' },
+          { id: 20, code: 'S1', weight: 56.6, scoreType: 'SUBJECTIVE', status: 'PENDING' },
+        ],
+      },
+    })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1, autoScore: false, autoParse: false })
+
+    expect(drawer.totalWeight.value).toBeCloseTo(100)
+    expect(drawer.objectiveWeight.value).toBe(43)
+    expect(drawer.subjectiveWeight.value).toBe(57)
+    expect(drawer.objectiveWeight.value + drawer.subjectiveWeight.value).toBe(100)
+  })
 })

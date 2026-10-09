@@ -7153,3 +7153,15 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **根因**：`useScoreExtraction.latest` 已将 409 `EXTRACTION_FEATURE_DISABLED` 和指定的 404 视为无快照，继续读取原有 items/results；但 `client.js` 在拒绝 Promise 前已调用 `ElMessage.error`，业务层捕获无法撤销提示。
 - **处理**：仅 `scoreParseApi.getLatestExtraction` 使用现有 `skipGlobalErrorMessage: true`，由评分抽屉管理降级和错误显示，不开启 `app.score-parse.extraction-version.enabled`。403/500 仍进入页面错误状态，激活写入和其他评分请求沿用原配置。
 - **验证**：`src/api/client.spec.js` 通过 API 模块调用真实拦截器错误分支，修改前重现红色提示、修改后无全局提示且保留 rejection；抽屉既有测试验证功能关闭回退与权限/服务错误。
+
+## 420. 表格表尾汇总项列宽必须防御内容溢出，浮点权重需四舍五入并以补数保证总和等于 100（2026-10-09）
+
+### 问题背景
+在「AI 评分标准解析」抽屉（ScoreParseDrawer / ScoreParseTable）底部汇总栏中：
+1. **图文重叠遮挡**：原评分类别列固定宽度仅 80px，汇总单元格垂直排布「客观项权重 XX」与「主观项权重 XX」，文字宽度达到 90px~105px 发生溢出；同时右侧得分列（80px）内的高亮徽章（`.highlight-score-box`，如 0.4）居中且宽度达 88px，向左延伸，两者相互遮挡。
+2. **浮点累加畸变**：JavaScript 累加各评分项小数权重时，由于 IEEE-754 精度特性出现 `56.599999996` 等浮点数，既破坏整洁度又加剧文本溢出。
+
+### 根因与修复
+1. **表尾多行汇总列宽必须按最宽文字评估与防换行守卫**：中文字符（12px）5 字 + 空格 + 3 位数约需 88px，加上 16px 单元格内边距至少需要 104px。将评分类别列宽由 80px 扩展至 116px，得分列扩展至 92px；高亮徽章强制 `white-space: nowrap` 杜绝中文折行，并在文本状态（如「待确认」）自动切换为 12px 适度字重，彻底消除重叠遮挡、下沿溢出并保持呼吸间距。
+2. **权重纯整数化与相加为 100 约束**：在 composable（`useScoreParseDrawer.js`）与组件展示层（`ScoreParseTable.vue`）应用 `Math.round` 取整；当总权重为 100 时，主观权重通过 `100 - objectiveWeight` 互补获得，保证两者皆为非负整数且和严格为 100。
+3. **避免 ESLint `no-loss-of-precision` 规则触发**：在单测用例中禁止书写超长多位浮点字面量（如 `56.599999999999996`），应使用标准浮点数（如 `56.6`）配合测试。
