@@ -1,5 +1,5 @@
 // Input: httpClient and score-parse backend endpoints (spec 041, PR !2293)
-// Output: scoreParseApi - active items, immutable extraction snapshots, CAS activation and scoring
+// Output: scoreParseApi - optional snapshot errors handled by drawer; active items, CAS activation and scoring
 // Pos: src/api/modules/ - Frontend API module layer
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -12,7 +12,8 @@ import httpClient from '../client.js'
 export const scoreParseApi = {
   /** 最新提取快照和当前生效版本身份，保持所有候选可见 */
   async getLatestExtraction(projectId) {
-    return httpClient.get(`/api/projects/${projectId}/score-parse/extraction/latest`)
+    // Feature-off / missing snapshots are normal; the drawer handles fallback and real read errors.
+    return httpClient.get(`/api/projects/${projectId}/score-parse/extraction/latest`, { skipGlobalErrorMessage: true })
   },
   async getExtraction(projectId, taskId) {
     return httpClient.get(`/api/projects/${projectId}/score-parse/extraction/${encodeURIComponent(taskId)}`)

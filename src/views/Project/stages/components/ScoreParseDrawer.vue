@@ -227,7 +227,7 @@ const emit = defineEmits(['parsed'])
 const {
   latestExtraction, activeParseTime, activeDeclaredTotal, extractionWarning, activationBlocked, activating, activateExtraction, refreshExtraction, hasScoreResults,
   visible, loading, error, errorPresentation, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
-  sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
+  sourceFileName, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
