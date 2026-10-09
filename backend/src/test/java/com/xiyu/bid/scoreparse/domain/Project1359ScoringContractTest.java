@@ -65,10 +65,34 @@ public class Project1359ScoringContractTest {
     @Test void singleItemMaximumMixedWithTotalDescriptionDoesNotHijackSubtotalColumn() {
         var context = context(List.of("序号", "评分因素", "评分标准"),
                 List.of("合计", "本表单项满分10分，共10项，合计100分", ""));
-        // 应该识别整表满分100分，或者若无法确认则保持未决，绝对不能误识别单项满分10分
-        if (!context.subtotals().isEmpty()) {
-            assertThat(context.subtotals().get("t-test").value()).isEqualByComparingTo("100");
-        }
+        // 只有单项满分、缺乏整表满分证据：必须保持未决，绝不能产出单项分值作为小计
+        assertThat(context.subtotals()).isEmpty();
+        assertThat(context.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
+    }
+
+    @Test void singleItemMaximumWithSpaceDoesNotHijackSubtotalColumn() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计", "本表单项 满分10分，共10项，合计100分", ""));
+        assertThat(context.subtotals()).isEmpty();
+        assertThat(context.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
+    }
+
+    @Test void perItemHighestMaximumDoesNotHijackSubtotalColumn() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计", "本表每项最高满分10分，共10项，合计100分", ""));
+        assertThat(context.subtotals()).isEmpty();
+        assertThat(context.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
+    }
+
+    @Test void perItemMaximumWithParticleDoesNotHijackSubtotalColumn() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计", "本表每项的满分10分，共10项，合计100分", ""));
+        assertThat(context.subtotals()).isEmpty();
+        assertThat(context.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
     }
 
     @Test void conflictingDeclarationsInSameCellRemainUnresolved() {

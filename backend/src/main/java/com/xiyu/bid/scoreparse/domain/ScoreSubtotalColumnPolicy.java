@@ -7,10 +7,15 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/** Selects the source maximum column; never treats the largest number as column evidence. */
+/** Selects the source maximum column; never treats the largest number as column evidence.
+ * A 满分/总分 mention is table-total evidence only when it states the whole-table total:
+ * a per-item statement (single-item quantifier/subject left of the match in the same cell)
+ * is never table-total evidence; when in doubt the column stays unresolved. */
 public final class ScoreSubtotalColumnPolicy {
     static final Pattern NUMBER = Pattern.compile("^\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
     static final Pattern EXPLICIT_TOTAL = Pattern.compile("(?<!(?:单项|每项|每条|每处|每篇|每个|本项|此项))(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
+    /** 单项分值语义：同一单元格内匹配点左侧的单项量词/主体。该数字是单项分值而非整表总量。 */
+    private static final Pattern SINGLE_ITEM_CONTEXT = Pattern.compile("单项|每项|每条|每处|每篇|每个|本项|此项");
     private static final Pattern MAXIMUM = Pattern.compile("^(?:最高分(?:值|数)?|最高得分|满分)(?:[（(]分[）)])?$");
     private static final Pattern SCORE = Pattern.compile("^(?:分值|分数|得分|评分分值)(?:[（(]分[）)])?$");
     private static final Pattern EXPLICIT_SUMMARY_MAXIMUM = Pattern.compile(
@@ -76,8 +81,26 @@ public final class ScoreSubtotalColumnPolicy {
     }
 
     private static Set<Integer> valueColumns(List<CanonicalCellDto> cells, Pattern pattern) {
-        return cells.stream().filter(c -> c.column() != null && pattern.matcher(c.rawText() == null ? "" : c.rawText()).find())
+        return cells.stream().filter(c -> c.column() != null
+                        && hasTableTotalEvidence(c.rawText() == null ? "" : c.rawText(), pattern))
                 .map(CanonicalCellDto::column).collect(Collectors.toSet());
+    }
+
+    /**
+     * 整表总量证据判定（语义规则，而非关键词紧邻排除）：
+     * 同一单元格内至少存在一个 满分/总分 匹配、且该匹配点左侧没有单项量词/主体时，
+     * 才算整表满分声明。"本表单项 满分10分"、"每项最高满分10分"等单项分值说明一律不算；
+     * 紧邻排除由正则后行断言承担，本规则覆盖空格/助词隔开的情形。同一单元格的冲突总分
+     * 仍由 hasConflictingTotals 保持未决，此处不做猜测。
+     */
+    private static boolean hasTableTotalEvidence(String rawText, Pattern pattern) {
+        var matcher = pattern.matcher(rawText);
+        while (matcher.find()) {
+            if (!SINGLE_ITEM_CONTEXT.matcher(rawText.substring(0, matcher.start())).find()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasValue(String text) {
