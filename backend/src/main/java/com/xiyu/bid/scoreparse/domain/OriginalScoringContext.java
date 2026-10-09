@@ -21,7 +21,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
     private static final Pattern NUMBER = ScoreSubtotalColumnPolicy.NUMBER;
     private static final Pattern SCORE_DISTRIBUTION_TOTAL = Pattern.compile("(?s).*(?:分值构成|分数构成|评分构成)[^。；;\\n]{0,40}总分\\s*[：:（(为]?\\s*\\d+(?:\\.\\d+)?\\s*分.*");
     private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
-    private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包|评分办法|评审办法|评标办法|评分标准|评审标准)[^。；;\\n]{0,80}?(总分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
+    private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包|评分办法|评审办法|评标办法|评分标准|评审标准)[^。；;]{0,80}?(总分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
 
     public OriginalScoringContext {
         subtotals = Map.copyOf(subtotals);
@@ -166,18 +166,8 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         int scopeIndex = 0;
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
-            String normalizedHeading = OriginalScoringTextScopePolicy.stripEmphasis(line);
-            Matcher title = HEADING.matcher(normalizedHeading);
-            if (title.matches()) {
-                String headingLine = normalizedHeading.stripLeading();
-                int level = 0;
-                while (level < headingLine.length() && headingLine.charAt(level) == '#') level++;
-                while (!headings.isEmpty() && headings.get(headings.size() - 1).level() >= level)
-                    headings.remove(headings.size() - 1);
-                headings.add(new Heading(i, level, title.group(1).trim()));
-                continue;
-            }
-            List<OriginalScoringTextScopePolicy.Heading> sourceHeadings = OriginalScoringTextScopePolicy.headings(new String[]{line});
+            List<OriginalScoringTextScopePolicy.Heading> sourceHeadings =
+                    OriginalScoringTextScopePolicy.headings(new String[]{line});
             if (!sourceHeadings.isEmpty()) {
                 var heading = sourceHeadings.get(0);
                 while (!headings.isEmpty() && headings.get(headings.size() - 1).level() >= heading.level())
@@ -222,8 +212,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 if (sourceScope != null && "IN_SCHEME".equals(sourceScope.scopeStatus())
                         && !sourceScope.schemeId().equals(schemeId(scheme))) continue;
                 for (int end = Math.min(sourceLines.length, i + 3); end > i && totals.isEmpty(); end--) {
-                    // 源行边界保留为分句边界：跨行窗口里上一行的量词不得毒掉下一行的干净分句
-                    String normalized = normalizeTextLine(String.join("\n", java.util.Arrays.copyOfRange(sourceLines, i, end)));
+                    String normalized = normalizeWindow(String.join("\n", java.util.Arrays.copyOfRange(sourceLines, i, end)));
                     Matcher m = DOCUMENT_TOTAL.matcher(normalized);
                     while (m.find()) {
                         // 兜底与主解析同一文法：查「总分」关键词所在分句的左侧（本项(?!目) 放行本项目）
@@ -236,7 +225,14 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             }
         }
     }
-    private static String normalizeTextLine(String value) { return OriginalScoringTextScopePolicy.stripEmphasis(value).replaceAll("[\\u00a0\\u2007\\u202f\\t\\r\\n]+", " ").replaceAll(" +", " ").trim(); }
+    /** 主解析单行输入归一化（调用方 split("\\R") 后无换行）：空白全压平。 */
+    private static String normalizeTextLine(String value) {
+        return OriginalScoringTextScopePolicy.stripEmphasis(value)
+                .replaceAll("[\\u00a0\\u2007\\u202f\\t\\r\\n]+", " ").replaceAll(" +", " ").trim(); }
+    /** 兜底跨行窗口归一化：唯一差别是保留 \n，让行边界按分句参与 isSingleItemMention 判定。 */
+    private static String normalizeWindow(String value) {
+        return OriginalScoringTextScopePolicy.stripEmphasis(value)
+                .replaceAll("[\\u00a0\\u2007\\u202f\\t\\r]+", " ").replaceAll(" *\\n *", "\n").replaceAll(" +", " ").trim(); }
     private static TableStructure tableStructure(DocumentArtifact.CanonicalTable table, Map<Integer, List<DocumentArtifact.CanonicalTable.CanonicalCellDto>> rows) {
         int maxColumn = rows.values().stream().flatMap(List::stream)
                 .map(DocumentArtifact.CanonicalTable.CanonicalCellDto::column)
