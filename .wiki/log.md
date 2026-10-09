@@ -1,5 +1,13 @@
 # Wiki 操作日志 / Operation Log
 
+## [2026-10-02] compound | 评分项跨格式识别方向与服务器日志证据
+
+- 核对：测试环境 1382 的 9 月 29 日 16:50 任务为 AUTO_APPROVED、叶子合计 100、校验问题 0；15:50 另一任务同为合计 100 却有来源不匹配。
+- 结论：单项目成功不能外推陌生布局准确；现有文字初提取和复核不携带页图。
+- 建议：复用 DocumentArtifact，按逻辑表/章节组织图文结构输入、严格核验来源，以项目/模板隔离的保留集比较效果与成本。
+- 边界：候选设计未实施；未重解析、修改正式数据、重启或部署。本轮仅本地 Wiki 回填。
+- 回填：新增 [[scoreparse-cross-format-strategy]]，更新页面导航。
+
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
@@ -1258,6 +1266,38 @@ Task5 第二轮审查回填：真实 DOCX 规则正文增加“各评分项目�
 ## [2026-09-27] final-rule-fix | scoreparse-1382-pdf-scheme-gate-rca
 
 FBR-I1：统一完整来源单元恢复，覆盖短引文/预绑定/anchor/纯文本；保留 PDF 28/12 peer 与编号材料，真实 MySQL 证明未决重解析不覆盖旧规则和评分结果。
+
+## [2026-10-03] compound | scoreparse-callsite-scope-experiment-20261003
+
+引用入口独立判断和逐片段原文绑定实验：三个目标案例三轮通过；24项原检查保持原计数，但新增未勾选报价方法串入，四份新文件泛化未过。业务代码不变，原件与完整响应在仓库外，新增结论回填 [[scoreparse-callsite-scope-experiment-20261003]]。
+
+## [2026-10-03] compound | scoreparse-source-constraints-experiment-20261003
+
+三项统一约束复核与另一组三份真实原件实验：旧案例焦点10/12通过；新入口14/14、可读启用符9/9，两个Word字体控制符丢失、同编号不同名称附件和全文输入超限仍未验收。具体缺失附件继续未知。冻结296项字段，真实原响应保留，不改业务代码或数据；回填 [[scoreparse-source-constraints-experiment-20261003]]。
+
+## [2026-10-03] experiment | scoreparse-structured-retrieval-experiment-20261003
+
+只读真实文件phase8：最终16 PASS/7 FAIL；原24检查保持，评分字段冻结；七个已知入口未通过，因此未跑新陌生文件。
+
+## [2026-10-03] experiment | scoreparse-entry-constraints-and-source-generalization-20261003
+
+phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件来源/召回/续表门禁失败。只实验，字段冻结，业务无改动。
+
+## [2026-10-03] compound | scoreparse-canonical-source-and-logical-tables-20261003 外部只读实验联合门禁未通过，未改业务代码
+
+## [2026-10-04] compound | scoreparse-comparison-reference-and-word-bridge-20261004 比较基准8/8两轮通过；Word兼容性阻塞，业务未改
+
+## [2026-10-04] compound | scoreparse-frozen-field-native-evidence-contract-20261004 来源绑定11/11，旧规则差异仍未解决，业务未改
+
+## [2026-10-04] compound | scoreparse-native-reference-scope-regression-20261004 模型关联回归完成，联合门禁未通过，业务未改
+
+## [2026-10-04] compound | scoreparse-dependency-splitting-and-proof-record-experiment-20261004 多依赖与逐项证据实验未通过，业务未改，未做新文件泛化
+
+## [2026-10-04] compound | scoreparse-exclusion-and-ambiguity-gates-20261004 两门禁集中实验未通过，无业务改动或新文件泛化
+
+## [2026-10-04] compound | scoreparse-extraction-stability-code-review-20261004 只读源码审查回填，评分提取目标收敛，业务未改
+
+## [2026-10-04] compound | scoreparse-langextract-ab-pilot-20261004 提取层AB未证明替代收益，业务未改
 
 ## [2026-10-08] compound | scoreparse-1359-stale-200-total-rca 测试数据库与日志只读诊断，修复尚未实施
 
