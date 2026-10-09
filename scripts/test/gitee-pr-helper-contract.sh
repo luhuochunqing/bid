@@ -84,6 +84,9 @@ class Handler(BaseHTTPRequestHandler):
         elif scenario == "merge405open":
             # 合并 405 且 PR 仍 open → 真失败，不得被幂等逻辑吞掉
             send(200, {"number": 2511, "state": "open", "mergeable": True})
+        elif scenario == "merge405closed":
+            # 合并 405 且 PR 已关闭但未合并 → 仍须失败，不得当幂等成功
+            send(200, {"number": 2511, "state": "closed", "mergeable": True})
         else:
             send(404, {"message": "no such scenario"})
 
@@ -100,7 +103,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
         # Gitee 对已合并/已关闭 PR 的重复合并返回 405（非幂等 2xx）
-        if scenario in ("merge405", "merge405open"):
+        if scenario in ("merge405", "merge405open", "merge405closed"):
             send(405, {"message": "Pull Request 已合并或已关闭。"})
         else:
             send(404, {"message": "no such scenario"})
@@ -186,6 +189,13 @@ assert_contains "$out" "合并失败 (HTTP 405)" "merge405open: 保留真实失�
 assert_contains "$out" "Pull Request 已合并或已关闭。" "merge405open: 仍透传 API 响应体"
 assert_not_contains "$out" "幂等放行" "merge405open: 不得被幂等逻辑吞掉"
 [[ "$code" == "1" ]] && { echo "[PASS] merge405open: 退出码 1"; PASS_COUNT=$((PASS_COUNT + 1)); } || { echo "[FAIL] merge405open: 期望退出码 1，实际 $code" >&2; exit 1; }
+
+# 场景 8: 合并 405 且 PR 已关闭未合并 → 报状态提示 + 仍失败，退出 1
+code=0; run_merge merge405closed 2511
+assert_contains "$out" "状态为 closed（已关闭但未合并）" "merge405closed: 报出 closed 状态提示"
+assert_contains "$out" "合并失败 (HTTP 405)" "merge405closed: 仍判定为失败"
+assert_not_contains "$out" "幂等放行" "merge405closed: 不得当作幂等成功"
+[[ "$code" == "1" ]] && { echo "[PASS] merge405closed: 退出码 1"; PASS_COUNT=$((PASS_COUNT + 1)); } || { echo "[FAIL] merge405closed: 期望退出码 1，实际 $code" >&2; exit 1; }
 
 echo
 echo "契约测试通过: ${PASS_COUNT} 项断言全绿"
