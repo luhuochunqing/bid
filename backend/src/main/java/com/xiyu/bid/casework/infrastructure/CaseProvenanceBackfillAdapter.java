@@ -1,5 +1,5 @@
-// Input: ACTIVE 案例实体 / 来源字段批量更新命令
-// Output: 回填候选快照 / 按项目原子持久化的五字段（条件更新保护 ACTIVE 状态与并发隔离）
+// Input: ACTIVE 案例实体 / 来源字段批量更新命令（附扫描快照期望值）
+// Output: 回填候选快照 / 按项目原子持久化的五字段（条件更新保护 ACTIVE 状态、并发隔离与快照一致性）
 // Pos: casework 持久化适配器；不承载章节定位与清空判断
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.casework.infrastructure;
@@ -41,7 +41,10 @@ public class CaseProvenanceBackfillAdapter implements CaseProvenanceBackfillPort
                     update.sourceSectionPath(),
                     update.sourceSectionIndex(),
                     update.sourceDocumentName(),
-                    update.sourcePageNumber());
+                    update.sourcePageNumber(),
+                    update.expectedResponseText(),
+                    update.expectedScoringPointTitle(),
+                    update.expectedSourceProjectId());
             if (updated != 1) {
                 throw new IllegalStateException("回填案例已不存在或非ACTIVE状态: " + update.id());
             }

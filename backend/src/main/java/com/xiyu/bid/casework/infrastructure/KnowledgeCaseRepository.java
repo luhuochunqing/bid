@@ -15,21 +15,35 @@ public interface KnowledgeCaseRepository extends JpaRepository<KnowledgeCase, Lo
 
     boolean existsBySourceProjectIdAndScoringPointTitle(Long sourceProjectId, String scoringPointTitle);
 
+    /**
+     * 来源五字段条件更新。WHERE 除 id 与 ACTIVE 状态外，还原子校验扫描时刻用于计算来源的
+     * 关键业务数据（正文/评分项标题/来源项目 ID）未发生变化；不满足则返回 0，由调用方失败回滚整批。
+     * 字符串比较用 BINARY 精确语义：库默认 utf8mb4_unicode_ci 会忽略大小写与尾随空格，
+     * 普通 = 会把"业务数据已变"误判为相同。nativeQuery 是 JPQL 不支持 BINARY 所致，
+     * 仍在 Repository 边界内，无新迁移、无全局锁、无版本字段。
+     */
     @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
-    @org.springframework.data.jpa.repository.Query("UPDATE KnowledgeCase k SET "
-            + "k.sourceSectionTitle = :sourceSectionTitle, "
-            + "k.sourceSectionPath = :sourceSectionPath, "
-            + "k.sourceSectionIndex = :sourceSectionIndex, "
-            + "k.sourceDocumentName = :sourceDocumentName, "
-            + "k.sourcePageNumber = :sourcePageNumber "
-            + "WHERE k.id = :id AND k.status = 'ACTIVE'")
+    @org.springframework.data.jpa.repository.Query(value = "UPDATE knowledge_case SET "
+            + "source_section_title = :sourceSectionTitle, "
+            + "source_section_path = :sourceSectionPath, "
+            + "source_section_index = :sourceSectionIndex, "
+            + "source_document_name = :sourceDocumentName, "
+            + "source_page_number = :sourcePageNumber "
+            + "WHERE id = :id AND status = 'ACTIVE' "
+            + "AND BINARY response_text = BINARY :expectedResponseText "
+            + "AND BINARY scoring_point_title = BINARY :expectedScoringPointTitle "
+            + "AND source_project_id = :expectedSourceProjectId",
+            nativeQuery = true)
     int updateProvenanceIfActive(
             @org.springframework.data.repository.query.Param("id") Long id,
             @org.springframework.data.repository.query.Param("sourceSectionTitle") String sourceSectionTitle,
             @org.springframework.data.repository.query.Param("sourceSectionPath") String sourceSectionPath,
             @org.springframework.data.repository.query.Param("sourceSectionIndex") Integer sourceSectionIndex,
             @org.springframework.data.repository.query.Param("sourceDocumentName") String sourceDocumentName,
-            @org.springframework.data.repository.query.Param("sourcePageNumber") Integer sourcePageNumber);
+            @org.springframework.data.repository.query.Param("sourcePageNumber") Integer sourcePageNumber,
+            @org.springframework.data.repository.query.Param("expectedResponseText") String expectedResponseText,
+            @org.springframework.data.repository.query.Param("expectedScoringPointTitle") String expectedScoringPointTitle,
+            @org.springframework.data.repository.query.Param("expectedSourceProjectId") Long expectedSourceProjectId);
 }
 
 

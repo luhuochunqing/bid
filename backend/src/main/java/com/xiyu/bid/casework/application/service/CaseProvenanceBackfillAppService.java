@@ -147,14 +147,16 @@ public class CaseProvenanceBackfillAppService {
             BidDocumentLoader.BidDocument bidDocument = loadedBid.document();
             dirty.add(new Update(kase.id(), provenance.title(), provenance.path(), provenance.index(),
                     bidDocument.documentName(), provenance.pageNumber() != null
-                            ? provenance.pageNumber() : bidDocument.pageNumber()));
+                            ? provenance.pageNumber() : bidDocument.pageNumber(),
+                    kase.responseText(), kase.scoringPointTitle(), kase.sourceProjectId()));
             return Outcome.UPDATED;
         }
 
         if (hasNoSourceProvenance(kase)) {
             return Outcome.UNCHANGED;
         }
-        dirty.add(new Update(kase.id(), null, null, null, null, null));
+        dirty.add(new Update(kase.id(), null, null, null, null, null,
+                kase.responseText(), kase.scoringPointTitle(), kase.sourceProjectId()));
         return Outcome.CLEARED;
     }
 

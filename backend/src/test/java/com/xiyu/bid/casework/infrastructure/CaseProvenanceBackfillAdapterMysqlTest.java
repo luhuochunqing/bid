@@ -68,7 +68,8 @@ class CaseProvenanceBackfillAdapterMysqlTest extends AbstractMysqlIntegrationTes
     void savesAndClearsFiveFieldsWithoutChangingOtherData() {
         var kase = create("ACTIVE");
         var createdAt = repository.findById(kase.getId()).orElseThrow().getCreatedAt();
-        adapter.saveAll(List.of(new Update(kase.getId(), "1. 已验证章节", "1. 已验证章节 > 1.1. 子章节", 2, "新文件.pdf", 3)));
+        adapter.saveAll(List.of(new Update(kase.getId(), "1. 已验证章节", "1. 已验证章节 > 1.1. 子章节", 2, "新文件.pdf", 3,
+                kase.getResponseText(), kase.getScoringPointTitle(), kase.getSourceProjectId())));
         flushAndClear();
         var saved = repository.findById(kase.getId()).orElseThrow();
         assertThat(saved.getSourceSectionTitle()).isEqualTo("1. 已验证章节");
@@ -81,7 +82,8 @@ class CaseProvenanceBackfillAdapterMysqlTest extends AbstractMysqlIntegrationTes
         assertThat(saved.getScoringPointTitle()).isEqualTo("评分项保留");
         assertThat(saved.getStatus()).isEqualTo("ACTIVE");
         assertThat(saved.getCreatedAt()).isEqualTo(createdAt);
-        adapter.saveAll(List.of(new Update(kase.getId(), null, null, null, null, null)));
+        adapter.saveAll(List.of(new Update(kase.getId(), null, null, null, null, null,
+                kase.getResponseText(), kase.getScoringPointTitle(), kase.getSourceProjectId())));
         flushAndClear();
         var cleared = repository.findById(kase.getId()).orElseThrow();
         assertThat(cleared.getSourceSectionTitle()).isNull();
@@ -97,8 +99,10 @@ class CaseProvenanceBackfillAdapterMysqlTest extends AbstractMysqlIntegrationTes
         var deleted = create("ACTIVE");
         repository.deleteById(deleted.getId());
         assertThatThrownBy(() -> adapter.saveAll(List.of(
-                new Update(kept.getId(), "新标题", null, null, null, null),
-                new Update(deleted.getId(), "新标题", null, null, null, null))))
+                new Update(kept.getId(), "新标题", null, null, null, null,
+                        kept.getResponseText(), kept.getScoringPointTitle(), kept.getSourceProjectId()),
+                new Update(deleted.getId(), "新标题", null, null, null, null,
+                        "正文保留", "评分项保留", 900074L))))
                 .isInstanceOf(IllegalStateException.class);
         flushAndClear();
         assertThat(repository.findById(kept.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
@@ -110,8 +114,10 @@ class CaseProvenanceBackfillAdapterMysqlTest extends AbstractMysqlIntegrationTes
         var first = create("ACTIVE");
         var second = create("ACTIVE");
         assertThatThrownBy(() -> adapter.saveAll(List.of(
-                new Update(first.getId(), "新标题", null, null, null, null),
-                new Update(second.getId(), "过长".repeat(600), null, null, null, null))))
+                new Update(first.getId(), "新标题", null, null, null, null,
+                        first.getResponseText(), first.getScoringPointTitle(), first.getSourceProjectId()),
+                new Update(second.getId(), "过长".repeat(600), null, null, null, null,
+                        second.getResponseText(), second.getScoringPointTitle(), second.getSourceProjectId()))))
                 .isInstanceOf(RuntimeException.class);
         flushAndClear();
         assertThat(repository.findById(first.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
@@ -128,8 +134,10 @@ class CaseProvenanceBackfillAdapterMysqlTest extends AbstractMysqlIntegrationTes
         flushAndClear();
 
         assertThatThrownBy(() -> adapter.saveAll(List.of(
-                new Update(active1.getId(), "新标题1", null, null, null, null),
-                new Update(active2.getId(), "新标题2", null, null, null, null))))
+                new Update(active1.getId(), "新标题1", null, null, null, null,
+                        active1.getResponseText(), active1.getScoringPointTitle(), active1.getSourceProjectId()),
+                new Update(active2.getId(), "新标题2", null, null, null, null,
+                        active2.getResponseText(), active2.getScoringPointTitle(), active2.getSourceProjectId()))))
                 .isInstanceOf(IllegalStateException.class);
         flushAndClear();
 
@@ -140,22 +148,99 @@ class CaseProvenanceBackfillAdapterMysqlTest extends AbstractMysqlIntegrationTes
     }
 
     @Test
+    void staleResponseTextAfterScanRefusesWriteAndRollsBackBatch() {
+        var fresh = create("ACTIVE");
+        var stale = create("ACTIVE");
+        // 模拟扫描后用户把正文改成了 B：库中已是 B，回填仍按快照 A 计算来源
+        stale.setResponseText("用户修改后的正文B");
+        repository.saveAndFlush(stale);
+        flushAndClear();
+
+        assertThatThrownBy(() -> adapter.saveAll(List.of(
+                new Update(fresh.getId(), "新标题", null, null, null, null,
+                        fresh.getResponseText(), fresh.getScoringPointTitle(), fresh.getSourceProjectId()),
+                new Update(stale.getId(), "基于过期正文的来源标题", null, null, null, null,
+                        "正文保留", stale.getScoringPointTitle(), stale.getSourceProjectId()))))
+                .isInstanceOf(IllegalStateException.class);
+        flushAndClear();
+
+        // 过期来源不得写入，且同批次的合法写入一并回滚
+        assertThat(repository.findById(stale.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
+        assertThat(repository.findById(stale.getId()).orElseThrow().getResponseText()).isEqualTo("用户修改后的正文B");
+        assertThat(repository.findById(fresh.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
+    }
+
+    @Test
+    void staleScoringPointTitleAfterScanRefusesWrite() {
+        var kase = create("ACTIVE");
+        kase.setScoringPointTitle("用户修改后的评分项");
+        repository.saveAndFlush(kase);
+        flushAndClear();
+
+        assertThatThrownBy(() -> adapter.saveAll(List.of(
+                new Update(kase.getId(), "基于过期评分项的来源标题", null, null, null, null,
+                        kase.getResponseText(), "评分项保留", kase.getSourceProjectId()))))
+                .isInstanceOf(IllegalStateException.class);
+        flushAndClear();
+
+        assertThat(repository.findById(kase.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
+    }
+
+    @Test
+    void staleSourceProjectAfterScanRefusesWrite() {
+        var kase = create("ACTIVE");
+        kase.setSourceProjectId(900075L);
+        repository.saveAndFlush(kase);
+        flushAndClear();
+
+        assertThatThrownBy(() -> adapter.saveAll(List.of(
+                new Update(kase.getId(), "基于过期项目的来源标题", null, null, null, null,
+                        kase.getResponseText(), kase.getScoringPointTitle(), 900074L))))
+                .isInstanceOf(IllegalStateException.class);
+        flushAndClear();
+
+        assertThat(repository.findById(kase.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
+    }
+
+    @Test
+    void caseOnlyChangeInResponseTextIsDetectedAsStale() {
+        // MySQL utf8mb4_unicode_ci 下普通 = 会忽略大小写：BINARY 精确比较才能发现该变化
+        var kase = create("ACTIVE");
+        kase.setResponseText("CaseABC正文");
+        repository.saveAndFlush(kase);
+        flushAndClear();
+        kase.setResponseText("Caseabc正文");
+        repository.saveAndFlush(kase);
+        flushAndClear();
+
+        assertThatThrownBy(() -> adapter.saveAll(List.of(
+                new Update(kase.getId(), "基于过期正文的来源标题", null, null, null, null,
+                        "CaseABC正文", kase.getScoringPointTitle(), kase.getSourceProjectId()))))
+                .isInstanceOf(IllegalStateException.class);
+        flushAndClear();
+
+        assertThat(repository.findById(kase.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
+        assertThat(repository.findById(kase.getId()).orElseThrow().getResponseText()).isEqualTo("Caseabc正文");
+    }
+
+    @Test
     void interleavedConcurrentBusinessUpdateIsNotOverwritten() {
         var kase = create("ACTIVE");
-        // 模拟业务侧并发修改了其他字段（如 responseText, scoringPointTitle 等）
-        // 如果 adapter 读取全实体再 saveAll，会把并发修改覆盖掉
-        // 这里模拟回填 updates 准备好之后，业务线程修改了 responseText
+        // 模拟业务侧并发修改了正文：回填快照已过期，写入必须失败回滚，业务的新正文不受损
+        // （旧期望"过期快照仍可写入"与快照一致性要求矛盾，已按新契约改写；见任务问题二）
         kase.setResponseText("并发修改后的正文");
         repository.saveAndFlush(kase);
         flushAndClear();
 
-        // 此时执行回填更新（仅传入来源5字段）
-        adapter.saveAll(List.of(new Update(kase.getId(), "回填新标题", "回填路径", 1, "文件.pdf", 2)));
+        assertThatThrownBy(() -> adapter.saveAll(List.of(
+                new Update(kase.getId(), "回填新标题", "回填路径", 1, "文件.pdf", 2,
+                        "正文保留", kase.getScoringPointTitle(), kase.getSourceProjectId()))))
+                .isInstanceOf(IllegalStateException.class);
         flushAndClear();
 
         var reloaded = repository.findById(kase.getId()).orElseThrow();
-        // 来源5字段更新成功
-        assertThat(reloaded.getSourceSectionTitle()).isEqualTo("回填新标题");
+        // 过期来源没有写入
+        assertThat(reloaded.getSourceSectionTitle()).isEqualTo("旧标题");
         // 并发修改的业务字段必须完好保留，未被旧快照覆盖
         assertThat(reloaded.getResponseText()).isEqualTo("并发修改后的正文");
     }
