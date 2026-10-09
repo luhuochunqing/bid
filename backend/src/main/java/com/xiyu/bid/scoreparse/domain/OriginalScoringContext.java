@@ -21,7 +21,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
     private static final Pattern NUMBER = ScoreSubtotalColumnPolicy.NUMBER;
     private static final Pattern SCORE_DISTRIBUTION_TOTAL = Pattern.compile("(?s).*(?:分值构成|分数构成|评分构成)[^。；;\\n]{0,40}总分\\s*[：:（(为]?\\s*\\d+(?:\\.\\d+)?\\s*分.*");
     private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
-    private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包|评分办法|评审办法|评标办法|评分标准|评审标准)[^。；;\\n]{0,80}?总分\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
+    private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包|评分办法|评审办法|评标办法|评分标准|评审标准)[^。；;\\n]{0,80}?(总分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
 
     public OriginalScoringContext {
         subtotals = Map.copyOf(subtotals);
@@ -221,13 +221,13 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 if (sourceScope != null && "OUT_OF_SCHEME".equals(sourceScope.scopeStatus())) continue;
                 if (sourceScope != null && "IN_SCHEME".equals(sourceScope.scopeStatus())
                         && !sourceScope.schemeId().equals(schemeId(scheme))) continue;
-                for (int end = Math.min(sourceLines.length, i + 3); end > i; end--) {
+                for (int end = Math.min(sourceLines.length, i + 3); end > i && totals.isEmpty(); end--) {
                     String normalized = normalizeTextLine(String.join(" ", java.util.Arrays.copyOfRange(sourceLines, i, end)));
                     Matcher m = DOCUMENT_TOTAL.matcher(normalized);
                     while (m.find()) {
-                        // 兜底同样执行单项语义（与主解析同一文法）；查整段匹配 span，防句式绕过
-                        if (ScoreSubtotalColumnPolicy.matchesSingleItemClause(normalized, m.start(), m.end())) continue;
-                        totals.add(new Evidence(new BigDecimal(m.group(1)), "TENDER_TEXT", scheme,
+                        // 兜底与主解析同一文法：查「总分」关键词所在分句的左侧（本项(?!目) 放行本项目）
+                        if (ScoreSubtotalColumnPolicy.isSingleItemMention(normalized, m.start(1))) continue;
+                        totals.add(new Evidence(new BigDecimal(m.group(2)), "TENDER_TEXT", scheme,
                                 "text:line[" + i + "]", String.join("\n", java.util.Arrays.copyOfRange(sourceLines, i, end))));
                         break;
                     }

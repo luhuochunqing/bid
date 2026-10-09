@@ -44,3 +44,17 @@ archive: false
 - `OriginalScoringContext` totals 循环新增跳过分支；`OriginalScoringContext.java` 保持 300 行预算，压缩靠注释合并与纯表达式内联。
 - pre-push `scoreparse 金标门禁`：本变更属非版式逻辑收紧，走 `SCOREPARSE_GATE_SKIP=1` + PR 理由（无新版式夹具可加）。
 - 回填 Update 记录 6→9 元：全库 `new Update(` 调用点已穷举（生产 2 处+测试 16 处），record 位置构造错位属静默错误，改契约时必须重跑穷举。
+
+## 遗漏收敛：正文与兜底入口（外部复审 P1/P2，2026-10-09）
+
+- 表格路径先行加上单项语义后，正文入口曾是盲区：`parseText()` 主解析与 `DOCUMENT_TOTAL` 兜底均未过滤，导致「每项 满分10分，总分100分」误报 `ORIGINAL_TOTAL_CONFLICT`、「本项目每项总分10分」被兜底认作项目总分。
+- 修复：主解析在 matcher.find() 后即查 `isSingleItemMention`（早于 categoryTitle 判定）；兜底改用 `matchesSingleItemClause(start,end)` 查**整段匹配 span**——`DOCUMENT_TOTAL` 的 `[^。；;\n]{0,80}` 跨度可把量词吞进匹配内，只查起点前的分句会被绕过。
+- `select()` 的 `hasValue()` 改调 `hasTableTotalEvidence()`：明确「最高分」表头下合计格只写单项说明时保持 `TABLE_SUBTOTAL_COLUMN_UNRESOLVED`（此前会误判已验证）。
+- 教训：**语义规则必须覆盖全部解析入口**（表格/正文/兜底/验证），加在一条路径上会制造新的不一致；后续新增入口时以「是否复用 `ScoreSubtotalColumnPolicy` 文法」为检查项。
+
+## 已知取舍与后续项（round 6 审计登记）
+
+- 量词表未覆盖「各项/各条」：正文出现「各项满分10分，总分100分」仍可能误报冲突（fail-open 方向）。未纳入本次范围，避免再放大误杀面；如需收窄按同族模式追加并配 pinning。
+- `本项(?!目)` 会误杀「本项工程评分总分100分」类整表句（fail-closed：该句总量可能 UNKNOWN）。取舍：宁可未决不可猜错。
+- 兜底与主解析统一的判据是「总分关键词所在分句左侧」；DOCUMENT_TOTAL 的 lazy gap `[^。；;\n]{0,80}?` 可跨逗号，故不能查整段匹配 span（会毒掉逗号后的干净分句）。
+- **后续项（未修，登记）**：`ScoreTableSplitPolicy` 自带同型 `DOCUMENT_TOTAL`（`(?:本项目|本标包)[^\n]{0,40}(?:总分|满分)…`）无单项语义，属同型盲区；不在本次授权范围，需单独收敛（同为「总分关键词分句」判据）。

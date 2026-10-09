@@ -120,23 +120,17 @@ public final class ScoreSubtotalColumnPolicy {
     }
 
     /** 匹配点所在分句的左侧是否出现单项量词/主体（分句按 ，。；; 与换行划分；顿号不断句，取保守方向）。
-     * 包可见：OriginalScoringContext 的正文/兜底解析复用同一文法，杜绝双重标准。 */
+     * 包可见：OriginalScoringContext 的表格/正文/兜底三条解析路径复用同一文法，杜绝双重标准。 */
     static boolean isSingleItemMention(String rawText, int matchStart) {
-        return matchesSingleItemClause(rawText, matchStart, matchStart);
-    }
-
-    /** 是否应当把 [start,end) 内的判定视为单项陈述：查起点所在分句起点到 end，
-     * 覆盖"主语在匹配之前、量词在匹配之内"的句式（如"本项目每项总分10分"）。 */
-    static boolean matchesSingleItemClause(String rawText, int start, int end) {
         int clauseStart = 0;
-        for (int i = start - 1; i >= 0; i--) {
+        for (int i = matchStart - 1; i >= 0; i--) {
             char ch = rawText.charAt(i);
             if (ch == '，' || ch == '。' || ch == '；' || ch == ';' || ch == '\n') {
                 clauseStart = i + 1;
                 break;
             }
         }
-        return SINGLE_ITEM_CONTEXT.matcher(rawText.substring(clauseStart, Math.max(clauseStart, end))).find();
+        return SINGLE_ITEM_CONTEXT.matcher(rawText.substring(clauseStart, matchStart)).find();
     }
 
     private static boolean hasValue(String text) {

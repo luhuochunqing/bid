@@ -170,6 +170,13 @@ public class Project1359ScoringContractTest {
         assertThat(context.problems()).noneMatch(p -> p.code().equals("ORIGINAL_TOTAL_CONFLICT"));
     }
 
+    @Test void documentTotalFallbackOverCommaSeparatedPerItemStillResolvesTotal() {
+        // 逗号后的干净总分分句必须独立成证：兜底查「总分」所在分句，不得被前半句的单项量词毒掉
+        var context = OriginalScoringContext.resolve(artifact(List.of()),
+                "# 本项目评分办法\n| 评分办法：每项10分，总分100分 |\n");
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+    }
+
     @Test void explicitMaximumHeaderWithPerItemSummaryStaysUnresolved() {
         var context = context(List.of("评审项目", "评审内容", "最高分"),
                 List.of("合计", "", "每项 满分10分"));
