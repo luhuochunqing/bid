@@ -117,4 +117,47 @@ class CaseProvenanceBackfillAdapterMysqlTest extends AbstractMysqlIntegrationTes
         assertThat(repository.findById(first.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
         assertThat(repository.findById(second.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
     }
+
+    @Test
+    void offShelfCaseAfterScanThrowsAndRollsBackWholeBatch() {
+        var active1 = create("ACTIVE");
+        var active2 = create("ACTIVE");
+        // 模拟扫描后，active2 被下架（状态变为 OFF_SHELF）
+        active2.setStatus("OFF_SHELF");
+        repository.saveAndFlush(active2);
+        flushAndClear();
+
+        assertThatThrownBy(() -> adapter.saveAll(List.of(
+                new Update(active1.getId(), "新标题1", null, null, null, null),
+                new Update(active2.getId(), "新标题2", null, null, null, null))))
+                .isInstanceOf(IllegalStateException.class);
+        flushAndClear();
+
+        // 验证全批次回滚：active1 没有被更新，active2 也没有被写入新标题
+        assertThat(repository.findById(active1.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
+        assertThat(repository.findById(active2.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
+        assertThat(repository.findById(active2.getId()).orElseThrow().getStatus()).isEqualTo("OFF_SHELF");
+    }
+
+    @Test
+    void interleavedConcurrentBusinessUpdateIsNotOverwritten() {
+        var kase = create("ACTIVE");
+        // 模拟业务侧并发修改了其他字段（如 responseText, scoringPointTitle 等）
+        // 如果 adapter 读取全实体再 saveAll，会把并发修改覆盖掉
+        // 这里模拟回填 updates 准备好之后，业务线程修改了 responseText
+        kase.setResponseText("并发修改后的正文");
+        repository.saveAndFlush(kase);
+        flushAndClear();
+
+        // 此时执行回填更新（仅传入来源5字段）
+        adapter.saveAll(List.of(new Update(kase.getId(), "回填新标题", "回填路径", 1, "文件.pdf", 2)));
+        flushAndClear();
+
+        var reloaded = repository.findById(kase.getId()).orElseThrow();
+        // 来源5字段更新成功
+        assertThat(reloaded.getSourceSectionTitle()).isEqualTo("回填新标题");
+        // 并发修改的业务字段必须完好保留，未被旧快照覆盖
+        assertThat(reloaded.getResponseText()).isEqualTo("并发修改后的正文");
+    }
 }
+

@@ -20,7 +20,7 @@
 | `application/service/CaseShareAppService.java` | AppService | 案例分享记录 |
 | `application/service/CaseReferenceAppService.java` | AppService | 案例引用记录 |
 | `application/port/CaseProvenanceBackfillPort.java` | Port | 严格ACTIVE回填候选快照与五字段更新契约 |
-| `infrastructure/CaseProvenanceBackfillAdapter.java` | Adapter | 候选映射与按项目独立事务批量持久化，缺失案例拒绝整批更新 |
+| `infrastructure/CaseProvenanceBackfillAdapter.java` | Adapter | 候选映射与按项目独立事务批量条件更新持久化，非ACTIVE或缺失案例拒绝整批更新 |
 | `application/service/CaseProvenanceBackfillAppService.java` | AppService | 存量案例来源章节重算（幂等；判据为「现有来源标题不是已验证章节」；定位成功写回真实章节，失败清空） |
 | `application/MarkdownHeadingParser.java` | Domain Util | Markdown 标题解析与章节扫描（构建层级树与祖先路径） |
 | `application/MarkdownTitleRules.java` | Domain Util | 标题分类契约（`isSentenceLikeTitle` 句子门 + `isChapterTitle` 章节号契约——编号在串首**且编号后有标题文字**，字母列表标记不算章节号，前后端同规则，由共享夹具双向锚定） |

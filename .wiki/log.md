@@ -1273,3 +1273,8 @@ FBR-I1：统一完整来源单元恢复，覆盖短引文/预绑定/anchor/纯�
 ## [2026-10-09] score-subtotal-regression-fix | scoreparse-1359-stale-200-total-rca
 
 唯一明确的合计满分声明允许评分因素内嵌分值表格识别小计列；存在其他显式总分仍阻断。保留1359最高/最低列优先和无标签数值拒绝。
+
+## [2026-10-09] score-subtotal-single-item-and-provenance-concurrency | score-parse-service
+
+评分小计列正则增加负向后行断言排除单项满分劫持，增加单元格内冲突总分声明检测；案例来源回填改为基于 ID + ACTIVE 状态的条件更新并原子持久化 5 字段，防御并发覆盖。
+
