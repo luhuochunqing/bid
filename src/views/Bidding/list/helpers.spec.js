@@ -261,10 +261,23 @@ describe('isAdminRole', () => {
       title: '当天截止标讯',
       region: '上海',
       industry: '政府',
-      deadline: '2026-05-07 00:00',
+      deadline: '2026-05-07',
     })
 
     expect(payload.deadline).toBe('2026-05-07T23:59:59')
+  })
+
+  it('preserves explicit 00:00 deadline and bidOpeningTime without rewriting to 23:59:59', () => {
+    const payload = buildManualTenderPayload({
+      title: '0点0分截止标讯',
+      region: '上海',
+      deadline: '2026-10-31 00:00',
+      bidOpeningTime: '2026-10-31 12:00',
+    })
+
+    expect(payload.deadline).toBe('2026-10-31T00:00:00')
+    expect(payload.registrationDeadline).toBe('2026-10-31T00:00:00')
+    expect(payload.bidOpeningTime).toBe('2026-10-31T12:00:00')
   })
 
   it('keeps AI parsed date-only deadlines compatible with manual tender save', () => {

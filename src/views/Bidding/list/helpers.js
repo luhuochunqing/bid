@@ -99,20 +99,15 @@ export function formatManualTenderDeadline(value) {
   // Accept Date objects or strings ("yyyy-MM-dd HH:mm", "yyyy-MM-dd")
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return null
-    const date = new Date(value.getTime())
-    if (date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0) {
-      date.setHours(23, 59, 59, 0)
-    }
-    return formatLocalDateTime(date)
+    return formatLocalDateTime(value)
   }
-  let str = String(value).trim()
-  if (!str.includes(' ')) str = str.slice(0, 10) + ' 00:00'
-  const normalized = str.replace(' ', 'T') + ':00'
-  const date = new Date(normalized)
+  const str = String(value).trim()
+  const isDateOnly = !str.includes(' ') && !str.includes('T')
+  const dateStr = isDateOnly ? `${str.slice(0, 10)} 23:59:59` : str
+  const normalized = dateStr.includes('T') ? dateStr : dateStr.replace(' ', 'T')
+  const fullIso = normalized.split(':').length === 2 ? `${normalized}:00` : normalized
+  const date = new Date(fullIso)
   if (Number.isNaN(date.getTime())) return null
-  if (date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0) {
-    date.setHours(23, 59, 59, 0)
-  }
   return formatLocalDateTime(date)
 }
 
