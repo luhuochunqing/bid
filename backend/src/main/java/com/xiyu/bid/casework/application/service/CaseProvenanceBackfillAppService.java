@@ -38,6 +38,9 @@ import java.util.Map;
  *
  * <p>幂等：只处理 source_section_title 不是已验证章节标题的 ACTIVE 案例（含空标题、句子型伪标题与
  * 无编号小标题，判据同 {@link MarkdownTitleRules#isChapterTitle(String)}），重复执行不再产生写入。</p>
+ *
+ * <p>快照一致性：写回附带扫描时刻的关键业务数据（正文/评分项标题/来源项目 ID），
+ * 持久化原子校验无变化才写入；扫描后业务数据被改则整批拒绝（抛异常回滚），绝不写入过期来源。</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -147,14 +150,16 @@ public class CaseProvenanceBackfillAppService {
             BidDocumentLoader.BidDocument bidDocument = loadedBid.document();
             dirty.add(new Update(kase.id(), provenance.title(), provenance.path(), provenance.index(),
                     bidDocument.documentName(), provenance.pageNumber() != null
-                            ? provenance.pageNumber() : bidDocument.pageNumber()));
+                            ? provenance.pageNumber() : bidDocument.pageNumber(),
+                    kase.responseText(), kase.scoringPointTitle(), kase.sourceProjectId()));
             return Outcome.UPDATED;
         }
 
         if (hasNoSourceProvenance(kase)) {
             return Outcome.UNCHANGED;
         }
-        dirty.add(new Update(kase.id(), null, null, null, null, null));
+        dirty.add(new Update(kase.id(), null, null, null, null, null,
+                kase.responseText(), kase.scoringPointTitle(), kase.sourceProjectId()));
         return Outcome.CLEARED;
     }
 

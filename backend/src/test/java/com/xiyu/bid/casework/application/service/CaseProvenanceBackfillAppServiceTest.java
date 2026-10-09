@@ -90,6 +90,10 @@ class CaseProvenanceBackfillAppServiceTest {
         assertThat(output(target).sourcePageNumber()).isEqualTo(12);
         assertThat(writes).hasSize(1);
         assertThat(writes.get(0).id()).isEqualTo(target.getId());
+        // 写回必须携带扫描快照，供持久化原子校验（过期快照拒绝写入）
+        assertThat(writes.get(0).expectedResponseText()).isEqualTo(TABLE_SNIPPET);
+        assertThat(writes.get(0).expectedScoringPointTitle()).isEqualTo("对接成功案例");
+        assertThat(writes.get(0).expectedSourceProjectId()).isEqualTo(100L);
     }
 
     @Test
@@ -292,7 +296,8 @@ class CaseProvenanceBackfillAppServiceTest {
     private Update output(KnowledgeCase kase) {
         return writes.stream().filter(update -> update.id().equals(kase.getId())).findFirst()
                 .orElse(new Update(kase.getId(), kase.getSourceSectionTitle(), kase.getSourceSectionPath(),
-                        kase.getSourceSectionIndex(), kase.getSourceDocumentName(), kase.getSourcePageNumber()));
+                        kase.getSourceSectionIndex(), kase.getSourceDocumentName(), kase.getSourcePageNumber(),
+                        kase.getResponseText(), kase.getScoringPointTitle(), kase.getSourceProjectId()));
     }
 
 }
