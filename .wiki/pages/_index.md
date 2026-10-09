@@ -5,7 +5,7 @@ category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
 updated: 2026-10-09
-health_checked: 2026-09-27
+health_checked: 2026-10-03
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -111,6 +111,7 @@ backlinks:
 - [[scoreparse-1382-live-publish-gate]] — 项目1382线上100分被0分指引和空模型总分否决
 - [[scoreparse-1382-pdf-scheme-gate-rca]] — 项目 1382 PDF 评分方案资格门失效根因（PDF 章节 / DOCX 真实跨层 / 全候选快照 / 生效版本与评分指纹 / 发布开关）
 - [[scoreparse-multimodal-primary]] — 评分方案资格、原文总分、跨表父子、OCR 引文定位与文本分片审核契约
+- [[scoreparse-cross-format-strategy]] — 跨格式识别日志证据、图文结构联合方案与陌生模板验收边界
 - [[spec059-score-parse-evidence-pipeline]] — spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构
 - [[score-parse-split-completeness-and-partial-overwrite-fix]] — 评分解析分表完整性范围误判 + 部分通过覆盖正式结果双修复
 - [[spring-pitfalls]] — Spring Boot 陷阱集
@@ -153,3 +154,29 @@ backlinks:
 1. `npm run wiki:ingest`
 2. `npm run wiki:build`
 3. `npm run wiki:check`
+
+
+## 评分项证据实验
+
+- [[scoreparse-callsite-scope-experiment-20261003]] — 三个反例通过，新增退化与陌生文件来源/召回阻断保留，整体未通过
+- [[scoreparse-source-constraints-experiment-20261003]] — 三项统一约束复核；新文件入口14处找全，Word控制符丢失、全文超限与缺附件仍阻断泛化
+
+- [[scoreparse-structured-retrieval-experiment-20261003]] — 统一来源检索改善容量，七个入口语义失败仍阻止泛化验收。
+
+- [[scoreparse-entry-constraints-and-source-generalization-20261003]] — 已知入口门禁通过，新Word嵌套段落与新PDF漏检/续表反例阻止泛化。
+
+- [[scoreparse-canonical-source-and-logical-tables-20261003]] — 全量117单元审计仍漏1引用，Word四个旧来源映射未闭合。
+
+- [[scoreparse-comparison-reference-and-word-bridge-20261004]] — 比较基准引用两轮通过，Word11段规则兼容性仍阻塞。
+
+- [[scoreparse-frozen-field-native-evidence-contract-20261004]] — 11项完整原文独立绑定通过，56错误注入拒绝，字段差异保留。
+
+- [[scoreparse-native-reference-scope-regression-20261004]] — 14映射正确，资格前提漏入口，旧严格关联审计32/34。
+
+- [[scoreparse-dependency-splitting-and-proof-record-experiment-20261004]] — 多依赖入口找出，逐项证据完整但适用语义与旧回归未通过。
+
+- [[scoreparse-exclusion-and-ambiguity-gates-20261004]] — 模糊目标两轮未确定适用，非适用报价分支仍未排除，完整续文出现退步。
+
+- [[scoreparse-extraction-stability-code-review-20261004]] — 主链已有原文校验，但逻辑单元、覆盖、来源合并尚不足以证明跨文件稳定提取。
+
+- [[scoreparse-langextract-ab-pilot-20261004]] — 两文件两轮真实提取AB，LangExtract名称更直接但粒度与完整原文定位未通过。
