@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [工程纪律, 根因分析, bug修复, 反复修复, 开发规范, 经验积累, 预防, SOP]
 created: 2026-07-10
-updated: 2026-09-20
-health_checked: 2026-09-18
+updated: 2026-10-10
+health_checked: 2026-10-10
 sources:
   - .wiki/pages/lessons-learned.md
   - .wiki/pages/lessons-learned/CO-361-five-rounds-no-fix.md
@@ -382,6 +382,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 仓库全量导出超时（@Async 自调用） | 1 次 | 框架理解偏差：CO-582 新增 Word 合订本后全量导出耗时 > 30s，根因是 `WarehouseExportAppService.export()` 直接调用 `executeExportAsync()`（自调用），Spring AOP 代理被绕过，@Async 注解不生效。修复：提取 @Async 方法到独立 Bean（`WarehouseExportAsyncExecutor`），通过依赖注入调用使代理生效；同时修复 `WarehouseLedgerExportAppService` 和 `WarehouseImportAppService` 同源问题；提取 `WarehouseExportTaskStateService` 消除状态机重复代码 | `WarehouseExportAppService.java#L78`、`WarehouseLedgerExportAppService.java#L79`、`WarehouseImportAppService.java#L59`，spec 039，PR !2110 |
 | 仓库 Word 合订本附件内容丢失（macOS SSV + 绝对路径默认值） | 1 次 | 环境差异掩盖 + 框架理解偏差：`@Value("${warehouse.attachment.root:/data/attachments/warehouse}")` 默认值是绝对路径，macOS Catalina+ SSV 保护使根目录 `/` 只读，`mkdir /data` 失败（`Read-only file system`）。上传时 `Files.createDirectories` 抛 IOException → HTTP 400，但用户用历史同步数据未感知；Word 生成时 `Files.exists` 返回 false → 所有三级标题下显示"（文件缺失）"。@Async 超时（PR !2110 修复前）掩盖了 Word 生成失败，超时修复后才暴露此 bug。全局收敛发现 6 处同类（warehouse 4 + performance 2）。修复：默认值改为相对路径 `data/warehouse-attachments` / `data/performance-attachments`（对齐 personnel/qualification 模块约定），新增 `scripts/check-attachment-root-path.mjs` pre-push 拦截 | `WarehouseWordBundleBuilder.java#L49`、`WarehouseFileService.java#L38`、`WarehouseExportZipBuilder.java#L41`、`WarehouseImportAttachmentProcessor.java#L47`、`PerformanceAttachmentStorageAppService.java#L44`、`PerformanceImportAttachmentProcessor.java#L36`，PR !2112 |
 | PR 合入带编译错误阻断 main（!2328 Feature 047） | 2 次（同类第 2 次，前次 !2329 compliance.js 漏声明） | 合并前未验证编译：gitee-pr-helper auto-merge 与人工点合并都缺「合入前 mvn compile 全绿」这道闸。!2328 两处纯编译错误（multi-catch 父子类 `InvalidPathException|RuntimeException` 非法；无参构造器 `this(null×5)` 与 4 参构造器不匹配）直接进 main，全仓 3000+ 源文件无法编译，阻断所有 agent 的 TDD 流程。修复：本分支顺手修（独立 commit 4b262fa9a）。预防方向：PR 合并 checklist 加「本地 `mvn test-compile` 全绿」，或 gitee-pr-helper 在 merge 前跑编译探测 | `ComplianceTargetLoader.java#L187`、`KnowledgeBaseOnDemandLoader.java#L43`，PR !2328，hotfix commit 4b262fa9a |
+| gitee-pr-helper 405 误报 + 失败响应体静默丢失 | 1 次 | 外部 API 非幂等响应码直接判成败（把"已合并"的 405 报成失败）+ 失败诊断语句重定向顺序错误使 fd1 指向 /dev/null，响应体从未输出 | `scripts/gitee-pr-helper.sh` merge/create 两条失败路径；docs/references/engineering-discipline.md §8；契约测试 9 场景 / 33 断言；PR !2818 |
 
 ### 6.4 pre-push 拦截脚本索引
 
@@ -475,6 +476,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 2026-08-02 | 新增 "后端 OOM（exit 137）" 案例；根因：裸 `mvn spring-boot:run` 时 JVM 默认堆 = 物理内存 1/4，macOS 内存紧张时触发系统级 OOM Killer；规范：禁止 裸 mvn 启动、必须显式 -Xmx；§5.1 编码规范新增"分页 size 必须上限保护（MAX_PAGE_SIZE=100）"，补齐 TenderController 遗漏 | OOM 根因修复，PR !2245 |
 | 2026-08-25 | 新增 Code Review 三透镜纪律（行为正确性/结构健康/交付就绪）：PR !2399 四轮审查全在行为平面，依赖方向/影响面/交付就绪从未进入检查面；工程化落点：`check-keyword-sync.mjs`（跨语言关键词契约）、pre-push §5.7（仓库卫生）、`gitee-pr-helper.sh merge` mergeable 断言、`agent-finish-task.sh` 冲突预警；技能落点：`xiyu-code-review` 新增第 0 步状态快照 + §7 结构健康 + §8 交付就绪（本地 `.agents/skills/`，未入库） | PR !2399 审查复盘 |
 | 2026-09-20 | 新增 §5.2.1「验证命令集必须等于门禁契约」：两轮 S5 自拟命令集全绿，真实缺陷均由 pre-commit 反查——漏 `ProjectAccessGuardCoverageTest`（新增 `*AppService` 未登记项目访问守卫基线 → BUILD FAILURE）与 `npm run lint`（3 个 ESLint error 随提交入库，`npm run build` 链不含 lint 且 pre-commit lint 非阻断）；§7.3 checklist 增补对应项 | 案例摘要改造任务复盘 |
+| 2026-10-10 | 新增案例「gitee-pr-helper 405 误报 + 失败响应体静默丢失」到 §6.3；docs/references/engineering-discipline.md §8 沉淀两条纪律：①外部写接口（PR 合并等）非 2xx 不可直接判成败，须以资源终态复核，且不得用「一律放行」替代终态复核（真失败用例必须同时锁住）；②失败诊断路径必须被断言锁住——`head -c 500 f 2>/dev/null >&2` 从左到右求值使 fd1 同指 /dev/null，响应体从未输出，恰是 405 排障看不到服务端消息的根因 | PR !2818（merge 405 幂等改判 + create_pr 同型缺陷，契约测试 5→9 场景 / 18→33 断言，含变异实验）|
 
 ### 重复 bug：证据来源范围必须跨载体一致
 
