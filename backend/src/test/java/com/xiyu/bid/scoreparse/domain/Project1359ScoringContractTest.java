@@ -111,6 +111,39 @@ public class Project1359ScoringContractTest {
                 .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
     }
 
+    @Test void aggregateOfPerItemScoresIsStillWholeTableTotal() {
+        // 各单项分值之和 = 整表总量：单项词与总分之间出现汇总标记，不得判为单项分值
+        var context = OriginalScoringContext.resolve(artifact(List.of()),
+                "# 本项目评分办法\n本项目各单项分值之和为总分100分\n");
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+        assertThat(context.problems()).noneMatch(p -> p.code().equals("ORIGINAL_TOTAL_CONFLICT"));
+    }
+
+    @Test void allPerItemAggregateTotalIsStillWholeTableTotal() {
+        var context = OriginalScoringContext.resolve(artifact(List.of()),
+                "# 本项目评分办法\n所有单项合计总分100分\n");
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+    }
+
+    @Test void mixedPerItemAndAggregateProseNeverAcceptedAsTen() {
+        // 混合说明：单项10（每项）与「所有单项合计」100 并存。
+        // 底线：不得返回「总分10且无问题」——汇总证据必须保留，成冲突或识别100均可。
+        var context = OriginalScoringContext.resolve(artifact(List.of()),
+                "# 本项目评分办法\n满分10分（每项），所有单项合计总分100分\n");
+        assertThat(context.total().source()).isEqualTo("CONFLICT");
+        assertThat(context.total().value()).isNull();
+        assertThat(context.total().problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("ORIGINAL_TOTAL_CONFLICT");
+    }
+
+    @Test void mixedPerItemAndAggregateCellNeverAcceptedAsSubtotalTen() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计", "满分10分（每项），所有单项合计满分100分", ""));
+        assertThat(context.subtotals()).isEmpty();
+        assertThat(context.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .containsAnyOf("TABLE_SUBTOTAL_COLUMN_UNRESOLVED", "TABLE_SUBTOTAL_CONFLICT");
+    }
+
     @Test void wholeProjectMaximumIsStillRecognizedAsTableTotal() {
         var context = context(List.of("序号", "评分因素", "评分标准"),
                 List.of("合计", "本项目满分100分", ""));
