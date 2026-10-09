@@ -95,6 +95,30 @@ public class Project1359ScoringContractTest {
                 .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
     }
 
+    @Test void perItemMaximumWithYiVariantDoesNotHijackSubtotalColumn() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计", "每一项满分10分，共10项，合计100分", ""));
+        assertThat(context.subtotals()).isEmpty();
+        assertThat(context.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
+    }
+
+    @Test void perArticleMaximumDoesNotHijackSubtotalColumn() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计", "每一条满分10分，共10项，合计100分", ""));
+        assertThat(context.subtotals()).isEmpty();
+        assertThat(context.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
+    }
+
+    @Test void wholeProjectMaximumIsStillRecognizedAsTableTotal() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计", "本项目满分100分", ""));
+        // "本项目"是整表主体而非单项：不得被单项规则抑制，整表总量 100 正常决议
+        assertThat(context.problems()).isEmpty();
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+    }
+
     @Test void conflictingDeclarationsInSameCellRemainUnresolved() {
         var context = context(List.of("序号", "评分因素", "评分标准"),
                 List.of("合计", "满分100分，总分90分", ""));

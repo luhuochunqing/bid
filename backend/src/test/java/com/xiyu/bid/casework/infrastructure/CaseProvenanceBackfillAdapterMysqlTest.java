@@ -224,6 +224,23 @@ class CaseProvenanceBackfillAdapterMysqlTest extends AbstractMysqlIntegrationTes
     }
 
     @Test
+    void trailingSpaceChangeInResponseTextIsDetectedAsStale() {
+        // BINARY 同样对尾随空格敏感（_ci 校对会忽略尾随空格），普通 = 会漏检该变化
+        var kase = create("ACTIVE");
+        kase.setResponseText("正文带空格 ");
+        repository.saveAndFlush(kase);
+        flushAndClear();
+
+        assertThatThrownBy(() -> adapter.saveAll(List.of(
+                new Update(kase.getId(), "基于过期正文的来源标题", null, null, null, null,
+                        "正文带空格", kase.getScoringPointTitle(), kase.getSourceProjectId()))))
+                .isInstanceOf(IllegalStateException.class);
+        flushAndClear();
+
+        assertThat(repository.findById(kase.getId()).orElseThrow().getSourceSectionTitle()).isEqualTo("旧标题");
+    }
+
+    @Test
     void interleavedConcurrentBusinessUpdateIsNotOverwritten() {
         var kase = create("ACTIVE");
         // 模拟业务侧并发修改了正文：回填快照已过期，写入必须失败回滚，业务的新正文不受损

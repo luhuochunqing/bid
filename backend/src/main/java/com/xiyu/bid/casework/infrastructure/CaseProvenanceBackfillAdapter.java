@@ -46,7 +46,8 @@ public class CaseProvenanceBackfillAdapter implements CaseProvenanceBackfillPort
                     update.expectedScoringPointTitle(),
                     update.expectedSourceProjectId());
             if (updated != 1) {
-                throw new IllegalStateException("回填案例已不存在或非ACTIVE状态: " + update.id());
+                throw new IllegalStateException(
+                        "回填案例已不存在、非ACTIVE状态或扫描快照已过期（正文/评分项/来源项目变化）： " + update.id());
             }
         }
     }

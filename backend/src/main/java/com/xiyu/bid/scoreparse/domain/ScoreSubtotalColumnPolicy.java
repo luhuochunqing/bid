@@ -14,8 +14,10 @@ import java.util.stream.Collectors;
 public final class ScoreSubtotalColumnPolicy {
     static final Pattern NUMBER = Pattern.compile("^\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
     static final Pattern EXPLICIT_TOTAL = Pattern.compile("(?<!(?:单项|每项|每条|每处|每篇|每个|本项|此项))(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
-    /** 单项分值语义：同一单元格内匹配点左侧的单项量词/主体。该数字是单项分值而非整表总量。 */
-    private static final Pattern SINGLE_ITEM_CONTEXT = Pattern.compile("单项|每项|每条|每处|每篇|每个|本项|此项");
+    /** 单项分值语义：同一分句内匹配点左侧的单项量词/主体。该数字是单项分值而非整表总量。
+     * 覆盖"一"插入变体（每一项/每一条）；"本项"后跟"目"时是"本项目"（整表主体），用 (?!目) 排除。 */
+    private static final Pattern SINGLE_ITEM_CONTEXT =
+            Pattern.compile("单项|每一?项|每一?条|每一?处|每一?篇|每一?个|本项(?!目)|此项");
     private static final Pattern MAXIMUM = Pattern.compile("^(?:最高分(?:值|数)?|最高得分|满分)(?:[（(]分[）)])?$");
     private static final Pattern SCORE = Pattern.compile("^(?:分值|分数|得分|评分分值)(?:[（(]分[）)])?$");
     private static final Pattern EXPLICIT_SUMMARY_MAXIMUM = Pattern.compile(
@@ -68,6 +70,10 @@ public final class ScoreSubtotalColumnPolicy {
             if (cell.column() != null && cell.column() == column && cell.rawText() != null) {
                 var matcher = EXPLICIT_TOTAL.matcher(cell.rawText());
                 while (matcher.find()) {
+                    // 与证据判定同一文法：单项分值提及不计入冲突（方向为 fail-closed，见 hasTableTotalEvidence）
+                    if (isSingleItemMention(cell.rawText(), matcher.start())) {
+                        continue;
+                    }
                     distinctValues.add(new java.math.BigDecimal(matcher.group(1)).stripTrailingZeros().toPlainString());
                 }
             }
@@ -88,19 +94,34 @@ public final class ScoreSubtotalColumnPolicy {
 
     /**
      * 整表总量证据判定（语义规则，而非关键词紧邻排除）：
-     * 同一单元格内至少存在一个 满分/总分 匹配、且该匹配点左侧没有单项量词/主体时，
-     * 才算整表满分声明。"本表单项 满分10分"、"每项最高满分10分"等单项分值说明一律不算；
-     * 紧邻排除由正则后行断言承担，本规则覆盖空格/助词隔开的情形。同一单元格的冲突总分
-     * 仍由 hasConflictingTotals 保持未决，此处不做猜测。
+     * 同一单元格内至少存在一个 满分/总分 匹配、且该匹配所在分句（按 ，。；; 与换行划分）
+     * 左侧没有单项量词/主体时，才算整表满分声明。"本表单项 满分10分"、"每项最高满分10分"、
+     * "每一项满分10分"等单项分值说明一律不算；紧邻排除由正则后行断言承担，本规则覆盖
+     * 空格/助词隔开的情形。取舍声明：分句内出现单项句与真总量句并存时（如"单项满分10分，
+     * 总分100分"），真总量句独立成证，按其值决议——这是显式声明而非猜测；无法确定时
+     * 调用方保持未决。hasConflictingTotals 复用同一文法，不存在双重标准。
      */
     private static boolean hasTableTotalEvidence(String rawText, Pattern pattern) {
         var matcher = pattern.matcher(rawText);
         while (matcher.find()) {
-            if (!SINGLE_ITEM_CONTEXT.matcher(rawText.substring(0, matcher.start())).find()) {
+            if (!isSingleItemMention(rawText, matcher.start())) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** 匹配点所在分句的左侧是否出现单项量词/主体（分句按 ，。；; 与换行划分；顿号不断句，取保守方向）。 */
+    private static boolean isSingleItemMention(String rawText, int matchStart) {
+        int clauseStart = 0;
+        for (int i = matchStart - 1; i >= 0; i--) {
+            char ch = rawText.charAt(i);
+            if (ch == '，' || ch == '。' || ch == '；' || ch == ';' || ch == '\n') {
+                clauseStart = i + 1;
+                break;
+            }
+        }
+        return SINGLE_ITEM_CONTEXT.matcher(rawText.substring(clauseStart, matchStart)).find();
     }
 
     private static boolean hasValue(String text) {

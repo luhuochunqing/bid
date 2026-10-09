@@ -18,8 +18,8 @@ public interface KnowledgeCaseRepository extends JpaRepository<KnowledgeCase, Lo
     /**
      * 来源五字段条件更新。WHERE 除 id 与 ACTIVE 状态外，还原子校验扫描时刻用于计算来源的
      * 关键业务数据（正文/评分项标题/来源项目 ID）未发生变化；不满足则返回 0，由调用方失败回滚整批。
-     * 字符串比较用 BINARY 精确语义：库默认 utf8mb4_unicode_ci 会忽略大小写与尾随空格，
-     * 普通 = 会把"业务数据已变"误判为相同。nativeQuery 是 JPQL 不支持 BINARY 所致，
+     * 字符串比较用 BINARY 精确语义：库默认校对（大小写/尾随空格不敏感，如 utf8mb4_unicode_ci、
+     * utf8mb4_0900_ai_ci）下普通 = 会把"业务数据已变"误判为相同。nativeQuery 是 JPQL 不支持 BINARY 所致，
      * 仍在 Repository 边界内，无新迁移、无全局锁、无版本字段。
      */
     @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
