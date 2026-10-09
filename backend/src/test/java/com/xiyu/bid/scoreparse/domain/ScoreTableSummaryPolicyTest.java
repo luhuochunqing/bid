@@ -48,6 +48,21 @@ class ScoreTableSummaryPolicyTest {
     }
 
     @Test
+    void perItemScoreMentionInSummaryRowIsNotDeclaredTotal() {
+        CanonicalTableGrid grid = grid(List.of(
+                cell(0, 0, "序号"), cell(0, 1, "评分因素"), cell(0, 2, "评分标准"),
+                cell(1, 0, "合计"), cell(1, 1, "每项 满分10分，满分100分"), cell(1, 2, "")
+        ), 2);
+
+        List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> evidence =
+                ScoreTableSummaryPolicy.extractDeclaredTotals(grid, mapping());
+
+        assertThat(evidence).hasSize(1);
+        assertThat(evidence.get(0).value()).isEqualByComparingTo(new BigDecimal("100"));
+        assertThat(evidence.get(0).quotedText()).isEqualTo("100分");
+    }
+
+    @Test
     void summaryRecognitionDoesNotMatchNormalDetailLanguage() {
         assertThat(ScoreTableSummaryPolicy.isSummaryRow("A5", "综合评价")).isFalse();
         assertThat(ScoreTableSummaryPolicy.isSummaryRow("合计\n得分", "满分\n（100分）")).isTrue();
