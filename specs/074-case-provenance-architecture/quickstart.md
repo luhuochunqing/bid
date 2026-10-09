@@ -5,7 +5,7 @@ mvn -f backend/pom.xml test -Dtest=BidCaseSliceArchitectureTest,CaseProvenanceBa
 真实MySQL使用AbstractMysqlIntegrationTest约定的127.0.0.1:13306测试容器；全量设置SIDECAR_PYTHON为已有可用虚拟环境解释器，串行运行mvn test并生成JaCoCo报告。不得把受影响子集当成全量通过。
 
 
-## 最终验证证据（2026-10-09）
+## 阻塞闭合前的验证证据（2026-10-09）
 
 - 基线架构复现：20项、1失败、0错误、0跳过，32处跨层依赖；日志 `/tmp/case-provenance-architecture-baseline.log`，退出1。
 - 首轮受影响回归：64项、0失败、0错误、0跳过，日志 `/tmp/case-provenance-green.log`，退出0。
@@ -16,3 +16,15 @@ mvn -f backend/pom.xml test -Dtest=BidCaseSliceArchitectureTest,CaseProvenanceBa
 - `mvn -f backend/pom.xml jacoco:report` 成功；XML可解析、HTML存在。适配器行覆盖23/24、分支7/8；应用服务行覆盖83/90、分支49/56。原始报告位于 `backend/target/site/jacoco/index.html`；日志 `/tmp/case-provenance-coverage.log`。
 - 默认java-quality命令跳过Checkstyle/PMD，不能当作实际检查通过；另以quality.skip=false、明确三生产文件范围运行实际Checkstyle及PMD：退出0、无违规，日志 `/tmp/case-provenance-quality-scoped.log`。Checkstyle XML包含全部三个生产文件，PMD XML无违规。
 - 行数、文档治理、关键词同步、文件锁、路由E2E契约检查通过；全仓Wiki健康检查有历史存量问题，本次相关页已回填。
+
+
+## 阻塞闭合后的验证（主线86772edc9候选）
+
+- 主线合并e506b1e66，知识§420/421/422保留且引用同步；merge-tree退出0。
+- fced375dd通过cherry-pick -x dd39315e恢复四个测试修订；恢复时与原提交四文件逐字节一致。其后竞品创建测试另补数据库新增及保存名称断言。
+- 补充数据库断言前，受影响集合129项全部通过、0失败0错误0跳过；日志 `/tmp/case-provenance-blockers-affected.log`，退出0，6分33秒，JaCoCo报告正常生成。
+- 补充数据库断言后，竞品集成13项、0失败0错误0跳过；日志 `/tmp/case-provenance-blockers-persistence.log`，退出0。
+- 完整运行含补充断言：10538项、0失败0错误17跳过（10521通过），35分02秒，退出0；日志 `/tmp/case-provenance-blockers-full.log`。Surefire退出等待30秒诊断及关闭阶段连接诊断保留，Maven最终BUILD SUCCESS。
+- JaCoCo XML可解析且HTML存在：适配器23/24行、7/8分支；应用服务83/90行、49/56分支。
+- 前端build:api退出0，lint退出0、0错误231警告；日志 `/tmp/case-provenance-blockers-build.log`、`/tmp/case-provenance-blockers-lint.log`。
+- 结束后origin/main前移至067e74cdc（PR2810评分小计修复），产生新的知识文档及Wiki日志冲突；上述完整结果仅对应同步前候选，合并后另行验证。

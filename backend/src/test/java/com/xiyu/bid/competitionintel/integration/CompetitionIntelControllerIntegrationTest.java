@@ -106,6 +106,7 @@ class CompetitionIntelControllerIntegrationTest {
     @Test
     @WithMockUser(authorities = {"ROLE_ADMIN", RoleProfileCatalog.COMPETITOR_CREATE_PERMISSION})
     void upsertCompetitor_WithValidName_ShouldReturnCompetitor() throws Exception {
+        long before = competitorRepository.count();
         CompetitorUpsertRequest request = CompetitorUpsertRequest.builder()
                 .name("新竞企")
                 .build();
@@ -117,6 +118,10 @@ class CompetitionIntelControllerIntegrationTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.name").value("新竞企"))
                 .andExpect(jsonPath("$.msg").value("Competitor upserted successfully"));
+
+        assertThat(competitorRepository.count()).isEqualTo(before + 1);
+        assertThat(competitorRepository.findByName("新竞企"))
+                .hasValueSatisfying(saved -> assertThat(saved.getName()).isEqualTo("新竞企"));
     }
 
     @Test

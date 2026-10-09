@@ -27,3 +27,10 @@ Java21 / Spring Boot3.2 / JPA / MySQL8 / JUnit5 / ArchUnit / JaCoCo。后端分�
 
 ## 工作流兼容记录
 配置branch_numbering已弃用，应使用feature_numbering，本任务不修改工具配置。before_specify Git扩展脚本缺失，使用现有核心create-new-feature.sh建立074规格；核心脚本未支持GIT_BRANCH_NAME，立即返回已授权独立任务分支并用feature.json关联规格。可选commit hooks延至验证后提交。origin/main新增PR2809落地提交，实施前fast-forward到最新main，保持独立分支。
+
+
+## 交付阻塞闭合（用户于2026-10-09授权）
+
+合并最新主线86772ed，保留其§420知识记录，案例回填改为§421。通过cherry-pick -x dd39315e复用四个现有测试契约修订，知识记录改为§422并更新Wiki引用。保留生产401、competitor.create及403拒绝策略，不更改生产SQL。测试原提交与恢复后的四文件字节一致。先验证四类HTTP契约与回填/架构，再跑整仓全量与JaCoCo，独立审查及PR门禁对应最终候选。
+
+成功竞品创建的HTTP断言补充实际数据库记录数增加及保存名称检查，以捕获“返回成功但未写入”的回归；在原提交恢复后追加，保留cherry-pick来源。

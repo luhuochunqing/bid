@@ -1,6 +1,6 @@
 # 案例来源回填架构修复任务
 
-- 状态：设计已批准，实施与完整验证已完成，独立源码审查通过；整仓基线5个断言失败使交付结论为ESCALATE；Spec Kit 规格位于 specs/074-case-provenance-architecture。
+- 状态：设计已批准，实施与完整验证已完成，独立源码审查通过；用户已授权关闭交付阻塞，测试契约修订已通过cherry-pick复用，最终验证进行中；Spec Kit 规格位于 specs/074-case-provenance-architecture。
 - 分支：`agent/gemini/case-provenance-architecture`
 - 基线：`501b5e16007165ef583592bec6f6e9aebbbfc7e3`
 - 来源：PR #2809 的后端全量验证；用户于 2026-10-08 决定另开任务，保持评分提示 PR 范围。
@@ -49,3 +49,6 @@ mvn -f backend/pom.xml test -Dtest=BidCaseSliceArchitectureTest
 4. 架构规则保持不变，回填和命令行测试必须通过。最终串行执行后端全量测试，启用JaCoCo并生成可读取报告，再独立复审。
 
 本次基线复现：`mvn -f backend/pom.xml test -Dtest='BidCaseSliceArchitectureTest,CaseProvenanceBackfillAppServiceTest,CaseProvenanceBackfillCommandLineRunnerTest'`；退出码1，20项、1失败、0错误、0跳过。日志 `/tmp/case-provenance-architecture-baseline.log`。已完成端口与适配器实现。
+
+
+2026-10-09阻塞闭合：主线合并提交e506b1e66保留双方知识；测试恢复提交fced375dd来自dd39315e（四个测试文件逐字节一致），知识编号调整为420/421/422。生产权限与SQL无变化。

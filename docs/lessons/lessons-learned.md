@@ -7181,4 +7181,6 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 
 - **全量环境闭合**：真实 MySQL 集成测试基类本地要求 `127.0.0.1:13306/xiyu_bid_verify`；使用任务独立容器，不连接开发库。评分 DOCX 回放显式设置 `SIDECAR_PYTHON` 为经过 `import docx,lxml,fitz` 验证的现有解释器，无需启动 Sidecar 服务。
 
-- **验证边界**：上述契约与环境修复后的受影响子集运行 `mvn test`，238 项中 234 通过、4 跳过，0 failures/0 errors，JaCoCo 保持启用并成功生成报告。整仓全量仍发现独立的 `BidCaseSliceArchitectureTest` 违规（案例回填应用服务直接依赖 infrastructure），不得把子集成功写成整仓可合并。
+- **验证边界**：2026-10-08 的契约与环境修复后的受影响子集运行 `mvn test`，238 项中 234 通过、4 跳过，0 failures/0 errors，JaCoCo 保持启用并成功生成报告。当时整仓全量发现独立的 `BidCaseSliceArchitectureTest` 违规（案例回填应用服务直接依赖 infrastructure），不得把子集成功写成整仓可合并。
+
+- **后续闭合**：2026-10-09 独立任务已通过端口与适配器修复该架构违规（§421），并按用户授权cherry-pick复用上述测试修订。最终候选的受影响集合、完整测试与覆盖率记录见 `specs/074-case-provenance-architecture/quickstart.md`，以该候选的新验证结果为准。
