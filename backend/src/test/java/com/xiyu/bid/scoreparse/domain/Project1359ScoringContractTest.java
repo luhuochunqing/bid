@@ -62,6 +62,39 @@ public class Project1359ScoringContractTest {
         assertThat(context.subtotals().get("t-test").value()).isEqualByComparingTo("100");
     }
 
+    @Test void singleItemMaximumMixedWithTotalDescriptionDoesNotHijackSubtotalColumn() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计", "本表单项满分10分，共10项，合计100分", ""));
+        // 应该识别整表满分100分，或者若无法确认则保持未决，绝对不能误识别单项满分10分
+        if (!context.subtotals().isEmpty()) {
+            assertThat(context.subtotals().get("t-test").value()).isEqualByComparingTo("100");
+        }
+    }
+
+    @Test void conflictingDeclarationsInSameCellRemainUnresolved() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计", "满分100分，总分90分", ""));
+        assertThat(context.subtotals()).isEmpty();
+        assertThat(context.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
+    }
+
+    @Test void explicitMaximumHeaderTakesPrecedenceOverOtherNumericColumns() {
+        var context = context(List.of("序号", "评分因素", "其他数值", "最高分"),
+                List.of("合计", "说明", "50", "100"));
+        assertThat(context.problems()).isEmpty();
+        assertThat(context.subtotals().get("t-test").value()).isEqualByComparingTo("100");
+    }
+
+    @Test void multipleUnidentifiedNumbersRemainUnresolved() {
+        var context = context(List.of("序号", "评分因素", "数值A", "数值B"),
+                List.of("合计", "说明", "50", "100"));
+        assertThat(context.subtotals()).isEmpty();
+        assertThat(context.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
+    }
+
+
     @Test void precedingBannerDoesNotHijackRealScoreHeader() {
         var table = table("t-test", "本项目评分办法 / 技术评审细则",
                 List.of(List.of("满分", "", "", ""), List.of("序号", "评审项目", "评审内容", "分值"),

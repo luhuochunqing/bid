@@ -1,5 +1,5 @@
 // Input: ACTIVE 案例实体 / 来源字段批量更新命令
-// Output: 回填候选快照 / 按项目原子持久化的五字段
+// Output: 回填候选快照 / 按项目原子持久化的五字段（条件更新保护 ACTIVE 状态与并发隔离）
 // Pos: casework 持久化适配器；不承载章节定位与清空判断
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.casework.infrastructure;
@@ -34,22 +34,17 @@ public class CaseProvenanceBackfillAdapter implements CaseProvenanceBackfillPort
         if (updates.isEmpty()) {
             return;
         }
-        Map<Long, KnowledgeCase> cases = new LinkedHashMap<>();
-        repository.findAllById(updates.stream().map(Update::id).toList())
-                .forEach(kase -> cases.put(kase.getId(), kase));
         for (Update update : updates) {
-            if (!cases.containsKey(update.id())) {
-                throw new IllegalStateException("回填案例已不存在: " + update.id());
+            int updated = repository.updateProvenanceIfActive(
+                    update.id(),
+                    update.sourceSectionTitle(),
+                    update.sourceSectionPath(),
+                    update.sourceSectionIndex(),
+                    update.sourceDocumentName(),
+                    update.sourcePageNumber());
+            if (updated != 1) {
+                throw new IllegalStateException("回填案例已不存在或非ACTIVE状态: " + update.id());
             }
         }
-        for (Update update : updates) {
-            KnowledgeCase kase = cases.get(update.id());
-            kase.setSourceSectionTitle(update.sourceSectionTitle());
-            kase.setSourceSectionPath(update.sourceSectionPath());
-            kase.setSourceSectionIndex(update.sourceSectionIndex());
-            kase.setSourceDocumentName(update.sourceDocumentName());
-            kase.setSourcePageNumber(update.sourcePageNumber());
-        }
-        repository.saveAll(cases.values());
     }
 }

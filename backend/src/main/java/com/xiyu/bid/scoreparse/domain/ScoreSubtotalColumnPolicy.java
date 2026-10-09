@@ -10,11 +10,11 @@ import java.util.stream.Collectors;
 /** Selects the source maximum column; never treats the largest number as column evidence. */
 public final class ScoreSubtotalColumnPolicy {
     static final Pattern NUMBER = Pattern.compile("^\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
-    static final Pattern EXPLICIT_TOTAL = Pattern.compile("(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
+    static final Pattern EXPLICIT_TOTAL = Pattern.compile("(?<!(?:单项|每项|每条|每处|每篇|每个|本项|此项))(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern MAXIMUM = Pattern.compile("^(?:最高分(?:值|数)?|最高得分|满分)(?:[（(]分[）)])?$");
     private static final Pattern SCORE = Pattern.compile("^(?:分值|分数|得分|评分分值)(?:[（(]分[）)])?$");
     private static final Pattern EXPLICIT_SUMMARY_MAXIMUM = Pattern.compile(
-            "满分\\s*[：:（(为]?\\s*\\d+(?:\\.\\d+)?\\s*分");
+            "(?<!(?:单项|每项|每条|每处|每篇|每个|本项|此项))满分\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private ScoreSubtotalColumnPolicy() {}
 
     public record Selection(int column, boolean unresolved) {
@@ -41,7 +41,12 @@ public final class ScoreSubtotalColumnPolicy {
         Set<Integer> explicitMaximum = valueColumns(summary, EXPLICIT_SUMMARY_MAXIMUM);
         Set<Integer> explicitTotals = valueColumns(summary, EXPLICIT_TOTAL);
         if (explicitMaximum.size() == 1 && explicitTotals.equals(explicitMaximum)) {
-            return explicitMaximum.iterator().next();
+            int candidateCol = explicitMaximum.iterator().next();
+            // 检查该列（或同一单元格）是否包含相互冲突的显式总分/满分声明
+            if (hasConflictingTotals(summary, candidateCol)) {
+                return -1;
+            }
+            return candidateCol;
         }
         // Legacy tables without a detected header may carry one unambiguous summary value.
         // A detected but unknown header is not score-column evidence.
@@ -50,6 +55,19 @@ public final class ScoreSubtotalColumnPolicy {
                         && hasValue(c.rawText()))
                 .map(CanonicalCellDto::column).collect(Collectors.toSet());
         return only(numeric);
+    }
+
+    private static boolean hasConflictingTotals(List<CanonicalCellDto> summary, int column) {
+        Set<String> distinctValues = new java.util.HashSet<>();
+        for (var cell : summary) {
+            if (cell.column() != null && cell.column() == column && cell.rawText() != null) {
+                var matcher = EXPLICIT_TOTAL.matcher(cell.rawText());
+                while (matcher.find()) {
+                    distinctValues.add(new java.math.BigDecimal(matcher.group(1)).stripTrailingZeros().toPlainString());
+                }
+            }
+        }
+        return distinctValues.size() > 1;
     }
 
     private static Set<Integer> columns(List<CanonicalCellDto> headers, Pattern pattern) {
@@ -68,4 +86,5 @@ public final class ScoreSubtotalColumnPolicy {
 
     private static int only(Set<Integer> columns) { return columns.size() == 1 ? columns.iterator().next() : -1; }
     private static String normalize(String text) { return text == null ? "" : text.replaceAll("[\\s*]+", ""); }
+
 }
