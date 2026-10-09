@@ -155,6 +155,56 @@ describe('ScoreParseTable.vue', () => {
     expect(firstRowCells[4].text()).toContain('满足')
     expect(firstRowCells[6].text()).toBe('29')
   })
+
+  it('rounds floating-point objective and subjective weights to integers and ensures sum is 100 when totalWeight is 100', () => {
+    const wrapper = mount(ScoreParseTable, {
+      props: {
+        items: mockItems,
+        mode: 'est',
+        totalWeight: 100,
+        objectiveWeight: 43.4,
+        subjectiveWeight: 56.6,
+      },
+    })
+    expect(wrapper.find('.obj-text').text()).toBe('客观项权重 43')
+    expect(wrapper.find('.subj-text').text()).toBe('主观项权重 57')
+  })
+
+  it('handles half rounding so objective and subjective weights sum strictly to 100', () => {
+    const wrapper = mount(ScoreParseTable, {
+      props: {
+        items: mockItems,
+        mode: 'est',
+        totalWeight: 100,
+        objectiveWeight: 43.5,
+        subjectiveWeight: 56.5,
+      },
+    })
+    expect(wrapper.find('.obj-text').text()).toBe('客观项权重 44')
+    expect(wrapper.find('.subj-text').text()).toBe('主观项权重 56')
+  })
+
+  it('applies is-text class to highlight-score-box when score is string text and removes it when score is number', () => {
+    const textWrapper = mount(ScoreParseTable, {
+      props: {
+        items: [{ id: 1, scoreType: '主观项', weight: 100 }],
+        mode: 'est',
+      },
+    })
+    const textBox = textWrapper.find('.highlight-score-box')
+    expect(textBox.text()).toBe('待确认')
+    expect(textBox.classes()).toContain('is-text')
+
+    const numWrapper = mount(ScoreParseTable, {
+      props: {
+        items: [{ id: 1, scoreType: '客观项', weight: 100, estScore: 88 }],
+        mode: 'est',
+      },
+    })
+    const numBox = numWrapper.find('.highlight-score-box')
+    expect(numBox.text()).toBe('88')
+    expect(numBox.classes()).not.toContain('is-text')
+  })
 })
 
 describe('same-source totals and historical scores', () => {
