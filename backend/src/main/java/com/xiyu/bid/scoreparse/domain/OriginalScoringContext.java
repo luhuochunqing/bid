@@ -94,8 +94,9 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                     Matcher explicit = TOTAL.matcher(raw);
                     while (explicit.find()) {
                         if (summary && cell.column() != null && cell.column() > 0 && cell.column() != selection.column()) continue;
-                        String prefix = raw.substring(0, explicit.start());
-                        if (OriginalScoringSchemePolicy.categoryTitle(prefix) || detailRow) continue;
+                        // 单项提及非总量声明（同列选择文法），混合分句真总量独立成证。
+                        if (ScoreSubtotalColumnPolicy.isSingleItemMention(raw, explicit.start())) continue;
+                        if (OriginalScoringSchemePolicy.categoryTitle(raw.substring(0, explicit.start())) || detailRow) continue;
                         BigDecimal value = new BigDecimal(explicit.group(1));
                         if (summary && (detail || OriginalScoringSchemePolicy.category(table.sourceSection()))
                                 && !raw.contains("本项目") && !raw.contains("本标包")) {
@@ -176,8 +177,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 headings.add(new Heading(i, level, title.group(1).trim()));
                 continue;
             }
-            List<OriginalScoringTextScopePolicy.Heading> sourceHeadings =
-                    OriginalScoringTextScopePolicy.headings(new String[]{line});
+            List<OriginalScoringTextScopePolicy.Heading> sourceHeadings = OriginalScoringTextScopePolicy.headings(new String[]{line});
             if (!sourceHeadings.isEmpty()) {
                 var heading = sourceHeadings.get(0);
                 while (!headings.isEmpty() && headings.get(headings.size() - 1).level() >= heading.level())

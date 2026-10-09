@@ -119,6 +119,52 @@ public class Project1359ScoringContractTest {
         assertThat(context.total().value()).isEqualByComparingTo("100");
     }
 
+    @Test void mixedPerItemAndTableTotalResolvesTableTotalWithoutHijack() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计", "每项 满分10分，满分100分", ""));
+        // 同格出现单项句与真总量句：干净的满分 100 独立成证，决议 100；单项 10 不得进入任何位置
+        assertThat(context.problems()).isEmpty();
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+        assertThat(context.subtotals().values()).allSatisfy(
+                subtotal -> assertThat(subtotal.value()).isNotEqualByComparingTo("10"));
+    }
+
+    @Test void mixedPerItemAndZongfenTotalStaysUnresolved() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计", "每项 满分10分，总分100分", ""));
+        // 边界：总分声明不能确定小计列（既有契约），保持未决；整表总量仍由正文总分决议为 100
+        assertThat(context.subtotals()).isEmpty();
+        assertThat(context.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+    }
+
+    @Test void headerlessPerItemMaximumRemainsUnresolved() {
+        var table = table("t-hl", "商务评审细则", List.of(List.of("合计", "每一项满分10分")));
+        var summary = List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-hl-r0-c0", 0, 0, "合计", "合计", 1, 1, false,
+                        "fixture:t-hl"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-hl-r0-c1", 0, 1, "每一项满分10分",
+                        "每一项满分10分", 1, 1, false, "fixture:t-hl"));
+        // 无表头 legacy 路径同样适用单项语义：单项 10 不得成为小计证据
+        var selection = ScoreSubtotalColumnPolicy.select(table, 0, summary);
+        assertThat(selection.unresolved()).isTrue();
+        assertThat(selection.problem("t-hl").code()).isEqualTo("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
+    }
+
+    @Test void headerlessExplicitMaximumStillResolves() {
+        var table = table("t-hl", "商务评审细则", List.of(List.of("合计", "满分（100分）")));
+        var summary = List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-hl-r0-c0", 0, 0, "合计", "合计", 1, 1, false,
+                        "fixture:t-hl"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-hl-r0-c1", 0, 1, "满分（100分）", "满分（100分）",
+                        1, 1, false, "fixture:t-hl"));
+        // 对照：干净的整表满分声明在 legacy 路径仍可决议（防过度抑制）
+        var selection = ScoreSubtotalColumnPolicy.select(table, 0, summary);
+        assertThat(selection.unresolved()).isFalse();
+        assertThat(selection.column()).isEqualTo(1);
+    }
+
     @Test void conflictingDeclarationsInSameCellRemainUnresolved() {
         var context = context(List.of("序号", "评分因素", "评分标准"),
                 List.of("合计", "满分100分，总分90分", ""));

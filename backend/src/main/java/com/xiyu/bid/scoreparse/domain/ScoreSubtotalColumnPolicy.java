@@ -57,11 +57,18 @@ public final class ScoreSubtotalColumnPolicy {
         }
         // Legacy tables without a detected header may carry one unambiguous summary value.
         // A detected but unknown header is not score-column evidence.
+        // Per-item mentions cannot be legacy evidence either (same grammar as the main path).
         if (!headers.isEmpty()) return -1;
         Set<Integer> numeric = summary.stream().filter(c -> c.column() != null && c.column() > 0
-                        && hasValue(c.rawText()))
+                        && hasLegacyValue(c.rawText()))
                 .map(CanonicalCellDto::column).collect(Collectors.toSet());
         return only(numeric);
+    }
+
+    private static boolean hasLegacyValue(String text) {
+        if (text == null) return false;
+        if (NUMBER.matcher(text).matches()) return true;
+        return EXPLICIT_TOTAL.matcher(text).find() && hasTableTotalEvidence(text, EXPLICIT_TOTAL);
     }
 
     private static boolean hasConflictingTotals(List<CanonicalCellDto> summary, int column) {
@@ -97,9 +104,10 @@ public final class ScoreSubtotalColumnPolicy {
      * 同一单元格内至少存在一个 满分/总分 匹配、且该匹配所在分句（按 ，。；; 与换行划分）
      * 左侧没有单项量词/主体时，才算整表满分声明。"本表单项 满分10分"、"每项最高满分10分"、
      * "每一项满分10分"等单项分值说明一律不算；紧邻排除由正则后行断言承担，本规则覆盖
-     * 空格/助词隔开的情形。取舍声明：分句内出现单项句与真总量句并存时（如"单项满分10分，
-     * 总分100分"），真总量句独立成证，按其值决议——这是显式声明而非猜测；无法确定时
-     * 调用方保持未决。hasConflictingTotals 复用同一文法，不存在双重标准。
+     * 空格/助词隔开的情形。取舍声明：列识别仍沿用既有契约（只有满分声明能确定小计列，
+     * 总分声明不能）——"每项 满分10分，满分100分"中干净的满分100分独立成证、决议 100；
+     * "每项 满分10分，总分100分"因缺乏满分列证据保持未决（fail-closed，不猜测），
+     * 其整表总量仍由正文总分正常决议。hasConflictingTotals 复用同一文法，不存在双重标准。
      */
     private static boolean hasTableTotalEvidence(String rawText, Pattern pattern) {
         var matcher = pattern.matcher(rawText);
@@ -111,8 +119,9 @@ public final class ScoreSubtotalColumnPolicy {
         return false;
     }
 
-    /** 匹配点所在分句的左侧是否出现单项量词/主体（分句按 ，。；; 与换行划分；顿号不断句，取保守方向）。 */
-    private static boolean isSingleItemMention(String rawText, int matchStart) {
+    /** 匹配点所在分句的左侧是否出现单项量词/主体（分句按 ，。；; 与换行划分；顿号不断句，取保守方向）。
+     * 包可见：OriginalScoringContext 的 totals/recordSubtotal 循环复用同一文法，杜绝双重标准。 */
+    static boolean isSingleItemMention(String rawText, int matchStart) {
         int clauseStart = 0;
         for (int i = matchStart - 1; i >= 0; i--) {
             char ch = rawText.charAt(i);
