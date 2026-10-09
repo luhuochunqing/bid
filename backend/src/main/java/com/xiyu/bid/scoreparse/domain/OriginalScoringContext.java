@@ -202,13 +202,13 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             String normalizedLine = normalizeTextLine(line);
             Matcher matcher = TOTAL.matcher(normalizedLine);
             while (matcher.find()) {
+                // 单项分值提及不是整表总量（同表格路径文法，复用 ScoreSubtotalColumnPolicy）
+                if (ScoreSubtotalColumnPolicy.isSingleItemMention(normalizedLine, matcher.start())) continue;
                 if (OriginalScoringSchemePolicy.categoryTitle(normalizedLine.substring(0, matcher.start()))) continue;
                 boolean scoped = normalizedLine.contains("总分") && (OriginalScoringSchemePolicy.isSchemeTitle(normalizedLine)
                         || normalizedLine.contains("本项目") || normalizedLine.contains("本标包")
-                        || normalizedLine.stripLeading().startsWith("评分总分")
-                        || inScheme)
-                        || normalizedLine.stripLeading().matches("^(?:总分|满分).*分.*")
-                        && inScheme;
+                        || normalizedLine.stripLeading().startsWith("评分总分") || inScheme)
+                        || normalizedLine.stripLeading().matches("^(?:总分|满分).*分.*") && inScheme;
                 if (scoped) totals.add(new Evidence(new BigDecimal(matcher.group(1)), "TENDER_TEXT",
                         headings.isEmpty() ? scheme : headings.get(headings.size() - 1).title(),
                         "text:line[" + i + "]", line));
@@ -224,10 +224,11 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 for (int end = Math.min(sourceLines.length, i + 3); end > i; end--) {
                     String normalized = normalizeTextLine(String.join(" ", java.util.Arrays.copyOfRange(sourceLines, i, end)));
                     Matcher m = DOCUMENT_TOTAL.matcher(normalized);
-                    if (m.find()) {
-                        String quote = String.join("\n", java.util.Arrays.copyOfRange(sourceLines, i, end));
+                    while (m.find()) {
+                        // 兜底同样执行单项语义（与主解析同一文法）；查整段匹配 span，防句式绕过
+                        if (ScoreSubtotalColumnPolicy.matchesSingleItemClause(normalized, m.start(), m.end())) continue;
                         totals.add(new Evidence(new BigDecimal(m.group(1)), "TENDER_TEXT", scheme,
-                                "text:line[" + i + "]", quote));
+                                "text:line[" + i + "]", String.join("\n", java.util.Arrays.copyOfRange(sourceLines, i, end))));
                         break;
                     }
                 }
@@ -290,9 +291,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
     public record SchemeEvidence(String schemeId, String title, List<String> tableIds, String layoutStatus,
                                  String totalEvidenceStatus, BigDecimal declaredTotal, String totalQuote,
                                  String totalLocator) {
-        public SchemeEvidence {
-            tableIds = tableIds == null ? List.of() : List.copyOf(tableIds);
-        }
+        public SchemeEvidence { tableIds = tableIds == null ? List.of() : List.copyOf(tableIds); }
     }
     public record Subtotal(BigDecimal value, String locator, String quote) {
         public Subtotal(BigDecimal value, String locator) { this(value, locator, ""); }

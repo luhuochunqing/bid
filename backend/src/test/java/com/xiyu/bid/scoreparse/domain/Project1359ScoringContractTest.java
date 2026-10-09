@@ -152,6 +152,32 @@ public class Project1359ScoringContractTest {
         assertThat(selection.problem("t-hl").code()).isEqualTo("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
     }
 
+    @Test void perItemMaximumInProseDoesNotConflictWithTableTotal() {
+        var table = table("t-test", "本项目评分办法 / 技术评审细则",
+                List.of(List.of("序号", "评分因素", "评分标准"),
+                        List.of("合计", "满分100分", "")));
+        var context = OriginalScoringContext.resolve(artifact(List.of(table)), "# 本项目评分办法\n每项 满分10分，总分100分");
+        // 正文单项句不是整表总量：不得与表格满分 100 冲突；总分仍识别 100
+        assertThat(context.problems())
+                .noneMatch(p -> p.code().equals("ORIGINAL_TOTAL_CONFLICT") || p.code().equals("TABLE_SUBTOTAL_CONFLICT"));
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+    }
+
+    @Test void documentTotalFallbackIgnoresPerItemStatement() {
+        // 无表格、无正文规则可命中时，DOCUMENT_TOTAL 兜底也不得把"每项总分10分"当作项目总分
+        var context = OriginalScoringContext.resolve(artifact(List.of()), "# 本项目评分办法\n本项目每项总分10分\n");
+        assertThat(context.total().value()).isNull();
+        assertThat(context.problems()).noneMatch(p -> p.code().equals("ORIGINAL_TOTAL_CONFLICT"));
+    }
+
+    @Test void explicitMaximumHeaderWithPerItemSummaryStaysUnresolved() {
+        var context = context(List.of("评审项目", "评审内容", "最高分"),
+                List.of("合计", "", "每项 满分10分"));
+        // 明确最高分列下，合计格只有单项说明：不得被判为已验证，须保持未决
+        assertThat(context.subtotals()).isEmpty();
+        assertThat(context.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
+                .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
+    }
     @Test void headerlessExplicitMaximumStillResolves() {
         var table = table("t-hl", "商务评审细则", List.of(List.of("合计", "满分（100分）")));
         var summary = List.of(
