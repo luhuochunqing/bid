@@ -690,3 +690,9 @@ trigger（同步<1s，互斥校验+建任务）
 ## 30. 可选提取版本功能关闭时的页面兼容（2026-10-08）
 
 最新提取快照读取返回 409 `EXTRACTION_FEATURE_DISABLED` 时，评分抽屉继续读取原有评分项与结果，无需启用提取版本功能。`src/api/modules/scoreParse.js` 的 `getLatestExtraction` 使用 `skipGlobalErrorMessage: true`，防止 HTTP 拦截器在页面捕获前弹错；真实读取错误仍由 `useScoreExtraction.js` / 评分抽屉显示。此配置只作用于最新快照读取，不影响激活写入。根因与回归证据见 `docs/lessons/lessons-learned.md` §419。
+
+
+评分页面兼容改动的交付验证还需检查后端安全测试是否跟随当前契约：匿名请求断言 401 JSON，竞品创建成功身份显式携带 `competitor.create`。同一 worktree 的后端测试串行运行，损坏的 JaCoCo 构建产物通过干净构建重建；诊断时关闭覆盖率不算报告通过。详见 `docs/lessons/lessons-learned.md` §423。
+
+
+评分小计列应先依明确最高/满分表头定位；合法表格若把单项分值内嵌于“评分因素”列，且合计行只在该列给出唯一明确满分，可依该来源声明验证。存在多个显式总分或只有无标签数值时，继续保留复核状态。回归契约与测试证据见 `docs/lessons/lessons-learned.md` §424。

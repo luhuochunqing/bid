@@ -7198,3 +7198,33 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - backend/src/test/java/com/xiyu/bid/scoreparse/domain/Project1359ScoringContractTest.java
 - backend/src/test/resources/scoreparse-golden/case-1359-maximum-column.expected.json
 - specs/074-fix-1359-score-contract/acceptance.md
+
+---
+
+## 422. 案例来源回填必须通过专用端口隔离持久化（2026-10-09）
+
+- **根因**：`CaseProvenanceBackfillAppService` 直接使用本模块JPA实体与仓库，导致应用层依赖infrastructure，原ArchUnit规则发现32处违规。
+- **处理**：专用`CaseProvenanceBackfillPort`传递不可变候选与五字段更新，适配器严格查询ACTIVE并按项目独立事务保存。现有通用查询把空状态视作ACTIVE，不能直接复用以免扩大回填范围。
+- **防回归**：保留业务定位/清空/标书不可用跳过与统计；真实MySQL验证五字段映射、不覆盖其他业务字段、缺失案例拒绝和数据库错误整批回滚。架构规则保持不变，不通过迁移业务判断或新增豁免隐藏违规。
+
+## 423. 安全契约更新后的集成测试身份漂移与共享覆盖率产物损坏（2026-10-08）
+
+- **未登录契约**：`SecurityConfig` 的 authentication entry point 明确返回 401 JSON，以触发前端登录刷新。`FormDefinitionIntegrationTest`、`TenderPermissionIntegrationTest` 与 `CaCommitmentLetterUploadIntegrationTest` 的匿名 403 断言已经过时，应断言 401、JSON 类型、`success=false` 与 `code=401`，不能回退生产 entry point。
+- **角色不等于权限**：`CompetitionIntelController.upsertCompetitor` 已要求 `RoleProfileCatalog.COMPETITOR_CREATE_PERMISSION`。成功与参数校验用例须提供该 authority；只有 `ROLE_ADMIN` 或 `ROLE_USER` 的身份必须仍返回 403，且竞品库记录数不增加。不能放宽生产权限让旧测试变绿。
+- **测试数据库方言**：权限补齐后真实 upsert 使用 MySQL `ON DUPLICATE KEY UPDATE`，默认 H2 模式会返回 SQL 语法错误。仅在竞争情报集成测试的数据源 URL 启用 `MODE=MySQL`，保留真实 repository/service，不修改生产 SQL，也不把参数校验用例的 400 当作授权成功证据。
+- **JaCoCo 执行纪律**：同一 worktree 的 Maven 运行共享 `target/jacoco.exec`，并发写入或强行中断后不可把 `Unknown block type` 视为业务测试失败。先归档日志，再从 `mvn clean test` 的干净输出串行复跑，并确认 `jacoco:report` 成功生成报告。`jacoco.skip=true` 只能分离诊断，不能代替覆盖率报告修复证据。
+
+- **全量环境闭合**：真实 MySQL 集成测试基类本地要求 `127.0.0.1:13306/xiyu_bid_verify`；使用任务独立容器，不连接开发库。评分 DOCX 回放显式设置 `SIDECAR_PYTHON` 为经过 `import docx,lxml,fitz` 验证的现有解释器，无需启动 Sidecar 服务。
+
+- **验证边界**：2026-10-08 的契约与环境修复后的受影响子集运行 `mvn test`，238 项中 234 通过、4 跳过，0 failures/0 errors，JaCoCo 保持启用并成功生成报告。当时整仓全量发现独立的 `BidCaseSliceArchitectureTest` 违规（案例回填应用服务直接依赖 infrastructure），不得把子集成功写成整仓可合并。
+
+- **后续闭合**：2026-10-09 独立任务已通过端口与适配器修复该架构违规（§422），并按用户授权cherry-pick复用上述测试修订。最终候选的受影响集合、完整测试与覆盖率记录见 `specs/074-case-provenance-architecture/quickstart.md`，以该候选的新验证结果为准。
+
+
+---
+
+## 424. 小计列回退须使用唯一来源声明，不能拒绝嵌入分值的评分因素列（2026-10-09）
+
+评分表头“序号/评分因素/评分标准”可在评分因素单元格写“公司实力（6分）”，但列头不一定出现独立“最高分”词。若合计行同列给出唯一明确“满分（100分）”，它是可追踪的来源列证据，不应仅因表头名称未知而降级人工复核。
+
+修复选择次序：显式最高/满分列标题始终优先；缺少此类标题时只采信合计行唯一的明确满分声明，且其列必须是唯一显式总分所在列。出现互相冲突的显式总分或多列数字不猜列；单纯数值、最大数字均不能构成来源证据。保留项目1359最高/最低分列反例和正式发布保护。新增合成Golden回放锁定未知表头+唯一满分列布局，避免scoreparse主代码门禁只看到单测；回放必须登记`GoldenCasesReplayTest#cases()`，且新案应逐字校验评分细则、权重总和与既有门禁报告。

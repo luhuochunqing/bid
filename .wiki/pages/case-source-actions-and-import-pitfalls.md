@@ -4,9 +4,11 @@ space: engineering
 category: guide
 tags: [案例库, knowledge_case, 源项目, 标书原文, blob下载, 枚举混用, 章节溯源, 伪标题, 打平文本, 章节号契约]
 created: 2026-08-31
-updated: 2026-09-21
-health_checked: 2026-09-18
+updated: 2026-10-09
+health_checked: 2026-10-09
 sources:
+  - backend/src/main/java/com/xiyu/bid/casework/application/port/CaseProvenanceBackfillPort.java
+  - backend/src/main/java/com/xiyu/bid/casework/infrastructure/CaseProvenanceBackfillAdapter.java
   - src/views/Knowledge/views/useBidCaseSourceActions.js
   - src/views/Knowledge/views/CaseGrid.vue
   - src/views/Project/stages/components/AiRecommendDrawer.vue
@@ -168,3 +170,8 @@ backlinks:
 - `CaseDetailDialog.spec.js`：36 用例（含「暂无来源标题」渲染分支、字母列表标记来源、评分项标题不兜底、responseText 启发式不再推断）
 - `SentenceLikeTitleContractTest` + `ChapterTitleContractTest`（夹具 31 例）+ `MarkdownSourceSectionIndexTest`：两份契约夹具逐例同判、伪 `## 正文句子` 归入真实章节、无编号标题、字母列表标记与"只有编号没有标题文字"的标题均不给来源
 - `CaseProvenanceBackfillAppServiceTest` + `CaseProvenanceBackfillCommandLineRunnerTest`：写回/清空/幂等/装载失败/无编号不写回 + 标题空而路径残留的整体清空 + 五字段全空不写库 + 旗标门控
+
+
+## 回填持久化边界（2026-10-09）
+
+`CaseProvenanceBackfillAppService` 通过 `CaseProvenanceBackfillPort` 读取不可变候选并发出五字段更新；`CaseProvenanceBackfillAdapter` 严格查询ACTIVE，按项目独立事务批量保存。通用案例查询包含空状态，不能替代回填筛选契约。缺失案例或保存失败整批回滚；适配器只修改来源五字段，章节定位与不可用标书跳过仍由应用编排负责。原架构测试不增加豁免。

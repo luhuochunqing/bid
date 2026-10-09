@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-09-27
+updated: 2026-10-09
 health_checked: 2026-09-27
 sources:
   - docs/specs/WIKI.md
@@ -49,7 +49,7 @@ backlinks:
 - [[business-process]] — 业务流程
 - [[case-library-prd-refine]] — 案例库按 PRD 精简重构（筛选区三字段 / 排序固定 / 详情返回招标主体）
 - [[case-precipitation-streaming]] — 案例沉淀超大标书完整链路（spec 049：流式 + 摘录化 + 三个验收坑）
-- [[case-source-actions-and-import-pitfalls]] — 案例详情"查看源项目 / 标书原文"操作契约与导入数据陷阱
+- [[case-source-actions-and-import-pitfalls]] — 案例详情源项目/标书原文操作、导入陷阱与回填持久化边界
 - [[competitor-library-governance]] — 竞品公司自定义输入与竞争对手库治理
 - [[configuration-binding-silent-failure]] — 配置绑定静默失配 - isBound 探针与被动识别回归测试
 - [[crm-integration-lessons]] — CRM 集成踩坑集

@@ -1,0 +1,42 @@
+# 实施计划：案例来源回填架构修复
+
+日期2026-10-09；分支agent/gemini/case-provenance-architecture；规格[spec.md](spec.md)。设计已获用户批准。
+
+## Summary
+新增专用应用端口和持久化适配器；应用服务只依赖不可变候选与来源更新。现有Markdown章节纯核心、装载编排和统计不变。
+
+## Technical Context
+Java21 / Spring Boot3.2 / JPA / MySQL8 / JUnit5 / ArchUnit / JaCoCo。后端分层修复，无API、UI、迁移。严格ACTIVE查询；每项目一次批量读取与保存，避免逐案例查库。
+
+## Constitution Check
+不可变record满足FP-Java；框架与实体只在副作用适配器；不修改纯核心定位算法；原架构失败为RED；新持久化测试真实数据库，无生产Mock；方法级REQUIRES_NEW事务按项目隔离；无两参数toMap；文件不超过300行。设计前后检查均满足，无豁免。
+
+## Project Structure
+- backend/src/main/java/com/xiyu/bid/casework/application/port/CaseProvenanceBackfillPort.java
+- backend/src/main/java/com/xiyu/bid/casework/infrastructure/CaseProvenanceBackfillAdapter.java
+- backend/src/main/java/com/xiyu/bid/casework/application/service/CaseProvenanceBackfillAppService.java
+- backend/src/test/java/com/xiyu/bid/casework/application/service/CaseProvenanceBackfillBoundaryTest.java
+- backend/src/test/java/com/xiyu/bid/casework/application/service/CaseProvenanceBackfillAppServiceTest.java
+- backend/src/test/java/com/xiyu/bid/casework/infrastructure/CaseProvenanceBackfillAdapterMysqlTest.java
+
+## 执行顺序
+1. 保留已复现架构失败，补服务边界测试与真实数据库适配器测试。
+2. 引入端口，应用层把实体修改改为五字段更新命令；适配器事务内批量加载，先核对全部ID再映射保存。
+3. 运行全部回填/入口/装载测试、架构和真实数据库测试；原架构规则不动。
+4. 完整后端测试与覆盖率生成，区分基线其他测试问题；独立复审、文档与Wiki回填。
+
+## 工作流兼容记录
+配置branch_numbering已弃用，应使用feature_numbering，本任务不修改工具配置。before_specify Git扩展脚本缺失，使用现有核心create-new-feature.sh建立074规格；核心脚本未支持GIT_BRANCH_NAME，立即返回已授权独立任务分支并用feature.json关联规格。可选commit hooks延至验证后提交。origin/main新增PR2809落地提交，实施前fast-forward到最新main，保持独立分支。
+
+
+## 交付阻塞闭合（用户于2026-10-09授权）
+
+合并最新主线86772ed，保留其§420知识记录，案例回填改为§421。通过cherry-pick -x dd39315e复用四个现有测试契约修订，知识记录改为§422并更新Wiki引用。保留生产401、competitor.create及403拒绝策略，不更改生产SQL。测试原提交与恢复后的四文件字节一致。先验证四类HTTP契约与回填/架构，再跑整仓全量与JaCoCo，独立审查及PR门禁对应最终候选。
+
+成功竞品创建的HTTP断言补充实际数据库记录数增加及保存名称检查，以捕获“返回成功但未写入”的回归；在原提交恢复后追加，保留cherry-pick来源。
+
+主线067e74cdc再次同步：保留其评分小计§421，回填架构与测试契约顺延§422/423，并保留双方Wiki日志。新主线修改评分小计纯核心，合并候选需重新完整验证。
+
+
+## 评分小计回归修复（2026-10-09）
+当明确最高分/分值列标题可识别时仍按该列优先；无法识别且合计行只有一个同时符合“满分”及总分语法的列时，允许该直接来源证据完成列定位。其余列若含另一显式总分，则认为有歧义并维持未决；单纯数值不构成来源列证明。保持1359最低/最高分对照与发布保护不变。

@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "desensitization": "评分因素与评分细则合成改写，仅保留唯一满分声明及未知表头版式特征",
+  "focus": "未知表头下仅有唯一显式满分声明时识别小计列；避免按最大数字猜测",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": true,
+  "laneHints": ["table"],
+  "items": [
+    { "code": "1", "dim": "技术方案", "detail": "技术路线完整、实施方案可行的得60分，方案存在明显缺项的得30分。", "weight": 60, "sourceText": "技术路线完整" },
+    { "code": "2", "dim": "项目团队", "detail": "项目负责人经验丰富、团队分工明确的得40分，团队配置基本满足要求的得20分。", "weight": 40, "sourceText": "项目负责人经验丰富" }
+  ]
+}
