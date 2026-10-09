@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-09-20
-health_checked: 2026-09-20
+updated: 2026-10-09
+health_checked: 2026-10-09
 sources:
   - specs/065-tender-large-file-parse/spec.md
   - specs/041-ai-score-parse-backend/spec.md
@@ -696,3 +696,8 @@ trigger（同步<1s，互斥校验+建任务）
 
 
 评分小计列应先依明确最高/满分表头定位；合法表格若把单项分值内嵌于“评分因素”列，且合计行只在该列给出唯一明确满分，可依该来源声明验证。存在多个显式总分或只有无标签数值时，继续保留复核状态。回归契约与测试证据见 `docs/lessons/lessons-learned.md` §424。
+
+## 31. 评分小计列排除单项满分与冲突声明保持未决（2026-10-09）
+
+在缺少明确最高分/分值表头时，若合计行文本包含“单项满分10分，共10项，合计100分”，小计列匹配正则必须通过负向后行断言严格排除“单项/每项/每条/每个/本项”等修饰，严禁误将单项满分作为整表满分。若同一单元格或同一列包含多个不同数值的显式总分/满分声明（如“满分100分，总分90分”），`ScoreSubtotalColumnPolicy` 必须主动放弃并返回 `-1` 维持未决，严禁猜测采信。详见 `docs/lessons/lessons-learned.md` §425。
+
