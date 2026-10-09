@@ -222,7 +222,8 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 if (sourceScope != null && "IN_SCHEME".equals(sourceScope.scopeStatus())
                         && !sourceScope.schemeId().equals(schemeId(scheme))) continue;
                 for (int end = Math.min(sourceLines.length, i + 3); end > i && totals.isEmpty(); end--) {
-                    String normalized = normalizeTextLine(String.join(" ", java.util.Arrays.copyOfRange(sourceLines, i, end)));
+                    // 源行边界保留为分句边界：跨行窗口里上一行的量词不得毒掉下一行的干净分句
+                    String normalized = normalizeTextLine(String.join("\n", java.util.Arrays.copyOfRange(sourceLines, i, end)));
                     Matcher m = DOCUMENT_TOTAL.matcher(normalized);
                     while (m.find()) {
                         // 兜底与主解析同一文法：查「总分」关键词所在分句的左侧（本项(?!目) 放行本项目）

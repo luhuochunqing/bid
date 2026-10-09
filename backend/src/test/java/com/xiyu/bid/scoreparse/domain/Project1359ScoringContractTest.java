@@ -177,6 +177,15 @@ public class Project1359ScoringContractTest {
         assertThat(context.total().value()).isEqualByComparingTo("100");
     }
 
+    @Test void documentTotalFallbackKeepsLineBoundaryBetweenClauses() {
+        // 跨行窗口 pin：上一行的单项量词不得毒掉下一行的干净分句（行边界按分句处理）。
+        // 注：此行为在 R6 之前的实现（join 用空格）下同样成立，故非 R6 RED-GREEN 对，
+        // 而是防止后续把 join 改回空格时回归的固化用例。
+        var context = OriginalScoringContext.resolve(artifact(List.of()),
+                "前言段落。\n每项10分\n总分100分\n");
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+    }
+
     @Test void explicitMaximumHeaderWithPerItemSummaryStaysUnresolved() {
         var context = context(List.of("评审项目", "评审内容", "最高分"),
                 List.of("合计", "", "每项 满分10分"));
