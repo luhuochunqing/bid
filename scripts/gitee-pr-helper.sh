@@ -42,7 +42,7 @@
 #              重复合并返回 405（非幂等 2xx），此前仅凭状态码把已成功的合入报成
 #              失败（2026-10-09 PR !2817 实证）。state=merged → 幂等放行 exit 0；
 #              state=closed → 明确报"已关闭未合并" exit 1；其余维持原失败路径。
-#              同分支修正 merge 失败路径的响应体透传缺陷（见下方行内注释）。
+#              同分支修正 merge/create 失败路径的响应体透传缺陷（见下方行内注释）。
 set -euo pipefail
 
 GITEE_OWNER="${GITEE_OWNER:-allinai888}"
@@ -296,7 +296,9 @@ print(json.dumps({
 
   if [[ ! "$create_status" =~ ^20[01]$ ]]; then
     echo "[gitee-pr] ❌ 创建失败 (HTTP ${create_status})" >&2
-    head -c 500 "$result_file" 2>/dev/null >&2; echo >&2
+    head -c 500 "$result_file" >&2; echo >&2
+    # 既有缺陷修正：原 `2>/dev/null >&2` 顺序使 fd1 也指向 /dev/null，
+    # 失败时的 API 响应体从未真正输出。与 merge_pr 失败路径同型缺陷。
     if [[ "$create_status" == "401" || "$create_status" == "403" ]]; then
       echo "[gitee-pr] 提示: GITEE_TOKEN 无效或已过期——更新令牌后重试（写入 ~/.config/xiyu/credentials.env 或 ~/.zshenv 的 export GITEE_TOKEN='...'）" >&2
     fi
