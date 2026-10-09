@@ -58,6 +58,9 @@ public final class ScoreTableSummaryPolicy {
                 }
                 Matcher matcher = SCORE_VALUE_PATTERN.matcher(cell.rawText());
                 while (matcher.find()) {
+                    if (ScoreSubtotalColumnPolicy.isSingleItemMention(cell.rawText(), matcher.start())) {
+                        continue;
+                    }
                     BigDecimal value = parseScore(matcher.group(1));
                     if (value != null) {
                         evidence.add(new DeclaredTotalEvidence(
