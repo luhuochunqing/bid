@@ -1259,6 +1259,11 @@ Task5 第二轮审查回填：真实 DOCX 规则正文增加“各评分项目�
 
 FBR-I1：统一完整来源单元恢复，覆盖短引文/预绑定/anchor/纯文本；保留 PDF 28/12 peer 与编号材料，真实 MySQL 证明未决重解析不覆盖旧规则和评分结果。
 
+## [2026-10-08] compound | scoreparse-1359-stale-200-total-rca 测试数据库与日志只读诊断，修复尚未实施
+
+## [2026-10-08] pr-preparation | 1359源码小计列修复、lesson419及人工恢复交付边界同步；不部署。
+
+## [2026-10-09] pr-conflict-resolution | 在PR2810分支合入origin/main的更新并保留双方追加知识（Gitee PR未合并），1359原lesson419改为421，避免与main的419/420冲突；源码修复与既有保护不改。
 
 ## [2026-10-09] architecture-repair | case-source-actions-and-import-pitfalls
 

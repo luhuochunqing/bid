@@ -16,7 +16,7 @@
 - [x] T009 [US3] 更新casework目录README.md、docs/lessons/lessons-learned.md和.wiki/pages相关页；独立审查并保存源码通过、交付ESCALATE结论。
 - [x] T010 [US3] 根据2026-10-09用户授权，将dd39315e的四个测试契约修订cherry-pick到本独立任务；验证FormDefinitionIntegrationTest、CompetitionIntelControllerIntegrationTest、CaCommitmentLetterUploadIntegrationTest和TenderPermissionIntegrationTest。
 - [ ] T011 [US3] 重新执行完整测试、JaCoCo及独立复审，满足PR/push门禁。
-- [x] T012 [US3] 合并主线并保留docs/lessons/lessons-learned.md双方内容，案例回填§421、测试契约§422，引用同步。
+- [x] T012 [US3] 合并主线并保留docs/lessons/lessons-learned.md双方内容，案例回填§422、测试契约§423，引用同步。
 
 - [x] T013 [US3] 在backend/src/test/java/com/xiyu/bid/competitionintel/integration/CompetitionIntelControllerIntegrationTest.java补授权创建后的实际数据库记录数与名称断言，并纳入完整验证。
 

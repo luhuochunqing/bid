@@ -7166,13 +7166,48 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 2. **权重纯整数化与相加为 100 约束**：在 composable（`useScoreParseDrawer.js`）与组件展示层（`ScoreParseTable.vue`）应用 `Math.round` 取整；当总权重为 100 时，主观权重通过 `100 - objectiveWeight` 互补获得，保证两者皆为非负整数且和严格为 100。
 3. **避免 ESLint `no-loss-of-precision` 规则触发**：在单测用例中禁止书写超长多位浮点字面量（如 `56.599999999999996`），应使用标准浮点数（如 `56.6`）配合测试。
 
-## 421. 案例来源回填必须通过专用端口隔离持久化（2026-10-09）
+---
+
+## 421. 评分合计行必须按最高分列取证，原始分与综合贡献分开核验（项目1359，2026-10-08）
+
+### 现象
+
+1359当前生效38项总分200。真实采购原文的商务合计行为最低12/最高100，技术为最低38/最高100；task295仅返回一条总括事实，待复核保护保留旧38项。
+
+### 根因
+
+- OriginalScoringContext遍历合计行所有数字并以首个数字记录小计，将最低分12/38当成满分，与最高分100冲突。
+- 旧数据将商务100与技术100直接相加，未按商务20%、技术50%换算，也缺价格30%。此处原始分合计200属于历史输入语义，不能直接除2或篡改原始记录成100。
+- 模型输出缺完整明细时不覆盖正式结果是保护机制，不能靠放宽发布门禁让错误候选替换旧数据。
+
+### 修复与证据
+
+- ScoreSubtotalColumnPolicy按最后一层实际表头选择唯一最高分/满分列，最低列不参与；未知/空满分/冲突仍阻断。保留单明确分值列及无表头单数值的既有兼容路径，不取最大数字冒充列证据。
+- Project1359ScoringContractTest及case-1359-maximum-column真实Golden来源契约锁定商务/技术小计100；旧27个抽取Golden案F1保持100%。来源、父子去重、方案资格、待复核不覆盖正式结果代码不改。
+- 用户另行授权仅1359数据库人工恢复：逐项核对旧38规则，商务13项贡献20、技术25项贡献50、补原文价格公式30，共39项100。保留旧ID、原文、满足状态；保留task207原始200与历史摘要，追加人工审计；task295仍待复核。数据库及真实页面39条来源/名称/权重交叉一致。
+- 人工恢复不等于线上解析代码已修复；未部署、未开启版本开关，AI实际打分暂不可用，按钮未强制禁用。一次性SQL/备份保留本地，不随源码PR上传或再次执行。
+
+### 可复用纪律
+
+验证应拆成三件事：来源最高分证据、明细完整性、rawMaximum×分部比例的贡献闭合。SQL恢复采用行级漂移断言与服务端EXIT HANDLER整体回滚；CHECK失败只回滚单条语句，客户端--force可能继续，不能当成事务失败整体回滚。回滚应保留正向审计并拒绝覆盖后续修改。
+
+### 相关文件
+
+- backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoringContext.java
+- backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreSubtotalColumnPolicy.java
+- backend/src/test/java/com/xiyu/bid/scoreparse/domain/Project1359ScoringContractTest.java
+- backend/src/test/resources/scoreparse-golden/case-1359-maximum-column.expected.json
+- specs/074-fix-1359-score-contract/acceptance.md
+
+---
+
+## 422. 案例来源回填必须通过专用端口隔离持久化（2026-10-09）
 
 - **根因**：`CaseProvenanceBackfillAppService` 直接使用本模块JPA实体与仓库，导致应用层依赖infrastructure，原ArchUnit规则发现32处违规。
 - **处理**：专用`CaseProvenanceBackfillPort`传递不可变候选与五字段更新，适配器严格查询ACTIVE并按项目独立事务保存。现有通用查询把空状态视作ACTIVE，不能直接复用以免扩大回填范围。
 - **防回归**：保留业务定位/清空/标书不可用跳过与统计；真实MySQL验证五字段映射、不覆盖其他业务字段、缺失案例拒绝和数据库错误整批回滚。架构规则保持不变，不通过迁移业务判断或新增豁免隐藏违规。
 
-## 422. 安全契约更新后的集成测试身份漂移与共享覆盖率产物损坏（2026-10-08）
+## 423. 安全契约更新后的集成测试身份漂移与共享覆盖率产物损坏（2026-10-08）
 
 - **未登录契约**：`SecurityConfig` 的 authentication entry point 明确返回 401 JSON，以触发前端登录刷新。`FormDefinitionIntegrationTest`、`TenderPermissionIntegrationTest` 与 `CaCommitmentLetterUploadIntegrationTest` 的匿名 403 断言已经过时，应断言 401、JSON 类型、`success=false` 与 `code=401`，不能回退生产 entry point。
 - **角色不等于权限**：`CompetitionIntelController.upsertCompetitor` 已要求 `RoleProfileCatalog.COMPETITOR_CREATE_PERMISSION`。成功与参数校验用例须提供该 authority；只有 `ROLE_ADMIN` 或 `ROLE_USER` 的身份必须仍返回 403，且竞品库记录数不增加。不能放宽生产权限让旧测试变绿。
