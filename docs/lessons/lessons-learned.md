@@ -7165,3 +7165,36 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 1. **表尾多行汇总列宽必须按最宽文字评估与防换行守卫**：中文字符（12px）5 字 + 空格 + 3 位数约需 88px，加上 16px 单元格内边距至少需要 104px。将评分类别列宽由 80px 扩展至 116px，得分列扩展至 92px；高亮徽章强制 `white-space: nowrap` 杜绝中文折行，并在文本状态（如「待确认」）自动切换为 12px 适度字重，彻底消除重叠遮挡、下沿溢出并保持呼吸间距。
 2. **权重纯整数化与相加为 100 约束**：在 composable（`useScoreParseDrawer.js`）与组件展示层（`ScoreParseTable.vue`）应用 `Math.round` 取整；当总权重为 100 时，主观权重通过 `100 - objectiveWeight` 互补获得，保证两者皆为非负整数且和严格为 100。
 3. **避免 ESLint `no-loss-of-precision` 规则触发**：在单测用例中禁止书写超长多位浮点字面量（如 `56.599999999999996`），应使用标准浮点数（如 `56.6`）配合测试。
+
+---
+
+## 421. 评分合计行必须按最高分列取证，原始分与综合贡献分开核验（项目1359，2026-10-08）
+
+### 现象
+
+1359当前生效38项总分200。真实采购原文的商务合计行为最低12/最高100，技术为最低38/最高100；task295仅返回一条总括事实，待复核保护保留旧38项。
+
+### 根因
+
+- OriginalScoringContext遍历合计行所有数字并以首个数字记录小计，将最低分12/38当成满分，与最高分100冲突。
+- 旧数据将商务100与技术100直接相加，未按商务20%、技术50%换算，也缺价格30%。此处原始分合计200属于历史输入语义，不能直接除2或篡改原始记录成100。
+- 模型输出缺完整明细时不覆盖正式结果是保护机制，不能靠放宽发布门禁让错误候选替换旧数据。
+
+### 修复与证据
+
+- ScoreSubtotalColumnPolicy按最后一层实际表头选择唯一最高分/满分列，最低列不参与；未知/空满分/冲突仍阻断。保留单明确分值列及无表头单数值的既有兼容路径，不取最大数字冒充列证据。
+- Project1359ScoringContractTest及case-1359-maximum-column真实Golden来源契约锁定商务/技术小计100；旧27个抽取Golden案F1保持100%。来源、父子去重、方案资格、待复核不覆盖正式结果代码不改。
+- 用户另行授权仅1359数据库人工恢复：逐项核对旧38规则，商务13项贡献20、技术25项贡献50、补原文价格公式30，共39项100。保留旧ID、原文、满足状态；保留task207原始200与历史摘要，追加人工审计；task295仍待复核。数据库及真实页面39条来源/名称/权重交叉一致。
+- 人工恢复不等于线上解析代码已修复；未部署、未开启版本开关，AI实际打分暂不可用，按钮未强制禁用。一次性SQL/备份保留本地，不随源码PR上传或再次执行。
+
+### 可复用纪律
+
+验证应拆成三件事：来源最高分证据、明细完整性、rawMaximum×分部比例的贡献闭合。SQL恢复采用行级漂移断言与服务端EXIT HANDLER整体回滚；CHECK失败只回滚单条语句，客户端--force可能继续，不能当成事务失败整体回滚。回滚应保留正向审计并拒绝覆盖后续修改。
+
+### 相关文件
+
+- backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoringContext.java
+- backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreSubtotalColumnPolicy.java
+- backend/src/test/java/com/xiyu/bid/scoreparse/domain/Project1359ScoringContractTest.java
+- backend/src/test/resources/scoreparse-golden/case-1359-maximum-column.expected.json
+- specs/074-fix-1359-score-contract/acceptance.md

@@ -382,6 +382,7 @@ class GoldenCasesReplayTest {
 
     static Stream<Arguments> cases() {
         return Stream.of(
+                Arguments.of("case-1359-maximum-column"),
                 Arguments.of("case-dual-section-renumber"),
                 Arguments.of("case-weight-gap-mixed"),
                 Arguments.of("case-1347-compound-percent"),
@@ -414,6 +415,17 @@ class GoldenCasesReplayTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
     void replayGoldenCase(String caseName) throws Exception {
+        if (caseName.equals("case-1359-maximum-column")) {
+            var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
+            var markdown = GoldenCasesReplaySupport.readFixture(caseName + ".md");
+            assertTrue(markdown.contains("| 最低分 | 最高分 |"));
+            assertTrue(markdown.contains("| 合计 | | | 12 | 100 |"));
+            var context = com.xiyu.bid.scoreparse.domain.Project1359ScoringContractTest.realContext();
+            assertTrue(context.problems().isEmpty(), context.problems().toString());
+            expected.path("subtotals").fields().forEachRemaining(entry -> assertEquals(0,
+                    entry.getValue().decimalValue().compareTo(context.subtotals().get(entry.getKey()).value())));
+            return; // Source-contract case; it does not claim extraction PRF coverage.
+        }
         String markdown = GoldenCasesReplaySupport.readFixture(caseName + ".md");
         JsonNode expected = GoldenCasesReplaySupport.parseExpected(
                 GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
