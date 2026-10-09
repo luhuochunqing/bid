@@ -1268,3 +1268,8 @@ FBR-I1：统一完整来源单元恢复，覆盖短引文/预绑定/anchor/纯�
 ## [2026-10-09] architecture-repair | case-source-actions-and-import-pitfalls
 
 补充案例来源回填专用应用端口、不可变五字段更新与独立事务适配器边界，保留严格ACTIVE与标书不可用整批跳过；真实MySQL验证缺失案例及数据库错误回滚。
+
+
+## [2026-10-09] score-subtotal-regression-fix | scoreparse-1359-stale-200-total-rca
+
+唯一明确的合计满分声明允许评分因素内嵌分值表格识别小计列；存在其他显式总分仍阻断。保留1359最高/最低列优先和无标签数值拒绝。

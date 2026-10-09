@@ -55,6 +55,13 @@ public class Project1359ScoringContractTest {
                 .contains("TABLE_SUBTOTAL_COLUMN_UNRESOLVED");
     }
 
+    @Test void uniqueExplicitMaximumUnderUnknownHeaderIdentifiesSubtotalColumn() {
+        var context = context(List.of("序号", "评分因素", "评分标准"),
+                List.of("合计得分", "满分（100分）", ""));
+        assertThat(context.problems()).isEmpty();
+        assertThat(context.subtotals().get("t-test").value()).isEqualByComparingTo("100");
+    }
+
     @Test void precedingBannerDoesNotHijackRealScoreHeader() {
         var table = table("t-test", "本项目评分办法 / 技术评审细则",
                 List.of(List.of("满分", "", "", ""), List.of("序号", "评审项目", "评审内容", "分值"),

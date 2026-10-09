@@ -21,3 +21,6 @@
 - [x] T013 [US3] 在backend/src/test/java/com/xiyu/bid/competitionintel/integration/CompetitionIntelControllerIntegrationTest.java补授权创建后的实际数据库记录数与名称断言，并纳入完整验证。
 
 依赖：T001/T002先于实现；T005/T007测试设计先于T003/T004；T006先于T008；T009审查依据最终候选。无前端改动，后端验证覆盖本次内部边界修复。
+
+- [x] T014 [US3] 为最新主线小计列回归新增唯一合计满分测试，最小修复ScoreSubtotalColumnPolicy，并让新增测试先RED再GREEN。
+- [x] T015 [US3] 验证全部7项此前失败；评分修复后全量10554项0失败0错误17跳过，JaCoCo有效，独立源评审通过。PR门禁仍待最终提交验证。

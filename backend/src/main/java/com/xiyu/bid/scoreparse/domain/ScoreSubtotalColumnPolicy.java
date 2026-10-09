@@ -13,6 +13,8 @@ public final class ScoreSubtotalColumnPolicy {
     static final Pattern EXPLICIT_TOTAL = Pattern.compile("(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern MAXIMUM = Pattern.compile("^(?:最高分(?:值|数)?|最高得分|满分)(?:[（(]分[）)])?$");
     private static final Pattern SCORE = Pattern.compile("^(?:分值|分数|得分|评分分值)(?:[（(]分[）)])?$");
+    private static final Pattern EXPLICIT_SUMMARY_MAXIMUM = Pattern.compile(
+            "满分\\s*[：:（(为]?\\s*\\d+(?:\\.\\d+)?\\s*分");
     private ScoreSubtotalColumnPolicy() {}
 
     public record Selection(int column, boolean unresolved) {
@@ -36,6 +38,11 @@ public final class ScoreSubtotalColumnPolicy {
         if (!maximum.isEmpty()) return only(maximum);
         Set<Integer> score = columns(headers, SCORE);
         if (!score.isEmpty()) return only(score);
+        Set<Integer> explicitMaximum = valueColumns(summary, EXPLICIT_SUMMARY_MAXIMUM);
+        Set<Integer> explicitTotals = valueColumns(summary, EXPLICIT_TOTAL);
+        if (explicitMaximum.size() == 1 && explicitTotals.equals(explicitMaximum)) {
+            return explicitMaximum.iterator().next();
+        }
         // Legacy tables without a detected header may carry one unambiguous summary value.
         // A detected but unknown header is not score-column evidence.
         if (!headers.isEmpty()) return -1;
@@ -47,6 +54,11 @@ public final class ScoreSubtotalColumnPolicy {
 
     private static Set<Integer> columns(List<CanonicalCellDto> headers, Pattern pattern) {
         return headers.stream().filter(c -> c.column() != null && pattern.matcher(normalize(c.rawText())).matches())
+                .map(CanonicalCellDto::column).collect(Collectors.toSet());
+    }
+
+    private static Set<Integer> valueColumns(List<CanonicalCellDto> cells, Pattern pattern) {
+        return cells.stream().filter(c -> c.column() != null && pattern.matcher(c.rawText() == null ? "" : c.rawText()).find())
                 .map(CanonicalCellDto::column).collect(Collectors.toSet());
     }
 

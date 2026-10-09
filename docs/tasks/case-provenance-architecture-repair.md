@@ -1,6 +1,6 @@
 # 案例来源回填架构修复任务
 
-- 状态：设计已批准，实施与完整验证已完成，独立源码审查通过；用户已授权关闭交付阻塞，测试契约修订已通过cherry-pick复用，原两项阻塞已闭合，但最新主线PR2810引入7项评分解析实际回归，交付仍阻塞；Spec Kit 规格位于 specs/074-case-provenance-architecture。
+- 状态：设计已批准，实施与完整验证已完成，独立源码审查通过；用户已授权关闭交付阻塞，测试契约修订已通过cherry-pick复用，原两项阻塞与7项主线评分解析回归均已闭合，最终全量10554项0失败0错误17跳过，待提交后完成PR/push门禁；Spec Kit 规格位于 specs/074-case-provenance-architecture。
 - 分支：`agent/gemini/case-provenance-architecture`
 - 基线：`501b5e16007165ef583592bec6f6e9aebbbfc7e3`
 - 来源：PR #2809 的后端全量验证；用户于 2026-10-08 决定另开任务，保持评分提示 PR 范围。
@@ -57,3 +57,6 @@ mvn -f backend/pom.xml test -Dtest=BidCaseSliceArchitectureTest
 ## 最新候选交付状态（2026-10-09）
 
 59ff963e8同步067e74cdc后，知识编号为421（主线评分小计）、422（案例架构）、423（测试契约），所有引用核对；merge-tree退出0。原5项权限失败关闭，回填与架构测试通过。最新全量10553项、7失败、0错误、17跳过，退出1；覆盖率报告重新生成且可解析。新失败由主线评分小计列识别拒绝合法嵌入分值表格导致，独立源码审查确认实际回归；细节见quickstart。当前不交付PR、不改七项失败期望；已向用户请求决定独立修复任务或当前PR范围扩展。
+
+
+评分小计修复后，RED新测试复现唯一满分列无法识别；GREEN只在缺乏明确最高/得分列头时采用唯一显式满分列，多个总分仍阻断。5个评分测试类68项全通过，完整后端10554项0失败0错误17跳过、JaCoCo有效；Checkstyle/PMD及评分修复独立复审通过。详细命令与日志见 specs/074-case-provenance-architecture/quickstart.md。
