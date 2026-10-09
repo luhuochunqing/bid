@@ -104,6 +104,7 @@ backlinks:
 - [[score-item-select-short-label]] — 评分项下拉短标签（ScoreItemSelect：短标签契约 / filterable 原文搜索陷阱 / 测试 stub 反模式）
 - [[score-parse-optimization]] — 评分解析优化记录
 - [[scoreparse-1359-stale-200-total-rca]] — 项目1359旧200分、最低/最高小计冲突与最新单条总括事实
+- [[score-subtotal-peritem-semantics-provenance-snapshot]] — 评分小计单项满分语义规则与案例来源快照守卫（单项分句抑制/BINARY 原子校验/Update 9 元穷举）
 - [[score-parse-adoption-consistency]] — 评分候选采纳与最新解析任务一致性（长说明、锁、过期页面）
 - [[score-parse-service]] — AI 评分标准解析后端服务
 - [[scoreparse-performance-evidence-clarity]] — 业绩预计得分证据可信度、保守计分与中文解释契约

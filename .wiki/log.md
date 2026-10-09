@@ -1318,3 +1318,7 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 
 评分小计列正则增加负向后行断言排除单项满分劫持，增加单元格内冲突总分声明检测；案例来源回填改为基于 ID + ACTIVE 状态的条件更新并原子持久化 5 字段，防御并发覆盖。
 
+
+## [2026-10-09] score-subtotal-peritem-semantics-provenance-snapshot | score-subtotal-peritem-semantics-provenance-snapshot
+
+单项分值陈述永不是整表小计证据（分句级单项语义抑制，同文法贯穿列选择/冲突/totals/legacy）；来源回填原生条件更新原子校验三业务快照（BINARY 防 _ci 误判），失配整批回滚。
