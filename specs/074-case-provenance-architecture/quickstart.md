@@ -40,18 +40,20 @@ mvn -f backend/pom.xml test -Dtest=BidCaseSliceArchitectureTest,CaseProvenanceBa
 - 原两项阻塞已修复，新主线生产回归阻断交付。用户待决定另开评分解析修复任务或纳入本PR；未创建PR、未绕过审查门禁、未修改这七项测试期望。
 
 
-## 评分小计回归修复（待全量验证）
+## 评分小计回归修复（全量完成，追加金标门禁覆盖）
 
 - RED：`mvn -f backend/pom.xml test -Dtest=Project1359ScoringContractTest#uniqueExplicitMaximumUnderUnknownHeaderIdentifiesSubtotalColumn` 退出1；唯一满分100列产生`TABLE_SUBTOTAL_COLUMN_UNRESOLVED`。日志 `/tmp/score-subtotal-unique-maximum-red.log`。
 - GREEN：同一行为用例改前置策略后，Project1359ScoringContractTest、PdfEvidencePipelineTest、StructuredTableExtractionMarkCompletedTest、ScoreParseAppServiceTest、ScorePartialOverwritePersistenceTest共68项通过，0失败、0错误、0跳过；JaCoCo正常。日志 `/tmp/score-subtotal-focused-green.log`。
 - 实现仅在没有可识别最高/得分表头时，用唯一满分来源列作回退；若显式总分列集合不等于唯一满分列仍保留未决。全部7个此前整仓失败已在68项定向测试通过；另有完整全量结果如下。
 
 
-## 评分小计回归修复后的最终候选验证（待PR门禁）
+## 评分小计回归修复后的候选验证（PR门禁进行中）
 
 - 最新完整运行：`SIDECAR_PYTHON=/Users/user/xiyu/worktrees/trae/document-converter-sidecar/.venv/bin/python mvn -f backend/pom.xml test`，10554项、0失败、0错误、17跳过（10537通过），36分27秒，Maven `BUILD SUCCESS`。JaCoCo自动报告生成，XML可解析，3147类；日志 `/tmp/case-provenance-fixed-main-full.log`。Surefire在测试已全部结束后有30秒退出等待诊断，保留该日志；最终进程退出0、构建成功。
 - 四类原权限失败全通过：表单21、竞品13、CA5、标讯权限25。回填适配器MySQL4、案例架构4、通用架构32全部通过。
 - 定向评分回归：68项、0失败0错误0跳过；新增唯一合计满分 RED 及 GREEN 证据分别见 `/tmp/score-subtotal-unique-maximum-red.log`、`/tmp/score-subtotal-focused-green.log`。
 - Checkstyle与PMD按四个变更生产文件启用真实检查（`quality.skip=false`）：退出0、BUILD SUCCESS，日志 `/tmp/case-provenance-score-subtotal-quality.log`。
 - 前端文档治理115目录通过。JaCoCo关键行/分支：ScoreSubtotalColumnPolicy 27/31与37/52；OriginalScoringContext 190/190与217/262；CaseProvenanceBackfillAdapter 23/24与7/8；CaseProvenanceBackfillAppService 83/90与49/56。
-- 源码和测试独立复审无Critical/Major/Minor。PR推送门禁待提交后运行。
+- 源码和测试独立复审无Critical/Major/Minor。PR推送门禁待最终审查工件更新后复跑。
+
+- Pre-push首次执行确实因缺少同批评分金标夹具与S5/S6最终工件而失败，没有使用逃生阀。新增`case-unique-explicit-subtotal-maximum`合成回放和注册后，GoldenCasesReplayTest 38项全通过；新案TP=2、FP=0、FN=0、F1=1.0、合计100→100。`npm run eval:scoreparse:report`显示全28案124 TP、0 FP、0 FN、总F1 100%。独立复审及最终门禁仍待完成。
