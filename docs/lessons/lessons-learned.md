@@ -7218,4 +7218,4 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 
 - **验证边界**：2026-10-08 的契约与环境修复后的受影响子集运行 `mvn test`，238 项中 234 通过、4 跳过，0 failures/0 errors，JaCoCo 保持启用并成功生成报告。当时整仓全量发现独立的 `BidCaseSliceArchitectureTest` 违规（案例回填应用服务直接依赖 infrastructure），不得把子集成功写成整仓可合并。
 
-- **后续闭合**：2026-10-09 独立任务已通过端口与适配器修复该架构违规（§421），并按用户授权cherry-pick复用上述测试修订。最终候选的受影响集合、完整测试与覆盖率记录见 `specs/074-case-provenance-architecture/quickstart.md`，以该候选的新验证结果为准。
+- **后续闭合**：2026-10-09 独立任务已通过端口与适配器修复该架构违规（§422），并按用户授权cherry-pick复用上述测试修订。最终候选的受影响集合、完整测试与覆盖率记录见 `specs/074-case-provenance-architecture/quickstart.md`，以该候选的新验证结果为准。

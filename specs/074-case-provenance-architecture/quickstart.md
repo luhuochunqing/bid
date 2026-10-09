@@ -28,3 +28,13 @@ mvn -f backend/pom.xml test -Dtest=BidCaseSliceArchitectureTest,CaseProvenanceBa
 - JaCoCo XML可解析且HTML存在：适配器23/24行、7/8分支；应用服务83/90行、49/56分支。
 - 前端build:api退出0，lint退出0、0错误231警告；日志 `/tmp/case-provenance-blockers-build.log`、`/tmp/case-provenance-blockers-lint.log`。
 - 结束后origin/main前移至067e74cdc（PR2810评分小计修复），产生新的知识文档及Wiki日志冲突；上述完整结果仅对应同步前候选，合并后另行验证。
+
+
+## 最新主线合并候选59ff963e8验证
+
+- origin/main为067e74cdc，合并树退出0、无冲突；主线知识§421保留，任务架构§422及测试契约§423引用同步，双方Wiki日志保留。
+- 完整运行：10553项、7失败、0错误、17跳过，28分33秒，退出1；日志 `/tmp/case-provenance-blockers-final-full.log`。
+- 原5个权限契约失败均关闭：表单21、竞品13、CA上传5、标讯权限25项均通过；案例适配器真实MySQL4项及案例架构4项通过，通用架构32项通过。
+- 新7失败来自主线PR2810：PdfEvidencePipelineTest 2、StructuredTableExtractionMarkCompletedTest 2、ScoreParseAppServiceTest 1、ScorePartialOverwritePersistenceTest 2。独立审查确认ScoreSubtotalColumnPolicy拒绝mapper已识别的内嵌分值列，合法合计满分失去验证，进而产生CONFLICT/REVIEW_REQUIRED及发布未执行。不是旧测试期望应直接放宽。
+- 完整失败后另跑jacoco:report：退出0、3147类，XML可解析、HTML存在；适配器23/24行及7/8分支，服务83/90行及49/56分支。日志 `/tmp/case-provenance-blockers-final-coverage.log`。报告正常不代表全量通过。
+- 原两项阻塞已修复，新主线生产回归阻断交付。用户待决定另开评分解析修复任务或纳入本PR；未创建PR、未绕过审查门禁、未修改这七项测试期望。
