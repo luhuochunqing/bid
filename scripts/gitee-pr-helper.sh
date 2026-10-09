@@ -38,6 +38,11 @@
 #              ~/.zshenv → git credential fill）。根因：agent 进程树多为 bash，
 #              不读 ~/.zshenv，此前直接报"需要 GITEE_TOKEN 环境变量"，各 Agent
 #              建 PR 时反复"找不到 token"（lessons §215）。
+#   2026-10-10 merge 子命令非 2xx 时复核 PR 终态：Gitee 对已合并/已关闭 PR 的
+#              重复合并返回 405（非幂等 2xx），此前仅凭状态码把已成功的合入报成
+#              失败（2026-10-09 PR !2817 实证）。state=merged → 幂等放行 exit 0；
+#              state=closed → 明确报"已关闭未合并" exit 1；其余维持原失败路径。
+#              同分支修正 merge/create 失败路径的响应体透传缺陷（见下方行内注释）。
 set -euo pipefail
 
 GITEE_OWNER="${GITEE_OWNER:-allinai888}"
@@ -291,7 +296,9 @@ print(json.dumps({
 
   if [[ ! "$create_status" =~ ^20[01]$ ]]; then
     echo "[gitee-pr] ❌ 创建失败 (HTTP ${create_status})" >&2
-    head -c 500 "$result_file" 2>/dev/null >&2; echo >&2
+    head -c 500 "$result_file" >&2; echo >&2
+    # 既有缺陷修正：原 `2>/dev/null >&2` 顺序使 fd1 也指向 /dev/null，
+    # 失败时的 API 响应体从未真正输出。与 merge_pr 失败路径同型缺陷。
     if [[ "$create_status" == "401" || "$create_status" == "403" ]]; then
       echo "[gitee-pr] 提示: GITEE_TOKEN 无效或已过期——更新令牌后重试（写入 ~/.config/xiyu/credentials.env 或 ~/.zshenv 的 export GITEE_TOKEN='...'）" >&2
     fi
@@ -406,9 +413,30 @@ merge_pr() {
     -d "$body" "${API}/pulls/${pr_num}/merge" 2>/dev/null || echo "000")
 
   if [[ ! "$merge_status" =~ ^2 ]]; then
-    echo "[gitee-pr] ❌ 合并失败 (HTTP ${merge_status})" >&2
-    head -c 500 "$result_file" 2>/dev/null >&2; echo >&2
+    # Gitee 对「已合并/已关闭」的 PR 重复合并返回 405（非幂等 2xx），仅凭 HTTP 码
+    # 会把已成功的合入报成失败（2026-10-09 PR !2817 实证）。以 PR 终态 state 消歧。
+    local state_file state
+    state_file=$(mktemp)
+    state=""
+    if [[ "$(gitee_get "${API}/pulls/${pr_num}" "$state_file" || echo 000)" =~ ^2 ]]; then
+      state=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('state') or '')" "$state_file" 2>/dev/null || echo "")
+    fi
+    rm -f "$state_file"
+    if [[ "$state" == "merged" ]]; then
+      echo "[gitee-pr] ✅ PR #${pr_num} 已合并（HTTP ${merge_status} 为重复合并响应，幂等放行）"
+    else
+      if [[ "$state" == "closed" ]]; then
+        echo "[gitee-pr] ⚠ PR #${pr_num} 状态为 closed（已关闭但未合并）" >&2
+      fi
+      echo "[gitee-pr] ❌ 合并失败 (HTTP ${merge_status})" >&2
+      head -c 500 "$result_file" >&2; echo >&2
+      # 既有缺陷修正：原 `2>/dev/null >&2` 顺序使 fd1 也指向 /dev/null，
+      # 失败时的 API 响应体从未真正输出（405 排障时看不到服务端消息的根因）。
+    fi
     rm -f "$result_file"
+    if [[ "$state" == "merged" ]]; then
+      return 0
+    fi
     exit 1
   fi
 

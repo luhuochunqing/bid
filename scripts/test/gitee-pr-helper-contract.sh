@@ -3,7 +3,8 @@
 # Output: validates gitee-pr-helper.sh response-parsing contract against a mock API
 # Pos: scripts/test/gitee-pr-helper-contract.sh
 # 维护声明: gitee-pr-helper.sh 的响应校验收敛在 gitee_get + require_json_response；
-#           本契约用本地 mock 服务器覆盖 5 种响应形态（无需真实 GITEE_TOKEN）。
+#           本契约用本地 mock 服务器覆盖响应形态（无需真实 GITEE_TOKEN）：
+#           list 5 种 + merge 405 3 种（幂等放行/真失败/已关闭未合并）+ create 失败透传 1 种。
 #           根因背景（2026-09-03）: 401 错误字典 {"message":...} 曾被 len() 计成
 #           "1 个开放 PR"（假阳性）后在解析循环 AttributeError 崩溃；非 JSON 响应
 #           则静默计 0 把鉴权失败伪装成"无 PR"（假阴性）。
@@ -77,13 +78,59 @@ class Handler(BaseHTTPRequestHandler):
         elif scenario == "dictaslist":
             # 200 但形状不是数组（防御）
             send(200, {"message": "unexpected dict payload"})
+        elif scenario == "merge405":
+            # 合并 405 但 PR 终态已合并 → 应幂等放行（2026-10-09 PR !2817 实证）
+            send(200, {"number": 2511, "state": "merged", "mergeable": True})
+        elif scenario == "merge405open":
+            # 合并 405 且 PR 仍 open → 真失败，不得被幂等逻辑吞掉
+            send(200, {"number": 2511, "state": "open", "mergeable": True})
+        elif scenario == "merge405closed":
+            # 合并 405 且 PR 已关闭但未合并 → 仍须失败，不得当幂等成功
+            send(200, {"number": 2511, "state": "closed", "mergeable": True})
+        elif scenario == "create403":
+            # create 场景前置：无开放 PR（空数组）才会进入创建分支
+            send(200, [])
+        else:
+            send(404, {"message": "no such scenario"})
+
+    def do_PUT(self):
+        scenario = self.path.lstrip("/").split("/", 1)[0]
+
+        def send(code, obj):
+            # ensure_ascii=False：真实 Gitee 返回字面中文，转义会削弱断言保真度
+            body = json.dumps(obj, ensure_ascii=False).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        # Gitee 对已合并/已关闭 PR 的重复合并返回 405（非幂等 2xx）
+        if scenario in ("merge405", "merge405open", "merge405closed"):
+            send(405, {"message": "Pull Request 已合并或已关闭。"})
+        else:
+            send(404, {"message": "no such scenario"})
+
+    def do_POST(self):
+        scenario = self.path.lstrip("/").split("/", 1)[0]
+
+        def send(code, obj):
+            body = json.dumps(obj, ensure_ascii=False).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        if scenario == "create403":
+            send(403, {"message": "403 Forbidden: 无权创建 PR"})
         else:
             send(404, {"message": "no such scenario"})
 
 HTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
 PY
 MOCK_PID=$!
-trap 'kill "$MOCK_PID" 2>/dev/null || true' EXIT
+trap 'kill "$MOCK_PID" 2>/dev/null || true; rm -rf "${CREATE_REPO:-}"' EXIT
 
 # 轮询等待 mock 端口就绪（盲 sleep 在慢启动环境下会闪断第一个请求）
 for _ in $(seq 1 40); do
@@ -100,6 +147,33 @@ run_list() {
     GITEE_API_BASE="http://127.0.0.1:${MOCK_PORT}/${scenario}/v5" \
     GITEE_OWNER="allinai888" GITEE_REPO="bid" \
     bash "$TARGET_SCRIPT" list "agent/codex/demo-branch" 2>&1)" || code=$?
+}
+
+run_merge() {
+  # $1=scenario; $2=PR 编号; 输出全局 out / code
+  local scenario="$1" pr="$2"
+  out="$(GITEE_TOKEN="contract-test-token" \
+    GITEE_API_BASE="http://127.0.0.1:${MOCK_PORT}/${scenario}/v5" \
+    GITEE_OWNER="allinai888" GITEE_REPO="bid" \
+    bash "$TARGET_SCRIPT" merge "$pr" 2>&1)" || code=$?
+}
+
+# create 子命令要求分支已推送到远端。用临时本地裸仓库离线满足该前置，
+# 避免契约测试依赖真实 origin/网络；分支名取 main 以跳过 S6 审查门禁分支。
+CREATE_REPO="$(mktemp -d)"
+git init -q --bare "$CREATE_REPO/origin.git"
+git init -q "$CREATE_REPO/work"
+git -C "$CREATE_REPO/work" remote add origin "$CREATE_REPO/origin.git"
+git -C "$CREATE_REPO/work" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+git -C "$CREATE_REPO/work" push -q origin HEAD:refs/heads/main
+
+run_create() {
+  # $1=scenario; 输出全局 out / code
+  local scenario="$1"
+  out="$(cd "$CREATE_REPO/work" && GITEE_TOKEN="contract-test-token" \
+    GITEE_API_BASE="http://127.0.0.1:${MOCK_PORT}/${scenario}/v5" \
+    GITEE_OWNER="allinai888" GITEE_REPO="bid" \
+    bash "$TARGET_SCRIPT" create main 2>&1)" || code=$?
 }
 
 echo "== 契约场景 =="
@@ -137,6 +211,36 @@ code=0; run_list dictaslist
 assert_contains "$out" "期望JSON 数组" "dictaslist: 报出形状不符"
 assert_contains "$out" "unexpected dict payload" "dictaslist: 透传 API message"
 [[ "$code" == "1" ]] && { echo "[PASS] dictaslist: 退出码 1"; PASS_COUNT=$((PASS_COUNT + 1)); } || { echo "[FAIL] dictaslist: 期望退出码 1，实际 $code" >&2; exit 1; }
+
+# 场景 6（核心回归）: 合并返回 405 但 PR 终态已合并 → 幂等放行，退出 0；
+# 不得再报"合并失败"（2026-10-09 PR !2817 误报根因）
+code=0; run_merge merge405 2511
+assert_contains "$out" "幂等放行" "merge405: 识别重复合并为幂等成功"
+assert_not_contains "$out" "合并失败" "merge405: 不得误报合并失败"
+[[ "$code" == "0" ]] && { echo "[PASS] merge405: 退出码 0"; PASS_COUNT=$((PASS_COUNT + 1)); } || { echo "[FAIL] merge405: 期望退出码 0，实际 $code" >&2; exit 1; }
+
+# 场景 7（对抗）: 合并返回 405 且 PR 仍 open → 真失败必须保留，退出 1；
+# 防止"把 405 一律当成功"的过度放宽
+code=0; run_merge merge405open 2511
+assert_contains "$out" "合并失败 (HTTP 405)" "merge405open: 保留真实失败判定"
+assert_contains "$out" "Pull Request 已合并或已关闭。" "merge405open: 仍透传 API 响应体"
+assert_not_contains "$out" "幂等放行" "merge405open: 不得被幂等逻辑吞掉"
+[[ "$code" == "1" ]] && { echo "[PASS] merge405open: 退出码 1"; PASS_COUNT=$((PASS_COUNT + 1)); } || { echo "[FAIL] merge405open: 期望退出码 1，实际 $code" >&2; exit 1; }
+
+# 场景 8: 合并 405 且 PR 已关闭未合并 → 报状态提示 + 仍失败，退出 1
+code=0; run_merge merge405closed 2511
+assert_contains "$out" "状态为 closed（已关闭但未合并）" "merge405closed: 报出 closed 状态提示"
+assert_contains "$out" "合并失败 (HTTP 405)" "merge405closed: 仍判定为失败"
+assert_not_contains "$out" "幂等放行" "merge405closed: 不得当作幂等成功"
+[[ "$code" == "1" ]] && { echo "[PASS] merge405closed: 退出码 1"; PASS_COUNT=$((PASS_COUNT + 1)); } || { echo "[FAIL] merge405closed: 期望退出码 1，实际 $code" >&2; exit 1; }
+
+# 场景 9（核心回归）: create 返回 403 → 报出状态码 + 透传响应体 + token 提示，退出 1；
+# 锁住 create 失败路径的响应体透传（原 `2>/dev/null >&2` 使 fd1 指向 /dev/null）
+code=0; run_create create403
+assert_contains "$out" "创建失败 (HTTP 403)" "create403: 报出 HTTP 状态码"
+assert_contains "$out" "403 Forbidden: 无权创建 PR" "create403: 透传 API 响应体"
+assert_contains "$out" "GITEE_TOKEN" "create403: 给出 token 更新提示"
+[[ "$code" == "1" ]] && { echo "[PASS] create403: 退出码 1"; PASS_COUNT=$((PASS_COUNT + 1)); } || { echo "[FAIL] create403: 期望退出码 1，实际 $code" >&2; exit 1; }
 
 echo
 echo "契约测试通过: ${PASS_COUNT} 项断言全绿"
