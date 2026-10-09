@@ -20,7 +20,6 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
     private static final Pattern TOTAL = ScoreSubtotalColumnPolicy.EXPLICIT_TOTAL;
     private static final Pattern NUMBER = ScoreSubtotalColumnPolicy.NUMBER;
     private static final Pattern SCORE_DISTRIBUTION_TOTAL = Pattern.compile("(?s).*(?:分值构成|分数构成|评分构成)[^。；;\\n]{0,40}总分\\s*[：:（(为]?\\s*\\d+(?:\\.\\d+)?\\s*分.*");
-    private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
     private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包|评分办法|评审办法|评标办法|评分标准|评审标准)[^。；;]{0,80}?(总分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
 
     public OriginalScoringContext {

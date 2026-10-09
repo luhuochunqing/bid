@@ -186,6 +186,14 @@ public class Project1359ScoringContractTest {
         assertThat(context.total().value()).isEqualByComparingTo("100");
     }
 
+    @Test void documentTotalFallbackSeparatesPerItemClauseAcrossLines() {
+        // 跨行误杀回归钉：管道行使主解析必跳过（走兜底），量词行与总分行分行。
+        // normalizeWindow 保留 \n 与 DOCUMENT_TOTAL gap 放宽两个组件任一回退都会变 null。
+        var context = OriginalScoringContext.resolve(artifact(List.of()),
+                "| 评分办法：每项10分 |\n| 总分100分 |\n");
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+    }
+
     @Test void explicitMaximumHeaderWithPerItemSummaryStaysUnresolved() {
         var context = context(List.of("评审项目", "评审内容", "最高分"),
                 List.of("合计", "", "每项 满分10分"));

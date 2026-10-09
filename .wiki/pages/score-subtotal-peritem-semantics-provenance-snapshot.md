@@ -48,7 +48,7 @@ archive: false
 ## 遗漏收敛：正文与兜底入口（外部复审 P1/P2，2026-10-09）
 
 - 表格路径先行加上单项语义后，正文入口曾是盲区：`parseText()` 主解析与 `DOCUMENT_TOTAL` 兜底均未过滤，导致「每项 满分10分，总分100分」误报 `ORIGINAL_TOTAL_CONFLICT`、「本项目每项总分10分」被兜底认作项目总分。
-- 修复：主解析在 matcher.find() 后即查 `isSingleItemMention`（早于 categoryTitle 判定）；兜底改用 `matchesSingleItemClause(start,end)` 查**整段匹配 span**——`DOCUMENT_TOTAL` 的 `[^。；;\n]{0,80}` 跨度可把量词吞进匹配内，只查起点前的分句会被绕过。
+- 修复：主解析在 matcher.find() 后即查 `isSingleItemMention`（早于 categoryTitle 判定）；兜底查「总分」关键词所在分句的左侧（`DOCUMENT_TOTAL` 增加 `(总分)` 捕获组），与主解析真正同一文法；跨行窗口用 `normalizeWindow` 保留 `\n` 作分句边界，同时 `DOCUMENT_TOTAL` gap 去掉 `\n` 保跨行断句匹配（二者耦合，见下节）。
 - `select()` 的 `hasValue()` 改调 `hasTableTotalEvidence()`：明确「最高分」表头下合计格只写单项说明时保持 `TABLE_SUBTOTAL_COLUMN_UNRESOLVED`（此前会误判已验证）。
 - 教训：**语义规则必须覆盖全部解析入口**（表格/正文/兜底/验证），加在一条路径上会制造新的不一致；后续新增入口时以「是否复用 `ScoreSubtotalColumnPolicy` 文法」为检查项。
 
@@ -56,5 +56,11 @@ archive: false
 
 - 量词表未覆盖「各项/各条」：正文出现「各项满分10分，总分100分」仍可能误报冲突（fail-open 方向）。未纳入本次范围，避免再放大误杀面；如需收窄按同族模式追加并配 pinning。
 - `本项(?!目)` 会误杀「本项工程评分总分100分」类整表句（fail-closed：该句总量可能 UNKNOWN）。取舍：宁可未决不可猜错。
-- 兜底与主解析统一的判据是「总分关键词所在分句左侧」；DOCUMENT_TOTAL 的 lazy gap `[^。；;\n]{0,80}?` 可跨逗号，故不能查整段匹配 span（会毒掉逗号后的干净分句）。
+- `DOCUMENT_TOTAL` 的 lazy gap `[^。；;\n]{0,80}?` 可跨逗号，故不能查整段匹配 span（会毒掉逗号后的干净分句）。**R8 起 gap 已去掉 `\n`（最终 `[^。；;]{0,80}?`），改由「总分关键词分句」判据，见下节。**
 - **后续项（未修，登记）**：`ScoreTableSplitPolicy` 自带同型 `DOCUMENT_TOTAL`（`(?:本项目|本标包)[^\n]{0,40}(?:总分|满分)…`）无单项语义，属同型盲区；不在本次授权范围，需单独收敛（同为「总分关键词分句」判据）。
+
+## 行边界真相记录（round 7/8 审计，2026-10-09）
+
+- round 7 曾把跨行窗口的 `join(" ")` 改回 `join("\n")`，**评审实测为证明性空转**：`normalizeTextLine` 的字符类含 `\n`，会把它压成空格，两种 join 输出的 normalized 串逐字节相同。教训：改流向必须沿「输入 → 归一化 → 匹配」全链验证，不能只改一端。
+- 真实修复（round 8，commit `e20a02099`）三处同步：`DOCUMENT_TOTAL` gap 去掉 `\n`（保住跨行断句匹配）、新增 `normalizeWindow`（保留 `\n` 作分句边界）、删除 `parseText` 冗余的 `HEADING` 手工计数分支（`OriginalScoringTextScopePolicy.headings` 已覆盖，306→296 行；round 9 再清理死常量后 295 行）。
+- 固化用例纪律：pinning 必须先在旧实现下 RED 再 GREEN；round 7 的用例因主解析截胡恒绿，已按其性质在测试内注明「防回归 pin 而非 RED-GREEN 对」。
