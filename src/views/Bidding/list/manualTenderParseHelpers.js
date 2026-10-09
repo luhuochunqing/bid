@@ -55,7 +55,7 @@ function normalizeDeadline(value) {
   if (!text) return null
   const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (dateOnly) {
-    return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]), 23, 59, 59)
   }
   const date = new Date(text)
   return Number.isNaN(date.getTime()) ? null : date

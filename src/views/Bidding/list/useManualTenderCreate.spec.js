@@ -191,7 +191,7 @@ describe('useManualTenderCreate', () => {
         title: '中国兵器装备集团有限公司电子商城电商供应商引入项目',
         region: '北京',
         purchaserName: '南方工业科技贸易有限公司',
-        deadline: '2026-10-14T23:59:59',
+        deadline: '2026-10-14T00:00:00',
         bidOpeningTime: '2026-10-16T09:30:00',
         contactName: '赵经理',
         contactPhone: '010-88888888',
