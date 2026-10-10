@@ -431,7 +431,11 @@ export function useInitiationStageActions({
         const bidTime = src.bidOpeningTime || src.bidOpenTime || ''
         form.bidOpenTime = bidTime
         if (bidTime && !form.bidMonth) {
-          form.bidMonth = new Date(bidTime).toISOString().slice(0, 7).replace('-', '/')
+          try {
+            form.bidMonth = new Date(bidTime).toISOString().slice(0, 7).replace('-', '/')
+          } catch {
+            form.bidMonth = String(bidTime).slice(0, 7).replace('-', '/')
+          }
         }
       }
     } catch (e) {

@@ -318,3 +318,24 @@ describe('useInitiationStageActions.load — 招标文件回显保护', () => {
   })
 })
 
+describe('useInitiationStageActions.load — 缺失必填字段兜底带入 (CO-327)', () => {
+  it('当已存在立项实体缺少 bidOpenTime 时，从标讯/项目补充 bidOpenTime 和 bidMonth', async () => {
+    const { actions, form, projectLifecycleApi, projectsApi, tendersApi } = setup({
+      ownerUnit: '中国能源',
+      customerType: 'CENTRAL_SOE',
+      bidOpenTime: null,
+      bidMonth: '',
+    })
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: { projectId: 1, ownerUnit: '中国能源', customerType: 'CENTRAL_SOE', bidOpenTime: null, reviewStatus: 'DRAFT' },
+    })
+    projectsApi.getDetail.mockResolvedValue({ data: { tenderId: 100 } })
+    tendersApi.getDetail.mockResolvedValue({
+      data: { bidOpeningTime: '2026-10-15T09:30:00.000Z' },
+    })
+    await actions.load()
+    expect(form.bidOpenTime).toBe('2026-10-15T09:30:00.000Z')
+    expect(form.bidMonth).toBe('2026/10')
+  })
+})
+

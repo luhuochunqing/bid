@@ -61,12 +61,14 @@ public final class EvaluationToInitiationMapper {
      */
     public static void applyTenderFields(ProjectInitiationDetails e, Tender tender) {
         if (tender == null) return;
-        if (tender.getPurchaserName() != null && !tender.getPurchaserName().isBlank()) {
+        if (e.getOwnerUnit() == null && tender.getPurchaserName() != null && !tender.getPurchaserName().isBlank()) {
             e.setOwnerUnit(tender.getPurchaserName());
         }
-        String mapped = mapCustomerType(tender.getCustomerType());
-        if (mapped != null) {
-            e.setCustomerType(mapped);
+        if (e.getCustomerType() == null && tender.getCustomerType() != null) {
+            String mapped = mapCustomerType(tender.getCustomerType());
+            if (mapped != null) {
+                e.setCustomerType(mapped);
+            }
         }
         // CO-327 补充：开标时间必填，prefill 时必须带入，否则提交立项校验失败
         if (e.getBidOpenTime() == null && tender.getBidOpeningTime() != null) {
