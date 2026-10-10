@@ -279,9 +279,9 @@ export function useInitiationStageActions({
       reviewStatus.value = data.reviewStatus || ''
       evalPrefilled.value = !!data.evalPrefilled
       fieldLocked.value = !!data.bidOpenTime && !!data.ownerUnit
-      // 修复：已存在的立项实体可能缺少必填字段 ownerUnit/customerType（如 CO-323 prefill 未带入），
+      // 修复：已存在的立项实体可能缺少必填字段 ownerUnit/customerType/bidOpenTime（如 CO-323 prefill 未带入），
       // 从标讯/项目数据补充，避免提交立项时校验失败
-      if (!form.ownerUnit || !form.customerType) {
+      if (!form.ownerUnit || !form.customerType || !form.bidOpenTime) {
         await fillMissingRequiredFromTender()
       }
     } catch (e) {
@@ -414,7 +414,7 @@ export function useInitiationStageActions({
     }
   }
 
-  // 修复：已存在立项实体缺少必填字段 ownerUnit/customerType 时，从标讯/项目数据补充
+  // 修复：已存在立项实体缺少必填字段 ownerUnit/customerType/bidOpenTime 时，从标讯/项目数据补充
   // 不设置 evalPrefilled，仅补充缺失的必填字段
   async function fillMissingRequiredFromTender() {
     try {
@@ -425,6 +425,14 @@ export function useInitiationStageActions({
       if (!form.customerType) {
         const raw = src.customerType || ''
         form.customerType = CUSTOMER_TYPE_SUBMIT_MAP[raw] || raw
+      }
+      // CO-327 补充：开标时间必填，从标讯/项目数据带入
+      if (!form.bidOpenTime) {
+        const bidTime = src.bidOpeningTime || src.bidOpenTime || ''
+        form.bidOpenTime = bidTime
+        if (bidTime && !form.bidMonth) {
+          form.bidMonth = new Date(bidTime).toISOString().slice(0, 7).replace('-', '/')
+        }
       }
     } catch (e) {
       console.warn('[InitiationStage] fill missing required fields failed', e)
