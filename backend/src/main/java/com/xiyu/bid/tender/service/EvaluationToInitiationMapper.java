@@ -59,15 +59,18 @@ public final class EvaluationToInitiationMapper {
      * 以及 {@code TenderInitMappingController} 的枚举映射。
      * 仅覆盖非空值，避免覆盖已有数据。
      */
-    public static void applyTenderFields(ProjectInitiationDetails e, Tender tender) {
-        if (tender == null) return;
+    public static boolean applyTenderFields(ProjectInitiationDetails e, Tender tender) {
+        if (tender == null) return false;
+        boolean updated = false;
         if (e.getOwnerUnit() == null && tender.getPurchaserName() != null && !tender.getPurchaserName().isBlank()) {
             e.setOwnerUnit(tender.getPurchaserName());
+            updated = true;
         }
         if (e.getCustomerType() == null && tender.getCustomerType() != null) {
             String mapped = mapCustomerType(tender.getCustomerType());
             if (mapped != null) {
                 e.setCustomerType(mapped);
+                updated = true;
             }
         }
         // CO-327 补充：开标时间必填，prefill 时必须带入，否则提交立项校验失败
@@ -77,7 +80,9 @@ public final class EvaluationToInitiationMapper {
             if (e.getBidMonth() == null) {
                 e.setBidMonth(tender.getBidOpeningTime().format(BID_MONTH_FMT));
             }
+            updated = true;
         }
+        return updated;
     }
 
     /**

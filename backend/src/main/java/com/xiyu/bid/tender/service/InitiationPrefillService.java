@@ -54,15 +54,7 @@ public class InitiationPrefillService {
         if (existingOpt.isPresent()) {
             // 幂等：已存在则补全缺失的必填字段（如 prefill 曾部分失败）
             details = existingOpt.get();
-            // CO-327: 幂等补全缺失的必填字段（ownerUnit/customerType/bidOpenTime）
-            // 委托 EvaluationToInitiationMapper.applyTenderFields 统一处理，避免重复逻辑
-            int beforeOwnerUnit = details.getOwnerUnit() != null ? 1 : 0;
-            int beforeCustomerType = details.getCustomerType() != null ? 1 : 0;
-            int beforeBidOpenTime = details.getBidOpenTime() != null ? 1 : 0;
-            EvaluationToInitiationMapper.applyTenderFields(details, tender);
-            boolean updated = (details.getOwnerUnit() != null ? 1 : 0) > beforeOwnerUnit
-                    || (details.getCustomerType() != null ? 1 : 0) > beforeCustomerType
-                    || (details.getBidOpenTime() != null ? 1 : 0) > beforeBidOpenTime;
+            boolean updated = EvaluationToInitiationMapper.applyTenderFields(details, tender);
             if (updated) {
                 initiationRepository.save(details);
                 log.info("CO-323: backfilled missing required fields for project {}", projectId);

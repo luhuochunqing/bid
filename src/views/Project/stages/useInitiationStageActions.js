@@ -39,6 +39,15 @@ const CUSTOMER_TYPE_SUBMIT_MAP = {
   港澳台及外企: 'FOREIGN',
 }
 
+function formatBidMonth(bidTime) {
+  if (!bidTime) return ''
+  try {
+    return new Date(bidTime).toISOString().slice(0, 7).replace('-', '/')
+  } catch {
+    return String(bidTime).slice(0, 7).replace('-', '/')
+  }
+}
+
 export function useInitiationStageActions({
   props,
   emit,
@@ -306,12 +315,12 @@ export function useInitiationStageActions({
     // CO-323: 兜底带入路径也标记 evalPrefilled，保证带入字段只读
     evalPrefilled.value = true
     try {
-      const { project, tender, src } = await fetchTenderSource()
+      const { project, src } = await fetchTenderSource()
       const tenderId = project?.tenderId
       const bidTime = src.bidOpeningTime || src.bidOpenTime || ''
       Object.assign(form, {
         bidOpenTime: bidTime,
-        bidMonth: bidTime ? new Date(bidTime).toISOString().slice(0, 7).replace('-', '/') : '',
+        bidMonth: formatBidMonth(bidTime),
         projectType: src.projectType || '',
         customerType: src.customerType || '',
         ownerUnit: src.purchaserName || src.ownerUnit || '',
@@ -431,11 +440,7 @@ export function useInitiationStageActions({
         const bidTime = src.bidOpeningTime || src.bidOpenTime || ''
         form.bidOpenTime = bidTime
         if (bidTime && !form.bidMonth) {
-          try {
-            form.bidMonth = new Date(bidTime).toISOString().slice(0, 7).replace('-', '/')
-          } catch {
-            form.bidMonth = String(bidTime).slice(0, 7).replace('-', '/')
-          }
+          form.bidMonth = formatBidMonth(bidTime)
         }
       }
     } catch (e) {

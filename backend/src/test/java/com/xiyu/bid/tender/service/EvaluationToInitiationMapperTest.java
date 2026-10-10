@@ -279,8 +279,9 @@ class EvaluationToInitiationMapperTest {
                 .bidOpeningTime(LocalDateTime.of(2026, 10, 15, 9, 30))
                 .build();
 
-        EvaluationToInitiationMapper.applyTenderFields(details, tender);
+        boolean updated = EvaluationToInitiationMapper.applyTenderFields(details, tender);
 
+        assertThat(updated).isTrue();
         assertThat(details.getOwnerUnit()).isEqualTo("测试采购单位");
         assertThat(details.getCustomerType()).isEqualTo("CENTRAL_SOE");
         assertThat(details.getBidOpenTime()).isEqualTo(LocalDateTime.of(2026, 10, 15, 9, 30));
@@ -301,9 +302,10 @@ class EvaluationToInitiationMapperTest {
                 .bidOpeningTime(LocalDateTime.of(2026, 10, 15, 9, 30))
                 .build();
 
-        EvaluationToInitiationMapper.applyTenderFields(details, tender);
+        boolean updated = EvaluationToInitiationMapper.applyTenderFields(details, tender);
 
-        // 验证已有业务数据不被覆盖
+        // 验证已有业务数据不被覆盖且更新标记为 false
+        assertThat(updated).isFalse();
         assertThat(details.getOwnerUnit()).isEqualTo("已有业务单位");
         assertThat(details.getCustomerType()).isEqualTo("STATE_OWNED");
         assertThat(details.getBidOpenTime()).isEqualTo(LocalDateTime.of(2026, 9, 1, 8, 0));
@@ -313,7 +315,8 @@ class EvaluationToInitiationMapperTest {
     @Test
     void applyTenderFields_nullTenderDoesNothing() {
         ProjectInitiationDetails details = ProjectInitiationDetails.builder().build();
-        EvaluationToInitiationMapper.applyTenderFields(details, null);
+        boolean updated = EvaluationToInitiationMapper.applyTenderFields(details, null);
+        assertThat(updated).isFalse();
         assertThat(details.getOwnerUnit()).isNull();
         assertThat(details.getCustomerType()).isNull();
         assertThat(details.getBidOpenTime()).isNull();
