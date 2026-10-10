@@ -1,5 +1,7 @@
 package com.xiyu.bid.tender.service;
 
+import java.time.LocalDateTime;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Tender;
@@ -39,11 +41,15 @@ class InitiationPrefillServiceTest {
 
     @Test
     void shouldSkipWhenInitiationAlreadyComplete() {
+        LocalDateTime bidTime = LocalDateTime.of(2026, 10, 20, 10, 0);
         ProjectInitiationDetails existing = ProjectInitiationDetails.builder()
-                .projectId(1L).ownerUnit("已有单位").customerType("GOVERNMENT").build();
+                .projectId(1L).ownerUnit("已有单位").customerType("GOVERNMENT").bidOpenTime(bidTime).build();
         when(repository.findByProjectId(1L)).thenReturn(Optional.of(existing));
-        service.prefillFromEvaluation(1L, 1L, null, null);
+        Tender tender = Tender.builder().purchaserName("新单位").customerType("央企").bidOpeningTime(bidTime).build();
+        service.prefillFromEvaluation(1L, 1L, null, tender);
         verify(repository, never()).save(any());
+        assertThat(existing.getOwnerUnit()).isEqualTo("已有单位");
+        assertThat(existing.getCustomerType()).isEqualTo("GOVERNMENT");
     }
 
     @Test
@@ -58,6 +64,28 @@ class InitiationPrefillServiceTest {
         verify(repository).save(existing);
         assertThat(existing.getOwnerUnit()).isEqualTo("补全单位");
         assertThat(existing.getCustomerType()).isEqualTo("CENTRAL_SOE");
+    }
+
+    @Test
+    void shouldBackfillMissingBidOpenTimeWhenAlreadyExists() {
+        LocalDateTime bidTime = LocalDateTime.of(2026, 10, 20, 10, 0);
+        ProjectInitiationDetails existing = ProjectInitiationDetails.builder()
+                .projectId(1L).ownerUnit("已有单位").customerType("GOVERNMENT").bidOpenTime(null).build();
+        when(repository.findByProjectId(1L)).thenReturn(Optional.of(existing));
+        Tender tender = Tender.builder()
+                .purchaserName("不同采购方")
+                .customerType("央企")
+                .bidOpeningTime(bidTime)
+                .build();
+
+        service.prefillFromEvaluation(1L, 1L, null, tender);
+
+        verify(repository).save(existing);
+        // 关键断言：已有业务字段未被覆盖，仅补全缺失的 bidOpenTime 与派生 bidMonth
+        assertThat(existing.getOwnerUnit()).isEqualTo("已有单位");
+        assertThat(existing.getCustomerType()).isEqualTo("GOVERNMENT");
+        assertThat(existing.getBidOpenTime()).isEqualTo(bidTime);
+        assertThat(existing.getBidMonth()).isEqualTo("2026-10");
     }
 
     @Test

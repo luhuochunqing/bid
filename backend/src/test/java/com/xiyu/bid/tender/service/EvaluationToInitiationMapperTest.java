@@ -4,6 +4,10 @@
 
 package com.xiyu.bid.tender.service;
 
+import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.project.entity.ProjectInitiationDetails;
+import java.time.LocalDateTime;
+
 import com.xiyu.bid.project.dto.CustomerInfoRow;
 import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
 import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo.ValueType;
@@ -264,5 +268,58 @@ class EvaluationToInitiationMapperTest {
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).getTel()).isNull();
+    }
+
+    @Test
+    void applyTenderFields_setsFieldsWhenNull() {
+        ProjectInitiationDetails details = ProjectInitiationDetails.builder().build();
+        Tender tender = Tender.builder()
+                .purchaserName("测试采购单位")
+                .customerType("央企")
+                .bidOpeningTime(LocalDateTime.of(2026, 10, 15, 9, 30))
+                .build();
+
+        boolean updated = EvaluationToInitiationMapper.applyTenderFields(details, tender);
+
+        assertThat(updated).isTrue();
+        assertThat(details.getOwnerUnit()).isEqualTo("测试采购单位");
+        assertThat(details.getCustomerType()).isEqualTo("CENTRAL_SOE");
+        assertThat(details.getBidOpenTime()).isEqualTo(LocalDateTime.of(2026, 10, 15, 9, 30));
+        assertThat(details.getBidMonth()).isEqualTo("2026-10");
+    }
+
+    @Test
+    void applyTenderFields_doesNotOverwriteExistingFields() {
+        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
+                .ownerUnit("已有业务单位")
+                .customerType("STATE_OWNED")
+                .bidOpenTime(LocalDateTime.of(2026, 9, 1, 8, 0))
+                .bidMonth("2026-09")
+                .build();
+        Tender tender = Tender.builder()
+                .purchaserName("标讯新单位")
+                .customerType("民企")
+                .bidOpeningTime(LocalDateTime.of(2026, 10, 15, 9, 30))
+                .build();
+
+        boolean updated = EvaluationToInitiationMapper.applyTenderFields(details, tender);
+
+        // 验证已有业务数据不被覆盖且更新标记为 false
+        assertThat(updated).isFalse();
+        assertThat(details.getOwnerUnit()).isEqualTo("已有业务单位");
+        assertThat(details.getCustomerType()).isEqualTo("STATE_OWNED");
+        assertThat(details.getBidOpenTime()).isEqualTo(LocalDateTime.of(2026, 9, 1, 8, 0));
+        assertThat(details.getBidMonth()).isEqualTo("2026-09");
+    }
+
+    @Test
+    void applyTenderFields_nullTenderDoesNothing() {
+        ProjectInitiationDetails details = ProjectInitiationDetails.builder().build();
+        boolean updated = EvaluationToInitiationMapper.applyTenderFields(details, null);
+        assertThat(updated).isFalse();
+        assertThat(details.getOwnerUnit()).isNull();
+        assertThat(details.getCustomerType()).isNull();
+        assertThat(details.getBidOpenTime()).isNull();
+        assertThat(details.getBidMonth()).isNull();
     }
 }

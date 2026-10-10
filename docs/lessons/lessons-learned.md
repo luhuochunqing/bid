@@ -7256,3 +7256,16 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **根因**：人工录入标讯提交时调用 `formatManualTenderDeadline`，原逻辑将 `getHours() === 0 && getMinutes() === 0 && getSeconds() === 0` 统一判定为当天结束并强行改写为 `23:59:59`。当用户在 Element Plus 时间选择器中明确选择了 `00:00`（如报名截止 `2026-10-31 00:00`，开标时间 `2026-10-31 12:00`），报名截止时间被篡改为 `2026-10-31T23:59:59`，晚于开标时间，触发后端校验异常：`开标时间必须大于等于报名截止时间`。
 - **处理**：严格区分纯日期（date-only，如 `2026-10-31`）与显式包含具体时间的字符串。只有输入不含空格或 `T` 时才视为纯日期补全 `23:59:59`；若包含具体时间（即使是 `00:00`），严格保留 `00:00:00`。AI 解析回填纯日期时通过 `normalizeDeadline` 显式设置当天结束，确保表单与提交载荷保持一致。
 - **防回归**：补充单测覆盖显式 `00:00` 与纯日期 `YYYY-MM-DD` 场景，确保开标时间与截止时间同日时正常通过校验。
+
+---
+
+## 428. 标讯转项目预填必填项补全必须严格执行空值保护，禁止覆盖已有业务数据（2026-10-10）
+
+- **根因**：CO-323 / CO-327 标讯转项目时，后端 `EvaluationToInitiationMapper.applyTenderFields` 负责将标讯基本信息带入立项。但在实现时未对立项实体的目标字段（如 `ownerUnit`、`customerType`）进行 null 判断。虽然新建项目时实体字段全空无影响，但在 `InitiationPrefillService` 的幂等补充逻辑中，该方法会对已存在实体调用。由于 JPA 受管实体处于 `@Transactional` 事务内，无条件调用 setter 会通过 Hibernate 脏检查强制覆盖用户在立项页面手动修改过的业主单位或客户类型，引发线上静默数据篡改回归。此外，由于遗漏了必填字段 `bidOpenTime` 的带入，导致存量数据提交立项时校验失败。
+- **处理**：
+  1. `applyTenderFields` 严格对齐其 Javadoc 契约（"仅在目标字段为空时补充"）：对 `ownerUnit`、`customerType`、`bidOpenTime`、`bidMonth` 均增加 `e.get...() == null` 防御，确保无论初次预填还是幂等重试，绝不覆盖已有业务值。
+  2. 前端 `fillMissingRequiredFromTender` 补齐 `bidOpenTime` 与派生 `bidMonth` 的兜底补充，并增加安全防御解析，避免非标准时间格式抛出 `RangeError`。
+- **防回归**：
+  - `EvaluationToInitiationMapperTest` 补充空值填充与已有值不被覆盖的双向断言。
+  - `InitiationPrefillServiceTest` 补充幂等补充开标时间且保留已有修改数据的集成断言。
+  - 前端 `useInitiationStageActions.spec.js` 固化缺失开标时间时的回填行为。

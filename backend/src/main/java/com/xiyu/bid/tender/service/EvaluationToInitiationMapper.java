@@ -30,6 +30,10 @@ public final class EvaluationToInitiationMapper {
     private EvaluationToInitiationMapper() {
     }
 
+    /** bidMonth 格式：yyyy-MM（对齐 ProjectInitiationMapper.MONTH_FMT） */
+    private static final java.time.format.DateTimeFormatter BID_MONTH_FMT =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM");
+
     /**
      * 评估表基础信息 9 字段 → 立项实体（null 安全，只覆盖非空值）。
      * <p>customerRevenue → annualRevenue（@Deprecated 字段，spec 假设明确）。
@@ -48,21 +52,37 @@ public final class EvaluationToInitiationMapper {
     }
 
     /**
-     * 标讯 → 立项：带入 ownerUnit（业主单位，来自 tender.purchaserName）和
-     * customerType（客户类型枚举，来自 tender.customerType，需转换为立项枚举名）。
-     * <p>对齐前端 {@code autoFillFromTender} 的 ownerUnit/customerType 取值逻辑，
+     * 标讯 → 立项：带入 ownerUnit（业主单位，来自 tender.purchaserName）、
+     * customerType（客户类型枚举，来自 tender.customerType，需转换为立项枚举名）、
+     * bidOpenTime（开标时间，来自 tender.bidOpeningTime）。
+     * <p>对齐前端 {@code autoFillFromTender} 的 ownerUnit/customerType/bidOpenTime 取值逻辑，
      * 以及 {@code TenderInitMappingController} 的枚举映射。
      * 仅覆盖非空值，避免覆盖已有数据。
      */
-    public static void applyTenderFields(ProjectInitiationDetails e, Tender tender) {
-        if (tender == null) return;
-        if (tender.getPurchaserName() != null && !tender.getPurchaserName().isBlank()) {
+    public static boolean applyTenderFields(ProjectInitiationDetails e, Tender tender) {
+        if (tender == null) return false;
+        boolean updated = false;
+        if (e.getOwnerUnit() == null && tender.getPurchaserName() != null && !tender.getPurchaserName().isBlank()) {
             e.setOwnerUnit(tender.getPurchaserName());
+            updated = true;
         }
-        String mapped = mapCustomerType(tender.getCustomerType());
-        if (mapped != null) {
-            e.setCustomerType(mapped);
+        if (e.getCustomerType() == null && tender.getCustomerType() != null) {
+            String mapped = mapCustomerType(tender.getCustomerType());
+            if (mapped != null) {
+                e.setCustomerType(mapped);
+                updated = true;
+            }
         }
+        // CO-327 补充：开标时间必填，prefill 时必须带入，否则提交立项校验失败
+        if (e.getBidOpenTime() == null && tender.getBidOpeningTime() != null) {
+            e.setBidOpenTime(tender.getBidOpeningTime());
+            // bidMonth 自动派生（对齐 ProjectInitiationMapper.applyInput 逻辑）
+            if (e.getBidMonth() == null) {
+                e.setBidMonth(tender.getBidOpeningTime().format(BID_MONTH_FMT));
+            }
+            updated = true;
+        }
+        return updated;
     }
 
     /**

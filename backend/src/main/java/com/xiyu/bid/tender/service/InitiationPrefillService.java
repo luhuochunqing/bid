@@ -1,6 +1,8 @@
-// Input: projectId + tenderId + TenderEvaluation（basic + customerInfos + GAP 附件）+ Tender（ownerUnit/customerType）
+// Input: projectId + tenderId + TenderEvaluation（basic + customerInfos + GAP 附件）+ Tender（ownerUnit/customerType/bidOpenTime）
 // Output: 副作用——建 ProjectInitiationDetails（评估数据 + evalPrefilled=true）+ 拷贝 GAP 附件
 // Pos: tender/service/ - CO-323 标讯评估表 → 项目立项预填（命令式外壳）
+// 维护声明: 幂等分支委托 EvaluationToInitiationMapper.applyTenderFields 统一补全必填字段，
+//   新增必填字段时需同步更新 applyTenderFields 与前端 fillMissingRequiredFromTender。
 package com.xiyu.bid.tender.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -52,19 +54,7 @@ public class InitiationPrefillService {
         if (existingOpt.isPresent()) {
             // 幂等：已存在则补全缺失的必填字段（如 prefill 曾部分失败）
             details = existingOpt.get();
-            boolean updated = false;
-            if (details.getOwnerUnit() == null && tender != null
-                    && tender.getPurchaserName() != null && !tender.getPurchaserName().isBlank()) {
-                details.setOwnerUnit(tender.getPurchaserName());
-                updated = true;
-            }
-            if (details.getCustomerType() == null && tender != null) {
-                String mapped = EvaluationToInitiationMapper.mapCustomerType(tender.getCustomerType());
-                if (mapped != null) {
-                    details.setCustomerType(mapped);
-                    updated = true;
-                }
-            }
+            boolean updated = EvaluationToInitiationMapper.applyTenderFields(details, tender);
             if (updated) {
                 initiationRepository.save(details);
                 log.info("CO-323: backfilled missing required fields for project {}", projectId);
