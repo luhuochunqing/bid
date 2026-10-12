@@ -124,6 +124,9 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             }
         }
         parseText(text, scheme, totals);
+        if (totals.isEmpty() && localProblems.isEmpty()) artifact.tables().stream().filter(table -> OriginalScoringSchemePolicy.owns(scheme, table))
+                .forEach(table -> GroupedScoreTotalPolicy.resolve(table).ifPresent(grouped -> totals.add(
+                        new Evidence(grouped.value(), "TABLE_SUMMARY", scheme, grouped.locator(), grouped.quote()))));
         if (totals.isEmpty() && detailTables == 1 && subtotals.size() == 1 && localProblems.isEmpty()
                 && (!scheme.isBlank() || artifact.tables().stream().allMatch(t -> t == null || t.sourceSection() == null || t.sourceSection().isBlank()))
                 && artifact.tables().stream().filter(t -> t != null && subtotals.containsKey(t.tableId()))

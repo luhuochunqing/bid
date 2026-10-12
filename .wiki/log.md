@@ -1333,3 +1333,7 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-10-10] gitee-pr-helper-405-idempotency | gitee-pr-helper-405-idempotency-and-failure-body
 
 外部写接口（PR 合并等）非 2xx 不可直接判成败：Gitee 对已合并/已关闭 PR 的重复合并返回 405（非幂等 2xx），须以资源终态 `state` 复核后再定成败；且不得用「一律放行」替代终态复核——真失败（仍 open / 已关闭未合并）用例必须同时锁住。失败诊断语句 `head -c 500 f 2>/dev/null >&2` 重定向从左到右求值，fd1 同指 /dev/null，响应体从未输出——"把错误打出来"这类语句必须被断言覆盖，否则长期静默失效。落点：docs/references/engineering-discipline.md §8；契约测试 5→9 场景 / 18→33 断言（含变异实验与实机双向复核）。
+
+## [2026-10-12] compound | scoreparse-1387-chapter-list-scope-rca 根因修复回填
+
+- 最小纯核心修复；独立审查撤回全局标题过滤，加入无序号必要依赖；原始文件不入库，working_tree未部署。

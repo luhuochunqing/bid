@@ -383,6 +383,7 @@ class GoldenCasesReplayTest {
     static Stream<Arguments> cases() {
         return Stream.of(
                 Arguments.of("case-1359-maximum-column"),
+                Arguments.of("case-project-1387-grouped-source"),
                 Arguments.of("case-dual-section-renumber"),
                 Arguments.of("case-weight-gap-mixed"),
                 Arguments.of("case-1347-compound-percent"),
@@ -416,6 +417,17 @@ class GoldenCasesReplayTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
     void replayGoldenCase(String caseName) throws Exception {
+        if (caseName.equals("case-project-1387-grouped-source")) {
+            var source = new com.xiyu.bid.scoreparse.domain.Project1387SourceRegressionTest();
+            source.verifyGoldenSource();
+            var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
+            var context = OriginalScoringContext.resolve(
+                    com.xiyu.bid.scoreparse.domain.Project1387SourceRegressionTest.fixtureArtifact(),
+                    com.xiyu.bid.scoreparse.domain.Project1387SourceRegressionTest.fixtureText());
+            assertEquals(expected.path("declaredTotal").decimalValue(), context.total().value());
+            assertEquals(expected.path("schemeTitle").asText(), context.scheme());
+            return; // Source-contract regression; no extraction PRF claim.
+        }
         if (caseName.equals("case-1359-maximum-column")) {
             var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
             var markdown = GoldenCasesReplaySupport.readFixture(caseName + ".md");
