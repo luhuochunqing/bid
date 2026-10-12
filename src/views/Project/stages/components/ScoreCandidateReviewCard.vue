@@ -12,7 +12,7 @@
         <span>检测到待人工复核的候选评分标准{{ selectedSchemeTitle ? `（${selectedSchemeTitle}）` : '' }}（本方案内 {{ eligibleFacts.length }} 项，合计 {{ candidateTotalWeight }} 分）</span>
       </div>
       <div class="candidate-review-desc">
-        文档中包含多个表格或参考模板，系统未自动入库。请核对下方候选细则列表，确认无误后可一键采纳：
+        已识别的评分项如下。请对照原文核对名称、分值和完整规则；未确认的项目不会自动生效。
       </div>
     </div>
     <div v-if="schemes.length > 1" class="scheme-selection">
@@ -56,21 +56,21 @@
         </thead>
         <tbody>
           <tr v-for="(fact, idx) in eligibleFacts" :key="fact.factId || idx">
-            <td class="col-center"><el-input v-model="fact.code" size="small" :aria-label="`第${idx + 1}项序号`" /></td>
+            <td class="col-center"><el-input v-model="fact.code" :disabled="readonly" size="small" :aria-label="`第${idx + 1}项序号`" /></td>
             <td class="col-dim">
-              <el-input v-model="fact.dimension" size="small" aria-label="评分维度" />
+              <el-input v-model="fact.dimension" :disabled="readonly" size="small" aria-label="评分维度" />
             </td>
-            <td class="col-weight"><el-input-number v-model="fact.weight" :min="0" :precision="2" size="small" aria-label="分值" /></td>
+            <td class="col-weight"><el-input-number v-model="fact.weight" :disabled="readonly" :min="0" :precision="2" size="small" aria-label="分值" /></td>
             <td class="col-score-type">
               <span class="score-type-label">{{ scoreTypeLabel(fact.scoreType) }}</span>
-              <el-select v-model="fact.scoreType" size="small" placeholder="主客观" class="score-type-select" aria-label="评分类别">
+              <el-select v-model="fact.scoreType" :disabled="readonly" size="small" placeholder="主客观" class="score-type-select" aria-label="评分类别">
                 <el-option label="客观项" value="OBJECTIVE" />
                 <el-option label="主观项" value="SUBJECTIVE" />
               </el-select>
             </td>
             <td class="col-detail">
-              <el-input v-model="fact.sourceText" type="textarea" :autosize="{ minRows: 3, maxRows: 12 }" aria-label="完整规则" />
-              <el-input v-model="fact.parentFactId" size="small" placeholder="父项 factId（无则留空）" aria-label="父项" class="parent-input" />
+              <el-input v-model="fact.sourceText" :disabled="readonly" type="textarea" :autosize="{ minRows: 3, maxRows: 12 }" aria-label="完整规则" />
+              <el-input v-model="fact.parentFactId" :disabled="readonly" size="small" placeholder="父项 factId（无则留空）" aria-label="父项" class="parent-input" />
               <div v-for="evidence in readableEvidences(fact)" :key="evidence.quotedText" class="evidence-block">
                 <span>{{ evidence.quotedText }}</span>
               </div>
@@ -97,13 +97,13 @@
       <el-button
         type="primary"
         :loading="isAdoptingCandidates"
-        :disabled="candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId) || adoptionStatus === 'CONFLICTING_TOTAL' || adoptionStatus === 'UNKNOWN_TOTAL' || (declaredTotalWeight != null && candidateTotalWeight > declaredTotalWeight)"
+        :disabled="readonly || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId) || adoptionStatus === 'CONFLICTING_TOTAL' || adoptionStatus === 'UNKNOWN_TOTAL' || (declaredTotalWeight != null && candidateTotalWeight > declaredTotalWeight)"
         data-test="btn-adopt-candidates"
         @click="$emit('adopt', candidateFacts)"
       >
         ⚡ 一键采纳为正式评分标准（{{ candidateTotalWeight }}分）
       </el-button>
-      <el-button :disabled="isAdoptingCandidates || reparseDisabled" @click="$emit('reparse')">
+      <el-button :disabled="readonly || isAdoptingCandidates || reparseDisabled" @click="$emit('reparse')">
         🔄 重新解析
       </el-button>
     </div>
@@ -122,6 +122,7 @@ import {
 } from './scoreCandidateReviewPresentation.js'
 
 const props = defineProps({
+  readonly: { type: Boolean, default: false },
   candidateFacts: {
     type: Array,
     default: () => [],

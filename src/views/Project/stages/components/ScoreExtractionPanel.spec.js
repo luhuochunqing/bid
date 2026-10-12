@@ -60,3 +60,18 @@ it('shows the unresolved gap when the extracted result is short of the declared 
   expect(w.text()).toContain('本次解析仍有 9 分待核对')
   expect(w.text()).toContain('距招标文件声明总分还差 9 分')
 })
+
+it('shows excess points for human review rather than treating a total over the source maximum as complete', () => {
+  const data = snapshot()
+  Object.assign(data.schemes[0], { declaredTotal: 100, declaredTotalStatus: 'KNOWN', extractedKnownTotal: 105 })
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+  expect(w.text()).toContain('超过招标文件总分 5 分，请人工复核')
+})
+
+it('does not compare against an unverified source total', () => {
+  const data = snapshot()
+  Object.assign(data.schemes[0], { declaredTotal: 100, declaredTotalStatus: 'UNKNOWN', extractedKnownTotal: 91 })
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+  expect(w.text()).toContain('招标文件总分：待确认')
+  expect(w.text()).not.toContain('9 分待核对')
+})

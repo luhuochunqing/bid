@@ -1337,3 +1337,7 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-10-12] compound | scoreparse-1387-chapter-list-scope-rca 根因修复回填
 
 - 最小纯核心修复；独立审查撤回全局标题过滤，加入无序号必要依赖；原始文件不入库，working_tree未部署。
+
+## [2026-10-12] compound | scoreparse-review-visibility
+
+- 恢复现有候选复核入口，明确查看与管理动作、候选与正式项边界；不新增人工补录，不修改解析门禁。

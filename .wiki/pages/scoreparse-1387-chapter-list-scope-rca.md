@@ -4,6 +4,10 @@ space: engineering
 category: debugging
 tags: [scoreparse, docx, source-evidence, scheme, diagnosis]
 sources:
+  - src/components/project/detail/ProjectDetailMainColumn.vue
+  - src/views/Project/stages/components/ScoreParseDrawer.vue
+  - src/views/Project/stages/components/ScoreCandidateReviewCard.vue
+  - src/views/Project/stages/components/ScoreExtractionPanel.vue
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoringTextScopePolicy.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoringContext.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/GroupedScoreTotalPolicy.java
@@ -61,3 +65,7 @@ archive: false
 - 无歧义完整原文规则的事实回放用于验证12个100分发布候选与发布证明；该证据不等同于真实LLM重新解析或线上数据库/UI验收。
 - 原始全文标量回放成功；撤回任一章节/总分/无序号逻辑行修复断言重新失败。原始文件、输出和部署class位于任务区忽略的.runtime/root-cause/1387/，不入库。
 - 关联根因和约束追加到docs/lessons/lessons-learned.md §429；短名称全文重复时仍拒绝歧义绑定，不放宽发布守卫；最终测试结果以.omc/verify-1387.md为准。
+
+## 人工复核入口（2026-10-12）
+
+项目详情曾固定 `show-extraction-review=false`，造成状态提示与可操作内容分离。恢复已有面板显示全部提取候选和原文，管理操作复用 `allowExtractionActions`；历史候选卡使用只读属性。已知原文总分不足/超过提示人工核对，未知总分不计算差额。此改动不提升候选来源资格，不自动采纳，不新增手工补录；真实解析与上线验收仍须单独验证。

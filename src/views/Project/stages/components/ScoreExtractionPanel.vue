@@ -14,7 +14,8 @@
       <span>识别到：{{ scheme.extractedCount }} 项</span>
       <span>已确认分值：{{ scoreNumber(scheme.extractedKnownTotal) }} 分</span>
       <span>招标文件总分：{{ declaredTotalLabel }}</span>
-      <span v-if="missingExtractedTotal != null" class="metric-warning">本次解析仍有 {{ missingExtractedTotal }} 分待核对</span>
+      <span v-if="extractedTotalDifference > 0" class="metric-warning">本次解析仍有 {{ extractedTotalDifference }} 分待核对，请人工复核</span>
+      <span v-else-if="extractedTotalDifference < 0" class="metric-warning">超过招标文件总分 {{ -extractedTotalDifference }} 分，请人工复核</span>
     </div>
     <div class="active-identity">
       <strong>当前用于评分：{{ activeItems.length }} 项 / {{ activeTotal == null ? '待确认' : activeTotal + ' 分' }}</strong>
@@ -80,10 +81,11 @@ watch(() => props.snapshot, snapshot => {
 watch(schemeId, () => { selectedIds.value = [] })
 const scheme = computed(() => props.snapshot.schemes?.find(s => s.schemeId === schemeId.value))
 const declaredTotalLabel = computed(() => scheme.value?.declaredTotalStatus === 'KNOWN' && scheme.value.declaredTotal != null ? `${scheme.value.declaredTotal} 分` : '待确认')
-const missingExtractedTotal = computed(() => {
+const extractedTotalDifference = computed(() => {
   const declared = scheme.value?.declaredTotal
   const known = scheme.value?.extractedKnownTotal
-  return declared != null && known != null && Number(declared) > Number(known) ? Number(declared) - Number(known) : null
+  return scheme.value?.declaredTotalStatus === 'KNOWN' && declared != null && known != null
+    ? Number(declared) - Number(known) : null
 })
 const isHistoricalActive = computed(() => props.snapshot.active?.dataStatus !== 'COHERENT'
   || Boolean(props.snapshot.active?.taskId && props.snapshot.active.taskId !== props.snapshot.taskId))

@@ -53,6 +53,27 @@ describe('ScoreParseDrawer.vue', () => {
     scoreParseApi.getResults.mockResolvedValue({ data: resultsFixture })
   })
 
+  it('shows an incomplete latest extraction even with zero active items, without enabling writes for a viewer', async () => {
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: [], meta: { lastParseStatus: 'COMPLETED' } } })
+    scoreParseApi.getLatestExtraction.mockResolvedValue({ data: {
+      taskId: 'latest', taskStatus: 'COMPLETED', snapshotStatus: 'FROZEN', payloadVersion: 1,
+      schemes: [{ schemeId: 's', extractedCount: 1, extractedKnownTotal: 91, declaredTotal: 100, declaredTotalStatus: 'KNOWN' }],
+      items: [{ itemId: 'partial', name: '已识别评分项', schemeId: 's', computable: true, effectiveMaximum: 91, ruleText: '规则原文' }],
+      active: { fingerprint: 'fp', dataStatus: 'COHERENT' }, adoption: { adoptedItemIds: [] },
+    } })
+    const wrapper = mount(ScoreParseDrawer, { props: { projectId: 123, allowExtractionActions: false }, global: { stubs: {
+      'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true,
+    } } })
+    await wrapper.vm.open({ stage: 1, autoScore: false, autoParse: false })
+    expect(wrapper.text()).toContain('已识别评分项')
+    expect(wrapper.text()).toContain('9 分待核对')
+    const panel = wrapper.findComponent({ name: 'ScoreExtractionPanel' })
+    expect(panel.props('blocked')).toBe(true)
+    panel.vm.$emit('activate', { schemeId: 's', selectedItemIds: ['partial'], reason: '未经授权' })
+    await wrapper.vm.$nextTick()
+    expect(scoreParseApi.activateExtraction).not.toHaveBeenCalled()
+  })
+
   it('mounts and opens drawer in stage 2', async () => {
     const wrapper = mount(ScoreParseDrawer, {
       props: {
