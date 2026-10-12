@@ -422,7 +422,8 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-ocr-chinese-token-spaces"),
                 Arguments.of("case-pdf-row-evidence-contiguous"),
                 Arguments.of("case-project-1384-docx-continuation"),
-                Arguments.of("case-price-markdown-star"));
+                Arguments.of("case-price-markdown-star"),
+                Arguments.of("case-markdown-whole-rule"));
     }
 
     @ParameterizedTest(name = "{0}")

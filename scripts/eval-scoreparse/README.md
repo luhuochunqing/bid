@@ -44,6 +44,8 @@ backend/src/test/resources/scoreparse-golden/
 ├── case-category-weight-noise-before-score.expected.json 对应金标标注（threshold 0.95，strictDim，expectTotal 100）
 ├── case-long-text-scoring-table.md          长篇正文前置 + 末尾评分表完整召回（超长文本回归）
 ├── case-long-text-scoring-table.expected.json 对应合成金标标注（threshold 0.95，expectTotal 100）
+├── case-markdown-whole-rule.md            合成无序号整行评分条款（完整规则恢复）
+├── case-markdown-whole-rule.expected.json 对应原始100分金标（threshold 0.95）
 ├── case-price-markdown-star.md             合成价格公式星号转义（lessons §431）
 ├── case-price-markdown-star.expected.json  对应金标与原文offset断言（threshold 0.95，expectTotal 100）
 ├── case-text-peer-scope.md                  同级履约章节文本证据不得跨入评分方案

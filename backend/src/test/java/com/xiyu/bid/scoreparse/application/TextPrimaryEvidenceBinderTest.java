@@ -11,6 +11,46 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TextPrimaryEvidenceBinderTest {
+    @Test void markdownWholeRowRestoresPhysicalRuleAndOriginalNameBeforeAdoption() {
+        var artifact = markdownArtifact(false, true);
+        var fact = markdownFact("| **经营能力** | **5** | 审计报告齐全得5分，否则0分。 |");
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").getFirst();
+        assertThat(bound.sourceCellIds()).containsExactly("t-r1-c0", "t-r1-c1", "t-r1-c2");
+        var validation = new com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator().validate(List.of(bound), artifact, BigDecimal.valueOf(5));
+        var mapped = TextPrimaryScoreFactMapper.map(bound, artifact, validation);
+        assertThat(mapped.sourceText()).isEqualTo("经营能力\n5\n审计报告齐全得5分，否则0分。");
+        assertThat(mapped.dimension()).isEqualTo("经营能力");
+        assertThat(mapped.weight()).isEqualByComparingTo("5");
+        var adopted = new com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy().adopt(List.of(
+                new com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput(mapped.factId(), mapped.code(), mapped.dimension(), mapped.weight(), mapped.sourceText(), "")), java.util.Set.of(mapped.factId()), java.util.Map.of());
+        assertThat(adopted.success()).isTrue();
+        assertThat(adopted.candidates().getFirst().detail()).isEqualTo(mapped.sourceText());
+        assertThat(bound.sourceMetadata().modelQuotedText()).isEqualTo(fact.quotedText());
+    }
+    @Test void markdownWholeRowRejectsAmbiguousAlteredAndUnclosedPhysicalRows() {
+        var quote = markdownFact("| 经营能力 | 5 | 审计报告齐全得5分，否则0分。 |");
+        assertThat(TextPrimaryEvidenceBinder.bind(List.of(quote), markdownArtifact(true, true), "").getFirst().sourceCellIds()).isEmpty();
+        assertThat(TextPrimaryEvidenceBinder.bind(List.of(quote), markdownArtifact(false, false), "").getFirst().sourceCellIds()).isEmpty();
+        var altered = markdownFact("| 经营能力 | 6 | 审计报告齐全得5分，否则0分。 |");
+        assertThat(TextPrimaryEvidenceBinder.bind(List.of(altered), markdownArtifact(false, true), "").getFirst().sourceCellIds()).isEmpty();
+        assertThat(TextPrimaryEvidenceBinder.bind(List.of(quote.withScope("other-scheme", "IN_SCHEME")), markdownArtifact(false, true), "").getFirst().sourceCellIds()).isEmpty();
+    }
+    private static MultimodalScoreFact markdownFact(String quote) {
+        return new MultimodalScoreFact("第三章 评审办法", "business_financial", "", "商务", BigDecimal.valueOf(5),
+                "模型摘要", "SUBJECTIVE", null, "", List.of(), quote, .9);
+    }
+    private static DocumentArtifact markdownArtifact(boolean repeated, boolean closed) {
+        var cells = new java.util.ArrayList<DocumentArtifact.CanonicalTable.CanonicalCellDto>();
+        String[][] rows = {{"评审项目", "分值", "评审标准"}, {"经营能力", "5", "审计报告齐全得5分，否则0分。"}};
+        for (int r = 0; r < (repeated ? 3 : 2); r++) for (int c = 0; c < 3; c++) {
+            String raw = rows[Math.min(r, 1)][c];
+            cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r"+r+"-c"+c, r, c, raw, raw, 1, 1, false,
+                    closed ? "/w:tbl[1]/w:tr["+(r+1)+"]/w:tc["+(c+1)+"]" : "", null, "t-r"+r));
+        }
+        return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "DOCX", "v2"),
+                List.of(new DocumentArtifact.CanonicalTable("t", null, "第三章 评审办法", repeated ? 3 : 2, 3, List.of(), cells, true)), List.of());
+    }
+
     @Test void bindsPriceMarkdownEscapeToOriginalScoringLineWithoutChangingQualificationRules() {
         String raw = "# 第三章 评审办法\n| 评分项 | 分值 | 规则 |\n| 价格部分 | 30 | 商城价\\*折扣率，满分30分。 |\n# 第四章 合同条款";
         String quote = "| 价格部分 | 30 | 商城价*折扣率，满分30分。 |";

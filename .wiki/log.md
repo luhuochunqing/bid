@@ -1345,3 +1345,11 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-10-12] compound | price-markdown-escape
 
 - 任务313价格公式星号转义阻断原文匹配；区分候选资格恢复与完整规则/正式发布，保留本地验证边界。
+
+## [2026-10-12] compound | score-rule-restoration-recon
+
+- 归档原文回放确认文本来源恢复为空、空规则采纳允许及内部code直接展示；最新12项取证受SSH与登录态阻塞，未修复或在线修改。
+
+## [2026-10-12] fix | score-rule-restoration-candidate
+
+- 完整Markdown行唯一闭合物理来源恢复、空规则采纳拒绝与编号展示最小候选；绑定/恢复/采纳链路RED→GREEN及旧分支反证，最新线上验收仍待部署。

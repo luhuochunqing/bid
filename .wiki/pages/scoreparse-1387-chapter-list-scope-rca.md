@@ -4,6 +4,12 @@ space: engineering
 category: debugging
 tags: [scoreparse, docx, source-evidence, scheme, diagnosis]
 sources:
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/LogicalRowEvidenceBinder.java
+  - e2e/score-parse-candidate-review.spec.js
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalRuleRestoration.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/SourceSpanResolver.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreReviewAdoptionPolicy.java
+  - src/views/Project/stages/components/ScoreParseTable.vue
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/EvidenceText.java
   - src/components/project/detail/ProjectDetailMainColumn.vue
   - src/views/Project/stages/components/ScoreParseDrawer.vue
@@ -74,3 +80,16 @@ archive: false
 ## 任务313价格30分原文绑定（2026-10-12）
 
 13条方案内候选为商务30+技术40；第14条价格30分被排除，locator为空。价格完整模型引文的乘号为 `*`，Markdown原文为 `\*`，`EvidenceText`此前未处理该布局转义。最小纯核心处理星号转义，不改变资格/总分/发布守卫；本地回放定位恢复到 `text:line[656]` 且资格IN_SCHEME，完整规则恢复仍为空，尚非正式发布或线上验收。证据只留忽略.runtime，原始客户文件不入库。
+
+## 2026-10-12 生效项缺原文的后续取证（未修复）
+
+- 在基线 `c3bce5519b145b41a0c8edb381226e4f2a1e9f7d`，同一已归档原标书及价格引文回放：`boundMetadataSpans=1`、`artifactResolvedSpans=0`、`locator=text:line[656]`、`scope=IN_SCHEME`、`eligible=true`，但 `restoredRuleLength=0`。文本定位保存在事实元数据，恢复器重新解析物理artifact引用不能取得该文本行；该证据仅证明此输入的恢复断点，不证明截图最新任务完全相同。
+- 隔离纯核心采纳探针：空 `sourceText`、5分候选得到 `success=true,total=5,detail=—`；“空原文必须拒绝生效”的断言实际失败、退出1。权重合计与完整评分规则是独立条件，人工采纳成功不能证明原文恢复完整。
+- 前端 `ScoreParseTable` 直接展示 `item.code`，`normalizeScoreItem`仅清理空/null码，不把业务标识转换为展示序号。不能为了改展示而覆盖内部标识及结果关联键。
+- 证据在任务隔离目录 `.runtime/score-rule-evidence/`，客户原文不入库。最新12项所属任务、采纳动作与接口字段尚未取得：SSH握手多次超时，网页可访问但调查浏览器未登录。未修改业务源代码、未重解析、未采纳、未部署；须补齐最新链路再确定最小修复。
+
+## 最小修复候选：闭合物理行恢复，不以文本引文冒充完整规则
+
+既有LogicalRowEvidenceBinder增加完整Markdown整行与同一物理表闭合逻辑行的唯一精确匹配；保留物理cells，原文名称从名称列恢复，既有OriginalRuleRestoration取得完整规则。重复/篡改/跨方案/未闭合反例拒绝。采纳纯核心拒绝空白或历史—占位；前端对纯英文/下划线标识显示行序号，保留内部code与数字编号关联。未修改全局归一化、总分门禁或现有数据。
+
+原标书固定输入回放：价格模型引文不变，修复后3个物理cell、方案内、候选有效、完整规则424字符；同表12明细行生成完整Markdown引文的结构回放12/12原文完全一致，可采纳100分。这不是新模型调用或最新线上12项验收。最新任务仍待测试部署后的在线取证。

@@ -39,6 +39,17 @@ final class LogicalRowEvidenceBinder {
 
         List<List<Object[]>> eligibleRows = rows.values().stream()
                 .filter(row -> sameSectionAndScheme(row, fact, schemes)).toList();
+        if (quote.startsWith("|") && quote.endsWith("|")) {
+            var matches = eligibleRows.stream()
+                    .filter(row -> row.stream().map(pair -> ((DocumentArtifact.CanonicalTable) pair[0]).tableId()).distinct().count() == 1)
+                    .filter(row -> normalize("| " + row.stream()
+                            .map(pair -> ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).rawText())
+                            .map(text -> text == null ? "" : text)
+                            .collect(java.util.stream.Collectors.joining(" | ")) + " |").equals(quote))
+                    .filter(row -> sourceUnitClosed(row, artifact)).toList();
+            if (matches.size() != 1) return java.util.Optional.empty();
+            return java.util.Optional.of(boundMarkdownRow(fact, matches.getFirst(), headers));
+        }
         List<MultimodalScoreFact> exactMatches = eligibleRows.stream()
                 .filter(row -> normalize(row.stream()
                         .map(pair -> ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).rawText())
@@ -55,6 +66,22 @@ final class LogicalRowEvidenceBinder {
                 .map(row -> rebuildFromOriginalRuleCells(fact, row, headers))
                 .filter(java.util.Objects::nonNull).toList();
         return rebuilt.size() == 1 ? rebuilt.stream().findFirst() : java.util.Optional.empty();
+    }
+
+    /** A whole Markdown row is layout; its closed physical cells own the complete original rule. */
+    private static MultimodalScoreFact boundMarkdownRow(MultimodalScoreFact fact, List<Object[]> row,
+                                                       Map<String, Map<Integer, String>> headers) {
+        var table = (DocumentArtifact.CanonicalTable) row.getFirst()[0];
+        var cells = row.stream().map(pair -> (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).toList();
+        String name = cells.stream().filter(cell -> NAME_COLUMN.matcher(headerFor(table, cell, headers)).matches())
+                .map(DocumentArtifact.CanonicalTable.CanonicalCellDto::rawText).filter(text -> text != null && !text.isBlank())
+                .findFirst().orElse(fact.dimension());
+        String raw = cells.stream().map(DocumentArtifact.CanonicalTable.CanonicalCellDto::rawText)
+                .filter(text -> text != null && !text.isBlank()).collect(java.util.stream.Collectors.joining("\n"));
+        return new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(), name, fact.weight(),
+                fact.ruleText(), fact.scoreType(), table.sourcePage(), table.tableId(),
+                cells.stream().map(DocumentArtifact.CanonicalTable.CanonicalCellDto::cellId).toList(), raw,
+                fact.confidence(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus(), fact.sourceMetadata());
     }
 
     private static boolean sourceUnitClosed(List<Object[]> row, DocumentArtifact artifact) {

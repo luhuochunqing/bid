@@ -1,0 +1,31 @@
+{
+  "synthetic": true,
+  "desensitization": "全字段合成，无客户信息，仅复现无序号整行引文",
+  "focus": "完整评分原文恢复与人工采纳闭环",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": true,
+  "items": [
+    {
+      "code": "1",
+      "dim": "商务能力",
+      "detail": "审计证明完整得30分，否则0分。",
+      "weight": 30,
+      "sourceText": "审计证明完整得30分，否则0分。"
+    },
+    {
+      "code": "2",
+      "dim": "技术能力",
+      "detail": "全部技术模块满足得40分，否则0分。",
+      "weight": 40,
+      "sourceText": "全部技术模块满足得40分，否则0分。"
+    },
+    {
+      "code": "3",
+      "dim": "价格部分",
+      "detail": "商品价格=商城价\\*折扣率，最高30分。",
+      "weight": 30,
+      "sourceText": "商品价格=商城价\\*折扣率，最高30分。"
+    }
+  ]
+}

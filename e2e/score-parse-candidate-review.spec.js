@@ -1,5 +1,5 @@
 // Input: deployed frontend, real API, existing project and authenticated storage state
-// Output: read-only proof that extraction candidates remain visible before adoption
+// Output: read-only candidate visibility and active rule/API/numbering consistency proofs
 // Pos: e2e/ - score-parse candidate review regression
 import { test, expect } from '@playwright/test'
 
@@ -24,4 +24,29 @@ test('shows every extracted candidate without requiring formal adoption', async 
     await expect(candidate).toBeVisible()
     await expect(candidate).toContainText(item.name)
   }
+})
+
+test('active scoring rows retain complete rules and display numbers independently of internal codes', async ({ page }) => {
+  test.skip(!projectId || !storageState, 'Requires an existing re-parsed project and authenticated storage state; read-only, no API mocks')
+  await page.goto(`/project/${projectId}/drafting`)
+  const response = await page.request.get(`/api/projects/${projectId}/score-parse/items`)
+  expect(response.ok()).toBe(true)
+  const { data } = await response.json()
+  expect(data?.items?.length).toBeGreaterThan(0)
+  await page.locator('[data-test="score-parse-button"]').first().click()
+  const drawer = page.locator('.score-parse-drawer')
+  await expect(drawer).toBeVisible()
+  const table = drawer.locator('.score-parse-table-wrapper').first()
+  await expect(table.locator('tbody tr')).toHaveCount(data.items.length)
+  for (const [index, item] of data.items.entries()) {
+    expect(item.detail.trim(), `complete source rule for item ${item.id}`).not.toBe('')
+    expect(item.detail.trim()).not.toBe('—')
+    const row = table.locator(`[data-item-id="${item.id}"]`)
+    await expect(row.locator('.original-text-cell')).toContainText(item.detail)
+    await expect(row.locator('.weight-cell')).toHaveText(String(Number(item.weight)))
+    await expect(row.locator('.code-cell')).toHaveText(/^[A-Za-z_]+$/.test(item.code || '') ? String(index + 1) : item.code)
+  }
+  const sum = data.items.reduce((total, item) => total + Number(item.weight), 0)
+  expect(Number(data.summary.totalWeight)).toBe(sum)
+  await expect(table.locator('tfoot .tfoot-weight')).toHaveText(String(sum))
 })
