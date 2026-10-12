@@ -4,6 +4,19 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class EvidenceTextTest {
+    @Test void markdownEscapedMultiplicationPreservesSymbolAndRawOffsets() {
+        String raw = "价格=商城价\\*折扣率";
+        var source = EvidenceText.normalize(raw);
+        assertThat(source.text()).isEqualTo("价格=商城价*折扣率");
+        var span = source.uniqueSpan("商城价*折扣率").orElseThrow();
+        assertThat(raw.substring(span.start(), span.end())).isEqualTo("商城价\\*折扣率");
+        assertThat(EvidenceText.normalize("A\\\\*B").text()).isEqualTo("A\\\\*B");
+        assertThat(EvidenceText.normalize("A\\qB").text()).isEqualTo("A\\qB");
+        var star = source.uniqueSpan("*").orElseThrow();
+        assertThat(raw.substring(star.start(), star.end())).isEqualTo("*");
+        assertThat(source.uniqueSpan("商城价折扣率")).isEmpty();
+        assertThat(EvidenceText.normalize(raw + "\n" + raw).uniqueSpan("商城价*折扣率")).isEmpty();
+    }
     @Test void chineseLayoutWhitespaceRetainsOriginalOffsetsAndLatinWordBoundaries() {
         String raw = "**供应商**服务\n能力及 A B 型产品";
         var normalized = EvidenceText.normalize(raw);

@@ -47,6 +47,16 @@ class GoldenCasesReplayTest {
             Collections.synchronizedList(new ArrayList<>());
 
     @Test
+    void priceMarkdownStarQuoteRetainsItsOriginalSourceSpan() throws Exception {
+        String source = GoldenCasesReplaySupport.readFixture("case-price-markdown-star.md");
+        JsonNode expected = GoldenCasesReplaySupport.parseExpected(
+                GoldenCasesReplaySupport.readFixture("case-price-markdown-star.expected.json")).path("escapeRegression");
+        var span = com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(source)
+                .uniqueSpan(expected.path("quote").asText()).orElseThrow();
+        assertEquals(expected.path("raw").asText(), source.substring(span.start(), span.end()));
+    }
+
+    @Test
     void peerSectionTextCannotPublishAsScoringSchemeEvidence() throws Exception {
         String text = GoldenCasesReplaySupport.readFixture("case-text-peer-scope.md");
         JsonNode expected = GoldenCasesReplaySupport.parseExpected(
@@ -411,7 +421,8 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-docx-run-boundary-score"),
                 Arguments.of("case-ocr-chinese-token-spaces"),
                 Arguments.of("case-pdf-row-evidence-contiguous"),
-                Arguments.of("case-project-1384-docx-continuation"));
+                Arguments.of("case-project-1384-docx-continuation"),
+                Arguments.of("case-price-markdown-star"));
     }
 
     @ParameterizedTest(name = "{0}")

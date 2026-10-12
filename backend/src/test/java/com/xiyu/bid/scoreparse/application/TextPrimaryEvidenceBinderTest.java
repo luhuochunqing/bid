@@ -11,6 +11,19 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TextPrimaryEvidenceBinderTest {
+    @Test void bindsPriceMarkdownEscapeToOriginalScoringLineWithoutChangingQualificationRules() {
+        String raw = "# 第三章 评审办法\n| 评分项 | 分值 | 规则 |\n| 价格部分 | 30 | 商城价\\*折扣率，满分30分。 |\n# 第四章 合同条款";
+        String quote = "| 价格部分 | 30 | 商城价*折扣率，满分30分。 |";
+        var fact = new MultimodalScoreFact("第三章 评审办法", "F_PRICE", "", "价格", BigDecimal.valueOf(30),
+                quote, "OBJECTIVE", 1, "", List.of(), quote, .9);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), null, raw).getFirst();
+        assertThat(bound.sourceCellIds()).containsExactly("text:line[2]");
+        assertThat(bound.quotedText()).contains("商城价\\*折扣率");
+        var context = com.xiyu.bid.scoreparse.domain.OriginalScoringContext.resolve(null, raw);
+        var scoped = MultimodalExtractionReviewPolicy.assignScope(bound, context, null, raw,
+                com.xiyu.bid.scoreparse.domain.OriginalScoringContext.schemes(null, raw));
+        assertThat(scoped.scopeStatus()).isEqualTo("IN_SCHEME");
+    }
     @Test
     void bindsChineseLayoutBreakAndRestoresActualRawQuote() {
         var cell = new DocumentArtifact.CanonicalTable.CanonicalCellDto("rule", 1, 2,
