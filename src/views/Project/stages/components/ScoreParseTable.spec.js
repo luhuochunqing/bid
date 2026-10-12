@@ -4,6 +4,14 @@ import ScoreParseTable from './ScoreParseTable.vue'
 import { mapScoreResults } from '@/composables/projectDetail/scoreParseTask.js'
 
 describe('ScoreParseTable.vue', () => {
+  it('shows sequence numbers for internal English identifiers without changing lookup codes', () => {
+    const items = [{ id: 1, code: 'business_financial', dim: '经营能力', detail: '完整规则', weight: 5 },
+      { id: 2, code: 'tech_platform', dim: '平台能力', detail: '完整规则', weight: 10 },
+      { id: 3, code: '2.2.1', dim: '其他', detail: '完整规则', weight: 1 }]
+    const wrapper = mount(ScoreParseTable, { props: { items } })
+    expect(wrapper.findAll('.code-cell').map(cell => cell.text())).toEqual(['1', '2', '2.2.1'])
+    expect(items[0].code).toBe('business_financial')
+  })
   const mockItems = [
     {
       code: '1',

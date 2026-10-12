@@ -12,6 +12,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ScoreReviewAdoptionPolicyTest {
 
+    @Test void rejectsMissingOriginalRuleWithoutPublishingItsWeight() {
+        for (String text : List.of("", "   ", "—")) {
+            var result = new ScoreReviewAdoptionPolicy().adopt(List.of(
+                    new ScoreReviewAdoptionPolicy.CandidateInput("f", "business_financial", "商务", BigDecimal.valueOf(5), text, "")), Set.of("f"), Map.of());
+            assertThat(result.success()).as("original rule: %s", text).isFalse();
+            assertThat(result.candidates()).isEmpty();
+            assertThat(result.errorMessage()).contains("原文");
+        }
+    }
     private final ScoreReviewAdoptionPolicy policy = new ScoreReviewAdoptionPolicy();
 
     @Test

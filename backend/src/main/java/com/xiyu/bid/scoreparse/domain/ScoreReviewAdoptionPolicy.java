@@ -115,6 +115,9 @@ public final class ScoreReviewAdoptionPolicy {
                 }
             }
 
+            if (fact.sourceText().isBlank() || "—".equals(fact.sourceText())) {
+                return AdoptionResult.failure("评分项缺少标书原文，请补充完整评分规则或重新解析后再采纳");
+            }
             BigDecimal effectiveWeight = weight == null ? BigDecimal.ZERO : weight;
             String dim = fact.dimension();
             if (dim.isBlank()) {
@@ -122,7 +125,7 @@ public final class ScoreReviewAdoptionPolicy {
             }
 
             String code = fact.code().isBlank() ? String.valueOf(index) : fact.code();
-            String detail = fact.sourceText().isBlank() ? "—" : fact.sourceText();
+            String detail = fact.sourceText();
 
             converted.add(new ScoreCandidate(
                     code,
