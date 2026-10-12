@@ -1,0 +1,14 @@
+{
+  "synthetic": true,
+  "desensitization": "全字段合成，仅保留Markdown星号转义与30/40/30分表特征",
+  "focus": "lessons §431：价格乘号保留，布局转义归一化与原文位置映射",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": true,
+  "escapeRegression": {"quote": "商城价*折扣率", "raw": "商城价\\*折扣率"},
+  "items": [
+    {"code": "1", "dim": "商务能力", "detail": "合同履约证明齐全。", "weight": 30, "sourceText": "合同履约证明齐全"},
+    {"code": "2", "dim": "技术方案", "detail": "技术方案覆盖全部采购需求。", "weight": 40, "sourceText": "技术方案覆盖全部采购需求"},
+    {"code": "3", "dim": "价格评分", "detail": "商品折算价=商城价\\*折扣率。", "weight": 30, "sourceText": "商品折算价"}
+  ]
+}

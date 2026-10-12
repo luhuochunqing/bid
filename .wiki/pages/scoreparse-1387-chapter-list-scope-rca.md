@@ -4,6 +4,7 @@ space: engineering
 category: debugging
 tags: [scoreparse, docx, source-evidence, scheme, diagnosis]
 sources:
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/EvidenceText.java
   - src/components/project/detail/ProjectDetailMainColumn.vue
   - src/views/Project/stages/components/ScoreParseDrawer.vue
   - src/views/Project/stages/components/ScoreCandidateReviewCard.vue
@@ -69,3 +70,7 @@ archive: false
 ## 人工复核入口（2026-10-12）
 
 项目详情曾固定 `show-extraction-review=false`，造成状态提示与可操作内容分离。恢复已有面板显示全部提取候选和原文，管理操作复用 `allowExtractionActions`；历史候选卡使用只读属性。已知原文总分不足/超过提示人工核对，未知总分不计算差额。此改动不提升候选来源资格，不自动采纳，不新增手工补录；真实解析与上线验收仍须单独验证。
+
+## 任务313价格30分原文绑定（2026-10-12）
+
+13条方案内候选为商务30+技术40；第14条价格30分被排除，locator为空。价格完整模型引文的乘号为 `*`，Markdown原文为 `\*`，`EvidenceText`此前未处理该布局转义。最小纯核心处理星号转义，不改变资格/总分/发布守卫；本地回放定位恢复到 `text:line[656]` 且资格IN_SCHEME，完整规则恢复仍为空，尚非正式发布或线上验收。证据只留忽略.runtime，原始客户文件不入库。

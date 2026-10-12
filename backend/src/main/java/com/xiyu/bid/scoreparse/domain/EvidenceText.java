@@ -22,6 +22,12 @@ public record EvidenceText(String text, List<Integer> offsets) {
             }
             if (c == '\\' && i + 1 < raw.length()) {
                 char next = raw.charAt(i + 1);
+                // Markdown escapes a literal multiplication symbol; keep its physical source offset.
+                if (next == '*') {
+                    int runStart = i;
+                    while (runStart > 0 && raw.charAt(runStart - 1) == '\\') runStart--;
+                    if ((i - runStart) % 2 == 0) { c = next; i++; }
+                }
                 if (next == 'n' || next == 'r' || next == 't') {
                     if (pending < 0) pending = i;
                     i++;
