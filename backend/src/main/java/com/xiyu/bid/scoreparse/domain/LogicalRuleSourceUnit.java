@@ -3,36 +3,17 @@ package com.xiyu.bid.scoreparse.domain;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.CanonicalCellDto;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Queue;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.UUID;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.regex.Pattern;
 
 /** Pure structural proof of a complete logical rule, independent of the length of a model quote. */
 public final class LogicalRuleSourceUnit {
     private static final Pattern ID = Pattern.compile("序号|编号");
     private static final Pattern NAME = Pattern.compile("评分因素|评分项目|评分项|评审因素|评审项目");
+    private static final Pattern CHAPTER = Pattern.compile("^(第[一二三四五六七八九十百0-9]+章)\\s*.*$");
     private static final Pattern SCORE = Pattern.compile("分值|分数|得分");
     private LogicalRuleSourceUnit() {}
     public record Resolution(boolean applicable, boolean closed, List<SourceSpan> spans) {
@@ -78,7 +59,9 @@ public final class LogicalRuleSourceUnit {
                             && !text(c.cell().rawText()).matches("[（(]?\\d+(?:\\.\\d+)?\\s*分?[）)]?");
                 }).toList();
         if (rules.isEmpty()) return new Resolution(true, false, List.of());
-        return new Resolution(true, true, SourceSpanResolver.resolve(artifact, rules.stream().map(c -> c.cell().cellId()).toList()));
+        // Unnumbered rows need their original name/value anchor alongside the full rule.
+        var source = unnumbered(headers) ? row : rules;
+        return new Resolution(true, true, SourceSpanResolver.resolve(artifact, source.stream().map(c -> c.cell().cellId()).toList()));
     }
 
     /** Also used before name/score reconstruction; a short exact quote supplies no closure proof. */
@@ -104,6 +87,8 @@ public final class LogicalRuleSourceUnit {
         var next = artifact.tables().subList(artifact.tables().indexOf(lastTable) + 1, artifact.tables().size()).stream()
                 .filter(t -> Objects.equals(document, artifact.documentFor(t.tableId()))).findFirst();
         if (next.isEmpty()) return true;
+        String chapter = chapter(first.table()), nextChapter = chapter(next.get());
+        if (unnumbered(headers) && !chapter.isBlank() && !nextChapter.isBlank() && !chapter.equals(nextChapter)) return true;
         return independent(next.get(), 0, lastTable.columns() == next.get().columns() ? headers : Map.of(), type);
     }
 
@@ -169,14 +154,17 @@ public final class LogicalRuleSourceUnit {
             var cells = table.cells().stream().filter(c -> Objects.equals(c.row(), number)).toList();
             var titles = titles(cells);
             if (independentColumns(titles)) { headers = titles; continue; }
-            boolean id = false, name = false;
+            boolean noId = unnumbered(headers);
+            boolean id = false, name = false, score = false;
             for (var cell : cells) {
                 if (text(cell.rawText()).isBlank()) continue;
                 String role = headers.getOrDefault(cell.column(), "");
                 id |= ID.matcher(role).matches();
-                name |= NAME.matcher(role).matches();
+                name |= NAME.matcher(role).matches() && (!noId || !Boolean.TRUE.equals(cell.isMergedContinue()));
+                score |= SCORE.matcher(role).matches() && !Boolean.TRUE.equals(cell.isMergedContinue())
+                        && ScoreSubtotalColumnPolicy.NUMBER.matcher(text(cell.rawText())).matches();
             }
-            return id && name;
+            return id && name || noId && name && score;
         }
         return false;
     }
@@ -188,7 +176,17 @@ public final class LogicalRuleSourceUnit {
     private static boolean independentColumns(Map<Integer, String> titles) {
         var ids = titles.entrySet().stream().filter(e -> ID.matcher(e.getValue()).matches()).map(Map.Entry::getKey).toList();
         var names = titles.entrySet().stream().filter(e -> NAME.matcher(e.getValue()).matches()).map(Map.Entry::getKey).toList();
-        return ids.size() == 1 && names.size() == 1 && !ids.getFirst().equals(names.getFirst());
+        return ids.size() == 1 && names.size() == 1 && !ids.getFirst().equals(names.getFirst()) || unnumbered(titles);
+    }
+    private static boolean unnumbered(Map<Integer, String> titles) {
+        if (titles.values().stream().anyMatch(title -> ID.matcher(title).matches())) return false;
+        var names = titles.entrySet().stream().filter(e -> NAME.matcher(e.getValue()).matches()).map(Map.Entry::getKey).toList();
+        var scores = titles.entrySet().stream().filter(e -> SCORE.matcher(e.getValue()).matches()).map(Map.Entry::getKey).toList();
+        return names.size() == 1 && scores.size() == 1 && !names.getFirst().equals(scores.getFirst());
+    }
+    private static String chapter(CanonicalTable table) {
+        var match = CHAPTER.matcher(table.sourceSection().split("[/＞>]", 2)[0].trim());
+        return match.matches() ? match.group(1) : "";
     }
     private static String text(String value) { return value == null ? "" : value.strip(); }
     private static String normalized(String value) { return EvidenceText.normalize(value).text(); }

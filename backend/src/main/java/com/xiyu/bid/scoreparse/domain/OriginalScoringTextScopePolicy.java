@@ -48,6 +48,10 @@ final class OriginalScoringTextScopePolicy {
                 boolean sameRoot = !roots.isEmpty()
                         && OriginalScoringSchemePolicy.sameScheme(roots.get(roots.size() - 1).title(), heading.title());
                 if (!sameRoot) roots.add(heading);
+                // A chapter-name list in prose must not displace its later explicit body heading.
+                else if (lines[heading.line()].stripLeading().startsWith("#")
+                        && !lines[roots.getLast().line()].stripLeading().startsWith("#"))
+                    roots.set(roots.size() - 1, heading);
                 activeRootLevel = heading.level();
             }
         }
