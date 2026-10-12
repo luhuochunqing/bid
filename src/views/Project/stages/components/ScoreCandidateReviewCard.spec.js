@@ -8,6 +8,21 @@ describe('ScoreCandidateReviewCard.vue', () => {
     { factId: 'f2', code: '2', dimension: '财务状况', weight: 3, scoreType: 'SUBJECTIVE', sourceText: '财务指标', candidateEligible: true },
   ]
 
+  it('keeps identified rows readable but disables edits and adoption for a read-only viewer', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, { props: { candidateFacts, candidateTotalWeight: 9, readonly: true },
+      global: { stubs: {
+        'el-input': { props: ['disabled'], template: '<input :disabled="disabled" />' },
+        'el-input-number': { props: ['disabled'], template: '<input :disabled="disabled" />' },
+        'el-select': { props: ['disabled'], template: '<select :disabled="disabled"><slot /></select>' },
+        'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
+      } },
+    })
+    expect(wrapper.findAll('input').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('input').every(input => input.attributes('disabled') !== undefined)).toBe(true)
+    expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('检测到待人工复核')
+  })
+
   it('renders candidate table with facts and displays dimension and weight', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: {

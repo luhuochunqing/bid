@@ -82,6 +82,18 @@ describe('ProjectDetailMainColumn', () => {
     projectLifecycleApi.getDrafting.mockResolvedValue({ data: {} })
   })
 
+  it('shows identified score candidates at the project entry while keeping management actions role-scoped', async () => {
+    const router = createTestRouter()
+    await router.push('/project/42/drafting')
+    await router.isReady()
+    const wrapper = mount(ProjectDetailMainColumn, { global: { plugins: [router], stubs, provide: baseProvide } })
+    await flushPromises()
+    const drawer = wrapper.findComponent({ name: 'ScoreParseDrawer' })
+    expect(drawer.exists()).toBe(true)
+    expect(drawer.props('showExtractionReview')).toBe(true)
+    expect(drawer.props('allowExtractionActions')).toBe(false)
+  })
+
   it('renders loading state when activeStageTab is empty', () => {
     const router = createTestRouter()
     const wrapper = mount(ProjectDetailMainColumn, {

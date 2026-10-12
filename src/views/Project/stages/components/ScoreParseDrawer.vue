@@ -71,13 +71,14 @@
               :snapshot="latestExtraction"
               :active-items="scoreItems"
               :active-total="totalWeight"
-              :blocked="activationBlocked || loading || scoringOverlayVisible"
+              :blocked="!allowExtractionActions || activationBlocked || loading || scoringOverlayVisible"
               :busy="activating"
-              @activate="activateExtraction"
+              @activate="allowExtractionActions && activateExtraction($event)"
             />
             <ScoreCandidateReviewCard
               v-if="showExtractionReview && !latestExtraction && candidateFacts.length > 0"
               :candidate-facts="candidateFacts"
+              :readonly="!allowExtractionActions"
               :schemes="schemes"
               :selected-scheme-id="selectedSchemeId"
               :scheme-selection-required="schemeSelectionRequired"
@@ -85,8 +86,8 @@
               :declared-total-weight="declaredTotalWeight"
               :adoption-status="adoptionStatus"
               :is-adopting-candidates="isAdoptingCandidates"
-              :reparse-disabled="loading || scoringOverlayVisible"
-              @adopt="adoptCandidateFacts"
+              :reparse-disabled="!allowExtractionActions || loading || scoringOverlayVisible"
+              @adopt="allowExtractionActions && adoptCandidateFacts($event)"
               @scheme-change="selectedSchemeId = $event"
               @reparse="reparse"
             />

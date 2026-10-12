@@ -37,7 +37,7 @@
           @submit-to-document="ctx.handleSubmitToDocument"
           @submit-review="ctx.handleSubmitReview"
         />
-        <ScoreParseDrawer ref="scoreParseRef" :project-id="ctx.project?.id" :show-extraction-review="false" :allow-extraction-actions="Boolean(ctx.userStore?.isBidManager || ctx.userStore?.isBidAdmin || ctx.userStore?.isBidLead || ctx.userStore?.hasPermission?.('bidding.manage'))" @parsed="handleScoreParsed" />
+        <ScoreParseDrawer ref="scoreParseRef" :project-id="ctx.project?.id" :allow-extraction-actions="Boolean(ctx.userStore?.isBidManager || ctx.userStore?.isBidAdmin || ctx.userStore?.isBidLead || ctx.userStore?.hasPermission?.('bidding.manage'))" @parsed="handleScoreParsed" />
         <TaskDecomposeDialog ref="taskDecomposeRef" :project-id="ctx.project?.id" />
         <DraftingStage
           v-if="ctx.project?.id"
