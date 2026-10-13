@@ -26,8 +26,8 @@ backlinks:
   - .wiki/pages/_index.md
   - .wiki/pages/scoreparse-multimodal-primary.md
 created: 2026-10-12
-updated: 2026-10-12
-health_checked: 2026-10-12
+updated: 2026-10-13
+health_checked: 2026-10-13
 archive: false
 ---
 
@@ -93,3 +93,27 @@ archive: false
 既有LogicalRowEvidenceBinder增加完整Markdown整行与同一物理表闭合逻辑行的唯一精确匹配；保留物理cells，原文名称从名称列恢复，既有OriginalRuleRestoration取得完整规则。重复/篡改/跨方案/未闭合反例拒绝。采纳纯核心拒绝空白或历史—占位；前端对纯英文/下划线标识显示行序号，保留内部code与数字编号关联。未修改全局归一化、总分门禁或现有数据。
 
 原标书固定输入回放：价格模型引文不变，修复后3个物理cell、方案内、候选有效、完整规则424字符；同表12明细行生成完整Markdown引文的结构回放12/12原文完全一致，可采纳100分。这不是新模型调用或最新线上12项验收。最新任务仍待测试部署后的在线取证。
+
+## 2026-10-13 引文格式对照诊断（源码缺陷已复现，最新任务待验证）
+
+- 版本 `ef704cfe6`；同一归档artifact的t-0005行2/14，固定分值和商务/价格维度，仅改引文格式：完整Markdown行恢复100/424字符；同一行去首尾管道、名称分值短引文均恢复0字符；唯一名称引文恢复100/424字符。
+- 机制：LogicalRowEvidenceBinder新增物理整行路径依赖首尾管道。失败后TextPrimaryEvidenceBinder保存text:line和真实metadata span；OriginalRuleRestoration重新通过SourceSpanResolver查artifact物理cells/textBlocks，不消费metadata文本span，最终空规则。不能直接把短span冒充完整规则，也不能全局删除公式中的绝对值管道。
+- 反证：SUM空规则父项+完整子项可采纳；空规则子项被拒绝；计分父项MAX为空时被拒绝。因此截图商务父项空白不能独自解释拒绝原因。
+- 逃逸：上轮AllSourceRowsProbe生成完整行引文、跳过分组父项且父关系为空，未覆盖真实模型引文格式与父子结构。
+- 执行：完整规则一致性8断言=4通过/4失败/0错误/0跳过，exit1；父项采纳3断言=3通过/0失败/0错误/0跳过，exit0。缺陷相关源码重编译，辅助依赖来自既有target；未执行真实模型、DB/API/UI验收。
+- 第226次测试部署报告记录ef704cfe6已部署，但未实时核对运行指纹；截图projectId/parseTaskId尚未确认。已证实当前源码缺陷，不声称截图唯一根因已闭环。
+- 证据与重现：忽略目录 `.runtime/root-cause/score-rule-recheck-20261013/`，执行 `python3 .runtime/root-cause/score-rule-recheck-20261013/run_probe.py`。原始客户文件不入库，未修改业务代码或服务器数据。
+
+## 2026-10-13 测试现场续证（task315）
+
+- 用户确认test后只读SSH172.16.38.78：运行ef704cfe6-api8080/PID6017/07:52:48启动。最新task315于09:25:51创建，UUID5c8b801e-0696-4ad2-bc50-e873e59114b2；09:31:18完成，facts14，originalTotal/modelTotal/leafTotal均100，violations10，REVIEW_REQUIRED/ITEM_WEIGHT_SOURCE_UNKNOWN。
+- 14条原文长度全0，14条资格eligible=true，定位text:line[643..656]；14条实际保存引文均无首尾管道。首条商务引文与截图相同。09:37:43及09:37:57两次采纳POST均400；日志未打印响应体，不冒称取得实际错误正文。
+- 真实保存引文保留父子结构本地回放：12有效计分项，完整规则0；仅补首尾管道对照后完整规则12。2对照断言通过，exit0，证明格式限制的因果；未修改业务代码，不等于修复完成。
+- 本轮未取得原始LLM响应、采纳请求/响应体，未重新下载标书核对SHA；回放复用归档同45465字符标书和artifact。未触发解析、采纳、部署或修改服务器数据。
+- 原诊断记录已追加实时证据与SHA256，位置 `.runtime/root-cause/score-rule-recheck-20261013/evidence.json`。
+
+## 第三次批准修复的边界（2026-10-13）
+
+- LogicalRowEvidenceBinder局部比较完整、缺首、缺尾、缺首尾四种表格布局，保留内部cell内容及公式管道、同表同方案唯一闭合约束。表格引文零匹配仍保留跨cell逐字精确引用；精确路径也失败后不得按名称/分值重建，真实名称维度的篡改反例已先RED。
+- MultimodalScoreFactValidator纯核心接受同一引用cells的换行表示，保留无分隔匹配和既有校验；MRO规则开头的假QUOTE_NOT_VERBATIM有RED回归。
+- 任务315人工采纳与自动发布分开验收：12有效规则/100分采纳，未验证父项权重不能强行自动发布。最终fresh验证结果以任务.omc/verify-score-row-quotation.md为准；当前未部署，旧任务不会自动恢复。
