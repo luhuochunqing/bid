@@ -212,3 +212,5 @@ node -e "JSON.parse(require('fs').readFileSync('backend/target/scoreparse-golden
 
 `laneCounts` 计的是各 lane 回去重前的原始候选数（merge 前）：`regex`=定位章节内的正则结构通道、
 `regexFullText`=全文直抽通道、`table`=表格行直抽通道；某 lane 归零或暴涨往往是回归的第一现场。
+
+- `case-markdown-inner-row`: 合成无外侧管道引文；`MarkdownRowQuotationGoldenReplayTest`另跑真实绑定/完整规则恢复/100分采纳，确定性F1报告不能替代该行为测试。

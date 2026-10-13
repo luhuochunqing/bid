@@ -51,3 +51,5 @@
 | `test/` | 测试基线目录 | Playwright 与 API 联调测试的启动、停止和说明脚本；其中 `agent-start-task-dryrun-contract.sh` 用于守护 `agent-start-task.sh --dry-run` 的输出契约，防止 touch/lock/push 协作提示回退；可通过 `npm run test:agent-start-task-contract` 执行 |
 
 `check-scoreparse-root-cause.sh` 包含 `FullRuleSourceReplayTest` / `TextPrimaryScoreFactMapperTest`：actual DOCX 四入口、文本后置材料、PDF 首页/续页短引文与页码反例；完整规则恢复与数值可计算性分别验证。
+
+`check-scoreparse-root-cause.sh` 同时运行 MarkdownRowQuotationRegressionTest、MarkdownRowQuotationGoldenReplayTest 和 Project1387PublicationRegressionTest：覆盖可选外侧管道、公式内部管道、ASCII规则边界、篡改回退和保留父子结构的全链路。

@@ -39,16 +39,15 @@ final class LogicalRowEvidenceBinder {
 
         List<List<Object[]>> eligibleRows = rows.values().stream()
                 .filter(row -> sameSectionAndScheme(row, fact, schemes)).toList();
-        if (quote.startsWith("|") && quote.endsWith("|")) {
+        if (quote.contains("|")) {
             var matches = eligibleRows.stream()
                     .filter(row -> row.stream().map(pair -> ((DocumentArtifact.CanonicalTable) pair[0]).tableId()).distinct().count() == 1)
-                    .filter(row -> normalize("| " + row.stream()
-                            .map(pair -> ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).rawText())
-                            .map(text -> text == null ? "" : text)
-                            .collect(java.util.stream.Collectors.joining(" | ")) + " |").equals(quote))
+                    .filter(row -> matchesMarkdownRow(row, quote))
                     .filter(row -> sourceUnitClosed(row, artifact)).toList();
-            if (matches.size() != 1) return java.util.Optional.empty();
-            return java.util.Optional.of(boundMarkdownRow(fact, matches.getFirst(), headers));
+            if (matches.size() == 1) return java.util.Optional.of(boundMarkdownRow(fact, matches.getFirst(), headers));
+            if (!matches.isEmpty() || quote.startsWith("|") && quote.endsWith("|")) {
+                return java.util.Optional.empty();
+            }
         }
         List<MultimodalScoreFact> exactMatches = eligibleRows.stream()
                 .filter(row -> normalize(row.stream()
@@ -60,12 +59,24 @@ final class LogicalRowEvidenceBinder {
         if (exactMatches.size() == 1) return exactMatches.stream().findFirst();
         if (!exactMatches.isEmpty()) return java.util.Optional.empty();
 
+        // Exact cross-cell formula citations remain valid; pipe claims cannot use name/weight repair.
+        if (quote.contains("|")) return java.util.Optional.empty();
         List<MultimodalScoreFact> rebuilt = eligibleRows.stream()
                 .filter(row -> hasExactDimensionAndScore(row, fact, headers))
                 .filter(row -> sourceUnitClosed(row, artifact))
                 .map(row -> rebuildFromOriginalRuleCells(fact, row, headers))
                 .filter(java.util.Objects::nonNull).toList();
         return rebuilt.size() == 1 ? rebuilt.stream().findFirst() : java.util.Optional.empty();
+    }
+
+    /** Outer table separators are optional; cell contents, including formula bars, are unchanged. */
+    private static boolean matchesMarkdownRow(List<Object[]> row, String quote) {
+        String content = row.stream()
+                .map(pair -> ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).rawText())
+                .map(text -> text == null ? "" : text)
+                .collect(java.util.stream.Collectors.joining(" | "));
+        return java.util.stream.Stream.of(content, "| " + content, content + " |", "| " + content + " |")
+                .map(LogicalRowEvidenceBinder::normalize).anyMatch(quote::equals);
     }
 
     /** A whole Markdown row is layout; its closed physical cells own the complete original rule. */

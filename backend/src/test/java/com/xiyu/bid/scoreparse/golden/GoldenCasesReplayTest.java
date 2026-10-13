@@ -423,7 +423,8 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-pdf-row-evidence-contiguous"),
                 Arguments.of("case-project-1384-docx-continuation"),
                 Arguments.of("case-price-markdown-star"),
-                Arguments.of("case-markdown-whole-rule"));
+                Arguments.of("case-markdown-whole-rule"),
+                Arguments.of("case-markdown-inner-row"));
     }
 
     @ParameterizedTest(name = "{0}")

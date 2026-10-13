@@ -1353,3 +1353,9 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-10-12] fix | score-rule-restoration-candidate
 
 - 完整Markdown行唯一闭合物理来源恢复、空规则采纳拒绝与编号展示最小候选；绑定/恢复/采纳链路RED→GREEN及旧分支反证，最新线上验收仍待部署。
+
+## [2026-10-13] compound | scoreparse-1387-chapter-list-scope-rca 引文布局导致物理绑定回落及完整规则恢复断点；源码对照已复现，最新任务待验证
+
+## [2026-10-13] compound | scoreparse-1387 task315实时只读取证及实际引文对照：有效12项恢复0→12，未实施修复
+
+## [2026-10-13] compound | 物理行可选外侧分隔符、MRO来源换行边界与名称回退篡改反例沉淀

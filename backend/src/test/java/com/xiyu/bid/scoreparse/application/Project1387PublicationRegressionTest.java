@@ -9,11 +9,13 @@ import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.Canon
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class Project1387PublicationRegressionTest {
-    @Test void sourceDerivedFactsReachPublicationWithoutInventedTotalOrScope() throws Exception {
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void sourceDerivedFactsReachPublicationWithoutInventedTotalOrScope(boolean innerRowQuote) throws Exception {
         var artifact = Project1387SourceRegressionTest.fixtureArtifact();
         String text = Project1387SourceRegressionTest.fixtureText();
         var table = artifact.tables().stream().filter(t -> t.tableId().equals("t-0005")).findFirst().orElseThrow();
@@ -27,10 +29,13 @@ class Project1387PublicationRegressionTest {
             boolean parent = name.equals("商务部分") || name.equals("技术部分");
             String code = "item-" + row;
             if (name.equals("价格部分")) parentCode = "";
+            String quote = innerRowQuote ? cells.stream().map(CanonicalCellDto::rawText)
+                    .collect(java.util.stream.Collectors.joining(" | "))
+                    : cells.get(2).rawText().isBlank() ? name : cells.get(2).rawText();
+            String dimension = innerRowQuote ? row < 5 ? "商务" : row < 14 ? "技术" : "价格" : name;
             facts.add(new MultimodalScoreFact("第三章 评审办法", code, parent ? "" : parentCode,
-                    name, new BigDecimal(cells.get(1).rawText()),
-                    cells.get(2).rawText().isBlank() ? name : cells.get(2).rawText(), "SUBJECTIVE", null,
-                    "", List.of(), cells.get(2).rawText().isBlank() ? name : cells.get(2).rawText(),
+                    dimension, new BigDecimal(cells.get(1).rawText()), quote, "SUBJECTIVE", null,
+                    "", List.of(), quote,
                     0.9, ChildAggregation.SUM));
             if (parent) parentCode = code;
         }

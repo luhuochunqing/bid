@@ -138,7 +138,10 @@ public final class MultimodalScoreFactValidator {
                     .map(source -> source.cell().rawText() == null ? "" : source.cell().rawText())
                     .reduce((a, b) -> a + b).orElse("");
             String normalizedSource = normalizeEvidence(exactSource);
-            boolean verbatimMatch = normalizedSource.contains(normalizedQuote)
+            String separatedSource = textLocator ? normalizedSource : normalizeEvidence(cited.stream()
+                    .map(source -> source.cell().rawText() == null ? "" : source.cell().rawText())
+                    .collect(java.util.stream.Collectors.joining("\n")));
+            boolean verbatimMatch = normalizedSource.contains(normalizedQuote) || separatedSource.contains(normalizedQuote)
                     || (normalizedQuote.length() >= 20 && normalizedSource.contains(normalizedQuote.substring(0, Math.min(normalizedQuote.length(), 25))));
             if (fact.quotedText().isBlank() || normalizedQuote.isBlank() || !verbatimMatch) {
                 violations.add(of(fact, "quotedText", "QUOTE_NOT_VERBATIM", "引用必须逐字存在于指定原始单元格", exactSource, fact.quotedText()));
