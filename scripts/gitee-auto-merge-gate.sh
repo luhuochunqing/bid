@@ -13,7 +13,7 @@
 # 环境变量:
 #   GITEE_TOKEN     — Gitee 个人访问令牌（必需）
 #   GITEE_OWNER     — 仓库所有者（默认: allinai888）
-#   GITEE_REPO      — 仓库名（默认: bid）
+#   GITEE_REPO      — 仓库名（默认: bid-xiyu）
 #   AUTO_MERGE_SKIP — 设为 1 跳过自动合并（仅检查门禁）
 #
 # 合并条件:
@@ -26,7 +26,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HELPER="${SCRIPT_DIR}/gitee-pr-helper.sh"
 GITEE_OWNER="${GITEE_OWNER:-allinai888}"
-GITEE_REPO="${GITEE_REPO:-bid}"
+GITEE_REPO="${GITEE_REPO:-bid-xiyu}"
 API="https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}"
 
 echo "[auto-merge] === Gitee Auto-Merge Gate ==="

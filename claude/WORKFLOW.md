@@ -31,7 +31,7 @@ workspace:
   hooks:
     after_create: |
       set -euo pipefail
-      git clone --depth 1 https://gitee.com/allinai888/bid.git .
+      git clone --depth 1 https://gitee.com/allinai888/bid-xiyu.git .
       git config user.email "symphony-bot@xiyu.local"
       git config user.name "Symphony Bot (Claude)"
     before_remove: ""
