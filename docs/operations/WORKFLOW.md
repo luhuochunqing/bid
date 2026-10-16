@@ -37,9 +37,9 @@ workspace:
         git -C . rebase origin/main || true
       else
         echo "cloning bid repo into workspace"
-        git clone --depth 1 https://gitee.com/allinai888/bid.git . || {
+        git clone --depth 1 https://gitee.com/allinai888/bid-xiyu.git . || {
           echo "clone failed, trying without depth"
-          git clone https://gitee.com/allinai888/bid.git .
+          git clone https://gitee.com/allinai888/bid-xiyu.git .
         }
       fi
       git config user.email "symphony-bot@xiyu.local"
@@ -169,7 +169,7 @@ Every PR branch MUST be prefixed with `agent/symphony/`. The base must be
 
 ### 3. PR target — Gitee ONLY
 
-This project is mirrored on Gitee (`https://gitee.com/allinai888/bid`). All
+This project is mirrored on Gitee (`https://gitee.com/allinai888/bid-xiyu`). All
 PRs MUST be created via `scripts/gitee-pr-helper.sh`, never `gh`.
 
 ```bash

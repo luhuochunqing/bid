@@ -16,7 +16,7 @@
 #   GITEE_TOKEN     — Gitee 个人访问令牌（推荐显式注入；未设置时自动走 gitee-token.sh 解析链:
 #                     env → ~/.config/xiyu/credentials.env → ~/.zshenv → git credential fill）
 #   GITEE_OWNER     — 仓库所有者（默认: allinai888）
-#   GITEE_REPO      — 仓库名（默认: bid）
+#   GITEE_REPO      — 仓库名（默认: bid-xiyu）
 #   GITEE_BASE_BRANCH — 目标分支（默认: main）
 #   GITEE_API_BASE  — API 前缀（默认: https://gitee.com/api/v5；仅测试/mock 覆盖）
 #   GIT_PR_TITLE    — 可选，覆盖默认从 commit message 提取的 PR 标题（与 pr-create.sh 命名对齐）
@@ -46,7 +46,7 @@
 set -euo pipefail
 
 GITEE_OWNER="${GITEE_OWNER:-allinai888}"
-GITEE_REPO="${GITEE_REPO:-bid}"
+GITEE_REPO="${GITEE_REPO:-bid-xiyu}"
 GITEE_BASE="${GITEE_BASE_BRANCH:-main}"
 API_BASE="${GITEE_API_BASE:-https://gitee.com/api/v5}"
 API="${API_BASE}/repos/${GITEE_OWNER}/${GITEE_REPO}"

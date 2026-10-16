@@ -22,7 +22,7 @@
 
 | Remote 名 | URL | 用途 |
 |---|---|---|
-| `origin` | `git@gitee.com:allinai888/bid.git` | **唯一主仓库**：PR / 合并 / 协作走这里 |
+| `origin` | `git@gitee.com:allinai888/bid-xiyu.git` | **唯一主仓库**：PR / 合并 / 协作走这里 |
 
 **日常推送命令**：
 ```bash

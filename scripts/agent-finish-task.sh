@@ -176,7 +176,7 @@ if [[ "$MERGED_INTO_MAIN" == "0" ]] && [[ -z "${GITEE_TOKEN:-}" ]]; then
 fi
 if [[ "$MERGED_INTO_MAIN" == "0" ]] && [[ -n "${GITEE_TOKEN:-}" ]]; then
   PR_LIST=$(curl -s -H "Authorization: Bearer ${GITEE_TOKEN}" \
-    "https://gitee.com/api/v5/repos/${GITEE_OWNER:-allinai888}/${GITEE_REPO:-bid}/pulls?state=all&head=${TASK_BRANCH//\//%2F}&base=${GITEE_BASE_BRANCH:-main}" 2>/dev/null)
+    "https://gitee.com/api/v5/repos/${GITEE_OWNER:-allinai888}/${GITEE_REPO:-bid-xiyu}/pulls?state=all&head=${TASK_BRANCH//\//%2F}&base=${GITEE_BASE_BRANCH:-main}" 2>/dev/null)
   PR_COUNT=$(echo "$PR_LIST" | python3 -c "import sys,json; data=json.load(sys.stdin); print(len(data))" 2>/dev/null || echo "0")
 
   if [[ "$PR_COUNT" != "0" ]]; then
