@@ -44,7 +44,7 @@ test('active scoring rows retain complete rules and display numbers independentl
     const row = table.locator(`[data-item-id="${item.id}"]`)
     await expect(row.locator('.original-text-cell')).toContainText(item.detail)
     await expect(row.locator('.weight-cell')).toHaveText(String(Number(item.weight)))
-    await expect(row.locator('.code-cell')).toHaveText(/^[A-Za-z_]+$/.test(item.code || '') ? String(index + 1) : item.code)
+    await expect(row.locator('.code-cell')).toHaveText(String(index + 1))
   }
   const sum = data.items.reduce((total, item) => total + Number(item.weight), 0)
   expect(Number(data.summary.totalWeight)).toBe(sum)
