@@ -232,7 +232,7 @@ const {
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
-  decisionStatus, decisionBadgeType, decisionBadgeText, decisionBadgeVisible, reviewReason,
+  decisionBadgeType, decisionBadgeText, decisionBadgeVisible, reviewReason,
   candidateFacts, schemes, selectedSchemeId, schemeSelectionRequired, candidateTotalWeight, declaredTotalWeight,
   adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,
 } = useScoreParseDrawer(props, emit)
