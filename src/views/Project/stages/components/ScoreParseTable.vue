@@ -20,7 +20,7 @@
       </thead>
       <tbody>
         <tr v-for="(item, index) in items" :key="item.id != null ? 'id-' + item.id : 'row-' + index" :data-item-id="item.id">
-          <td class="code-cell">{{ index + 1 }}</td>
+          <td class="code-cell" :title="item.code ? '标书原文编号：' + item.code : undefined">{{ index + 1 }}</td>
           <td class="req-cell original-text-cell">{{ item.detail || item.req }}<span v-if="versioned && item.validationStatus !== 'AUTO_APPROVED'" class="history-label">来源未核验，请结合提取快照核对</span></td>
           <td class="dim-cell">{{ item.dim }}</td>
           <td class="weight-cell">{{ item.weight == null ? '待确认' : item.weight }}</td>

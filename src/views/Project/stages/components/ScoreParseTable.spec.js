@@ -33,7 +33,7 @@ describe('ScoreParseTable.vue', () => {
     },
   ]
 
-  it('renders exact 8 columns in correct order: 编号, 标书原文, 评分项, 权重, 满足状态, 评分类别, 预计得分, 得分依据', () => {
+  it('renders exact 8 columns in correct order: 序号, 标书原文, 评分项, 权重, 满足状态, 评分类别, 预计得分, 得分依据', () => {
     const wrapper = mount(ScoreParseTable, {
       props: {
         items: mockItems,
