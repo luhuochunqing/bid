@@ -14,6 +14,7 @@ final class LogicalRowEvidenceBinder {
     private static final Pattern SCORE_COLUMN = Pattern.compile("(?:分值|分数|得分)");
     private static final Pattern NAME_COLUMN = Pattern.compile("(?:评分因素|评分项目|评分项|评审因素|评审项目)");
     private static final Pattern ID_COLUMN = Pattern.compile("(?:序号|编号)");
+    private static final Pattern LEADING_ORDINAL = Pattern.compile("^(?:[（(]\\d+[)）]|\\d+[.．、)）])\\s*(?=\\D)");
 
     private LogicalRowEvidenceBinder() { }
 
@@ -49,13 +50,11 @@ final class LogicalRowEvidenceBinder {
                 return java.util.Optional.empty();
             }
         }
-        List<MultimodalScoreFact> exactMatches = eligibleRows.stream()
-                .filter(row -> normalize(row.stream()
-                        .map(pair -> ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).rawText())
-                        .filter(text -> text != null && !text.isBlank()).reduce("", String::concat)).contains(quote))
-                .filter(row -> sourceUnitClosed(row, artifact))
-                .map(row -> boundLogicalRow(fact, row, quote))
-                .toList();
+        List<MultimodalScoreFact> exactMatches = exactMatches(eligibleRows, artifact, fact, quote);
+        if (exactMatches.isEmpty()) {
+            String bareQuote = stripLeadingOrdinal(quote);
+            if (!bareQuote.equals(quote)) exactMatches = exactMatches(eligibleRows, artifact, fact, bareQuote);
+        }
         if (exactMatches.size() == 1) return exactMatches.stream().findFirst();
         if (!exactMatches.isEmpty()) return java.util.Optional.empty();
 
@@ -67,6 +66,22 @@ final class LogicalRowEvidenceBinder {
                 .map(row -> rebuildFromOriginalRuleCells(fact, row, headers))
                 .filter(java.util.Objects::nonNull).toList();
         return rebuilt.size() == 1 ? rebuilt.stream().findFirst() : java.util.Optional.empty();
+    }
+
+    private static List<MultimodalScoreFact> exactMatches(List<List<Object[]>> rows, DocumentArtifact artifact,
+                                                          MultimodalScoreFact fact, String quote) {
+        return rows.stream()
+                .filter(row -> normalize(row.stream()
+                        .map(pair -> ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).rawText())
+                        .filter(text -> text != null && !text.isBlank()).reduce("", String::concat)).contains(quote))
+                .filter(row -> sourceUnitClosed(row, artifact))
+                .map(row -> boundLogicalRow(fact, row, quote))
+                .toList();
+    }
+
+    /** Models may prefix a rule with "1. " although the original row carries no such ordinal. */
+    private static String stripLeadingOrdinal(String quote) {
+        return LEADING_ORDINAL.matcher(quote).replaceFirst("");
     }
 
     /** Outer table separators are optional; cell contents, including formula bars, are unchanged. */
@@ -211,7 +226,7 @@ final class LogicalRowEvidenceBinder {
                 fact.weight(), fact.ruleText(), fact.scoreType(), page, firstTable.tableId(), sourceCellIds,
                 TextPrimaryEvidenceBinder.restoredQuote(citations.stream().map(pair ->
                         ((DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1]).rawText()).reduce("", String::concat),
-                        fact.quotedText()), fact.confidence(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus(), fact.sourceMetadata());
+                        quote), fact.confidence(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus(), fact.sourceMetadata());
     }
 
 }

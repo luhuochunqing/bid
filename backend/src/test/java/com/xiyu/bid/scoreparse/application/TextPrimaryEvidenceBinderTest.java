@@ -81,6 +81,27 @@ class TextPrimaryEvidenceBinderTest {
         assertThat(TextPrimaryScoreFactMapper.map(bound, artifact, validation).sourceText()).isEqualTo(cell.rawText());
     }
 
+    @Test void modelOrdinalAndAsciiComparisonGlyphStillBindOriginalRuleRow() {
+        // 项目1120 task126：模型引文把「﹤」写成「<」并自加「1.」序号，导致财务状况 6 分整条无法回指。
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "DOCX", "table-v2"),
+                List.of(new DocumentArtifact.CanonicalTable("t1", 1, "第三章 评审办法", 1, 3, List.of(), List.of(
+                        cell("t1-name", 0, 0, "财务状况", "t1-r1"),
+                        cell("t1-rule", 0, 1, "速动比率=速动资产/流动负债，速动比﹤1，得40分。数据取值来源：①速动资产", "t1-r1"),
+                        cell("t1-weight", 0, 2, "6%", "t1-r1")), true)), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审办法", "business_financial", "", "财务状况", BigDecimal.valueOf(6),
+                "模型摘要", "OBJECTIVE", null, "", List.of(),
+                "1. 速动比率=速动资产/流动负债，速动比<1，得40分。\n数据取值来源：\n①速动资产", .9);
+
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").getFirst();
+
+        assertThat(bound.sourceCellIds()).containsExactly("t1-name", "t1-rule", "t1-weight");
+        assertThat(bound.quotedText()).isEqualTo("速动比率=速动资产/流动负债，速动比﹤1，得40分。数据取值来源：①速动资产");
+        var report = new com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator()
+                .validate(List.of(bound), artifact, BigDecimal.valueOf(6));
+        assertThat(report.violations()).noneMatch(v -> "QUOTE_NOT_VERBATIM".equals(v.code()));
+        assertThat(bound.sourceMetadata().modelQuotedText()).isEqualTo(fact.quotedText());
+    }
+
     @Test
     void bindsPdfNameAndRuleQuoteAcrossCellsInSamePhysicalRowWithoutLogicalRowId() {
         var table = new DocumentArtifact.CanonicalTable("pdf-p34-t1", 34, "第三章 评审标准", 2, 3,

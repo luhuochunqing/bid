@@ -40,6 +40,23 @@ class EvidenceTextTest {
         assertThat(raw.substring(spanWithSpace.start(), spanWithSpace.end())).isEqualTo("28\n分");
     }
 
+    @Test void comparisonOperatorGlyphVariantsAreLayoutNoise() {
+        // 项目1120 task126：原文用 U+FE64「﹤」，模型引文写 ASCII「<」，逐字匹配失败导致整条规则丢失。
+        assertThat(EvidenceText.normalize("速动比﹤1").text()).isEqualTo("速动比<1");
+        assertThat(EvidenceText.normalize("速动比＜1").text()).isEqualTo("速动比<1");
+        assertThat(EvidenceText.normalize("速动比﹥1").text()).isEqualTo("速动比>1");
+        String raw = "速动比﹤1，得30分";
+        var span = EvidenceText.normalize(raw).uniqueSpan("速动比<1").orElseThrow();
+        assertThat(raw.substring(span.start(), span.end())).isEqualTo("速动比﹤1");
+    }
+
+    @Test void punctuationLineBreakInsideQuoteIsLayoutNoise() {
+        // 项目1120 task126：模型引文在「：」后换行，原文单元格没有空白，归一化曾多插一个空格导致失配。
+        assertThat(EvidenceText.normalize("数据取值来源：\n①速动资产").text()).isEqualTo("数据取值来源：①速动资产");
+        assertThat(EvidenceText.normalize("满分100分。\n注：财务指标").text()).isEqualTo("满分100分。注：财务指标");
+        assertThat(EvidenceText.normalize("A B").text()).isEqualTo("A B");
+    }
+
     @Test void pdfHardLineBreakBetweenDigitAndHanIsLayoutNoise() {
         // 项目1382 Task 291：PDF 单元格把「满分28分」硬换行成「满分28\n分」，模型引文无换行。
         // 反向边界（汉字↔数字，"达到 5 年"）同样视为排版噪声；数字↔数字空格保留（千分位）。
