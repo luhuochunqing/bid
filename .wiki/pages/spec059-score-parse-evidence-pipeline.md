@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [score-parse, spec059, 评分解析, DocumentArtifact, CanonicalTableGrid, ScoreFact]
 created: 2026-09-02
-updated: 2026-09-12
+updated: 2026-10-22
 health_checked: 2026-09-18
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreParseDecision.java
@@ -255,3 +255,32 @@ Fix A+B 的回归锚点仍是单元/验收级合成夹具，无法证明真实 1
   - composable 入口同时拦截 `reviewSubmitting` 和 `reviewSubmitted`，避免并发或重复调用绕过按钮状态
 - **验证**：`useScoreParseDrawer.spec.js` 与 `ScoreParseDrawer.spec.js` 共 36 例全绿；覆盖提交后关闭待复核提示、终态文案、刷新后已有审计收口、重复调用只发一次请求。
 - **复核完成收口（2026-09-13）**：`reviewSubmitted` 作为人工复核完成信号；提交成功或加载到 `RETAIN_ORIGINAL` 审计后，前端关闭待复核面板并将徽章显示为“已完成复核”。原始 `decisionStatus` 保留其解析语义，不改为 `AUTO_APPROVED`。
+
+## 引文归一化：同形异码比较符 + 模型序号 + 标点换行（2026-10-22）
+
+### 故障形态
+
+项目 1120 的多模态解析候选合计 94 分（原文 100 分），财务状况 6 分项被剔除，任务停在 `REVIEW_REQUIRED` + `WEIGHT_SUM_MISMATCH`。
+逐字比对真实 `score_parse_fact` 引文与 `source_text` 后定位三类同义差异：
+
+1. 原文使用 `﹤`(U+FE64)、`＞`(U+FF1E)，模型回指改写为 ASCII `<`、`>`；
+2. 引文在「：」后有换行，`normalize` 将其折算为空格，而原单元格没有空格；
+3. 模型自加行首序号（`1. `、`（1）`），原文行没有。
+
+三者叠加使 `EvidenceText.uniqueSpan` 判为未命中 → 逻辑行绑定拿不到 `source_cell_ids` → 校验器判 `SOURCE_LOCATOR_NOT_VERIFIED` 并剔除该事实。
+
+### 修复口径
+
+- `EvidenceText.comparisonOperator`：`﹤/＜→<`、`﹥/＞→>`，1:1 替换且保持 UTF-16 偏移可回溯；
+- `EvidenceText.noSpace`：CJK 标点（`，。；：！？、（）【】《》“”‘’`）邻接时不插入空格，换行不再产生虚假分隔；
+- `LogicalRowEvidenceBinder`：精确匹配为空时剥离前导序号重试；`boundLogicalRow` 恢复引文时改用命中的变体，避免继续触发 `QUOTE_NOT_VERBATIM`。
+
+### 回归锚点
+
+- `EvidenceTextTest`：字形折叠（含 offset 回溯到含 `﹤` 的原文区间）、标点换行、保留普通空格；
+- `TextPrimaryEvidenceBinderTest.modelOrdinalAndAsciiComparisonGlyphStillBindOriginalRuleRow`：序号 + ASCII 比较符 + 换行三因叠加，断言绑定三列单元格、`quotedText` 等于原文、`modelQuotedText` 保留模型原话、校验器不报 `QUOTE_NOT_VERBATIM`；
+- 金标夹具 `case-quote-glyph-ordinal-normalize.{md,expected.json}` + `GoldenCasesReplayTest#comparisonGlyphAndModelOrdinalQuoteStillResolveToOriginalSpan`。
+
+### 未覆盖的阻断
+
+`ORIGINAL_SCHEME_AMBIGUOUS`（同文档含综合评分法与经评审最低价法，采纳口径为 `SCHEME_SELECTION_REQUIRED`）与跨物理表 `UNKNOWN_TOTAL`（`declaredTotal=null`，需人工确认总分）仍是独立阻断；引文修复只恢复候选完整性，不改变方案与总分判定。
