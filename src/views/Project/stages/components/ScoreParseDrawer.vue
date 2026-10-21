@@ -46,7 +46,7 @@
         <div class="toolbar">
           <div class="toolbar-info">
             <span class="doc-tag">📄 招标文件：{{ sourceFileName }}</span>
-            <span v-if="decisionStatus && !latestExtraction" :class="['doc-tag', 'decision-tag', decisionBadgeType]" data-test="score-parse-decision-status">
+            <span v-if="decisionBadgeVisible" :class="['doc-tag', 'decision-tag', decisionBadgeType]" data-test="score-parse-decision-status">
               {{ decisionBadgeText }}
             </span>
             <span v-if="reviewReason && !latestExtraction" class="doc-tag review-reason-tag" :title="reviewReason">
@@ -232,7 +232,7 @@ const {
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
-  decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason,
+  decisionBadgeType, decisionBadgeText, decisionBadgeVisible, reviewReason,
   candidateFacts, schemes, selectedSchemeId, schemeSelectionRequired, candidateTotalWeight, declaredTotalWeight,
   adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,
 } = useScoreParseDrawer(props, emit)

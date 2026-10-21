@@ -6,7 +6,7 @@ import { ElMessage } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { getAiDocumentErrorPresentation } from '@/utils/aiDocumentError.js'
-import { formatTime, pollTask, normalizeScoreItem, mapScoreResults, lookupScoreResult, getDecisionBadgeType, getDecisionBadgeText } from './scoreParseTask.js'
+import { formatTime, pollTask, normalizeScoreItem, mapScoreResults, lookupScoreResult, getDecisionBadgeType, getDecisionBadgeText, shouldHideFailureBadge } from './scoreParseTask.js'
 import { parseTriggerSource, scoringBody, scoringSkipHint, hasMeaningfulResults, circuitHintFromMeta } from './scoreParseSpendGuard.js'
 import { useScoreExtraction } from './useScoreExtraction.js'
 import { useScoreCandidateAdoption } from './useScoreCandidateAdoption.js'
@@ -34,6 +34,9 @@ export function useScoreParseDrawer(props, emit) {
   const extraction = useScoreExtraction(props, fetchAnalysisData)
   const hasHistoricalResults = ref(false), hasScoreResults = ref(false)
   const scoreItems = ref([]), scoreResults = ref({}), detailModalVisible = ref(false), detailMode = ref('est')
+  // 本次解析失败但仍有历史评分项在生效时不展示失败徽章，避免"评分项正确 + 结构异常"并存误导用户
+  const decisionBadgeVisible = computed(() => Boolean(decisionStatus.value) && !extraction.latestExtraction.value
+    && !shouldHideFailureBadge(decisionStatus.value, scoreItems.value.length))
   const activeParseTime = computed(() => extraction.latestExtraction.value?.active?.taskId && scoreItems.value.length && parseTime.value !== '—' ? parseTime.value : '未知')
   const selectedItem = ref(null), selectedResult = ref(null)
   const totalWeight = computed(() => scoreItems.value.length && scoreItems.value.every(i => i.weight != null) ? scoreItems.value.reduce((sum, item) => sum + (Number(item.weight) || 0), 0) : null)
@@ -279,7 +282,7 @@ export function useScoreParseDrawer(props, emit) {
     scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult,
     totalWeight, objectiveWeight, subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount,
     estTotalScore, actualTotalScore, openDetail, open, runScoring, reparse,
-    decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason, fallbackReason, pipelineVersion, artifactSha256,
+    decisionStatus, decisionBadgeType, decisionBadgeText, decisionBadgeVisible, reviewReason, fallbackReason, pipelineVersion, artifactSha256,
     reviewRequired, reviewSnapshot, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewSubmitted, reviewError,
     loadReviewSnapshotIfNeeded, submitReviewRetention,
     candidateFacts, schemes, selectedSchemeId, schemeSelectionRequired, candidateTotalWeight, declaredTotalWeight, adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,

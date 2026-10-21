@@ -175,6 +175,7 @@ spec 059 把链路切到「原始 Word 结构 + 确定性事实 + 原文证据 +
 - **前端抽屉与原文证据展开 (T504)**：
   - `useScoreParseDrawer.js`：解析 `meta.decisionStatus`、`meta.reviewReason`，计算 `decisionBadgeType` 与 `decisionBadgeText`。
   - `ScoreParseDrawer.vue`：在第一部分工具栏中展示决策状态徽章（绿色自动通过 / 橙色待人工复核 / 红色结构异常）与复核原因，严格遵循不修改用户未确认评分值的不变量。
+  - 徽章可见性收口到 `useScoreParseDrawer.js` 的 `decisionBadgeVisible` computed〔2026-10-21 补充〕：当次解析失败（`STRUCTURE_INCOMPLETE` / `PARSE_FAILED`）但项目仍有可用评分项时不展示失败徽章，避免"评分项正确 + 结构异常"并存误导用户；评分项为空时仍展示，真实失败不被掩盖。判定纯函数为 `scoreParseTask.js#shouldHideFailureBadge`，`REVIEW_REQUIRED` 不受影响。
   - `ScoreItemDetailModal.vue`：详情弹窗支持展示表格单元格编号、提取方式与权重证据。
 - **双轨回放评估 (T505)**：
   - 后端回放套件 `ScoreParseDualRunTest.java` + Node.js 评估器 `scripts/eval-scoreparse/dual-run.mjs`。

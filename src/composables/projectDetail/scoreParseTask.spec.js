@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { STATUS_MAP, TYPE_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult, mapScoreResults, lookupScoreResult, sanitizeCode, getDecisionBadgeType, getDecisionBadgeText, categoryLabel } from './scoreParseTask.js'
+import { STATUS_MAP, TYPE_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult, mapScoreResults, lookupScoreResult, sanitizeCode, getDecisionBadgeType, getDecisionBadgeText, shouldHideFailureBadge, categoryLabel } from './scoreParseTask.js'
 
 describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () => {
   beforeEach(() => {
@@ -303,6 +303,24 @@ describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () 
       expect(getDecisionBadgeText('PARSE_FAILED', false)).toBe('解析失败')
       expect(getDecisionBadgeType('UNKNOWN', false)).toBe('')
       expect(getDecisionBadgeText('UNKNOWN', false)).toBe('')
+    })
+  })
+
+  describe('shouldHideFailureBadge — 本次解析失败但仍有历史评分项生效时不展示失败徽章', () => {
+    it('当次失败且已有生效评分项时隐藏（580：结构异常 + 9 条历史项）', () => {
+      expect(shouldHideFailureBadge('STRUCTURE_INCOMPLETE', 9)).toBe(true)
+      expect(shouldHideFailureBadge('PARSE_FAILED', 9)).toBe(true)
+    })
+
+    it('没有生效评分项时保留失败提示，避免掩盖真实失败', () => {
+      expect(shouldHideFailureBadge('STRUCTURE_INCOMPLETE', 0)).toBe(false)
+      expect(shouldHideFailureBadge('PARSE_FAILED', 0)).toBe(false)
+    })
+
+    it('非失败状态不受影响', () => {
+      expect(shouldHideFailureBadge('REVIEW_REQUIRED', 9)).toBe(false)
+      expect(shouldHideFailureBadge('AUTO_APPROVED', 9)).toBe(false)
+      expect(shouldHideFailureBadge('', 9)).toBe(false)
     })
   })
 })
