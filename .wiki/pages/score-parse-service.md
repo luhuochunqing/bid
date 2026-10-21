@@ -701,3 +701,15 @@ trigger（同步<1s，互斥校验+建任务）
 
 在缺少明确最高分/分值表头时，若合计行文本包含“单项满分10分，共10项，合计100分”，小计列匹配正则必须通过负向后行断言严格排除“单项/每项/每条/每个/本项”等修饰，严禁误将单项满分作为整表满分。若同一单元格或同一列包含多个不同数值的显式总分/满分声明（如“满分100分，总分90分”），`ScoreSubtotalColumnPolicy` 必须主动放弃并返回 `-1` 维持未决，严禁猜测采信。详见 `docs/lessons/lessons-learned.md` §425。
 
+## 32. 单一表格全池唯一编号时按编号数值排序（项目 580，2026-10-21）
+
+- **症状与根因**：项目 580 落库 `score_item.item_index` 为 `1,2,6,8,9,3,4,7,5`，而 `score_parse_fact` 中原文编号 `1..9` 顺序正常。根因是 §247 的四层排序纪律里，第一关键字“顶级大类首现序”由 `normalizeCategoryName` 的关键词启发式决定——「商品管理方案 / 技术运营服务方案 / 仓储配送方案」被判为“技术评分”、“信用额度”被判为“诚信评价”、其余无关键词归为空大类，于是同一张表内的 1..9 被按大类首现序拆成 `1,2 / 6,8,9 / 3,4,7 / 5` 四段。维度名里的“方案/信用”是可编辑的自由文本，用它反推大类结构本质上不可靠。
+- **修复（规则 5）**：`ScoreItemOrderPolicy.sort()` 增加前置判定——候选池内编号**全部可解析**（`ScoreCodeKey.parse` 非 null）、**两两唯一**、且**无中文章节序号**时，直接按编号数值稳定排序并返回；否则完整落回 §247 的四层逻辑。判定条件是“全局唯一”，跨大类复用 `1、2` 的场景（项目 1371 等）天然被排除，因此不覆盖既有语义。
+- **作用域澄清**：抽取结果未携带 `sourceTableId`，判定实际作用于整个候选池而非单张表；“编号全局唯一”是可观测的替代信号。
+- **编号解析抽离**：解析/比较由 `ScoreCodeKey` record（`parse` / `compare`，支持 `4 / 4-1 / 4.1 / 2.2.4(1)`）承载，`ScoreItemOrderPolicy` 降到 251 行内，避免触碰 300 行硬门禁。
+- **消费方一致性**：`ScoreItemPersistenceService`（落库 `item_index`）与 `ScoreReviewCandidateFactMapper`（复核面板）共用同一策略实例，两条路径顺序同步变化；但**存量 REVIEW_REQUIRED 快照不回填**，需重新解析才对齐。
+- **前端列语义（A 方案）**：`ScoreParseTable` 表头“编号”改为“序号”，单元格统一渲染行号 `index + 1`，不再直接展示 `item.code`（`title` 悬停仍可见“标书原文编号：X”，详情弹窗标题也保留 code）。理由是后端行序已保证等于编号序，列里再显示可编辑的 code 会让“序号跳号”与“编号乱序”两种病象互相掩盖。
+- **验证锚点**：`ScoreItemOrderPolicyTest#sort_project580SingleTableUniqueCodes_followsNumericOrder`（RED 时精确复现 `1,2,6,8,9,3,4,7,5`）与 `#sort_uniqueCodesWithChineseChapter_keepsChapterOrder`（中文章节仍优先）；前端 `ScoreParseTable.spec.js` / `ScoreParseV3.qa.spec.js` / `e2e/score-parse-candidate-review.spec.js` 同步为行号断言。
+- **门禁说明**：本次改动属“非版式逻辑变更”（不触碰 Locator/Extractor/RecallLane/Merge/Filter 抽取链路），金标夹具的匹配谓词本身不比较 code 与顺序，无法覆盖该回归，故推送时按 README §146 走 `SCOREPARSE_GATE_SKIP=1` 逃生阀（PR 描述已说明理由）。
+- **存量数据**：生产项目 580 的 9 行 `item_index` 已手工重排为 `CAST(code AS UNSIGNED)`（备份于服务器 `/tmp/score_item_580_20261021203733.sql`）；代码未部署前重新解析会复原乱序，此为已知代价。
+
