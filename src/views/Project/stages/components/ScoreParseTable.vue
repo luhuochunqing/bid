@@ -8,7 +8,7 @@
     <table class="parse-table">
       <thead>
         <tr>
-          <th style="width: 68px">编号</th>
+          <th style="width: 68px">序号</th>
           <th>{{ versioned ? '当前规则文本' : '标书原文' }}</th>
           <th style="width: 110px">评分项</th>
           <th style="width: 52px; text-align: center">权重</th>
@@ -20,7 +20,7 @@
       </thead>
       <tbody>
         <tr v-for="(item, index) in items" :key="item.id != null ? 'id-' + item.id : 'row-' + index" :data-item-id="item.id">
-          <td class="code-cell">{{ /^[A-Za-z_]+$/.test(item.code || '') ? index + 1 : item.code }}</td>
+          <td class="code-cell" :title="item.code ? '标书原文编号：' + item.code : undefined">{{ index + 1 }}</td>
           <td class="req-cell original-text-cell">{{ item.detail || item.req }}<span v-if="versioned && item.validationStatus !== 'AUTO_APPROVED'" class="history-label">来源未核验，请结合提取快照核对</span></td>
           <td class="dim-cell">{{ item.dim }}</td>
           <td class="weight-cell">{{ item.weight == null ? '待确认' : item.weight }}</td>

@@ -195,6 +195,46 @@ class ScoreItemOrderPolicyTest {
         );
     }
 
+    @Test
+    void sort_project580SingleTableUniqueCodes_followsNumericOrder() {
+        // project 580 实测：同一张表内编号 1..9 全局唯一，但 "方案/信用" 关键词让维度被误分层，
+        // 旧逻辑按大类首现序输出 1,2,6,8,9,3,4,7,5，与原文编号序不符
+        List<ScoreCandidate> input = List.of(
+                candidate("1", "服务案例", "商务技术（80） | 1 | 服务案例 | 10", "10"),
+                candidate("2", "销售额", "2 | 销售额 | 15", "15"),
+                candidate("3", "商品管理方案", "3 | 商品管理方案 | 10", "10"),
+                candidate("4", "技术运营服务方案", "4 | 技术运营服务方案 | 10", "10"),
+                candidate("5", "信用额度", "5 | 信用额度 | 5", "5"),
+                candidate("6", "免费配送最小起订额度", "6 | 免费配送最小起订额度 | 10", "10"),
+                candidate("7", "仓储配送方案", "7 | 仓储配送方案 | 10", "10"),
+                candidate("8", "售后服务及增值服务", "8 | 售后服务及增值服务 | 10", "10"),
+                candidate("9", "折扣率", "价格（20） | 9 | 折扣率 | 20", "20")
+        );
+
+        List<ScoreCandidate> result = policy.sort(input);
+
+        assertThat(result).extracting(ScoreCandidate::code)
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
+    }
+
+    @Test
+    void sort_uniqueCodesWithChineseChapter_keepsChapterOrder() {
+        // 编号全局唯一但存在中文章节序号时，仍以章节序为第一关键字（不得被全局数值序覆盖）
+        List<ScoreCandidate> input = List.of(
+                candidate("3", "一、诚信评价 / 公共信用信息报告", "公共信用 0分", "0"),
+                candidate("1", "二、财务状况 / 财务综合评价", "财务状况 25分", "25"),
+                candidate("2", "三、绿色数智评价 / 绿色发展规划", "绿色规划 4分", "4")
+        );
+
+        List<ScoreCandidate> result = policy.sort(input);
+
+        assertThat(result).extracting(ScoreCandidate::dim)
+                .containsExactly(
+                        "一、诚信评价 / 公共信用信息报告",
+                        "二、财务状况 / 财务综合评价",
+                        "三、绿色数智评价 / 绿色发展规划");
+    }
+
     private List<ScoreCandidate> candidates(String... codes) {
         List<ScoreCandidate> list = new ArrayList<>();
         for (String code : codes) {

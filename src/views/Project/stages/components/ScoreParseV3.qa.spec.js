@@ -91,9 +91,8 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
 
     // 验证评分标准与维度
     expect(wrapper.vm.scoreItems.length).toBe(3)
-    expect(wrapper.text()).toContain('A1')
+    expect(wrapper.findAll('.code-cell').map((cell) => cell.text())).toEqual(['1', '2', '3'])
     expect(wrapper.text()).toContain('总体架构设计')
-    expect(wrapper.text()).toContain('D2')
     expect(wrapper.text()).toContain('CMMI 5 级认证')
 
     // 验证统计数据与客观/主观权重分布
