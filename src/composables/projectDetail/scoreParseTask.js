@@ -201,3 +201,15 @@ export function getDecisionBadgeText(decisionStatus, reviewSubmitted) {
   if (reviewSubmitted) return '已完成复核'
   return DECISION_BADGE_TEXT_MAP[decisionStatus] || ''
 }
+
+/** 仅这些状态代表"本次解析没产出"，落到项目上会与仍在生效的历史评分项冲突。 */
+const FAILURE_DECISION_STATUSES = new Set(['STRUCTURE_INCOMPLETE', 'PARSE_FAILED'])
+
+/**
+ * 当次解析失败、但项目仍保留着可用的历史评分项时不展示失败徽章：
+ * 否则用户看到的是"评分项正确"与"结构异常"并存，误以为表格结构有问题。
+ * 评分项为空时仍展示，真实失败不能被掩盖。
+ */
+export function shouldHideFailureBadge(decisionStatus, activeItemCount) {
+  return FAILURE_DECISION_STATUSES.has(decisionStatus) && Number(activeItemCount) > 0
+}

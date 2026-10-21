@@ -74,6 +74,29 @@ describe('ScoreParseDrawer.vue', () => {
     expect(scoreParseApi.activateExtraction).not.toHaveBeenCalled()
   })
 
+  it('hides the failure badge when the latest parse failed but active items remain', async () => {
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, meta: {
+      decisionStatus: 'STRUCTURE_INCOMPLETE', fallbackReason: 'MULTIMODAL_EXTRACTION_FAILED' } } })
+    const wrapper = mount(ScoreParseDrawer, { props: { projectId: 123 }, global: { stubs: {
+      'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true,
+    } } })
+    await wrapper.vm.open({ stage: 1, autoScore: false, autoParse: false })
+    expect(wrapper.find('[data-test="score-parse-decision-status"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('结构异常')
+  })
+
+  it('keeps the failure badge when the latest parse failed and no active item exists', async () => {
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: [], meta: {
+      decisionStatus: 'STRUCTURE_INCOMPLETE', fallbackReason: 'MULTIMODAL_EXTRACTION_FAILED' } } })
+    const wrapper = mount(ScoreParseDrawer, { props: { projectId: 123 }, global: { stubs: {
+      'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true,
+    } } })
+    await wrapper.vm.open({ stage: 1, autoScore: false, autoParse: false })
+    const badge = wrapper.find('[data-test="score-parse-decision-status"]')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('结构异常')
+  })
+
   it('mounts and opens drawer in stage 2', async () => {
     const wrapper = mount(ScoreParseDrawer, {
       props: {
