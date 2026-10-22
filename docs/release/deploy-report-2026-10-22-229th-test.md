@@ -14,7 +14,8 @@
 |---|---|
 | Release ID | `fa8a65229` |
 | 部署分支 | `agent/trae-init`（锚点分支，HEAD = origin/main） |
-| HEAD Commit | `fa8a65229` |
+| HEAD Commit（本次部署的代码版本） | `fa8a65229` |
+| 报告提交 | `c3a92f3a1`（本报告在部署完成后追加，基于 fa8a65229） |
 | 旧版本 | `021cf93e4-api8080`（第 228 次，2026-10-22 11:16） |
 | 构建包 | `.release/xiyu-bid-release-fa8a65229.tar.gz`（155M） |
 | 增量 | 13 个 commit，13 个文件（+441/-87） |
@@ -68,7 +69,7 @@
 4. **服务器现状**：旧版 `021cf93e4-api8080` 运行中，health 200 UP ✅
 5. **Flyway 预检 3 步法** ✅（见上表）
 6. **本地打包**：`RELEASE_ID=fa8a65229 VITE_API_BASE_URL= VITE_OBS_ENABLED=true COPYFILE_DISABLE=1 package-release.sh` ✅（容器测试门禁 `FlywayMysqlContainerTest` 通过；BUILD SUCCESS）
-7. **产物校验** ✅：同源 `apiBaseUrl=""`、`obsEnabled=true`、OBS `.upload(` 调用数=2、jar 内 Flyway 迁移无重复（279 个资源）
+7. **产物校验** ✅：同源 `apiBaseUrl=""`、`obsEnabled=true`、OBS `.upload(` 调用数=2、jar 内 V 迁移无重复（279 个 V + 1 个 B73 = 280 个有效迁移）
 8. **上传 + 部署**：scp 155M 归档 + `remote-deploy.sh`（`SYSTEMCTL_SUDO=true`）✅ 一次成功
 9. **DB 备份** ✅：`winbid-fa8a65229-20261022132425.sql.gz`（15M）
 10. **Sidecar 重建**：指纹变化（`5a3e833e` → `24c0104f`）触发 rebuild，镜像构建成功，`xiyu-sidecar` 重启后健康检查通过；`schemaVersion=2.2`
@@ -82,7 +83,7 @@
 ### 健康检查
 
 ```
-✅ Flyway validate 通过（仅 pending 新迁移为预期状态）
+✅ Flyway validate 通过（无 pending 新迁移）
 ✅ Sidecar 容器升级完成 / Sidecar 健康检查通过
 ✅ AI Provider 守卫通过：AI_PROVIDER=custom
 ✅ Health check passed (consecutive 3/3, total attempts: 80, service: active/running)
@@ -148,7 +149,8 @@ Sidecar 冒烟明细：fixture v1 形态回放通过（tables=14 cells=8215 scor
 1. **评分解析行为变更**：本次上线"多表无总分采纳硬死锁解除 + 人工复核卡片交互重构"，测试环境验收需重点回归评分解析抽屉/复核卡片的采纳流程与多表场景。
 2. **诊断日志增量**：新增 LLM 原始响应与校验明细日志，日志量会上升，注意磁盘与日志采集压力。
 3. **Kafka readiness 延迟**：本次 80 次尝试后 UP，属已知行为；超过 4 分钟需排查 Kafka broker。
-4. **副作用**：sidecar 镜像本次被重建（源码未变），若后续再次出现无意义重建，需确认 !2841 修复是否按预期生效。
+4. **重启窗口**：后端 `13:24:40` 重启，health 连续 3/3 通过前约 2–3 分钟 API 不可用；测试环境可接受，生产部署需按维护窗口安排。
+5. **副作用**：sidecar 镜像本次被重建（源码未变），若后续再次出现无意义重建，需确认 !2841 修复是否按预期生效。
 
 ## 部署确认清单
 
@@ -169,4 +171,4 @@ Sidecar 冒烟明细：fixture v1 形态回放通过（tables=14 cells=8215 scor
 - [x] 部署记录确认（deployed-release.json 已更新）
 - [x] 部署报告生成
 
-**部署状态：✅ 成功（一次通过，零中断）**
+**部署状态：✅ 成功（一次成功，无人工回退；后端重启后约 2–3 分钟 health 重试窗口内 API 不可用，非零中断）**
