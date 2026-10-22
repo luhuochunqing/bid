@@ -84,6 +84,7 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
                     .responseFormat(responseType)
                     .build();
             StructuredChatCompletion<T> completion = client(config).chat().completions().create(params);
+            logRawChatCompletion(completion, config);
             return completion.choices().stream()
                     .findFirst()
                     .flatMap(choice -> choice.message().content());
@@ -148,6 +149,7 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
                 .responseFormat(ResponseFormatJsonObject.builder().build())
                 .build();
         ChatCompletion completion = client(config).chat().completions().create(params);
+        logRawChatCompletion(completion, config);
         return completion.choices().stream()
                 .findFirst()
                 .map(ChatCompletion.Choice::message)
@@ -196,6 +198,7 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
                 .responseFormat(ResponseFormatJsonObject.builder().build())
                 .build();
         ChatCompletion completion = client(config).chat().completions().create(params);
+        logRawChatCompletion(completion, config);
         return completion.choices().stream()
                 .findFirst()
                 .map(ChatCompletion.Choice::message)
@@ -235,6 +238,40 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
                 throw new IllegalStateException("AI json_object response could not be parsed", fallbackException);
             }
         }
+    }
+
+    /** 诊断用：需将 com.xiyu.bid.biddraftagent.infrastructure.openai 日志级别调到 DEBUG 才会输出。 */
+    private <T> void logRawChatCompletion(StructuredChatCompletion<T> completion, OpenAiBidAgentRequestConfig config) {
+        if (!log.isDebugEnabled()) {
+            return;
+        }
+        var choice = completion.rawChatCompletion().choices().stream().findFirst().orElse(null);
+        String raw = choice == null ? "<no-choice>" : choice.message().content().orElse("<empty>");
+        log.debug("LLM 原始响应(json_schema): model={}, finishReason={}, usage={}, chars={}, body={}",
+                config.model(), choice == null ? "<none>" : choice.finishReason(),
+                completion.usage().map(Object::toString).orElse("<none>"), raw.length(), excerpt(raw, 1500));
+    }
+
+    /** 诊断用：需将 com.xiyu.bid.biddraftagent.infrastructure.openai 日志级别调到 DEBUG 才会输出。 */
+    private void logRawChatCompletion(ChatCompletion completion, OpenAiBidAgentRequestConfig config) {
+        if (!log.isDebugEnabled()) {
+            return;
+        }
+        var choice = completion.choices().stream().findFirst().orElse(null);
+        String raw = choice == null ? "<no-choice>" : choice.message().content().orElse("<empty>");
+        log.debug("LLM 原始响应(json_object): model={}, finishReason={}, usage={}, chars={}, body={}",
+                config.model(), choice == null ? "<none>" : choice.finishReason(),
+                completion.usage().map(Object::toString).orElse("<none>"), raw.length(), excerpt(raw, 1500));
+    }
+
+    /** 截断预览，保留原始换行转义，避免日志被多行撑开。 */
+    private String excerpt(String content, int max) {
+        if (content == null || content.isBlank()) {
+            return "<empty>";
+        }
+        String singleLine = content.replace("\r", "").replace("\n", "\\n");
+        return singleLine.length() <= max ? singleLine
+                : singleLine.substring(0, max) + "...[truncated, total " + singleLine.length() + " chars]";
     }
 
     private String preview(String content) {
