@@ -281,6 +281,11 @@ final class MultimodalStructuredExtractionHandler {
                 facts.size(), tenderSectionText == null ? 0 : tenderSectionText.length(), extracted.model(), decision, validation.declaredTotal(),
                 validation.originalTotal(), validation.sourceVerification().total().locator(),
                 validation.leafTotal(), validation.violations().size());
+        log.info("文字评分事实校验明细: file={}, fallback={}, violations={}",
+                fileName, completeness.fallbackReason(), validation.violations().stream()
+                        .map(v -> v.code() + "[fact=" + v.factId() + ",field=" + v.field()
+                                + ",source=" + v.evidence() + "] " + v.message()
+                                + " expected=" + v.expected() + " actual=" + v.actual()).toList());
         var proof = validation.autoApprovable() ? OriginalScoreEvidencePolicy.publicationProof(
                 validation.sourceVerification(), validation.leafTotal(), facts, candidates) : null;
         return StructuredSourceDiagnostics.attach(StructuredTableResult.evidencePipeline(facts, candidates, completeness, tables,

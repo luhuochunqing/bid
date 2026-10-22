@@ -74,3 +74,13 @@ archive: false
 - [PP-StructureV3](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/PP-StructureV3.html) 提供版面、表格、阅读顺序及表格 HTML/单元格框。两者仅为转换层候选，须用同一保留集验证业务准确率。
 - 输入组织影响分片、来源绑定、跨页去重、方案总分与父子计分，不能只测试输出 JSON。坐标存在不证明语义归属正确。
 - 本轮未查询正式评分项或 UI，未重解析、调用线上模型、修改正式数据、重启或部署；本地仅 Wiki 回填，未提交推送。
+
+## 线上诊断入口（2026-10-22 生产项目 1122）
+
+- 现象：同一份 24MB / 13.2 万字 DOCX，三次解析分别得到 `facts=0`（EMPTY_FACTS）、`facts=1`、`facts=35`（均为 ORIGINAL_TOTAL_UNKNOWN），最终都判 REVIEW_REQUIRED，页面评分项仍为空。
+- 结论：不是单一模型缺陷。同一模型在评分章节范围（9.8 万字）返回 31 条，在全文范围（13.2 万字）先后返回 0 条与 35 条；`originalSource` 为空说明评分方案章节定位未命中，校验层因此拒绝覆盖现有评分项。
+- 诊断手段：`score_parse_task` 只有统计值，`score_extraction_snapshot` 失败时无记录，violation 明细未落库。已补两处日志——
+  - `OpenAiSdkStructuredOutputTransport` 在 json_schema / json_object 两条路径打 DEBUG：`model`、`finishReason`、`usage`、原始响应字符数与前 1500 字预览（需把 `com.xiyu.bid.biddraftagent.infrastructure.openai` 调到 DEBUG）。
+  - `MultimodalStructuredExtractionHandler` 在「文字评分事实完成」后打 INFO：`fallback` 与逐条 violation（code/fact/field/evidence/message/expected/actual）。
+- 排查顺序：先看 `finishReason` 是否 `length`（截断）→ 再看原始 facts 条数 → 再对 violation code（`EMPTY_FACTS`、`ORIGINAL_TOTAL_UNKNOWN`）判断是模型未识别还是原文方案定位失败。
+
