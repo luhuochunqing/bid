@@ -106,7 +106,13 @@ SIDECAR_ARCHIVE="$RELEASE_DIR/sidecar/sidecar.tar.gz"
 if [[ -f "$SIDECAR_ARCHIVE" ]]; then
   SIDECAR_DIR="$APP_ROOT/sidecar"
   mkdir -p "$SIDECAR_DIR"
-  NEW_SIDECAR_HASH="$(sha256sum "$SIDECAR_ARCHIVE" 2>/dev/null | cut -d' ' -f1 || shasum -a 256 "$SIDECAR_ARCHIVE" | cut -d' ' -f1)"
+  # 内容指纹优先：package-release.sh 已把"文件内容哈希"写入 release-metadata.json（同一算法
+  # 单一来源，避免两处重复实现）。2026-10-22 第 228 次事故：归档字节哈希受 gzip 头时间戳
+  # 影响，sidecar 源码零变更也会漂移，误触发 docker 重建；历史包无该字段时回退归档字节哈希。
+  NEW_SIDECAR_HASH="$(sed -n 's/.*"sidecarSha256"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$RELEASE_DIR/release-metadata.json" 2>/dev/null | head -n 1)"
+  if [[ -z "$NEW_SIDECAR_HASH" ]]; then
+    NEW_SIDECAR_HASH="$(sha256sum "$SIDECAR_ARCHIVE" 2>/dev/null | cut -d' ' -f1 || shasum -a 256 "$SIDECAR_ARCHIVE" | cut -d' ' -f1)"
+  fi
   OLD_SIDECAR_HASH="$(cat "$SIDECAR_DIR/.deployed_sha256" 2>/dev/null || echo "")"
   if [[ "$NEW_SIDECAR_HASH" != "$OLD_SIDECAR_HASH" ]]; then
     printf '==> Sidecar 源码有变动（%s → %s），更新并重启容器\n' "${OLD_SIDECAR_HASH:-初始}" "$NEW_SIDECAR_HASH"

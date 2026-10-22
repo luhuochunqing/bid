@@ -124,7 +124,26 @@ COPYFILE_DISABLE=1 tar -C "$ROOT_DIR/document-converter-sidecar" \
   --exclude='*.pyc' \
   --exclude='.backup' \
   -czf "$OUTPUT_DIR/sidecar/sidecar.tar.gz" .
-SIDECAR_SHA256="$(shasum -a 256 "$OUTPUT_DIR/sidecar/sidecar.tar.gz" 2>/dev/null | cut -d' ' -f1 || sha256sum "$OUTPUT_DIR/sidecar/sidecar.tar.gz" | cut -d' ' -f1)"
+# ── Sidecar 内容指纹（确定性哈希，替代归档字节哈希）──
+# 228 次测试部署事故（2026-10-22）：sidecar 源码零变更（git diff 为空），但 tar.gz 每次
+# 构建的 gzip 头时间戳不同，归档字节 sha 必然漂移，remote-deploy.sh 误判"源码有变动"，
+# 触发约 11 分钟无意义的 docker 重建。改为对归档内文件内容做确定性哈希：文件名排序 →
+# 逐文件 sha256 → 对清单再 sha256。判定语义从"归档字节是否一致"变为"源码内容是否一致"。
+# 排除项必须与上面 tar 的 --exclude 保持同一集合，否则哈希口径与归档内容不一致。
+_sidecar_sha256() {
+  shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1 || sha256sum "$1" | cut -d' ' -f1
+}
+SIDECAR_SHA256="$(
+  cd "$ROOT_DIR/document-converter-sidecar" &&
+    find . -type f \
+      -not -path './__pycache__/*' -not -name '*.pyc' \
+      -not -path './.pytest_cache/*' -not -path './.venv/*' \
+      -not -path './.runtime/*' -not -path './tests/*' \
+      -not -path './.backup/*' -not -name '.DS_Store' -not -name '._*' \
+      -print | LC_ALL=C sort | while IFS= read -r f; do
+        printf '%s  %s\n' "$(_sidecar_sha256 "$f")" "$f"
+      done | { shasum -a 256 2>/dev/null || sha256sum; } | cut -d' ' -f1
+)"
 printf '✅ sidecar 打包完成（SHA-256: %s，schemaVersion=%s）\n' "$SIDECAR_SHA256" "$SIDECAR_SCHEMA_VERSION"
 
 # OBS 直传启用校验（第 84 次部署漏传 VITE_OBS_ENABLED=true 事故的硬门禁）
