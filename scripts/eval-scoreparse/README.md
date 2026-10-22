@@ -49,7 +49,9 @@ backend/src/test/resources/scoreparse-golden/
 ├── case-price-markdown-star.md             合成价格公式星号转义（lessons §431）
 ├── case-price-markdown-star.expected.json  对应金标与原文offset断言（threshold 0.95，expectTotal 100）
 ├── case-text-peer-scope.md                  同级履约章节文本证据不得跨入评分方案
-└── case-text-peer-scope.expected.json       对应合成范围回归标注（lessons §404）
+├── case-text-peer-scope.expected.json       对应合成范围回归标注（lessons §404）
+├── case-quote-glyph-ordinal-normalize.md    引文归一化：同形异码比较符 + 模型序号 + 标点换行
+└── case-quote-glyph-ordinal-normalize.expected.json  对应原文偏移回溯断言（escapeRegression）
 ```
 
 ## 两层执行说明

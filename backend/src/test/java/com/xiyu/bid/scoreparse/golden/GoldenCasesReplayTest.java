@@ -57,6 +57,20 @@ class GoldenCasesReplayTest {
     }
 
     @Test
+    void comparisonGlyphAndModelOrdinalQuoteStillResolveToOriginalSpan() throws Exception {
+        String source = GoldenCasesReplaySupport.readFixture("case-quote-glyph-ordinal-normalize.md");
+        JsonNode expected = GoldenCasesReplaySupport.parseExpected(
+                GoldenCasesReplaySupport.readFixture("case-quote-glyph-ordinal-normalize.expected.json"))
+                .path("escapeRegression");
+        var modelQuote = expected.path("modelQuote").asText();
+        var normalizedQuote = expected.path("normalizedQuote").asText();
+        assertTrue(com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(modelQuote).text().contains(normalizedQuote));
+        var span = com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(source)
+                .uniqueSpan(normalizedQuote).orElseThrow();
+        assertEquals(expected.path("rawQuote").asText(), source.substring(span.start(), span.end()));
+    }
+
+    @Test
     void peerSectionTextCannotPublishAsScoringSchemeEvidence() throws Exception {
         String text = GoldenCasesReplaySupport.readFixture("case-text-peer-scope.md");
         JsonNode expected = GoldenCasesReplaySupport.parseExpected(

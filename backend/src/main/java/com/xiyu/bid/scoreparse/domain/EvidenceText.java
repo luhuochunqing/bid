@@ -34,6 +34,7 @@ public record EvidenceText(String text, List<Integer> offsets) {
                     continue;
                 }
             }
+            c = comparisonOperator(c);
             if (Character.isWhitespace(c) || Character.isSpaceChar(c)) {
                 if (pending < 0) pending = i;
                 continue;
@@ -59,10 +60,25 @@ public record EvidenceText(String text, List<Integer> offsets) {
         return Optional.of(new Span(originalOffsets[start], originalOffsets[start + target.length() - 1] + 1));
     }
 
+    /** Comparison operators differ only by glyph: documents use U+FE64/U+FF1C, model quotes answer ASCII. */
+    private static char comparisonOperator(char c) {
+        return switch (c) {
+            case '﹤', '＜' -> '<';
+            case '﹥', '＞' -> '>';
+            default -> c;
+        };
+    }
+
     private static boolean noSpace(char a, char b) {
         return (layout(a) && layout(b))
+                || cjkPunctuation(a) || cjkPunctuation(b)
                 || (Character.isDigit(a) && isNonLatin(b))
                 || (isNonLatin(a) && Character.isDigit(b));
+    }
+
+    /** Line breaks around CJK punctuation carry no meaning; the source cell has no whitespace there. */
+    private static boolean cjkPunctuation(char c) {
+        return "，。；：！？、（）【】《》“”‘’".indexOf(c) >= 0;
     }
 
     private static boolean isNonLatin(char c) {
