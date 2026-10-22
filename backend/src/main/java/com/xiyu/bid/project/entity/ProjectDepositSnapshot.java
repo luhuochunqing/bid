@@ -14,8 +14,8 @@ import java.time.LocalDateTime;
  * <p>非 JPA 实体；仅用于结项闸门快照视图。
  *
  * @param projectId       项目 ID
- * @param hasDeposit      是否存在保证金（fees 表 BID_BOND 是否有非 CANCELLED 行）
- * @param depositAmount   保证金总额（汇总 BID_BOND）
+ * @param hasDeposit      是否存在保证金（立项 need_deposit 或未取消 BID_BOND）
+ * @param depositAmount   保证金金额（立项金额大于 0 时取立项，否则汇总 BID_BOND）
  * @param returnStatus    退回状态（NA/NOT_RETURNED/RETURNED）
  * @param returnDate      最近一次退回时间（仅 RETURNED 有意义）
  * @param evidenceDocId   退回凭证文档 ID（来源 project_closure.deposit_return_evidence_id）

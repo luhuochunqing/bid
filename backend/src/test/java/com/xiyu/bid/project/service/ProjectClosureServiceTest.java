@@ -48,6 +48,7 @@ class ProjectClosureServiceTest {
 
     private ProjectClosureRepository closureRepo;
     private FeeRepository feeRepo;
+    private ProjectInitiationDetailsRepository initiationRepo;
     private TaskRepository taskRepo;
     private ProjectRepository projectRepo;
     private ProjectStageService stageService;
@@ -73,7 +74,7 @@ class ProjectClosureServiceTest {
         taskRepo = mock(TaskRepository.class);
         projectRepo = mock(ProjectRepository.class);
         stageService = mock(ProjectStageService.class);
-        var initiationRepo = mock(ProjectInitiationDetailsRepository.class);
+        initiationRepo = mock(ProjectInitiationDetailsRepository.class);
         depositAssembler = new ProjectClosureDepositAssembler(feeRepo, initiationRepo);
         taskAssembler = new ProjectClosureTaskAssembler(taskRepo);
         userRepository = mock(UserRepository.class);
@@ -481,6 +482,97 @@ class ProjectClosureServiceTest {
         var ex = assertThrows(ResponseStatusException.class,
                 () -> service.submitClosure(PID, req, UID));
         assertEquals(409, ex.getStatusCode().value());
+    }
+
+    private void givenInitiation(String needDeposit, BigDecimal depositAmount) {
+        ProjectInitiationDetails init = new ProjectInitiationDetails();
+        init.setProjectId(PID);
+        init.setNeedDeposit(needDeposit);
+        init.setDepositAmount(depositAmount);
+        when(initiationRepo.findByProjectId(PID)).thenReturn(Optional.of(init));
+    }
+
+    private Fee bondAmount(BigDecimal amount, Fee.Status status) {
+        return Fee.builder()
+                .id(11L).projectId(PID).feeType(Fee.FeeType.BID_BOND)
+                .amount(amount).status(status)
+                .feeDate(LocalDateTime.now()).returnDate(status == Fee.Status.RETURNED ? WHEN : null)
+                .build();
+    }
+
+    @Test
+    @DisplayName("立项 need_deposit=yes（小写）且无费用记录时，结项仍须按保证金金额拦截未退回")
+    void previewAndSubmit_lowercaseNeedDeposit_usesInitiationAmount() {
+        when(feeRepo.findByProjectId(PID)).thenReturn(List.of());
+        givenInitiation("yes", new BigDecimal("60000.00"));
+
+        var preview = service.preview(PID);
+        assertTrue(preview.isHasDeposit());
+        assertEquals(0, new BigDecimal("60000.00").compareTo(preview.getDepositAmount()));
+        assertTrue(preview.getBlockingReasons().stream().anyMatch(r -> r.contains("保证金未退回")));
+
+        var ex = assertThrows(ResponseStatusException.class,
+                () -> service.submitClosure(PID, ClosureSubmitRequest.builder().build(), UID));
+        assertEquals(409, ex.getStatusCode().value());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("保证金未退回"));
+    }
+
+    @Test
+    @DisplayName("部分退回+转服务费必须等于立项保证金，不能改用费用合计放行")
+    void submit_partialSumMustEqualInitiationDeposit_notFeeSum() {
+        when(feeRepo.findByProjectId(PID)).thenReturn(List.of(
+                bondAmount(new BigDecimal("184000.00"), Fee.Status.PAID)));
+        givenInitiation("yes", new BigDecimal("120000.00"));
+        var req = ClosureSubmitRequest.builder()
+                .depositReturnStatus("PARTIAL_RETURN_PARTIAL_TRANSFER")
+                .returnedAmount(new BigDecimal("144000.00"))
+                .transferAmount(new BigDecimal("40000.00"))
+                .depositReturnEvidenceId(DOC)
+                .build();
+
+        var ex = assertThrows(ResponseStatusException.class,
+                () -> service.submitClosure(PID, req, UID));
+        assertEquals(409, ex.getStatusCode().value());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("退回金额与转服务费金额之和必须等于保证金金额"));
+        verify(closureRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("转服务费金额等于立项保证金时允许提交，即使费用合计不同")
+    void submit_transferEqualsInitiationDeposit_allowed() {
+        when(feeRepo.findByProjectId(PID)).thenReturn(List.of(
+                bondAmount(new BigDecimal("184000.00"), Fee.Status.PAID)));
+        givenInitiation("YES", new BigDecimal("120000.00"));
+        var req = ClosureSubmitRequest.builder()
+                .depositReturnStatus("TRANSFERRED_TO_FEE")
+                .transferAmount(new BigDecimal("120000.00"))
+                .depositReturnEvidenceId(DOC)
+                .build();
+
+        var dto = service.submitClosure(PID, req, UID);
+        assertEquals("PENDING", dto.getReviewStatus());
+        assertEquals(0, new BigDecimal("120000.00").compareTo(dto.getTransferAmount()));
+    }
+
+    @Test
+    @DisplayName("已有结项记录但立项无金额时，保证金金额回退到投标保证金费用")
+    void preview_existingClosureWithoutInitiationAmount_usesFeeSum() {
+        ProjectClosure closure = ProjectClosure.builder()
+                .projectId(PID)
+                .depositReturnStatus("TRANSFERRED_TO_FEE")
+                .transferAmount(new BigDecimal("56000.00"))
+                .depositReturnEvidenceId(DOC)
+                .reviewStatus("APPROVED")
+                .build();
+        when(closureRepo.findByProjectId(PID)).thenReturn(Optional.of(closure));
+        when(feeRepo.findByProjectId(PID)).thenReturn(List.of(
+                bondAmount(new BigDecimal("56000.00"), Fee.Status.PAID)));
+
+        var dto = service.preview(PID);
+        assertTrue(dto.isHasDeposit());
+        assertEquals(0, new BigDecimal("56000.00").compareTo(dto.getDepositAmount()));
+        assertEquals("TRANSFERRED_TO_FEE", dto.getDepositReturnStatus());
+        assertTrue(dto.getBlockingReasons().stream().noneMatch(r -> r.contains("必须等于保证金金额")));
     }
 
     @Test

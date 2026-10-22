@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-10-09
-health_checked: 2026-10-03
+updated: 2026-10-22
+health_checked: 2026-10-22
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -94,6 +94,7 @@ backlinks:
 - [[overview]] — 项目综述
 - [[production-deployment-lessons]] — 生产环境首次部署实战教训
 - [[sidecar-dockerfile-dual-sync]] — Sidecar Dockerfile 双文件同步陷阱（Dockerfile.cn 为服务器实际构建源）
+- [[closure-deposit-amount-baseline]] — 结项保证金金额口径（立项优先，转服务费必须等值）
 - [[project-detail-toolbar-back-fix]] — 项目详情页横条返回按钮无响应修复（el-page-header back 事件未接）
 - [[project-list-server-side-paging]] — 项目列表服务端分页（快慢两路径路由、"一个筛选都不下推"的 collation 准入判据、与导出/工作台/CRM 共享的全序）
 - [[project-search-owner-unit]] — 项目搜索按招标主体（ownerUnit 数据链路与关键词过滤契约）
