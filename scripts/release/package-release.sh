@@ -131,19 +131,41 @@ COPYFILE_DISABLE=1 tar -C "$ROOT_DIR/document-converter-sidecar" \
 # 逐文件 sha256 → 对清单再 sha256。判定语义从"归档字节是否一致"变为"源码内容是否一致"。
 # 排除项必须与上面 tar 的 --exclude 保持同一集合，否则哈希口径与归档内容不一致。
 _sidecar_sha256() {
-  shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1 || sha256sum "$1" | cut -d' ' -f1
+  local digest
+  digest="$(shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1 || sha256sum "$1" 2>/dev/null | cut -d' ' -f1)"
+  [[ -n "$digest" ]] || return 1
+  printf '%s\n' "$digest"
 }
-SIDECAR_SHA256="$(
+# 清单落盘而非管道直传：单文件哈希失败时管道最后一个 stage 仍返回 0，会把"空摘要行"
+# 静默混进清单并得到一个看似正常的错值。改为先写临时清单 + 逐行失败即中止。
+SIDECAR_MANIFEST="$(mktemp "${TMPDIR:-/tmp}/sidecar-manifest.XXXXXX")"
+if ! (
   cd "$ROOT_DIR/document-converter-sidecar" &&
-    find . -type f \
-      -not -path './__pycache__/*' -not -name '*.pyc' \
-      -not -path './.pytest_cache/*' -not -path './.venv/*' \
-      -not -path './.runtime/*' -not -path './tests/*' \
-      -not -path './.backup/*' -not -name '.DS_Store' -not -name '._*' \
-      -print | LC_ALL=C sort | while IFS= read -r f; do
-        printf '%s  %s\n' "$(_sidecar_sha256 "$f")" "$f"
-      done | { shasum -a 256 2>/dev/null || sha256sum; } | cut -d' ' -f1
-)"
+    while IFS= read -r f; do
+      _h="$(_sidecar_sha256 "$f")" || {
+        printf '❌ sidecar 文件哈希失败（无 sha256 工具或读取失败）：%s\n' "$f" >&2
+        exit 1
+      }
+      printf '%s  %s\n' "$_h" "$f" >> "$SIDECAR_MANIFEST"
+    done < <(
+      find . -type f \
+        -not -path './__pycache__/*' -not -name '*.pyc' \
+        -not -path './.pytest_cache/*' -not -path './.venv/*' \
+        -not -path './.runtime/*' -not -path './tests/*' \
+        -not -path './.backup/*' -not -name '.DS_Store' -not -name '._*' \
+        -print | LC_ALL=C sort
+    )
+); then
+  rm -f "$SIDECAR_MANIFEST"
+  printf '❌ 无法计算 sidecar 内容指纹（文件哈希失败），中止打包\n' >&2
+  exit 1
+fi
+SIDECAR_SHA256="$( { shasum -a 256 "$SIDECAR_MANIFEST" 2>/dev/null || sha256sum "$SIDECAR_MANIFEST" 2>/dev/null; } | cut -d' ' -f1 || true)"
+rm -f "$SIDECAR_MANIFEST"
+if [[ -z "$SIDECAR_SHA256" ]]; then
+  printf '❌ 无法计算 sidecar 内容指纹（清单哈希结果为空），中止打包\n' >&2
+  exit 1
+fi
 printf '✅ sidecar 打包完成（SHA-256: %s，schemaVersion=%s）\n' "$SIDECAR_SHA256" "$SIDECAR_SCHEMA_VERSION"
 
 # OBS 直传启用校验（第 84 次部署漏传 VITE_OBS_ENABLED=true 事故的硬门禁）

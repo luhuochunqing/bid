@@ -109,7 +109,12 @@ if [[ -f "$SIDECAR_ARCHIVE" ]]; then
   # 内容指纹优先：package-release.sh 已把"文件内容哈希"写入 release-metadata.json（同一算法
   # 单一来源，避免两处重复实现）。2026-10-22 第 228 次事故：归档字节哈希受 gzip 头时间戳
   # 影响，sidecar 源码零变更也会漂移，误触发 docker 重建；历史包无该字段时回退归档字节哈希。
-  NEW_SIDECAR_HASH="$(sed -n 's/.*"sidecarSha256"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$RELEASE_DIR/release-metadata.json" 2>/dev/null | head -n 1)"
+  # 必须先判存在：metadata 缺失时 sed 退出码 2，在 set -euo pipefail 下会直接中断部署，
+  # 使下面的回退分支永远执行不到。
+  NEW_SIDECAR_HASH=""
+  if [[ -f "$RELEASE_DIR/release-metadata.json" ]]; then
+    NEW_SIDECAR_HASH="$(sed -n 's/.*"sidecarSha256"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$RELEASE_DIR/release-metadata.json" | head -n 1)"
+  fi
   if [[ -z "$NEW_SIDECAR_HASH" ]]; then
     NEW_SIDECAR_HASH="$(sha256sum "$SIDECAR_ARCHIVE" 2>/dev/null | cut -d' ' -f1 || shasum -a 256 "$SIDECAR_ARCHIVE" | cut -d' ' -f1)"
   fi
