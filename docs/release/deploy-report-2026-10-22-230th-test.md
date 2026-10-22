@@ -17,10 +17,10 @@
 | HEAD Commit（本次部署的代码版本） | `de9a8aea9` |
 | 旧版本 | `fa8a65229`（第 229 次，2026-10-22 13:24） |
 | 构建包 | `.release/xiyu-bid-release-de9a8aea9.tar.gz`（163M） |
-| 增量 | 6 个 commit，16 个文件（+616/-6） |
+| 增量 | 7 个 commit，16 个文件（+616/-6） |
 | 激活时间 | 2026-10-22T10:34:41Z（18:34:41 UTC+8） |
 
-## PR 列表（增量 6 个 commit，自 fa8a65229..de9a8aea9）
+## PR 列表（增量 7 个 commit，自 fa8a65229..de9a8aea9）
 
 | Commit | 说明 |
 |---|---|
@@ -34,7 +34,7 @@
 
 ## 改动范围
 
-- **后端（9 文件）**：`backend/src/main/java/com/xiyu/bid/scoreparse/`
+- **后端（8 文件）**：`backend/src/main/java/com/xiyu/bid/scoreparse/`
   - 新增 `OriginalWeightClosurePolicy`（权重闭合判定）
   - 修改 `OriginalScoringTextScopePolicy`（评分文本范围识别）、`OriginalScoringSchemePolicy`、`OriginalScoreEvidencePolicy`、`OriginalScoringContext`、`ScoreUnitPolicy`、`MultimodalScoreFactValidator`、`OriginalSourcePublicationGuard`
 - **后端测试（4 文件）**：`Project1391ScopeWeightClosureTest`、`GoldenCasesReplayTest` 增量 + 金标夹具 `case-1391-appendix-weight-closure.*`
@@ -162,4 +162,4 @@ Sidecar 冒烟明细：fixture v1 形态回放通过（tables=14 cells=8215 scor
 - [x] 部署记录确认（deployed-release.json 已更新）
 - [x] 部署报告生成
 
-**部署状态：✅ 成功（一次成功，无人工回退；后端重启后约 2–3 分钟 health 重试窗口内 API 不可用，非零中断）**
+**部署状态：✅ 成功（一次成功，无人工回退；后端重启后存在约 2–3 分钟 health 重试窗口，期间 API 不可用）**
