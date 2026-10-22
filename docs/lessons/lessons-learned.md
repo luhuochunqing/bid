@@ -7344,3 +7344,10 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **反向教训**：不要为了「更强归属」给权重表加 IN_SCHEME 作用域闸门——`SCHEME` 正则不含「分值」，真实附表一会被判 `OUT_OF_SCHEME`，该闸门会误杀唯一可用的总分来源。归属校验应落在「章节语义 + 行形态」上，而不是正文方案作用域。
 - **fail-safe 论证**：误命中不会静默发布错误总分。原文真实总分 X≠100 且 facts 顶层合计为 X 时，`MultimodalScoreFactValidator` 与 `OriginalSourcePublicationGuard` 都会判 `WEIGHT_SUM_MISMATCH`、proof=null，任务转 `REVIEW_REQUIRED`。
 - **验证纪律**：新增单测 4 例，其中「上方数据行维度词不得当表头」做 RED 复现（临时回滚后 1 failure，恢复后 4/0）；版本修复必须补金标夹具 `case-1391-appendix-weight-closure`，不得以 `SCOREPARSE_GATE_SKIP` 代替。
+
+## 438. 结项保证金等值校验保存前后用了两套金额，Java 区分大小写对不上库内小写 yes（PR !2846 / 2026-10-22）
+
+- **现场证据**：转平台服务费必须等于保证金金额；部分退回加转服务费也必须等于保证金金额。项目 22 立项保证金 120000，未取消 BID_BOND 合计 184000，退回 144000 + 转服务费 40000 被审批通过。保存后再预览按立项 120000 判不平，但已经结项。项目 20 `need_deposit=yes`、金额 45000、没有费用，结项状态仍是 NA，表单不出现，提交不被等值校验拦住。
+- **致错机制**：(a) 尚无退回状态时金额取 BID_BOND 合计，已有非 NA 状态后只读立项 `deposit_amount`；(b) `"YES".equals(needDeposit)` 区分大小写，库内是小写 `yes`。MySQL `utf8mb4_0900_ai_ci` 下 SQL `= 'YES'` 能命中 `yes`，Java 不能。金额为空时闸门跳过等值比较。
+- **修复与边界**：预览和提交共用一个金额：立项金额大于 0 用立项，否则用未取消 BID_BOND 合计；`need_deposit` 忽略大小写。等值比较仍在 `ProjectClosureGatePolicy`。不回写已审批结项。
+- **验证纪律**：`ProjectClosureServiceTest` 覆盖小写 yes、部分退回必须等于立项金额、转服务费等于立项金额放行、无立项金额时回落到费用合计。
