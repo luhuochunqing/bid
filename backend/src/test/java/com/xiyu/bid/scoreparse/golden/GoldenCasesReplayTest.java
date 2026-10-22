@@ -427,6 +427,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-sidecar-stream-failure"),
                 Arguments.of("case-multimodal-incomplete-recall-fallback"),
                 Arguments.of("case-1386-score-summary-and-leaves"),
+                Arguments.of("case-1391-appendix-weight-closure"),
                 Arguments.of("case-page-split-parent-child"),
                 Arguments.of("case-long-text-scoring-table"),
                 Arguments.of("case-text-primary-multi-document"),
@@ -454,6 +455,23 @@ class GoldenCasesReplayTest {
             assertEquals(expected.path("declaredTotal").decimalValue(), context.total().value());
             assertEquals(expected.path("schemeTitle").asText(), context.scheme());
             return; // Source-contract regression; no extraction PRF claim.
+        }
+        if (caseName.equals("case-1391-appendix-weight-closure")) {
+            var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
+            var markdown = GoldenCasesReplaySupport.readFixture(caseName + ".md");
+            assertTrue(markdown.contains("## 响应供应商须知前附表附件一"));
+            var weights = table("t-weights", 1, "第二章  响应供应商须知 > 一、分值构成（权重）", false,
+                    cell("w-r0-c0", 0, 0, "序号"), cell("w-r0-c1", 0, 1, "分标名称"), cell("w-r0-c2", 0, 2, "技术"),
+                    cell("w-r0-c3", 0, 3, "价格"), cell("w-r0-c4", 0, 4, "商务"), cell("w-r1-c0", 1, 0, "1"),
+                    cell("w-r1-c1", 1, 1, "办公类用品"), cell("w-r1-c2", 1, 2, "40%"), cell("w-r1-c3", 1, 3, "50%"),
+                    cell("w-r1-c4", 1, 4, "10%"));
+            var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("synthetic-1391", "sha-1391", "docx", "2.0"),
+                    List.of(weights), List.of(), List.of(), "2.0");
+            var context = OriginalScoringContext.resolve(artifact, markdown);
+            assertEquals(expected.path("declaredTotal").decimalValue(), context.total().value());
+            assertEquals(expected.path("totalSource").asText(), context.total().source());
+            assertTrue(context.scheme().contains(expected.path("schemeTitle").asText()), context.scheme());
+            return; // Source-contract case; no extraction PRF claim.
         }
         if (caseName.equals("case-1359-maximum-column")) {
             var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));

@@ -1,0 +1,8 @@
+{
+  "synthetic": true,
+  "desensitization": "标题、章节与维度全部合成，只保留“前附表附件一承载评分表 + 附表一权重表 40/50/10”的版式结构",
+  "focus": "附件标题承载的评分表必须进入方案作用域；原文无正文总分句时由权重表闭合文档总分 100，不能被判 OUT_OF_SCHEME 或 ORIGINAL_TOTAL_UNKNOWN",
+  "declaredTotal": 100,
+  "totalSource": "WEIGHT_CLOSURE",
+  "schemeTitle": "评审办法"
+}
