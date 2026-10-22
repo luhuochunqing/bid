@@ -113,7 +113,8 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { InfoFilled, Loading } from '@element-plus/icons-vue'
-import { useAsyncTask } from '@/composables/useAsyncTask'
+import { ElMessage } from 'element-plus'
+import { useAsyncTask, DownloadError } from '@/composables/useAsyncTask'
 import { performanceBundleExportApi } from '@/api/modules/performanceBundleExport'
 import { formatBytes } from '@/utils/formatBytes'
 import { PERF_ATTACHMENT_TYPES, PERF_ALL_VALUES } from './attachmentTypeConstants'
@@ -194,10 +195,14 @@ async function handleConfirm() {
 }
 
 async function handleDownload() {
-  await downloadFile(taskId.value, () => {
-    const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    return `业绩合订本_${ts}.docx`
-  })
+  try {
+    await downloadFile(taskId.value, () => {
+      const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+      return `业绩合订本_${ts}.docx`
+    })
+  } catch (error) {
+    ElMessage.error(error instanceof DownloadError ? error.message : '下载失败')
+  }
 }
 
 function handleRetry() {

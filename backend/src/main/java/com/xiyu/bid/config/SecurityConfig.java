@@ -170,6 +170,9 @@ public class SecurityConfig {
                         })
                 )
                 .authorizeHttpRequests(auth -> {
+                    // 异步/错误分发不再鉴权。JWT 过滤器是 OncePerRequestFilter，这两类分发
+                    // 默认跳过，登录态不会重建；再鉴权会把已通过的流式下载改写成静默 401。
+                    auth.shouldFilterAllDispatcherTypes(false);
                     auth.requestMatchers(WHITE_LIST_URL).permitAll();
                     if (devToolingAllowed) {
                         auth.requestMatchers(DEV_ONLY_WHITE_LIST).permitAll();
