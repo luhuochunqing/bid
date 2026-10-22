@@ -15,7 +15,7 @@
 | Release ID | `fa8a65229` |
 | 部署分支 | `agent/trae-init`（锚点分支，HEAD = origin/main） |
 | HEAD Commit（本次部署的代码版本） | `fa8a65229` |
-| 报告提交 | `c3a92f3a1`（本报告在部署完成后追加，基于 fa8a65229） |
+| 报告提交 | 首次 `c3a92f3a1`；S6 审查后的修订见本分支 HEAD（基于 fa8a65229） |
 | 旧版本 | `021cf93e4-api8080`（第 228 次，2026-10-22 11:16） |
 | 构建包 | `.release/xiyu-bid-release-fa8a65229.tar.gz`（155M） |
 | 增量 | 13 个 commit，13 个文件（+441/-87） |
