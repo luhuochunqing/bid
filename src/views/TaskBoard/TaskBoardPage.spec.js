@@ -255,4 +255,28 @@ describe('CO-370 TaskBoardPage handleSubmitForReview', () => {
     const { projectsApi } = await import('@/api/modules/projects.js')
     expect(projectsApi.updateTaskStatus).not.toHaveBeenCalled()
   })
+
+  it('抽屉触发 submitted 事件时，若携带 updated 数据应即时更新本地对应卡片的执行人信息', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const drawerComponent = wrapper.findComponent({ name: 'TaskBoardTaskDrawer' })
+    expect(drawerComponent.exists()).toBe(true)
+
+    // 触发 submitted 事件，携带更新后的执行人
+    await drawerComponent.vm.$emit('submitted', {
+      taskId: 1,
+      updated: {
+        assigneeId: 88,
+        assigneeName: '李四',
+        owner: '李四',
+      },
+    })
+    await flushPromises()
+
+    // 检查内部 items 中的任务 1 是否已即时更新
+    const item = wrapper.vm.items.find((i) => i.id === 1)
+    expect(item.assigneeId).toBe(88)
+    expect(item.assigneeName).toBe('李四')
+  })
 })

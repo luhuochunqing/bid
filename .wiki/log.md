@@ -1,5 +1,12 @@
 # Wiki 操作日志 / Operation Log
 
+## [2026-10-22] fix | 全局任务看板保证金任务放权项目负责人与响应式更新
+
+- 触发：全局任务看板（/task-board）中，项目负责人（立项发起人）在保证金缴纳任务 TODO 状态下无法修改执行人，且修改保存后看板需手动刷新才展示新执行人。
+- 根因：(1) TaskBoardTaskDrawer 缺少 projectLeaderId 放权判定；(2) 全局看板进入抽屉时无 currentProject 导致权限判定被短路；(3) 抽屉保存后父组件未监听 submitted 事件做局部视图同步。
+- 方案：(a) 补齐 projectLeaderId 判定；(b) loadTask 时按需加载项目详情；(c) 抽屉抛出 submitted 事件并由看板原地更新 items 状态。
+- 回填：新增 [[task-board-deposit-assignee-delegation]]，更新 `_index.md`。
+
 ## [2026-10-22] fix | 解除评分标准多表无总分采纳死锁并补齐人工复核交互闭环
 
 - 触发：用户反馈多表标书即使识别出评分项（如合计 69 分），一键采纳按钮仍被硬编码禁用，人工介入无法采纳。
