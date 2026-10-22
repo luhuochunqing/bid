@@ -360,6 +360,28 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
+    void submitReview_adoptCandidates_usesConfirmedCandidateTotalForMultiTableUnknownTotal() {
+        mockLatestTask();
+        ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")).get(0);
+        task.setRunSummary("{\"tableSplits\":[{\"tableId\":\"table-1\"},{\"tableId\":\"table-2\"}]}");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "30"), fact("fact-2", "39")));
+        List<ScoreParseEvidence> multiTableEvidence = List.of(
+                schemeQualification("fact-1", "scheme-main", "IN_SCHEME", true, null, "综合评估法", null, "UNKNOWN", "", "MULTI_TABLE", List.of("table-1", "table-2")),
+                schemeQualification("fact-2", "scheme-main", "IN_SCHEME", true, null, "综合评估法", null, "UNKNOWN", "", "MULTI_TABLE", List.of("table-1", "table-2"))
+        );
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(multiTableEvidence);
+
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "确认多表候选合计69分")
+        ), "人工确认采纳", 9L), "admin");
+
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+        assertThat(task.getOriginalTotalWeight()).isEqualByComparingTo("69");
+        assertThat(task.getDecisionStatus()).isEqualTo("MANUAL_APPROVED");
+    }
+
+    @Test
     void submitReview_adoptCandidates_rejectsConflictingDeclaredTotalsWithoutPersistence() {
         mockLatestTask();
         ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(

@@ -298,4 +298,57 @@ describe('ScoreCandidateReviewCard.vue', () => {
     await adoptBtn.trigger('click')
     expect(wrapper.emitted('adopt')).toHaveLength(1)
   })
+
+  it('allows manual adoption when multi-table declared total is unknown (UNKNOWN_TOTAL)', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: {
+        candidateFacts,
+        candidateTotalWeight: 69,
+        declaredTotalWeight: null,
+        adoptionStatus: 'UNKNOWN_TOTAL',
+      },
+      global: {
+        stubs: {
+          'el-alert': { template: '<div class="el-alert-mock">{{ title }}</div>', props: ['title'] },
+          'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
+        },
+      },
+    })
+
+    expect(wrapper.find('.el-alert-mock').text()).toContain('该方案包含多个物理表格，原文未声明统一总分')
+    expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('supports excluding a candidate fact and including an audit fact into current scheme', async () => {
+    const mutableFacts = [
+      { factId: 'f1', schemeId: 'scheme-main', code: '1', dimension: '商务部分', weight: 6, scoreType: 'OBJECTIVE', sourceText: '业绩要求', candidateEligible: true },
+      { factId: 'f2', code: '2', dimension: '服务保障', weight: 10, scoreType: 'SUBJECTIVE', sourceText: '保障方案', candidateEligible: false, scopeStatus: 'OUT_OF_SCHEME' },
+    ]
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: {
+        candidateFacts: mutableFacts,
+        candidateTotalWeight: 6,
+        selectedSchemeId: 'scheme-main',
+      },
+      global: {
+        stubs: {
+          'el-button': { template: '<button v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>' },
+        },
+      },
+    })
+
+    // 移出 f1
+    const excludeBtn = wrapper.find('[data-test="btn-exclude-fact"]')
+    expect(excludeBtn.exists()).toBe(true)
+    await excludeBtn.trigger('click')
+    expect(mutableFacts[0].candidateEligible).toBe(false)
+    expect(wrapper.emitted('fact-change')).toBeTruthy()
+
+    // 纳入 f2
+    const includeBtns = wrapper.findAll('[data-test="btn-include-fact"]')
+    expect(includeBtns.length).toBeGreaterThan(0)
+    await includeBtns[includeBtns.length - 1].trigger('click')
+    expect(mutableFacts[1].candidateEligible).toBe(true)
+    expect(mutableFacts[1].schemeId).toBe('scheme-main')
+  })
 })
