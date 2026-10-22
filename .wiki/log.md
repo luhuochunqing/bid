@@ -1362,6 +1362,6 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 
 ## [2026-10-22] fix | scoreparse 引文归一化：同形异码比较符 + 模型自加序号 + 标点换行导致逻辑行来源绑定失败（生产 1120 94/100）
 
-- 根因三因叠加：原文 `﹤`(U+FE64)/`＜`(U+FF1C) 与模型 ASCII `<` 不等价、模型引文自加 `1. ` 序号、`：` 后换行被归一化成空格 → `uniqueSpan` 未命中 → 逻辑行无 `source_cell_ids` → `SOURCE_LOCATOR_NOT_VERIFIED` 剔除 6 分项 → 94 分 + `WEIGHT_SUM_MISMATCH` → `REVIEW_REQUIRED`。
+- 根因三因叠加：原文 `﹤`(U+FE64)/`＜`(U+FF1C) 与模型 ASCII `<` 不等价、模型引文自加 `1. ` 序号、`：` 后换行被归一化成空格 → 归一化后包含匹配未命中 → 逻辑行无 `source_cell_ids` → `SOURCE_LOCATOR_NOT_VERIFIED` 剔除 6 分项 → 94 分 + `WEIGHT_SUM_MISMATCH` → `REVIEW_REQUIRED`。
 - 修复口径：比较符 1:1 折叠保持 offset 回溯；CJK 标点邻接不插空格；序号剥离只留在 `LogicalRowEvidenceBinder` 局部重试，不进全局 normalize。
 - 未覆盖阻断：`ORIGINAL_SCHEME_AMBIGUOUS → SCHEME_SELECTION_REQUIRED`、跨表 `UNKNOWN_TOTAL` 仍需人工确认，不在本次修复范围。
