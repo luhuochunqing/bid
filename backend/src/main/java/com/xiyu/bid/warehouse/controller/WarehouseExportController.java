@@ -1,3 +1,7 @@
+// Input: 仓库导出筛选条件、任务编号和当前登录用户
+// Output: 导出任务分页、状态和流式下载响应
+// Pos: warehouse/controller — 仓库信息导出 HTTP 入口
+// 维护声明: 仅维护导出入口。下载文件名使用 RFC 5987，避免 Tomcat 删除响应头里的裸中文.
 package com.xiyu.bid.warehouse.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
@@ -232,7 +236,7 @@ public class WarehouseExportController {
                 }
             };
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, attachmentDisposition(filename))
                     .contentType(MediaType.parseMediaType(resolveContentType(filename)))
                     .contentLength(fileSize)
                     .body(body);
@@ -250,6 +254,12 @@ public class WarehouseExportController {
                 ? task.getCompletedAt().format(FILENAME_DT_FMT)
                 : LocalDateTime.now().format(FILENAME_DT_FMT);
         return "仓库信息导出包_" + ts + ".zip";
+    }
+
+    static String attachmentDisposition(String filename) {
+        String encoded = java.net.URLEncoder.encode(filename, java.nio.charset.StandardCharsets.UTF_8)
+                .replace("+", "%20");
+        return "attachment; filename=\"" + encoded + "\"; filename*=UTF-8''" + encoded;
     }
 
     private String resolveContentType(String filename) {

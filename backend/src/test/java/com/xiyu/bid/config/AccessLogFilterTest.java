@@ -1,5 +1,7 @@
 package com.xiyu.bid.config;
 
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletResponse;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.mock.web.MockFilterChain;
@@ -7,6 +9,10 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -118,6 +124,26 @@ class AccessLogFilterTest {
         assertEquals(200, response.getStatus());
         assertTrue(chain.receivedRequest instanceof ContentCachingRequestWrapper,
                 "非 multipart 请求应被包装为 ContentCachingRequestWrapper");
+    }
+
+    @Test
+    void bytesWrittenAfterFilterReturnsReachTheClient() throws Exception {
+        AccessLogFilter filter = new AccessLogFilter();
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET", "/api/knowledge/performance/bundle-export/tasks/10/download");
+        request.setAsyncSupported(true);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        byte[] payload = "bundle-bytes".getBytes(StandardCharsets.UTF_8);
+        AtomicReference<ServletResponse> downstream = new AtomicReference<>();
+        FilterChain chain = (req, res) -> {
+            downstream.set(res);
+            ((jakarta.servlet.http.HttpServletRequest) req).startAsync();
+        };
+
+        filter.doFilter(request, response, chain);
+        downstream.get().getOutputStream().write(payload);
+
+        assertArrayEquals(payload, response.getContentAsByteArray());
     }
 
     /**

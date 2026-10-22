@@ -1,6 +1,7 @@
 // Input: HTTP 请求进入/响应返回
 // Output: 结构化日志记录每个请求的方法、URI、耗时、状态码、客户端 IP
 // Pos: Config/基础设施层 — 请求访问日志
+// 维护声明: 仅维护访问日志。响应体不缓存，避免流式下载在过滤器返回后写出时被空缓存吞掉.
 package com.xiyu.bid.config;
 
 import jakarta.servlet.FilterChain;
@@ -13,7 +14,6 @@ import org.slf4j.MDC;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
 import org.springframework.web.util.ContentCachingRequestWrapper;
@@ -21,7 +21,9 @@ import org.springframework.web.util.ContentCachingRequestWrapper;
 /**
  * 统一请求访问日志过滤器。
  * <p>记录每个 HTTP 请求的方法、URI、耗时、状态码和客户端 IP，与 MDC traceId 关联。</p>
- * <p>同时将请求和响应包装为 CachingWrapper，供后续异常处理或审计读取 Body。</p>
+ * <p>非 multipart 请求包装为 {@link ContentCachingRequestWrapper}，供异常日志读取请求体。
+ * 响应体不缓存：{@code StreamingResponseBody} 在本过滤器返回之后才写出，
+ * 套 {@code ContentCachingResponseWrapper} 会把正文留在已经拷贝过的空缓存里。</p>
  * <p>注册在 Filter 链最外层，确保所有请求（含被拦截的）都被记录。</p>
  */
 @Component
@@ -51,13 +53,12 @@ public class AccessLogFilter extends OncePerRequestFilter {
         ContentCachingRequestWrapper wrappedRequest = isMultipart ? null
                 : (request instanceof ContentCachingRequestWrapper ?
                 (ContentCachingRequestWrapper) request : new ContentCachingRequestWrapper(request));
-        ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper(response);
 
         try {
-            chain.doFilter(isMultipart ? request : wrappedRequest, wrappedResponse);
+            chain.doFilter(isMultipart ? request : wrappedRequest, response);
         } finally {
             long elapsed = System.currentTimeMillis() - start;
-            int status = wrappedResponse.getStatus();
+            int status = response.getStatus();
             String traceId = MDC.get(TraceConstants.MDC_TRACE_KEY);
             String fullPath = query != null ? uri + "?" + query : uri;
 
@@ -65,8 +66,6 @@ public class AccessLogFilter extends OncePerRequestFilter {
                     method, fullPath, status, elapsed, clientIp,
                     userAgent != null ? userAgent : "-",
                     traceId != null ? traceId : "-");
-
-            wrappedResponse.copyBodyToResponse();
         }
     }
 
