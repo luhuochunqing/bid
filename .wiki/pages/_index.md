@@ -82,6 +82,7 @@ backlinks:
 - [[knowledge-base]] — 4.4 知识库 PRD (产品需求文档)
 - [[knowledge-case-summary-source-title]] — 案例库应答片段摘要可读性 + 标书原文来源标题定位（WF 0915-01）
 - [[large-file-streaming-and-memory-discipline]] — 超大标书流式解析与前端原生下载治理（2GB+ 内存防爆与 SAX 容灾）
+- [[streaming-download-empty-body-async-401]] — 合订本流式下载空正文与异步 401（响应缓存、二次鉴权、中文文件名）
 - [[lessons-learned]] — 工程经验总结
 - [[lessons-learned/case-precipitation-oversize-oom]] — AI 生成案例超大标书 OOM 导致入库 0 条 — 整文件读堆 + 二次分配与"假成功"上报
 - [[lessons-learned/CO-361-five-rounds-no-fix]] — CO-361 五次修复不彻底的教训 — 反复追症状不追根因的代价
