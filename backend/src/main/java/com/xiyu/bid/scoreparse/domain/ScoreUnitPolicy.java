@@ -36,6 +36,23 @@ public final class ScoreUnitPolicy {
                 .filter(java.util.Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    /** 顶层分类（无父项或父项缺失）的权重合计。 */
+    public static BigDecimal rootWeightTotal(List<Node> facts) {
+        if (facts == null) return BigDecimal.ZERO;
+        Set<String> ids = facts.stream().map(Node::id).collect(java.util.stream.Collectors.toSet());
+        return facts.stream()
+                .filter(fact -> fact.parentId() == null || fact.parentId().isBlank() || !ids.contains(fact.parentId()))
+                .map(Node::weight).filter(java.util.Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * 与原文总分比较的口径：权重制文件（WEIGHT_CLOSURE）的总分是顶层分类权重合计，
+     * 明细项各自按 100 分制打分，直接对叶子求和会得到 300 而不是 100。
+     */
+    public static BigDecimal comparableTotal(List<Node> facts, String totalSource) {
+        return "WEIGHT_CLOSURE".equals(totalSource) ? rootWeightTotal(facts) : totalWeight(facts);
+    }
+
     public static List<ScoreFact> effectiveFacts(List<ScoreFact> facts) {
         var nodes = facts.stream().map(fact -> new Node(fact.factId(), fact.parentFactId(), fact.weight(),
                 fact.childAggregation().name())).toList();

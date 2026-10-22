@@ -289,7 +289,8 @@ public final class OriginalScoreEvidencePolicy {
                 .filter(fact -> unitIds.contains(fact.factId())).map(ScoreFact::toCandidate)
                 .flatMap(java.util.Optional::stream).toList();
         if (verification == null || !verification.publishable() || verification.total().value() == null
-                || leafTotal == null || leafTotal.compareTo(verification.total().value()) != 0
+                || leafTotal == null || ScoreUnitPolicy.comparableTotal(nodes, verification.total().source())
+                        .compareTo(verification.total().value()) != 0
                 || facts == null || facts.isEmpty() || candidates == null || candidates.isEmpty()
                 || !expectedCandidates.equals(candidates)) {
             return null;
