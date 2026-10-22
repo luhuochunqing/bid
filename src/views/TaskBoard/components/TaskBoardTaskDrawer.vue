@@ -73,6 +73,7 @@ const canSubmitForReview = computed(() => taskFormRef.value?.canDeliver === true
 
 // CO-481: 保证金缴纳任务 + TODO + 管理角色/项目负责人 → 可编辑执行人
 // 权限范围：系统管理员、投标管理员、投标组长、该项目分配的投标负责人、投标辅助人员
+// CO-574: 新增放权给项目负责人（project.projectLeaderId = 立项发起人），与 TaskForm.vue canEditAssignee 同口径
 const canEditDepositTaskAssignee = computed(() => {
   const task = selectedTask.value
   if (!task) return false
@@ -84,6 +85,7 @@ const canEditDepositTaskAssignee = computed(() => {
   if (!project || uid == null) return false
   return (project.primaryLeadUserId != null && String(uid) === String(project.primaryLeadUserId))
     || (project.secondaryLeadUserId != null && String(uid) === String(project.secondaryLeadUserId))
+    || (project.projectLeaderId != null && String(uid) === String(project.projectLeaderId))
 })
 
 async function handleSaveAssignee() {
@@ -108,11 +110,21 @@ async function handleSaveAssignee() {
       dto.assigneeRoleCode = data.assigneeRoleCode
       dto.assigneeRoleName = data.assigneeRoleName
     }
-    await projectsApi.updateTask(task.id, dto)
+    const updateRes = await projectsApi.updateTask(task.id, dto)
+    const updatedBackend = updateRes?.data || {}
+    const assigneeName = data.owner || data.assignee || updatedBackend.assigneeName || ''
+    const updated = {
+      ...task,
+      ...updatedBackend,
+      assigneeId: data.assigneeId ?? updatedBackend.assigneeId,
+      assigneeName,
+      owner: assigneeName,
+      assignee: assigneeName,
+    }
     ElMessage.success('执行人已更新')
     drawerVisible.value = false
     selectedTask.value = null
-    emit('submitted')
+    emit('submitted', { taskId: task.id, updated })
   } catch (e) {
     ElMessage.error(e?.response?.data?.msg || '执行人更新失败')
   } finally {
@@ -126,6 +138,14 @@ async function loadTask(taskId) {
     const res = await tasksApi.getTaskById(taskId)
     const taskData = res?.data?.data || res?.data || {}
     selectedTask.value = { ...taskBackendToCard(taskData), deliverableFiles: [] }
+    const projectId = taskData.projectId || selectedTask.value?.projectId
+    if (projectId && String(projectStore.currentProject?.id) !== String(projectId)) {
+      try {
+        await projectStore.getProjectById(projectId)
+      } catch {
+        // 容错：即使项目详情加载失败，仍保证任务详情能正常展示
+      }
+    }
     await nextTick()
     drawerVisible.value = true
   } catch (e) {

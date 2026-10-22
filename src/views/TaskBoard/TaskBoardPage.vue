@@ -46,7 +46,7 @@
     <TaskBoardTaskDrawer
       ref="drawerRef"
       v-model="drawerVisible"
-      @submitted="loadTasks"
+      @submitted="handleTaskSubmitted"
     />
   </div>
 </template>
@@ -130,6 +130,28 @@ const handleStatusChange = async (item, newStatus) => {
 }
 
 const handleDeliverableChanged = async () => { await loadTasks() }
+
+// 处理抽屉提交后的更新（含执行人修改后的即时局部响应式更新）
+const handleTaskSubmitted = async (payload) => {
+  if (payload?.taskId && payload?.updated) {
+    const target = items.value.find((item) => item.type === 'TASK' && Number(item.id) === Number(payload.taskId))
+    if (target) {
+      if (payload.updated.assigneeName) {
+        target.assigneeName = payload.updated.assigneeName
+      }
+      if (payload.updated.owner) {
+        target.owner = payload.updated.owner
+      }
+      if (payload.updated.assignee) {
+        target.assignee = payload.updated.assignee
+      }
+      if (payload.updated.assigneeId != null) {
+        target.assigneeId = payload.updated.assigneeId
+      }
+    }
+  }
+  await loadTasks()
+}
 
 onMounted(loadTasks)
 
