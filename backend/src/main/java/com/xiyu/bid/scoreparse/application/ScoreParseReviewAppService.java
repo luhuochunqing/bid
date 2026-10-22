@@ -212,9 +212,10 @@ public class ScoreParseReviewAppService {
                 .filter(qualification -> adoptedSchemeId.equals(qualification.schemeId())).findFirst().orElse(null);
         BigDecimal declaredTotal = selectedScheme == null ? null : selectedScheme.declaredTotal();
         String totalEvidenceStatus = selectedScheme == null ? "UNKNOWN" : selectedScheme.totalEvidenceStatus();
-        if (declaredTotal == null && "UNKNOWN".equals(totalEvidenceStatus)
-                && selectedScheme != null && selectedScheme.tableIds().size() == 1
-                && ScoreParseReviewTotalPolicy.isSingleUnknownTable(task)) declaredTotal = result.totalWeight();
+        if (declaredTotal == null && "UNKNOWN".equals(totalEvidenceStatus)) {
+            // 人工复核确认：无论是单表还是多物理表格，当原文无可验证总分且无冲突证据时，允许以人工核对采纳的候选项总分作为生效总分
+            declaredTotal = result.totalWeight();
+        }
         if ("CONFLICT".equals(totalEvidenceStatus)) {
             throw new IllegalArgumentException("所选评分方案的原文总分存在冲突，请先核验冲突证据");
         }
