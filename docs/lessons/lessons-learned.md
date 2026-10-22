@@ -7324,3 +7324,14 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **验证纪律**：单测三因叠加用例必须断言「绑定恢复 + 恢复后的 `quotedText` 等于原文含 `﹤` 的原串 + 校验器无 `QUOTE_NOT_VERBATIM` + `sourceMetadata().modelQuotedText()` 保留模型原话」。真实引文复验时，Python 侧「全删空白后 contains」的 true 是假阳性——Java 归一化只在标点邻接折叠，不能用更宽松的脚本等价替代真实实现验证。
 - **金标与反向验证**：新增金标夹具（字节级可回放）而非使用 `SCOREPARSE_GATE_SKIP`；反向验证把修复前逻辑还原后两条断言均转红，证明测试真正锁住了回归路径。
 - **存量数据代价**：代码修复不会回填已落库的旧候选。本次在备份（`backup-1120-parse-125-126-*.sql`）后事务删除 125/126 的 60 条 evidence、30 条 fact、2 条 task，使最新 `PARSE` 回到 106；**部署前禁止对同类项目点「重新解析」**，旧代码会重现同一候选。
+
+## 436. 评分标准多表无总分硬阻断与人工复核交互闭环缺失（项目 1123）（2026-10-22）
+
+- **现场证据**：项目 1123 解析出 10 项有效候选合计 69 分，另有 8 项资质/服务保障被判定为方案外。顶部提示「检测到待人工复核的候选评分标准」，同时弹出警告「该方案包含多个物理表格但尚无可验证的方案总分，不能按表格分值相加」，底下的「⚡ 一键采纳为正式评分标准（69分）」按钮被永久置灰禁用。用户在表格中修改任何分值均无法激活采纳，人工介入完全死锁。
+- **致错机制**：(a) 后端 `ScoreParseReviewAppService.handleAdoptCandidates` 在 `declaredTotal == null` 时无条件阻断抛错；(b) 前端 `ScoreCandidateReviewCard.vue` 的 `:disabled` 判定把 `adoptionStatus === 'UNKNOWN_TOTAL'` 设为不可逾越的硬门禁；(c) 现实标书中常将商务、技术、服务等拆分在多个章节/表格中，且正文可能缺少统一的"满分100分"声明句；(d) 界面缺少"方案外项一键纳入"和"行内移出"按钮，导致人工纠错闭环断裂。
+- **修复与契约**：
+  - 后端：当多表且原文缺少总分（`UNKNOWN_TOTAL`）且无冲突证据时，允许人工复核以当前确认的候选总分作为本次方案生效总分进行采纳，不再抛出异常。
+  - 前端：解绑 `UNKNOWN_TOTAL` 的按钮禁用；Alert 警告调整为提示核对后可人工采纳；每行增加「移出」按钮；方案外事实列表每行增加「+ 纳入本方案」按钮，支持误判项一键召回。
+  - 清理：移除对业务人员无意义的 `parentFactId` 输入框，遵守 300 行预算。
+- **验证纪律**：后端补齐多表 `UNKNOWN_TOTAL` 人工采纳单元测试 `submitReview_adoptCandidates_usesConfirmedCandidateTotalForMultiTableUnknownTotal`；前端补齐多表采纳激活与移出/纳入方案事实交互单测。
+
