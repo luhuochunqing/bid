@@ -124,6 +124,8 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             }
         }
         parseText(text, scheme, totals);
+        if (totals.isEmpty() && localProblems.isEmpty()) OriginalWeightClosurePolicy.resolve(artifact, scheme).ifPresent(closure -> totals.add(
+                new Evidence(closure.value(), "WEIGHT_CLOSURE", closure.scope(), closure.locator(), closure.quote())));
         if (totals.isEmpty() && localProblems.isEmpty()) artifact.tables().stream().filter(table -> OriginalScoringSchemePolicy.owns(scheme, table))
                 .forEach(table -> GroupedScoreTotalPolicy.resolve(table).ifPresent(grouped -> totals.add(
                         new Evidence(grouped.value(), "TABLE_SUMMARY", scheme, grouped.locator(), grouped.quote()))));

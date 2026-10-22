@@ -7335,3 +7335,12 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - 清理：移除对业务人员无意义的 `parentFactId` 输入框，遵守 300 行预算。
 - **验证纪律**：后端补齐多表 `UNKNOWN_TOTAL` 人工采纳单元测试 `submitReview_adoptCandidates_usesConfirmedCandidateTotalForMultiTableUnknownTotal`；前端补齐多表采纳激活与移出/纳入方案事实交互单测。
 
+
+## 437. 前附表附件承载评分表时作用域恒空，权重制文件的总分只能由权重闭合（项目 1391）（2026-10-22）
+
+- **现场证据**：任务 322（测试 1391 / 生产 1122）解析 8 次模型调用 `facts` 全空，落 `REVIEW_REQUIRED`，评分项 0 条。原文结构：前附表条款行 `| 6.7.1 | 分值权重构成 (总分100 分) | 详见响应供应商须知前附表之附表一。|`；权重表在「前附表之附表一」；评分标准整段在「前附表附件一」；正文 `### 6.3 评审办法` 只有 3 行。
+- **致错机制**：(a) `OriginalScoringTextScopePolicy.textScopes` 只把正文方案根当作用域，附件标题不被识别，真实评分表 60-803 行不在任何 scope，模型从未收到；(b) 唯一总分行被 `parseText` 的 `|` 前缀跳过，正文又没有「本项目总分 100 分」句；(c) 权重制文件的分类权重 40/50/10 才是总分口径，叶子项各自 100 分、3 个分类合计 300，直接求和必然与 100 冲突。
+- **修复与边界**：作用域识别「附表/附件」标题；无正文方案根时，正文含评分关键词的附件自身作为方案根；单根时补齐附件 scope，不含关键词的附件显式标 `OUT_OF_SCHEME`。附件边界取「下一个附件标题 / 同级 markdown 标题 / 任意有效方案根」两者最早，避免附件二里的 `### 6.3 评审办法` 被吞进附件范围。总分用 `OriginalWeightClosurePolicy`：同一行 ≥2 个百分比且合计 100，且紧邻上文行具权重/维度语义，且非 `otherScheme` 章节；取值恒为 100，仅在无其他总分证据且 `localProblems` 为空时启用。比较口径收敛到 `ScoreUnitPolicy.comparableTotal`（`WEIGHT_CLOSURE` 用顶层分类合计），校验器与发布门禁同口径。
+- **反向教训**：不要为了「更强归属」给权重表加 IN_SCHEME 作用域闸门——`SCHEME` 正则不含「分值」，真实附表一会被判 `OUT_OF_SCHEME`，该闸门会误杀唯一可用的总分来源。归属校验应落在「章节语义 + 行形态」上，而不是正文方案作用域。
+- **fail-safe 论证**：误命中不会静默发布错误总分。原文真实总分 X≠100 且 facts 顶层合计为 X 时，`MultimodalScoreFactValidator` 与 `OriginalSourcePublicationGuard` 都会判 `WEIGHT_SUM_MISMATCH`、proof=null，任务转 `REVIEW_REQUIRED`。
+- **验证纪律**：新增单测 4 例，其中「上方数据行维度词不得当表头」做 RED 复现（临时回滚后 1 failure，恢复后 4/0）；版本修复必须补金标夹具 `case-1391-appendix-weight-closure`，不得以 `SCOREPARSE_GATE_SKIP` 代替。

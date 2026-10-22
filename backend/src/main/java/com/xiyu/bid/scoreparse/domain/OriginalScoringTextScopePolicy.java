@@ -8,6 +8,12 @@ import java.util.regex.Pattern;
 /** Resolves text ranges inside, and after, named scoring schemes. */
 final class OriginalScoringTextScopePolicy {
     private static final Pattern HEADING = Pattern.compile("^\\s*#{1,6}\\s*(.+?)\\s*$");
+    /**
+     * 附表/附件式承载标题：正文评分办法常写「详见响应供应商须知前附表附件一」，
+     * 真正的评分标准挂在附件一里，附件标题本身不含评分关键词。
+     * 只按标题认会漏掉整段评分内容；是否算作作用域还要看正文是否出现评分关键词（见 {@link #appendixHeadings}）。
+     */
+    private static final Pattern APPENDIX_TITLE = Pattern.compile(".*(?:之)?(?:附件|附表)\\s*[一二三四五六七八九十百0-9]+\\s*$");
     private static final Pattern SOURCE_HEADING = Pattern.compile("^(第[一二三四五六七八九十百0-9]+章\\s*.+|[一二三四五六七八九十]+[、.]\\s*.+|\\([^)]{1,24}\\)\\s*.+)$");
     /**
      * Trailer of a dot-leader table-of-contents line (dot leaders plus a trailing page number).
@@ -40,6 +46,7 @@ final class OriginalScoringTextScopePolicy {
         if (text == null || text.isBlank()) return List.of(new OriginalScoringContext.TextScope(null, "", "", "", 0, 0, ""));
         String[] lines = text.split("\\R", -1);
         List<Heading> headings = headings(lines);
+        List<Heading> appendices = appendixHeadings(headings);
         List<Heading> roots = new ArrayList<>();
         int activeRootLevel = Integer.MAX_VALUE;
         for (Heading heading : headings) {
@@ -55,7 +62,15 @@ final class OriginalScoringTextScopePolicy {
                 activeRootLevel = heading.level();
             }
         }
-        if (roots.isEmpty()) return List.of(new OriginalScoringContext.TextScope(null, "", "", "", 0, lines.length, text));
+        if (roots.isEmpty() && appendices.isEmpty()) return List.of(new OriginalScoringContext.TextScope(null, "", "", "", 0, lines.length, text));
+        // 没有正文方案根时，正文含评分关键词的附件自己就是方案根。
+        boolean syntheticRoot = roots.isEmpty();
+        if (syntheticRoot) {
+            appendices.stream()
+                    .filter(appendix -> OriginalScoringSchemePolicy.mentionsScheme(appendixBody(lines, headings, appendix)))
+                    .forEach(roots::add);
+            if (roots.isEmpty()) return List.of(new OriginalScoringContext.TextScope(null, "", "", "", 0, lines.length, text));
+        }
 
         int firstRootLine = roots.get(0).line();
         String preambleTotals = java.util.stream.IntStream.range(0, firstRootLine)
@@ -84,6 +99,7 @@ final class OriginalScoringTextScopePolicy {
                 addScope(scopes, lines, title, root.title(), "OUT_OF_SCHEME", rootEnd, nextRootLine, "");
             }
         }
+        if (!syntheticRoot && roots.size() == 1) addAppendixScopes(scopes, headings, appendices, roots.get(0), lines);
         for (Heading heading : headings) {
             if (!OriginalScoringSchemePolicy.isContractAuditTitle(heading.title())) continue;
             boolean alreadyScoped = scopes.stream().anyMatch(scope -> heading.line() >= scope.startLine()
@@ -149,6 +165,64 @@ final class OriginalScoringTextScopePolicy {
         return headings.stream().filter(next -> next.line() > current.line() && next.line() < fallback
                         && next.level() <= current.level())
                 .mapToInt(Heading::line).min().orElse(fallback);
+    }
+
+    private static List<Heading> appendixHeadings(List<Heading> headings) {
+        return headings.stream()
+                .filter(heading -> APPENDIX_TITLE.matcher(heading.title()).matches())
+                .filter(heading -> !OriginalScoringSchemePolicy.isContractAuditTitle(heading.title()))
+                .toList();
+    }
+
+    /**
+     * 评分标准常被拆到「附件一」承载，正文只写「详见…附件一」。附件标题不含评分关键词，
+     * 只按标题识别会让整段评分表落在作用域外，模型永远看不到。这里按正文是否出现评分关键词
+     * 决定 IN_SCHEME；不含的附件显式标 OUT_OF_SCHEME，避免被相邻作用域误吞。
+     */
+    private static void addAppendixScopes(List<OriginalScoringContext.TextScope> scopes, List<Heading> headings,
+                                          List<Heading> appendices, Heading root, String[] lines) {
+        for (Heading appendix : appendices) {
+            int start = appendix.line();
+            int end = nextAppendixBoundary(headings, lines, appendix, lines.length);
+            if (start >= end) continue;
+            if (scopes.stream().anyMatch(scope -> start >= scope.startLine() && start < scope.endLine())) continue;
+            String body = appendixBody(lines, headings, appendix);
+            if (!OriginalScoringSchemePolicy.mentionsScheme(body)) {
+                addScope(scopes, lines, appendix.title(), root.title(), "OUT_OF_SCHEME", start, end, "");
+                continue;
+            }
+            int cursor = start;
+            for (Heading audit : headings.stream().filter(h -> h.line() > start && h.line() < end
+                    && OriginalScoringSchemePolicy.isContractAuditTitle(h.title())).toList()) {
+                int auditEnd = nextBoundaryBefore(headings, audit, end);
+                if (cursor < audit.line()) addScope(scopes, lines, appendix.title(), root.title(), "IN_SCHEME",
+                        cursor, audit.line(), "");
+                addScope(scopes, lines, audit.title(), root.title(), "OUT_OF_SCHEME", audit.line(), auditEnd, "");
+                cursor = Math.max(cursor, auditEnd);
+            }
+            if (cursor < end) addScope(scopes, lines, appendix.title(), root.title(), "IN_SCHEME", cursor, end, "");
+        }
+    }
+
+    private static String appendixBody(String[] lines, List<Heading> headings, Heading appendix) {
+        return String.join("\n", java.util.Arrays.copyOfRange(lines, appendix.line(),
+                nextAppendixBoundary(headings, lines, appendix, lines.length)));
+    }
+
+    /**
+     * 附件范围终点：下一个附件标题、下一个同级 markdown 标题，或任何方案根标题。
+     * 不能只用同级标题，「一、xx」这类正文伪标题与附件同级，会把附件正文截断。
+     */
+    private static int nextAppendixBoundary(List<Heading> headings, String[] lines, Heading current, int fallback) {
+        return headings.stream().filter(next -> next.line() > current.line())
+                .filter(next -> APPENDIX_TITLE.matcher(next.title()).matches()
+                        || (next.level() <= current.level() && isMarkdownHeading(lines[next.line()]))
+                        || OriginalScoringSchemePolicy.isValidSchemeRoot(next.title()))
+                .mapToInt(Heading::line).min().orElse(fallback);
+    }
+
+    private static boolean isMarkdownHeading(String line) {
+        return line != null && line.stripLeading().startsWith("#");
     }
 
     private static void addScope(List<OriginalScoringContext.TextScope> scopes, String[] lines, String title,

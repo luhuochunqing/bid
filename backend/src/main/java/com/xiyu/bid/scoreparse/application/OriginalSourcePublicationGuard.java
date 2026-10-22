@@ -36,9 +36,12 @@ final class OriginalSourcePublicationGuard {
                 .map(ScoreFact::weight).filter(java.util.Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal total = original.total().value();
-        if (total == null || leaves.compareTo(total) != 0) {
+        BigDecimal comparable = ScoreUnitPolicy.comparableTotal(eligibleFacts.stream().map(f -> new ScoreUnitPolicy.Node(
+                f.factId(), f.parentFactId(), f.weight(), f.childAggregation().name())).toList(),
+                original.total().source());
+        if (total == null || comparable.compareTo(total) != 0) {
             defects.add("WEIGHT_SUM_MISMATCH[scheme=" + context.scheme() + ",expected=" + total
-                    + ",actual=" + leaves + ",source=" + original.total().locator() + "]");
+                    + ",actual=" + comparable + ",source=" + original.total().locator() + "]");
         }
         var candidates = eligibleFacts.stream().filter(f -> unitIds.contains(f.factId()))
                 .map(ScoreFact::toCandidate).flatMap(java.util.Optional::stream).toList();

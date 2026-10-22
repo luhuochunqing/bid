@@ -190,6 +190,11 @@ final class OriginalScoringSchemePolicy {
         return matchingSchemes.size() == 1 && sameScheme(matchingSchemes.get(0), scheme);
     }
 
+    /** 正文或标题是否出现评分方案关键词（作用域判定复用同一文法，避免第二套正则）。 */
+    static boolean mentionsScheme(String text) {
+        return text != null && SCHEME.matcher(text).matches();
+    }
+
     static boolean isValidSchemeRoot(String title) {
         return title != null && SCHEME.matcher(title).matches() && !OTHER.matcher(title).matches()
                 && !CONTRACT_AUDIT.matcher(title).matches();

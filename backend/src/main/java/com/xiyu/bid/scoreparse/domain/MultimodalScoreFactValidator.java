@@ -80,9 +80,10 @@ public final class MultimodalScoreFactValidator {
                     "父子计分关系无法判明", "known relationship", "UNKNOWN", "model scoring facts"));
         }
         BigDecimal originalTotal = sourceVerification.total().value();
-        if (originalTotal == null || leafTotal.compareTo(originalTotal) != 0) {
+        BigDecimal comparableTotal = ScoreUnitPolicy.comparableTotal(scoreNodes, sourceVerification.total().source());
+        if (originalTotal == null || comparableTotal.compareTo(originalTotal) != 0) {
             violations.add(new Violation("", "weight", "WEIGHT_SUM_MISMATCH",
-                    "叶子项总分必须与已核验原文总分闭合", originalTotal, leafTotal,
+                    "叶子项总分必须与已核验原文总分闭合", originalTotal, comparableTotal,
                     sourceVerification.total().locator()));
         }
         return new ValidationReport(facts, declaredTotal, originalTotal, leafTotal, violations.isEmpty(),
