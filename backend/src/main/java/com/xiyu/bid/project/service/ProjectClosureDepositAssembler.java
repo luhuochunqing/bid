@@ -1,6 +1,9 @@
 // Input: Fee 表 / ProjectInitiationDetails 保证金派生 + GatePolicy 适配
 // Output: 结项服务所需的保证金快照和状态解析（数据访问 + 映射，不含业务决策）
 // Pos: project/service/ - 应用服务辅助层
+// 保证金金额：立项 deposit_amount > 0 时用立项金额；否则用未取消 BID_BOND 合计。
+// 两条分支共用该金额，避免提交按费用合计放行、保存后预览改按立项金额判不平。
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.fees.entity.Fee;
@@ -41,66 +44,90 @@ public final class ProjectClosureDepositAssembler {
     public ProjectDepositSnapshot buildSnapshot(
             final Long projectId,
             final Optional<ProjectClosure> existingClosure) {
-        // 如果已有结项记录且包含保证金退回数据，优先使用已保存的数据
-        if (existingClosure.isPresent()) {
-            ProjectClosure closure = existingClosure.get();
-            if (closure.getDepositReturnStatus() != null
-                    && !closure.getDepositReturnStatus().isBlank()
-                    && !"NA".equals(closure.getDepositReturnStatus())) {
-                return buildSnapshotFromClosure(projectId, closure);
-            }
-        }
-        List<Fee> allBonds = feeRepository.findByProjectId(projectId)
-                .stream().filter(f -> f.getFeeType() == Fee.FeeType.BID_BOND
-                        && f.getStatus() != Fee.Status.CANCELLED).toList();
-        if (allBonds.isEmpty()) {
-            ProjectInitiationDetails init = initiationRepository
-                    .findByProjectId(projectId).orElse(null);
-            if (init != null && "YES".equals(init.getNeedDeposit())) {
-                BigDecimal amount = init.getDepositAmount() != null
-                        ? init.getDepositAmount() : BigDecimal.ZERO;
-                return new ProjectDepositSnapshot(
-                        projectId, true, amount,
-                        DepositReturnStatus.NOT_RETURNED, null, null);
-            }
+        ProjectInitiationDetails init = initiationRepository
+                .findByProjectId(projectId).orElse(null);
+        List<Fee> allBonds = activeBonds(projectId);
+        BigDecimal amount = resolveDepositAmount(init, allBonds);
+        if (!hasDeposit(init, allBonds, amount)) {
             return new ProjectDepositSnapshot(projectId, false,
                     BigDecimal.ZERO, DepositReturnStatus.NA, null, null);
         }
-        BigDecimal totalAmount = allBonds.stream().map(Fee::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        ProjectClosure closure = existingClosure.orElse(null);
+        if (closure != null && hasSavedReturnStatus(closure)) {
+            return new ProjectDepositSnapshot(projectId, true, amount,
+                    parseStatus(closure.getDepositReturnStatus()),
+                    closure.getDepositReturnDate(),
+                    closure.getDepositReturnEvidenceId());
+        }
         List<Fee> returnedBonds = allBonds.stream()
                 .filter(f -> f.getStatus() == Fee.Status.RETURNED).toList();
-        if (returnedBonds.size() == allBonds.size()) {
+        if (!allBonds.isEmpty() && returnedBonds.size() == allBonds.size()) {
             Fee latest = returnedBonds.stream()
                     .max((a, b) -> a.getReturnDate() != null
                             && b.getReturnDate() != null
                     ? a.getReturnDate().compareTo(b.getReturnDate()) : 0)
                     .orElse(returnedBonds.get(0));
-            Long evidenceId = existingClosure
-                    .map(ProjectClosure::getDepositReturnEvidenceId)
-                    .orElse(null);
-            return new ProjectDepositSnapshot(projectId, true, totalAmount,
+            Long evidenceId = closure == null ? null
+                    : closure.getDepositReturnEvidenceId();
+            return new ProjectDepositSnapshot(projectId, true, amount,
                     DepositReturnStatus.FULLY_RETURNED,
                     latest.getReturnDate(), evidenceId);
         }
-        return new ProjectDepositSnapshot(projectId, true, totalAmount,
+        return new ProjectDepositSnapshot(projectId, true, amount,
                 DepositReturnStatus.NOT_RETURNED, null, null);
     }
 
-    /** 从已保存的结项记录构建保证金快照 */
-    private ProjectDepositSnapshot buildSnapshotFromClosure(Long projectId, ProjectClosure closure) {
-        DepositReturnStatus status;
-        try {
-            status = DepositReturnStatus.valueOf(closure.getDepositReturnStatus());
-        } catch (IllegalArgumentException e) {
-            status = DepositReturnStatus.NOT_RETURNED;
+    private static BigDecimal resolveDepositAmount(final ProjectInitiationDetails init,
+                                                   final List<Fee> bonds) {
+        BigDecimal initiationAmount = init == null ? null : init.getDepositAmount();
+        if (initiationAmount != null
+                && initiationAmount.compareTo(BigDecimal.ZERO) > 0) {
+            return initiationAmount;
         }
-        BigDecimal amount = initiationRepository.findByProjectId(projectId)
-                .map(ProjectInitiationDetails::getDepositAmount)
-                .orElse(BigDecimal.ZERO);
-        return new ProjectDepositSnapshot(projectId, amount.compareTo(BigDecimal.ZERO) > 0,
-                amount, status, closure.getDepositReturnDate(),
-                closure.getDepositReturnEvidenceId());
+        BigDecimal total = BigDecimal.ZERO;
+        for (Fee fee : bonds) {
+            if (fee.getAmount() != null) {
+                total = total.add(fee.getAmount());
+            }
+        }
+        return total;
+    }
+
+    private static boolean hasDeposit(final ProjectInitiationDetails init,
+                                      final List<Fee> bonds,
+                                      final BigDecimal amount) {
+        if (amount.compareTo(BigDecimal.ZERO) > 0) {
+            return true;
+        }
+        if (!bonds.isEmpty()) {
+            return true;
+        }
+        return init != null && init.getNeedDeposit() != null
+                && "YES".equalsIgnoreCase(init.getNeedDeposit().trim());
+    }
+
+    private List<Fee> activeBonds(final Long projectId) {
+        List<Fee> found = feeRepository.findByProjectId(projectId);
+        if (found == null) {
+            return List.of();
+        }
+        return found.stream()
+                .filter(f -> f.getFeeType() == Fee.FeeType.BID_BOND
+                        && f.getStatus() != Fee.Status.CANCELLED)
+                .toList();
+    }
+
+    private static boolean hasSavedReturnStatus(final ProjectClosure closure) {
+        String status = closure.getDepositReturnStatus();
+        return status != null && !status.isBlank() && !"NA".equals(status);
+    }
+
+    private static DepositReturnStatus parseStatus(final String raw) {
+        try {
+            return DepositReturnStatus.valueOf(raw);
+        } catch (IllegalArgumentException e) {
+            return DepositReturnStatus.NOT_RETURNED;
+        }
     }
 
     /**
