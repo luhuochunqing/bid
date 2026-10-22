@@ -116,6 +116,7 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
                     .responseFormat(responseType)
                     .build();
             StructuredChatCompletion<T> completion = client(config).chat().completions().create(params);
+            logRawChatCompletion(completion, config);
             return completion.choices().stream()
                     .findFirst()
                     .flatMap(choice -> choice.message().content());
