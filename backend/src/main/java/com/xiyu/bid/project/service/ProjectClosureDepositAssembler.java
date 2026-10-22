@@ -77,21 +77,14 @@ public final class ProjectClosureDepositAssembler {
                 DepositReturnStatus.NOT_RETURNED, null, null);
     }
 
-    /**
-     * 保证金金额。立项金额大于 0 时以立项为准（结项页「保证金金额」）；
-     * 立项没有正数金额时，用未取消投标保证金费用合计。
-     */
-    static BigDecimal resolveDepositAmount(final ProjectInitiationDetails init,
-                                           final List<Fee> bonds) {
+    private static BigDecimal resolveDepositAmount(final ProjectInitiationDetails init,
+                                                   final List<Fee> bonds) {
         BigDecimal initiationAmount = init == null ? null : init.getDepositAmount();
         if (initiationAmount != null
                 && initiationAmount.compareTo(BigDecimal.ZERO) > 0) {
             return initiationAmount;
         }
         BigDecimal total = BigDecimal.ZERO;
-        if (bonds == null) {
-            return total;
-        }
         for (Fee fee : bonds) {
             if (fee.getAmount() != null) {
                 total = total.add(fee.getAmount());
@@ -100,13 +93,13 @@ public final class ProjectClosureDepositAssembler {
         return total;
     }
 
-    static boolean hasDeposit(final ProjectInitiationDetails init,
-                              final List<Fee> bonds,
-                              final BigDecimal amount) {
-        if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+    private static boolean hasDeposit(final ProjectInitiationDetails init,
+                                      final List<Fee> bonds,
+                                      final BigDecimal amount) {
+        if (amount.compareTo(BigDecimal.ZERO) > 0) {
             return true;
         }
-        if (bonds != null && !bonds.isEmpty()) {
+        if (!bonds.isEmpty()) {
             return true;
         }
         return init != null && init.getNeedDeposit() != null
