@@ -215,4 +215,21 @@ class KnowledgeCategoryPolicyTest {
         assertThat(policy.extractMinContractAmount("未要求合同金额，只按业绩数量计分"))
                 .isNull();
     }
+
+    @Test
+    @DisplayName("项目22 供应商业绩：细则中含国资委授权字样，必须归类为 PROJECT 而非 BRAND")
+    void categorize_project22_supplierPerformance_ignoresAuthInDetail() {
+        String dim = "供应商业绩";
+        String detail = "供应商具有近三年内（2023年1月1日起至今，供应商具有1项大型集团型国央企电子商城办公用品服务业绩的不得分，每增加1个得1分，最高得7分。\n"
+                + "注：\n"
+                + "1.大型集团型国央企指：1）国务院国资委代表国务院履行出资人职责的中央企业；2）以及国务院授权财政部履行出资人职责的企业；3）各省、自治区、直辖市人民政府授权本级国资委履行出资人职责的省属国有独资、全资、控股企业。\n"
+                + "2.供应商应同时提供以下证明材料：\n"
+                + "（1）服务业绩时间以合同/协议签订时间为准，提供内容须包含：合同/协议首页、签字盖章页、体现工作内容主要页。合同/协议的甲方签订主体应是国央企总部或其所属物资公司、电商专业公司等，服务范围应为国央企全集团提供电商服务。\n"
+                + "（2）提供大型集团型国央企在国家企业信用信息公示系统中的股权关系截图（需与供应商所投业绩中的服务对象匹配，如签约主体为大型集团型国央企所述的物资公司、电商专业公司等，需提供从大型集团型国央企至签约主体公司的股权关系截图），无法证明甲方为央企、省属国企的业绩不予认可。";
+
+        assertThat(policy.categorize(dim, detail)).isEqualTo(KnowledgeCategoryPolicy.CATEGORY_PROJECT);
+        assertThat(policy.extractKeywords(dim, detail, 6)).contains("中央企业", "央企", "国企", "办公用品", "电商", "电子商城");
+        assertThat(policy.extractSignedAfter(detail)).isEqualTo(java.time.LocalDate.of(2023, 1, 1));
+        assertThat(policy.extractProjectRequiredCount(detail, new java.math.BigDecimal("15"))).isEqualTo(7);
+    }
 }

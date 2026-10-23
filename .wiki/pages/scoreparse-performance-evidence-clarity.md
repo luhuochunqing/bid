@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [评分解析, 预计得分, 业绩证据, 保守计分, 中文解释, spec067]
 created: 2026-09-21
-updated: 2026-09-21
-health_checked: 2026-09-21
+updated: 2026-10-23
+health_checked: 2026-10-23
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/EstimatedScoreService.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ProjectEvidenceRequirementPolicy.java
@@ -30,6 +30,7 @@ backlinks:
 1. **约束提取缺口**：合同金额提取失败后，请求省略金额过滤，候选记录仍会返回；“每提供一个”中的中文数量词未被识别时，所需数量回退为 1。
 2. **事实层级混淆**：`performance_record` 是候选来源，不是“所有条件已验证”的结论。付款流水、发票等材料无法从普通业绩记录自动证明。
 3. **解释层泄漏内部协议**：来源码、匹配层级、状态枚举直接显示在页面，既不易懂，也掩盖了待核验条件。
+4. **阶梯计分最高分正则边界（项目 22）**：`每增加1个得1分，最高得7分` 包含逗号 `，`，原正则 `[^，。；;\n]*?` 无法跨逗号匹配最高分，导致所需数量未能正确解析为 7 份而是回退使用大项权重 15 分。优化后放行逗号/空白衔接。
 
 ## 修复后的判定契约
 
