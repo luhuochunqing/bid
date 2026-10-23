@@ -10,6 +10,7 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.core.InitiationReviewStatus;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.core.ProjectStageTransitionPolicy;
+import com.xiyu.bid.project.domain.ProjectInitiationChangedEvent;
 import com.xiyu.bid.project.dto.InitiationApprovalRequest;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.server.ResponseStatusException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -55,6 +57,7 @@ class ProjectInitiationApprovalServiceTest {
     @Mock private ProjectArchiveWorkflowService projectArchiveWorkflowService;
     @Mock private ProjectNotificationService notificationService;
     @Mock private TaskService taskService;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private ProjectInitiationApprovalService service;
     private ProjectInitiationMapper initiationMapper;
@@ -74,7 +77,8 @@ class ProjectInitiationApprovalServiceTest {
                 projectArchiveWorkflowService,
                 notificationService,
                 taskService,
-                initiationMapper);
+                initiationMapper,
+                eventPublisher);
 
         lenient().doNothing().when(projectAccessScopeService).assertCurrentUserCanAccessProject(100L);
         lenient().when(leadRepo.findByProjectId(100L))
@@ -442,6 +446,11 @@ class ProjectInitiationApprovalServiceTest {
         ProjectInitiationDetails saved = captor.getValue();
         assertThat(saved.getExpectedBidders()).isEqualTo(5);
         assertThat(saved.getTenderAdverseItems()).isEqualTo("新不利项");
+
+        ArgumentCaptor<ProjectInitiationChangedEvent> eventCaptor = ArgumentCaptor.forClass(ProjectInitiationChangedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().projectId()).isEqualTo(100L);
+        assertThat(eventCaptor.getValue().operatorUserId()).isEqualTo(5L);
     }
 
     /**

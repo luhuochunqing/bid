@@ -7366,3 +7366,15 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - 前端 Vitest `ClosureStage.spec.js` 更新 T1、T2、C4、C5，新增 C8（投标专员在 DRAFT 状态下可编辑与提交），29 个测试用例全部通过。
   - 后端 JUnit `ProjectStagePermissionTest` 验证 `submit` 接口放行 `BID_TEAM`，Maven 相关单测全部通过。
 
+## 440. Element Plus 父表单 disabled 穿透与立项通过后字段修改实时同步 CRM（2026-10-23）
+
+- **现场证据**：立项通过后，用户反馈“入围家数可以修改，但招标文件不利项不能修改”；且修改后需实时同步 CRM。生产代码中 `InitiationStage.vue` 曾尝试对不利项设置 `:disabled="!canEdit"`，但实际在页面上仍然处于不可编辑置灰状态。
+- **致错机制**：
+  1. Element Plus 的 `el-form` 组件内部使用 `useFormDisabled` 上下文向下注入禁用状态。当父级 `<el-form :disabled="locked">` 时，子组件（如 `el-input`）计算属性为 `computed(() => props.disabled || form?.disabled)`，无论子组件传入的 `:disabled` 是 `false` 还是其他表达式，都会被父级 `form.disabled` 强制覆盖置灰，导致子级覆盖完全失效。
+  2. 针对 CRM 协同：立项通过后的修改若要立即同步 CRM，需要触发异步可靠发送队列（`WebhookDeliveryTask`），且在 CRM 契约中必须传入 `status: null`，以防止更新 feedback（`planSupplierCount` 和 `bidDocumentDisadvantage`）时误修改商机的当前阶段状态。
+- **修复与边界**：
+  1. 前端表单层级解绑：移除父级 `<el-form :disabled="locked">` 上的全局锁定，改为由子字段级精细化绑定；定义 `canEditInitiationEditableFields`，对 `expectedBidders` 和 `tenderAdverseItems` 精确开放；审批通过时提供局部保存动作 `saveApprovedFields`。
+  2. 后端同步管道：增加 `ProjectInitiationChangedEvent` 领域事件，在立项通过（`approve`）和通过后修改（`update`）时触发；`ProjectInitiationWebhookListener` 监听到事件后入队 CRM 投递任务，由 5s 定时任务及可靠重试机制送达 CRM。
+- **验证纪律**：
+  - 前端：单测覆盖父表单未整体禁用时 `canEditInitiationEditableFields` 对只读和编辑态的切换，以及 `saveApprovedFields` 局部保存调用与消息回显。
+  - 后端：`ProjectInitiationWebhookListenerTest` 验证 `status: null` 且 `feedback` 准确包装 `planSupplierCount` 与 `bidDocumentDisadvantage`；`ProjectInitiationServiceTest` 验证更新后事件正常发布。

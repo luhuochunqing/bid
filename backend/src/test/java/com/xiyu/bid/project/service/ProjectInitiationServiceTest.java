@@ -9,6 +9,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.InitiationFieldPolicy;
+import com.xiyu.bid.project.domain.ProjectInitiationChangedEvent;
 import com.xiyu.bid.project.dto.CustomerInfoRow;
 import com.xiyu.bid.project.dto.InitiationDto;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -38,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -52,6 +55,7 @@ class ProjectInitiationServiceTest {
     @Mock ProjectLeadAssignmentRepository leadAssignmentRepository;
     @Mock ProjectNotificationService notificationService;
     @Mock ProjectDocumentRepository projectDocumentRepository;
+    @Mock ApplicationEventPublisher eventPublisher;
     ProjectInitiationMapper realMapper;
     ProjectInitiationService service;
 
@@ -59,7 +63,7 @@ class ProjectInitiationServiceTest {
     void setUp() {
         ObjectMapper om = new ObjectMapper();
         realMapper = new ProjectInitiationMapper(om, new CustomFieldsCodec(om));
-        service = new ProjectInitiationService(repo, projectRepository, projectStageService, projectAccessScopeService, userRepository, realMapper, leadAssignmentRepository, notificationService, projectDocumentRepository);
+        service = new ProjectInitiationService(repo, projectRepository, projectStageService, projectAccessScopeService, userRepository, realMapper, leadAssignmentRepository, notificationService, projectDocumentRepository, eventPublisher);
         lenient().doNothing().when(projectAccessScopeService).assertCurrentUserCanAccessProject(1L);
         lenient().doNothing().when(projectAccessScopeService).assertCurrentUserCanAccessProject(2L);
         lenient().when(projectRepository.findById(1L)).thenReturn(Optional.of(Project.builder().id(1L).managerId(55L).build()));
@@ -191,6 +195,57 @@ class ProjectInitiationServiceTest {
         var view = service.update(1L, patch, 99L);
         assertThat(view.getDepositAmount()).isEqualByComparingTo("99999");
         assertThat(view.getOwnerUnit()).isEqualTo("国网");
+    }
+
+    @Test
+    void update_approvedInitiation_publishesProjectInitiationChangedEvent() {
+        ProjectInitiationDetails existing = ProjectInitiationDetails.builder()
+                .id(10L).projectId(1L)
+                .reviewStatus("APPROVED")
+                .ownerUnit("国网").expectedBidders(3).contractPeriodMonths(12)
+                .projectType("OFFICE").customerType("CENTRAL_SOE")
+                .annualRevenue(new BigDecimal("100000"))
+                .bidOpenTime(LocalDateTime.of(2026, 6, 1, 9, 30))
+                .ownerUserId(42L).departmentSnapshot("投标部")
+                .tenderAdverseItems("原不利项")
+                .locked(Boolean.TRUE).build();
+        when(repo.findByProjectId(1L)).thenReturn(Optional.of(existing));
+
+        var patch = InitiationDto.builder()
+                .expectedBidders(6)
+                .tenderAdverseItems("修改后的不利项")
+                .build();
+        var view = service.update(1L, patch, 99L);
+
+        assertThat(view.getExpectedBidders()).isEqualTo(6);
+        assertThat(view.getTenderAdverseItems()).isEqualTo("修改后的不利项");
+
+        ArgumentCaptor<ProjectInitiationChangedEvent> eventCaptor = ArgumentCaptor.forClass(ProjectInitiationChangedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().projectId()).isEqualTo(1L);
+        assertThat(eventCaptor.getValue().operatorUserId()).isEqualTo(99L);
+    }
+
+    @Test
+    void update_approvedInitiation_withoutBiddersOrAdverseItems_doesNotPublishEvent() {
+        ProjectInitiationDetails existing = ProjectInitiationDetails.builder()
+                .id(10L).projectId(1L)
+                .reviewStatus("APPROVED")
+                .ownerUnit("国网").expectedBidders(3).contractPeriodMonths(12)
+                .projectType("OFFICE").customerType("CENTRAL_SOE")
+                .annualRevenue(new BigDecimal("100000"))
+                .bidOpenTime(LocalDateTime.of(2026, 6, 1, 9, 30))
+                .ownerUserId(42L).departmentSnapshot("投标部")
+                .tenderAdverseItems("原不利项")
+                .locked(Boolean.TRUE).build();
+        when(repo.findByProjectId(1L)).thenReturn(Optional.of(existing));
+
+        var patch = InitiationDto.builder()
+                .contractPeriodMonths(24)
+                .build();
+        service.update(1L, patch, 99L);
+
+        verify(eventPublisher, never()).publishEvent(any(ProjectInitiationChangedEvent.class));
     }
 
     @Test

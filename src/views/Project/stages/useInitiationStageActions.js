@@ -516,6 +516,23 @@ export function useInitiationStageActions({
     }
   }
 
+  async function saveApprovedFields() {
+    saving.value = true
+    errorMsg.value = ''
+    try {
+      await projectLifecycleApi.updateInitiation(props.projectId, {
+        expectedBidders: form.expectedBidders,
+        tenderAdverseItems: form.tenderAdverseItems,
+      })
+      ElMessage.success('保存成功并已同步CRM')
+      await load()
+    } catch (e) {
+      errorMsg.value = e?.response?.data?.msg || '保存失败'
+    } finally {
+      saving.value = false
+    }
+  }
+
   async function submit() {
     // CO-455: 招标文件必传校验
     if (!form.tenderDocumentId) {
@@ -583,6 +600,7 @@ export function useInitiationStageActions({
     handleApprove,
     handleReject,
     saveDraft,
+    saveApprovedFields,
     submit,
     load,
     buildPayload,

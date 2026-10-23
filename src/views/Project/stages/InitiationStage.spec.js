@@ -406,4 +406,54 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
     expect(result).toBe(false)
     expect(ElMessage.error).toHaveBeenCalledWith(expect.stringContaining('超过限制'))
   })
+
+  // 立项通过（APPROVED）后，有权限角色仍可修改入围家数和招标文件不利项，并支持保存同步
+  it('allows editing expectedBidders and tenderAdverseItems in APPROVED state for bid manager and saves', async () => {
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: { reviewStatus: 'APPROVED', expectedBidders: 4, tenderAdverseItems: '原不利项' },
+    })
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 10, roleCode: 'bid-teamleader' }
+    const wrapper = mount(InitiationStage, {
+      props: { projectId: 1 },
+      global: { stubs, plugins: [pinia] },
+    })
+    await flushPromises()
+
+    const biddersInput = wrapper.find('[data-label="计划入围供应商数量"] input')
+    const adverseInput = wrapper.find('[data-label="招标文件不利项"] input')
+    expect(biddersInput.exists()).toBe(true)
+    expect(adverseInput.exists()).toBe(true)
+    expect(biddersInput.attributes('disabled')).toBeUndefined()
+    expect(adverseInput.attributes('disabled')).toBeUndefined()
+
+    // 触发保存修改
+    await wrapper.vm.saveApprovedFields()
+    expect(projectLifecycleApi.updateInitiation).toHaveBeenCalledWith(1, {
+      expectedBidders: 4,
+      tenderAdverseItems: '原不利项',
+    })
+  })
+
+  it('keeps expectedBidders and tenderAdverseItems disabled in APPROVED state for unauthorized role', async () => {
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: { reviewStatus: 'APPROVED', expectedBidders: 4, tenderAdverseItems: '原不利项' },
+    })
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 20, roleCode: 'bid-Team' }
+    const wrapper = mount(InitiationStage, {
+      props: { projectId: 1 },
+      global: { stubs, plugins: [pinia] },
+    })
+    await flushPromises()
+
+    const biddersInput = wrapper.find('[data-label="计划入围供应商数量"] input')
+    const adverseInput = wrapper.find('[data-label="招标文件不利项"] input')
+    expect(biddersInput.attributes('disabled')).toBeDefined()
+    expect(adverseInput.attributes('disabled')).toBeDefined()
+  })
 })

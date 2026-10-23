@@ -24,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -50,6 +51,7 @@ class ProjectInitiationCustomFieldsTest {
     @Mock ProjectLeadAssignmentRepository leadAssignmentRepository;
     @Mock ProjectNotificationService notificationService;
     @Mock ProjectDocumentRepository projectDocumentRepository;
+    @Mock ApplicationEventPublisher eventPublisher;
     ProjectInitiationService service;
 
     @BeforeEach
@@ -58,7 +60,7 @@ class ProjectInitiationCustomFieldsTest {
         ProjectInitiationMapper realMapper = new ProjectInitiationMapper(om, new CustomFieldsCodec(om));
         service = new ProjectInitiationService(repo, projectRepository, projectStageService,
                 projectAccessScopeService, userRepository, realMapper, leadAssignmentRepository,
-                notificationService, projectDocumentRepository);
+                notificationService, projectDocumentRepository, eventPublisher);
         lenient().doNothing().when(projectAccessScopeService).assertCurrentUserCanAccessProject(1L);
         lenient().when(projectRepository.findById(1L))
                 .thenReturn(Optional.of(Project.builder().id(1L).managerId(55L).build()));

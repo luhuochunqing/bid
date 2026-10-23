@@ -10,6 +10,7 @@ import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.InitiationFieldPolicy;
 import com.xiyu.bid.project.core.InitiationRiskAssessmentPolicy;
+import com.xiyu.bid.project.domain.ProjectInitiationChangedEvent;
 import com.xiyu.bid.project.core.ProjectFieldLockPolicy;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.dto.InitiationDto;
@@ -26,8 +27,11 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -49,6 +53,7 @@ public class ProjectInitiationService {
     private final ProjectLeadAssignmentRepository leadRepo;
     private final ProjectNotificationService notificationService;
     private final ProjectDocumentRepository projectDocumentRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Auditable(action = "SUBMIT_INITIATION", entityType = "ProjectInitiationDetails", description = "提交项目立项审核", projectScoped = true)
     public InitiationViewDto submit(Long projectId, InitiationDto req, Long currentUserId) {
@@ -163,6 +168,11 @@ public class ProjectInitiationService {
         ProjectInitiationDetails saved = repository.save(existing);
         log.info("Initiation updated: projectId={}, userId={}, reviewStatus={}",
                 projectId, currentUserId, saved.getReviewStatus());
+        // 立项已通过状态下修改，且入参包含入围家数或不利项变更时，触发 CRM bidInfoSync 实时同步
+        if ("APPROVED".equalsIgnoreCase(saved.getReviewStatus())
+                && (req.getExpectedBidders() != null || req.getTenderAdverseItems() != null)) {
+            eventPublisher.publishEvent(new ProjectInitiationChangedEvent(projectId, currentUserId, LocalDateTime.now()));
+        }
         return mapper.toView(saved);
     }
 

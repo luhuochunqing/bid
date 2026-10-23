@@ -14,6 +14,7 @@ import com.xiyu.bid.project.core.InitiationReviewPolicy;
 import com.xiyu.bid.project.core.InitiationReviewStatus;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.core.ProjectStageTransitionPolicy;
+import com.xiyu.bid.project.domain.ProjectInitiationChangedEvent;
 import com.xiyu.bid.project.dto.InitiationApprovalRequest;
 import com.xiyu.bid.project.dto.InitiationRejectionRequest;
 import com.xiyu.bid.project.dto.InitiationViewDto;
@@ -30,6 +31,7 @@ import com.xiyu.bid.task.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,6 +68,7 @@ public class ProjectInitiationApprovalService {
     private final ProjectNotificationService notificationService;
     private final TaskService taskService;
     private final ProjectInitiationMapper initiationMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 审核通过立项申请，原子完成：状态变更 + 团队分配 + 阶段推进 + 字段锁定。
@@ -148,6 +151,9 @@ public class ProjectInitiationApprovalService {
 
         // 通知 #2: 立项审核通过 → 项目负责人 + 主/副投标负责人
         notificationService.notifyInitiationApproved(projectId, currentUserId);
+
+        // 立项审核通过，触发 CRM bidInfoSync 回传入围家数和不利项
+        eventPublisher.publishEvent(new ProjectInitiationChangedEvent(projectId, currentUserId, LocalDateTime.now()));
 
         log.info("Initiation approved project={} primaryLead={} reviewer={}",
                 projectId, req.getPrimaryLeadUserId(), currentUserId);
