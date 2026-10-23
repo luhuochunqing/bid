@@ -30,6 +30,16 @@ class DeterministicCaCertificateExtractorTest {
     }
 
     @Test
+    @DisplayName("网上开标与远程解密应覆盖纸质标模板字样")
+    void extract_onlineOpeningAndRemoteDecryption_overridePaperTemplate() {
+        CaCertificateRequirement req = DeterministicCaCertificateExtractor.extract(
+                "纸质标模板仅供格式参考。本项目网上开标，投标人须远程解密投标文件。");
+
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isTrue();
+    }
+
+    @Test
     @DisplayName("提取器：识别纸质标免除信号时，输出 required=false")
     void testExtract_WhenPaperBid_ReturnsNotRequired() {
         String text = "本项目为纸质投标文件递交，投标人需携带纸质标书至开标现场，无需CA。";

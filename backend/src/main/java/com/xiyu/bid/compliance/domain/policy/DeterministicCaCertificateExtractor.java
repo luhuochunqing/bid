@@ -36,7 +36,8 @@ public final class DeterministicCaCertificateExtractor {
 
     private static final String[] CA_REQUIRED_KEYWORDS = {
             "电子招投标", "电子投标", "CA证书", "CA数字证书", "电子签章", "电子印章", "数字证书认证", "数字证书", "数字认证",
-            "加密投标文件", "全流程电子化", "CA锁", "CA加密", "CA注册", "办理CA", "使用CA", "企业CA", "电子标"
+            "加密投标文件", "全流程电子化", "网上开标", "远程开标", "远程解密", "在线解密",
+            "CA锁", "CA加密", "CA注册", "办理CA", "使用CA", "企业CA", "电子标"
     };
 
     private DeterministicCaCertificateExtractor() {

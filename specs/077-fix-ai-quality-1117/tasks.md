@@ -14,18 +14,19 @@
 - [x] T007 调整 `SubItemAndAttachmentRules`，保证金证据不足返回 MANUAL_REVIEW。
 - [x] T008 在资质纯核心中规范化并拆分 ISO 标准，在查询委托中逐项严格匹配且过滤过期证书。
 - [x] T009 分类器基线正确，未制造实现改动；生产候选激活保留为部署后受控步骤。
+- [x] T009A 补充网上开标/远程解密强证据，并接入保证金 PDF 页面图片视觉事实提取与保守融合。
 
 ## Phase 3 - GREEN 与回归
 
 - [x] T010 运行五个目标测试类并取得 GREEN。
-- [ ] T011 运行 compliance/scoreparse 相关回归及 ArchitectureTest。
-- [ ] T012 运行 backend 完整测试、`git diff --check` 和范围审计。
+- [x] T011 运行 compliance 相关回归及 ArchitectureTest；复用 `ScoreExtractionPersistenceMysqlTest.incompleteUnknownAndManualChangesProtectActiveProjection` 验证候选不覆盖激活版。
+- [ ] T012 运行 backend 完整测试、`git diff --check` 和范围审计（`git diff --check` 已通过；完整门禁随 push 执行）。
 
 ## Phase 4 - 清理与评审
 
 - [x] T013 执行 AI slop cleaner Mode B，合并重复 ISO 拆分逻辑并重跑受影响测试。
 - [x] T014 执行 xiyu-code-review、code-review、production-risk-review；日期完整性、CA 冲突与证书有效期发现已处置，激活路径列为后续门禁。
-- [ ] T015 生成 verify 工件，确认无 commit/push/PR/deploy/生产数据写入。
+- [ ] T015 更新 verify 工件并推送既有 PR；确认无 deploy、重算、激活或生产数据写入。
 
 ## Dependency Order
 

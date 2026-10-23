@@ -1431,3 +1431,7 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 - 根因三因叠加：原文 `﹤`(U+FE64)/`＜`(U+FF1C) 与模型 ASCII `<` 不等价、模型引文自加 `1. ` 序号、`：` 后换行被归一化成空格 → 归一化后包含匹配未命中 → 逻辑行无 `source_cell_ids` → `SOURCE_LOCATOR_NOT_VERIFIED` 剔除 6 分项 → 94 分 + `WEIGHT_SUM_MISMATCH` → `REVIEW_REQUIRED`。
 - 修复口径：比较符 1:1 折叠保持 offset 回溯；CJK 标点邻接不插空格；序号剥离只留在 `LogicalRowEvidenceBinder` 局部重试，不进全局 normalize。
 - 未覆盖阻断：`ORIGINAL_SCHEME_AMBIGUOUS → SCHEME_SELECTION_REQUIRED`、跨表 `UNKNOWN_TOTAL` 仍需人工确认，不在本次修复范围。
+
+## [2026-10-23] fix | 项目1117保证金视觉事实与CA冲突证据
+
+- 网上开标、远程解密纳入电子标强证据；保证金复用 PDF 页面图像与真实多模态通道提取交易要素，视觉不足保守转人工。

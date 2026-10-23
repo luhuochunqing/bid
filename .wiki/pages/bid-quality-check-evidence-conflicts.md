@@ -27,13 +27,14 @@ archive: false
 |---|---|---|
 | 空格日期报缺失 | 只识别数字紧邻“年” | 识别完整年月日并允许空白 |
 | 电子标被判纸质标 | 负向模板词首次命中即返回 | 汇总正反证据，明确电子/CA 证据优先 |
-| 保证金回单报缺失 | 文本未抽取等同附件不存在 | 声明已缴纳但图片不可读时转人工 |
+| 保证金回单报缺失 | 文本未抽取等同附件不存在 | 复用页面图像提取真实交易要素；视觉不可用或要素不足时转人工 |
 | 三项 ISO 只关联一项 | 长要求未原子化 | 三项标准分别匹配有效证书 |
 | 评分类型错误 | 页面读取旧激活解析 | 分类器与生产激活版本分别核验 |
 
 ## 不变量
 
 - `MANUAL_REVIEW` 表示证据通道不足，不是业务材料缺失。
+- 保证金文本关键词不能单独产生 PASS；视觉凭证必须包含至少三项交易要素，且包含金额或银行流水号。
 - 单张证书不能代表多个 ISO 标准，过期证书不得关联。
 - 新解析候选不等于生产事实；部署后必须核验并显式激活。
 
@@ -47,5 +48,5 @@ archive: false
 
 ```bash
 cd backend
-mvn -Dtest=BasicInfoAndAttachmentRulesTest,DeterministicCaCertificateExtractorTest,QualificationMatchPolicyTest,QualificationQueryDelegateTest,ScoreTypeClassificationPolicyTest,ResponsibilityArchitectureTest test
+mvn -Dtest=BasicInfoAndAttachmentRulesTest,DeterministicCaCertificateExtractorTest,DepositReceiptVisionFusionPolicyTest,OpenAiDepositReceiptVisionDetectorTest,QualificationMatchPolicyTest,QualificationQueryDelegateTest,ScoreTypeClassificationPolicyTest,ResponsibilityArchitectureTest test
 ```
