@@ -73,6 +73,17 @@ class CaseSubTopicPolicyTest {
     }
 
     @Test
+    @DisplayName("存量案例被标记为 OTHER 时，正文或标题包含应急方案等关键词仍可穿透获得 15 分补偿分")
+    void testCalculateSubTopicScore_OtherSubTopicCompensation() {
+        CaseSubTopicPolicy.SubTopic inferred = CaseSubTopicPolicy.SubTopic.EMERGENCY_PLAN;
+        CaseSubTopicPolicy.SubTopicMatchResult result = CaseSubTopicPolicy.calculateSubTopicScore(
+                inferred, "OTHER", "（7）风险管理与应急方案 针对突发事件制定完善的应急处置机制");
+
+        assertThat(result.score()).isEqualTo(CaseSubTopicPolicy.SUB_TOPIC_TEXT_MATCH_SCORE);
+        assertThat(result.reason()).contains("业务主题部分契合(应急预案与突发事件响应)");
+    }
+
+    @Test
     @DisplayName("子主题不匹配或推断为 OTHER 时得 0 分且无理由")
     void testCalculateSubTopicScore_MismatchOrOther() {
         CaseSubTopicPolicy.SubTopicMatchResult otherResult = CaseSubTopicPolicy.calculateSubTopicScore(
