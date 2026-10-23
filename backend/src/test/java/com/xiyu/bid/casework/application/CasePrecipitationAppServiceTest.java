@@ -50,6 +50,7 @@ class CasePrecipitationAppServiceTest {
     private ProjectResultRepository projectResultRepository;
     private ApplicationEventPublisher eventPublisher;
     private UserRepository userRepository;
+    private CasePrecipitationTaskStateService taskStateService;
     private CasePrecipitationAppService service;
 
     @BeforeEach
@@ -61,10 +62,11 @@ class CasePrecipitationAppServiceTest {
         projectResultRepository = mock(ProjectResultRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         userRepository = mock(UserRepository.class);
+        taskStateService = mock(CasePrecipitationTaskStateService.class);
         service = new CasePrecipitationAppService(
                 archiveRepository, fileRepository, scoreItemRepository,
                 projectRepository, projectResultRepository,
-                eventPublisher, userRepository);
+                eventPublisher, userRepository, taskStateService);
     }
 
     @Test
@@ -157,6 +159,10 @@ class CasePrecipitationAppServiceTest {
     @DisplayName("手动触发：前置条件满足 → 发布 ProjectClosedEvent")
     void triggerPrecipitation_publishesEventWhenReady() {
         stubProjectResultConfirmedWithBidFileWithScoreItems();
+        var task = new CasePrecipitationTaskStateService.TaskView("task-1", 1L, "PENDING", "等待执行",
+                null, null, null, null, null);
+        when(taskStateService.claim(1L, null))
+                .thenReturn(new CasePrecipitationTaskStateService.ClaimResult(task, false));
 
         service.triggerPrecipitation(1L);
 

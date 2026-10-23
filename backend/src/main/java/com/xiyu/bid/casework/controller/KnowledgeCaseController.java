@@ -9,6 +9,7 @@ import com.xiyu.bid.casework.application.service.CaseDownloadUrlAppService;
 import com.xiyu.bid.casework.application.service.CaseExportAppService;
 import com.xiyu.bid.casework.application.CaseExportExcelAppService;
 import com.xiyu.bid.casework.application.CasePrecipitationAppService;
+import com.xiyu.bid.casework.application.CasePrecipitationTaskStateService;
 import com.xiyu.bid.casework.application.service.CaseReferenceAppService;
 import com.xiyu.bid.casework.application.service.KnowledgeCaseCommandAppService;
 import com.xiyu.bid.casework.application.service.KnowledgeCaseQueryAppService;
@@ -165,8 +166,22 @@ public class KnowledgeCaseController {
     public ResponseEntity<Map<String, Object>> triggerPrecipitation(
             @RequestParam Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
-        precipitationAppService.triggerPrecipitation(projectId);
-        return ResponseEntity.ok(Map.of("success", true, "message", "案例沉淀任务已触发，完成后将通过消息通知"));
+        var result = precipitationAppService.triggerPrecipitation(projectId);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of(
+                "success", true,
+                "taskId", result.task().taskId(),
+                "status", result.task().status(),
+                "reused", result.reused(),
+                "message", result.reused() ? "正在沉淀，请勿重复触发" : "案例沉淀任务已受理"));
+    }
+
+    @GetMapping("/precipitation-task")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<CasePrecipitationTaskStateService.TaskView> getPrecipitationTask(
+            @RequestParam Long projectId) {
+        projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
+        var task = precipitationAppService.getLatestTask(projectId);
+        return task == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(task);
     }
 
     @GetMapping("/{id}/references")

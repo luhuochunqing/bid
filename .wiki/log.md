@@ -1,5 +1,12 @@
 # Wiki 操作日志 / Operation Log
 
+## [2026-10-23] fix | AI 案例沉淀并发任务与大文件隔离
+
+- 触发：同一项目连续沉淀时共享 `case-{projectId}.part`，完整 DOCX 随机报 ZIP 损坏，前端又把 POST 受理误当完成。
+- 根因：缺少跨请求持久化任务门禁、执行级文件所有权和可恢复的前端后台状态。
+- 方案：项目行锁领取/复用任务，UUID 贯穿临时文件，旧任务 fencing，案例与 COMPLETED 原子提交，前端轮询至终态。
+- 回填：新增 [[ai-case-precipitation-concurrency]]，更新 `_index.md`。
+
 ## [2026-10-23] feature | 标讯截止节点自动提醒
 
 - 触发：报名截止和开标的每日提醒用户收不到。生产设置为 0 行，任务每小时 `processed=0`。

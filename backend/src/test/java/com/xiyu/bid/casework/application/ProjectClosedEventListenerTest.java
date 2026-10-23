@@ -106,12 +106,19 @@ class ProjectClosedEventListenerTest {
         PlatformTransactionManager txManager = mock(PlatformTransactionManager.class);
         when(txManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
         transactionTemplate = new TransactionTemplate(txManager);
+        BidDocumentLoader bidDocumentLoader = new BidDocumentLoader(archiveRepository, fileRepository,
+                docTextExtractor, obsShareUrlSigner, streamingFetcher, streamTextExtractor, tempBidFileStore);
+        CasePrecipitationTaskStateService taskStateService = mock(CasePrecipitationTaskStateService.class);
+        var taskView = new CasePrecipitationTaskStateService.TaskView(
+                "task-test", 1L, "PENDING", "等待执行", null, null, null, null, null);
+        when(taskStateService.claim(anyLong(), any()))
+                .thenReturn(new CasePrecipitationTaskStateService.ClaimResult(taskView, false));
+        when(taskStateService.start("task-test")).thenReturn(true);
+        when(taskStateService.complete(org.mockito.ArgumentMatchers.eq("task-test"), anyInt())).thenReturn(true);
         listener = new ProjectClosedEventListener(
                 archiveRepository, fileRepository, scoreItemRepository,
-                knowledgeCaseRepository, projectRepository, tenderRepository,
-                bidResultRepository, projectResultRepository, docTextExtractor, caseAiMatcher, notifier,
-                obsShareUrlSigner, streamingFetcher, streamTextExtractor,
-                tempBidFileStore, transactionTemplate);
+                knowledgeCaseRepository, projectRepository, tenderRepository, bidResultRepository,
+                projectResultRepository, caseAiMatcher, notifier, transactionTemplate, bidDocumentLoader, taskStateService);
     }
 
     @Test
@@ -416,12 +423,39 @@ class ProjectClosedEventListenerTest {
                 .thenReturn(List.of(slice));
         when(knowledgeCaseRepository.findBySourceProjectId(1L)).thenReturn(List.of());
         when(knowledgeCaseRepository.saveAll(any()))
-                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("Duplicate entry"));
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException(
+                        "Duplicate entry for key 'uk_source_proj_scoring_point'"));
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
         verify(notifier, times(1)).notifySuccess(org.mockito.ArgumentMatchers.eq(1L), any(), org.mockito.ArgumentMatchers.eq(0), anyLong(), any(), any());
         verify(notifier, never()).notifyFailure(anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("非案例去重约束的数据完整性错误必须报告失败")
+    void onProjectClosed_WhenOtherIntegrityViolationOccurs_ShouldReportFailure() {
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
+        CaseAiMatcher.AiMatchedSlice slice = new CaseAiMatcher.AiMatchedSlice();
+        slice.setDraftId(101L);
+        slice.setMatchedSnippet("架构图已提供");
+        when(caseAiMatcher.extractSlicesWithAi(any(), any())).thenReturn(List.of(slice));
+        when(knowledgeCaseRepository.findBySourceProjectId(1L)).thenReturn(List.of());
+        when(knowledgeCaseRepository.saveAll(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("Column cannot be null"));
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+
+        verify(notifier, never()).notifySuccess(anyLong(), any(), anyInt(), anyLong(), any(), any());
+        verify(notifier).notifyFailure(org.mockito.ArgumentMatchers.eq(1L), any(),
+                org.mockito.ArgumentMatchers.eq("案例保存失败，请联系管理员"), any(), any());
     }
 
     @Test
@@ -439,7 +473,7 @@ class ProjectClosedEventListenerTest {
                 .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
         when(obsShareUrlSigner.trySign(FileUrlPrefixes.OBS_DIRECT + "upload123"))
                 .thenReturn(Optional.of("https://obs.example.com/signed"));
-        when(streamingFetcher.fetch("https://obs.example.com/signed", "case-1", "bid.pdf", "application/octet-stream"))
+        when(streamingFetcher.fetch("https://obs.example.com/signed", "task-test", "bid.pdf", "application/octet-stream"))
                 .thenReturn(new LoadedBidFile.InMemory("PDF_BYTES".getBytes(), "bid.pdf", "application/octet-stream"));
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenReturn(new ExtractedDocument("## 标书正文(obs)", 5, "text/markdown", "bid.pdf",
@@ -454,7 +488,7 @@ class ProjectClosedEventListenerTest {
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
         // 必须走流式下载（不是把 obs-direct 当本地文件读），签名 URL 原样传给 fetcher（不二次编码）
-        verify(streamingFetcher).fetch("https://obs.example.com/signed", "case-1", "bid.pdf", "application/octet-stream");
+        verify(streamingFetcher).fetch("https://obs.example.com/signed", "task-test", "bid.pdf", "application/octet-stream");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<KnowledgeCase>> captor = ArgumentCaptor.forClass(List.class);
         verify(knowledgeCaseRepository, times(1)).saveAll(captor.capture());

@@ -13,15 +13,21 @@ public class ProjectClosedEvent extends ApplicationEvent {
      * 自动结项路径为 null，仍 fallback 到 project.managerId。
      */
     private final Long triggerUserId;
+    private final String taskId;
 
     public ProjectClosedEvent(Object source, Long projectId, String projectName) {
-        this(source, projectId, projectName, null);
+        this(source, projectId, projectName, null, null);
     }
 
     public ProjectClosedEvent(Object source, Long projectId, String projectName, Long triggerUserId) {
+        this(source, projectId, projectName, triggerUserId, null);
+    }
+
+    public ProjectClosedEvent(Object source, Long projectId, String projectName, Long triggerUserId, String taskId) {
         super(source);
         this.projectId = projectId;
         this.projectName = projectName;
         this.triggerUserId = triggerUserId;
+        this.taskId = taskId;
     }
 }

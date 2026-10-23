@@ -7416,3 +7416,9 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **验证纪律**：
   - `KnowledgeCategoryPolicyTest` 新增用例 `categorize_project22_supplierPerformance_ignoresAuthInDetail`，验证 `dim: 供应商业绩` 稳定归类为 `CATEGORY_PROJECT`，关键词、签约时间、所需份数全部正确提取。
   - `KnowledgeCategoryPolicyTest` 与 `ProjectMatchServiceTest` 37 个测试全部通过。
+## 444. 案例沉淀固定 taskId 使并发大文件共享 `.part`，伪装成文档损坏（项目 1120，2026-10-23）
+
+- **现场证据**：生产在 2026-10-22 11:08:11、11:08:17、11:08:23 连续触发同一项目沉淀。三个执行都使用 `case-1120.part`；第一次 Sidecar 报 `BadZipFile: Bad magic number for file header`，其后两次对同一 1,039,096,020 字节 DOCX 成功解析 768,006 字符并入库 10 条案例。文件可被后续完整解析，排除源文档永久损坏。
+- **致错机制**：`BidDocumentLoader` 用 `case-{projectId}` 同时作为 `TempBidFileStore.reserve/open/release` 的资源所有权标识。并发任务会覆盖、读取和删除同一 `.part`；HTTP POST 又被前端当作完成信号，用户只能看到随机失败通知，无法识别后台仍有执行。
+- **修复与边界**：新增 `case_precipitation_task`，领取时在短事务内锁 project 行；同一项目 PENDING/PROCESSING 任务复用同一 UUID。UUID 贯穿下载与释放；耗时处理在锁外执行；最终案例写入与任务 COMPLETED 在同一事务中进行 fencing。手动触发和结果登记自动触发统一走门禁。前端按任务状态轮询，POST 202 只表示已受理。
+- **验证纪律**：并发回归必须同时覆盖两层：真实 MySQL 三线程领取同一 projectId 只产生一条任务，以及真实 HTTP 三路大文件强制 spill 后路径、SHA-256 与释放互不干扰。仅做单线程单测、只断言文件名含 UUID 或只验证 HTTP 202 都不能证明竞态已关闭。

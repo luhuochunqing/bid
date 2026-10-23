@@ -30,6 +30,7 @@ backlinks:
 - [[agent-sop-quickref]] — Agent 开发 SOP 快速参考
 - [[ai-capabilities]] — AI 能力
 - [[ai-case-recommend-data-source-fix]] — AI 智能案例推荐数据源修复（score_item 新契约切换 + casework 裸响应陷阱）
+- [[ai-case-precipitation-concurrency]] — AI 案例沉淀并发任务与大文件隔离契约（projectId 门禁 + UUID 临时文件 + 前端状态）
 - [[ai-provider-configuration]] — AI Provider 配置与陷阱指南
 - [[db-schema-dictionary-comment-backfill]] — 数据字典补齐与生成器六类解析盲区（V1218 注释回填）
 - [[ai-slop-cleanup-and-composable-inlining]] — AI Slop 代码清理与单组件专属小型 Composable 内联收敛

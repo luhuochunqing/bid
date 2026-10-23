@@ -29,6 +29,7 @@ vi.mock('@/api/modules/knowledge.js', () => ({
       },
     }),
     precipitateCases: vi.fn(),
+    getPrecipitationTask: vi.fn().mockResolvedValue(null),
   },
 }))
 vi.mock('vue-router', async (importOriginal) => {

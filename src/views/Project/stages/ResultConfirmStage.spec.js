@@ -49,6 +49,7 @@ vi.mock('@/api/modules/knowledge.js', () => ({
   casesApi: {
     checkPrecipitationReadiness: (...args) => checkPrecipitationReadinessMock(...args),
     precipitateCases: (...args) => precipitateCasesMock(...args),
+    getPrecipitationTask: vi.fn().mockResolvedValue(null),
   },
 }))
 
