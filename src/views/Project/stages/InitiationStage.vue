@@ -18,38 +18,38 @@
     <template #fallback-form>
       <div class="initiation-stage-fallback">
 <el-card class="section-card" shadow="never"><template #header><span>投标信息</span></template>
-<el-form :model="form" label-width="200px" :disabled="locked">
+<el-form :model="form" label-width="200px">
 <!-- 是否需要保证金：保留字段，放第一个 -->
 <el-form-item label="是否需要保证金" required>
-  <el-select v-model="form.needDeposit" @change="onDepositChange">
+  <el-select v-model="form.needDeposit" :disabled="locked" @change="onDepositChange">
     <el-option label="是" value="YES" />
     <el-option label="否" value="NO" />
   </el-select>
 </el-form-item>
 <template v-if="form.needDeposit === 'YES'">
   <div class="grid-2">
-    <el-form-item label="保证金金额（元）" required><el-input-number v-model="form.depositAmount" :min="0" :precision="2" :value-on-clear="null" /></el-form-item>
+    <el-form-item label="保证金金额（元）" required><el-input-number v-model="form.depositAmount" :disabled="locked" :min="0" :precision="2" :value-on-clear="null" /></el-form-item>
     <el-form-item label="保证金缴纳方式" required>
-      <el-select v-model="form.depositPaymentMethod">
+      <el-select v-model="form.depositPaymentMethod" :disabled="locked">
         <el-option label="电汇" value="WIRE" />
         <el-option label="保险/保函" value="GUARANTEE" />
       </el-select>
     </el-form-item>
   </div>
   <el-form-item label="保证金缴纳截止日期" required>
-    <el-date-picker v-model="form.depositDueDate" type="datetime" placeholder="选择截止日期时间（必填，将作为自动创建任务的截止时间）" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm:ss" style="width: 100%" />
+    <el-date-picker v-model="form.depositDueDate" :disabled="locked" type="datetime" placeholder="选择截止日期时间（必填，将作为自动创建任务的截止时间）" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm:ss" style="width: 100%" />
   </el-form-item>
 </template>
 <!-- 以下字段与标讯评估表「一、基础信息」完全对齐 -->
 <el-divider />
 <div class="grid-2">
-  <el-form-item label="计划入围供应商数量"><el-input-number v-model="form.expectedBidders" :disabled="fieldDisabled && !isApprovalMode" :min="1" :max="255" :precision="0" :value-on-clear="null" /></el-form-item>
+  <el-form-item label="计划入围供应商数量"><el-input-number v-model="form.expectedBidders" :disabled="!canEditInitiationEditableFields" :min="1" :max="255" :precision="0" :value-on-clear="null" /></el-form-item>
   <el-form-item label="客户电商年采购金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :disabled="fieldDisabled" :min="0" :precision="2" :value-on-clear="null" /></el-form-item>
 </div>
 <div class="grid-2">
   <el-form-item label="客户年营收（亿）"><el-input-number v-model="form.customerRevenue" :disabled="fieldDisabled" :min="0" :precision="2" :value-on-clear="null" /></el-form-item>
 </div>
-<el-form-item label="招标文件不利项"><el-input v-model="form.tenderAdverseItems" :disabled="fieldDisabled && !isApprovalMode" type="textarea" :rows="3" maxlength="500" show-word-limit /></el-form-item>
+<el-form-item label="招标文件不利项"><el-input v-model="form.tenderAdverseItems" :disabled="!canEditInitiationEditableFields" type="textarea" :rows="3" maxlength="500" show-word-limit /></el-form-item>
 <el-form-item label="风险预判"><el-input v-model="form.riskAssessment" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
 <el-form-item label="项目经理综合评估是否有兜底方案"><el-switch :model-value="form.riskMitigationPlan === '是'" :disabled="fieldDisabled" @update:model-value="form.riskMitigationPlan = $event ? '是' : '否'" /></el-form-item>
 <el-form-item label="项目经理评标全流程概述"><el-input v-model="form.pmUnderstandsProcess" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" placeholder="请概述项目经理对评标全流程的了解" /></el-form-item>
@@ -145,8 +145,9 @@
         <el-alert type="info" :closable="false" show-icon title="项目已提交，等待投标管理员审核" />
       </template>
       <template v-else-if="reviewStatus === 'APPROVED'">
-        <!-- APPROVED：立项已通过，只读展示，不显示任何操作按钮 -->
+        <!-- APPROVED：立项已通过，展示状态提示及修改保存入口 -->
         <el-alert type="success" :closable="false" show-icon title="立项已通过，项目进入标书制作阶段" />
+        <el-button v-if="canEditInitiationEditableFields" type="primary" :loading="saving" @click="saveApprovedFields">保存修改</el-button>
       </template>
       <template v-else>
         <el-button :loading="saving" :disabled="uploadingDoc" @click="saveDraft">保存草稿</el-button>
@@ -255,6 +256,15 @@ const fieldDisabled = computed(() => locked.value || evalPrefilled.value)
 // 审批模式：投标管理员/组长 查看 PENDING_REVIEW 的立项；改用 roleCode 以匹配 bidAdmin 等新角色值
 const userRole = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
 const isApprovalMode = computed(() => isBidManager(userRole.value) && reviewStatus.value === 'PENDING_REVIEW')
+const canEditInitiationEditableFields = computed(() => {
+  if (reviewStatus.value === 'PENDING_REVIEW') {
+    return isApprovalMode.value
+  }
+  if (reviewStatus.value === 'APPROVED') {
+    return isBidManager(userRole.value) || userRole.value === 'bid-projectLeader'
+  }
+  return !locked.value
+})
 const BID_ASSISTANT_ROLE = 'bid-Team'
 function roleOptions(users, roleCode) { const list = Array.isArray(users) ? users : []; const filtered = roleCode ? list.filter(u => String(u?.roleCode || u?.role || '').trim() === roleCode) : list; return filtered.map(u => ({ ...u, _label: u.name + '（' + (u.employeeId || u.employeeNumber || '') + '）- ' + (u.departmentName || u.deptName || '') })) }
 const leaderOptions = ref([]); const leaderSearching = ref(false); const assistantOptions = ref([]); const assistantSearching = ref(false)
@@ -311,7 +321,7 @@ async function handleBidDocRemove() {
   // ok=false 且 documentId 存在：deleteFn 内部已处理错误 UI
 }
 
-const { handleDocBeforeUpload, handleDownloadBidDoc, onDepositChange, handleApprove, handleReject, saveDraft, submit, load, normalizeEmptyNumericFields, tenderFileMaxText } = useInitiationStageActions({
+const { handleDocBeforeUpload, handleDownloadBidDoc, onDepositChange, handleApprove, handleReject, saveDraft, saveApprovedFields, submit, load, normalizeEmptyNumericFields, tenderFileMaxText } = useInitiationStageActions({
   props,
   emit,
   form,
