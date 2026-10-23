@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [CRM, 集成, 踩坑, webhook, 商机状态, OAuth, CallerContext, OBS预签名]
 created: 2026-07-10
-updated: 2026-08-18
-health_checked: 2026-09-18
+updated: 2026-10-23
+health_checked: 2026-10-23
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandService.java
   - .wiki/pages/integration-oa-crm.md
@@ -313,12 +313,21 @@ CRM 存储该字符串后 1 小时即永久失效。
 - 修复：`@JsonAlias("fixedPhone")` 双兼容；`@JsonAlias` 只影响反序列化，序列化输出 key 仍为 `fixed_phone`（前端消费契约不变）
 - 通用对策：集成类 VO 的测试用例必须来自真实环境日志原文（至少一条），不抄接口文档；外部字段丢失类工单先翻 `CrmHttpClient` 响应体日志比对 key，详见 [[lessons-learned]] §176
 
+### 9.7 立项通过后微调入围家数与不利项同步 CRM（2026-10-23）
+
+- 现象：项目立项审批通过后，业务需要修改计划入围供应商数量（`expectedBidders`）与招标文件不利项（`tenderAdverseItems`），并在投标系统保存后实时同步回 CRM。
+- 契约细节：
+  1. **商机状态隔离**：调用 CRM `bidInfoSync` 接口时，`status` 必须为 `null`，不可回传商机阶段值（如 1 或 6），避免覆盖 CRM 端当前的商机生命周期状态。
+  2. **商机 code 反查失败边界**：若商机 code 解析失败（例如无 OSS Token 或无权反查返回空字符串 `""`），必须直接跳过入队（`if (crmOpportunityCode == null || crmOpportunityCode.isBlank()) return;`），严禁发送包含 `code: ""` 的投递任务破坏 CRM 数据。
+  3. **非相关字段守卫**：立项详情更新时，仅在修改了入围家数或不利项字段时才触发 `ProjectInitiationChangedEvent`，防止无关字段更新造成无效 Webhook 投递。
+  4. **Element Plus 表单继承禁用解耦**：父级 `<el-form :disabled="locked">` 会穿透覆盖子组件 `:disabled="false"`，需在父 form 上解绑，改由各子字段精细化锁定。详见 [[lessons-learned]] §440。
+
 ---
 
 ## 10. 相关文档
 
 - [[integration-oa-crm]] — CRM 接口规范（字段定义、响应格式）
-- [[lessons-learned]] §六 — PR 合并验证盲区（CRM bidInfoSync 回传修复案例）
+- [[lessons-learned]] §440 — 立项通过后修改入围家数与不利项同步 CRM 及 Element Plus 表单穿透
 - [[oss-organization-sync-playbook]] — OSS 同步手册（类似的集成模式参考）
 - `backend/src/main/java/com/xiyu/bid/integration/crm/` — CRM 集成源码
 
@@ -333,3 +342,4 @@ CRM 存储该字符串后 1 小时即永久失效。
 | 2026-08-18 | §9 更新：ObsDirectRedirects 重构收口、404/502 语义精确化、对接契约与安全姿态声明 |
 | 2026-08-19 | 新增 §9.5：历史数据重推运维接口落地（webhook_delivery_tasks.payload 为排查入口） |
 | 2026-08-28 | 新增 §9.6：对接人座机号 fixedPhone 驼峰/下划线字段名不匹配，@JsonAlias 双兼容修复 |
+| 2026-10-23 | 新增 §9.7：立项通过后微调入围家数与不利项同步 CRM，包含 status=null 隔离与商机反查跳过守卫 |
