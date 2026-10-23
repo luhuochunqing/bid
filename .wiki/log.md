@@ -10,6 +10,13 @@
   3. 后端定位 `MarkdownSourceSectionIndex.locate` 与回填 `CaseProvenanceBackfillAppService` 改用 `isValidSectionTitle`，彻底封闭此前“命中章节无编号时不回退祖先”的缺口。
 - 回填：更新 [[case-source-actions-and-import-pitfalls]]。
 
+## [2026-10-23] fix | 标书质量核查证据冲突与组合资质逐项关联
+
+- 触发：项目 1117 出现日期、CA、保证金图片、ISO 组合证书和评分类型误判。
+- 根因：首次关键词短路、证据不足当作缺失、组合要求未原子化、页面读取旧激活版本。
+- 方案：日期容忍空白；CA 汇总证据；图片转人工；ISO 逐项关联有效证书；生产激活独立受控。
+- 回填：新增 [[bid-quality-check-evidence-conflicts]]，更新 `_index.md`。
+
 ## [2026-10-23] fix | AI 案例沉淀并发任务与大文件隔离
 
 - 触发：同一项目连续沉淀时共享 `case-{projectId}.part`，完整 DOCX 随机报 ZIP 损坏，前端又把 POST 受理误当完成。

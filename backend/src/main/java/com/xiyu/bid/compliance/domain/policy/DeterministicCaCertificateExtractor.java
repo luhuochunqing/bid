@@ -26,8 +26,12 @@ public final class DeterministicCaCertificateExtractor {
             "(?i)[\\u4e00-\\u9fa5]{2,6}\\s*CA"
     );
 
-    private static final String[] EXEMPT_SIGNALS = {
-            "纸质标", "线下投标", "现场递交", "无需CA", "不要求CA", "无需数字证书", "无需电子签章", "不使用电子签章", "纸质投标文件递交"
+    private static final String[] EXPLICIT_EXEMPT_SIGNALS = {
+            "无需CA", "不要求CA", "无需数字证书", "无需电子签章", "不使用电子签章"
+    };
+
+    private static final String[] PAPER_SIGNALS = {
+            "纸质标", "线下投标", "现场递交", "纸质投标文件递交"
     };
 
     private static final String[] CA_REQUIRED_KEYWORDS = {
@@ -57,14 +61,15 @@ public final class DeterministicCaCertificateExtractor {
             return null;
         }
 
-        // 1. 明确免除判定：纸质标或明确无需电子签章/CA
-        for (String exempt : EXEMPT_SIGNALS) {
+        String explicitExemption = null;
+        for (String exempt : EXPLICIT_EXEMPT_SIGNALS) {
             if (fullText.contains(exempt)) {
-                return CaCertificateRequirement.notRequired("招标文件明确为纸质标或未要求 CA 电子签章/数字证书（" + exempt + "）");
+                explicitExemption = exempt;
+                break;
             }
         }
 
-        // 2. 电子标/CA要求识别
+        // 1. 汇总电子标/CA强证据，避免负向模板词先命中后短路
         boolean hasCaKeyword = false;
         for (String kw : CA_REQUIRED_KEYWORDS) {
             if (fullText.contains(kw)) {
@@ -72,8 +77,21 @@ public final class DeterministicCaCertificateExtractor {
                 break;
             }
         }
-        if (!hasCaKeyword && REGIONAL_CA_SIGNAL.matcher(fullText).find()) {
+        if (!hasCaKeyword && explicitExemption == null && REGIONAL_CA_SIGNAL.matcher(fullText).find()) {
             hasCaKeyword = true;
+        }
+
+        if (!hasCaKeyword && explicitExemption != null) {
+            String mode = fullText.contains("纸质标") || fullText.contains("纸质投标") ? "纸质标且" : "";
+            return CaCertificateRequirement.notRequired("招标文件明确为" + mode + "未要求 CA 电子签章/数字证书（" + explicitExemption + "）");
+        }
+
+        if (!hasCaKeyword) {
+            for (String paperSignal : PAPER_SIGNALS) {
+                if (fullText.contains(paperSignal)) {
+                    return CaCertificateRequirement.notRequired("招标文件明确为纸质或线下投标（" + paperSignal + "）");
+                }
+            }
         }
 
         if (!hasCaKeyword) {
@@ -81,7 +99,7 @@ public final class DeterministicCaCertificateExtractor {
             return null;
         }
 
-        // 3. 提取平台名称或省份 CA 锁名称
+        // 2. 提取平台名称或省份 CA 锁名称
         String platform = null;
         Matcher mPlatform = PLATFORM_PATTERN.matcher(fullText);
         if (mPlatform.find()) {

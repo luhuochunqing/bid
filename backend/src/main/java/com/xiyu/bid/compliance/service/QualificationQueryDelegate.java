@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -59,12 +60,13 @@ public class QualificationQueryDelegate {
         }
         List<Qualification> all = queryAllQualificationsDirectly();
         List<KnowledgeMatch> matches = new ArrayList<>();
-        for (String kw : requiredCerts) {
+        for (String kw : QualificationMatchPolicy.expandCombinedIsoRequirements(requiredCerts)) {
             if (kw == null || kw.isBlank()) {
                 continue;
             }
             for (Qualification q : all) {
-                if (q.getName() != null && QualificationMatchPolicy.isQualificationMatch(kw, q.getName())) {
+                boolean valid = q.getExpiryDate() == null || !q.getExpiryDate().isBefore(LocalDate.now());
+                if (valid && q.getName() != null && QualificationMatchPolicy.isQualificationMatch(kw, q.getName())) {
                     matches.add(new KnowledgeMatch(
                             KnowledgeMatch.SOURCE_QUALIFICATION,
                             String.valueOf(q.getId()), KnowledgeMatchFormatters.describe(q), true));

@@ -3,53 +3,48 @@
 // Pos: compliance/domain/policy/ - 资质匹配纯核心算法与比对清单生成
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
-
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualificationDetail;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
 import com.xiyu.bid.entity.Qualification;
-
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 /**
  * 资质匹配纯核心算法（spec 049 / FP-Java）.
  */
 public final class QualificationMatchPolicy {
-
     public static final int EXPIRY_WARN_DAYS = 60;
     private static final Pattern NORMALIZE_RE = Pattern.compile("[\\s\\u3000\\p{P}+/\\-_:：]+");
     private static final Pattern STANDARD_CODE_RE = Pattern.compile("(?:iso|gb|iec|cmmi|itss|ccrc|cissp|cisp)[a-z0-9]*");
+    private static final Pattern ISO_STANDARD_RE = Pattern.compile("(?i)ISO\\s*[-：:]?\\s*(9001|14001|45001)");
     private static final Pattern GOV_PREFIX_RE = Pattern.compile("^(?:中华人民共和国|全国|中国|国家)+");
     private static final Pattern UNDERLINE_BLANK_PATTERN = Pattern.compile("_{3,}");
     private static final Pattern BRACKET_PLACEHOLDER_PATTERN = Pattern.compile("【(?:请|此处)?[^】]*(?:填写|上传|粘贴|提供|插入|替换)[^】]*】");
-
     private static final List<String> STOP_WORDS = List.of(
             "中华人民共和国", "全国", "中国", "国家", "经营许可证", "许可证", "业务经营许可证", "生产许可证",
             "资质证书", "资格证书", "资格证明", "资质证明", "认证证书", "备案证明", "登记证书",
             "管理体系认证", "服务体系认证", "服务认证", "系统认证", "投标人须具备", "供应商须具备",
             "具有有效", "有效期内", "相关资质", "国家认证", "原件复印件", "独立法人", "民事责任能力", "合法注册",
             "施工总承包", "专业承包", "总承包", "施工承包", "承包资质", "承包");
-
     private static final List<String> DOMAIN_TERMS = List.of(
             "质量管理体系", "环境管理体系", "职业健康安全", "信息安全管理", "信息技术服务", "信息系统建设",
             "建筑工程", "机电安装", "机电工程", "电力工程", "市政公用", "消防设施", "建筑装修装饰", "防水防腐", "钢结构",
             "安全生产许可", "营业执照", "一般纳税人", "高新技术企业", "专精特新", "重合同守信用",
             "一级建造师", "二级建造师", "造价工程师", "监理工程师", "特种作业", "增值电信", "电信业务",
             "互联网信息服务", "在线数据处理与交易", "信息安全等级保护", "等保", "等保三级");
-
     private static final List<String> QUAL_SECTION_KEYWORDS = List.of(
             "资质证书", "资格证书", "企业资质", "体系认证", "许可证", "资质证明", "资格证明");
-
     private QualificationMatchPolicy() {
     }
 
@@ -102,13 +97,27 @@ public final class QualificationMatchPolicy {
         List<Qualification> certs = allCertificates == null ? Collections.emptyList() : allCertificates;
         LocalDate refDate = today == null ? LocalDate.now() : today;
         List<QualificationDetail> details = new ArrayList<>();
-        for (String req : requirements) {
+        for (String req : expandCombinedIsoRequirements(requirements)) {
             if (req == null || req.isBlank() || !DeterministicQualificationExtractor.isSpecificCertificate(req.trim())) {
                 continue;
             }
             details.add(buildSingleDetail(req.trim(), certs, bidDoc, refDate));
         }
         return Collections.unmodifiableList(details);
+    }
+
+    public static List<String> expandCombinedIsoRequirements(final List<String> requirements) {
+        if (requirements == null || requirements.isEmpty()) return List.of();
+        Set<String> expanded = new LinkedHashSet<>();
+        for (String requirement : requirements) {
+            if (requirement == null || requirement.isBlank()) continue;
+            Matcher matcher = ISO_STANDARD_RE.matcher(requirement);
+            List<String> isoCodes = new ArrayList<>();
+            while (matcher.find()) isoCodes.add("ISO" + matcher.group(1));
+            if (isoCodes.size() > 1) expanded.addAll(isoCodes);
+            else expanded.add(requirement);
+        }
+        return List.copyOf(expanded);
     }
 
     private static QualificationDetail buildSingleDetail(
