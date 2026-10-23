@@ -368,10 +368,8 @@ const isProjectLeadAssignee = computed(() => {
     || String(leads.value.secondaryLeadUserId ?? '') === uidStr
 })
 
-// 结项 4 字段（保证金退回情况/退回日期/凭证文件/项目总结）的编辑权：仅投标项目负责人(立项发起人)。
-// 纠正 CO-403 的角色错配——CO-403 把编辑权错配给了管理员/组长，导致能编辑的人提交不了、能提交的人编辑不了。
-// 新矩阵：投标项目负责人 编辑+提交；投标管理员/组长 + 该项目投标负责人/辅助 只审核(4 字段只读、凭证可下载)。
-const isClosureEditor = computed(() => userRole.value === 'bid-projectLeader')
+// 结项 4 字段（保证金退回情况/退回日期/凭证文件/项目总结）的编辑权：投标专员(bid-Team)及投标项目负责人(bid-projectLeader)。
+const isClosureEditor = computed(() => userRole.value === 'bid-Team' || userRole.value === 'bid-projectLeader')
 
 const canEditDeposit = computed(() => {
   if (!isClosureEditor.value) return false
@@ -389,9 +387,9 @@ const canEditSummary = computed(() => {
   return rs === 'DRAFT' || rs === 'REJECTED'
 })
 
-// 仅投标项目负责人(bid-projectLeader)可提交结项申请；管理员/组长/投标辅助只审核不提交。
+// 投标专员(bid-Team)及投标项目负责人(bid-projectLeader)可提交结项申请；管理员/组长只审核不提交。
 const canSubmitClosure = computed(() => {
-  if (userRole.value !== 'bid-projectLeader') return false
+  if (userRole.value !== 'bid-Team' && userRole.value !== 'bid-projectLeader') return false
   if (preview.value?.alreadyClosed) return false
   if (preview.value?.reviewStatus === 'APPROVED') return false
   if (preview.value?.reviewStatus === 'PENDING') return false

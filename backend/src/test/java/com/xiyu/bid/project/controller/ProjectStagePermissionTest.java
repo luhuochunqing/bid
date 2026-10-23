@@ -53,11 +53,11 @@ class ProjectStagePermissionTest {
     // ====================================================================
 
     @Test
-    @DisplayName("2.7 发起结项 submit：ADMIN/BID_PROJECTLEADER（文档：投标项目负责人发起）")
+    @DisplayName("2.7 发起结项 submit：ADMIN/BID_PROJECTLEADER/BID_TEAM（文档：投标专员/投标项目负责人发起）")
     void closureSubmit_preAuthorize_projectLeaderOnly() {
         String value = findMethod(ProjectClosureController.class, "submit")
                 .getAnnotation(PreAuthorize.class).value();
-        assertThat(value).isEqualTo("hasAnyRole('ADMIN', 'BID_PROJECTLEADER')");
+        assertThat(value).isEqualTo("hasAnyRole('ADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')");
     }
 
     @Test

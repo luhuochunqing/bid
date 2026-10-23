@@ -236,27 +236,27 @@ describe('ClosureStage — CO-392 项目级负责人识别', () => {
     mockUserStore.currentUser = { id: 42 }
   })
 
-  it('T1: 投标专员角色但被指定为项目投标负责人(primaryLeadUserId 匹配) → isProjectLeader=true，但不可编辑/不可提交(提交仅归 bid-projectLeader)', async () => {
+  it('T1: 投标专员角色但被指定为项目投标负责人(primaryLeadUserId 匹配) → isProjectLeader=true，可编辑可提交', async () => {
     mockUserStore.userRole = 'bid-Team'
     projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
     projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1, primaryLeadUserId: 42 } })
     const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
     await flushPromises()
     expect(wrapper.vm.isProjectLeader).toBe(true)
-    // 新矩阵：投标辅助(无论是否项目级负责人)4 字段只读、不可提交
-    expect(wrapper.vm.canEditDeposit).toBe(false)
-    expect(wrapper.vm.canEditSummary).toBe(false)
-    expect(wrapper.vm.canSubmitClosure).toBe(false)
+    // 投标专员(bid-Team)具备编辑与提交权
+    expect(wrapper.vm.canEditDeposit).toBe(true)
+    expect(wrapper.vm.canEditSummary).toBe(true)
+    expect(wrapper.vm.canSubmitClosure).toBe(true)
   })
 
-  it('T2: 投标专员角色但被指定为投标辅助人员(secondaryLeadUserId 匹配) → isProjectLeader=true，但不可编辑/不可提交', async () => {
+  it('T2: 投标专员角色但被指定为投标辅助人员(secondaryLeadUserId 匹配) → isProjectLeader=true，可编辑可提交', async () => {
     mockUserStore.userRole = 'bid-Team'
     projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
     projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1, secondaryLeadUserId: 42 } })
     const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
     await flushPromises()
     expect(wrapper.vm.isProjectLeader).toBe(true)
-    expect(wrapper.vm.canSubmitClosure).toBe(false)
+    expect(wrapper.vm.canSubmitClosure).toBe(true)
   })
 
   it('T3: 非管理/非负责人角色且不是该项目负责人/辅助人员 → 无编辑/提交权限', async () => {
@@ -361,7 +361,7 @@ describe('ClosureStage — 结项编辑/提交/审核权矩阵', () => {
     expect(wrapper.vm.canApprove).toBe(true)
   })
 
-  it('C4: 投标辅助 bid-Team（非该项目负责人/辅助）→ 全只读 + 不可审核', async () => {
+  it('C4: 投标专员 bid-Team 在 PENDING 状态下（非该项目负责人/辅助）→ 4 字段只读 + 无提交按钮 + 不可审核', async () => {
     mockUserStore.userRole = 'bid-Team'
     mockUserStore.currentUser = { id: 42 }
     projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: pendingPreview })
@@ -369,13 +369,14 @@ describe('ClosureStage — 结项编辑/提交/审核权矩阵', () => {
     const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
     await flushPromises()
     expect(wrapper.vm.isProjectLeader).toBe(false)
-    expect(wrapper.vm.isClosureEditor).toBe(false)
+    expect(wrapper.vm.isClosureEditor).toBe(true)
+    // PENDING 下 4 字段只读 + 无提交按钮
     expect(wrapper.vm.canEditDeposit).toBe(false)
     expect(wrapper.vm.canSubmitClosure).toBe(false)
     expect(wrapper.vm.canApprove).toBe(false)
   })
 
-  it('C5: 投标辅助 bid-Team（被项目级指定为 secondaryLead）→ 4 字段只读 + 无提交按钮 + 可审核(PENDING)', async () => {
+  it('C5: 投标专员 bid-Team（被项目级指定为 secondaryLead，在 PENDING 状态下）→ 4 字段只读 + 无提交按钮 + 可审核(PENDING)', async () => {
     mockUserStore.userRole = 'bid-Team'
     mockUserStore.currentUser = { id: 42 }
     projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: pendingPreview })
@@ -384,13 +385,26 @@ describe('ClosureStage — 结项编辑/提交/审核权矩阵', () => {
     await flushPromises()
     // CO-392: 作为项目级辅助人员 isProjectLeader=true
     expect(wrapper.vm.isProjectLeader).toBe(true)
-    // 但 4 字段只读 + 无提交按钮
-    expect(wrapper.vm.isClosureEditor).toBe(false)
+    expect(wrapper.vm.isClosureEditor).toBe(true)
+    // 但 PENDING 下 4 字段只读 + 无提交按钮
     expect(wrapper.vm.canEditDeposit).toBe(false)
     expect(wrapper.vm.canEditSummary).toBe(false)
     expect(wrapper.vm.canSubmitClosure).toBe(false)
     // 作为该项目投标辅助可审核
     expect(wrapper.vm.canApprove).toBe(true)
+  })
+
+  it('C8: 投标专员 bid-Team 在 DRAFT 状态下 → 4 字段可编辑 + 可提交', async () => {
+    mockUserStore.userRole = 'bid-Team'
+    mockUserStore.currentUser = { id: 42 }
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1, primaryLeadUserId: 42 } })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isClosureEditor).toBe(true)
+    expect(wrapper.vm.canEditDeposit).toBe(true)
+    expect(wrapper.vm.canEditSummary).toBe(true)
+    expect(wrapper.vm.canSubmitClosure).toBe(true)
   })
 
   it('C6: 投标项目负责人在已结项(APPROVED)后 → 4 字段只读 + 不可提交', async () => {
