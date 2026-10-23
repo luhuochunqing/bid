@@ -54,7 +54,7 @@
   - 对应 3 个 `.spec.js` 单元测试
 - **数据库迁移**：**无新迁移**（源码 max V1220 = DB 已应用 V1220，无 pending）
 - **Sidecar 源码**：**零变更**（指纹 `24c0104f…` 与已部署版本一致）
-- **文档 / Wiki（5 文件）**：`docs/lessons/lessons-learned.md`、第 230 次部署报告、`.wiki/pages/` 3 个新页面 + `_index.md` + `log.md`
+- **文档 / Wiki（7 文件）**：`docs/lessons/lessons-learned.md`、第 230 次部署报告、`.wiki/pages/` 3 个新页面 + `_index.md` + `log.md`
 
 ## Flyway 预检结果
 
