@@ -7378,3 +7378,10 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **验证纪律**：
   - 前端：单测覆盖父表单未整体禁用时 `canEditInitiationEditableFields` 对只读和编辑态的切换，以及 `saveApprovedFields` 局部保存调用与消息回显。
   - 后端：`ProjectInitiationWebhookListenerTest` 验证 `status: null` 且 `feedback` 准确包装 `planSupplierCount` 与 `bidDocumentDisadvantage`；`ProjectInitiationServiceTest` 验证更新后事件正常发布。
+
+## 441. 已上线的提醒改造若只改已配置行，未配置的标讯会永远显示发送 0（2026-10-23）
+
+- **现场证据**：生产 `tender_reminder_settings` 与 `tender_reminder_logs` 都是 0 行。2026-09-23 至 2026-10-23 的整点任务每次都是 `processed=0, sent=0`。同期企微其他通知仍在发送。接口 `/reminders` 没有访问。
+- **致错机制**：PR !2102 把已启用提醒从发一次改成每天，并把默认提前小时改成 72。任务只遍历 `enabled=true` 的设置，不扫描标讯表，也不按角色找接收人。没有设置行时，提前 3 天和每天提醒都不会发生。
+- **修复与边界**：无设置的标讯由自动扫描按报名截止、开标各自处理。窗口 72 小时，成功送达后 24 小时内不重复。接收人是投标管理员、投标组长、投标系统管理员。已有设置行（含关闭）独占该类型。过期节点不回补。只有企微成功才写 `SENT`，设置 ID 为空。
+- **验证纪律**：`TenderAutoReminderScannerTest` 覆盖双类型发送、窗口外、已有设置、24 小时内按人跳过、跳过或失败不写日志、没有接收人。`TenderReminderJobTest` 覆盖扫描抛错时手工发送仍执行。

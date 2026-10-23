@@ -4,11 +4,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.entity.User;
 import com.xiyu.bid.notification.outbound.service.WeComPushService;
 import com.xiyu.bid.notification.outbound.event.NotificationCreatedEvent;
 import com.xiyu.bid.repository.TenderRepository;
-import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tenderreminder.entity.ReminderType;
 import com.xiyu.bid.tenderreminder.entity.TenderReminderLog;
 import com.xiyu.bid.tenderreminder.entity.TenderReminderSetting;
@@ -36,9 +34,9 @@ public class TenderReminderJob {
     private final TenderReminderSettingRepository settingRepository;
     private final TenderReminderLogRepository logRepository;
     private final TenderRepository tenderRepository;
-    private final UserRepository userRepository;
     private final WeComPushService weComPushService;
     private final ObjectMapper objectMapper;
+    private final TenderAutoReminderScanner autoReminderScanner;
 
     /**
      * 每小时执行一次
@@ -69,6 +67,17 @@ public class TenderReminderJob {
         totalSent += bidResult.sent;
         totalSkipped += bidResult.skipped;
         totalFailed += bidResult.failed;
+
+        try {
+            TenderAutoReminderScanner.ScanResult autoResult = autoReminderScanner.scan(now);
+            totalProcessed += autoResult.processed();
+            totalSent += autoResult.sent();
+            totalSkipped += autoResult.skipped();
+            totalFailed += autoResult.failed();
+        } catch (RuntimeException ex) {
+            log.error("自动标讯提醒扫描失败", ex);
+            totalFailed++;
+        }
 
         log.info("标讯提醒任务完成: processed={}, sent={}, skipped={}, failed={}",
                 totalProcessed, totalSent, totalSkipped, totalFailed);
@@ -187,8 +196,8 @@ public class TenderReminderJob {
 
         // 构建消息内容（title 承载提醒类型+标讯标题，body 承载截止时间等详情，
         // 避免合并塞入 title 导致企微 title 超 128 字符截断丢正文）
-        String title = buildReminderTitle(tender, reminderType);
-        String content = buildReminderContent(tender, reminderType, setting.getRemindBeforeHours());
+        String title = TenderReminderMessages.title(tender, reminderType);
+        String content = TenderReminderMessages.content(tender, reminderType, setting.getRemindBeforeHours());
 
         // 直接调用企微推送
         NotificationCreatedEvent event = new NotificationCreatedEvent(
@@ -216,39 +225,6 @@ public class TenderReminderJob {
         logRepository.save(reminderLog);
 
         TenderReminderJob.log.info("发送提醒成功: tenderId={}, userId={}, type={}", tender.getId(), target.userId(), reminderType);
-    }
-
-    private String buildReminderTitle(Tender tender, ReminderType reminderType) {
-        return switch (reminderType) {
-            case REGISTRATION_DEADLINE -> "【报名截止提醒】" + tender.getTitle();
-            case BID_OPENING -> "【开标提醒】" + tender.getTitle();
-        };
-    }
-
-    private String buildReminderContent(Tender tender, ReminderType reminderType, Integer hoursBefore) {
-        String deadlineType = switch (reminderType) {
-            case REGISTRATION_DEADLINE -> "报名截止";
-            case BID_OPENING -> "开标";
-        };
-
-        LocalDateTime deadline = switch (reminderType) {
-            case REGISTRATION_DEADLINE -> tender.getRegistrationDeadline();
-            case BID_OPENING -> tender.getBidOpeningTime();
-        };
-
-        String deadlineStr = deadline != null ? deadline.toString() : "未设置";
-        int hours = hoursBefore != null ? hoursBefore : 72;
-
-        return String.format("""
-                %s提醒：标讯「%s」即将%s
-                
-                %s时间：%s
-                提前提醒：%d小时
-                
-                请及时处理！
-                """,
-                deadlineType, tender.getTitle(), deadlineType,
-                deadlineType, deadlineStr, hours);
     }
 
     @FunctionalInterface

@@ -36,7 +36,7 @@ public class TenderReminderLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "reminder_setting_id", nullable = false)
+    @Column(name = "reminder_setting_id")
     private Long reminderSettingId;
 
     @Column(name = "tender_id", nullable = false)

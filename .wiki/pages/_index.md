@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-10-22
-health_checked: 2026-10-22
+updated: 2026-10-23
+health_checked: 2026-10-23
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -123,6 +123,7 @@ backlinks:
 - [[spring-pitfalls]] — Spring Boot 陷阱集
 - [[team-and-timeline]] — 团队与排期
 - [[tender-create-upload-triage]] — 标讯人工录入"未上传"假象排障与 UX 缺陷修复
+- [[tender-deadline-auto-reminder]] — 标讯截止节点自动提醒（无配置也按 72 小时窗口每天发）
 - [[tender-deadline-zero-hour-formatting]] — 标讯人工创建截止时间零点格式化规则与排错
 - [[tender-event-pr2598-contract-review]] — PR2598 标讯事件推送契约与验证审查
 - [[tenderevent-sdk-bean-conflict]] — TenderEvent SDK Bean 冲突陷阱
