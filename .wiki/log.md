@@ -1,5 +1,12 @@
 # Wiki 操作日志 / Operation Log
 
+## [2026-10-23] fix | 结项保证金退回填写与提交放行投标专员
+
+- 触发：投标专员（如项目 1121 投标负责人）在项目结项页面无法填写保证金退回情况，表单呈现只读静态文本且无法提交结项申请。
+- 根因：(1) 前端 `ClosureStage.vue` 误将 `isClosureEditor` 硬编码为 `bid-projectLeader`（销售）；(2) 后端 `submit` 端点 `@PreAuthorize` 缺少 `BID_TEAM` 角色。
+- 方案：(a) 前端 `isClosureEditor` 与 `canSubmitClosure` 放行 `bid-Team`；(b) 后端 `@PreAuthorize` 同步放行 `BID_TEAM`；(c) 补齐 Vitest 与 JUnit 单测。
+- 回填：更新 [[closure-deposit-amount-baseline]]。
+
 ## [2026-10-23] fix | 合订本流式下载空正文与异步 401
 
 - 触发：生产合订本下载应用记 200，Nginx 记 401 且正文 0 字节，业绩页整页异常。
