@@ -7351,3 +7351,18 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **致错机制**：(a) 尚无退回状态时金额取 BID_BOND 合计，已有非 NA 状态后只读立项 `deposit_amount`；(b) `"YES".equals(needDeposit)` 区分大小写，库内是小写 `yes`。MySQL `utf8mb4_0900_ai_ci` 下 SQL `= 'YES'` 能命中 `yes`，Java 不能。金额为空时闸门跳过等值比较。
 - **修复与边界**：预览和提交共用一个金额：立项金额大于 0 用立项，否则用未取消 BID_BOND 合计；`need_deposit` 忽略大小写。等值比较仍在 `ProjectClosureGatePolicy`。不回写已审批结项。
 - **验证纪律**：`ProjectClosureServiceTest` 覆盖小写 yes、部分退回必须等于立项金额、转服务费等于立项金额放行、无立项金额时回落到费用合计。
+
+## 439. 项目结项保证金退回情况填写权限角色错位导致投标专员无法结项（项目 1121）（2026-10-23）
+
+- **现场证据**：用户 121（王占俊，角色 `bid-Team`，项目 1121 投标负责人）及用户 7615 进入项目结项页面无法填写保证金退回情况，页面只显示静态只读文本“保证金退回情况：未退回”，无任何下拉框、输入框和上传附件入口；底部结项申请按钮因退回状态为 NOT_RETURNED 被置灰禁用，业务流程死锁。排查生产日志无 500 报错（前端纯渲染层阻止）。
+- **致错机制**：
+  - (a) 前端 `ClosureStage.vue` 中 `isClosureEditor` 误硬编码为 `userRole.value === 'bid-projectLeader'`（销售）。但在实际运作中，大量项目指定的投标负责人（`primaryLeadUserId`）在系统中的真实账号角色为 `bid-Team`（投标专员）。
+  - (b) `canEditDeposit` 为 `false` 触发 `<template v-if="!canEditDeposit">` 静态展示分支，4 个字段输入组件未渲染。
+  - (c) 后端 `ProjectClosureController.java` 提交接口 `@PreAuthorize("hasAnyRole('ADMIN', 'BID_PROJECTLEADER')")` 缺少 `BID_TEAM`，若只改前端，投标专员提交时必然被 Spring Security 报 403 阻断。
+- **修复与契约**：
+  - 前端：`ClosureStage.vue` 中 `isClosureEditor` 与 `canSubmitClosure` 放行 `userRole.value === 'bid-Team'`（与 `bid-projectLeader` 保持一致），在草稿/驳回状态下允许编辑保证金退回 4 字段及发起结项。
+  - 后端：`ProjectClosureController.java` 的 `submit` 接口权限注解扩充为 `hasAnyRole('ADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')`。
+- **验证纪律**：
+  - 前端 Vitest `ClosureStage.spec.js` 更新 T1、T2、C4、C5，新增 C8（投标专员在 DRAFT 状态下可编辑与提交），29 个测试用例全部通过。
+  - 后端 JUnit `ProjectStagePermissionTest` 验证 `submit` 接口放行 `BID_TEAM`，Maven 相关单测全部通过。
+
