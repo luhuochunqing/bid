@@ -318,5 +318,21 @@ describe('AiRecommendDrawer.vue', () => {
     expect(wrapper.text()).toContain('评分项标题核心匹配：最高 20 分')
     expect(wrapper.text()).toContain('评分项类别一致：最高 10 分')
   })
+
+  it('renders qualification reminder when selected score item is certificate/qualification oriented', async () => {
+    caseRecommendationApi.getScoreItems.mockResolvedValue({
+      data: [
+        { id: 301, code: '1', dim: '1 管理体系', detail: '具有 ISO9001 质量管理体系认证、ISO14001环境管理体系认证，提供证书复印件' }
+      ]
+    })
+    caseRecommendationApi.recommendCases.mockResolvedValue({ total: 0, items: [] })
+
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(wrapper.find('.qualification-notice').exists()).toBe(true)
+    expect(wrapper.text()).toContain('资质证书类评分项提醒')
+    expect(wrapper.text()).toContain('该评分项为资质证书类要求，技术方案案例不予推荐')
+  })
 })
 

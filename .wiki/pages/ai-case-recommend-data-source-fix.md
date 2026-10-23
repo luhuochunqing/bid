@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [案例推荐, score_item, spec041, 裸响应, 二次解包, caseRecommendationApi]
 created: 2026-08-21
-updated: 2026-09-15
-health_checked: 2026-09-18
+updated: 2026-10-23
+health_checked: 2026-10-23
 sources:
   - src/api/modules/caseRecommendation.js
   - src/views/Project/stages/components/AiRecommendDrawer.vue
@@ -251,3 +251,26 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 
 ### 3. 数据缺口
 `knowledge_case` 无金额/业绩品类字段，金额证据只能从案例文本提取；结构化金额门禁依赖文本正则，精度受限——已登记 `docs/exec-plans/tech-debt-tracker.md`。
+
+---
+
+## 资质证书评分项与方案类互斥（一票否决）+ 应急方案召回优化（2026-10-23）
+
+### 1. 业务痛点与问题根因
+- **痛点 1（资质错配方案）**：在招商积余等项目中，评分项为资质证书（如 ISO9001/14001/45001 体系认证），案例推荐却返回了技术方案（如“新品类的拓展增补”），且匹配度高达 62%（良好）。
+  - *根因 A*：大类冲突判定缺少单向否决门禁。评分项为 `QUALIFICATION` 时，技术类与商务类方案未被一票否决。
+  - *根因 B*：`ScoreItemCaseMatchPolicy` 中曾存在“候选案例正文只要弱包含评分项清洗标题（如‘管理体系’）直接返回 20 分满分”的旁路，导致长文方案虚假膨胀 20 分。
+- **痛点 2（应急方案召回偏少）**：历史投标文件中应急方案大量存在，但选择“7 应急方案”评分项时仅匹配出 1 个无关案例（54% 一般）。
+  - *根因*：`CaseSubTopicPolicy` 的 `EMERGENCY_PLAN` 仅定义了“应急预案”，缺少高频招标术语“应急方案”、“应急措施”、“应急管理”，导致评分项被降级推断为 `OTHER`，无法获得 25 分核心子主题契合分。
+
+### 2. 核心架构修复（FP-Java）
+1. **资质项非对称一票否决**：
+   - 在 `CaseCategoryMatchPolicy.isCategoryConflict` 中强化约束：当评分项大类为 `QUALIFICATION` 时，`TECHNICAL` 与 `COMMERCIAL` 候选案例直接触发一票否决（返回 `true`，综合得分为 0）。
+   - 扩充资质关键词词表（增加 `"管理体系"`, `"体系认证"`）。
+2. **剔除正文弱包含送满分旁路**：
+   - 移除标题相似度中只要正文包含标题即给 20 分的逻辑，使标题分严格基于标题与语义 Jaccard 相似度。
+3. **补齐应急子主题关键词**：
+   - `CaseSubTopicPolicy` 与离线特征提取脚本 `scripts/extract-historical-case-features.py` 同步补齐“应急方案”、“应急措施”、“应急管理”、“应急组织”等词汇。
+4. **前端抽屉资质证书引导**：
+   - `AiRecommendDrawer.vue` 增加资质证书类评分项的 Alert 提示，并在空态时引导用户前往「资质中心」选用证书。
+
