@@ -7404,3 +7404,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - 前端 Vitest `AiRecommendDrawer.spec.js` 12 个用例全部通过；
   - 特征提取脚本 `--self-test` 7 组断言全部通过。
 
+## 443. 评分标准解析客观业绩项细则含授权字样误判为品牌授权与阶梯计分正则边界（项目 22）（2026-10-23）
+
+- **现场证据**：项目 22（中国通用技术集团 2026 年中心采购平台电子商城电商供应商入围采购项目，https://winbid.ehsy.com/project/22）评分标准解析第 5 项（3.2.3 供应商业绩，15.00分）显示为“知识库匹配（品牌授权，tier=NONE，比例=0%）：未命中符合条件的品牌授权”，预计得分 0.00 分（DANGER）。而业绩库中实际有 95 条 2023 年至今的央企办公用品/电商业绩合同。
+- **致错机制**：
+  1. 存量分类历史脏数据：该项由 2026-08-31 的 Task 15 解析。历史老代码将 `dim` 与 `detail` 拼接后分类，且 `BRAND`（含“授权”）规则排在 `PROJECT` 前。细则在解释央企国企范围时包含“国务院授权财政部”、“人民政府授权本级国资委”，误触发 `BRAND` 规则并持久化落库。后续解析因触发 `REVIEW_REQUIRED` 门禁未自动覆盖正式表，保留了老脏数据。
+  2. 阶梯计分抽取正则边界：`KnowledgeCategoryPolicy.extractProjectRequiredCount` 使用 `[^，。；;\n]*?` 匹配“每增加1个得1分，最高得7分”时，因遇到逗号被截断，未能提取出最高分 7 分，回退使用大项权重 15 分作为所需份数。
+- **修复与边界**：
+  1. 正则优化：`extractProjectRequiredCount` 支持使用逗号/空格衔接 `最高|满分|最多` 分数，精准计算满分所需份数（7 份）。
+  2. 线上存量订正：对项目 22 执行单条幂等数据更新，回填真实的业绩库匹配（15.00 分，OK，命中 95/7 份）。
+- **验证纪律**：
+  - `KnowledgeCategoryPolicyTest` 新增用例 `categorize_project22_supplierPerformance_ignoresAuthInDetail`，验证 `dim: 供应商业绩` 稳定归类为 `CATEGORY_PROJECT`，关键词、签约时间、所需份数全部正确提取。
+  - `KnowledgeCategoryPolicyTest` 与 `ProjectMatchServiceTest` 37 个测试全部通过。
+
+
