@@ -44,6 +44,7 @@ public class CasePrecipitationAppService {
     private final ProjectResultRepository projectResultRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
+    private final CasePrecipitationTaskStateService taskStateService;
 
     @Transactional(readOnly = true)
     /**
@@ -97,7 +98,8 @@ public class CasePrecipitationAppService {
      * @param projectId 项目ID
      * @throws IllegalArgumentException 项目不存在或前置条件不满足
      */
-    public void triggerPrecipitation(Long projectId) {
+    @Transactional
+    public CasePrecipitationTaskStateService.ClaimResult triggerPrecipitation(Long projectId) {
         ReadinessResult readiness = getReadiness(projectId);
         if (!readiness.canPrecipitate()) {
             String reason = "案例沉淀前置条件不满足："
@@ -108,9 +110,27 @@ public class CasePrecipitationAppService {
         Project project = projectRepository.findById(projectId).orElseThrow();
         // 蓝图 4.1.2：手动触发时把当前用户塞进事件，让异步完成通知送达"任务发起人"。
         Long triggerUserId = resolveCurrentUserId();
+        return triggerReadyProject(project, triggerUserId);
+    }
+
+    @Transactional
+    public CasePrecipitationTaskStateService.ClaimResult triggerReadyProject(Project project, Long triggerUserId) {
+        Long projectId = project.getId();
+        var claim = taskStateService.claim(projectId, triggerUserId);
+        if (claim.reused()) {
+            log.info("Reuse active case precipitation task {} for project {}", claim.task().taskId(), projectId);
+            return claim;
+        }
         log.info("Manual case precipitation triggered for project: {} ({}) by user {}",
                 projectId, project.getName(), triggerUserId);
-        eventPublisher.publishEvent(new ProjectClosedEvent(this, projectId, project.getName(), triggerUserId));
+        eventPublisher.publishEvent(new ProjectClosedEvent(this, projectId, project.getName(), triggerUserId,
+                claim.task().taskId()));
+        return claim;
+    }
+
+    @Transactional(readOnly = true)
+    public CasePrecipitationTaskStateService.TaskView getLatestTask(Long projectId) {
+        return taskStateService.latest(projectId);
     }
 
     private Long resolveCurrentUserId() {

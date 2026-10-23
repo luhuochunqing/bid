@@ -232,7 +232,7 @@
             placement="top"
             effect="dark"
           >
-            <el-button size="small" type="primary" :disabled="!precipitateReady || precipitating" :loading="precipitating" @click="triggerPrecipitation">🤖 AI自动生成案例</el-button>
+            <el-button size="small" type="primary" :disabled="!precipitateReady || precipitating" :loading="precipitating" @click="triggerPrecipitation">{{ precipitating ? (precipitationStatusText || '正在沉淀') : '🤖 AI自动生成案例' }}</el-button>
           </el-tooltip>
         </div>
       </div>
@@ -287,6 +287,7 @@ import { downloadWithFilename } from '@/utils/download.js'
 import { useProjectDocumentsExport } from '@/composables/projectDetail/useProjectDocumentsExport.js'
 import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
 import { isBidManager as isBidManagerRole } from '@/utils/permission.js'
+import { useCasePrecipitationTask } from '@/composables/useCasePrecipitationTask.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['closed'])
@@ -606,7 +607,9 @@ defineExpose({
   },
 })
 
-const precipitating = ref(false); const precipitateReady = ref(false); const precipitateTooltip = ref('')
+const { precipitating, statusText: precipitationStatusText, trigger: triggerTask } =
+  useCasePrecipitationTask(computed(() => props.projectId))
+const precipitateReady = ref(false); const precipitateTooltip = ref('')
 
 onMounted(async () => {
   await loadPreview()
@@ -627,12 +630,10 @@ async function checkPrecipitationReadiness() {
 }
 
 async function triggerPrecipitation() {
-  precipitating.value = true
   try {
-    const resp = await casesApi.precipitateCases(props.projectId)
-    ElMessage.success(resp?.message || '案例沉淀任务已触发，完成后将通过消息通知')
+    const resp = await triggerTask()
+    ElMessage.success(resp?.message || '案例沉淀任务已受理')
   } catch (e) { ElMessage.error(e?.response?.data?.msg || '触发案例沉淀失败') }
-  finally { precipitating.value = false }
 }
 </script>
 

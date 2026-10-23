@@ -189,7 +189,7 @@
             :disabled="!precipitateReady || precipitating"
             :loading="precipitating"
             @click="triggerPrecipitation"
-          >🤖 AI自动生成案例</el-button>
+          >{{ precipitating ? (precipitationStatusText || '正在沉淀') : '🤖 AI自动生成案例' }}</el-button>
         </el-tooltip>
       </template>
       <el-button v-else type="primary" size="large" :loading="submitting" @click="submit">登记结果</el-button>
@@ -213,6 +213,7 @@ import { useUserStore } from '@/stores/user.js'
 import { downloadWithFilename } from '@/utils/download.js'
 import { getDocuments } from '@/api/modules/projectDocuments.js'
 import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
+import { useCasePrecipitationTask } from '@/composables/useCasePrecipitationTask.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['registered', 'switch-tab'])
@@ -393,7 +394,8 @@ async function load() {
   } catch (e) { if (e?.response?.status !== 404) console.warn(e) }
 }
 
-const precipitating = ref(false)
+const { precipitating, statusText: precipitationStatusText, trigger: triggerTask } =
+  useCasePrecipitationTask(computed(() => props.projectId))
 const precipitateReady = ref(false)
 const precipitateTooltip = ref('')
 
@@ -410,14 +412,11 @@ async function checkPrecipitationReadiness() {
 }
 
 async function triggerPrecipitation() {
-  precipitating.value = true
   try {
-    const resp = await casesApi.precipitateCases(props.projectId)
-    ElMessage.success(resp?.message || '案例沉淀任务已触发，完成后将通过消息通知')
+    const resp = await triggerTask()
+    ElMessage.success(resp?.message || '案例沉淀任务已受理')
   } catch (e) {
     notifyErrorUnlessRateLimit(e, '触发案例沉淀失败')
-  } finally {
-    precipitating.value = false
   }
 }
 

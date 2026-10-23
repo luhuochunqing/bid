@@ -297,6 +297,13 @@ export const casesApi = {
     return response
   },
 
+  async getPrecipitationTask(projectId) {
+    const response = await httpClient.get('/api/cases/precipitation-task', {
+      params: { projectId }
+    })
+    return response?.data || response || null
+  },
+
   async exportZip(params = {}) {
     const queryParams = {
       keyword: params.keyword || undefined,

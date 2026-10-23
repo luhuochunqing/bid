@@ -106,12 +106,19 @@ class ProjectClosedEventListenerStreamingTest {
         txManager = mock(PlatformTransactionManager.class);
         when(txManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
         transactionTemplate = new TransactionTemplate(txManager);
+        BidDocumentLoader bidDocumentLoader = new BidDocumentLoader(archiveRepository, fileRepository,
+                docTextExtractor, obsShareUrlSigner, streamingFetcher, streamTextExtractor, tempBidFileStore);
+        CasePrecipitationTaskStateService taskStateService = mock(CasePrecipitationTaskStateService.class);
+        var taskView = new CasePrecipitationTaskStateService.TaskView(
+                "task-test", 1L, "PENDING", "等待执行", null, null, null, null, null);
+        when(taskStateService.claim(anyLong(), any()))
+                .thenReturn(new CasePrecipitationTaskStateService.ClaimResult(taskView, false));
+        when(taskStateService.start("task-test")).thenReturn(true);
+        when(taskStateService.complete(org.mockito.ArgumentMatchers.eq("task-test"), anyInt())).thenReturn(true);
         listener = new ProjectClosedEventListener(
                 archiveRepository, fileRepository, scoreItemRepository,
-                knowledgeCaseRepository, projectRepository, tenderRepository,
-                bidResultRepository, projectResultRepository, docTextExtractor, caseAiMatcher, notifier,
-                obsShareUrlSigner, streamingFetcher, streamTextExtractor,
-                tempBidFileStore, transactionTemplate);
+                knowledgeCaseRepository, projectRepository, tenderRepository, bidResultRepository,
+                projectResultRepository, caseAiMatcher, notifier, transactionTemplate, bidDocumentLoader, taskStateService);
 
         // 公共前置：BID 文件 + 评分项齐备，签名成功
         Project project = new Project();
@@ -149,7 +156,7 @@ class ProjectClosedEventListenerStreamingTest {
     @Test
     @DisplayName("OBS 小文件 -> InMemory 快路径 -> docTextExtractor 提取入库")
     void inMemoryFastPath_extractsViaDocTextExtractor() throws Exception {
-        when(streamingFetcher.fetch("https://obs.example.com/signed", "case-1", "bid.pdf", "application/octet-stream"))
+        when(streamingFetcher.fetch("https://obs.example.com/signed", "task-test", "bid.pdf", "application/octet-stream"))
                 .thenReturn(new LoadedBidFile.InMemory("PDF_BYTES".getBytes(), "bid.pdf", "application/octet-stream"));
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
@@ -159,7 +166,7 @@ class ProjectClosedEventListenerStreamingTest {
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
         // 快路径：InMemory 内容交给 docTextExtractor，不走 sidecar 流式
-        verify(streamingFetcher).fetch("https://obs.example.com/signed", "case-1", "bid.pdf", "application/octet-stream");
+        verify(streamingFetcher).fetch("https://obs.example.com/signed", "task-test", "bid.pdf", "application/octet-stream");
         verify(docTextExtractor, times(1)).extract(any(), any(), any());
         verify(streamTextExtractor, never()).extract(any(), any());
         verify(knowledgeCaseRepository, times(1)).saveAll(any());
@@ -169,7 +176,7 @@ class ProjectClosedEventListenerStreamingTest {
     @Test
     @DisplayName("OBS 大文件 -> OnDisk 流式 -> sidecar 转换入库，零整包进堆")
     void onDiskStreaming_extractsViaSidecar() throws Exception {
-        Path spillPath = tempDir.resolve("case-1.part");
+        Path spillPath = tempDir.resolve("task-test.part");
         when(streamingFetcher.fetch(any(), any(), any(), any()))
                 .thenReturn(new LoadedBidFile.OnDisk(spillPath, "bid.pdf", "application/octet-stream"));
         when(streamTextExtractor.extract(spillPath, "bid.pdf")).thenReturn("## 流式提取的标书正文");
@@ -186,7 +193,7 @@ class ProjectClosedEventListenerStreamingTest {
         verify(knowledgeCaseRepository, times(1)).saveAll(captor.capture());
         assertThat(captor.getValue().get(0).getResponseText()).isEqualTo("技术方案证明片段");
         // finally：OnDisk 临时文件必须 release 归还配额
-        verify(tempBidFileStore, times(1)).release("case-1");
+        verify(tempBidFileStore, times(1)).release("task-test");
     }
 
     @Test
@@ -204,7 +211,7 @@ class ProjectClosedEventListenerStreamingTest {
             assertThat(reasonCaptor.getValue()).contains("流式下载 OBS 标书失败");
             assertThat(Thread.currentThread().isInterrupted()).isFalse();
             verify(knowledgeCaseRepository, never()).saveAll(any());
-            verify(tempBidFileStore, times(1)).release("case-1");
+            verify(tempBidFileStore, times(1)).release("task-test");
         } finally {
             Thread.interrupted();
         }
@@ -214,7 +221,7 @@ class ProjectClosedEventListenerStreamingTest {
     @DisplayName("OBS OnDisk 流式提取失败(Runtime 透传) -> notifyFailure 原样透出原因 + 不入库 + finally release")
     void onDiskExtractFailure_notifiesFailureAndReleases() throws Exception {
         when(streamingFetcher.fetch(any(), any(), any(), any()))
-                .thenReturn(new LoadedBidFile.OnDisk(tempDir.resolve("case-1.part"), "bid.pdf", "application/octet-stream"));
+                .thenReturn(new LoadedBidFile.OnDisk(tempDir.resolve("task-test.part"), "bid.pdf", "application/octet-stream"));
         when(streamTextExtractor.extract(any(), any()))
                 .thenThrow(new IllegalStateException("文档无法解析"));
 
@@ -225,14 +232,14 @@ class ProjectClosedEventListenerStreamingTest {
         verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
         assertThat(reasonCaptor.getValue()).contains("文档无法解析");
         verify(knowledgeCaseRepository, never()).saveAll(any());
-        verify(tempBidFileStore, times(1)).release("case-1");
+        verify(tempBidFileStore, times(1)).release("task-test");
     }
 
     @Test
     @DisplayName("OBS OnDisk 流式提取 checked 异常 -> 包装为『流式提取 OBS 标书文本失败』 + finally release")
     void onDiskCheckedException_wrapsMessage() throws Exception {
         when(streamingFetcher.fetch(any(), any(), any(), any()))
-                .thenReturn(new LoadedBidFile.OnDisk(tempDir.resolve("case-1.part"), "bid.pdf", "application/octet-stream"));
+                .thenReturn(new LoadedBidFile.OnDisk(tempDir.resolve("task-test.part"), "bid.pdf", "application/octet-stream"));
         when(streamTextExtractor.extract(any(), any())).thenThrow(new IOException("连接中断"));
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
@@ -243,14 +250,14 @@ class ProjectClosedEventListenerStreamingTest {
                 .contains("流式提取 OBS 标书文本失败")
                 .contains("连接中断");
         verify(knowledgeCaseRepository, never()).saveAll(any());
-        verify(tempBidFileStore, times(1)).release("case-1");
+        verify(tempBidFileStore, times(1)).release("task-test");
     }
 
     @Test
     @DisplayName("OBS 文本量超限(Runtime 透传) -> notifyFailure 原样透出原因 + 不入库")
     void oversizedText_notifiesFailure() throws Exception {
         when(streamingFetcher.fetch(any(), any(), any(), any()))
-                .thenReturn(new LoadedBidFile.OnDisk(tempDir.resolve("case-1.part"), "bid.pdf", "application/octet-stream"));
+                .thenReturn(new LoadedBidFile.OnDisk(tempDir.resolve("task-test.part"), "bid.pdf", "application/octet-stream"));
         // 真实链路为 OversizedBidTextException（Runtime，scoreparse 包内包私有构造器，跨包用同级语义模拟）
         when(streamTextExtractor.extract(any(), any()))
                 .thenThrow(new IllegalStateException("投标文件文本量超过 500 万字符上限"));
@@ -261,14 +268,14 @@ class ProjectClosedEventListenerStreamingTest {
         verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
         assertThat(reasonCaptor.getValue()).contains("500 万字符");
         verify(knowledgeCaseRepository, never()).saveAll(any());
-        verify(tempBidFileStore, times(1)).release("case-1");
+        verify(tempBidFileStore, times(1)).release("task-test");
     }
 
     @Test
     @DisplayName("事务边界：saveAll 经 TransactionTemplate 执行，且 download/convert/LLM 不触发第二次事务")
     void transactionBoundary_saveOnlyWrappedInTransaction() throws Exception {
         when(streamingFetcher.fetch(any(), any(), any(), any()))
-                .thenReturn(new LoadedBidFile.OnDisk(tempDir.resolve("case-1.part"), "bid.pdf", "application/octet-stream"));
+                .thenReturn(new LoadedBidFile.OnDisk(tempDir.resolve("task-test.part"), "bid.pdf", "application/octet-stream"));
         when(streamTextExtractor.extract(any(), any())).thenReturn("## 标书正文");
         when(caseAiMatcher.extractSlicesWithAi(any(), any())).thenReturn(List.of(slice(101L, "证明片段")));
         when(caseAiMatcher.extractCategory(any())).thenReturn("技术");

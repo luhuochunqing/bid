@@ -61,6 +61,10 @@ public class BidDocumentLoader {
      *         "标书里没有这一节"。
      */
     public BidDocument loadBidDocument(String projectName, Long projectId) {
+        return loadBidDocument(projectName, projectId, "case-" + projectId);
+    }
+
+    public BidDocument loadBidDocument(String projectName, Long projectId, String taskId) {
         Optional<ProjectArchive> archiveOpt = archiveRepository.findByProjectId(projectId);
         if (archiveOpt.isEmpty()) {
             log.warn("No archive found for closed project: {}", projectId);
@@ -80,7 +84,6 @@ public class BidDocumentLoader {
         if (filePath == null) {
             return new BidDocument(fallback, fileName, null, false);
         }
-        String taskId = "case-" + projectId;
         try {
             if (filePath.startsWith(FileUrlPrefixes.OBS_DIRECT)) {
                 return loadObsBidDocument(filePath, bidFile, taskId);

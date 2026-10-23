@@ -6,11 +6,6 @@ import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
-import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
-import com.xiyu.bid.file.application.ObsShareUrlSigner;
-import com.xiyu.bid.scoreparse.application.SidecarStreamTextExtractor;
-import com.xiyu.bid.scoreparse.application.StreamingBidFileFetcher;
-import com.xiyu.bid.scoreparse.application.TempBidFileStore;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
 import com.xiyu.bid.entity.Project;
@@ -49,6 +44,7 @@ public class ProjectClosedEventListener {
     private final CasePrecipitationNotifier notifier;
     private final TransactionTemplate transactionTemplate;
     private final BidDocumentLoader bidDocumentLoader;
+    private final CasePrecipitationTaskStateService taskStateService;
 
     @Autowired
     public ProjectClosedEventListener(
@@ -63,7 +59,8 @@ public class ProjectClosedEventListener {
             CaseAiMatcher caseAiMatcher,
             CasePrecipitationNotifier notifier,
             TransactionTemplate transactionTemplate,
-            BidDocumentLoader bidDocumentLoader) {
+            BidDocumentLoader bidDocumentLoader,
+            CasePrecipitationTaskStateService taskStateService) {
         this.archiveRepository = archiveRepository;
         this.fileRepository = fileRepository;
         this.scoreItemRepository = scoreItemRepository;
@@ -76,57 +73,29 @@ public class ProjectClosedEventListener {
         this.notifier = notifier;
         this.transactionTemplate = transactionTemplate;
         this.bidDocumentLoader = bidDocumentLoader;
+        this.taskStateService = taskStateService;
     }
 
-    /**
-     * 兼容既有 16 参数构造函数（供单元测试直接实例化调用）。
-     */
-    public ProjectClosedEventListener(
-            ProjectArchiveRepository archiveRepository,
-            ArchiveFileRepository fileRepository,
-            ScoreItemRepository scoreItemRepository,
-            KnowledgeCaseRepository knowledgeCaseRepository,
-            ProjectRepository projectRepository,
-            TenderRepository tenderRepository,
-            BidResultFetchResultRepository bidResultFetchResultRepository,
-            ProjectResultRepository projectResultRepository,
-            DocumentTextExtractor docTextExtractor,
-            CaseAiMatcher caseAiMatcher,
-            CasePrecipitationNotifier notifier,
-            ObsShareUrlSigner obsShareUrlSigner,
-            StreamingBidFileFetcher streamingFetcher,
-            SidecarStreamTextExtractor streamTextExtractor,
-            TempBidFileStore tempBidFileStore,
-            TransactionTemplate transactionTemplate) {
-        this(
-                archiveRepository,
-                fileRepository,
-                scoreItemRepository,
-                knowledgeCaseRepository,
-                projectRepository,
-                tenderRepository,
-                bidResultFetchResultRepository,
-                projectResultRepository,
-                caseAiMatcher,
-                notifier,
-                transactionTemplate,
-                new BidDocumentLoader(
-                        archiveRepository,
-                        fileRepository,
-                        docTextExtractor,
-                        obsShareUrlSigner,
-                        streamingFetcher,
-                        streamTextExtractor,
-                        tempBidFileStore
-                )
-        );
-    }
-
-    @Async
+    @Async("scoreParseExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onProjectClosed(ProjectClosedEvent event) {
         long startTime = System.currentTimeMillis();
         Long projectId = event.getProjectId();
+        String taskId = event.getTaskId();
+        if (taskId == null) {
+            var claim = taskStateService.claim(projectId, event.getTriggerUserId());
+            if (claim.reused()) {
+                log.info("Skip duplicate automatic case precipitation event; active task={} project={}",
+                        claim.task().taskId(), projectId);
+                return;
+            }
+            taskId = claim.task().taskId();
+        }
+        if (taskId != null && !taskStateService.start(taskId)) {
+            log.info("Skip non-active case precipitation task {}", taskId);
+            return;
+        }
+        final String executionTaskId = taskId;
         log.info("Received project closed event for project: {}", projectId);
 
         Optional<Project> projOpt = projectRepository.findById(projectId);
@@ -149,11 +118,13 @@ public class ProjectClosedEventListener {
                 if (!hasScoreItems) missing.add("缺少评分项");
                 String reason = "前置条件不满足：" + String.join("；", missing);
                 log.warn("Skip case precipitation for project {}: {}", projectId, reason);
+                taskStateService.fail(executionTaskId, reason);
                 notifier.notifyFailure(projectId, event.getProjectName(), reason, project, event.getTriggerUserId());
                 return;
             }
 
-            BidDocumentLoader.BidDocument bidDoc = bidDocumentLoader.loadBidDocument(event.getProjectName(), projectId);
+            BidDocumentLoader.BidDocument bidDoc =
+                    bidDocumentLoader.loadBidDocument(event.getProjectName(), projectId, executionTaskId);
             String markdown = bidDoc != null ? bidDoc.markdown() : null;
 
             List<CaseAiMatcher.AiMatchedSlice> matchedSlices = caseAiMatcher.extractSlicesWithAi(markdown, scoreItemsForGate);
@@ -170,9 +141,16 @@ public class ProjectClosedEventListener {
                     .filter(c -> c.getScoringPointId() == null || !existingPointIds.contains(c.getScoringPointId()))
                     .toList();
 
+            Boolean accepted = transactionTemplate.execute(status -> {
+                if (!taskStateService.complete(executionTaskId, casesToSave.size())) return false;
+                if (!casesToSave.isEmpty()) knowledgeCaseRepository.saveAll(casesToSave);
+                return true;
+            });
+            if (!Boolean.TRUE.equals(accepted)) {
+                log.info("Discard stale case precipitation result task={}", executionTaskId);
+                return;
+            }
             if (!casesToSave.isEmpty()) {
-                transactionTemplate.executeWithoutResult(status ->
-                        knowledgeCaseRepository.saveAll(casesToSave));
                 log.info("Successfully persisted {} new knowledge cases for project: {} ({} skipped as duplicate)",
                         casesToSave.size(), projectId, candidates.size() - casesToSave.size());
             }
@@ -180,18 +158,35 @@ public class ProjectClosedEventListener {
                     System.currentTimeMillis() - startTime, ctx.projectOpt.orElse(null), event.getTriggerUserId());
 
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            log.info("Knowledge cases for project {} already persisted by concurrent event, treated as idempotent success", projectId);
-            notifier.notifySuccess(projectId, event.getProjectName(), 0,
-                    System.currentTimeMillis() - startTime, project, event.getTriggerUserId());
+            if (isKnowledgeCaseDedupConflict(e)) {
+                log.info("Knowledge cases for project {} already persisted by concurrent event, treated as idempotent success", projectId);
+                taskStateService.complete(executionTaskId, 0);
+                notifier.notifySuccess(projectId, event.getProjectName(), 0,
+                        System.currentTimeMillis() - startTime, project, event.getTriggerUserId());
+            } else {
+                log.error("Knowledge case persistence failed for project {}", projectId, e);
+                taskStateService.fail(executionTaskId, "案例沉淀失败，请稍后重试");
+                notifier.notifyFailure(projectId, event.getProjectName(), "案例保存失败，请联系管理员",
+                        project, event.getTriggerUserId());
+            }
         } catch (RuntimeException e) {
             log.error("Failed to process project closed AI slicing", e);
             String reason = e.getMessage() != null ? e.getMessage() : "处理异常，请检查系统日志";
+            taskStateService.fail(executionTaskId, "案例沉淀失败，请稍后重试");
             try {
                 notifier.notifyFailure(projectId, event.getProjectName(), reason, project, event.getTriggerUserId());
             } catch (RuntimeException notifyEx) {
                 log.error("Failed to send failure notification for project {}", projectId, notifyEx);
             }
         }
+    }
+
+    private boolean isKnowledgeCaseDedupConflict(Throwable error) {
+        for (Throwable current = error; current != null; current = current.getCause()) {
+            String message = current.getMessage();
+            if (message != null && message.contains("uk_source_proj_scoring_point")) return true;
+        }
+        return false;
     }
 
     private CasePrecipitationContext loadProjectContext(Long projectId) {
