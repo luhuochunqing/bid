@@ -25,6 +25,15 @@
         <el-input v-model="keywordFilter" placeholder="输入关键词进一步筛选..." clearable />
       </div>
 
+      <div v-if="isQualificationScoreItem" class="drawer-section qualification-notice">
+        <el-alert type="info" :closable="false" show-icon>
+          <template #title>
+            <div class="qualification-notice-title">资质证书类评分项提醒</div>
+            <div class="qualification-notice-desc">该评分项为资质证书类要求，技术方案案例不予推荐。建议前往「资质中心」选用对应的证书复印件或扫描件。</div>
+          </template>
+        </el-alert>
+      </div>
+
       <div class="drawer-section">
         <div class="section-label-row">
           <label class="section-label">
@@ -59,7 +68,11 @@
               @reuse="handleReuse"
             />
           </div>
-          <el-empty v-else-if="!loadingCases && selectedItemId" description="暂无与本评分项相似的历史案例" :image-size="80" />
+          <el-empty
+            v-else-if="!loadingCases && selectedItemId"
+            :description="isQualificationScoreItem ? '该评分项为资质证书类，技术方案案例不予推荐，请前往「资质中心」选用证书证明文件' : '暂无与本评分项相似的历史案例'"
+            :image-size="80"
+          />
           <div v-else-if="!selectedItemId && defaultCases.length > 0" class="select-hint">基于项目基本信息推荐 {{ defaultCases.length }} 条案例，选择评分项可进一步筛选</div>
           <div v-else class="select-hint">请先选择一个评分项查看匹配的历史案例</div>
         </div>
@@ -105,6 +118,13 @@ const defaultCases = ref([])
 const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detailCase = ref(null)
+
+const currentScoreItem = computed(() => scoreItems.value.find(item => item.id === selectedItemId.value))
+const isQualificationScoreItem = computed(() => {
+  if (!currentScoreItem.value) return false
+  const text = `${currentScoreItem.value.dim || ''} ${currentScoreItem.value.detail || ''}`.toLowerCase()
+  return ['资质', '证书', '认证', 'iso', '许可', '执照', '管理体系'].some(k => text.includes(k))
+})
 
 const handleGoToScoreParse = () => { visible.value = false; emit('go-to-score-parse') }
 
@@ -245,7 +265,6 @@ async function copyAndRecordReuse(caseId, text) {
 
 const handleReuse = (item) => copyAndRecordReuse(item.caseId, item.responseText || item.responseTextSummary || '')
 const handleReuseInDetail = (d) => copyAndRecordReuse(d.caseId || d.id, d.responseText || '')
-// 查看源项目 / 标书原文：共享 composable（路由修正 + 未归档预检 + 假 ZIP 防护，详见 useBidCaseSourceActions.js）
 const { goToSourceProject, openBidDocument: openBidDocumentBase } = useBidCaseSourceActions()
 async function openBidDocument(d, options) {
   try {

@@ -24,7 +24,7 @@ public final class CaseCategoryMatchPolicy {
             "人员", "团队", "项目经理", "项目负责人", "架构师", "职称", "社保", "学历", "履历", "专家", "工程师", "人员配置", "团队投入", "骨干", "成员", "分支机构"
     };
     private static final String[] QUALIFICATION_KEYWORDS = {
-            "资质", "资格", "证书", "认证", "认证体系", "许可", "执照", "iso", "aaa", "专利", "软著", "专精特新", "高新", "资质等级", "资信"
+            "资质", "资格", "证书", "认证", "认证体系", "体系认证", "管理体系", "许可", "执照", "iso", "aaa", "专利", "软著", "专精特新", "高新", "资质等级", "资信"
     };
     private static final String[] PERFORMANCE_KEYWORDS = {
             "业绩", "合同业绩", "项目业绩", "同类项目", "同类业绩", "供货业绩", "类似项目"
@@ -40,12 +40,19 @@ public final class CaseCategoryMatchPolicy {
 
     /**
      * 判断评分项与候选案例是否存在互斥大类冲突（一票否决门禁）。
+     * <p>
+     * 1. 评分项为纯资质证书类（QUALIFICATION）时，纯技术方案（TECHNICAL）与纯商务（COMMERCIAL）案例均一票否决（方案不能替代证书）；
+     * 2. 纯技术（TECHNICAL）与纯商务（COMMERCIAL）案例双向互斥否决。
      */
     public static boolean isCategoryConflict(
             String itemDim, String itemDetail,
             String candidateCategory, String candidateTitle) {
         MacroCategory itemCat = classifyMacroCategory(itemDim, itemDetail);
         MacroCategory candCat = classifyMacroCategory(candidateCategory, candidateTitle);
+        if (itemCat == MacroCategory.QUALIFICATION
+                && (candCat == MacroCategory.TECHNICAL || candCat == MacroCategory.COMMERCIAL)) {
+            return true;
+        }
         return isMutuallyExclusive(itemCat, candCat);
     }
 

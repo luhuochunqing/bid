@@ -257,7 +257,6 @@ public class ScoreItemCaseMatchPolicy {
                     || candidateTitle.contains(cleanDim) || cleanDim.contains(candidateTitle))) {
                 return MAX_TITLE_SIMILARITY_SCORE;
             }
-            if (candText.contains(lowerCleanDim)) return MAX_TITLE_SIMILARITY_SCORE;
         }
 
         if (hasText(candidateTitle)) {

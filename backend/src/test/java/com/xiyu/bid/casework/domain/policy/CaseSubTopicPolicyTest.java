@@ -16,6 +16,9 @@ class CaseSubTopicPolicyTest {
     @CsvSource({
             "'7x24小时售后服务保障方案', 'SLA_SERVICE'",
             "'突发事件应急预案与防汛演练', 'EMERGENCY_PLAN'",
+            "'7 应急方案', 'EMERGENCY_PLAN'",
+            "'风险管理与应急措施', 'EMERGENCY_PLAN'",
+            "'现场应急管理保障与响应方案', 'EMERGENCY_PLAN'",
             "'三峡e购商城系统对接与API接口开发', 'INTEGRATION'",
             "'网络安全与三级等保合规防护方案', 'SECURITY_COMPLIANCE'",
             "'区域仓储管理与供应链物流配送方案', 'LOGISTICS_WAREHOUSE'",

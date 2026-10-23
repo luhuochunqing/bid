@@ -892,4 +892,47 @@ class ScoreItemCaseMatchPolicyTest {
         assertThat(result.matchLabel()).isEqualTo("一般");
         assertThat(result.matchReasons()).contains("大类冲突一票否决");
     }
+
+    @Test
+    @DisplayName("大类冲突一票否决：资质证书类评分项与技术方案案例互斥，绝不允许方案匹配给证书项")
+    void testQualificationScoreItemVetoesTechnicalCase() {
+        StubCandidate technicalCase = new StubCandidate(
+                1008L, "新品类的拓展增补方案", "技术方案",
+                "品类拓展寻源要求", "西域凭借深厚的行业积淀与创新驱动的数智化能力，构建起系统化、专业化的寻源保障体系。",
+                "工业品", "地方国企", "WON", "OTHER", 85
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext qualContext = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                892L, "1", "1 管理体系",
+                "1 | 管理体系 | 1、评审标准：1）具有 ISO9001 质量管理体系认证、ISO14001环境管理体系认证、ISO45001职业健康安全管理体系认证的得10分。2）三项齐全得满分，缺少一项，不得分3）不满足或未提供证明文件者，不得分2、证明文件：投标人须提供在有效期的认证证书复印件或扫描件加盖投标人公章。 | 10.0 | 否",
+                "工业品", "地方国企", null, "招商积余2026年维修物资战略采购项目", "招商积余"
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(technicalCase, qualContext);
+
+        assertThat(result.score()).isEqualTo(0);
+        assertThat(result.matchLabel()).isEqualTo("一般");
+        assertThat(result.matchReasons()).contains("大类冲突一票否决");
+    }
+
+    @Test
+    @DisplayName("业务子主题对齐：7 应急方案评分项应准确对齐 EMERGENCY_PLAN 并给应急措施案例高分匹配")
+    void testEmergencyPlanScoreItemMatchesEmergencyCase() {
+        StubCandidate emergencyCase = new StubCandidate(
+                1009L, "（7）风险管理与应急措施", "技术方案",
+                "制定完善的项目应急方案与售后服务保障", "针对平台订单紧急到货需求，设立紧急备件库与应急响应小组，提供快速缺货补货机制与应急处置承诺。",
+                "工业品", "地方国企", "WON", "EMERGENCY_PLAN", 85
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext emergencyContext = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                893L, "7", "7 应急方案",
+                "7 | 应急方案 | 1、评审标准：1）承诺在接到平台订单后5天内到货，缺货/补货的周期在7天内（提供承诺函）。2）评价所有涉及本项目的应急方案。评委横向比较：优9-10；良6-8；中3-5；差0-2。3）不满足或未提供证明文件者，不得分2、证明文件：投标人提供应急方案和承诺（投标单位自拟）。 | 10.0 | 否",
+                "工业品", "地方国企", null, "招商积余2026年维修物资战略采购项目", "招商积余"
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(emergencyCase, emergencyContext);
+
+        assertThat(result.score()).isGreaterThanOrEqualTo(60);
+        assertThat(result.matchReasons()).anyMatch(r -> r.contains("同类业务子主题(应急预案与突发事件响应)") || r.contains("业务主题部分契合"));
+    }
 }
