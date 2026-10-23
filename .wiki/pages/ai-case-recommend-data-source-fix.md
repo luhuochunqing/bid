@@ -273,4 +273,7 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
    - `CaseSubTopicPolicy` 与离线特征提取脚本 `scripts/extract-historical-case-features.py` 同步补齐“应急方案”、“应急措施”、“应急管理”、“应急组织”等词汇。
 4. **前端抽屉资质证书引导**：
    - `AiRecommendDrawer.vue` 增加资质证书类评分项的 Alert 提示，并在空态时引导用户前往「资质中心」选用证书。
+5. **存量 OTHER 标签案例穿透激活**：
+   - 修复 `CaseSubTopicPolicy.calculateSubTopicScore` 中仅在 `!hasText(candidateSubTopic)` 时才进行文本补偿的漏洞；
+   - 允许 `candidateSubTopic` 为 `"OTHER"` 的存量案例穿透检查文本和标题，只要命中应急方案/措施等关键词即可获得 15 分文本契合补偿分，彻底激活存量数据库中被打上 OTHER 的应急方案切片。
 

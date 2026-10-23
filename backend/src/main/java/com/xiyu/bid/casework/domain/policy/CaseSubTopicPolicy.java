@@ -143,8 +143,10 @@ public final class CaseSubTopicPolicy {
             );
         }
 
-        // 2. 存量案例无 sub_topic 字段时的降级补偿（基于文本关键词命中）
-        if (!hasText(candidateSubTopic) && hasText(candidateFullText)) {
+        // 2. 存量案例无 sub_topic 字段或标记为 OTHER 时的降级补偿（基于文本关键词命中）
+        boolean noOrOtherSubTopic = !hasText(candidateSubTopic)
+                || SubTopic.OTHER.name().equalsIgnoreCase(candidateSubTopic.trim());
+        if (noOrOtherSubTopic && hasText(candidateFullText)) {
             String lowerCandText = candidateFullText.toLowerCase(Locale.ROOT);
             int hitCount = 0;
             for (String kw : inferredTopic.getKeywords()) {
