@@ -7416,5 +7416,3 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **验证纪律**：
   - `KnowledgeCategoryPolicyTest` 新增用例 `categorize_project22_supplierPerformance_ignoresAuthInDetail`，验证 `dim: 供应商业绩` 稳定归类为 `CATEGORY_PROJECT`，关键词、签约时间、所需份数全部正确提取。
   - `KnowledgeCategoryPolicyTest` 与 `ProjectMatchServiceTest` 37 个测试全部通过。
-
-
