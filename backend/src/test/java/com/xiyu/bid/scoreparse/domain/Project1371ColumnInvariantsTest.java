@@ -37,7 +37,7 @@ class Project1371ColumnInvariantsTest {
 
         ScoreCandidate finance = find(items, "财务状况");
         assertThat(categoryPolicy.categorize(finance.dim(), finance.detail()))
-                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_OTHER);
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_FINANCIAL);
 
         ScoreCandidate warehouse = find(items, "服务网点及仓储");
         assertThat(categoryPolicy.categorize(warehouse.dim(), warehouse.detail()))
