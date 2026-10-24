@@ -7465,3 +7465,19 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **致错机制**：V1222 建表用 `task_id CHAR(36)`，实体 `CasePrecipitationTask` 用 `@Column(length = 36)` → Hibernate 期望 `varchar(36)`；`ddl-auto=validate` 下建表完成后立即校验失败，服务 crash-loop。仓库既有 UUID 字段（V1153/V1187）均为 `VARCHAR(36)`，V1222 为唯一异类。
 - **修复与边界**：新增 V1223 前向迁移 `ALTER TABLE case_precipitation_task MODIFY COLUMN task_id VARCHAR(36) NOT NULL` + U1223 回滚；不改已发布的 V1222（Flyway checksum 不可变），不改实体映射。前提是确认测试/生产 DB 尚未应用 V1222（当时 DB max=V1220）。
 - **验证纪律**：`mvn -Dtest=FlywayMysqlContainerTest test` 5/5 通过；`mvn -Dtest=FlywayRollbackScriptCoverageTest test` 通过。结论：新增 MySQL 迁移必须同步核对 JPA 实体映射类型，容器测试是部署前唯一能捕获该缺陷的门禁。
+
+## 449. JJWT ServiceLoader 并发竞争致 NoSuchElementException 与 Filter 旁路防御缺失（2026-10-24）
+
+- **现场证据**：生产请求 `GET /api/workbench/deadline-items?period=week` 偶发 500，堆栈为 `java.util.NoSuchElementException → JwtUtil.extractAllClaims(JwtUtil.java:184) → RateLimitFilter.resolveUserRateLimitKey(RateLimitFilter.java:132)`。3 小时内仅出现 1 次，低并发压测难以复现。
+- **致错机制**：
+  1. JJWT 0.12.3 并发 Bug：`io.jsonwebtoken.impl.lang.Services.loadFirst()` 内部共享缓存了非线程安全的 `java.util.ServiceLoader` 实例，且调用 `iterator().next()` 前无 `hasNext()` 保护。在多线程并发请求进入 SPI 查找时发生游标状态错乱，抛出 `NoSuchElementException`（JJWT Issue #873）。
+  2. `JwtUtil` 反模式：每次解析 Token 都调用 `Jwts.parser().verifyWith(secretKey).build()`。根据 JJWT 官方规范，`JwtParser` 是不可变且线程安全的重型对象，应单例复用；重复 build 严重浪费 CPU 并成倍放大了 ServiceLoader 竞态窗口。
+  3. Filter 旁路防御缺失：`RateLimitFilter.resolveUserRateLimitKey` 属于非阻断性限流辅助链路，原设计意图为“解析失败则 fallback 到 client IP”，但 catch 仅捕获了 `JwtException | IllegalArgumentException`，未对未预期的运行时异常进行兜底，导致旁路异常直接逃逸阻断主业务接口，造成 HTTP 500。
+- **修复与边界**：
+  1. `JwtUtil` 单例化：在构造器中完成 `Jwts.parser().verifyWith(secretKey).build()` 并持久化为 `final JwtParser` 单例，所有 Token 解析直接复用该不可变实例，彻底消除运行期 SPI 反射扫描与 build 开销；
+  2. `RateLimitFilter` 兜底保护：增加 `catch (Exception e)` 兜底降级至 client IP 限流并输出 WARN 日志，确保旁路逻辑永不击穿主业务；
+  3. 依赖升级：升级 `backend/pom.xml` 中 `jjwt.version` 至 `0.12.5`（官方重构移除了 ServiceLoader 实例共享并增加 hasNext 防护）。
+- **验证纪律**：
+  - `JwtUtilTest` 增加 30 线程并发解析单测，验证高并发下 0 异常；
+  - `RateLimitFilterTest` 增加针对抛出 `NoSuchElementException` 时的优雅降级验证，断言 HTTP 200 与 IP fallback；
+  - `ArchitectureTest`（32 门禁）与全量目标单测通过。
