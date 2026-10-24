@@ -38,7 +38,7 @@
         <div class="section-label-row">
           <label class="section-label">
             匹配案例
-            <el-tag v-if="selectedItemId" size="small" type="info">{{ filteredCases.length }} 个结果</el-tag>
+            <el-tag v-if="selectedItemId" size="small" type="info">{{ recommendTotal }} 个结果</el-tag>
           </label>
           <el-tooltip placement="top" :show-after="100">
             <template #content>
@@ -112,6 +112,7 @@ const scoreItemsLoading = ref(false)
 const selectedItemId = ref(null)
 const keywordFilter = ref('')
 const cases = ref([])
+const recommendTotal = ref(0)
 const loadingCases = ref(false)
 const defaultCases = ref([])
 
@@ -122,14 +123,15 @@ const detailCase = ref(null)
 const currentScoreItem = computed(() => scoreItems.value.find(item => item.id === selectedItemId.value))
 const isQualificationScoreItem = computed(() => {
   if (!currentScoreItem.value) return false
-  const text = `${currentScoreItem.value.dim || ''} ${currentScoreItem.value.detail || ''}`.toLowerCase()
-  return ['资质', '证书', '认证', 'iso', '许可', '执照', '管理体系'].some(k => text.includes(k))
+  const { dim: title = '', detail = '' } = currentScoreItem.value
+  return /(资质|资格|证书|体系认证|管理体系|iso|许可|执照)/i.test(title)
+    || /(资质证书|资格证书|体系认证|iso|许可证|执照|证书复印件|证书扫描件)/i.test(detail)
 })
 
 const handleGoToScoreParse = () => { visible.value = false; emit('go-to-score-parse') }
 
 const filteredCases = computed(() => {
-  if (selectedItemId.value) return cases.value.filter(c => (c.score ?? 0) >= 50)
+  if (selectedItemId.value) return cases.value
   const kw = keywordFilter.value.trim().toLowerCase()
   if (!kw) return cases.value
   return cases.value.filter(c =>
@@ -174,6 +176,7 @@ async function loadDefaultProjectCases() {
 
 async function handleItemChange() {
   if (!selectedItemId.value) {
+    recommendTotal.value = 0
     cases.value = defaultCases.value.length === 0 ? (await loadDefaultProjectCases(), cases.value) : [...defaultCases.value]
     return
   }
@@ -186,8 +189,11 @@ async function handleItemChange() {
       size: 20
     })
     cases.value = (res?.items || []).map(normalizeRecommendCase)
+    const serverTotal = Number(res?.total)
+    recommendTotal.value = Number.isFinite(serverTotal) ? serverTotal : cases.value.length
   } catch (err) {
     cases.value = []
+    recommendTotal.value = 0
     notifyErrorUnlessRateLimit(err, '获取推荐案例失败')
   } finally {
     loadingCases.value = false
