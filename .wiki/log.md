@@ -1435,3 +1435,9 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-10-23] fix | 项目1117保证金视觉事实与CA冲突证据
 
 - 网上开标、远程解密纳入电子标强证据；保证金复用 PDF 页面图像与真实多模态通道提取交易要素，视觉不足保守转人工。
+
+## [2026-10-24] fix | case_precipitation_task.task_id 列类型 CHAR vs VARCHAR 导致后端启动校验失败
+
+- 根因：V1222 建表把 `task_id` 定为 `CHAR(36)`，实体 `CasePrecipitationTask` 映射 `varchar(36)`，Hibernate `schema-validation` 在启动时报 `wrong column type`；打包脚本的 `FlywayMysqlContainerTest` 门禁在部署前拦下。
+- 修复：新增 V1223 前向迁移 `MODIFY COLUMN task_id VARCHAR(36)`（与 V1153/V1187 的 UUID 字段约定对齐），不改已发布 V1222，附 U1223 回滚脚本。
+- 边界：测试 DB 当时最新为 V1220，V1221/V1222 未应用到任何真实库，故前向纠正无 checksum 风险。
