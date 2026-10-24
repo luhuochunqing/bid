@@ -120,6 +120,14 @@ export const isValidSectionTitle = (value) => {
   return !isNumberOnlyTitle(normalized)
 }
 
+const TRAILING_PAGE_NUMBER_RE = /(?:[\t\s]*\t[\t\s]*\d+|[\s\t]*[·.．…_—–-]{2,}[\s\t]*\d+|\s{2,}\d+|(?<!附录|附件|表|图|标段|分包|阶段|包|卷|册|Part|Volume|Appendix)\s+\d+)$/
+
+// 清除标题末尾内嵌的页码或制表符噪声（如 "一、 投标函\t1"、"九、 本项目相关其他内容 1806"、"七、 服务方案······134"）
+export const stripTrailingPageNumber = (title) => {
+  if (title === null || title === undefined) return ''
+  return String(title).replace(TRAILING_PAGE_NUMBER_RE, '').trim()
+}
+
 const SEQUENCE_RE = /^(?:(?:\d+(?:\.\d+)+|\d+)[、.．）)\s]\s*|[一二三四五六七八九十]+[、.．]\s*|[①-⑩]\s*|[（(]\d+[）)]\s*|[（(][一二三四五六七八九十]+[)）]\s*|[a-zA-Z][、.．）)]\s*|[◆■●·•]\s*)/
 
 export const splitInlineFormats = (text) => {
@@ -228,18 +236,18 @@ export const preprocessPlainText = (text) => {
 }
 
 // 来源路径各段及标题校验：整条路径各段均为合法标题段落（不含正文句子，非纯编号无文字）时完整展示路径。
-// 若路径含正文句子伪标题或缺失，则退回至合法章节标题展示。
+// 若路径含正文句子伪标题或缺失，则退回至合法章节标题展示。展示前统一清洗末尾页码噪声。
 const pathSegments = (path) => String(path).split('>').map((part) => part.trim()).filter(Boolean)
 
 export const extractSourceLocationText = (caseData) => {
   if (!caseData) return ''
-  // 1. 若整条路径的各级均为合法标题段落（不含正文句子，非纯编号无文字），完整展示路径
+  // 1. 若整条路径的各级均为合法标题段落（不含正文句子，非纯编号无文字），完整展示路径（清洗内嵌页码噪声）
   const path = caseData.sourceSectionPath?.toString?.().trim?.() || ''
-  const segments = path ? pathSegments(path) : []
-  if (segments.length > 0 && segments.every(isValidSectionTitle)) return path
+  const segments = path ? pathSegments(path).map(stripTrailingPageNumber).filter(Boolean) : []
+  if (segments.length > 0 && segments.every(isValidSectionTitle)) return segments.join(' > ')
 
-  // 2. 若路径被存量正文伪标题污染或缺失，回退到合法章节标题
-  const title = caseData.sourceSectionTitle?.toString?.().trim?.() || ''
+  // 2. 若路径被存量正文伪标题污染或缺失，回退到合法章节标题（清洗内嵌页码噪声）
+  const title = stripTrailingPageNumber(caseData.sourceSectionTitle?.toString?.().trim?.() || '')
   if (isValidSectionTitle(title)) return title
 
   return ''

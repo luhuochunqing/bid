@@ -7481,3 +7481,22 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - `JwtUtilTest` 增加 30 线程并发解析单测，验证高并发下 0 异常；
   - `RateLimitFilterTest` 增加针对抛出 `NoSuchElementException` 时的优雅降级验证，断言 HTTP 200 与 IP fallback；
   - `ArchitectureTest`（32 门禁）与全量目标单测通过。
+
+---
+
+## 450. 标书导出目录内嵌页码噪声清洗与存量案例回填覆盖缺口（!2859 遗留跟进，2026-10-24）
+
+- **现场证据**：
+  1. 案例 1254 来源路径展示为「一、 投标函 1 > 九、 … 1806 > … 2003」，路径段内嵌 `\t1`、`\t1806`、`\t2003`，在 UI 渲染为带页码空格，可读性严重受损；
+  2. `knowledge_case` 表共 357 条，其中 6 条（ID 1256-1261）`source_section_title` 为 NULL；案例 1261（售后服务方案）因此只能显示「暂无来源标题」，但其实其应答文本里已有「（五） 售后服务方案\t1705」与「1. 售前咨询\t1705」小标题。
+- **致错机制**：
+  1. 导出目录页码混入：Word/PDF 转换生成的 Markdown 标题或目录行常包含右对齐制表符或导引点后紧跟页码（如 `一、 投标函\t1`）。`MarkdownHeadingParser.cleanTitle` 原先仅剥离 Markdown `#` 与加粗符号，未清洗尾部页码，导致章节层级树与祖先路径被内嵌页码污染；
+  2. 存量案例回填遗漏：项目 1381（`2033厦门ABB招投标`）上传标书为 `张家口银行——投标6.16.docx`，案例 1256-1261 正文为由 `---` 分隔的多片段拼接文本，导致严格原文定位（`MarkdownSourceSectionIndex.locate`）未命中；而 `backfill-case-provenance.py` 大纲映射未包含 `2033厦门ABB`，且未覆盖带空格评分项（如`售后服务方 案`），导致这 6 条案例未被回填。
+- **修复与边界**：
+  1. 前后端同步新增 `stripTrailingPageNumber`：清洗 `\t\d+`、`\s{2,}\d+`、`······\d+` 以及单空格后接数字页码，严格保护合法实体编号标题（`附录 1`、`附件 2`、`表 3`、`图 4`、`标段 1`、`分包 2`、`阶段 1`、`包 1`）；
+  2. `MarkdownHeadingParser` 解析标题时调用页码清洗，从源头确保层级树与路径无页码；前端 `caseDetailFormatter.extractSourceLocationText` 展示层对路径各段与回退标题做页码清洗兜底；
+  3. 新增 Flyway 迁移 `V1224` 与 `U1224`，清洗 1254/1255 页码并回填 1256-1261 来源字段与文档名；更新 `scripts/backfill-case-provenance.py` 增强项目名/文件名模糊匹配与去空格评分项映射，回填率达 100%（357/357）。
+- **验证纪律**：
+  - 前端 Vitest `caseDetailFormatter.spec.js`、`CaseDetailDialog.spec.js` 共 98 例全部通过；
+  - 后端 JUnit `ChapterTitleContractTest`、`MarkdownSourceSectionIndexTest`、`CaseProvenanceBackfillAppServiceTest`、`FlywayRollbackScriptCoverageTest` 等全部通过；
+  - 测试数据库 357 条全量回填，`count(source_section_title) == 357`，制表符内嵌页码 0 残留。

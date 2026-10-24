@@ -23,7 +23,7 @@
 | `infrastructure/CaseProvenanceBackfillAdapter.java` | Adapter | 候选映射与按项目独立事务批量条件更新持久化，非ACTIVE或缺失案例拒绝整批更新 |
 | `application/service/CaseProvenanceBackfillAppService.java` | AppService | 存量案例来源章节重算（幂等；判据为「现有来源标题不是合法章节标题」；定位成功写回真实章节，失败清空） |
 | `application/MarkdownHeadingParser.java` | Domain Util | Markdown 标题解析与章节扫描（构建层级树与祖先路径） |
-| `application/MarkdownTitleRules.java` | Domain Util | 标题分类契约（`isSentenceLikeTitle` 句子门 + `isNumberOnlyTitle` 纯编号伪标题门 + `isChapterTitle` 章节号契约 + `isValidSectionTitle` 合法章节小标题契约，前后端同规则，由共享测试双向锚定） |
+| `application/MarkdownTitleRules.java` | Domain Util | 标题分类契约与页码清洗（`isSentenceLikeTitle` 句子门 + `isNumberOnlyTitle` 纯编号伪标题门 + `isChapterTitle` 章节号契约 + `isValidSectionTitle` 合法章节小标题契约 + `stripTrailingPageNumber` 末尾页码与制表符噪声清洗，前后端同规则，由共享测试双向锚定） |
 | `application/MarkdownSourceSectionIndex.java` | Domain Util | Markdown 来源章节索引与定位器（唯一命中且命中章节为合法章节小标题才写来源字段，其余一律返回 null） |
 | `repository/` | 子目录 | 案例记录数据访问边界 |
 | `repository/CaseReferenceRecordRepository.java` | Repository | 案例引用记录访问 |

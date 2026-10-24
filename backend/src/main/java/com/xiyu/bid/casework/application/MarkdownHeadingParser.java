@@ -234,6 +234,7 @@ public final class MarkdownHeadingParser {
         if (cleaned.startsWith("**") && cleaned.endsWith("**") && cleaned.length() > 4) {
             cleaned = cleaned.substring(2, cleaned.length() - 2).trim();
         }
+        cleaned = MarkdownTitleRules.stripTrailingPageNumber(cleaned);
         return cleaned;
     }
 }

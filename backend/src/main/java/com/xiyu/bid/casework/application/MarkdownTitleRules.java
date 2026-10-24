@@ -1,6 +1,6 @@
-// Input: 候选标题字符串（可能为 null / 空白 / 正文句 / 无编号小标题 / 只有编号没有标题文字 / 字母列表标记 A. B、）
-// Output: 标题分类判定的布尔值（句子型伪标题 / 已验证章节标题 / 合法章节小标题）
-// Pos: Backend/casework 模块应用层纯函数——标题分类契约的唯一判据来源
+// Input: 候选标题字符串（可能为 null / 空白 / 正文句 / 无编号小标题 / 只有编号没有标题文字 / 字母列表标记 A. B、/ 内嵌页码）
+// Output: 标题分类判定的布尔值与末尾页码噪声清洗字符串（句子型伪标题 / 已验证章节标题 / 合法章节小标题 / 页码清洗）
+// Pos: Backend/casework 模块应用层纯函数——标题分类契约与页码清洗的唯一判据来源
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 package com.xiyu.bid.casework.application;
@@ -21,11 +21,13 @@ import java.util.regex.Pattern;
  *       <b>且编号之后还有标题文字</b>。用于精准识别带编号的章节。</li>
  *   <li>{@link #isValidSectionTitle(String)} 合法章节小标题：通过句子门且非纯编号的标题，
  *       包括"技术团队人员安排"、"项目实施"等标书真实小节标题与"A. 附录清单"，均可作为合法来源展示。</li>
+ *   <li>{@link #stripTrailingPageNumber(String)} 页码清洗：清除导出目录内嵌的制表符/空格及页码。</li>
  * </ol>
  *
  * <p>规则分别与前端 {@code caseDetailFormatter.isSentenceLikeTitle} /
  * {@code caseDetailFormatter.isVerifiedChapterTitle} /
- * {@code caseDetailFormatter.isValidSectionTitle} 同规则，由共享夹具
+ * {@code caseDetailFormatter.isValidSectionTitle} /
+ * {@code caseDetailFormatter.stripTrailingPageNumber} 同规则，由共享夹具
  * {@code casework/sentence-like-title-cases.json} 与
  * {@code casework/chapter-title-contract-cases.json} 双向锚定。
  * <b>改规则必须同时改两侧 + 夹具</b>（两侧测试共读同一文件，单侧漂移即失败）。</p>
@@ -65,6 +67,16 @@ public final class MarkdownTitleRules {
                     + "|[a-zA-Z])$");
 
     /**
+     * 末尾页码与噪声清洗模式（与前端 TRAILING_PAGE_NUMBER_RE 逐字一致）：
+     * 1. 制表符紧随页码（如 \t1、\t1806、\t2003 等 Word/PDF 导出目录制表符紧随页码）
+     * 2. 导引点/破折号/下划线紧随的页码（如 ······1、……1806、......2003）
+     * 3. 连续多个空格紧随的页码（如 1806）
+     * 4. 单空格紧随的页码，但排除合法实体编号（保护"附录 1"、"附件 2"、"表 3"、"标段 1"等）
+     */
+    private static final Pattern TRAILING_PAGE_NUMBER_PATTERN = Pattern.compile(
+            "(?:[\\t\\s]*\\t[\\t\\s]*\\d+|[\\s\\t]*[·.．…_—\\-]{2,}[\\s\\t]*\\d+|\\s{2,}\\d+|(?<!附录)(?<!附件)(?<!表)(?<!图)(?<!标段)(?<!分包)(?<!阶段)(?<!包)(?<!卷)(?<!册)(?<!Part)(?<!Volume)(?<!Appendix)\\s+\\d+)$");
+
+    /**
      * 编号两侧的空白与分隔符（与前端 {@code TITLE_SEPARATOR_CLASS} 逐字一致）：用于剥掉首尾噪声，
      * 以及判断"编号之后是否还有标题文字"。
      */
@@ -79,6 +91,16 @@ public final class MarkdownTitleRules {
     private static final int MAX_COMMA_TITLE_LENGTH = 30;
 
     private MarkdownTitleRules() {}
+
+    /**
+     * 清除标题末尾内嵌的页码或制表符噪声（纯函数）。
+     */
+    public static String stripTrailingPageNumber(String title) {
+        if (title == null) {
+            return null;
+        }
+        return TRAILING_PAGE_NUMBER_PATTERN.matcher(title).replaceFirst("").trim();
+    }
 
     /**
      * 句子型伪标题识别：正文句子不可作为章节标题，必须拒绝。

@@ -9,6 +9,7 @@ import {
   isVerifiedChapterTitle,
   isNumberOnlyTitle,
   isValidSectionTitle,
+  stripTrailingPageNumber,
   insertBrBetweenNonListLines,
   processPlainTextBlock,
   preprocessPlainText,
@@ -458,6 +459,62 @@ describe('caseDetailFormatter 单元测试', () => {
     it('没有任何可验证来源时返回空字符串', () => {
       expect(extractSourceLocationText({})).toBe('')
       expect(extractSourceLocationText(null)).toBe('')
+    })
+
+    it('案例 1254：来源路径中内嵌页码和制表符被有效清洗，展示干净的章节路径', () => {
+      const caseData = {
+        sourceSectionTitle: '7. 响应性评审标准承诺函\t2003',
+        sourceSectionPath: '一、 投标函\t1 > 九、 本项目相关其他内容\t1806 > （一） 近年完成的项目情况表\t1806 > 1. 中国海洋石油集团有限公司\t1808 > 2. 国家电网有限公司\t1820 > 7. 响应性评审标准承诺函\t2003',
+        responseText: '表格正文',
+        scoringPointTitle: '投标报价'
+      }
+      expect(extractSourceLocationText(caseData)).toBe(
+        '一、 投标函 > 九、 本项目相关其他内容 > （一） 近年完成的项目情况表 > 1. 中国海洋石油集团有限公司 > 2. 国家电网有限公司 > 7. 响应性评审标准承诺函'
+      )
+    })
+
+    it('案例 1261：售后服务方案回填后正常展示来源路径与小标题', () => {
+      const caseData = {
+        sourceSectionTitle: '1. 售前咨询',
+        sourceSectionPath: '七、 服务方案 > （五） 售后服务方案 > 1. 售前咨询',
+        responseText: '（五） 售后服务方案\t1705\n\n---\n\n1. 售前咨询\t1705',
+        scoringPointTitle: '售后服务方 案'
+      }
+      expect(extractSourceLocationText(caseData)).toBe(
+        '七、 服务方案 > （五） 售后服务方案 > 1. 售前咨询'
+      )
+    })
+  })
+
+  describe('stripTrailingPageNumber', () => {
+    it('清除包含制表符或多空格的末尾页码', () => {
+      expect(stripTrailingPageNumber('一、 投标函\t1')).toBe('一、 投标函')
+      expect(stripTrailingPageNumber('一、 投标函 1')).toBe('一、 投标函')
+      expect(stripTrailingPageNumber('九、 本项目相关其他内容\t1806')).toBe('九、 本项目相关其他内容')
+      expect(stripTrailingPageNumber('九、 本项目相关其他内容 1806')).toBe('九、 本项目相关其他内容')
+      expect(stripTrailingPageNumber('7. 响应性评审标准承诺函\t2003')).toBe('7. 响应性评审标准承诺函')
+      expect(stripTrailingPageNumber('7. 响应性评审标准承诺函 2003')).toBe('7. 响应性评审标准承诺函')
+      expect(stripTrailingPageNumber('技术团队人员安排......12')).toBe('技术团队人员安排')
+      expect(stripTrailingPageNumber('七、 服务方案······134')).toBe('七、 服务方案')
+    })
+
+    it('保护合法实体编号标题不被误裁', () => {
+      expect(stripTrailingPageNumber('附录 1')).toBe('附录 1')
+      expect(stripTrailingPageNumber('附件 2')).toBe('附件 2')
+      expect(stripTrailingPageNumber('表 3')).toBe('表 3')
+      expect(stripTrailingPageNumber('图 4')).toBe('图 4')
+      expect(stripTrailingPageNumber('标段 1')).toBe('标段 1')
+      expect(stripTrailingPageNumber('分包 2')).toBe('分包 2')
+      expect(stripTrailingPageNumber('阶段 1')).toBe('阶段 1')
+      expect(stripTrailingPageNumber('包 1')).toBe('包 1')
+      expect(stripTrailingPageNumber('技术团队人员安排')).toBe('技术团队人员安排')
+      expect(stripTrailingPageNumber('13.2.1. 对接成功案例清单')).toBe('13.2.1. 对接成功案例清单')
+    })
+
+    it('空值与边界处理', () => {
+      expect(stripTrailingPageNumber(null)).toBe('')
+      expect(stripTrailingPageNumber(undefined)).toBe('')
+      expect(stripTrailingPageNumber('')).toBe('')
     })
   })
 

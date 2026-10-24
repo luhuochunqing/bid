@@ -414,4 +414,36 @@ class MarkdownSourceSectionIndexTest {
         assertThat(MarkdownTitleRules.isSentenceLikeTitle("第一章 项目背景")).isFalse();
         assertThat(MarkdownTitleRules.isSentenceLikeTitle("1.2 建设目标，思路与路径")).isFalse();
     }
+
+    @Test
+    @DisplayName("解析带制表符与页码的Markdown标题时自动清洗页码与噪声")
+    void testMarkdownHeadingWithTrailingPageNumber() {
+        String md = """
+                # 一、 投标函\t1
+                正文内容1
+                ## 九、 本项目相关其他内容\t1806
+                正文内容2
+                ### 7. 响应性评审标准承诺函\t2003
+                响应性评审承诺正文
+                """;
+        MarkdownSourceSectionIndex index = MarkdownSourceSectionIndex.parse(md);
+        assertThat(index.getSections()).hasSize(3);
+
+        MarkdownSourceSectionIndex.Section s1 = index.getSections().get(0);
+        assertThat(s1.title()).isEqualTo("一、 投标函");
+        assertThat(s1.path()).isEqualTo("一、 投标函");
+
+        MarkdownSourceSectionIndex.Section s2 = index.getSections().get(1);
+        assertThat(s2.title()).isEqualTo("九、 本项目相关其他内容");
+        assertThat(s2.path()).isEqualTo("一、 投标函 > 九、 本项目相关其他内容");
+
+        MarkdownSourceSectionIndex.Section s3 = index.getSections().get(2);
+        assertThat(s3.title()).isEqualTo("7. 响应性评审标准承诺函");
+        assertThat(s3.path()).isEqualTo("一、 投标函 > 九、 本项目相关其他内容 > 7. 响应性评审标准承诺函");
+
+        MarkdownSourceSectionIndex.Provenance prov = index.locate("响应性评审承诺正文");
+        assertThat(prov).isNotNull();
+        assertThat(prov.title()).isEqualTo("7. 响应性评审标准承诺函");
+        assertThat(prov.path()).isEqualTo("一、 投标函 > 九、 本项目相关其他内容 > 7. 响应性评审标准承诺函");
+    }
 }
