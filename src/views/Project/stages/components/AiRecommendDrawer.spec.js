@@ -334,5 +334,44 @@ describe('AiRecommendDrawer.vue', () => {
     expect(wrapper.text()).toContain('资质证书类评分项提醒')
     expect(wrapper.text()).toContain('该评分项为资质证书类要求，技术方案案例不予推荐')
   })
+
+  it('keeps valid recommendations below 50 and displays the server total', async () => {
+    caseRecommendationApi.getScoreItems.mockResolvedValue([
+      { id: 401, code: 'BIZ_FIN', dim: '经营及财务状况', detail: '根据经营及财务状况综合评分' },
+    ])
+    caseRecommendationApi.recommendCases.mockResolvedValue({
+      total: 165,
+      items: [
+        { ...recommendItem, id: 4011, scoringPointTitle: '经营能力案例', matchScore: 32 },
+        { ...recommendItem, id: 4012, scoringPointTitle: '财务状况案例', matchScore: 37 },
+      ],
+    })
+
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(wrapper.findAll('.recommend-grid .case-card')).toHaveLength(2)
+    expect(wrapper.text()).toContain('32%')
+    expect(wrapper.text()).toContain('37%')
+    expect(wrapper.text()).toContain('165 个结果')
+  })
+
+  it('does not treat generic certification wording in a quality plan as a certificate item', async () => {
+    caseRecommendationApi.getScoreItems.mockResolvedValue([
+      {
+        id: 402,
+        code: 'TECH_QUAL',
+        dim: '质量管控',
+        detail: '要求提供产品质量管控方案，涉及强制认证产品质量管理',
+      },
+    ])
+    caseRecommendationApi.recommendCases.mockResolvedValue({ total: 81, items: [recommendItem] })
+
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(wrapper.find('.qualification-notice').exists()).toBe(false)
+    expect(wrapper.find('.recommend-grid .case-card').exists()).toBe(true)
+  })
 })
 
