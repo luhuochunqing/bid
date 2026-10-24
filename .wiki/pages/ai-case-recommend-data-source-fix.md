@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [案例推荐, score_item, spec041, 裸响应, 二次解包, caseRecommendationApi]
 created: 2026-08-21
-updated: 2026-10-23
-health_checked: 2026-10-23
+updated: 2026-10-24
+health_checked: 2026-10-24
 sources:
   - src/api/modules/caseRecommendation.js
   - src/views/Project/stages/components/AiRecommendDrawer.vue
@@ -276,4 +276,24 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 5. **存量 OTHER 标签案例穿透激活**：
    - 修复 `CaseSubTopicPolicy.calculateSubTopicScore` 中仅在 `!hasText(candidateSubTopic)` 时才进行文本补偿的漏洞；
    - 允许 `candidateSubTopic` 为 `"OTHER"` 的存量案例穿透检查文本和标题，只要命中应急方案/措施等关键词即可获得 15 分文本契合补偿分，彻底激活存量数据库中被打上 OTHER 的应急方案切片。
+
+---
+
+## 前端展示门禁与资质提示二次误判（测试环境复发，2026-10-24）
+
+### 1. 复发证据
+
+- 项目 1388「BIZ_FIN 经营及财务状况」：`POST /api/projects/1388/cases/recommend` 返回 `total=165`，分数集中在 32–37；前端额外执行 `score >= 50` 后显示 0 条。
+- 项目 1388「TECH_QUAL 质量管控」：详细条款中的“强制认证产品质量管理”仅因包含普通“认证”，触发资质证书提示；接口实际返回 81 条案例，形成提示与结果自相矛盾。
+
+### 2. 根因与契约
+
+- 后端 `ScoreItemCaseRecommendAppService` 已用 `matchScore > 0` 完成推荐准入，前端不得叠加未写入 API 契约的分数门槛。
+- 匹配度评级允许 `<60%` 为“一般”，因此低分不等于无效结果；抽屉必须展示后端返回项，并使用响应 `total` 表示总命中数。
+- 资质提示只识别明确证书对象：标题中的资质、资格、证书、体系认证、管理体系、ISO、许可、执照，或正文中的资质证书、资格证书、体系认证、ISO、许可证、执照、证书复印件、证书扫描件。普通“认证”不是充分条件。
+
+### 3. 自动化门禁
+
+- `AiRecommendDrawer.spec.js` 固化两个复发场景：32/37 分案例仍展示且显示服务端 `total=165`；“质量管控 + 强制认证产品质量管理”不出现资质提示。
+- 既有 ISO 管理体系证书用例继续验证真正证书项仍显示提示。
 
