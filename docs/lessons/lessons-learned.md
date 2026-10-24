@@ -7458,3 +7458,10 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **致错机制**：日期只识别紧邻的 `2026年`；CA 遇到负向词立即返回；文本未识别被当作附件不存在；组合资质以整句查询并在首次命中后停止。
 - **修复与边界**：完整日期允许空白；CA 汇总正反证据并将网上开标、远程解密作为电子标强证据；保证金复用 PDF 页面图像和真实多模态通道提取付款人、收款人、金额、日期、流水号，视觉不可用或有效要素不足时转人工；组合 ISO 拆为原子标准并过滤过期证书。评分分类器已正确，生产错误来自旧激活版本，代码提交不自动重算或激活。
 - **验证纪律**：文本关键词不能单独证明保证金凭证存在；视觉 PASS 至少需要三项真实交易要素且包含金额或流水号。冲突证据、人工状态、三项独立关联、过期过滤及候选不覆盖激活版本均需回归测试。
+
+## 448. Flyway 建表列类型与 JPA 实体映射不一致导致后端启动失败（2026-10-24）
+
+- **现场证据**：打包 release 时 `FlywayMysqlContainerTest` 5 个用例全部 `Failed to load ApplicationContext`，根异常为 `Schema-validation: wrong column type encountered in column [task_id] in table [case_precipitation_task]; found [char], but expecting [varchar(36)]`。
+- **致错机制**：V1222 建表用 `task_id CHAR(36)`，实体 `CasePrecipitationTask` 用 `@Column(length = 36)` → Hibernate 期望 `varchar(36)`；`ddl-auto=validate` 下建表完成后立即校验失败，服务 crash-loop。仓库既有 UUID 字段（V1153/V1187）均为 `VARCHAR(36)`，V1222 为唯一异类。
+- **修复与边界**：新增 V1223 前向迁移 `ALTER TABLE case_precipitation_task MODIFY COLUMN task_id VARCHAR(36) NOT NULL` + U1223 回滚；不改已发布的 V1222（Flyway checksum 不可变），不改实体映射。前提是确认测试/生产 DB 尚未应用 V1222（当时 DB max=V1220）。
+- **验证纪律**：`mvn -Dtest=FlywayMysqlContainerTest test` 5/5 通过；`mvn -Dtest=FlywayRollbackScriptCoverageTest test` 通过。结论：新增 MySQL 迁移必须同步核对 JPA 实体映射类型，容器测试是部署前唯一能捕获该缺陷的门禁。
