@@ -63,11 +63,11 @@ Schema-validation: wrong column type encountered in column [task_id] in table
   - 回滚脚本 `U1221` / `U1222` / `U1223` 齐全
 - **后端**：compliance / casework / scoreparse / tender-reminder / initiation / closure 六个模块的修复与加固
 - **前端（16 文件）**：
-  - 知识库案例详情：`views/Knowledge/views/components/caseDetailFormatter.js`、`CaseDetailDialog` 单元测试、`api/modules/knowledge.js`
+  - 知识库案例详情：`views/Knowledge/views/components/caseDetailFormatter.js` 与 `.spec.js`、`CaseDetailDialog.spec.js`、`api/modules/knowledge.js`、`views/Knowledge/README.md`
   - 案例沉淀：`composables/useCasePrecipitationTask.js` 及其单测
   - 阶段页：`Project/stages/InitiationStage.vue`、`ClosureStage.vue`、`ResultConfirmStage.vue`、`components/AiRecommendDrawer.vue` 及对应 `.spec.js`、`useInitiationStageActions.js`
 - **Sidecar 源码**：**零变更**（指纹 `24c0104f…`，schemaVersion 2.2，与已部署版本一致）
-- **文档 / Wiki / 规格（27 文件）**：`docs/lessons/lessons-learned.md`（第 448 条）、`.wiki/pages/` 10 个页面（其中 3 个新增）+ `_index.md` + `log.md`、`specs/075-077` 14 个文件
+- **文档 / Wiki / 规格（27 文件）**：`docs/lessons/lessons-learned.md`（第 448 条）+ 第 231 次部署报告；`.wiki/pages/` 9 个页面 + `_index.md` + `log.md`（共 11 文件，其中页面 3 个新增）；`specs/075-077` 14 个文件
 
 ## Flyway 预检结果
 
