@@ -62,9 +62,12 @@ Schema-validation: wrong column type encountered in column [task_id] in table
   - `V1223__fix_case_precipitation_task_id_type.sql`（task_id 列类型纠正，本次部署阻断修复）
   - 回滚脚本 `U1221` / `U1222` / `U1223` 齐全
 - **后端**：compliance / casework / scoreparse / tender-reminder / initiation / closure 六个模块的修复与加固
-- **前端**：合规核查、案例推荐、标书片段摘要相关页面与单元测试
+- **前端（16 文件）**：
+  - 知识库案例详情：`views/Knowledge/views/components/caseDetailFormatter.js`、`CaseDetailDialog` 单元测试、`api/modules/knowledge.js`
+  - 案例沉淀：`composables/useCasePrecipitationTask.js` 及其单测
+  - 阶段页：`Project/stages/InitiationStage.vue`、`ClosureStage.vue`、`ResultConfirmStage.vue`、`components/AiRecommendDrawer.vue` 及对应 `.spec.js`、`useInitiationStageActions.js`
 - **Sidecar 源码**：**零变更**（指纹 `24c0104f…`，schemaVersion 2.2，与已部署版本一致）
-- **文档 / Wiki**：`.wiki/log.md`、`docs/lessons/lessons-learned.md`（第 448 条）
+- **文档 / Wiki / 规格（27 文件）**：`docs/lessons/lessons-learned.md`（第 448 条）、`.wiki/pages/` 10 个页面（其中 3 个新增）+ `_index.md` + `log.md`、`specs/075-077` 14 个文件
 
 ## Flyway 预检结果
 
@@ -83,7 +86,7 @@ case_precipitation_task.task_id 实际类型：varchar(36)（UNI 索引保留）
 3. `flyway-repair-runner.sh validate` → 280 迁移校验通过
 4. 激活前端新产物 `/srv/www/xiyu-bid`（入口 `assets/index-BCurg_el.js`）
 5. 原子替换后端 jar，写入 `/opt/xiyu-bid/deployed-release.json`
-6. 启动服务，健康检查连续 3/3 通过（总尝试 80 次）
+6. 启动服务，健康检查连续 3/3 通过（`remote-deploy.sh` 输出累计尝试计数 80，脚本原始输出）
 7. 前端版本一致性校验通过
 8. 回补上一版本 assets（`cp -rn`，当前 assets 277 个）
 
