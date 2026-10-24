@@ -216,7 +216,7 @@ class CaseProvenanceBackfillAppServiceTest {
     }
 
     @Test
-    void recompute_doesNotWriteBackUnnumberedSectionTitle() {
+    void recompute_writesBackValidUnnumberedSectionTitle() {
         KnowledgeCase target = caseOf(11L, 1100L, "1启明信息技术股份有限公司API大型企业", null);
         when(caseRepository.findActiveCandidates()).thenReturn(List.of(snapshot(target)));
         when(bidDocumentLoader.loadBidDocument("项目-1100", 1100L)).thenReturn(
@@ -224,14 +224,14 @@ class CaseProvenanceBackfillAppServiceTest {
 
         CaseProvenanceBackfillAppService.BackfillResult result = service.recomputeAll();
 
-        // 标书可用且解析出了章节，故不是"标书不可用"的整批跳过；但命中章节无章节号 -> 定位失败
+        // 标书可用且命中合法小标题（项目实施） -> 成功写回来源
         assertThat(result.projectsFailed()).isZero();
-        assertThat(result.casesUpdated()).isZero();
+        assertThat(result.casesUpdated()).isEqualTo(1);
         assertThat(result.casesCleared()).isZero();
-        assertThat(result.casesUnchanged()).isEqualTo(1);
-        assertThat(output(target).sourceSectionTitle()).isNull();
-        assertThat(output(target).sourceSectionPath()).isNull();
-        verify(caseRepository, never()).saveAll(anyList());
+        assertThat(result.casesUnchanged()).isZero();
+        assertThat(output(target).sourceSectionTitle()).isEqualTo("项目实施");
+        assertThat(output(target).sourceSectionPath()).isEqualTo("13.2. 对接平台对接成功案例及证明材料 > 项目实施");
+        assertThat(writes).hasSize(1);
     }
 
     @Test
@@ -272,8 +272,8 @@ class CaseProvenanceBackfillAppServiceTest {
     }
 
     @Test
-    void recompute_clearsLegacyUnnumberedTitle() {
-        KnowledgeCase target = caseOf(12L, 1200L, "完全不在标书中的文本", "项目实施");
+    void recompute_clearsLegacySentenceLikeTitle() {
+        KnowledgeCase target = caseOf(12L, 1200L, "完全不在标书中的文本", "因投标文件篇幅有限，如下仅展示部分对接案例。");
         when(caseRepository.findActiveCandidates()).thenReturn(List.of(snapshot(target)));
         when(bidDocumentLoader.loadBidDocument("项目-1200", 1200L))
                 .thenReturn(new BidDocumentLoader.BidDocument(MARKDOWN, "标书.pdf", null, true));

@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [案例库, knowledge_case, 源项目, 标书原文, blob下载, 枚举混用, 章节溯源, 伪标题, 打平文本, 章节号契约]
 created: 2026-08-31
-updated: 2026-10-09
-health_checked: 2026-10-09
+updated: 2026-10-24
+health_checked: 2026-10-24
 sources:
   - backend/src/main/java/com/xiyu/bid/casework/application/port/CaseProvenanceBackfillPort.java
   - backend/src/main/java/com/xiyu/bid/casework/infrastructure/CaseProvenanceBackfillAdapter.java
@@ -112,35 +112,22 @@ backlinks:
   降门槛当天即有反例（`请参照第1章…并结合第2章…` 的 55 字正文行被切成两段），已补回归用例。
 - 若后续把打平还原上移到转换层，可撤掉该启发式。
 
-### 契约 3：「原文所在标题」只承认"章节号 + 标题文字"的**已验证章节**
-- 根因：句子门（契约 1）只拦得住正文句，拦不住 PDF 转换器输出的**无编号加粗小标题**
-  （`## 项目实施`）。这类标题是真实排版层级（层级树必须继续接受它，否则 `source_section_path`
-  会整体错位），但没有序号可核对，不足以自证是标书章节；存量库里它同样会冒充「原文所在标题」。
-- 规则（`MarkdownTitleRules.isChapterTitle`）：先过句子门，再剥掉首尾空白/分隔符噪声，要求串首是章节号
-  （`第X章/节`、`1.2.3`、`1.`、`一、`、`（1）`、`①`），**且编号之后还有标题文字**——
-  「章节号 + 标题文字」缺了后半段的串（`1.`、`第一章`、`（1）`、`①`、`A.`）同样不是章节，
-  它指不到具体内容。**字母列表标记也不算章节号**（`A. 附录清单`、`B、服务方案`、`a. 投标函`）：
-  字母枚举与正文里的字母列表从字面上无从区分，不足以自证是数值章节序号。前端同一契约
-  `caseDetailFormatter.isVerifiedChapterTitle`，由共享夹具
-  `backend/src/test/resources/casework/chapter-title-contract-cases.json`
-  （31 例，含"只有编号没有标题文字"9 例、字母列表标记 4 例、全角空格 U+3000 边界 2 例）双向锚定。
-  **改规则必须同时改两侧 + 夹具。**
-- 展示口径的粒度必须与拒绝粒度一致：`extractSourceLocationText` 对 `source_section_path`
-  **逐段校验**，只有整条路径都是已验证章节才展示完整路径；任一祖先是无编号排版层时，
-  退回命中章节自身的标题（后端 `locate` 只把已验证章节写进 `source_section_title`）。
-  这样「原文所在标题」字段内不会出现任何无章节号的文本。
-- 两侧字符类必须逐字一致：Java 的 `trim()` 不剥全角空格（U+3000）、`\s` 也不含它，JS 的
-  `trim()`/`\s` 都含——故两侧都显式列出 U+3000 与 U+00A0，并由夹具的边界用例钉住，
-  否则会出现"后端拒绝、前端展示"式的判据漂移。
-- 处置口径：**无已验证来源时显示「暂无来源标题」**（`CaseDetailDialog.vue` 的
-  `.source-location-fallback` 分支）。评分项标题不再冒充「原文所在标题」——它在
-  「评分项标题」字段独立展示；`responseText` 启发式（章节列表 / 详见引用 / 书名号方案名）
-  已整段删除，不再从正文反推来源。
-- 取舍（**已知缺口**，仅限"命中章节自身无编号"这一种）：命中的那个小节本身无编号时，
-  `locate` 直接返回 null（不回退到有编号的祖先章节），即使祖先是真实章节
-  （`13.2. 对接平台对接成功案例及证明材料 > 项目实施` 的片段定位为 null，前端显示「暂无来源标题」）。
-  选择"宁可缺来源，不可给错来源"，与句子门同一价值取向。
-  注意这与上一条不同：上一条是"命中章节有编号、祖先没有"，来源字段照写，只是展示时退回章节自身标题。
+### 契约 3：「原文所在标题」合法章节小标题契约与完整路径展示（2026-10-24 升级收口）
+- 根因：句子门（契约 1）拦住了正文句子，但此前过激地要求每一级都必须有数字章节号（`isChapterTitle`），
+  导致真实标书中的小节标题（如 `技术团队人员安排`、`项目实施`、`A. 附录清单`）以及包含这些小节的完整路径
+  （如 `六、 技术方案 > 3. 技术团队配置 > 技术团队人员安排`）被整条否决，大面积退回显示「暂无来源标题」。
+- 规则（`MarkdownTitleRules.isValidSectionTitle` / `caseDetailFormatter.isValidSectionTitle`）：
+  1. 必须过句子门（`isSentenceLikeTitle`，含句读、超长文本等一律拒绝）；
+  2. 剥掉首尾空白/分隔符后非空；
+  3. 排除纯编号无文字伪标题（`isNumberOnlyTitle`：`1.`、`第一章`、`（1）`、`①`、`A.` 这类只有编号没有文字的串指不到具体内容）；
+  4. 标书真实小标题（`技术团队人员安排`、`项目实施`、`A. 附录清单`）均放行。
+- 展示口径（`extractSourceLocationText`）：
+  - 若 `sourceSectionPath` 各级均为合法标题段落（`segments.every(isValidSectionTitle)`），**完整展示整条路径**；
+  - 若路径被存量正文伪标题污染，退回至 `sourceSectionTitle`；
+  - 仅当来源全空、为正文句子或纯编号无文字时，才显示「暂无来源标题」。
+- 后端索引定位（`MarkdownSourceSectionIndex.locate`）：
+  - 命中合法章节小标题正常返回 `Provenance`，彻底封闭了此前“命中章节自身无编号时定位为 null”的已知缺口。
+- 两侧字符类逐字一致：全角空格（U+3000）与不换行空格（U+00A0）双向对齐，测试由单测夹具与单元测试钉住。
 
 ### 存量数据回填（本次未对任何库执行）
 - `CaseProvenanceBackfillAppService.recomputeAll`：只取 `status=ACTIVE` 且来源标题**不是已验证章节**

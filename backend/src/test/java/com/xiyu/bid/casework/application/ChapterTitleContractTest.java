@@ -103,6 +103,47 @@ class ChapterTitleContractTest {
                 .contains("第一章　");
     }
 
+    @Test
+    @DisplayName("isNumberOnlyTitle 识别纯编号伪标题")
+    void testNumberOnlyTitleRecognition() {
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("1.")).isTrue();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("3、")).isTrue();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("13.2.1.")).isTrue();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("第一章")).isTrue();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("第一节")).isTrue();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("一、")).isTrue();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("（1）")).isTrue();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("①")).isTrue();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("A.")).isTrue();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("第一章　")).isTrue();
+
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("技术团队人员安排")).isFalse();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("第一章 项目背景")).isFalse();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle("A. 附录清单")).isFalse();
+        assertThat(MarkdownTitleRules.isNumberOnlyTitle(null)).isFalse();
+    }
+
+    @Test
+    @DisplayName("isValidSectionTitle 放行合法小标题并拦截伪标题")
+    void testValidSectionTitle() {
+        assertThat(MarkdownTitleRules.isValidSectionTitle("技术团队人员安排")).isTrue();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("项目实施")).isTrue();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("第一章 项目背景")).isTrue();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("13.2.1. 对接成功案例清单")).isTrue();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("A. 附录清单")).isTrue();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("六、 技术方案")).isTrue();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("3. 技术团队配置")).isTrue();
+
+        assertThat(MarkdownTitleRules.isValidSectionTitle("因投标文件篇幅有限，如下仅展示自 2023 年 1 月 1 日至本次投标截止日部分西域成功对接案例188个以及部分系统对接。")).isFalse();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("双方需严格按期交付！")).isFalse();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("1.")).isFalse();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("第一章")).isFalse();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("（1）")).isFalse();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("A.")).isFalse();
+        assertThat(MarkdownTitleRules.isValidSectionTitle(null)).isFalse();
+        assertThat(MarkdownTitleRules.isValidSectionTitle("")).isFalse();
+    }
+
     private JsonNode readFixture() throws Exception {
         try (InputStream stream = getClass().getResourceAsStream(FIXTURE)) {
             assertThat(stream).as("契约夹具不在测试类路径上：%s", FIXTURE).isNotNull();
