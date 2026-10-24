@@ -7436,3 +7436,18 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **验证纪律**：
   - 后端单元测试 `MarkdownSourceSectionIndexTest`、`ChapterTitleContractTest`、`SentenceLikeTitleContractTest`、`CaseProvenanceBackfillAppServiceTest` 共 40 例全部通过；
   - 前端 Vitest `caseDetailFormatter.spec.js`、`CaseDetailDialog.spec.js` 共 93 例全部通过。
+
+## 446. 评分解析多级管道符维度被泛表头吞噬与财务/信用知识库分类缺失（2026-10-24）
+
+- **现场证据**：盘查生产 179 条评分项，74/99 条（75%）客观项显示“未识别到知识库匹配类别，待人工确认预计得分”。典型样本如项目 30（16 条客观项全军覆没）和项目 33、1119。
+- **致错机制**：
+  1. 多级表格维度吞噬（根因 1）：复杂 OCR 表格将一级大项（如`商务部分`、`技术服务部分`、`商务评分`）写入 `dim`，真实维度（`业绩`、`企业资质与体系认证`、`仓储保障能力`）落入 `detail` 首行的 Markdown 管道符分列。原代码为防止细节词污染只看 `dim`，导致泛表头无法识别真实业务类别，全部降级为 OTHER。
+  2. 知识库分类体系缺失（根因 4）：原有规则仅支持 BRAND/WAREHOUSE/PERSON/PROJECT/CERT，缺失财务指标（速动比率、营业收入、现金流量净额）与信用评价（纳税信用等级、不良记录），导致此类客观项全部被判为 OTHER。
+- **修复与边界**：
+  1. `KnowledgeCategoryPolicy` 泛表头管道符解构：仅当 `dim` 规范化后命中 `GENERIC_HEADERS`（`商务部分`、`技术服务部分`等）时，从 `detail` 提取管道符前的第一列有效词或首行语义参与规则匹配；普通非泛表头（如“供应商业绩”）绝不读 `detail`，彻底杜绝 detail 噪音污染；
+  2. 新增 `CATEGORY_FINANCIAL` 与 `CATEGORY_CREDIT` 类别，优先级置顶（FINANCIAL > CREDIT > BRAND > ...）；
+  3. `EstimatedScoreService` 引入保守守卫：无自动底表的 FINANCIAL 与 CREDIT 项明确标注“财务/信用类评分项目，系统无自动评估底表，待人工确认预计得分”，置空预计得分并标 PENDING，避免误判或假阳性。
+- **验证纪律**：
+  - `KnowledgeCategoryPolicyTest` 新增 10 组典型生产样本用例（项目 30/33/22/1119），覆盖管道符、前导管道符、软换行管道符与泛表头无管道符 OTHER 降级保护；
+  - `EstimatedScoreServiceTest` 新增 FINANCIAL 与 CREDIT 不触发 match 服务的守卫测试；
+  - `Project1371ColumnInvariantsTest` 与 `ArchitectureTest`（ArchUnit 30 条红线）全部通过。

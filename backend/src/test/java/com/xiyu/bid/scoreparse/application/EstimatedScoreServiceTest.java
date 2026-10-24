@@ -379,4 +379,44 @@ class EstimatedScoreServiceTest {
         assertThat(warehouse.getEstBasis()).contains("约束");
         assertThat(warehouse.getEstBasis()).doesNotContain("tier=FULL");
     }
+
+    @Test
+    void financialItem_staysPending_withoutCallingMatch() {
+        ScoreItem finance = item("财务状况",
+                "速动比率=速动资产/流动负债，近三年均大于1的得满分",
+                "5", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(finance));
+
+        service.estimateForProject(1L);
+
+        verify(certMatchService, never()).match(any());
+        verify(personMatchService, never()).match(any());
+        verify(projectMatchService, never()).match(any());
+        verify(warehouseMatchService, never()).match(any());
+        verify(brandMatchService, never()).match(any());
+        assertThat(finance.getEstScore()).isNull();
+        assertThat(finance.getKbHit()).isFalse();
+        assertThat(finance.getStatusStage1()).isEqualTo("PENDING");
+        assertThat(finance.getEstBasis()).contains("财务类评分项目", "待人工确认");
+    }
+
+    @Test
+    void creditItem_staysPending_withoutCallingMatch() {
+        ScoreItem credit = item("信用评价",
+                "年度评价为A级纳税信用的得满分，B级得50%分",
+                "3", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(credit));
+
+        service.estimateForProject(1L);
+
+        verify(certMatchService, never()).match(any());
+        verify(personMatchService, never()).match(any());
+        verify(projectMatchService, never()).match(any());
+        verify(warehouseMatchService, never()).match(any());
+        verify(brandMatchService, never()).match(any());
+        assertThat(credit.getEstScore()).isNull();
+        assertThat(credit.getKbHit()).isFalse();
+        assertThat(credit.getStatusStage1()).isEqualTo("PENDING");
+        assertThat(credit.getEstBasis()).contains("信用评价类评分项目", "待人工确认");
+    }
 }

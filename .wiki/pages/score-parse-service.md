@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-10-09
-health_checked: 2026-10-09
+updated: 2026-10-24
+health_checked: 2026-10-24
 sources:
   - specs/065-tender-large-file-parse/spec.md
   - specs/041-ai-score-parse-backend/spec.md
@@ -712,4 +712,14 @@ trigger（同步<1s，互斥校验+建任务）
 - **验证锚点**：`ScoreItemOrderPolicyTest#sort_project580SingleTableUniqueCodes_followsNumericOrder`（RED 时精确复现 `1,2,6,8,9,3,4,7,5`）与 `#sort_uniqueCodesWithChineseChapter_keepsChapterOrder`（中文章节仍优先）；前端 `ScoreParseTable.spec.js` / `ScoreParseV3.qa.spec.js` / `e2e/score-parse-candidate-review.spec.js` 同步为行号断言。
 - **门禁说明**：本次改动属“非版式逻辑变更”（不触碰 Locator/Extractor/RecallLane/Merge/Filter 抽取链路），金标夹具的匹配谓词本身不比较 code 与顺序，无法覆盖该回归，故推送时按 README §146 走 `SCOREPARSE_GATE_SKIP=1` 逃生阀（PR 描述已说明理由）。
 - **存量数据**：生产项目 580 的 9 行 `item_index` 已手工重排为 `CAST(code AS UNSIGNED)`（备份于服务器 `/tmp/score_item_580_20261021203733.sql`）；代码未部署前重新解析会复原乱序，此为已知代价。
+
+## 33. 泛表头多级管道符维度解构与财务/信用知识库分类扩充（2026-10-24）
+
+- **症状与根因**：生产环境（如项目 30/33/1119 等）多级复杂评分表格经 OCR/Markdown 提取后，一级大项表头（`商务部分`、`技术服务部分`、`商务评分`）落入 `dim`，真实业务维度（`业绩`、`企业资质与体系认证`、`仓储保障能力`）落入 `detail` 首行 Markdown 管道符格式。原有 `KnowledgeCategoryPolicy` 为防细则词干扰仅看 `dim`，导致大量客观项被判定为 `OTHER`；同时知识库分类体系缺失财务指标（速动比率、营业收入、现金流量等）与信用评价（纳税信用、不良记录等），75% 客观评分项显示“未识别到知识库匹配类别，待人工确认预计得分”。
+- **修复措施**：
+  1. **泛表头管道符解构**：仅当 `dim` 命中 `GENERIC_HEADERS` 集合时，解构 `detail` 首行提取管道符分列词；首列即真实子维度，短路判定，禁止回退穿透细则文本；若无管道符分列，仅允许召回高特异性被动指标（财务与信用），主动库类别严格保持 OTHER 降级保护；普通非泛表头（如“供应商业绩”）绝不扫描 `detail`，确保项目 22 防回归约束。
+  2. **分类体系扩充**：新增 `CATEGORY_FINANCIAL` 与 `CATEGORY_CREDIT`，优先级置顶（`FINANCIAL > CREDIT > BRAND > WAREHOUSE > PERSON > PROJECT > CERT > OTHER`）。
+  3. **服务编排层保守守卫**：`EstimatedScoreService` 针对 FINANCIAL 与 CREDIT 项明确标注“待人工确认预计得分”，置空预计得分并标 PENDING，杜绝假阳性。
+  4. **领域抽取逻辑拆解**：将约束提取方法（面积、金额、资质、数量等）抽取至 `ScoreItemConstraintExtractor`，满足 300 行 line budget 门禁要求。
+- **关联教训**：`docs/lessons/lessons-learned.md` §446。
 

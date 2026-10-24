@@ -70,11 +70,14 @@ final class EstimatedScoreBasisFormatter {
 
     private String categoryLabel(String category) {
         return switch (category) {
+            case null -> "知识库";
             case KnowledgeCategoryPolicy.CATEGORY_CERT -> "资质证书";
             case KnowledgeCategoryPolicy.CATEGORY_PERSON -> "人员";
             case KnowledgeCategoryPolicy.CATEGORY_PROJECT -> "业绩";
             case KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE -> "仓库";
             case KnowledgeCategoryPolicy.CATEGORY_BRAND -> "品牌授权";
+            case KnowledgeCategoryPolicy.CATEGORY_FINANCIAL -> "财务指标";
+            case KnowledgeCategoryPolicy.CATEGORY_CREDIT -> "信用评价";
             default -> "知识库";
         };
     }

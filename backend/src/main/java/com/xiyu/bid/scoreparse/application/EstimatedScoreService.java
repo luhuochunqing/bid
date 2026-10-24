@@ -119,6 +119,20 @@ public class EstimatedScoreService {
             item.setEstBasis("未识别到知识库匹配类别，待人工确认预计得分");
             return;
         }
+        if (KnowledgeCategoryPolicy.CATEGORY_FINANCIAL.equals(category)) {
+            item.setEstScore(null);
+            item.setKbHit(false);
+            item.setStatusStage1(ScoreStatusPolicy.PENDING);
+            item.setEstBasis("财务类评分项目，系统无自动评估底表，待人工确认预计得分");
+            return;
+        }
+        if (KnowledgeCategoryPolicy.CATEGORY_CREDIT.equals(category)) {
+            item.setEstScore(null);
+            item.setKbHit(false);
+            item.setStatusStage1(ScoreStatusPolicy.PENDING);
+            item.setEstBasis("信用评价类评分项目，系统无自动评估底表，待人工确认预计得分");
+            return;
+        }
         if (KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE.equals(category)
                 && categoryPolicy.extractMinArea(item.getDetail()) == null) {
             item.setEstScore(null);

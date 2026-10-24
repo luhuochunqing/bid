@@ -127,12 +127,13 @@ class KnowledgeCategoryPolicyTest {
     }
 
     @Test
-    @DisplayName("1371 财务状况：即使细则提到人员/报表，因素名不是人员 → OTHER")
-    void categorize_financeFactor_ignoresPersonnelWordsInDetail() {
+    @DisplayName("1371 财务状况：dim 含'财务'关键词 → FINANCIAL（不再是 OTHER）")
+    void categorize_financeFactor_nowFinancial() {
+        // 以前期望 OTHER（无 FINANCIAL 类别），现在 FINANCIAL 规则捕获 dim 中的"财务" → FINANCIAL
         assertThat(policy.categorize("财务状况（3分）",
                 "1.人员配置方面：项目经理花名册。现金流量净额连续三年为正的得1.5分。"
                         + "须提供经会计师事务所审计的财务报表"))
-                .isEqualTo("OTHER");
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_FINANCIAL);
     }
 
     @Test
@@ -231,5 +232,111 @@ class KnowledgeCategoryPolicyTest {
         assertThat(policy.extractKeywords(dim, detail, 6)).contains("中央企业", "央企", "国企", "办公用品", "电商", "电子商城");
         assertThat(policy.extractSignedAfter(detail)).isEqualTo(java.time.LocalDate.of(2023, 1, 1));
         assertThat(policy.extractProjectRequiredCount(detail, new java.math.BigDecimal("15"))).isEqualTo(7);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 根因 1：多级管道符维度解构（项目 30/33 生产失效样本）
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("根因1 项目30 ID:147 — dim=商务部分 detail首行为'业绩|...' → PROJECT")
+    void categorize_genericHeader_pipeBusinessPerformance_project() {
+        assertThat(policy.categorize("商务部分",
+                "业绩 | 近三年央企相关业绩，每项得2分，最高6分。"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_PROJECT);
+    }
+
+    @Test
+    @DisplayName("根因1 项目30 ID:149 — dim=商务部分 detail首行为'企业资质与体系认证|...' → CERT")
+    void categorize_genericHeader_pipeCert_cert() {
+        assertThat(policy.categorize("商务部分",
+                "企业资质与体系认证 | ISO 9001 质量管理体系认证证书"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_CERT);
+    }
+
+    @Test
+    @DisplayName("根因1 项目30 ID:153 — dim=技术服务部分 detail首行为'商品授权|...' → BRAND")
+    void categorize_genericHeader_pipeBrand_brand() {
+        assertThat(policy.categorize("技术服务部分",
+                "商品授权 | 生产厂家全国授权证书，满足要求得5分"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_BRAND);
+    }
+
+    @Test
+    @DisplayName("根因1 项目30 ID:158 — dim=技术服务部分 detail首行为'仓储保障能力|...' → WAREHOUSE")
+    void categorize_genericHeader_pipeWarehouse_warehouse() {
+        assertThat(policy.categorize("技术服务部分",
+                "仓储保障能力 | 设有自营库房，面积不少于3000平方米，得3分"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE);
+    }
+
+    @Test
+    @DisplayName("根因1 项目33 ID:119 — dim='商务 部分' detail含换行管道符 → CERT")
+    void categorize_genericHeader_pipeWithNewline_cert() {
+        assertThat(policy.categorize("商务 部分",
+                "体系管\n理 | ISO9001 体系认证证书"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_CERT);
+    }
+
+    @Test
+    @DisplayName("根因1 dim=技术部分 detail无管道符且无方案字样（含授权/人员词）→ 严格保持 OTHER 降级保护")
+    void categorize_genericHeader_noPipe_noSchemeKeyword_staysOther() {
+        // 无管道符时，即使细则出现“厂家授权”、“团队人员”，也不得误判为 BRAND 或 PERSON
+        assertThat(policy.categorize("技术部分",
+                "投标响应说明：必须按照招标文件要求落实各项组织举措，取得厂家授权书并委派专业团队"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_OTHER);
+    }
+
+    @Test
+    @DisplayName("根因1 泛表头有管道符分列：首列为描述项时严格判 OTHER，禁止穿透读右侧'授权'等细则词")
+    void categorize_genericHeader_pipeCandidateOther_staysOther_doesNotLeakDetailWords() {
+        // 首列为“售后服务承诺”，细则右侧含“授权”、“人员”打分说明，必须保持 OTHER，不能判为 BRAND 或 PERSON
+        assertThat(policy.categorize("商务部分",
+                "售后服务承诺 | 供应商应提供由生产厂家授权出具的全国联保承诺书及专职服务团队人员名单"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_OTHER);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 根因 4：FINANCIAL / CREDIT 新分类
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("根因4 项目22 ID:68 — dim=商务评分 detail含现金流量净额 → FINANCIAL")
+    void categorize_financialKeyword_cashflow_financial() {
+        assertThat(policy.categorize("商务评分",
+                "供应商近三年现金流量净额为正的得3分，须提供审计报告"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_FINANCIAL);
+    }
+
+    @Test
+    @DisplayName("根因4 项目1119 ID:216 — dim=财务状况 → FINANCIAL")
+    void categorize_dimFinancialStatus_financial() {
+        assertThat(policy.categorize("财务状况",
+                "速动比率=速动资产/流动负债，近三年均大于1的得满分"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_FINANCIAL);
+    }
+
+    @Test
+    @DisplayName("根因4 项目1119 ID:214 — dim=信用评价 → CREDIT")
+    void categorize_dimCreditEvaluation_credit() {
+        assertThat(policy.categorize("信用评价",
+                "在该网站无不良记录，满足要求得100分"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_CREDIT);
+    }
+
+    @Test
+    @DisplayName("根因4 项目33 ID:120 — dim=纳税体系 → CREDIT")
+    void categorize_dimTaxSystem_credit() {
+        assertThat(policy.categorize("纳税体系",
+                "年度评价为A级纳税信用的得满分，B级得50%分"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_CREDIT);
+    }
+
+    @Test
+    @DisplayName("根因4 财务评价维度含'授权'字样 → FINANCIAL 不进 BRAND（优先级守序）")
+    void categorize_financialPriority_notBrand() {
+        assertThat(policy.categorize("财务评价",
+                "营业收入连续三年增长，得5分；须提供完整授权审计材料"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_FINANCIAL);
     }
 }
