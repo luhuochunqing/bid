@@ -1,5 +1,19 @@
 # Wiki 操作日志 / Operation Log
 
+## [2026-10-24] fix | JJWT ServiceLoader 并发竞争与 Filter 旁路防御（线上 500 修复）
+
+- 触发：`GET /api/workbench/deadline-items?period=week` 线上偶发 500，堆栈为 `NoSuchElementException -> JwtUtil.extractAllClaims -> RateLimitFilter.resolveUserRateLimitKey`。
+- 根因：
+  1. JJWT 0.12.3 `Services.loadFirst()` 共享内部静态缓存，底层 `ServiceLoader` 非线程安全迭代且无 `hasNext()` 保护（官方已知 Bug #873）；
+  2. `JwtUtil.extractAllClaims()` 每次请求均调用 `Jwts.parser().verifyWith(secretKey).build()`，频繁触发 SPI 服务发现，放大并发竞态窗口；
+  3. `RateLimitFilter.resolveUserRateLimitKey()` 未防御 `NoSuchElementException`，导致非阻塞限流旁路异常击垮核心业务主链路。
+- 方案：
+  1. `JwtUtil` 构造器中预构建 `final JwtParser jwtParser` 单例，所有 Token 解析复用不可变线程安全对象，消除运行时重复 build 与 SPI 扫描；
+  2. `RateLimitFilter` 精准捕获 `NoSuchElementException | IllegalStateException`，记录 WARN 日志并安全降级到客户端 IP 限流；
+  3. `pom.xml` 升级 `jjwt.version` 0.12.3 → 0.12.5；
+  4. 补充 30 线程并发单测（`JwtUtilTest`）与旁路异常降级单测（`RateLimitFilterTest`）。
+- 回填：更新 [[spring-pitfalls]] §10.9。
+
 ## [2026-10-24] fix | 应答片段摘要标题部分无法显示修复与合法小标题契约收口
 
 - 触发：案例库详情弹窗「应答片段摘要」下方的「原文所在标题」仍有大量案例显示「暂无来源标题」（如 `【历史标书切片】技术团队人员安排`，整条路径 `六、 技术方案 > 3. 技术团队配置 > 技术团队人员安排` 存在却被判空）。
