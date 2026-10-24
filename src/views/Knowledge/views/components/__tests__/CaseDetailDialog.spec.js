@@ -75,11 +75,10 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     expect(sourceLocation(wrapper).element.tagName).toBe('DIV')
   })
 
-  it('无编号标题不是可核对的章节：显示「暂无来源标题」且非下载按钮', () => {
+  it('无编号标题作为合法小标题直接显示标题且非下载按钮', () => {
     const wrapper = mountDialog({ caseData: { ...caseData, sourceSectionTitle: '项目实施' } })
-    expect(sourceLocation(wrapper).exists()).toBe(false)
-    expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
-    expect(wrapper.find('.source-location-fallback').element.tagName).toBe('DIV')
+    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：项目实施')
+    expect(sourceLocation(wrapper).element.tagName).toBe('DIV')
   })
 
   it('来源路径和标题均为空时显示降级文案且信息行不可点击', () => {
@@ -127,7 +126,7 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     expect(wrapper.emitted('open-bid')).toBeFalsy()
   })
 
-  it('路径含无编号祖先时只渲染章节自身标题，字段内不出现无编号文本', () => {
+  it('路径含合法小标题祖先时完整展示路径', () => {
     const wrapper = mountDialog({
       caseData: {
         ...caseData,
@@ -136,8 +135,7 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
       }
     })
     const text = sourceLocation(wrapper).text()
-    expect(text).toContain('原文所在标题：13.2.1. 对接成功案例清单')
-    expect(text).not.toContain('项目实施')
+    expect(text).toContain('原文所在标题：项目实施 > 13.2.1. 对接成功案例清单')
     expect(wrapper.find('.source-location-fallback').exists()).toBe(false)
   })
 
@@ -149,12 +147,12 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
   })
 
-  it('字母列表标记来源（A. 附录清单）渲染为「暂无来源标题」', () => {
+  it('字母列表标记来源（A. 附录清单）作为合法章节小标题展示来源', () => {
     const wrapper = mountDialog({
       caseData: { ...caseData, sourceSectionPath: 'A. 附录清单', sourceSectionTitle: 'A. 附录清单' }
     })
-    expect(sourceLocation(wrapper).exists()).toBe(false)
-    expect(wrapper.find('.source-location-fallback').text()).toBe('原文所在标题：暂无来源标题')
+    expect(sourceLocation(wrapper).text()).toContain('原文所在标题：A. 附录清单')
+    expect(wrapper.find('.source-location-fallback').exists()).toBe(false)
   })
 
   it('底部操作栏仅保留「复用」按钮', () => {

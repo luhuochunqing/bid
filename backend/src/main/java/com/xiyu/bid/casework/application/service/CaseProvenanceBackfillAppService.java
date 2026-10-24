@@ -61,9 +61,9 @@ public class CaseProvenanceBackfillAppService {
     }
 
     public BackfillResult recomputeAll() {
-        // 需要重算的判据 = "现有标题不是已验证章节"（isChapterTitle 对 null/空白/句子型/无编号一律 false）
+        // 需要重算的判据 = "现有标题不是合法章节标题"（isValidSectionTitle 对 null/空白/句子型/纯编号一律 false）
         List<Candidate> candidates = caseRepository.findActiveCandidates().stream()
-                .filter(kase -> !MarkdownTitleRules.isChapterTitle(kase.sourceSectionTitle()))
+                .filter(kase -> !MarkdownTitleRules.isValidSectionTitle(kase.sourceSectionTitle()))
                 .toList();
         if (candidates.isEmpty()) {
             log.info("案例来源章节回填：无可重算案例（ACTIVE 案例来源标题均为已验证章节）");

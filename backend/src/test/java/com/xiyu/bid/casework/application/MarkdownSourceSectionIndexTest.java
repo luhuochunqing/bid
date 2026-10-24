@@ -294,8 +294,8 @@ class MarkdownSourceSectionIndexTest {
     }
 
     @Test
-    @DisplayName("章节契约：命中无编号小标题（## 项目实施）时不给来源，返回 null")
-    void testUnnumberedHeadingGivesNoProvenance() {
+    @DisplayName("章节契约：命中无编号合法小标题（## 项目实施）正常给出来源")
+    void testUnnumberedHeadingGivesProvenance() {
         String md = """
                 # 13.2. 对接平台对接成功案例及证明材料
                 本章节说明平台对接情况。
@@ -312,8 +312,11 @@ class MarkdownSourceSectionIndexTest {
         assertThat(index.getSections().get(1).path())
                 .isEqualTo("13.2. 对接平台对接成功案例及证明材料 > 项目实施");
 
-        // 但它无章节号（无序号可核对），不足以自证是标书真实章节 —— 宁可无来源
-        assertThat(index.locate("1启明信息技术股份有限公司API大型企业")).isNull();
+        // 项目实施是非句子型、非纯编号的合法小标题，正常给出来源
+        MarkdownSourceSectionIndex.Provenance prov = index.locate("1启明信息技术股份有限公司API大型企业");
+        assertThat(prov).isNotNull();
+        assertThat(prov.title()).isEqualTo("项目实施");
+        assertThat(prov.path()).isEqualTo("13.2. 对接平台对接成功案例及证明材料 > 项目实施");
     }
 
     @Test

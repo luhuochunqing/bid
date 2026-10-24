@@ -1,5 +1,5 @@
 // Input: 候选标题字符串（可能为 null / 空白 / 正文句 / 无编号小标题 / 只有编号没有标题文字 / 字母列表标记 A. B、）
-// Output: 标题分类判定的布尔值（句子型伪标题 / 已验证章节标题）
+// Output: 标题分类判定的布尔值（句子型伪标题 / 已验证章节标题 / 合法章节小标题）
 // Pos: Backend/casework 模块应用层纯函数——标题分类契约的唯一判据来源
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -15,15 +15,17 @@ import java.util.regex.Pattern;
  * <ol>
  *   <li>{@link #isSentenceLikeTitle(String)} 句子门：PDF→markdown 转换器会把加粗正文句输出成
  *       {@code ## 正文句子}，正文句一律不可作为标题。命中即不作为章节边界。</li>
+ *   <li>{@link #isNumberOnlyTitle(String)} 纯编号门：{@code 1.}、{@code 第一章}、{@code （1）}、
+ *       {@code ①}、{@code A.} 这类只有编号没有文字的串指不到具体内容，不可作为标题。</li>
  *   <li>{@link #isChapterTitle(String)} 章节号契约：在句子门之上再要求串首是可识别编号，
- *       <b>且编号之后还有标题文字</b>。只有"章节号 + 标题文字"形式的标题才是<b>已验证章节</b>，
- *       才可充当对外展示/写回的「原文所在标题」。两类不达标者一律不给来源：
- *       无编号的加粗小标题（如 {@code ## 项目实施}）可能是真实排版层级但没有序号可核对；
- *       只有编号没有文字的标题（如 {@code ## 第一章}）同样无法自证指向哪一节。</li>
+ *       <b>且编号之后还有标题文字</b>。用于精准识别带编号的章节。</li>
+ *   <li>{@link #isValidSectionTitle(String)} 合法章节小标题：通过句子门且非纯编号的标题，
+ *       包括"技术团队人员安排"、"项目实施"等标书真实小节标题与"A. 附录清单"，均可作为合法来源展示。</li>
  * </ol>
  *
- * <p>两条规则分别与前端 {@code caseDetailFormatter.isSentenceLikeTitle} /
- * {@code caseDetailFormatter.isVerifiedChapterTitle} 同规则，由共享夹具
+ * <p>规则分别与前端 {@code caseDetailFormatter.isSentenceLikeTitle} /
+ * {@code caseDetailFormatter.isVerifiedChapterTitle} /
+ * {@code caseDetailFormatter.isValidSectionTitle} 同规则，由共享夹具
  * {@code casework/sentence-like-title-cases.json} 与
  * {@code casework/chapter-title-contract-cases.json} 双向锚定。
  * <b>改规则必须同时改两侧 + 夹具</b>（两侧测试共读同一文件，单侧漂移即失败）。</p>
@@ -49,6 +51,18 @@ public final class MarkdownTitleRules {
                     + "|[一二三四五六七八九十百]+[、.．]"
                     + "|[（(](?:\\d+|[一二三四五六七八九十百]+)[）)]"
                     + "|[①-⑩])");
+
+    /**
+     * 纯编号模式（与前端 NUMBER_ONLY_RE 逐字一致）：只有编号没有标题文字的串
+     * （如 1.、第一章、（1）、①、A.）指不到具体内容，不能充当章节标题。
+     */
+    private static final Pattern NUMBER_ONLY_PATTERN = Pattern.compile(
+            "^(?:第[一二三四五六七八九十百千万0-9]+[章节篇卷部分条]?"
+                    + "|[一二三四五六七八九十百]+[章节篇卷部分条]?"
+                    + "|\\d+(?:\\.\\d+)*"
+                    + "|[（(](?:\\d+|[一二三四五六七八九十百]+)[）)]"
+                    + "|[①-⑩]"
+                    + "|[a-zA-Z])$");
 
     /**
      * 编号两侧的空白与分隔符（与前端 {@code TITLE_SEPARATOR_CLASS} 逐字一致）：用于剥掉首尾噪声，
@@ -90,7 +104,22 @@ public final class MarkdownTitleRules {
     }
 
     /**
-     * 章节标题契约：只有"章节号 + 标题文字"形式的标题才是可对外展示/写回的<b>已验证章节</b>。
+     * 纯编号伪标题识别：只有编号没有标题文字的串（如 1.、第一章、（1）、①、A.）指不到具体内容，
+     * 不能充当对外展示或定位溯源的章节标题。
+     */
+    public static boolean isNumberOnlyTitle(String title) {
+        if (title == null) {
+            return false;
+        }
+        String normalized = EDGE_SEPARATOR_PATTERN.matcher(title).replaceAll("");
+        if (normalized.isEmpty()) {
+            return false;
+        }
+        return NUMBER_ONLY_PATTERN.matcher(normalized).matches();
+    }
+
+    /**
+     * 章节标题契约：只有"章节号 + 标题文字"形式的标题才是带编号的<b>已验证章节</b>。
      *
      * <p>判定规则：先过 {@link #isSentenceLikeTitle} 门（正文句一律不是章节）；再剥掉首尾空白与
      * 分隔符噪声，要求以章节号开头（第X章/第X节、1.2.3、1.、、一、、（1）、①），编号位于串首；
@@ -109,5 +138,28 @@ public final class MarkdownTitleRules {
         }
         String rest = normalized.substring(matcher.end());
         return !LEADING_SEPARATOR_PATTERN.matcher(rest).replaceFirst("").isEmpty();
+    }
+
+    /**
+     * 合法章节/小节标题判据：用于对外展示与章节溯源。
+     *
+     * <p>判定规则：
+     * <ol>
+     *   <li>必须通过 {@link #isSentenceLikeTitle} 句子门（正文句子绝不可作为标题）；</li>
+     *   <li>剥掉首尾空白与分隔符后非空；</li>
+     *   <li>排除 {@link #isNumberOnlyTitle} 纯编号伪标题（必须有具体标题文字）。</li>
+     * </ol>
+     * 标书中的真实小标题（如"技术团队人员安排"、"项目实施"、"A. 附录清单"）无数字编号但属于合法排版标题，
+     * 均可作为合法章节标题展示，避免大面积误判为「暂无来源标题」。</p>
+     */
+    public static boolean isValidSectionTitle(String title) {
+        if (isSentenceLikeTitle(title)) {
+            return false;
+        }
+        String normalized = EDGE_SEPARATOR_PATTERN.matcher(title).replaceAll("");
+        if (normalized.isEmpty()) {
+            return false;
+        }
+        return !isNumberOnlyTitle(normalized);
     }
 }

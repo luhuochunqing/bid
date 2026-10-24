@@ -102,6 +102,24 @@ export const isVerifiedChapterTitle = (value) => {
   return normalized.slice(matched[0].length).replace(TITLE_TEXT_SEPARATOR_RE, '').length > 0
 }
 
+const NUMBER_ONLY_RE = /^(?:第[一二三四五六七八九十百千万0-9]+[章节篇卷部分条]?|[一二三四五六七八九十百]+[章节篇卷部分条]?|\d+(?:\.\d+)*|[（(](?:\d+|[一二三四五六七八九十百]+)[）)]|[①-⑩]|[a-zA-Z])$/
+
+// 纯编号伪标题识别：只有编号没有标题文字的串（如 1.、第一章、（1）、①、A.）指不到具体内容
+export const isNumberOnlyTitle = (value) => {
+  if (value === null || value === undefined) return false
+  const normalized = String(value).replace(TITLE_EDGE_SEPARATOR_RE, '')
+  if (!normalized) return false
+  return NUMBER_ONLY_RE.test(normalized)
+}
+
+// 合法章节/小节标题判据：通过句子门且非纯编号的标题，包括"技术团队人员安排"、"项目实施"等标书真实小节
+export const isValidSectionTitle = (value) => {
+  if (isSentenceLikeTitle(value)) return false
+  const normalized = String(value).replace(TITLE_EDGE_SEPARATOR_RE, '')
+  if (!normalized) return false
+  return !isNumberOnlyTitle(normalized)
+}
+
 const SEQUENCE_RE = /^(?:(?:\d+(?:\.\d+)+|\d+)[、.．）)\s]\s*|[一二三四五六七八九十]+[、.．]\s*|[①-⑩]\s*|[（(]\d+[）)]\s*|[（(][一二三四五六七八九十]+[)）]\s*|[a-zA-Z][、.．）)]\s*|[◆■●·•]\s*)/
 
 export const splitInlineFormats = (text) => {
@@ -209,22 +227,22 @@ export const preprocessPlainText = (text) => {
   }).join('\n\n')
 }
 
-// 来源路径的每一段都要过验证：只有整条路径都是已验证章节才展示完整路径。
-// 祖先可能是无编号的排版小标题（后端 MarkdownSourceSectionIndex 的层级树接受它们），
-// 此时退回命中章节自身的标题——后端 locate 只把已验证章节写进 sourceSectionTitle，
-// 因此该字段内不会出现任何无章节号的文本，展示粒度与拒绝粒度保持一致。
+// 来源路径各段及标题校验：整条路径各段均为合法标题段落（不含正文句子，非纯编号无文字）时完整展示路径。
+// 若路径含正文句子伪标题或缺失，则退回至合法章节标题展示。
 const pathSegments = (path) => String(path).split('>').map((part) => part.trim()).filter(Boolean)
 
 export const extractSourceLocationText = (caseData) => {
   if (!caseData) return ''
-  // 只展示经章节索引证明、且满足「章节号 + 标题文字」契约的来源；其余一律留空，
-  // 由 UI 显示「暂无来源标题」。评分项标题在「评分项标题」字段独立展示，
-  // 正文句（存量伪标题）与 responseText 启发式推断都不得冒充「原文所在标题」。
+  // 1. 若整条路径的各级均为合法标题段落（不含正文句子，非纯编号无文字），完整展示路径
   const path = caseData.sourceSectionPath?.toString?.().trim?.() || ''
   const segments = path ? pathSegments(path) : []
-  if (segments.length > 0 && segments.every(isVerifiedChapterTitle)) return path
+  if (segments.length > 0 && segments.every(isValidSectionTitle)) return path
+
+  // 2. 若路径被存量正文伪标题污染或缺失，回退到合法章节标题
   const title = caseData.sourceSectionTitle?.toString?.().trim?.() || ''
-  return isVerifiedChapterTitle(title) ? title : ''
+  if (isValidSectionTitle(title)) return title
+
+  return ''
 }
 
 export const extractSourceDocumentText = (caseData) => {

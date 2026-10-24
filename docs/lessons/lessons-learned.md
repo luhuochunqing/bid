@@ -7422,3 +7422,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **致错机制**：`BidDocumentLoader` 用 `case-{projectId}` 同时作为 `TempBidFileStore.reserve/open/release` 的资源所有权标识。并发任务会覆盖、读取和删除同一 `.part`；HTTP POST 又被前端当作完成信号，用户只能看到随机失败通知，无法识别后台仍有执行。
 - **修复与边界**：新增 `case_precipitation_task`，领取时在短事务内锁 project 行；同一项目 PENDING/PROCESSING 任务复用同一 UUID。UUID 贯穿下载与释放；耗时处理在锁外执行；最终案例写入与任务 COMPLETED 在同一事务中进行 fencing。手动触发和结果登记自动触发统一走门禁。前端按任务状态轮询，POST 202 只表示已受理。
 - **验证纪律**：并发回归必须同时覆盖两层：真实 MySQL 三线程领取同一 projectId 只产生一条任务，以及真实 HTTP 三路大文件强制 spill 后路径、SHA-256 与释放互不干扰。仅做单线程单测、只断言文件名含 UUID 或只验证 HTTP 202 都不能证明竞态已关闭。
+
+## 445. 应答片段摘要原文所在标题过严校验导致大面积无法显示缺陷（2026-10-24）
+
+- **现场证据**：案例详情弹窗中，大量案例的「应答片段摘要」下方「原文所在标题」显示为「暂无来源标题」（如【历史标书切片】技术团队人员安排，切片大纲具备完整路径 `六、 技术方案 > 3. 技术团队配置 > 技术团队人员安排`，却在前端和后端均被判定为空）。
+- **致错机制**：
+  1. 此前为拦截加粗正文句子（`isSentenceLikeTitle`）引入了过严的编号门（`isChapterTitle`）——前端 `extractSourceLocationText` 要求整条路径的所有段落必须全部包含数字章节号（`segments.every(isVerifiedChapterTitle)`），且退回标题也要求包含编号；末级小标题或真实小节（如 `技术团队人员安排`、`项目实施`、`A. 附录清单`）因缺少数字序号被整条路径一票否决；
+  2. 后端定位 `MarkdownSourceSectionIndex.locate` 亦把无数字编号小节误判为 null，无法回退到真实祖先路径。
+- **修复与边界**：
+  1. 后端新增 `isNumberOnlyTitle` 与 `isValidSectionTitle`，放行通过句子门且非纯编号的合法章节/小节标题；
+  2. 前端 `caseDetailFormatter` 同步引入 `isNumberOnlyTitle` 与 `isValidSectionTitle`，若整条路径各级均为合法标题，完整展示来源路径；若仅有 `sourceSectionTitle` 且合法，正常展示标题；
+  3. 后端定位 `MarkdownSourceSectionIndex.locate` 与回填 `CaseProvenanceBackfillAppService` 改用 `isValidSectionTitle`，彻底封闭此前“命中章节无编号时不回退祖先”的缺口。
+- **验证纪律**：
+  - 后端单元测试 `MarkdownSourceSectionIndexTest`、`ChapterTitleContractTest`、`SentenceLikeTitleContractTest`、`CaseProvenanceBackfillAppServiceTest` 共 40 例全部通过；
+  - 前端 Vitest `caseDetailFormatter.spec.js`、`CaseDetailDialog.spec.js` 共 93 例全部通过。

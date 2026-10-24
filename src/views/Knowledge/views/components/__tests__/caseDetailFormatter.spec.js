@@ -7,6 +7,8 @@ import {
   splitFlattenedNumberedRows,
   isSentenceLikeTitle,
   isVerifiedChapterTitle,
+  isNumberOnlyTitle,
+  isValidSectionTitle,
   insertBrBetweenNonListLines,
   processPlainTextBlock,
   preprocessPlainText,
@@ -274,6 +276,45 @@ describe('caseDetailFormatter 单元测试', () => {
     })
   })
 
+  describe('isNumberOnlyTitle & isValidSectionTitle（合法章节小标题与纯编号识别）', () => {
+    it('纯编号伪标题被正确识别', () => {
+      expect(isNumberOnlyTitle('1.')).toBe(true)
+      expect(isNumberOnlyTitle('3、')).toBe(true)
+      expect(isNumberOnlyTitle('13.2.1.')).toBe(true)
+      expect(isNumberOnlyTitle('第一章')).toBe(true)
+      expect(isNumberOnlyTitle('第一节')).toBe(true)
+      expect(isNumberOnlyTitle('一、')).toBe(true)
+      expect(isNumberOnlyTitle('（1）')).toBe(true)
+      expect(isNumberOnlyTitle('①')).toBe(true)
+      expect(isNumberOnlyTitle('A.')).toBe(true)
+      expect(isNumberOnlyTitle('第一章　')).toBe(true)
+      expect(isNumberOnlyTitle('技术团队人员安排')).toBe(false)
+      expect(isNumberOnlyTitle('第一章 项目背景')).toBe(false)
+      expect(isNumberOnlyTitle('A. 附录清单')).toBe(false)
+    })
+
+    it('合法小标题（含无编号小标题与字母列表标题）放行', () => {
+      expect(isValidSectionTitle('技术团队人员安排')).toBe(true)
+      expect(isValidSectionTitle('项目实施')).toBe(true)
+      expect(isValidSectionTitle('第一章 项目背景')).toBe(true)
+      expect(isValidSectionTitle('13.2.1. 对接成功案例清单')).toBe(true)
+      expect(isValidSectionTitle('A. 附录清单')).toBe(true)
+      expect(isValidSectionTitle('六、 技术方案')).toBe(true)
+      expect(isValidSectionTitle('3. 技术团队配置')).toBe(true)
+    })
+
+    it('正文句子伪标题和纯编号被拒绝', () => {
+      expect(isValidSectionTitle('因投标文件篇幅有限，如下仅展示自 2023 年 1 月 1 日至本次投标截止日部分西域成功对接案例188个以及部分系统对接。')).toBe(false)
+      expect(isValidSectionTitle('双方需严格按期交付！')).toBe(false)
+      expect(isValidSectionTitle('1.')).toBe(false)
+      expect(isValidSectionTitle('第一章')).toBe(false)
+      expect(isValidSectionTitle('（1）')).toBe(false)
+      expect(isValidSectionTitle('A.')).toBe(false)
+      expect(isValidSectionTitle(null)).toBe(false)
+      expect(isValidSectionTitle('')).toBe(false)
+    })
+  })
+
   describe('insertBrBetweenNonListLines & processPlainTextBlock', () => {
     it('非列表连续行之间插入 <br>', () => {
       const lines = ['行一', '行二', '<ol>', '<li>项一</li>', '</ol>', '行三']
@@ -325,19 +366,13 @@ describe('caseDetailFormatter 单元测试', () => {
   })
 
   describe('extractSourceLocationText（只展示已验证章节）', () => {
-    it('整条路径都是已验证章节时展示完整路径，否则退回命中章节自身的标题', () => {
+    it('整条路径都是合法章节标题时展示完整路径，否则退回命中章节自身的标题', () => {
       expect(extractSourceLocationText({ sourceSectionPath: '第一章 项目背景 > 第一节 服务范围', sourceSectionTitle: '第一节 服务范围' })).toBe('第一章 项目背景 > 第一节 服务范围')
       expect(extractSourceLocationText({ sourceSectionTitle: '第二节 服务范围' })).toBe('第二节 服务范围')
     })
 
-    it('路径含无编号祖先时退回章节自身标题，不把无编号文本展示出去', () => {
-      const caseData = {
-        sourceSectionPath: '项目实施 > 13.2.1. 对接成功案例清单',
-        sourceSectionTitle: '13.2.1. 对接成功案例清单'
-      }
-      expect(extractSourceLocationText(caseData)).toBe('13.2.1. 对接成功案例清单')
-
-      // 祖先只是"只有编号没有标题文字"的层级节点时同理
+    it('路径含纯编号祖先时退回章节自身标题，不把纯编号展示出去', () => {
+      // 祖先只是"只有编号没有标题文字"的层级节点时退回章节自身标题
       expect(extractSourceLocationText({
         sourceSectionPath: '第一章 > 13.2.1. 对接成功案例清单',
         sourceSectionTitle: '13.2.1. 对接成功案例清单'
@@ -353,18 +388,24 @@ describe('caseDetailFormatter 单元测试', () => {
       })).toBe('')
     })
 
-    it('字母列表标记标题不给来源，返回空串由 UI 显示「暂无来源标题」', () => {
-      expect(extractSourceLocationText({ sourceSectionTitle: 'A. 附录清单' })).toBe('')
-      expect(extractSourceLocationText({ sourceSectionPath: 'A. 附录清单 > B、服务方案' })).toBe('')
+    it('字母列表标记标题作为合法章节小标题展示来源', () => {
+      expect(extractSourceLocationText({ sourceSectionTitle: 'A. 附录清单' })).toBe('A. 附录清单')
+      expect(extractSourceLocationText({ sourceSectionPath: 'A. 附录清单 > B、服务方案' })).toBe('A. 附录清单 > B、服务方案')
     })
 
-    it('无编号标题（加粗小标题）不给来源，返回空串由 UI 显示「暂无来源标题」', () => {
-      expect(extractSourceLocationText({ sourceSectionTitle: '项目实施', responseText: '表格正文' })).toBe('')
+    it('无编号标题（加粗小标题如技术团队人员安排/项目实施）正常展示来源', () => {
+      expect(extractSourceLocationText({ sourceSectionTitle: '技术团队人员安排', responseText: '表格正文' })).toBe('技术团队人员安排')
+      expect(extractSourceLocationText({ sourceSectionTitle: '项目实施', responseText: '表格正文' })).toBe('项目实施')
+      expect(extractSourceLocationText({
+        sourceSectionPath: '六、 技术方案 > 3. 技术团队配置 > 技术团队人员安排',
+        sourceSectionTitle: '技术团队人员安排',
+        responseText: '表格正文'
+      })).toBe('六、 技术方案 > 3. 技术团队配置 > 技术团队人员安排')
       expect(extractSourceLocationText({
         sourceSectionPath: '13.2. 对接平台对接成功案例及证明材料 > 项目实施',
         sourceSectionTitle: '项目实施',
         responseText: '表格正文'
-      })).toBe('')
+      })).toBe('13.2. 对接平台对接成功案例及证明材料 > 项目实施')
     })
 
     it('存量伪标题（正文句子）被拒绝，不再回退评分项标题或正文推断', () => {

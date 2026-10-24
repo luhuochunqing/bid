@@ -1,5 +1,15 @@
 # Wiki 操作日志 / Operation Log
 
+## [2026-10-24] fix | 应答片段摘要标题部分无法显示修复与合法小标题契约收口
+
+- 触发：案例库详情弹窗「应答片段摘要」下方的「原文所在标题」仍有大量案例显示「暂无来源标题」（如 `【历史标书切片】技术团队人员安排`，整条路径 `六、 技术方案 > 3. 技术团队配置 > 技术团队人员安排` 存在却被判空）。
+- 根因：此前为拦截加粗正文句子（`isSentenceLikeTitle`）引入了过严的编号门（`isChapterTitle`）——前端 `extractSourceLocationText` 要求整条路径的所有段落必须全部包含数字章节号（`segments.every(isVerifiedChapterTitle)`），且退回标题也要求包含编号；末级小标题或真实小节（如 `技术团队人员安排`、`项目实施`、`A. 附录清单`）被一票否决；后端 `MarkdownSourceSectionIndex.locate` 亦把无编号小节误判为 null。
+- 方案：
+  1. 后端新增 `isNumberOnlyTitle` 与 `isValidSectionTitle`，放行通过句子门且非纯编号的合法章节/小节标题；
+  2. 前端 `caseDetailFormatter` 同步引入 `isNumberOnlyTitle` 与 `isValidSectionTitle`，若整条路径各级均为合法标题，完整展示来源路径；若仅有 `sourceSectionTitle` 且合法，正常展示标题；
+  3. 后端定位 `MarkdownSourceSectionIndex.locate` 与回填 `CaseProvenanceBackfillAppService` 改用 `isValidSectionTitle`，彻底封闭此前“命中章节无编号时不回退祖先”的缺口。
+- 回填：更新 [[case-source-actions-and-import-pitfalls]]。
+
 ## [2026-10-23] fix | AI 案例沉淀并发任务与大文件隔离
 
 - 触发：同一项目连续沉淀时共享 `case-{projectId}.part`，完整 DOCX 随机报 ZIP 损坏，前端又把 POST 受理误当完成。
