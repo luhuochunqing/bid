@@ -10,6 +10,13 @@
   3. 后端定位 `MarkdownSourceSectionIndex.locate` 与回填 `CaseProvenanceBackfillAppService` 改用 `isValidSectionTitle`，彻底封闭此前“命中章节无编号时不回退祖先”的缺口。
 - 回填：更新 [[case-source-actions-and-import-pitfalls]]。
 
+## [2026-10-23] fix | 标书质量核查证据冲突与组合资质逐项关联
+
+- 触发：项目 1117 出现日期、CA、保证金图片、ISO 组合证书和评分类型误判。
+- 根因：首次关键词短路、证据不足当作缺失、组合要求未原子化、页面读取旧激活版本。
+- 方案：日期容忍空白；CA 汇总证据；图片转人工；ISO 逐项关联有效证书；生产激活独立受控。
+- 回填：新增 [[bid-quality-check-evidence-conflicts]]，更新 `_index.md`。
+
 ## [2026-10-23] fix | AI 案例沉淀并发任务与大文件隔离
 
 - 触发：同一项目连续沉淀时共享 `case-{projectId}.part`，完整 DOCX 随机报 ZIP 损坏，前端又把 POST 受理误当完成。
@@ -1424,3 +1431,7 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 - 根因三因叠加：原文 `﹤`(U+FE64)/`＜`(U+FF1C) 与模型 ASCII `<` 不等价、模型引文自加 `1. ` 序号、`：` 后换行被归一化成空格 → 归一化后包含匹配未命中 → 逻辑行无 `source_cell_ids` → `SOURCE_LOCATOR_NOT_VERIFIED` 剔除 6 分项 → 94 分 + `WEIGHT_SUM_MISMATCH` → `REVIEW_REQUIRED`。
 - 修复口径：比较符 1:1 折叠保持 offset 回溯；CJK 标点邻接不插空格；序号剥离只留在 `LogicalRowEvidenceBinder` 局部重试，不进全局 normalize。
 - 未覆盖阻断：`ORIGINAL_SCHEME_AMBIGUOUS → SCHEME_SELECTION_REQUIRED`、跨表 `UNKNOWN_TOTAL` 仍需人工确认，不在本次修复范围。
+
+## [2026-10-23] fix | 项目1117保证金视觉事实与CA冲突证据
+
+- 网上开标、远程解密纳入电子标强证据；保证金复用 PDF 页面图像与真实多模态通道提取交易要素，视觉不足保守转人工。

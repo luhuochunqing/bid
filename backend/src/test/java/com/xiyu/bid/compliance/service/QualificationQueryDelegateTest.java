@@ -27,6 +27,32 @@ import static org.mockito.Mockito.when;
 class QualificationQueryDelegateTest {
 
     @Test
+    @DisplayName("项目1117：组合ISO要求逐项关联三张对应证书")
+    void matchQualifications_combinedIsoRequirement_matchesEachStandard() {
+        QualificationRepository repo = mock(QualificationRepository.class);
+        when(repo.findAll()).thenReturn(List.of(
+                Qualification.builder().id(1L).name("ISO9001质量管理体系认证证书").build(),
+                Qualification.builder().id(2L).name("ISO14001环境管理体系认证证书").build(),
+                Qualification.builder().id(3L).name("ISO45001职业健康安全管理体系认证证书").build()));
+        QualificationQueryDelegate delegate = new QualificationQueryDelegate(repo);
+
+        List<KnowledgeMatch> matches = delegate.matchQualifications(List.of(
+                "具有有效的ISO9001质量管理体系、ISO14001环境管理体系及ISO45001职业健康安全管理体系认证证书"));
+
+        assertThat(matches).extracting(KnowledgeMatch::recordId).containsExactly("1", "2", "3");
+    }
+
+    @Test
+    @DisplayName("知识库联动不关联已过期证书")
+    void matchQualifications_expiredCertificate_isIgnored() {
+        QualificationRepository repo = mock(QualificationRepository.class);
+        when(repo.findAll()).thenReturn(List.of(Qualification.builder().id(1L)
+                .name("ISO9001质量管理体系认证证书").expiryDate(LocalDate.of(2020, 1, 1)).build()));
+
+        assertThat(new QualificationQueryDelegate(repo).matchQualifications(List.of("ISO9001"))).isEmpty();
+    }
+
+    @Test
     @DisplayName("双仓储均缺失时调用匹配抛出 IllegalStateException")
     void testMatchQualifications_WhenBothRepositoriesNull_ThrowsIllegalStateException() {
         QualificationQueryDelegate delegate = new QualificationQueryDelegate();

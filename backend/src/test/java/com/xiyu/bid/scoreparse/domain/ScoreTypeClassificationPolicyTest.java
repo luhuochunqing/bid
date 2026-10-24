@@ -13,6 +13,17 @@ class ScoreTypeClassificationPolicyTest {
     private final ScoreTypeClassificationPolicy policy = new ScoreTypeClassificationPolicy();
 
     @Test
+    void classify_project1117WarehouseCount_objective() {
+        assertThat(policy.classify("在项目所在地自有或租赁仓库数量达到3个得5分")).isEqualTo("OBJECTIVE");
+    }
+
+    @Test
+    void classify_project1117ServiceAndEmergencyPlans_subjective() {
+        assertThat(policy.classify("根据服务方案的完整性、合理性综合评审打分")).isEqualTo("SUBJECTIVE");
+        assertThat(policy.classify("根据应急方案的针对性、可行性综合评审打分")).isEqualTo("SUBJECTIVE");
+    }
+
+    @Test
     void classify_quantifiedCertification_objective() {
         assertThat(policy.classify("具备 CMMI 5 级认证证书的得 5 分")).isEqualTo("OBJECTIVE");
     }

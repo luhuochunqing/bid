@@ -43,6 +43,7 @@ backlinks:
 - [[backend-test-baseline-green]] — 后端测试基线修复与 mock 用户种子机制
 - [[bid-quality-check-pagination-fix]] — 标书质量核查分页丢失修复（\f 契约断裂 + 虚拟分页兜底 + 证据定位治理）
 - [[bid-quality-check-realization]] — 标书质量核查实质化架构（spec 049）
+- [[bid-quality-check-evidence-conflicts]] — 标书质量核查证据冲突、组合 ISO 与激活版本边界
 - [[bid-quality-multifile-check]] — AI 标书质量核查多册合并（价格/商务/技术分册 + Loader 边界合并 + Sidecar 空册陷阱）
 - [[seal-vision-compliance]] — 标书签章完整性视觉核验（Sidecar 页面图像 + 多模态印章识别 + 页级证据）
 - [[bid-quality-check-parse-timeout-fix]] — AI 标书质量核查解析失败误报修复（超时预算 × 文档规模 + 五分类失败语义 + Sidecar 分块 100）

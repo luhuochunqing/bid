@@ -33,7 +33,7 @@ public final class BasicInfoCheckPolicy {
         String text = pages.get(0).text();
         boolean hasProject = text.contains("项目") || text.contains("工程") || text.contains("招标");
         boolean hasBidder = text.contains("投标") || text.contains("单位") || text.contains("公司");
-        boolean hasDate = text.matches("(?s).*(\\d{4}年|\\d{4}-|\\d{4}/).*");
+        boolean hasDate = text.matches("(?s).*(\\d{4}\\s*年\\s*\\d{1,2}\\s*月\\s*\\d{1,2}\\s*日|\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}).*");
 
         List<QualityEvidence> evidences = List.of(QualityEvidence.bid("封面第一页", pages.get(0).pageNumber(), snippet(text, 200)));
         if (hasProject && hasBidder && hasDate) {

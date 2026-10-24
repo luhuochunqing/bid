@@ -14,6 +14,9 @@ import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
 import com.xiyu.bid.compliance.domain.policy.DeterministicRequirementsFuser;
+import com.xiyu.bid.compliance.domain.policy.DepositReceiptVisionDetector;
+import com.xiyu.bid.compliance.domain.policy.DepositReceiptVisionFusionPolicy;
+import com.xiyu.bid.compliance.domain.policy.DepositReceiptVisionResult;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.PriceRequirement;
 import com.xiyu.bid.compliance.domain.policy.LlmAdjudicator;
@@ -74,6 +77,10 @@ public class BidQualityCheckAsyncExecutor {
     /** 真实视觉适配器；e2e profile 缺失时保留既有文本规则。 */
     @Autowired(required = false)
     private SealVisionDetector sealVisionDetector;
+
+    /** 真实保证金凭证视觉适配器；缺失时按不可用处理，不允许文本层单独通过。 */
+    @Autowired(required = false)
+    private DepositReceiptVisionDetector depositReceiptVisionDetector;
 
     /**
      * 后台异步执行标书质量核查.
@@ -150,6 +157,14 @@ public class BidQualityCheckAsyncExecutor {
                                 ? SealVisionFusionPolicy.merge(result, vision) : result)
                         .toList();
             }
+
+            DepositReceiptVisionResult depositVision = depositReceiptVisionDetector == null
+                    ? DepositReceiptVisionResult.unavailable("保证金凭证视觉检测器未配置")
+                    : depositReceiptVisionDetector.detect(bidDoc);
+            itemResults = itemResults.stream()
+                    .map(result -> BidQualityCheckItem.DEPOSIT_RECEIPT.getCode().equals(result.itemCode())
+                            ? DepositReceiptVisionFusionPolicy.fuseDepositReceipt(result, depositVision) : result)
+                    .toList();
 
             // 组装资质比对结构化清单（招标要求 vs 我司证书 vs 标书页码）
             List<QualificationDetail> qualDetails = QualificationMatchPolicy.buildDetails(

@@ -17,6 +17,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 class QualificationMatchPolicyTest {
 
     @Test
+    @DisplayName("项目1117：组合ISO要求生成三条独立资质明细")
+    void buildDetails_combinedIsoRequirement_createsThreeDetails() {
+        List<Qualification> certs = List.of(
+                Qualification.builder().id(1L).name("ISO9001质量管理体系认证证书").build(),
+                Qualification.builder().id(2L).name("ISO14001环境管理体系认证证书").build(),
+                Qualification.builder().id(3L).name("ISO45001职业健康安全管理体系认证证书").build());
+
+        List<QualificationDetail> details = QualificationMatchPolicy.buildDetails(List.of(
+                "具有有效的ISO9001质量管理体系、ISO14001环境管理体系及ISO45001职业健康安全管理体系认证证书"),
+                certs, DocumentContent.fromText("bid.pdf", "project-1117", "ISO9001 ISO14001 ISO45001"),
+                LocalDate.of(2026, 10, 23));
+
+        assertThat(details).extracting(QualificationDetail::requirement)
+                .containsExactly("ISO9001", "ISO14001", "ISO45001");
+        assertThat(details).extracting(QualificationDetail::status)
+                .containsExactly("MATCHED", "MATCHED", "MATCHED");
+    }
+
+    @Test
     @DisplayName("双向匹配：大模型提取长句 requirement 成功匹配短 certName")
     void testMatch_LongRequirementMatchesShortCertName() {
         String req = "投标人须具备有效的质量管理体系认证（ISO9001）证书且在有效期内";

@@ -3,28 +3,22 @@
 // Pos: compliance/domain/policy/ - 分项合规与附件清单规则策略（纯核心，含承诺书签章反假）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
-
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 /**
  * 分项合规与附件清单规则策略 (FP-Java).
  */
 public final class SubItemAndAttachmentRules {
-
     private static final Pattern SENSITIVE_VETO_PATTERN = Pattern.compile(
             "(转包|违法分包|串通投标|围标|弄虚作假|挂靠资质|以他人名义投标|自愿放弃中标资格|拒绝承担质保责任)"
     );
-
-
     private static final List<String> NEGATION_PREFIXES = List.of(
             "承诺不", "严禁", "不得", "不进行", "不含", "不存在", "没有", "无任何",
             "杜绝", "防范", "禁止", "坚决抵制", "零", "未", "无", "不"
@@ -176,7 +170,17 @@ public final class SubItemAndAttachmentRules {
             return QualityCheckItemResult.manualReview(item, "检索到保证金或保函相关表述，但无法确认为实际凭证（可能为目录、格式模板或清单占位符）",
                     "请人工核实投标文件是否附有正式银行汇款回单或电子保函凭证", Collections.emptyList());
         }
+        if (containsDepositPaymentDeclaration(bidDoc.fullText())) {
+            return QualityCheckItemResult.manualReview(item, "投标文件声明已缴纳保证金或回单附后，但文本层未能读取实际凭证（可能为扫描图片）", "请人工核实投标文件中的银行汇款回单或电子保函图片", Collections.emptyList());
+        }
         return QualityCheckItemResult.fail(item, "未检索到投标保证金缴纳凭证或投标保函", "请补充投标保证金转账回执单扫描件或有效保函", Collections.emptyList());
+    }
+
+    private static boolean containsDepositPaymentDeclaration(final String text) {
+        if (text == null || text.isBlank()) return false;
+        boolean mentionsDeposit = text.contains("投标保证金") || text.contains("响应担保");
+        boolean claimsPayment = text.contains("已缴纳") || text.contains("已交纳") || text.contains("回单附后") || text.contains("凭证附后");
+        return mentionsDeposit && claimsPayment;
     }
 
     public static QualityCheckItemResult checkCaCertificate(final DocumentContent bidDoc) {

@@ -12,6 +12,36 @@ import static org.assertj.core.api.Assertions.assertThat;
 class BasicInfoAndAttachmentRulesTest {
 
     @Test
+    @DisplayName("项目1117：封面日期数字与年月日之间有空格时仍识别完整")
+    void checkCoverInfo_spacedChineseDate_passes() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "project-1117",
+                "招商积余维修物资战略采购项目\n投标人：西域供应链\n2026 年 09 月 21 日");
+
+        assertThat(BasicInfoCheckPolicy.checkCoverInfo(doc).status()).isEqualTo(QualityCheckStatus.PASS);
+    }
+
+    @Test
+    @DisplayName("封面只有年份时不得误判为完整日期")
+    void checkCoverInfo_yearOnly_failsDateRequirement() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "year-only",
+                "维修物资战略采购项目\n投标人：西域供应链\n2026 年");
+
+        assertThat(BasicInfoCheckPolicy.checkCoverInfo(doc).status()).isEqualTo(QualityCheckStatus.FAIL);
+    }
+
+    @Test
+    @DisplayName("项目1117：保证金已声明缴纳但图片文本不可读时转人工而非判缺失")
+    void checkDepositReceipt_declarationWithUnreadableImage_requiresManualReview() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "project-1117",
+                "我司已按招标文件要求缴纳投标保证金，汇款回单附后。\n[图片]");
+
+        QualityCheckItemResult result = SubItemAndAttachmentRules.checkDepositReceipt(doc,
+                "投标人须缴纳投标保证金人民币壹万元");
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @Test
     @DisplayName("基本信息签章核验：集成SealIntegrityCheckPolicy在真实公章与法人签章时返回PASS")
     void testBasicInfoCheckSignatureSeal_WhenSealed_Passes() {
         String bidText = """
