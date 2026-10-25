@@ -281,8 +281,13 @@ public class FullDocumentRagPromptAdversarialTest {
 
         assertThat(results).hasSize(7);
         assertThat(results.values()).allSatisfy(r -> {
-            assertThat(r.status()).isEqualTo(QualityCheckStatus.PASS);
-            assertThat(r.conclusion()).contains("全标书分析通过");
+            if (r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode())) {
+                assertThat(r.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+                assertThat(r.conclusion()).contains("尚需人工确认");
+            } else {
+                assertThat(r.status()).isEqualTo(QualityCheckStatus.PASS);
+                assertThat(r.conclusion()).contains("全标书分析通过");
+            }
         });
         assertThat(progressSteps).contains(100);
     }

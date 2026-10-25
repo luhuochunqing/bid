@@ -296,4 +296,14 @@ class QualificationMatchPolicyTest {
         assertThat(d.bidPageNumber()).isEqualTo(12);
         assertThat(d.remark()).contains("资质库未维护该证书，但在标书第 12 页检索到证明材料，请人工核查有效性");
     }
+
+    @Test
+    @DisplayName("ISO标准编码冲突不能通过共同前缀或中文描述模糊匹配")
+    void match_conflictingIsoCodes_doNotFallbackToFuzzyMatch() {
+        assertThat(QualificationMatchPolicy.isQualificationMatch("ISO14001", "ISO14064-3温室气排放管理体系认证证书")).isFalse();
+        assertThat(QualificationMatchPolicy.isQualificationMatch("ISO14001环境管理体系认证", "ISO14064环境管理体系认证")).isFalse();
+        assertThat(QualificationMatchPolicy.isQualificationMatch("ISO9001", "ISO90010认证证书")).isFalse();
+        assertThat(QualificationMatchPolicy.isQualificationMatch("ISO14001", "ISO 14001:2015环境管理体系认证")).isTrue();
+    }
+
 }

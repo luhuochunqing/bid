@@ -79,8 +79,8 @@ class BasicInfoAndAttachmentRulesTest {
     }
 
     @Test
-    @DisplayName("承诺书签章核验：承诺书包含真实公章与签署时返回PASS")
-    void testCommitmentSeal_WhenSignedAndSealed_Passes() {
+    @DisplayName("承诺书签章核验：仅姓名和签章格式文字仍需人工复核")
+    void testCommitmentSeal_WhenOnlyNamedSignatureCaptions_RequiresManualReview() {
         String bidText = """
                 廉洁投标承诺书
                 我单位郑重承诺在本次投标活动中严格遵守法律法规，绝无行贿受贿行为。
@@ -92,8 +92,8 @@ class BasicInfoAndAttachmentRulesTest {
         QualityCheckItemResult result = SubItemAndAttachmentRules.checkCommitmentSeal(doc);
 
         assertThat(result).isNotNull();
-        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(result.conclusion()).contains("包含合规承诺书且签章要素齐全");
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).contains("文本层无法确认实际盖章");
     }
 
     @Test

@@ -291,4 +291,15 @@ class TenderRequirementsParserTest {
         assertThat(TenderRequirementsParser.parse(null).missing()).isTrue();
         assertThat(TenderRequirementsParser.parse("   ").missing()).isTrue();
     }
+
+    @Test
+    @DisplayName("大模型CA平台泛称不得进入具体平台字段")
+    void parse_genericCaPlatform_becomesUnknownPlatform() {
+        TenderRequirements req = TenderRequirementsParser.parse("""
+                {"caCertificateRequirement":{"required":true,"platformName":"或称交易平台"}}
+                """);
+        assertThat(req.caCertificateRequirement().required()).isTrue();
+        assertThat(req.caCertificateRequirement().platformName()).isNull();
+    }
+
 }

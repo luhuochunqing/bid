@@ -96,6 +96,17 @@ public final class QualificationDetailReconciler {
                     conclusion, suggestion, rawResult.evidences(), details);
         }
 
+        // 缺证断言与全量已匹配事实冲突时转人工；不覆盖占位、主体不符等其他真实失败。
+        if (rawResult.status() == QualityCheckStatus.FAIL
+                && details.stream().allMatch(d -> d != null && d.matchedCertName() != null && !d.matchedCertName().isBlank())
+                && rawResult.conclusion().matches("(?s).*(?:未.*匹配|未.*录入|缺少.*证书|没有.*证书).*")
+                && !rawResult.conclusion().matches("(?s).*(?:占位|留白|伪造|主体.*不一|等级不足).*")) {
+            return new QualityCheckItemResult(rawResult.itemCode(), rawResult.category(), rawResult.title(), rawResult.description(),
+                    QualityCheckStatus.MANUAL_REVIEW, rawResult.severity(), rawResult.order(),
+                    "[" + ManualReasons.MANUAL_REVIEW_REQUIRED + "] 原资质缺失结论与企业资质库匹配明细不一致，请人工核对证书正文及有效期",
+                    "请对照逐项匹配明细核对证书，不得仅依据冲突的缺失结论判定不合格", rawResult.evidences(), details);
+        }
+
         // 3. 存在需关注项（ATTENTION）：标书有疑似证明但未在资质库收录，或即将过期
         if (!attentionList.isEmpty() && rawResult.status() == QualityCheckStatus.PASS) {
             List<String> attentionReqs = attentionList.stream()

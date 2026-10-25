@@ -9,16 +9,18 @@ import com.xiyu.bid.compliance.domain.QualityEvidence;
 
 import java.util.ArrayList;
 import java.util.List;
-
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 招标文件电子标 CA 数字证书 / 电子签章确定性双轨提取器 (FP-Java 纯核心).
  */
 public final class DeterministicCaCertificateExtractor {
 
-    private static final String[] EXPLICIT_EXEMPT_SIGNALS = {
-            "无需CA", "不要求CA", "无需数字证书", "无需电子签章", "不使用电子签章"
-    };
+    private static final String CA_OR_SEAL = "(?:电子\\s*)?(?:CA(?:\\s*(?:数字证书|证书|锁))?|数字证书|电子签章|电子印章)";
+    private static final Pattern EXPLICIT_EXEMPT_CA = Pattern.compile(
+            "(?:无需|不要求|不使用|免于使用)\\s*(?:缴纳[^。；，\\r\\n]{0,20}?与\\s*)?" + CA_OR_SEAL
+                    + "(?:\\s*(?:与|及|或|和)\\s*" + CA_OR_SEAL + ")*", Pattern.CASE_INSENSITIVE);
 
     private static final String[] PAPER_SIGNALS = {
             "纸质标", "线下投标", "现场递交", "纸质投标文件递交"
@@ -49,7 +51,7 @@ public final class DeterministicCaCertificateExtractor {
         List<QualityEvidence> evidence = new ArrayList<>();
         for (DocumentContent.PageContent page : tenderDoc.pages()) {
             for (String line : page.text().split("[\\n\\r。；]")) {
-                List<String> names = CaPlatformNamePolicy.candidates(line);
+                List<String> names = CaPlatformNamePolicy.candidates(EXPLICIT_EXEMPT_CA.matcher(line).replaceAll(""));
                 if (names.isEmpty() || (requirement.platformName() != null && names.stream().noneMatch(
                         name -> CaPlatformNamePolicy.identity(name).equals(CaPlatformNamePolicy.identity(requirement.platformName()))))) continue;
                 evidence.add(QualityEvidence.tender("招标文件交易平台原文", page.pageNumber(), line.trim()));
@@ -65,23 +67,20 @@ public final class DeterministicCaCertificateExtractor {
             return null;
         }
 
-        String explicitExemption = null;
-        for (String exempt : EXPLICIT_EXEMPT_SIGNALS) {
-            if (fullText.contains(exempt)) {
-                explicitExemption = exempt;
-                break;
-            }
-        }
+        Matcher exemption = EXPLICIT_EXEMPT_CA.matcher(fullText);
+        String explicitExemption = exemption.find() ? exemption.group() : null;
+        // 只移除明确否定的 CA/签章短语；其它位置真实电子投标/CA要求仍参与强证据判断。
+        String positiveText = EXPLICIT_EXEMPT_CA.matcher(fullText).replaceAll("");
 
         // 1. 汇总电子标/CA强证据，避免负向模板词先命中后短路
         boolean hasCaKeyword = false;
         for (String kw : CA_REQUIRED_KEYWORDS) {
-            if (fullText.contains(kw)) {
+            if (positiveText.contains(kw)) {
                 hasCaKeyword = true;
                 break;
             }
         }
-        if (!hasCaKeyword && explicitExemption == null && CaPlatformNamePolicy.hasRegionalCa(fullText)) {
+        if (!hasCaKeyword && CaPlatformNamePolicy.hasRegionalCa(positiveText)) {
             hasCaKeyword = true;
         }
 
@@ -105,21 +104,21 @@ public final class DeterministicCaCertificateExtractor {
 
         // 2. 提取平台名称或省份 CA 锁名称
         String platform = null;
-        List<String> candidates = CaPlatformNamePolicy.candidates(fullText);
+        List<String> candidates = CaPlatformNamePolicy.candidates(positiveText);
         if (candidates.size() == 1) {
             platform = candidates.getFirst();
         }
 
-        boolean requireCopy = fullText.contains("证书复印件")
-                || fullText.contains("有效性证明")
-                || fullText.contains("证书截图")
-                || fullText.contains("证书扫描件")
-                || fullText.contains("CA证明");
+        boolean requireCopy = positiveText.contains("证书复印件")
+                || positiveText.contains("有效性证明")
+                || positiveText.contains("证书截图")
+                || positiveText.contains("证书扫描件")
+                || positiveText.contains("CA证明");
 
-        boolean requireSeal = fullText.contains("电子签章")
-                || fullText.contains("电子印章")
-                || fullText.contains("数字证书签名")
-                || fullText.contains("CA签名");
+        boolean requireSeal = positiveText.contains("电子签章")
+                || positiveText.contains("电子印章")
+                || positiveText.contains("数字证书签名")
+                || positiveText.contains("CA签名");
 
         String desc = platform != null
                 ? "本项目要求使用 " + platform + " 实行全流程电子招投标，须提供有效 CA 证书及电子签章"

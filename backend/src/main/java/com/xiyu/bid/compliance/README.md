@@ -29,6 +29,9 @@
 | `domain/policy/DeterministicQualificationExtractor.java` | Policy | 招标文件硬性资格与专用资质确定性提取纯核心策略（通用主体资格与专用行业资质分流、导语过滤、序号标点清洗、Markdown 表格切分、长度门禁、评分与模板排除、双轨兜底） |
 | `domain/policy/QualificationVetoPolicy.java` | Policy | 标书一票否决与资格前置反假核验策略（占位符留白反假、实质性违规分包拦截、硬性资质满足直接PASS、缺失精简FAIL） |
 | `domain/policy/DeterministicDepositExtractor.java` | Policy | 招标投标保证金/担保及政采响应担保确定性提取与免收识别纯核心策略 |
+| `domain/policy/RuleCitationContext.java` | Policy | 区分条件规则引用与投标人自身违规，按命中语境定位证据 |
+| `domain/policy/CommitmentSealCheckPolicy.java` | Policy | 承诺正文优先定位，目录/评分索引不作为签章事实 |
+| `domain/policy/SemanticEvidenceBoundary.java` | Policy | 无定位、抽样跳页或图片文本缺口不得升级确定缺失 |
 | `domain/policy/SemanticPageRetriever.java` | Domain Service | 60K 预算语义页面智能召回器（单页超预算硬截断） |
 | `domain/DocumentContent.java` | Domain Model | 文档结构化内容；分页优先级：Sidecar pages → \f 切分 → virtualPages 虚拟分页兜底（无分页符长文本按标题/段落切块） |
 | `domain/PageImage.java` | Domain Model | 质检任务内存中的页面图像及页码元数据，不落库 |
@@ -42,3 +45,14 @@
 | `dto/QualityCheckReportDTO.java` | DTO | 质量核查报告视图对象 |
 | `dto/ComplianceIssue.java` | DTO | 合规问题对象 |
 | `dto/RiskAssessmentDTO.java` | DTO | 风险评估对象 |
+
+## 质量核查证据边界（spec 079）
+
+- 招标规则中的违规词或条件式负偏离不等于投标人自述违规；仍检查同页后续真实声明。
+- 相关页抽样显式标记，缺号不证明原PDF缺页；授权书/身份证等证据不足转人工，明确留白或正文数值矛盾仍失败。
+- CA平台在所有构造入口剔除泛称，未知具体平台人工确认，不虚构“或称交易平台”。
+- ISO标准码冲突禁止模糊匹配；查询与明细复用同标准最佳有效候选，保留过期/等级不足失败。
+- 财务须由同句明确义务建立要求，否定、目录和可选模板不得生成硬性审计要求。
+- 本次代码验证不替代部署后同文件hash强制重算；历史核查结果不会自动更新。
+
+- spec079 安全兜底：财务核查及复合资格性评审的自动 PASS 统一转 MANUAL_REVIEW，规则入口、LLM 入口和引擎输出共享边界；保留证据与明细，不代表财务条款解析已完成修复。

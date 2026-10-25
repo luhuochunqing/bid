@@ -206,4 +206,77 @@ class DeterministicCaCertificateExtractorTest {
         assertThat(req.platformName()).contains("河北");
         assertThat(req.platformName()).contains("CA");
     }
+
+    @Test
+    @DisplayName("项目1117：平台定义泛称不得遮蔽后续实际交易平台")
+    void extract_genericAliasBeforeConcretePlatform_selectsConcretePlatform() {
+        CaCertificateRequirement req = DeterministicCaCertificateExtractor.extract(
+                "交易平台（或称交易平台）。本项目通过招商局集团电子招标采购交易平台进行电子投标，须使用CA数字证书。");
+        assertThat(req.platformName()).contains("招商局集团").doesNotContain("或称", "本项目通过");
+    }
+
+    @Test
+    @DisplayName("只有泛称交易平台时不虚构平台并保持电子标待人工核实")
+    void extract_onlyGenericAlias_doesNotInventConcretePlatform() {
+        CaCertificateRequirement req = DeterministicCaCertificateExtractor.extract(
+                "交易平台（或称交易平台）。本项目电子投标须使用CA数字证书。");
+        assertThat(req.required()).isTrue();
+        assertThat(req.platformName()).isNull();
+        assertThat(CaCertificateCheckPolicy.check(DocumentContent.fromText("bid.pdf", "hash", "投标正文"), req).status())
+                .isEqualTo(com.xiyu.bid.compliance.domain.QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @Test
+    @DisplayName("大模型泛称平台不能通过融合恢复为具体平台")
+    void fuse_genericModelPlatform_doesNotRestoreAlias() {
+        CaCertificateRequirement llm = new CaCertificateRequirement(true, "或称交易平台", false, false, "电子投标");
+        CaCertificateRequirement deterministic = new CaCertificateRequirement(true, null, false, false, "电子投标");
+        assertThat(llm.fuseWithDeterministic(deterministic).platformName()).isNull();
+    }
+
+
+    @Test
+    @DisplayName("纸质标否定电子CA时不能把地域CA正则当成强要求")
+    void extract_paperBidExplicitlyExemptsElectronicCa_doesNotRequireCa() {
+        CaCertificateRequirement req = DeterministicCaCertificateExtractor.extract(
+                "本项目免收投标保证金，采用纸质标书递交，无需缴纳保证金与电子 CA。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isFalse();
+    }
+
+    @Test
+    @DisplayName("无需电子签章及CA数字证书的并列豁免不能自相矛盾")
+    void extract_coordinatedNegativeCaAndSeal_doesNotRequireCa() {
+        CaCertificateRequirement req = DeterministicCaCertificateExtractor.extract(
+                "本项目采用纸质标书递交，无需电子签章及 CA 数字证书。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isFalse();
+    }
+
+    @Test
+    @DisplayName("历史电子CA豁免后另有当前电子强要求时仍要求CA")
+    void extract_negativeElectronicCaTemplateWithCurrentPositiveRequirement_requiresCa() {
+        CaCertificateRequirement req = DeterministicCaCertificateExtractor.extract(
+                "旧模板采用纸质标书递交，无需缴纳保证金与电子 CA。当前项目须办理河北 CA 数字证书进行远程解密。");
+        assertThat(req.required()).isTrue();
+    }
+
+    @Test
+    @DisplayName("历史无需CA不能覆盖后续仅地域CA的明确要求")
+    void extract_historicalExemptionAndRegionalCaOnly_requiresCa() {
+        CaCertificateRequirement req = DeterministicCaCertificateExtractor.extract(
+                "旧版模板无需CA。当前项目须办理河北 CA。");
+        assertThat(req.required()).isTrue();
+        assertThat(req.platformName()).contains("河北");
+    }
+
+    @Test
+    @DisplayName("未知县级CA保留电子投标要求但平台身份未知时转人工")
+    void extract_unverifiedCountyCa_requiresCaButLeavesPlatformForManualReview() {
+        CaCertificateRequirement req = DeterministicCaCertificateExtractor.extract("本项目须使用应县 CA 进行远程解密。");
+        assertThat(req.required()).isTrue();
+        assertThat(req.platformName()).isNull();
+        assertThat(CaCertificateCheckPolicy.check(DocumentContent.fromText("bid.pdf", "hash", "投标正文"), req).status())
+                .isEqualTo(com.xiyu.bid.compliance.domain.QualityCheckStatus.MANUAL_REVIEW);
+    }
 }

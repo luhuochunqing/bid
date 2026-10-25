@@ -3,6 +3,7 @@
 // Pos: compliance/domain/policy/ - 财务状况提取器契约单元测试
 package com.xiyu.bid.compliance.domain.policy;
 
+import com.xiyu.bid.compliance.domain.DocumentContent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -11,6 +12,171 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DeterministicFinancialExtractorTest {
+
+    @Test
+    void conditionBeforeCommaStillLimitsTheFollowingSubjectlessExemption() {
+        var req = DeterministicFinancialExtractor.extract("成立不足一年，无需提供财务审计报告。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isNull();
+    }
+
+    @Test
+    void alternateSubmissionAndSealNegationWordingUseTheSameObligationScope() {
+        var req = DeterministicFinancialExtractor.extract(
+                "投标人需提交2025年财务审计报告，不需要盖会计师事务所印章。");
+        assertThat(req.required()).isTrue();
+        assertThat(req.auditReportRequired()).isTrue();
+        assertThat(req.requireCpaSeal()).isFalse();
+    }
+
+    @Test
+    void ageConditionExemptionCannotBePromotedToWholeProjectExemption() {
+        FinancialRequirement req = DeterministicFinancialExtractor.extract(
+                "成立不足一年的企业无需提供财务审计报告。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isNull();
+    }
+
+    @Test
+    void expresslyExcludedCpaSealDoesNotBecomeMandatoryFromAuditContext() {
+        FinancialRequirement req = DeterministicFinancialExtractor.extract(
+                "投标人须提供2025年财务审计报告，无需加盖会计师事务所印章。");
+        assertThat(req.required()).isTrue();
+        assertThat(req.auditReportRequired()).isTrue();
+        assertThat(req.requireCpaSeal()).isFalse();
+    }
+
+    @Test
+    void requiredSubmissionVerbCannotBeDiscardedAsOnlyReferenceFormat() {
+        FinancialRequirement req = DeterministicFinancialExtractor.extract(
+                "投标人须提交近三年财务审计报告。附财务报表参考格式。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isTrue();
+        assertThat(req.auditReportRequired()).isTrue();
+    }
+
+    @Test
+    void fusionDoesNotReintroduceAuditStatementsExcludedByActualTenderClause() {
+        var llmRequirements = TenderRequirements.empty()
+                .withFinancialRequirement(FinancialRequirement.standard());
+        var tender = DocumentContent.fromText("tender.pdf", "scoped-financial-fields",
+                "须提供2025年财务报表。无需提供2023年财务审计报告、资产负债表、利润表和现金流量表。");
+        var financial = DeterministicRequirementsFuser.fuseAll(llmRequirements, tender).financialRequirement();
+        assertThat(financial.required()).isTrue();
+        assertThat(financial.auditReportRequired()).isFalse();
+        assertThat(financial.requiredStatements()).isEmpty();
+        assertThat(financial.requiredYears()).containsExactly("2025");
+        assertThat(financial.requireCpaSeal()).isFalse();
+    }
+
+    @Test
+    void requiringAuditReportDoesNotInventAnUnstatedCpaSealRequirement() {
+        FinancialRequirement req = DeterministicFinancialExtractor.extract("投标人须提供2025年财务审计报告。");
+        assertThat(req.required()).isTrue();
+        assertThat(req.auditReportRequired()).isTrue();
+        assertThat(req.requireCpaSeal()).isFalse();
+    }
+
+    @Test
+    void referenceFormatSuffixCannotEraseMandatoryDemandForOtherBidders() {
+        FinancialRequirement req = DeterministicFinancialExtractor.extract(
+                "新成立企业无需提供财务审计报告。其他投标人须提供2025年财务审计报告，参考格式见附件。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isTrue();
+        assertThat(req.auditReportRequired()).isTrue();
+        assertThat(req.requiredYears()).containsExactly("2025");
+    }
+
+    @Test
+    void excludedAuditYearsAndStatementsDoNotPolluteActualFinancialDemand() {
+        FinancialRequirement req = DeterministicFinancialExtractor.extract(
+                "须提供2025年财务报表。无需提供2023年财务审计报告、资产负债表、利润表和现金流量表。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isTrue();
+        assertThat(req.auditReportRequired()).isFalse();
+        assertThat(req.requiredYears()).containsExactly("2025");
+        assertThat(req.requiredStatements()).isEmpty();
+        assertThat(req.requireCpaSeal()).isFalse();
+    }
+
+    @Test
+    void optionalFinancialMentionDoesNotEraseSeparateMandatoryAuditClause() {
+        FinancialRequirement req = DeterministicFinancialExtractor.extract(
+                "财务报表（如有），但须提供经审计的审计报告。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isTrue();
+        assertThat(req.auditReportRequired()).isTrue();
+    }
+
+    @Test
+    void optionalTemplateCannotBePromotedByLlmToHardFinancialRequirement() {
+        var llmRequirements = TenderRequirements.empty()
+                .withFinancialRequirement(FinancialRequirement.standard());
+        var tender = DocumentContent.fromText("tender.pdf", "optional-financial-template",
+                "财务审计报告参考格式（如有）。");
+        var fused = DeterministicRequirementsFuser.fuseAll(llmRequirements, tender);
+        assertThat(fused.financialRequirement()).isNotNull();
+        assertThat(fused.financialRequirement().required()).isNull();
+        assertThat(fused.financialRequirement().auditReportRequired()).isNull();
+        assertThat(fused.financialRequirement().requiredStatements()).isEmpty();
+    }
+
+    @Test
+    void explicitTenderExemptionOverridesLlmStandardAuditRequirementAcrossFusion() {
+        var llmRequirements = TenderRequirements.empty()
+                .withFinancialRequirement(FinancialRequirement.standard());
+        var tender = DocumentContent.fromText("tender.pdf", "financial-exemption",
+                "本项目不要求提供财务报表。");
+        var fused = DeterministicRequirementsFuser.fuseAll(llmRequirements, tender);
+        assertThat(fused.financialRequirement()).isNotNull();
+        assertThat(fused.financialRequirement().required()).isFalse();
+        assertThat(fused.financialRequirement().auditReportRequired()).isFalse();
+        assertThat(fused.financialRequirement().requiredStatements()).isEmpty();
+        assertThat(fused.financialRequirement().requireCpaSeal()).isFalse();
+    }
+
+    @Test
+    void genuineMandatoryClauseInSameTenderStillWinsOverAnExemptionMention() {
+        var llmRequirements = TenderRequirements.empty()
+                .withFinancialRequirement(FinancialRequirement.notRequired("LLM误识别免除"));
+        var tender = DocumentContent.fromText("tender.pdf", "financial-conflict",
+                "小微企业免于提供财务状况证明。投标人须提供近三年经审计的财务报表。");
+        var fused = DeterministicRequirementsFuser.fuseAll(llmRequirements, tender);
+        assertThat(fused.financialRequirement().required()).isTrue();
+        assertThat(fused.financialRequirement().auditReportRequired()).isTrue();
+    }
+
+    @Test
+    void mandatoryAuditDemandSurvivesPdfLineBreakBetweenVerbAndFinancialSubject() {
+        FinancialRequirement req = DeterministicFinancialExtractor.extract(
+                "投标人须提供经会计师事务所出具的\n财务审计报告。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isTrue();
+        assertThat(req.auditReportRequired()).isTrue();
+    }
+
+    @Test
+    void negatedDemandDoesNotBecomePositiveBecauseItContainsDemandSubstring() {
+        FinancialRequirement req = DeterministicFinancialExtractor.extract("本项目不要求提供财务报表。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isFalse();
+    }
+
+    @Test
+    void catalogAndOptionalAuditTemplateDoNotEstablishHardFinancialRequirement() {
+        FinancialRequirement req = DeterministicFinancialExtractor.extract(
+                "目录\n近年财务状况表........20\n审计报告参考格式（如有）：应附审计报告扫描件。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isNull();
+    }
+
+    @Test
+    void unrelatedDocumentDemandCannotOverrideExplicitFinancialExemption() {
+        FinancialRequirement req = DeterministicFinancialExtractor.extract(
+                "投标人须提供营业执照。\n本项目无需提供财务状况证明或财务审计报告。");
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isFalse();
+    }
 
     @Test
     @DisplayName("提取标准三年审计报告要求：识别审计报告、具体年份与财务三表")
@@ -30,7 +196,7 @@ class DeterministicFinancialExtractorTest {
         assertThat(req.requireCpaSeal()).isTrue();
         assertThat(req.requiredYears()).contains("2021", "2022", "2023");
         assertThat(req.requiredStatements()).contains("资产负债表", "利润表", "现金流量表");
-        assertThat(req.description()).contains("经会计师事务所审计");
+        assertThat(req.description()).contains("须提供", "会计师事务所", "审计");
     }
 
     @Test
@@ -85,7 +251,7 @@ class DeterministicFinancialExtractorTest {
         assertThat(fused).isNotNull();
         assertThat(fused.requiredYears()).containsExactly("2021", "2022", "2023");
         assertThat(fused.requiredStatements()).contains("资产负债表", "利润表", "现金流量表");
-        assertThat(fused.description()).isEqualTo("大模型提取的财务说明");
+        assertThat(fused.description()).isEqualTo("规则提取的财务说明");
     }
 
     @Test
@@ -138,8 +304,8 @@ class DeterministicFinancialExtractorTest {
         assertThat(fused.required()).isTrue();
         assertThat(fused.description()).isEqualTo("须提供");
         FinancialRequirement fusedDet = FinancialRequirement.fuseWithDeterministic(required, exempt);
-        assertThat(fusedDet.required()).isTrue();
-        assertThat(fusedDet.description()).isEqualTo("须提供");
+        assertThat(fusedDet.required()).isFalse();
+        assertThat(fusedDet.description()).isEqualTo("免除");
     }
 
     @Test
@@ -154,7 +320,7 @@ class DeterministicFinancialExtractorTest {
     }
 
     @Test
-    @DisplayName("双轨融合：确定性「近三年」与 LLM 绝对年份取并集")
+    @DisplayName("双轨融合：确定性原文范围不被LLM无源年份与报表扩张")
     void testFuseWithDeterministic_UnionsRelativeAndAbsoluteYears() {
         FinancialRequirement llmReq = new FinancialRequirement(
                 true, true, List.of("2021", "2022", "2023"), List.of("资产负债表"), true, "须提供三年报表");
@@ -163,6 +329,7 @@ class DeterministicFinancialExtractorTest {
 
         FinancialRequirement fused = FinancialRequirement.fuseWithDeterministic(llmReq, detReq);
 
-        assertThat(fused.requiredYears()).contains("近三年", "2021", "2022", "2023");
+        assertThat(fused.requiredYears()).containsExactly("近三年");
+        assertThat(fused.requiredStatements()).isEmpty();
     }
 }

@@ -1,5 +1,5 @@
 // Input: 投标文件分页内容 DocumentContent + 招标财务要求 FinancialRequirement
-// Output: 财务状况与财务审计报告核查结果（防目录点线假通过、防未填模板占位符、财务三表平衡勾稽穿透校验与年份覆盖度校验）
+// Output: 财务状况与财务审计报告核查结果（自动通过统一转人工确认）（防目录点线假通过、防未填模板占位符、财务三表平衡勾稽穿透校验与年份覆盖度校验）
 // Pos: compliance/domain/policy/ - 标书端财务状况与审计报告核验策略（FP-Java，无框架依赖，行预算严格 <= 320）
 // 依赖: FinancialStatementAccuracyCalculator（三表平衡勾稽穿透校验助手）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -33,9 +33,7 @@ public final class FinancialStatementCheckPolicy {
     private static final Pattern YEAR_PATTERN = Pattern.compile("20[12][0-9]年");
     private static final Pattern ABSOLUTE_YEAR = Pattern.compile("20[12][0-9]");
 
-    private FinancialStatementCheckPolicy() {
-    }
-
+    private FinancialStatementCheckPolicy() { }
     public static boolean isHardAntiFakeFail(final QualityCheckItemResult result) {
         return result != null
                 && result.status() == QualityCheckStatus.FAIL
@@ -49,8 +47,19 @@ public final class FinancialStatementCheckPolicy {
 
     public static QualityCheckItemResult check(
             final DocumentContent bidDoc, final FinancialRequirement requirement) {
+        return SemanticEvidenceBoundary.requireQualificationConfirmation(checkEvidence(bidDoc, requirement));
+    }
+
+    private static QualityCheckItemResult checkEvidence(
+            final DocumentContent bidDoc, final FinancialRequirement requirement) {
         BidQualityCheckItem item = BidQualityCheckItem.QUALIFICATION_REVIEW;
         FinancialRequirement req = requirement == null ? FinancialRequirement.standard() : requirement;
+
+        if (req.required() == null) {
+            return QualityCheckItemResult.manualReview(item,
+                    "未确认本项目适用的强制财务要求，不能认定缺失或免除",
+                    "请对照招标文件确认财务证明的适用条件后再核查", Collections.emptyList());
+        }
 
         if (Boolean.FALSE.equals(req.required())) {
             return QualityCheckItemResult.pass(item, "招标文件未要求提供财务状况证明或财务审计报告（免除/不涉及）", Collections.emptyList());

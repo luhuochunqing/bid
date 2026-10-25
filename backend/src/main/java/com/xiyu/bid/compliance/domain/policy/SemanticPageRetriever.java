@@ -13,13 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * 标书质量核查纯领域语义页面检索器 (FP-Java).
- *
- * <p>零框架依赖、无 I/O、无异常流、不可变纯函数。
- * 负责根据检查项主题、静态关键词及招标结构化要求，对标书分页文档进行相关性检索打分并受控预算组装上下文，
- * 彻底替换旧版前缀硬截断，保留物理页码元数据 {@code --- [第 X 页] ---}。
- */
+/** 按检查项相关性挑选预算内页面，保留真实页码并显式声明抽样边界（FP-Java）。 */
 public final class SemanticPageRetriever {
 
     public static final int DEFAULT_BID_BUDGET = 60_000;
@@ -33,9 +27,9 @@ public final class SemanticPageRetriever {
     private static final String PAGE_HEADER_PREFIX = "--- [第 ";
     private static final String PAGE_HEADER_SUFFIX = " 页] ---";
     private static final String NO_CONTENT = "（无内容）";
+    private static final String SAMPLED_NOTICE = "【相关页抽样：页码间隔不代表原文件缺页；未召回内容不能证明原文缺失，扫描图片须人工核实】\n";
 
-    private SemanticPageRetriever() {
-    }
+    private SemanticPageRetriever() { }
 
     /** 针对投标文件执行语义检索（使用默认投标文件预算 60,000 字符）. */
     public static String retrieveBidContext(
@@ -49,9 +43,7 @@ public final class SemanticPageRetriever {
         return retrieveContext(item, tenderReqs, document, DEFAULT_TENDER_BUDGET);
     }
 
-    /**
-     * 执行分页文档语义检索与预算上下文拼装.
-     */
+    /** 执行分页检索与预算上下文拼装。 */
     public static String retrieveContext(
             final BidQualityCheckItem item, final TenderRequirements tenderReqs,
             final DocumentContent document, final int charBudget) {
@@ -82,7 +74,6 @@ public final class SemanticPageRetriever {
             scoredPages.add(new ScoredPage(p, scorePage(p, queryCues)));
         }
 
-        // 按得分降序排序，同分按页码升序稳定排序
         scoredPages.sort(Comparator.comparingInt(ScoredPage::score).reversed()
                 .thenComparingInt(sp -> sp.page().pageNumber()));
 
@@ -91,7 +82,6 @@ public final class SemanticPageRetriever {
         for (ScoredPage sp : scoredPages) {
             int pageLen = sp.page().text() != null ? sp.page().text().length() : 0;
             if (selected.isEmpty() && pageLen > charBudget) {
-                // 首个（最高分）页自身即超预算：硬截断至预算，防止单页超长文档（分页缺失）撑爆 prompt
                 selected.add(truncatePage(sp.page(), charBudget));
                 break;
             }
@@ -104,12 +94,10 @@ public final class SemanticPageRetriever {
             }
         }
 
-        // 重新按自然页码升序排列输出
         selected.sort(Comparator.comparingInt(DocumentContent.PageContent::pageNumber));
-        return formatPages(selected);
+        return SAMPLED_NOTICE + formatPages(selected);
     }
 
-    /** 单页相关性打分算法. */
     private static int scorePage(final DocumentContent.PageContent page, final Set<String> cues) {
         if (page == null) return 0;
         String text = page.text() == null ? "" : page.text();
@@ -138,7 +126,6 @@ public final class SemanticPageRetriever {
         return score;
     }
 
-    /** 快速字串出现频次统计 (O(N) 纯扫描，零异常流). */
     private static int countOccurrences(final String text, final String sub) {
         if (text == null || sub == null || sub.isEmpty()) return 0;
         int count = 0, idx = 0;
@@ -149,7 +136,6 @@ public final class SemanticPageRetriever {
         return count;
     }
 
-    /** 收集检查项静态线索与招标要求动态线索. */
     private static Set<String> collectQueryCues(final BidQualityCheckItem item, final TenderRequirements req) {
         Set<String> cues = new LinkedHashSet<>();
         if (item != null) {
@@ -158,7 +144,7 @@ public final class SemanticPageRetriever {
             addStaticItemCues(cues, item);
         }
         if (req != null && !req.missing()) {
-            addDynamicRequirementsCues(cues, req);
+            cues.addAll(addDynamicRequirementsCues(req, item));
         }
         return cues;
     }
@@ -169,7 +155,7 @@ public final class SemanticPageRetriever {
                     "职业健康安全", "体系认证", "等级", "有效期", "认证机构", "资格证明", "资质证书");
             case QUALIFICATION_VETO -> addCues(cues, "资格条件", "一票否决", "废标", "实质性要求", "强制性要求",
                     "授权书", "品牌授权", "原厂授权", "制造商授权", "营业执照", "独立法人", "资格审查");
-            case FRONT_TABLE_RESPONSE -> addCues(cues, "投标人须知前附表", "前附表", "关键条款", "条款响应",
+            case FRONT_TABLE_RESPONSE -> addCues(cues, "投标人须知前附表", "前附表", "商务条款响应表", "商务响应表", "关键条款", "条款响应",
                     "响应表", "偏离表", "项目概况", "质量标准", "标段", "投标有效期", "质保期", "工期");
             case RESPONSIVENESS_REVIEW -> addCues(cues, "响应性评审", "实质性响应", "商务偏离表", "技术偏离表",
                     "偏离表", "负偏离", "正偏离", "无偏离", "付款方式", "支付条款", "交货期", "供货周期", "售后服务承诺");
@@ -203,49 +189,64 @@ public final class SemanticPageRetriever {
         return cues;
     }
 
-    private static Set<String> addDynamicRequirementsCues(final Set<String> cues, final TenderRequirements req) {
-        req.mandatoryQualifications().forEach(qual -> addCue(cues, qual));
-        req.scoringItems().forEach(scoring -> {
-            addCue(cues, scoring.name());
-            addCue(cues, scoring.criteria());
-        });
-        req.vetoClauses().forEach(veto -> {
-            addCue(cues, veto.clause());
-            veto.keywords().forEach(kw -> addCue(cues, kw));
-        });
-        req.compositionRequirements().forEach(comp -> addCue(cues, comp));
-        req.formatRequirements().forEach(fmt -> addCue(cues, fmt));
-        if (req.depositRequirement() != null) addDescriptionCues(cues, req.depositRequirement().description());
-        if (req.bidLetterRequirement() != null) {
-            addCue(cues, req.bidLetterRequirement().letterType());
-            addCue(cues, req.bidLetterRequirement().recipientName());
-            addDescriptionCues(cues, req.bidLetterRequirement().description());
-        }
-        if (req.authorizationRequirement() != null) {
-            addCue(cues, req.authorizationRequirement().templateTitle());
-            addDescriptionCues(cues, req.authorizationRequirement().description());
-        }
-        if (req.businessLicenseRequirement() != null) {
-            req.businessLicenseRequirement().allowCertificates().forEach(cert -> addCue(cues, cert));
-            addDescriptionCues(cues, req.businessLicenseRequirement().description());
-        }
-        if (req.idAuthLetterRequirement() != null) {
-            addCue(cues, req.idAuthLetterRequirement().requireOriginalOrCopy());
-            addDescriptionCues(cues, req.idAuthLetterRequirement().description());
-        }
-        if (req.financialRequirement() != null) {
-            req.financialRequirement().requiredStatements().forEach(stmt -> addCue(cues, stmt));
-            req.financialRequirement().requiredYears().forEach(year -> addCue(cues, year));
-            addDescriptionCues(cues, req.financialRequirement().description());
-        }
-        if (req.priceRequirement() != null) {
-            addCue(cues, req.priceRequirement().pricingMethod());
-            addCue(cues, req.priceRequirement().maxPriceRawText());
-            addDescriptionCues(cues, req.priceRequirement().description());
-        }
-        if (req.caCertificateRequirement() != null) {
-            addCue(cues, req.caCertificateRequirement().platformName());
-            addDescriptionCues(cues, req.caCertificateRequirement().description());
+    private static Set<String> addDynamicRequirementsCues(
+            final TenderRequirements req, final BidQualityCheckItem item) {
+        Set<String> cues = new LinkedHashSet<>();
+        if (item == null) return cues;
+        switch (item) {
+            case QUALIFICATION_MATCH, QUALIFICATION_REVIEW, QUALIFICATION_VETO -> {
+                req.mandatoryQualifications().forEach(qual -> addCue(cues, qual));
+                if (item == BidQualityCheckItem.QUALIFICATION_VETO) req.vetoClauses().forEach(veto -> {
+                    addCue(cues, veto.clause());
+                    veto.keywords().forEach(kw -> addCue(cues, kw));
+                });
+                if (item == BidQualityCheckItem.QUALIFICATION_REVIEW && req.financialRequirement() != null) {
+                    req.financialRequirement().requiredStatements().forEach(stmt -> addCue(cues, stmt));
+                    addDescriptionCues(cues, req.financialRequirement().description());
+                }
+            }
+            case SCORING_RESPONSE -> req.scoringItems().forEach(scoring -> {
+                addCue(cues, scoring.name());
+                addCue(cues, scoring.criteria());
+            });
+            case FRONT_TABLE_RESPONSE -> {
+                req.compositionRequirements().forEach(comp -> addCue(cues, comp));
+                req.formatRequirements().forEach(fmt -> addCue(cues, fmt));
+                if (req.frontTableRequirement() != null) addDescriptionCues(cues, req.frontTableRequirement().description());
+            }
+            case DEPOSIT_RECEIPT, DEPOSIT_REFUND -> {
+                if (req.depositRequirement() != null) addDescriptionCues(cues, req.depositRequirement().description());
+            }
+            case BID_LETTER_FORMAT -> {
+                if (req.bidLetterRequirement() != null) {
+                    addCue(cues, req.bidLetterRequirement().letterType());
+                    addCue(cues, req.bidLetterRequirement().recipientName());
+                    addDescriptionCues(cues, req.bidLetterRequirement().description());
+                }
+            }
+            case AUTHORIZATION_LETTER -> {
+                if (req.authorizationRequirement() != null) {
+                    addCue(cues, req.authorizationRequirement().templateTitle());
+                    addDescriptionCues(cues, req.authorizationRequirement().description());
+                }
+            }
+            case BUSINESS_LICENSE -> {
+                if (req.businessLicenseRequirement() != null) req.businessLicenseRequirement().allowCertificates()
+                        .forEach(cert -> addCue(cues, cert));
+            }
+            case ID_AUTH_LETTER -> {
+                if (req.idAuthLetterRequirement() != null) addDescriptionCues(cues, req.idAuthLetterRequirement().description());
+            }
+            case PRICE_CONSISTENCY -> {
+                if (req.priceRequirement() != null) addDescriptionCues(cues, req.priceRequirement().description());
+            }
+            case CA_CERTIFICATE -> {
+                if (req.caCertificateRequirement() != null) addCue(cues, req.caCertificateRequirement().platformName());
+            }
+            case RESPONSIVENESS_REVIEW -> {
+                if (req.businessTermsRequirement() != null) addDescriptionCues(cues, req.businessTermsRequirement().description());
+            }
+            default -> { }
         }
         return cues;
     }
@@ -281,7 +282,8 @@ public final class SemanticPageRetriever {
     }
 
     private static String formatSinglePage(final int pageNumber, final String text, final int budget) {
-        return PAGE_HEADER_PREFIX + pageNumber + PAGE_HEADER_SUFFIX + "\n"
+        return (text.length() > budget ? SAMPLED_NOTICE : "")
+                + PAGE_HEADER_PREFIX + pageNumber + PAGE_HEADER_SUFFIX + "\n"
                 + (text.length() <= budget ? text : text.substring(0, budget) + "……（已截断）").trim();
     }
 

@@ -1,5 +1,5 @@
 // Input: 真实与伪造的投标文件财务章节（含完整三表、目录点线干扰、占位模板未填、部分缺失等）
-// Output: 验证 FinancialStatementCheckPolicy 要素核验、反假、目录过滤与强凭证直通
+// Output: 验证 FinancialStatementCheckPolicy 要素核验、反假、目录过滤与完整材料人工复核
 // Pos: compliance/domain/policy/ - 标书端财务状况核验契约测试
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -17,8 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FinancialStatementCheckPolicyTest {
 
     @Test
-    @DisplayName("完整三表与审计报告印章：强凭证直通 PASS 并生成真实页码证据链")
-    void testCheck_WhenFullThreeStatementsAndAuditReport_Passes() {
+    @DisplayName("完整三表与审计报告印章：材料齐全仍需人工确认，并保留真实页码证据链")
+    void testCheck_WhenFullThreeStatementsAndAuditReport_RequiresConfirmation() {
         DocumentContent bidDoc = new DocumentContent(
                 "bid.pdf",
                 "hash_123",
@@ -48,9 +48,9 @@ class FinancialStatementCheckPolicyTest {
 
         QualityCheckItemResult result = FinancialStatementCheckPolicy.check(bidDoc, req);
 
-        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(result.itemCode()).isEqualTo(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode());
-        assertThat(result.conclusion()).contains("资产负债表", "利润表", "现金流量表", "审计意见");
+        assertThat(result.conclusion()).contains("尚需人工确认");
         assertThat(result.evidences()).hasSize(4);
         assertThat(result.evidences().stream().map(e -> e.pageNumber()).toList()).containsExactly(15, 16, 17, 18);
     }
@@ -99,15 +99,15 @@ class FinancialStatementCheckPolicyTest {
     }
 
     @Test
-    @DisplayName("招标文件明确免除场景：判定 PASS 并标注免除说明")
-    void testCheck_WhenTenderExempts_Passes() {
+    @DisplayName("解析为免除仍须人工确认适用条件")
+    void testCheck_WhenTenderExempts_RequiresConfirmation() {
         DocumentContent bidDoc = new DocumentContent("bid.pdf", "hash_empty", "", List.of());
         FinancialRequirement req = FinancialRequirement.notRequired("小额采购免除财务审计报告");
 
         QualityCheckItemResult result = FinancialStatementCheckPolicy.check(bidDoc, req);
 
-        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(result.conclusion()).contains("免除/不涉及");
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.suggestion()).contains("豁免条件");
     }
 
     @Test

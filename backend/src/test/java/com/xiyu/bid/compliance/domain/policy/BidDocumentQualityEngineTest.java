@@ -495,8 +495,8 @@ class BidDocumentQualityEngineTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(authLetter.status()).isEqualTo(QualityCheckStatus.FAIL);
-        assertThat(authLetter.conclusion()).contains("经大模型语义核查");
+        assertThat(authLetter.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(authLetter.conclusion()).contains(ManualReasons.EVIDENCE_INSUFFICIENT);
     }
 
     @Test
@@ -639,8 +639,8 @@ class BidDocumentQualityEngineTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(idResult.status()).isEqualTo(QualityCheckStatus.FAIL);
-        assertThat(idResult.conclusion()).contains("经大模型语义核查");
+        assertThat(idResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(idResult.conclusion()).contains(ManualReasons.EVIDENCE_INSUFFICIENT);
     }
 
     @Test
@@ -689,8 +689,8 @@ class BidDocumentQualityEngineTest {
         assertThat(llmCallCount.get())
                 .as("财务三表不能代替资格性评审整项裁决，必须把 QUALIFICATION_REVIEW 交给 LLM")
                 .isEqualTo(1);
-        assertThat(qualResult.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(qualResult.conclusion()).contains("经大模型语义核查通过");
+        assertThat(qualResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(qualResult.conclusion()).contains("尚需人工确认");
         assertThat(qualResult.conclusion()).doesNotContain("已提供完整的财务会计报告");
     }
 

@@ -190,3 +190,5 @@ backlinks:
 - [[scoreparse-extraction-stability-code-review-20261004]] — 主链已有原文校验，但逻辑单元、覆盖、来源合并尚不足以证明跨文件稳定提取。
 
 - [[scoreparse-langextract-ab-pilot-20261004]] — 两文件两轮真实提取AB，LangExtract名称更直接但粒度与完整原文定位未通过。
+
+- [标书质量核查证据边界](quality-evidence-boundary.md)：规则引用、抽样页码、ISO与CA匹配边界（spec079）。

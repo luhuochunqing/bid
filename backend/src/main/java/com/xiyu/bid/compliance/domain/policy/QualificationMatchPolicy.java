@@ -26,7 +26,8 @@ import java.util.regex.Pattern;
 public final class QualificationMatchPolicy {
     public static final int EXPIRY_WARN_DAYS = 60;
     private static final Pattern NORMALIZE_RE = Pattern.compile("[\\s\\u3000\\p{P}+/\\-_:：]+");
-    private static final Pattern STANDARD_CODE_RE = Pattern.compile("(?:iso|gb|iec|cmmi|itss|ccrc|cissp|cisp)[a-z0-9]*");
+    private static final Pattern STANDARD_CODE_RE = Pattern.compile(
+            "(?i)(?:iso|gb(?:\\s*/\\s*t)?|iec|cmmi|itss|ccrc|cissp|cisp)\\s*[-：:]?\\s*\\d+");
     private static final Pattern ISO_STANDARD_RE = Pattern.compile("(?i)ISO\\s*[-：:]?\\s*(9001|14001|45001)");
     private static final Pattern GOV_PREFIX_RE = Pattern.compile("^(?:中华人民共和国|全国|中国|国家)+");
     private static final Pattern UNDERLINE_BLANK_PATTERN = Pattern.compile("_{3,}");
@@ -47,11 +48,9 @@ public final class QualificationMatchPolicy {
             "资质证书", "资格证书", "企业资质", "体系认证", "许可证", "资质证明", "资格证明");
     private QualificationMatchPolicy() {
     }
-
     public static boolean isQualificationMatch(final String req, final String certName) {
         return calculateMatchScore(req, certName) > 0;
     }
-
     public static boolean checkLevelCompatibility(final String req, final String cert) {
         return QualificationGradePolicy.isGradeCompatible(req, cert);
     }
@@ -67,6 +66,8 @@ public final class QualificationMatchPolicy {
         if (req == null || req.isBlank() || certName == null || certName.isBlank()) return 0;
         String normReq = normalize(req), normCert = normalize(certName);
         if (normReq.isEmpty() || normCert.isEmpty()) return 0;
+        List<String> reqCodes = extractStandardCodes(req), certCodes = extractStandardCodes(certName);
+        if (!reqCodes.isEmpty() && !certCodes.isEmpty() && Collections.disjoint(reqCodes, certCodes)) return 0;
         String strippedReq = stripGovPrefix(normReq), strippedCert = stripGovPrefix(normCert);
 
         if (normReq.contains(normCert) || normCert.contains(normReq)
@@ -76,8 +77,8 @@ public final class QualificationMatchPolicy {
                         && (strippedReq.contains(strippedCert) || strippedCert.contains(strippedReq)))) {
             return 1000 + (strippedCert.isBlank() ? normCert.length() : strippedCert.length()) * 10;
         }
-        for (String rc : extractStandardCodes(normReq)) {
-            if (extractStandardCodes(normCert).contains(rc)) return 500 + rc.length() * 10;
+        for (String rc : reqCodes) {
+            if (certCodes.contains(rc)) return 500 + rc.length() * 10;
         }
         for (String term : DOMAIN_TERMS) {
             String normTerm = normalize(term);
@@ -89,7 +90,6 @@ public final class QualificationMatchPolicy {
         }
         return 0;
     }
-
     public static List<QualificationDetail> buildDetails(
             final List<String> requirements, final List<Qualification> allCertificates,
             final DocumentContent bidDoc, final LocalDate today) {
@@ -105,7 +105,6 @@ public final class QualificationMatchPolicy {
         }
         return Collections.unmodifiableList(details);
     }
-
     public static List<String> expandCombinedIsoRequirements(final List<String> requirements) {
         if (requirements == null || requirements.isEmpty()) return List.of();
         Set<String> expanded = new LinkedHashSet<>();
@@ -119,10 +118,12 @@ public final class QualificationMatchPolicy {
         }
         return List.copyOf(expanded);
     }
-
     private static QualificationDetail buildSingleDetail(
             final String req, final List<Qualification> certs, final DocumentContent bidDoc, final LocalDate today) {
-        Qualification bestCert = findBestMatchingCert(req, certs);
+        List<Qualification> validCerts = certs.stream().filter(q -> q != null
+                && (q.getExpiryDate() == null || !q.getExpiryDate().isBefore(today))).toList();
+        Qualification bestCert = findBestMatchingCert(req, validCerts);
+        if (bestCert == null) bestCert = findBestMatchingCert(req, certs);
         if (bestCert != null) {
             String certName = bestCert.getName() != null ? bestCert.getName() : "";
             Integer remainingDays = computeRemainingDays(bestCert.getExpiryDate(), today);
@@ -184,8 +185,7 @@ public final class QualificationMatchPolicy {
         }
         return Optional.empty();
     }
-
-    private static Qualification findBestMatchingCert(final String req, final List<Qualification> certs) {
+    public static Qualification findBestMatchingCert(final String req, final List<Qualification> certs) {
         Qualification best = null;
         int maxScore = 0;
         LocalDate latestExpiry = null;
@@ -202,7 +202,6 @@ public final class QualificationMatchPolicy {
         }
         return best;
     }
-
     private static Qualification findUnderGradedCert(final String req, final List<Qualification> certs) {
         if (certs == null) return null;
         for (Qualification q : certs) {
@@ -214,7 +213,6 @@ public final class QualificationMatchPolicy {
         }
         return null;
     }
-
     private static Optional<EvidenceHit> locateInBid(final DocumentContent bidDoc, final List<String> cues) {
         if (bidDoc == null || bidDoc.pages() == null || bidDoc.pages().isEmpty() || cues == null) return Optional.empty();
         List<String> cleanCues = cues.stream().filter(c -> c != null && !c.isBlank()).distinct().toList();
@@ -224,27 +222,22 @@ public final class QualificationMatchPolicy {
         List<DocumentContent.PageContent> target = nonCatalog.isEmpty() ? bidDoc.pages() : nonCatalog;
         return EvidenceLocator.locate(target, cleanCues);
     }
-
     private static Integer computeRemainingDays(final LocalDate expiryDate, final LocalDate today) {
         return expiryDate == null ? null : (int) ChronoUnit.DAYS.between(today, expiryDate);
     }
-
     private static String normalize(final String text) {
         return text == null ? "" : NORMALIZE_RE.matcher(text.toLowerCase(Locale.ROOT)).replaceAll("");
     }
-
     private static String stripGovPrefix(final String normText) {
         return normText == null || normText.isBlank() ? "" : GOV_PREFIX_RE.matcher(normText).replaceFirst("");
     }
-
     private static List<String> extractStandardCodes(final String text) {
         if (text == null || text.isBlank()) return Collections.emptyList();
         List<String> codes = new ArrayList<>();
         Matcher m = STANDARD_CODE_RE.matcher(text);
-        while (m.find()) codes.add(m.group());
+        while (m.find()) codes.add(normalize(m.group()));
         return codes;
     }
-
     private static boolean isStopword(final String text) {
         if (text == null || text.isBlank()) return true;
         for (String term : DOMAIN_TERMS) {
@@ -255,7 +248,6 @@ public final class QualificationMatchPolicy {
         }
         return false;
     }
-
     private static String longestCommonSubstring(final String s1, final String s2) {
         if (s1 == null || s2 == null || s1.isEmpty() || s2.isEmpty()) return "";
         int m = s1.length(), n = s2.length(), maxLen = 0, endIndex = 0;
@@ -273,14 +265,12 @@ public final class QualificationMatchPolicy {
         }
         return maxLen == 0 ? "" : s1.substring(endIndex - maxLen, endIndex);
     }
-
     private static boolean hasAnyKeyword(final String text, final List<String> keywords) {
         for (String kw : keywords) {
             if (text.contains(kw)) return true;
         }
         return false;
     }
-
     private static boolean hasConflictingDomainTerms(final String normReq, final String normCert) {
         String reqDomain = null, certDomain = null;
         for (String term : DOMAIN_TERMS) {
@@ -290,7 +280,6 @@ public final class QualificationMatchPolicy {
         }
         return reqDomain != null && certDomain != null && !reqDomain.equals(certDomain);
     }
-
     private static String findPlaceholder(final String text) {
         Matcher m1 = UNDERLINE_BLANK_PATTERN.matcher(text);
         if (m1.find()) return m1.group();
