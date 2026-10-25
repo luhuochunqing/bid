@@ -7502,7 +7502,6 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - 后端 JUnit `ChapterTitleContractTest`、`MarkdownSourceSectionIndexTest`、`CaseProvenanceBackfillAppServiceTest`、`FlywayRollbackScriptCoverageTest` 等全部通过；
   - 测试数据库 357 条全量回填，`count(source_section_title) == 357`，制表符内嵌页码 0 残留。
 
-<<<<<<< HEAD
 ## 451. 标书质量核查不能把规则引用、检索抽样与相似标准当成缺陷事实（项目1117报告56，2026-10-25）
 
 - **现场证据**：生产报告56已修正封面日期，但仍把“有串通投标将否决”等规则引用当自身违规、把检索8→12页当PDF缺页、把“或称交易平台”当CA平台；资质汇总称无ISO14001，而明细显示已匹配。

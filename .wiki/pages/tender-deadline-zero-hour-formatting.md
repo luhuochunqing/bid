@@ -5,11 +5,10 @@ category: pitfalls
 tags: [标讯, 人工创建, formatManualTenderDeadline, 日期格式化, 0点0分, 时间改写]
 created: 2026-10-10
 updated: 2026-10-10
-health_checked: 2026-10-10
+health_checked: 2026-10-25
 sources:
   - src/views/Bidding/list/helpers.js
   - src/views/Bidding/list/manualTenderParseHelpers.js
-  - backend/src/main/java/com/xiyu/bid/tender/domain/TenderBasicInfoValidator.java
 backlinks:
   - _index
 ---

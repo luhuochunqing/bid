@@ -5,7 +5,7 @@ category: guide
 tags: [项目列表, 服务端分页, 性能, collation, 权限下推, 全序]
 created: 2026-09-22
 updated: 2026-09-22
-health_checked: 2026-09-22
+health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/project/service/ProjectListQueryService.java
   - backend/src/main/java/com/xiyu/bid/project/service/ProjectQueryService.java

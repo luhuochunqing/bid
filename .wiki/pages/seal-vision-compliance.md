@@ -13,7 +13,7 @@ backlinks:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/DocumentContent.java
 created: 2026-09-21
 updated: 2026-09-21
-health_checked: 2026-09-21
+health_checked: 2026-10-25
 archive: false
 ---
 

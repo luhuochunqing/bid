@@ -13,7 +13,7 @@ backlinks:
   - src/composables/projectDetail/useScoreParseDrawer.js
 created: 2026-09-21
 updated: 2026-09-21
-health_checked: 2026-09-21
+health_checked: 2026-10-25
 archive: false
 ---
 

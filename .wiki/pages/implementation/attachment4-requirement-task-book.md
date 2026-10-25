@@ -5,7 +5,7 @@ category: reference
 tags: [附件4, 需求任务书, 交付基线, 验收, 非功能, 文档清单]
 created: 2026-04-25
 updated: 2026-08-12
-health_checked: 2026-09-18
+health_checked: 2026-10-25
 sources:
   - README.md
 backlinks:

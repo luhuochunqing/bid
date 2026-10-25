@@ -5,7 +5,7 @@ category: module
 tags: [模块, 前端, 后端, 功能清单, 边界]
 created: 2026-04-15
 updated: 2026-08-12
-health_checked: 2026-09-18
+health_checked: 2026-10-25
 sources:
   - README.md
   - CLAUDE.md

@@ -5,7 +5,7 @@ category: guide
 tags: [质量核查, 分页, sidecar, 虚拟分页, 证据定位, spec049]
 created: 2026-09-01
 updated: 2026-09-01
-health_checked: 2026-09-18
+health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/DocumentContent.java

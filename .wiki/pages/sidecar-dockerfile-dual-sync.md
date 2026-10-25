@@ -5,7 +5,7 @@ category: pitfall
 tags: [Sidecar, Dockerfile, 部署, 陷阱, 文档转换]
 created: 2026-09-19
 updated: 2026-09-19
-health_checked: 2026-09-19
+health_checked: 2026-10-25
 sources:
   - document-converter-sidecar/Dockerfile
   - document-converter-sidecar/Dockerfile.cn

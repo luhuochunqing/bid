@@ -5,7 +5,7 @@ category: pitfall
 tags: [hibernate, jpa, enum, flyway, schema-validation, mysql]
 created: 2026-08-26
 updated: 2026-08-26
-health_checked: 2026-09-18
+health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/competitionintel/entity/Competitor.java
   - backend/src/main/resources/db/migration-mysql/V1202__competitor_status_unique_seed.sql

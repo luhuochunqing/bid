@@ -16,7 +16,7 @@ backlinks:
   - .wiki/log.md
 created: 2026-09-22
 updated: 2026-09-22
-health_checked: 2026-09-22
+health_checked: 2026-10-25
 ---
 
 # 评分标准候选采纳与解析任务一致性

@@ -5,7 +5,7 @@ category: integration
 tags: [workflow-form, approval, configuration]
 created: 2026-04-29
 updated: 2026-08-12
-health_checked: 2026-09-18
+health_checked: 2026-10-25
 sources:
   - docs/research/WORKFLOW_FORM_CENTER.md
   - backend/src/main/java/com/xiyu/bid/workflowform/README.md
