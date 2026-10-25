@@ -33,7 +33,7 @@
 ## 改动范围
 
 - **数据库迁移**：**零变更**（源码与服务器 DB 均为 V1224，无 pending 迁移）
-- **后端**：`scoreparse/domain/IncrementalCountScorePolicy.java`（+2 行，业绩阶梯计分与匹配范围修正）
+- **后端**：`scoreparse/domain/IncrementalCountScorePolicy.java`（仅 2 行 `REUSE-OK` 注释，业务代码与上一版本零差异；业绩阶梯计分与匹配范围的业务修复已随 `1de4f2bf2`（第 233 次）生效）
 - **测试**：`GoldenCasesReplayTest.java` + `case-project-1382-pdf-real-shape.expected.json`（+9 行，golden 用例覆盖）
 - **前端**：**零变更**（前端产物随构建更新 hash，代码无改动）
 - **Sidecar 源码**：**零变更**（指纹 `24c0104f…`，schemaVersion 2.2，与已部署版本一致）
@@ -63,7 +63,7 @@ OBS 直传启用：obsEnabled=true，Detail chunk .upload( 调用数 = 2 ✅
 2. 服务器现状：旧版本 `1de4f2bf2`，health UP
 3. Flyway 预检：validate 通过（284 迁移），DB 版本 = 源码版本 V1224
 4. 本地打包（`RELEASE_ID` + `VITE_API_BASE_URL=` + `VITE_OBS_ENABLED=true` + `COPYFILE_DISABLE=1`）
-5. scp 上传发布包（156M）与 `remote-deploy.sh`
+5. scp 上传发布包（155M）与 `remote-deploy.sh`
 6. `remote-deploy.sh`：停机 → DB 备份 → Flyway validate → 激活前端 → 原子替换 jar → 写 deployed-release.json → 启动服务
 7. 健康检查连续 3/3 通过（累计尝试 81 次）；前端版本一致性校验通过
 8. 回补上一版本 assets（`cp -rn`，当前 assets 193 个，保留旧 `index-Cow69vtc.js` 供未刷新标签页使用）
@@ -81,7 +81,7 @@ OBS 直传启用：obsEnabled=true，Detail chunk .upload( 调用数 = 2 ✅
 | `GET /login` | HTTP 200 |
 | 前端入口脚本 | `assets/index-CkGSFnxa.js`（与产物一致） |
 
-启动日志（近 8 分钟）：**0 条 ERROR**。
+启动日志：`journalctl -u xiyu-bid-backend --since "-8min" | grep -c " ERROR "` → **0**。
 
 ## 已知配置
 
