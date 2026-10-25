@@ -20,9 +20,10 @@
 | `service/ComplianceIssueFactory.java` | Factory | 统一构造规则失败与执行失败问题 |
 | `service/ComplianceRuleEvaluator.java` | Evaluator | 规则定义解析与项目/标书规则求值 |
 | `domain/policy/BidDocumentQualityEngine.java` | Domain Engine | 标书 25 项规则求值与 AI 混合裁决纯核心引擎 |
+| `domain/policy/CaPlatformNamePolicy.java` | Policy | 按平台定义与投标上下文筛选具体名称，排除泛称/公告网站，统一已核实的平台别名 |
 | `domain/policy/CaCertificateEvidence.java` | Domain Model | 电子标 CA 证书纯领域证据模型（FP-Java 不可变 Record，支持平台匹配、过期、借用状态判定与 KnowledgeMatch 转换） |
 | `domain/policy/CaCertificateEvidencePort.java` | Domain Port | 电子标 CA 证书证据查询端口（依赖倒置，resources 模块提供实现适配器） |
-| `domain/policy/CaCertificateCheckPolicy.java` | Policy | 电子标 CA 证书质量核查策略（真实台账比对，覆盖未匹配平台/过期/借出催还/有效在库/免收直通） |
+| `domain/policy/CaCertificateCheckPolicy.java` | Policy | 电子标 CA 证书质量核查策略（原文页码与真实台账比对；未确认平台或查询失败转人工，正文确定缺陷保留） |
 | `domain/policy/QualificationMatchPolicy.java` | Policy | 资质双向模糊匹配与三方比对清单纯核心算法（相关度打分优先、通用停用词防错配、国字头剥离与标书页码定位） |
 | `domain/policy/QualificationDetailReconciler.java` | Policy | 资质比对清单与总项裁决状态一致性校准纯核心策略（过期/未匹配一票否决降级 FAIL，需关注项降级 MANUAL_REVIEW） |
 | `domain/policy/DeterministicQualificationExtractor.java` | Policy | 招标文件硬性资格与专用资质确定性提取纯核心策略（通用主体资格与专用行业资质分流、导语过滤、序号标点清洗、Markdown 表格切分、长度门禁、评分与模板排除、双轨兜底） |

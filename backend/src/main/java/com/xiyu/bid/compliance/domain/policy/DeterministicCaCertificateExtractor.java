@@ -1,30 +1,20 @@
 // Input: 招标文件分页内容 (DocumentContent)
-// Output: 电子标 CA 证书结构化要求契约 (CaCertificateRequirement)
+// Output: 电子标 CA 要求、唯一具体平台及招标原文页码证据
 // Pos: compliance/domain/policy/ - 确定性电子标 CA 证书提取器（纯核心 FP-Java）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
 import com.xiyu.bid.compliance.domain.DocumentContent;
+import com.xiyu.bid.compliance.domain.QualityEvidence;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.ArrayList;
+import java.util.List;
+
 
 /**
  * 招标文件电子标 CA 数字证书 / 电子签章确定性双轨提取器 (FP-Java 纯核心).
  */
 public final class DeterministicCaCertificateExtractor {
-
-    private static final Pattern PLATFORM_PATTERN = Pattern.compile(
-            "([\\u4e00-\\u9fa5A-Za-z0-9]{2,20}(?:电子招投标交易平台|公共资源交易中心|公共资源交易平台|电子商务平台|电子招标采购系统|交易平台|交易系统|公共服务平台|采购网|政采云|招采进宝|优质采))"
-    );
-
-    private static final Pattern CA_SPECIFIC_LOCK_PATTERN = Pattern.compile(
-            "(?:使用|办理|持有|注册|通过)?(?:企业|单位)?([\\u4e00-\\u9fa5]{2,8}(?:省|市)?\\s*CA(?:锁|数字证书|数字认证)?)"
-    );
-
-    private static final Pattern REGIONAL_CA_SIGNAL = Pattern.compile(
-            "(?i)[\\u4e00-\\u9fa5]{2,6}\\s*CA"
-    );
 
     private static final String[] EXPLICIT_EXEMPT_SIGNALS = {
             "无需CA", "不要求CA", "无需数字证书", "无需电子签章", "不使用电子签章"
@@ -54,7 +44,20 @@ public final class DeterministicCaCertificateExtractor {
                 sb.append(page.text()).append('\n');
             }
         }
-        return extract(sb.toString());
+        CaCertificateRequirement requirement = extract(sb.toString());
+        if (requirement == null || !requirement.required()) return requirement;
+        List<QualityEvidence> evidence = new ArrayList<>();
+        for (DocumentContent.PageContent page : tenderDoc.pages()) {
+            for (String line : page.text().split("[\\n\\r。；]")) {
+                List<String> names = CaPlatformNamePolicy.candidates(line);
+                if (names.isEmpty() || (requirement.platformName() != null && names.stream().noneMatch(
+                        name -> CaPlatformNamePolicy.identity(name).equals(CaPlatformNamePolicy.identity(requirement.platformName()))))) continue;
+                evidence.add(QualityEvidence.tender("招标文件交易平台原文", page.pageNumber(), line.trim()));
+            }
+        }
+        return new CaCertificateRequirement(requirement.required(), requirement.platformName(),
+                requirement.requireCertificateCopy(), requirement.requireElectronicSeal(),
+                requirement.description(), evidence);
     }
 
     public static CaCertificateRequirement extract(final String fullText) {
@@ -78,7 +81,7 @@ public final class DeterministicCaCertificateExtractor {
                 break;
             }
         }
-        if (!hasCaKeyword && explicitExemption == null && REGIONAL_CA_SIGNAL.matcher(fullText).find()) {
+        if (!hasCaKeyword && explicitExemption == null && CaPlatformNamePolicy.hasRegionalCa(fullText)) {
             hasCaKeyword = true;
         }
 
@@ -102,14 +105,9 @@ public final class DeterministicCaCertificateExtractor {
 
         // 2. 提取平台名称或省份 CA 锁名称
         String platform = null;
-        Matcher mPlatform = PLATFORM_PATTERN.matcher(fullText);
-        if (mPlatform.find()) {
-            platform = mPlatform.group(1).trim();
-        } else {
-            Matcher mCaLock = CA_SPECIFIC_LOCK_PATTERN.matcher(fullText);
-            if (mCaLock.find()) {
-                platform = mCaLock.group(1).replaceAll("\\s+", "");
-            }
+        List<String> candidates = CaPlatformNamePolicy.candidates(fullText);
+        if (candidates.size() == 1) {
+            platform = candidates.getFirst();
         }
 
         boolean requireCopy = fullText.contains("证书复印件")
