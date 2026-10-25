@@ -96,6 +96,54 @@ class QualificationDetailReconcilerTest {
     }
 
     @Test
+    @DisplayName("仅因证书临期触发需关注时：文案精准提示证书临期与换证，且彻底消除与「资质匹配通过」的自相矛盾")
+    void testReconcile_ExpiringSoonAttention_AccurateConclusionAndNoContradiction() {
+        QualityCheckItemResult raw = QualityCheckItemResult.pass(
+                BidQualityCheckItem.QUALIFICATION_MATCH,
+                "投标文件提供了完整且有效的资质证明材料，完全满足招标文件的硬性资格要求，资质匹配通过。",
+                Collections.emptyList());
+
+        List<QualificationDetail> details = List.of(
+                new QualificationDetail("ISO9001", "ISO9001质量管理体系认证证书", "MATCHED", 236, "证书", 300, "已匹配"),
+                new QualificationDetail("ISO14001", "ISO14001环境管理体系认证证书", "MATCHED", 288, "证书", 300, "已匹配"),
+                new QualificationDetail("ISO45001", "ISO45001职业健康管理认证证书", "ATTENTION", 290, "证书", 11,
+                        "证书即将到期（剩余 11 天，至 2026-11-05），建议复核")
+        );
+
+        QualityCheckItemResult reconciled = QualificationDetailReconciler.reconcile(raw, details);
+
+        assertThat(reconciled.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        // 精准归因为证书临期，不能误报为“标书证明材料待核实”
+        assertThat(reconciled.conclusion()).contains("证书临期");
+        assertThat(reconciled.conclusion()).contains("ISO45001职业健康管理认证证书");
+        assertThat(reconciled.conclusion()).doesNotContain("请人工复核标书中资质证明材料的有效性");
+        // 消除“资质匹配通过”矛盾句
+        assertThat(reconciled.conclusion()).doesNotContain("资质匹配通过");
+        assertThat(reconciled.conclusion()).contains("建议人工复核确认");
+        // 建议操作针对性提示换证续期
+        assertThat(reconciled.suggestion()).contains("换证续期");
+    }
+
+    @Test
+    @DisplayName("降级为 FAIL 时：原始通过结论中的「资质匹配通过」同样被清洗消除")
+    void testReconcile_FailStatus_CleansesPassPhrases() {
+        QualityCheckItemResult raw = QualityCheckItemResult.pass(
+                BidQualityCheckItem.QUALIFICATION_MATCH,
+                "投标文件提供了完整且有效的资质证明材料，完全满足招标文件的硬性资格要求，资质匹配通过。",
+                Collections.emptyList());
+
+        List<QualificationDetail> details = List.of(
+                new QualificationDetail("增值电信业务许可证", "增值电信业务经营许可证", "EXPIRED", 1, "许可证", -5, "证书已过期")
+        );
+
+        QualityCheckItemResult reconciled = QualificationDetailReconciler.reconcile(raw, details);
+
+        assertThat(reconciled.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(reconciled.conclusion()).doesNotContain("资质匹配通过");
+        assertThat(reconciled.conclusion()).doesNotContain("完全满足招标文件的硬性资格要求");
+    }
+
+    @Test
     @DisplayName("空值与非 QUALIFICATION_MATCH 项守卫测试")
     void testReconcile_Guards() {
         assertThat(QualificationDetailReconciler.reconcile(null, List.of())).isNull();
