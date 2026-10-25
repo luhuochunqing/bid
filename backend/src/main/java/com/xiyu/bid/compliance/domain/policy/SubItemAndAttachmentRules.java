@@ -91,7 +91,7 @@ public final class SubItemAndAttachmentRules {
     }
 
     public static QualityCheckItemResult checkCommitmentSeal(final DocumentContent bidDoc) {
-        return CommitmentSealCheckPolicy.check(bidDoc);
+        return CommitmentSealCheckPolicy.evaluateCommitmentSignature(bidDoc);
     }
 
     public static QualityCheckItemResult checkIdAuthLetter(final DocumentContent bidDoc) {

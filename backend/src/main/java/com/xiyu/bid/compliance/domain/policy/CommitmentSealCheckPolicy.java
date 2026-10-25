@@ -17,8 +17,7 @@ public final class CommitmentSealCheckPolicy {
             "（公章）|\\(公章\\)|（盖章）|\\(盖章\\)|盖单位公章|加盖公章|公章|签字"
     );
 
-    // REUSE-OK: backend/src/main/java/com/xiyu/bid/biddraftagent/domain/GapCheckPolicy.java — 该策略检查草稿快照缺口，本方法核查分页承诺书签章，输入与规则不同。
-    public static QualityCheckItemResult check(final DocumentContent bidDoc) {
+    public static QualityCheckItemResult evaluateCommitmentSignature(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.COMMITMENT_SEAL;
         BasicInfoCheckPolicy.PageMatch match = findCommitmentBody(bidDoc);
         if (match != null) {
