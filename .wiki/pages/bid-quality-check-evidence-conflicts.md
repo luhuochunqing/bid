@@ -14,8 +14,8 @@ backlinks:
   - .wiki/pages/_index.md
   - .wiki/log.md
 created: 2026-10-23
-updated: 2026-10-23
-health_checked: 2026-10-23
+updated: 2026-10-25
+health_checked: 2026-10-25
 archive: false
 ---
 
@@ -50,3 +50,20 @@ archive: false
 cd backend
 mvn -Dtest=BasicInfoAndAttachmentRulesTest,DeterministicCaCertificateExtractorTest,DepositReceiptVisionFusionPolicyTest,OpenAiDepositReceiptVisionDetectorTest,QualificationMatchPolicyTest,QualificationQueryDelegateTest,ScoreTypeClassificationPolicyTest,ResponsibilityArchitectureTest test
 ```
+
+## 2026-10-25 生产复验与 CA 平台名称修复
+
+- 生产 `f3ff316f2`、项目1117报告56、任务`6588f79d527646afb544a866de96f249`于13:50:40完成。保证金回单第12页视觉PASS，但CA仍因平台“或称交易平台”错误判FAIL。该生产报告是修复前证据。
+- 招标PDF SHA-256 `040c608b9465876952a8fd1d383fe652756868209486827761841cedca705d33`，原文第4页“招商局集团电子招标采购交易网（或称交易平台）”；第10页递交条款与第31页操作指引使用同一系统名称。台账使用“招商局集团电子招采平台”，记录65/66有效且在库，到期2027-09-08。
+- 纯核心`CaPlatformNamePolicy`按名称定义、实际投标上下文、普通候选顺序取证；公告发布网站不能盖过实际递交平台，同级冲突转人工。地域CA候选限明确地区，不把“采用CA数字证书”“办理CA数字证书”当平台。
+- `CaCertificateRequirement`携带原文页码证据，经`DeterministicRequirementsFuser`透传；确定性平台未知时不恢复LLM猜测。
+- CA台账查询失败在正文占位检查之后处理，避免把独立缺陷FAIL覆盖成人工状态。未知平台不得因无关过期台账判定失败。
+- 本轮工作为隔离沙盒中的源码修复；代码发布、生产重新核查及业务验收仍需独立完成。
+
+- **历史未闭合边界（已按下述用户裁决处理）**：第三轮独立审查曾复现“电子招标投标交易平台”“本次交易平台”误判具体平台并FAIL。当前候选代码仅证明完整项目1117输入回放PASS；通用泛称防护未完成，不可声明整体修复或发布。见`docs/reviews/2026-10-25-ca-platform-review.md`。
+
+## 用户裁决后的最终边界
+
+- 用户批准无可核实平台身份统一MANUAL_REVIEW。新增正向身份边界，形似公司/平台或台账matched=true不构成身份核实。未覆盖的新平台也转人工，保留候选与原文。
+- 原两个泛称及陌生企业名称均已由JUnit验证转人工；招商完整PDF回放仍PASS、第4页原文保留。关联回归566项通过，两轴独立审查通过。
+- 当前是本地源码完成，未commit/push/部署；生产仍需发布后重新核查。最终记录：`docs/reviews/2026-10-25-ca-platform-review.md`。

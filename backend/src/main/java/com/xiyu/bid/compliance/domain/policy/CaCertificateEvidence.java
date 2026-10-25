@@ -1,5 +1,5 @@
 // Input: CA 证书基础字段（ID/平台/类型/印章/到期日/借用状态/保管人等）
-// Output: 电子标 CA 证书纯领域证据模型（FP-Java 不可变 Record，支持平台匹配、过期、借用状态判定与 KnowledgeMatch 转换）
+// Output: 复用可信平台别名匹配的电子标 CA 证书纯领域证据模型（FP-Java 不可变 Record，支持平台匹配、过期、借用状态判定与 KnowledgeMatch 转换）
 // Pos: compliance/domain/policy/ - CA 证书资源证据纯核心模型
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -40,6 +40,7 @@ public record CaCertificateEvidence(
         if (relatedPlatforms == null || relatedPlatforms.isBlank()) {
             return false;
         }
+        if (CaPlatformNamePolicy.clean(platform) == null) return false;
         if (relatedPlatforms.equalsIgnoreCase(platform)) {
             return true;
         }
@@ -49,7 +50,7 @@ public record CaCertificateEvidence(
             if (rawP.isEmpty()) {
                 continue;
             }
-            if (rawP.equalsIgnoreCase(platform)) {
+            if (CaPlatformNamePolicy.identity(rawP).equals(CaPlatformNamePolicy.identity(platform))) {
                 return true;
             }
             String cleanP = normalizePlatform(rawP);

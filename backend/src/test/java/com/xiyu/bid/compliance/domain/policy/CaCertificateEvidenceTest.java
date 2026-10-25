@@ -51,6 +51,16 @@ class CaCertificateEvidenceTest {
     }
 
     @Test
+    void matchesPlatform_chinaMerchantsFullName_matchesLedgerShortName() {
+        assertThat(createEvidence("招商局集团电子招采平台")
+                .matchesPlatform("招商局集团电子招标采购交易平台")).isTrue();
+        assertThat(createEvidence("其他集团电子招采平台")
+                .matchesPlatform("招商局集团电子招标采购交易平台")).isFalse();
+        assertThat(createEvidence("招商局集团电子招采平台")
+                .matchesPlatform("或称交易平台")).isFalse();
+    }
+
+    @Test
     @DisplayName("平台归一化函数：正确剔除招投标噪音后缀与省市噪音")
     void testNormalizePlatform() {
         assertThat(CaCertificateEvidence.normalizePlatform("河北省公共资源交易服务平台")).isEqualTo("河北");

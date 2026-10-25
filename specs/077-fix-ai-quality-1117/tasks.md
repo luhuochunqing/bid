@@ -31,3 +31,18 @@
 ## Dependency Order
 
 T001-T004 → T005-T009 → T010-T012 → T013-T015。每条实现必须由对应 RED 证据驱动；评分链若基线已 GREEN，不得制造无意义代码修改。
+
+## 2026-10-25 CA 追加任务（本轮范围）
+- [x] T016 [US1] 在 DeterministicCaCertificateExtractorTest / CaCertificateEvidenceTest / CaCertificateCheckPolicyResourceTest / BidDocumentQualityEngineTest 增加 FR-013—016 RED 用例。
+- [x] T017 [US1] 实现 CaPlatformNamePolicy，更新提取器、证据、需求融合和引擎查询失败保护（FR-013—016）。
+- [x] T018 [US1] 执行清理、目标与关联回归、ArchUnit、npm build，记录证据（SC-006）。
+- [x] T019 [US1] 更新wiki/lessons，执行独立评审与spec-plan-tasks一致性分析。
+
+本轮状态：T017未闭合（电子招标投标交易平台/本次交易平台仍误判）；T019已执行独立3轮审查与一致性分析，Standards仍NEEDS_FIXES，禁止交付。详见`docs/reviews/2026-10-25-ca-platform-review.md`。
+
+## 人工裁决后续任务
+- [x] T020 [US1] 在CaCertificateCheckPolicyResourceTest增加未知身份（含原文泛称/陌生企业/伪匹配）的RED。
+- [x] T021 [US1] CaPlatformNamePolicy/CaCertificateCheckPolicy落实正向身份边界，保留候选证据和独立占位FAIL。
+- [x] T022 [US1] 关联回归、架构、冻结输入回放、两轴独立审查与记录更新。
+
+用户裁决后最终状态：T017/T019/T020—022闭合，566项关联回归通过，两轴独立审查均MERGE_READY。前述NEEDS_FIXES为恢复前历史，不代表当前结论。只交付本地源码。

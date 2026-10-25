@@ -16,6 +16,39 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CaCertificateCheckPolicyResourceTest {
 
     @Test
+    void check_unverifiedPlatformIdentity_requiresManualEvenWithApparentMatch() {
+        for (String candidate : List.of("电子招标投标交易平台", "本次交易平台", "新成立科技公司电子招采平台")) {
+            CaCertificateRequirement req = CaCertificateRequirement.requiredStandard(candidate, "使用CA数字证书");
+            QualityEvidence apparentMatch = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
+                    KnowledgeMatch.SOURCE_CA_CERTIFICATE, "test-record", "CA证书: " + candidate + "（有效，在库）", true));
+            for (List<QualityEvidence> matches : List.of(List.<QualityEvidence>of(), List.of(apparentMatch))) {
+                QualityCheckItemResult result = CaCertificateCheckPolicy.check(DocumentContent.empty(), req, matches);
+                assertThat(result.status()).as("unverified candidate %s", candidate)
+                        .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+                assertThat(result.conclusion()).contains(candidate);
+            }
+        }
+    }
+
+    @Test
+    void check_unverifiedIdentity_doesNotOverrideIndependentPlaceholderFailure() {
+        QualityCheckItemResult result = CaCertificateCheckPolicy.check(
+                DocumentContent.fromText("bid.pdf", "hash", "CA数字证书\n【此处粘贴CA证书】"),
+                CaCertificateRequirement.requiredStandard("本次交易平台", "使用CA"), List.of());
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+    }
+
+    @Test
+    void check_genericPlatformAndOnlyExpiredUnrelatedCertificate_returnsManualReview() {
+        CaCertificateEvidence expired = new CaCertificateEvidence(1L, "ENTITY_CA", "公章", "CFCA",
+                LocalDate.of(2020, 1, 1), "其他集团电子招采平台", "IN_STOCK", "EXPIRED", "保管人", "持有人");
+        QualityCheckItemResult result = CaCertificateCheckPolicy.check(DocumentContent.empty(),
+                CaCertificateRequirement.requiredStandard("或称交易平台", "使用CA"),
+                List.of(QualityEvidence.fromKnowledgeMatch(expired.toKnowledgeMatch(true))));
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @Test
     @DisplayName("电子标且指定平台，但 CA 资源库未录入该平台 CA 证书时判定 FAIL 并提示前往 CA 管理")
     void testCheck_WhenElectronicBid_AndNoMatchingCaFound_FailsWithSuggestion() {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash1", "正文无证书文字");

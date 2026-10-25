@@ -102,8 +102,8 @@ public final class BidDocumentQualityEngine {
         CaCertificateRequirement caReq = effective.caCertificateRequirement() != null
                 ? effective.caCertificateRequirement()
                 : (!effectiveTender.fullText().isBlank() ? DeterministicCaCertificateExtractor.extract(effectiveTender) : null);
-        resultMap.put(BidQualityCheckItem.CA_CERTIFICATE.getCode(),
-                SubItemAndAttachmentRules.checkCaCertificate(bidDoc, caReq, kbEvidences));
+        resultMap.put(BidQualityCheckItem.CA_CERTIFICATE.getCode(), CaCertificateCheckPolicy.check(
+                bidDoc, caReq, kbEvidences, failedKb.contains(KnowledgeMatch.SOURCE_CA_CERTIFICATE)));
         if (effective.businessTermsRequirement() != null) {
             resultMap.put(BidQualityCheckItem.SCHEDULE_RESPONSE.getCode(),
                     BasicInfoCheckPolicy.checkScheduleResponse(bidDoc, effective.businessTermsRequirement()));

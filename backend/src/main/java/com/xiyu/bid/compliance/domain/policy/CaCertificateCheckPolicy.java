@@ -1,5 +1,5 @@
 // Input: 投标文件分页内容 (DocumentContent) + 可选 CA 证书要求契约 (CaCertificateRequirement) + 知识库匹配证据 (kbEvidences)
-// Output: 电子标 CA 证书核查结果 (QualityCheckItemResult: PASS / FAIL / MANUAL_REVIEW)
+// Output: 无可核实平台身份统一转人工；已核实身份按真实 CA 台账裁决的核查结果 (QualityCheckItemResult: PASS / FAIL / MANUAL_REVIEW)
 // Pos: compliance/domain/policy/ - 电子标 CA 证书台账核查策略（纯核心 FP-Java，基于企业知识库真实台账核验）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -51,6 +51,12 @@ public final class CaCertificateCheckPolicy {
             final DocumentContent bidDoc,
             final CaCertificateRequirement requirement,
             final List<QualityEvidence> kbEvidences) {
+        return check(bidDoc, requirement, kbEvidences, false);
+    }
+
+    public static QualityCheckItemResult check(final DocumentContent bidDoc,
+            final CaCertificateRequirement requirement, final List<QualityEvidence> kbEvidences,
+            final boolean caQueryFailed) {
         BidQualityCheckItem item = BidQualityCheckItem.CA_CERTIFICATE;
 
         // 1. 招标文件明确免收 / 纸质标：直通 PASS
@@ -76,6 +82,13 @@ public final class CaCertificateCheckPolicy {
             }
         }
 
+        if (caQueryFailed) {
+            return QualityCheckItemResult.manualReview(item,
+                    "[EVIDENCE_INSUFFICIENT] CA 证书台账查询失败，无法确认本项目证书匹配情况",
+                    "请恢复 CA 台账查询后重新核查，或人工核对平台与证书。",
+                    requirement == null ? List.of() : requirement.platformEvidences());
+        }
+
         // 3. 提取知识库 CA 证书台账记录
         List<QualityEvidence> caEvidences = kbEvidences != null
                 ? kbEvidences.stream().filter(e -> KnowledgeMatch.SOURCE_CA_CERTIFICATE.equals(e.knowledgeSource())).toList()
@@ -85,117 +98,73 @@ public final class CaCertificateCheckPolicy {
                 ? requirement.platformName()
                 : null;
 
-        String reqSummary = platform != null
-                ? "须使用【" + platform + "】CA数字证书/电子签章进行电子投标与开标解密"
+        boolean identityVerified = CaPlatformNamePolicy.hasVerifiedIdentity(platform);
+        String reqSummary = !identityVerified && platform != null
+                ? "招标候选平台名称（身份尚未核实）：" + platform
+                : platform != null ? "须使用【" + platform + "】CA数字证书/电子签章进行电子投标与开标解密"
                 : "本项目为电子招投标，须使用电子标 CA 数字证书/电子签章进行投标与解密";
-        QualityEvidence tenderEv = QualityEvidence.tender("招标文件CA要求", null, reqSummary);
-
-        // 4. 根据指定平台匹配知识库台账
-        if (platform != null) {
-            QualityEvidence matchedCa = caEvidences.stream()
-                    .filter(e -> Boolean.TRUE.equals(e.matched()))
-                    .findFirst()
-                    .orElse(null);
-
-            if (matchedCa == null) {
-                String conclusion = "【招标文件要求】：须使用【" + platform + "】CA数字证书/电子签章进行电子投标。\n"
-                        + "【企业CA台账比对】：【未拥有】未在 CA 证书管理中检索到匹配【" + platform + "】平台的有效 CA 证书。\n"
-                        + "【判定结论】：未满足本项目电子投标用锁要求，存在无法递交与解密风险！";
-                String suggestion = "高风险项，未持有本项目指定交易平台 CA 锁将导致无法递交标书或开标解密。请前往【资源中心 - CA证书管理】录入并配置【" + platform + "】平台的 CA 数字证书。";
-                return QualityCheckItemResult.fail(
-                        item,
-                        conclusion,
-                        suggestion,
-                        List.of(tenderEv));
-            }
-
-            String quote = matchedCa.quote() != null ? matchedCa.quote() : "";
-            if (quote.contains("已过期") || quote.contains("EXPIRED")) {
-                String conclusion = "【招标文件要求】：须使用【" + platform + "】CA数字证书/电子签章进行电子投标。\n"
-                        + "【企业CA台账比对】：【已过期】已在【CA证书管理】匹配到【" + platform + "】CA 证书（" + quote + "），但证书已过期！\n"
-                        + "【判定结论】：证书失效将导致无法开标解密，属于高危废标风险项！";
-                return QualityCheckItemResult.fail(
-                        item,
-                        conclusion,
-                        "高风险项，证书失效将导致无法开标解密。请立即前往【资源中心 - CA证书管理】联系保管人安排续期办理。",
-                        List.of(tenderEv, matchedCa));
-            }
-
-            if (quote.contains("已借出") || quote.contains("已逾期") || quote.contains("BORROWED") || quote.contains("OVERDUE")) {
-                String conclusion = "【招标文件要求】：须使用【" + platform + "】CA数字证书/电子签章进行电子投标。\n"
-                        + "【企业CA台账比对】：【已借出】已在【CA证书管理】匹配到【" + platform + "】有效 CA 证书（" + quote + "），但实体锁当前已借出。\n"
-                        + "【判定结论】：请复核开标前能否及时催还实体锁，避免影响开标解密。";
-                return QualityCheckItemResult.manualReview(
-                        item,
-                        conclusion,
-                        "请在投标截止及开标解密前，前往【资源中心 - CA证书管理】核对借用进度并联系保管人及时催还。",
-                        List.of(tenderEv, matchedCa));
-            }
-
-            String conclusion = "【招标文件要求】：须使用【" + platform + "】CA数字证书/电子签章进行电子投标。\n"
-                    + "【企业CA台账比对】：【已拥有】已在【CA证书管理】检索到匹配【" + platform + "】的有效 CA 证书（在库可用，" + quote + "）。\n"
-                    + "【判定结论】：在库可用，满足电子投标及开标解密要求。";
-            return QualityCheckItemResult.pass(
-                    item,
-                    conclusion,
-                    List.of(tenderEv, matchedCa));
+        QualityEvidence tenderEv = requirement != null && !requirement.platformEvidences().isEmpty()
+                ? requirement.platformEvidences().getFirst()
+                : QualityEvidence.tender("招标文件CA要求", null, reqSummary);
+        if (!identityVerified) {
+            return QualityCheckItemResult.manualReview(item,
+                    "【招标文件要求】：本项目为电子标；具体交易平台尚未唯一确认。\n"
+                            + (platform == null ? "" : "【候选平台】：" + platform + "（身份待核实）。\n")
+                            + "【企业CA台账比对】：" + (caEvidences.isEmpty() ? "未检索到企业 CA 数字证书台账记录。\n" : "已检索到 CA 台账记录，但尚不能确认适配本项目。\n")
+                            + "【判定结论】：【待确认】各省市公共资源交易平台 CA 锁互不通用，请人工复核交易平台及对应证书。",
+                    "请核对招标文件交易平台全称与 CA 台账；未确认平台不能判定企业缺少证书或证书过期。",
+                    requirement != null && !requirement.platformEvidences().isEmpty()
+                            ? requirement.platformEvidences() : List.of(tenderEv));
         }
 
-        // 5. 通用电子标（未指定具体交易平台名称）
-        QualityEvidence inLibraryCa = caEvidences.stream()
-                .filter(e -> {
-                    String q = e.quote() != null ? e.quote() : "";
-                    return !q.contains("已过期") && !q.contains("EXPIRED")
-                            && !q.contains("已借出") && !q.contains("已逾期")
-                            && !q.contains("BORROWED") && !q.contains("OVERDUE");
-                })
+        // 4. 根据指定平台匹配知识库台账
+        QualityEvidence matchedCa = caEvidences.stream()
+                .filter(e -> Boolean.TRUE.equals(e.matched()))
                 .findFirst()
                 .orElse(null);
 
-        if (inLibraryCa != null) {
-            String conclusion = "【招标文件要求】：本项目为电子标，须使用平台 CA 数字证书/电子签章进行投标与解密（招标文件未明确具体交易平台名称）。\n"
-                    + "【企业CA台账比对】：【待确认】已在【CA证书管理】中检索到在库可用的企业有效 CA 证书（" + inLibraryCa.quote() + "），但招标文件未明确指定具体交易平台。\n"
-                    + "【判定结论】：各省市公共资源交易平台 CA 锁互不通用，台账虽有在库锁具但无法确认是否适配本项目，请人工复核。";
-            return QualityCheckItemResult.manualReview(
+        if (matchedCa == null) {
+            String conclusion = "【招标文件要求】：须使用【" + platform + "】CA数字证书/电子签章进行电子投标。\n"
+                    + "【企业CA台账比对】：【未拥有】未在 CA 证书管理中检索到匹配【" + platform + "】平台的有效 CA 证书。\n"
+                    + "【判定结论】：未满足本项目电子投标用锁要求，存在无法递交与解密风险！";
+            String suggestion = "高风险项，未持有本项目指定交易平台 CA 锁将导致无法递交标书或开标解密。请前往【资源中心 - CA证书管理】录入并配置【" + platform + "】平台的 CA 数字证书。";
+            return QualityCheckItemResult.fail(
                     item,
                     conclusion,
-                    "请核对本项目招标文件实际指定的电子交易平台，并在【资源中心 - CA证书管理】确认企业是否持有该平台专属 CA 锁，避免因用错 CA 锁导致废标。",
-                    List.of(tenderEv, inLibraryCa));
+                    suggestion,
+                    List.of(tenderEv));
         }
 
-        if (!caEvidences.isEmpty()) {
-            QualityEvidence borrowedCa = caEvidences.stream().filter(e -> {
-                String q = e.quote() != null ? e.quote() : "";
-                return q.contains("已借出") || q.contains("BORROWED");
-            }).findFirst().orElse(null);
-            if (borrowedCa != null) {
-                String conclusion = "【招标文件要求】：本项目为电子标，须使用平台 CA 数字证书/电子签章。\n"
-                        + "【企业CA台账比对】：【已借出】在【CA证书管理】中检索到 CA 证书，但当前已借出。\n"
-                        + "【判定结论】：请在开标前及时催还实体锁。";
-                return QualityCheckItemResult.manualReview(
-                        item,
-                        conclusion,
-                        "请前往【资源中心 - CA证书管理】联系保管人催还实体锁。",
-                        List.of(tenderEv, borrowedCa));
-            }
-            String conclusion = "【招标文件要求】：本项目为电子标，须使用平台 CA 数字证书/电子签章。\n"
-                    + "【企业CA台账比对】：【已过期】【CA证书管理】中现存 CA 证书均已过期，无法用于电子标解密！\n"
+        String quote = matchedCa.quote() != null ? matchedCa.quote() : "";
+        if (quote.contains("已过期") || quote.contains("EXPIRED")) {
+            String conclusion = "【招标文件要求】：须使用【" + platform + "】CA数字证书/电子签章进行电子投标。\n"
+                    + "【企业CA台账比对】：【已过期】已在【CA证书管理】匹配到【" + platform + "】CA 证书（" + quote + "），但证书已过期！\n"
                     + "【判定结论】：证书失效将导致无法开标解密，属于高危废标风险项！";
             return QualityCheckItemResult.fail(
                     item,
                     conclusion,
-                    "高风险项，证书失效将导致无法解密。请前往【资源中心 - CA证书管理】联系保管人安排证书续期。",
-                    caEvidences);
+                    "高风险项，证书失效将导致无法开标解密。请立即前往【资源中心 - CA证书管理】联系保管人安排续期办理。",
+                    List.of(tenderEv, matchedCa));
         }
 
-        String conclusion = "【招标文件要求】：本项目为电子标，须使用平台 CA 数字证书/电子签章进行投标与解密。\n"
-                + "【企业CA台账比对】：【未录入】在【CA证书管理】中未检索到企业 CA 数字证书台账记录。\n"
-                + "【判定结论】：请前往【资源中心 - CA证书管理】确认并录入本项目交易平台对应的 CA 数字证书。";
-        return QualityCheckItemResult.manualReview(
+        if (quote.contains("已借出") || quote.contains("已逾期") || quote.contains("BORROWED") || quote.contains("OVERDUE")) {
+            String conclusion = "【招标文件要求】：须使用【" + platform + "】CA数字证书/电子签章进行电子投标。\n"
+                    + "【企业CA台账比对】：【已借出】已在【CA证书管理】匹配到【" + platform + "】有效 CA 证书（" + quote + "），但实体锁当前已借出。\n"
+                    + "【判定结论】：请复核开标前能否及时催还实体锁，避免影响开标解密。";
+            return QualityCheckItemResult.manualReview(
+                    item,
+                    conclusion,
+                    "请在投标截止及开标解密前，前往【资源中心 - CA证书管理】核对借用进度并联系保管人及时催还。",
+                    List.of(tenderEv, matchedCa));
+        }
+
+        String conclusion = "【招标文件要求】：须使用【" + platform + "】CA数字证书/电子签章进行电子投标。\n"
+                + "【企业CA台账比对】：【已拥有】已在【CA证书管理】检索到匹配【" + platform + "】的有效 CA 证书（在库可用，" + quote + "）。\n"
+                + "【判定结论】：在库可用，满足电子投标及开标解密要求。";
+        return QualityCheckItemResult.pass(
                 item,
                 conclusion,
-                "请前往【资源中心 - CA证书管理】确认并录入本项目交易平台对应的 CA 数字证书。",
-                List.of(tenderEv));
+                List.of(tenderEv, matchedCa));
     }
 
     private static DocumentContent.PageContent findPlaceholderPage(final DocumentContent bidDoc) {

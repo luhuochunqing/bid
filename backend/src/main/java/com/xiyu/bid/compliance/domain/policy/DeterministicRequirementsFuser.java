@@ -1,5 +1,5 @@
 // Input: LLM 提取的 TenderRequirements + 招标文件 DocumentContent
-// Output: 融合确定性规则硬事实后的 TenderRequirements（原文确定性事实优先）
+// Output: 融合确定性规则硬事实及 CA 原文页码证据后的 TenderRequirements
 // Pos: compliance/domain/policy/ - 确定性招标要求融合器（纯核心策略，严格 <= 300 行）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -62,7 +62,7 @@ public final class DeterministicRequirementsFuser {
         if (detPrice != null) {
             req = req.withPriceRequirement(PriceRequirement.fuseWithDeterministic(req.priceRequirement(), detPrice));
         }
-        CaCertificateRequirement detCa = DeterministicCaCertificateExtractor.extract(text);
+        CaCertificateRequirement detCa = DeterministicCaCertificateExtractor.extract(tenderDoc);
         if (detCa != null) {
             req = req.withCaCertificateRequirement(CaCertificateRequirement.fuseWithDeterministic(req.caCertificateRequirement(), detCa));
         }

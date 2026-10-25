@@ -17,6 +17,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 class BidDocumentQualityEngineTest {
 
     @Test
+    void evaluateAll_caRepositoryFailure_preservesIndependentPlaceholderFailure() {
+        TenderRequirements req = TenderRequirements.empty().withCaCertificateRequirement(
+                CaCertificateRequirement.requiredStandard("政采云", "使用CA数字证书"));
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                DocumentContent.fromText("bid.pdf", "hash", "CA数字证书\n【此处粘贴CA证书】"),
+                DocumentContent.empty(), List.of(), req, Set.of(KnowledgeMatch.SOURCE_CA_CERTIFICATE));
+        assertThat(results.stream().filter(r -> r.itemCode().equals("CA_CERTIFICATE")).findFirst().orElseThrow().status())
+                .isEqualTo(QualityCheckStatus.FAIL);
+    }
+
+    @Test
+    void evaluateAll_caRepositoryFailure_doesNotDeclareCertificateMissing() {
+        TenderRequirements req = TenderRequirements.empty().withCaCertificateRequirement(
+                CaCertificateRequirement.requiredStandard("招商局集团电子招标采购交易平台", "使用CA数字证书"));
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                DocumentContent.fromText("bid.pdf", "hash", "正常正文"), DocumentContent.empty(),
+                List.of(), req, Set.of(KnowledgeMatch.SOURCE_CA_CERTIFICATE));
+        assertThat(results.stream().filter(r -> r.itemCode().equals("CA_CERTIFICATE")).findFirst().orElseThrow().status())
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @Test
     @DisplayName("25项聚合裁决引擎必须精确输出 25 项有序结果")
     void testEvaluateAll_ReturnsExactly25ItemsInOrder() {
         String content = "项目名称：采购项目\n投标人：西域科技\n2026年\n投标函\n致：招标人\n法定代表人身份证明\n统一社会信用代码：91310000775244192P\n大写：人民币壹佰万元整 小写：1000000\n工期：30日历天\n（盖章）\n联系人：张三 电话：13800000000\n目录\n第1页\n第2页\n第3页\n承诺函\n身份证\n开标一览表\n投标保证金\nCA数字证书\n退还开户银行\n资质证书\n前附表\n技术方案\n答疑澄清";
