@@ -29,10 +29,10 @@ function dispatch(args=[],skip='0',changed='1',branch='agent/codex/task') {
  const run=spawnSync('bash',['-s','--',...args],{input:script,encoding:'utf8',timeout:10000,env:{...process.env,TEST_BRANCH:branch,SCOREPARSE_GATE_SKIP:skip,SP_PROD_CHANGED:changed}});
  assert.equal(run.status,0,run.stderr);return run.stdout;
 }
-test('agent no arguments keeps frontend shortcut but dispatches token and source regressions',()=>{
- const out=dispatch();assert.match(out,/FRONTEND_SKIP=true/);assert.match(out,/NODE .*check-token-coverage.test.mjs/);assert.match(out,/BASH .*check-scoreparse-root-cause.sh/);
+test('agent no arguments keeps frontend shortcut and dispatches only the worktree topology regression',()=>{
+ const out=dispatch();assert.match(out,/FRONTEND_SKIP=true/);assert.match(out,/NODE .*check-token-coverage.test.mjs/);assert.match(out,/BASH .*check-worktree-protection.test.sh/);assert.doesNotMatch(out,/check-git-properties/);
 });
 test('explicit skip-tests skips both regressions',()=>{const out=dispatch(['--skip-tests']);assert.doesNotMatch(out,/^NODE |^BASH /m);assert.match(out,/SKIP .*--skip-tests/);});
-test('explicit source gate skip still executes token regression',()=>{const out=dispatch([],'1');assert.match(out,/^NODE /m);assert.doesNotMatch(out,/^BASH /m);});
-test('no source changes still executes token regression',()=>{const out=dispatch([],'0','0');assert.match(out,/^NODE /m);assert.doesNotMatch(out,/^BASH /m);});
+test('explicit source gate skip still executes governance regressions',()=>{const out=dispatch([],'1');assert.match(out,/^NODE /m);assert.match(out,/check-worktree-protection\.test\.sh/);assert.doesNotMatch(out,/check-scoreparse-root-cause\.sh/);});
+test('no source changes still executes the topology regression only',()=>{const out=dispatch([],'0','0');assert.match(out,/^NODE /m);assert.match(out,/check-worktree-protection\.test\.sh/);assert.doesNotMatch(out,/check-git-properties/);assert.doesNotMatch(out,/check-scoreparse-root-cause\.sh/);});
 test('non-agent branch dispatches both without changing frontend policy',()=>{const out=dispatch([],'0','1','feature/normal');assert.match(out,/FRONTEND_SKIP=false/);assert.match(out,/^NODE /m);assert.match(out,/^BASH /m);});
