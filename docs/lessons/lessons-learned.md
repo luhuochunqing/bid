@@ -7502,6 +7502,7 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - 后端 JUnit `ChapterTitleContractTest`、`MarkdownSourceSectionIndexTest`、`CaseProvenanceBackfillAppServiceTest`、`FlywayRollbackScriptCoverageTest` 等全部通过；
   - 测试数据库 357 条全量回填，`count(source_section_title) == 357`，制表符内嵌页码 0 残留。
 
+<<<<<<< HEAD
 ## 451. 标书质量核查不能把规则引用、检索抽样与相似标准当成缺陷事实（项目1117报告56，2026-10-25）
 
 - **现场证据**：生产报告56已修正封面日期，但仍把“有串通投标将否决”等规则引用当自身违规、把检索8→12页当PDF缺页、把“或称交易平台”当CA平台；资质汇总称无ISO14001，而明细显示已匹配。
@@ -7535,3 +7536,21 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - `QualificationDetailReconcilerTest` 验证临期精准文案与矛盾表述清洗；
   - `QualityCheckDetail.qa.spec.js` 验证弹窗过滤与综合审查项放行；
   - 核心单测（64/64 PASS）、前端单测（24/24 PASS）、架构守卫（32/32 PASS）全绿。
+
+---
+
+## 453. 标书章标题排版字间空格导致评分方案根漏判与同级截断死锁（项目 48）（2026-10-25）
+
+- **现场证据**：项目 48（河南神火）解析三次均“失败”，界面显示“检测到待人工复核的候选评分标准（二、评分办法）（本方案内 0 项，合计 0 分）”，并弹出黄色警告「该方案包含多个物理表格但尚无可验证的方案总分...」，下方 37 条实际抽出的评分项全部被判定为「技术部分方案外：无法确认属于当前评分方案」，无法自动采纳生效。
+- **致错机制**：
+  1. 标书正文第四章标题为 `第四章 评 标 办 法`（中文字符间包含排版空格）。`OriginalScoringSchemePolicy.SCHEME` 原正则为严格字面量，未匹配带空格的关键词，导致 level 1 的章级方案根未被识别；
+  2. 算法降级抓取到章内二级小节 `二、评分办法`（level 2，内容仅有两行概况），并以其作为方案根；紧接着遭遇同级兄弟标题 `三、评分因素及分值细则`（level 2，非独立方案根）；
+  3. 文本作用域边界判定（`OriginalScoringTextScopePolicy.nextSchemeBoundary`）在遇到 level <= current.level 的非同方案标题时，判定方案立即结束，导致后续所有评分细则（技术 70 分、商务 30 分大表格，第 976 行至 1050 行）全被划为 `OUT_OF_SCHEME`；
+  4. 37 条模型提取的事实在资格校验中全部触发 `ITEM_SCHEME_SCOPE_MISMATCH`，有效项归零。
+- **修复与边界**：
+  1. 正则增强：`OriginalScoringSchemePolicy.SCHEME` 增强为支持中文字符间任意空白（`评\s*分\s*办\s*法|评\s*审\s*办\s*法|评\s*分\s*方\s*案|评\s*标\s*办\s*法|评\s*标\s*方\s*法|评\s*审\s*方\s*法|评\s*分\s*标\s*准|评\s*审\s*标\s*准|综\s*合\s*评\s*分\s*法`）；
+  2. 标题归一：`isValidSchemeRoot`、`isSchemeTitle`、`isContractAuditTitle` 判定前统一执行 `compact` 折叠空白符，彻底免疫全角/半角空格和制表符排版干扰；
+  3. 方案跨度自然恢复：一级章标题 `第四章 评 标 办 法` 正常确立为根后，作用域直接跨越整章直到 `第五章 投标文件格式`，章内二/三级标题与大表格自然属于 `IN_SCHEME`，并成功闭合 `满分为 100 分` 声明总分。
+- **验证纪律**：
+  - 新增独立单测 `OriginalScoringChapterSpacingTest`，测试 4 种带空格标题方案根判定、整章文本作用域跨度判定与原文 100 分总分闭合；
+  - 跑通 `OriginalScoreFactIdentityTest`（13 例）、`OriginalScoringChapterSpacingTest`（2 例）、`com.xiyu.bid.scoreparse.domain.*Test`（611 例）及金标用例回放（45 例），0 回归 0 失败。
