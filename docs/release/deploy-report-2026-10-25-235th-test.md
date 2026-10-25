@@ -36,11 +36,13 @@
 | `371fd979f` | **!2868** docs(release): 第 234 次测试环境部署报告 |
 | `3e82ffdeb` | **!2869** 合并第 29 次生产部署报告（docs only） |
 
+> 上表仅列 9 条代表性提交；完整 24 个 commit 见 `git log --oneline f3ff316f2..c9d8a2b4c`。
+
 ## 改动范围
 
 - **数据库迁移**：**零变更**（源码与服务器 DB 均为 V1224，无 pending 迁移）
-- **后端**：`compliance/domain/policy/` 系列（资质核查证据边界、CA 证书匹配、财务人工复核）、`scoreparse/`（章节标题字间空格容错），共 25 个主代码文件
-- **后端测试**：20 个测试文件（金标回放 + 单测补充）
+- **后端**：`compliance/domain/policy/` 系列（资质核查证据边界、CA 证书匹配、财务人工复核）、`scoreparse/`（章节标题字间空格容错），共 24 个 Java 文件 + `compliance/README.md`
+- **后端测试**：18 个 Java 测试文件 + 2 个 golden 回放夹具
 - **前端**：4 个文件（`QualityCheckDetailDialog.vue` 等质检详情展示 + QA spec）
 - **Wiki**：134 个文件（`.wiki/pages/` 回填、`.wiki/log.md`）
 - **规格/文档**：`specs/` 7 个、`docs/` 4 个、`.specify/` 1 个
@@ -123,7 +125,7 @@
 | !2871 CA 平台误识别与证书匹配 | ✅ 已解决 | 「电子标 CA 证书」结论为新三段式：`【招标文件要求】本项目为电子标；具体交易平台尚未唯一确认`、`【企业CA台账比对】已检索到 CA 台账记录，但尚不能确认适配本项目`、`【判定结论】【待确认】…请人工复核`。证据中的「中国招标投标公共服务平台」被 `CaPlatformNamePolicy` 按公告媒介优先级排除，未再虚构成交易平台。详情弹窗「CA 证书供需比对」看板渲染正常，徽标=待确认，来源链接=CA证书管理 |
 | !2873 收紧资格自动通过 + 证据边界 | ✅ 已解决 | 「资格性评审条款响应」= 待确认，结论「财务要求适用性及资格材料尚需人工确认，系统暂不自动判定资格性评审通过」；「授权委托书」「委托人身份证原件+授权委托书」由"不通过"降为待确认，文案「未定位到足以证明该缺陷的正文事实，目录、标题或检索缺口不能证明原文件缺失」。上一版 `f3ff316f2` 无 `SemanticEvidenceBoundary.java`，该文案全仓零命中 → 确认属本次新增行为 |
 | !2872 文案矛盾/目录伪命中/跨源证据穿透 | ⚠ 部分验证通过 | 过滤逻辑已上线（线上 `assets/Detail-BLKREG6_.js` 含 `qualification_veto` 过滤）；实测 `QUALIFICATION_MATCH` 项 0 条来源链接（无业绩库杂音），对照组 `QUALIFICATION_REVIEW` 项正确保留「业绩库」链接（未误伤）。**不足**：本次数据中 `QUALIFICATION_MATCH` 证据本身未混入业绩库链接，「过滤掉杂音」正例未被真实数据触发；「临期降级文案冲突」「目录伪命中」两类缺陷本标书未复现 |
-| !2874 scoreparse 章节标题字间空格 | ✅ 已解决（测试证据，非环境 E2E） | 金标回放 `GoldenCasesReplayTest` 32 用例全绿；新增 `case-chapter-heading-inter-spaces`：tp=3 / fp=0 / fn=0 / f1=1.0 / structurallyValid=true。测试环境无含"字间空格章节标题"的招标文件，无法做环境级复现 |
+| !2874 scoreparse 章节标题字间空格 | ✅ 已解决（测试证据，非环境 E2E） | 金标回放 `GoldenCasesReplayTest` 通过（测试类 46 例全绿，其中 32 个 PRF 回放用例）；新增 `case-chapter-heading-inter-spaces`：tp=3 / fp=0 / fn=0 / f1=1.0 / structurallyValid=true。测试环境无含"字间空格章节标题"的招标文件，无法做环境级复现 |
 
 补充说明：
 
