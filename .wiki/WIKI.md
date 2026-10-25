@@ -10,8 +10,8 @@ backlinks:
   - AGENTS.md
   - .wiki/pages/_index.md
 created: 2026-07-23
-updated: 2026-07-23
-health_checked: 2026-07-23
+updated: 2026-10-26
+health_checked: 2026-10-26
 ---
 
 # Agent Wiki 运行规范（Schema 配置层）
@@ -234,6 +234,12 @@ bash scripts/wiki-search.sh "<关键词>"
 
 ## 8. 变更日志
 
+- **2026-10-26**：backfill 工具收紧。`scripts/wiki-backfill-active.mjs` 改为仅刷新
+  `archive: true` 历史档案页的 health_checked，非 archive 活跃文档一律拒绝——健康度只能逐页
+  人工核实后更新。背景：2026-10-25 旧版批量刷 133 页，架空 §3.4 的"health_checked 7 天内豁免"
+  条款，掩盖 41 页 74 天未核实内容（wiki:check 全绿但实质过期）。契约测试
+  `scripts/test/wiki-backfill-active-contract.sh` 锁定该语义；顺带修复 todayStr 的 UTC 时区缺陷
+  （东八区每天有 8 小时会写成昨天日期）。
 - **2026-07-23**：初版，建立 Agent Wiki 运行规范（Schema 配置层）。基于"摄入时编译"理念，
   替代"查询时检索"模式。引入 4 个硬触发点 + AI-First 编写标准 + 复合查询回填机制。
   解决"wiki 有了但不维护"的根因（架构搭好但纪律未建立）。
