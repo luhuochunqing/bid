@@ -4,7 +4,7 @@ space: engineering
 category: architecture
 tags: [架构, 前端, 后端, 数据库, Vue, SpringBoot, 技术栈]
 created: 2026-04-15
-updated: 2026-08-12
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
@@ -164,13 +164,13 @@ Entity（JPA 实体 / 数据库映射）
 
 - 基于 Spring Security + JWT 的认证授权体系
 - `JwtAuthenticationFilter` 拦截请求并验证令牌
-- 基于角色的访问控制（RBAC）：admin、manager、sales、staff
+- 基于角色的访问控制（RBAC）：`role_profiles` 表驱动（admin/auditor/manager/staff/sales 等，详见 [[roles-and-permissions]]）
 - AOP 切面实现审计日志自动记录（`@Auditable` 注解）
 - 速率限制（RateLimit）保护 API 端点
 
 ### 3.4 模块划分
 
-后端按业务领域划分为 40+ 模块包，主要包括：
+后端按业务领域划分为 95 个模块包（2026-10 复核），主要包括：
 
 | 模块 | 包路径 | 功能 |
 |------|--------|------|
@@ -188,6 +188,12 @@ Entity（JPA 实体 / 数据库映射）
 | 批量操作 | `batch/` | 批量导入导出 |
 | 导出 | `export/` | Excel 导出服务 |
 | 竞争情报 | `competitionintel/` | 竞争对手分析 |
+| 评分解析 | `scoreparse/` | 评分解析管线（证据锚定、金标回放） |
+| 标书质量核查 | `compliance/` | 25 项检查项核查引擎（详见 [[bid-quality-check-realization]]） |
+| 外部集成 | `integration/`, `crm/`, `webhook/` | 组织架构同步、事件推送、CRM 检索与出站推送 |
+| 工作台 | `workbench/` | 工作台聚合、商机预测提醒 |
+| 动态表单 | `formengine/` | 运行时表单自定义引擎 |
+| 文档智能 | `docinsight/` | DocInsight 文档解析与证据锚定基础设施 |
 
 详细模块清单参见 [[modules]]。
 

@@ -6,6 +6,7 @@ tags: [标讯, 人工录入, el-upload, canSave, UX, 生产排障]
 created: 2026-08-28
 updated: 2026-08-28
 health_checked: 2026-10-25
+archive: true
 sources:
   - src/views/Bidding/list/composables/useTenderAiParse.js
   - src/views/Bidding/list/composables/useTenderCreateForm.js

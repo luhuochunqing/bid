@@ -6,6 +6,7 @@ tags: [教训, OOM, docinsight, 案例沉淀, case, OBS, 超大文件, 大小防
 created: 2026-08-20
 updated: 2026-09-18
 health_checked: 2026-10-25
+archive: true
 sources:
   - docs/lessons/lessons-learned.md
   - backend/src/main/java/com/xiyu/bid/docinsight/infrastructure/extractor/MarkItDownSidecarExtractor.java

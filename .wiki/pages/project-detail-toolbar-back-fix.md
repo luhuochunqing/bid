@@ -6,6 +6,7 @@ tags: [项目详情, el-page-header, 返回按钮, 事件绑定, 前端修复]
 created: 2026-09-16
 updated: 2026-09-16
 health_checked: 2026-10-25
+archive: true
 sources:
   - src/components/project/detail/ProjectDetailHeader.vue
   - src/components/project/detail/ProjectDetailHeader.spec.js

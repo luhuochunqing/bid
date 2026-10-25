@@ -6,6 +6,7 @@ tags: [integration, event-bus, event-sdk, tender, organization, root-cause]
 created: 2026-09-10
 updated: 2026-09-18
 health_checked: 2026-10-25
+archive: true
 sources:
   - .wiki/sources/customer/事件库SDK接入说明方案.doc
   - .wiki/sources/technical/西域投标系统对接技术规格书.md

@@ -4,7 +4,7 @@ space: engineering
 category: testing
 tags: [testing, 蓝图对照, 标讯中心, bidding]
 created: 2026-05-28
-updated: 2026-08-12
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - .wiki/sources/testing/module-02-bidding-test.md
@@ -143,7 +143,7 @@ curl -s -X POST 'http://127.0.0.1:18081/api/tenders/import' \
 自动分配规则（按地区/类型/负载）、手动分配、转派流程。
 
 ### 实现说明
-- 前端：`DistributeDialog.vue` + `AssignDialog.vue` + `TransferDialog.vue`
+- 前端：`DistributeDialog.vue` + `AssignDialog.vue` + `ProjectTransferDialog.vue`
 - 后端：`POST /api/tenders/{id}/transfer` — 转派接口
 
 ### 测试方式

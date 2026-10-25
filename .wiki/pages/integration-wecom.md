@@ -4,7 +4,7 @@ space: engineering
 category: integration
 tags: [integration, wecom, settings, sso, message-push]
 created: 2026-04-25
-updated: 2026-08-12
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/
@@ -26,9 +26,9 @@ backlinks:
 
 合同条款「集成性」要求：
 
-- ✅ **与组织架构系统集成** — 占位（计划）
+- ✅ **与组织架构系统集成** — 已落地（OSS 同步 + 事件 SDK，见 [[integration-organization-event-sdk]]）
 - ✅ **与 OA / 审批流集成** — 占位（计划）
-- ✅ **与 CRM 系统集成** — 占位（计划）
+- ✅ **与 CRM 系统集成** — 已落地（客户检索/反查 + bidInfoSync 出站推送，见 [[integration-oa-crm]]）
 - ✅ **开放 API 接口** — 已通过 [[api-openapi]] 落地
 - ✅ **与企业微信集成** — **本次落地**：配置入口 + SSO/消息推送启用开关 + 连接测试
 
@@ -36,10 +36,10 @@ backlinks:
 
 | 集成对象 | 状态 | 说明 |
 |---|---|---|
-| **企业微信** | ✅ 配置入口 + SSO 登录 + 真实 API 连通性 | SSO 已全链路落地，支持扫码/静默登录；消息推送下一期 |
-| **CRM 系统** | ⚪ 占位「即将支持」 | 待客户提供 CRM 接口规范 |
+| **企业微信** | ✅ 配置入口 + SSO 登录 + 消息推送 | SSO 已全链路落地；消息推送已落地（`WecomMessageSender`） |
+| **CRM 系统** | ✅ 已集成 | 检索/反查/出站推送全链路，见 [[integration-oa-crm]] |
 | **OA / 审批流** | ✅ 第一版流程表单触发 OA | 表单模板绑定泛微流程 ID，提交后发起 OA，回调后应用业务；详见 [[workflow-form-center]] |
-| **组织架构系统** | ⚪ 占位「即将支持」 | 待客户内部架构系统接口 |
+| **组织架构系统** | ✅ 已落地 | OSS 全量/增量同步 + 事件 SDK，见 [[integration-organization-event-sdk]] 与 [[oss-organization-sync-playbook]] |
 
 ## 入口路径
 

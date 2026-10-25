@@ -4,7 +4,7 @@ space: engineering
 category: integration
 tags: [api, openapi, swagger, integration, springdoc]
 created: 2026-04-25
-updated: 2026-08-12
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/config/OpenApiConfig.java
@@ -41,11 +41,13 @@ backlinks:
 
 | 用途 | URL | 说明 |
 |---|---|---|
-| Swagger UI 可视化门户 | http://127.0.0.1:18080/swagger-ui.html | 给集成方在线浏览 + 调试 |
-| OpenAPI JSON 规范 | http://127.0.0.1:18080/v3/api-docs | 给集成方代码生成或导入 Postman / Apifox |
-| OpenAPI YAML 规范 | http://127.0.0.1:18080/v3/api-docs.yaml | 同上，YAML 格式 |
+| Swagger UI 可视化门户 | http://127.0.0.1:18089/swagger-ui.html | 给集成方在线浏览 + 调试 |
+| OpenAPI JSON 规范 | http://127.0.0.1:18089/v3/api-docs | 给集成方代码生成或导入 Postman / Apifox |
+| OpenAPI YAML 规范 | http://127.0.0.1:18089/v3/api-docs.yaml | 同上，YAML 格式 |
 
 生产环境替换 host 为部署地址即可，路径完全相同。
+
+> 注（2026-10 复核）：开发宿主后端统一跑在 **18089**（`CLAUDE.md` 启动口径）。`OpenApiConfig.java` 元信息里的 server 字面量仍写 18080，属历史漂移，只影响 Swagger 文档展示元数据、不影响可用性；修正该字面量需改代码，不在本 wiki 任务范围。
 
 ## 配置实现
 
@@ -65,7 +67,7 @@ backlinks:
 
 - **API 标题、版本、描述**：从 `app.version` 与 `spring.application.name` 注入
 - **联系人与许可证**：研发组邮箱 + Proprietary - 西域集团
-- **服务器列表**：本地开发 (`http://127.0.0.1:18080`) + 当前部署环境 (`/`)
+- **服务器列表**：本地开发 (`http://127.0.0.1:18089`) + 当前部署环境 (`/`)
 - **JWT Bearer 安全方案**：在 Swagger UI Authorize 弹窗中输入登录 token 即可调试受保护接口
 
 ### 3. 安全白名单（`backend/src/main/java/com/xiyu/bid/config/SecurityConfig.java`）
