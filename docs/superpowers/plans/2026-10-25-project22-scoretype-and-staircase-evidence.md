@@ -27,7 +27,7 @@
 - Consumes: `ScoreTypeClassificationPolicy.classify(String detail, String scoreTypeGuess)`.
 - Produces: A regression assertion that the exact project 22 rule is objectively computable even when the model guesses `SUBJECTIVE`.
 
-- [ ] **Step 1: Add the failing test with the exact rule text**
+- [x] **Step 1: Add the failing test with the exact rule text**
 
 ```java
 @Test
@@ -39,7 +39,7 @@ void classify_project22IncrementalSupplierPerformance_objective() {
 }
 ```
 
-- [ ] **Step 2: Run the focused test and capture RED evidence**
+- [x] **Step 2: Run the focused test and capture RED evidence**
 
 Run:
 
@@ -50,7 +50,7 @@ mvn -Dtest=ScoreTypeClassificationPolicyTest#classify_project22IncrementalSuppli
 
 Expected: FAIL with actual `SUBJECTIVE` and expected `OBJECTIVE`.
 
-- [ ] **Step 3: Run existing subjective counterexamples unchanged**
+- [x] **Step 3: Run existing subjective counterexamples unchanged**
 
 Run:
 
@@ -70,7 +70,7 @@ Expected: PASS. This proves the defect is the missing computable phrase, not a b
 - Consumes: existing `ScoreTypeClassificationPolicy`, `ScoreItemConstraintExtractor`, `MatchTierPolicy`, and `PartialScorePolicy` public APIs.
 - Produces: A behavior-level matrix showing whether the current composition implements the first-item-free staircase.
 
-- [ ] **Step 1: Add the parameterized business matrix**
+- [x] **Step 1: Add the parameterized business matrix**
 
 ```java
 package com.xiyu.bid.scoreparse.domain;
@@ -104,7 +104,7 @@ class Project22SupplierPerformanceScoringAcceptanceTest {
 }
 ```
 
-- [ ] **Step 2: Run the matrix and capture every failing row**
+- [x] **Step 2: Run the matrix and capture every failing row**
 
 Run:
 
@@ -115,7 +115,7 @@ mvn -Dtest=Project22SupplierPerformanceScoringAcceptanceTest test
 
 Expected before production changes: RED. Record whether failure is `null` from `SUBJECTIVE`, an early positive score for one record, or premature full score. These observations determine the implementation boundary.
 
-- [ ] **Step 3: Run adjacent count and partial-score baselines**
+- [x] **Step 3: Run adjacent count and partial-score baselines**
 
 Run:
 
@@ -133,17 +133,17 @@ Expected: existing tests PASS. Any failure here is baseline drift and must be di
 - Create outside Git: `/tmp/xiyu-pr2855-positive-e2e-20261025/data-manifest.json`
 - Create outside Git: `/tmp/xiyu-pr2855-positive-e2e-20261025/evidence/PR2855-E2E-01-CONTRACT.pdf` through `PR2855-E2E-08-CONTRACT.pdf`
 - Create outside Git: `/tmp/xiyu-pr2855-positive-e2e-20261025/evidence/PR2855-E2E-01-RELATIONSHIP.pdf` through `PR2855-E2E-08-RELATIONSHIP.pdf`
-- Create outside Git: `/tmp/xiyu-pr2855-positive-e2e-20261025/evidence/PR2855-E2E-SOE-DIRECTORY.pdf`
+- Create outside Git: eight row-specific `PR2855-E2E-0N-SOE-DIRECTORY.pdf` files
 
 **Interfaces:**
 - Consumes: Browser-downloaded `GET /api/knowledge/performance/template` workbook and the real UI `批量导入业绩` flow.
 - Produces: Eight test-environment performance IDs with a common run marker and an exact cleanup manifest.
 
-- [ ] **Step 1: Download the current import template from the test-environment browser**
+- [x] **Step 1: Download the current import template from the test-environment browser**
 
 Open the knowledge performance page, choose `批量导入`, click `下载导入模板`, and save the browser-downloaded file as `/tmp/xiyu-pr2855-positive-e2e-20261025/performance-template.xlsx`.
 
-- [ ] **Step 2: Populate exactly eight distinct rows while preserving template headers and validations**
+- [x] **Step 2: Populate exactly eight distinct rows while preserving template headers and validations**
 
 Use run marker `PR2855-E2E-20261025`. Create contract names `PR2855-E2E-20261025-01` through `PR2855-E2E-20261025-08`; use distinct customer names. Populate every required template column with these exact value rules:
 
@@ -165,28 +165,28 @@ Use run marker `PR2855-E2E-20261025`. Create contract names `PR2855-E2E-20261025
 客户地址*: 北京市测试环境验收地址0N号
 合同中西域项目负责人*: E2E验收
 合同协议附件文件名*: PR2855-E2E-0N-CONTRACT.pdf
-国资委央企名录截图附件文件名: PR2855-E2E-SOE-DIRECTORY.pdf
+国资委央企名录截图附件文件名: PR2855-E2E-0N-SOE-DIRECTORY.pdf
 品类页附件文件名: PR2855-E2E-0N-CATEGORY.pdf
 签约抬头与央企集团关系证明附件文件名: PR2855-E2E-0N-RELATIONSHIP.pdf
 是否有中标通知书: 否
 备注: PR2855-E2E-20261025 办公用品电子商城服务，仅用于测试环境验收
 ```
 
-Do not invent production provenance. Each evidence PDF must be visibly marked `测试环境 E2E 数据，不代表真实合同`, repeat its contract name/customer/date/service scope, and exist only to exercise the test workflow. Create eight matching category PDFs `PR2855-E2E-0N-CATEGORY.pdf`; upload the one shared SOE-directory PDF plus the eight contract, eight relationship, and eight category PDFs, for 25 attachment files total.
+Do not invent production provenance. Each evidence PDF must be visibly marked `测试环境 E2E 数据，不代表真实合同`, repeat its contract name/customer/date/service scope, and exist only to exercise the test workflow. Create eight matching category PDFs and eight row-specific SOE-directory PDFs. The observed importer consumes one uploaded filename per row and cannot bind one shared file repeatedly, so upload eight contract, eight relationship, eight category, and eight SOE-directory files, for 32 unique files total.
 
-- [ ] **Step 3: Write the cleanup and qualification manifest**
+- [x] **Step 3: Write the cleanup and qualification manifest**
 
 `data-manifest.json` must list, for each of the eight records: run marker, contract name, customer name, customer type, signing date, service scope, all four referenced evidence filenames, imported test ID (initially null), and cleanup status (initially `pending`).
 
-- [ ] **Step 4: Import through the browser and verify the UI receipt**
+- [x] **Step 4: Import through the browser and verify the UI receipt**
 
 In the same browser TaskSpace, upload the workbook plus all 25 evidence PDFs and click `开始导入`. Acceptance requires the visible receipt to report eight successful records, 32 attachment associations (four per row; the shared SOE-directory file may be associated repeatedly), and zero failed rows/unmatched attachments. If the importer reports a different association count while all declared files are readable on every record, record the actual count and verify each record's four attachment types individually before accepting the dataset.
 
-- [ ] **Step 5: Read back test IDs through the authenticated browser session**
+- [x] **Step 5: Read back test IDs through the authenticated browser session**
 
 Use the performance list/search UI with keyword `PR2855-E2E-20261025`, then supporting `GET /api/knowledge/performance?keyword=PR2855-E2E-20261025` readback. Update the manifest with exactly eight new test IDs. More or fewer than eight is a data-preparation failure.
 
-- [ ] **Step 6: Prove the dataset matches the project 22 constraints before code changes**
+- [x] **Step 6: Prove the dataset matches the project 22 constraints before code changes**
 
 Call `POST /api/knowledge/project/match` in the authenticated browser session with this exact body and record tier, ratio, matched IDs, and detail:
 
@@ -211,11 +211,11 @@ The matched ID set must include all eight manifest IDs. If unrelated pre-existin
 - Consumes: Task 1 classification RED, Task 2 staircase matrix RED, and Task 3 eight-record match receipt.
 - Produces: One explicit decision selecting the later production-code plan.
 
-- [ ] **Step 1: Record the three evidence results verbatim**
+- [x] **Step 1: Record the three evidence results verbatim**
 
 Include focused Maven command, exit code, expected/actual value for every failed row, browser import receipt, and eight matched test IDs in `red-results.txt`.
 
-- [ ] **Step 2: Apply the decision rule**
+- [x] **Step 2: Apply the decision rule**
 
 ```text
 If classification is the only failure and all four staircase rows already pass:
@@ -228,7 +228,7 @@ If the eight imported records do not match exactly:
   stop; repair data semantics or matching constraints before changing score calculation.
 ```
 
-- [ ] **Step 3: Update the design with the observed decision and stop at the implementation gate**
+- [x] **Step 3: Update the design with the observed decision and stop at the implementation gate**
 
 Add a dated `Evidence decision` section containing the observed failures and selected production boundary. Do not modify production Java in this evidence plan.
 
