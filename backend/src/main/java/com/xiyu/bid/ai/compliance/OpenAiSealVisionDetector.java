@@ -6,6 +6,7 @@ import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiStructuredOutputSe
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.PageImage;
 import com.xiyu.bid.compliance.domain.policy.SealVisionDetector;
+import com.xiyu.bid.compliance.domain.policy.DocumentEvidencePageSelector;
 import com.xiyu.bid.compliance.domain.policy.SealVisionResult;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -21,8 +22,6 @@ public class OpenAiSealVisionDetector implements SealVisionDetector {
 
     private static final String USE_CASE = "bid document seal vision detection";
     private static final int MAX_IMAGES = 24;
-    private static final Set<String> TARGET_KEYWORDS = Set.of(
-            "技术方案", "实施方案", "承诺函", "投标函", "授权委托书", "盖章", "签章");
 
     private final OpenAiStructuredOutputService outputService;
     private final OpenAiBidAgentConfigurationResolver configurationResolver;
@@ -39,22 +38,28 @@ public class OpenAiSealVisionDetector implements SealVisionDetector {
         if (document == null || document.images().isEmpty()) {
             return SealVisionResult.unavailable("未抽取到页面图像");
         }
-        List<PageImage> images = document.images().stream().limit(MAX_IMAGES).toList();
+        List<PageImage> images = document.images().stream()
+                .filter(i -> i.pageHint() != null && i.pageHint() > 0).toList();
+        if (images.isEmpty()) return SealVisionResult.unavailable("页面图像无物理页码，不能核验签章");
+        List<Integer> targets = targetPages(document, images);
+        List<PageImage> selected = images.stream().filter(i -> targets.contains(i.pageHint())).toList();
+        if (selected.isEmpty()) return SealVisionResult.unavailable("未抽取到目标签章页图像");
         try {
             var config = configurationResolver.resolve(USE_CASE);
-            Output output = outputService.request(
-                    buildPrompt(document, images),
-                    images.stream().map(image -> new MultimodalImage(image.mimeType(), image.base64())).toList(),
-                    Output.class,
-                    config,
-                    "AI 未返回印章视觉识别结果");
-            if (output == null) {
-                return SealVisionResult.unavailable("AI 返回空结果");
+            List<SealVisionResult.Observation> observations = new java.util.ArrayList<>();
+            for (int offset = 0; offset < selected.size(); offset += MAX_IMAGES) {
+                List<PageImage> batch = selected.subList(offset, Math.min(offset + MAX_IMAGES, selected.size()));
+                Output output = outputService.request(buildPrompt(document, batch),
+                        batch.stream().map(image -> new MultimodalImage(image.mimeType(), image.base64())).toList(),
+                        Output.class, config, "AI 未返回印章视觉识别结果");
+                if (output == null) return SealVisionResult.unavailable("AI 返回空结果");
+                Set<Integer> sent = batch.stream().map(PageImage::pageHint).collect(Collectors.toSet());
+                if (output.observations != null) {
+                    output.observations.stream().filter(java.util.Objects::nonNull)
+                            .filter(o -> sent.contains(o.pageNumber))
+                            .map(OpenAiSealVisionDetector::toObservation).forEach(observations::add);
+                }
             }
-            List<SealVisionResult.Observation> observations = output.observations == null
-                    ? List.of() : output.observations.stream().map(OpenAiSealVisionDetector::toObservation).toList();
-            List<Integer> targets = output.targetPages == null || output.targetPages.isEmpty()
-                    ? targetPages(document, images) : output.targetPages;
             return SealVisionResult.available(targets, observations, config.model());
         } catch (IllegalStateException e) {
             return SealVisionResult.unavailable(e.getMessage());
@@ -64,25 +69,21 @@ public class OpenAiSealVisionDetector implements SealVisionDetector {
     }
 
     private static String buildPrompt(final DocumentContent document, final List<PageImage> images) {
+        String pageMap = java.util.stream.IntStream.range(0, images.size())
+                .mapToObj(i -> "第" + (i + 1) + "张图片=PDF第" + images.get(i).pageHint() + "页")
+                .collect(Collectors.joining("，"));
         return """
                 你是投标文件签章完整性核验器。请逐页检查附件图片中的实际印章或签字，不要把“盖章处”“签字”文字当成印章。
                 重点检查技术方案末尾、投标函、授权委托书、承诺函等需要盖章页面。
                 只输出 JSON：{"targetPages":[5],"observations":[{"pageNumber":5,"type":"COMPANY_SEAL|LEGAL_REP_SEAL|CROSS_PAGE_SEAL|UNKNOWN","detected":true,"confidence":0.0,"x":0.0,"y":0.0,"width":0.0,"height":0.0}]}。
                 坐标使用图片宽高归一化的 0 到 1 范围；无法定位坐标时返回 null。targetPages 只列实际需要签章核验的页码。
-                文档页数：%d，送检图片数：%d。
-                """.formatted(document.pages().size(), images.size());
+                文档页数：%d，送检图片数：%d。图片物理页码映射：%s。必须按此映射返回pageNumber，禁止使用图片序号作为PDF页码。
+                """.formatted(document.pages().size(), images.size(), pageMap);
     }
 
     private static List<Integer> targetPages(final DocumentContent document, final List<PageImage> images) {
-        Set<Integer> fromText = document.pages().stream()
-                .filter(page -> TARGET_KEYWORDS.stream().anyMatch(keyword -> page.text().contains(keyword)))
-                .map(DocumentContent.PageContent::pageNumber).collect(Collectors.toSet());
-        List<Integer> targets = images.stream().map(PageImage::pageHint).filter(java.util.Objects::nonNull)
-                .filter(fromText::contains).distinct().sorted().toList();
-        if (!targets.isEmpty()) {
-            return targets;
-        }
-        return images.stream().map(PageImage::pageHint).filter(java.util.Objects::nonNull).distinct().sorted().toList();
+        List<Integer> targets = DocumentEvidencePageSelector.sealTargets(document).stream().sorted().toList();
+        return targets.isEmpty() ? images.stream().map(PageImage::pageHint).distinct().sorted().toList() : targets;
     }
 
     private static SealVisionResult.Observation toObservation(final Observation output) {

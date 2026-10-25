@@ -17,8 +17,8 @@ backlinks:
   - .wiki/pages/_index.md
   - .wiki/log.md
 created: 2026-10-23
-updated: 2026-10-25
-health_checked: 2026-10-25
+updated: 2026-10-26
+health_checked: 2026-10-26
 archive: false
 ---
 
@@ -78,3 +78,16 @@ mvn -Dtest=BasicInfoAndAttachmentRulesTest,DeterministicCaCertificateExtractorTe
 - 用户批准无可核实平台身份统一MANUAL_REVIEW。新增正向身份边界，形似公司/平台或台账matched=true不构成身份核实。未覆盖的新平台也转人工，保留候选与原文。
 - 原两个泛称及陌生企业名称均已由JUnit验证转人工；招商完整PDF回放仍PASS、第4页原文保留。关联回归566项通过，两轴独立审查通过。
 - 当前是本地源码完成，未commit/push/部署；生产仍需发布后重新核查。最终记录：`docs/reviews/2026-10-25-ca-platform-review.md`。
+
+## 2026-10-25 报告58程序修复候选（未交付）
+
+- 沙盒quality58-program-fix，分支agent/claude/quality58-program-repair，未发布。评分规则误判、选页/页码覆盖、受限扫描转写、退款模板反假已有候选；业务补章/续证/台账未处理。
+- 关联835项及冻结PDF回放通过，但第3轮独立审查仍发现授权期限【此处填写】被判PASS。结论NEEDS_FIXES，不能以测试绿宣布修复完成。
+- 根因：非空/长度/有限占位词不足以证明授权期限真实填写。建议三态正向证明，未知转人工；人工裁决前停止继续叠补。详见specs/077-fix-ai-quality-1117尾部R58。
+
+## 2026-10-26 人工确认后本地程序验证闭环
+
+- 新正向三态替代非空/负词表外放行，字段无法确认、占位及不同授权页冲突均人工；AI PASS/FAIL均不得覆盖规则未知人工。姓名候选不等于身份验证。
+- 退款元标签、括号字段说明、某某/XX掩码不构成企业/银行名称；完整字段不等于账户归属或有效性核验。
+- 本地850项、冻结PDF、三架构、构建和变更源码Checkstyle通过，独立两轴审查通过。基线7e0481cd2，分支agent/claude/quality58-program-repair，源码未提交/未部署。
+- 生产报告58未在本轮重算。部署后必须另验真实模型、页面和持久化结果，不能把本地通过当业务UAT。

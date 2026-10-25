@@ -247,4 +247,31 @@ class ResponsivenessReviewPolicyTest {
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(result.conclusion()).contains("实质性负偏离");
     }
+
+    @Test
+    void scoringConditionsAreNotBidderNegativeDeclarations() {
+        var doc = DocumentContent.fromText("bid.pdf", "hash", "评审索引表\n评审标准：三项齐全得满分，缺少一项，不得分。\n不满足或未提供证明文件者，不得分。\n商务偏离表\n我方全部响应，无偏离。");
+        assertThat(ResponsivenessReviewPolicy.check(doc).status()).isEqualTo(QualityCheckStatus.PASS);
+    }
+
+    @Test
+    void ownAdmissionNearScoringRuleStillFails() {
+        var doc = DocumentContent.fromText("bid.pdf", "hash", "评审标准：不满足要求不得分。我方不满足交货期要求，交付需延迟30天。");
+        assertThat(ResponsivenessReviewPolicy.check(doc).status()).isEqualTo(QualityCheckStatus.FAIL);
+    }
+
+
+    @Test
+    void scoringConditionInSameSentenceCannotHideActualProductDeviation() {
+        var doc = DocumentContent.fromText("bid.pdf", "hash", "商务偏离表\n本投标产品不满足技术参数，按评审标准不满足要求不得分\n无偏离");
+        assertThat(ResponsivenessReviewPolicy.check(doc).status()).isEqualTo(QualityCheckStatus.FAIL);
+    }
+
+    @Test
+    void bidderOrActualDeliverySubjectCannotBecomeRuleFromNoScoreSuffix() {
+        for (String fact : java.util.List.of("本投标人不满足要求，不得分", "实际交货期不满足要求，不得分")) {
+            var doc = DocumentContent.fromText("bid.pdf", "hash", "商务偏离表：全部响应，无偏离\n" + fact);
+            assertThat(ResponsivenessReviewPolicy.check(doc).status()).isEqualTo(QualityCheckStatus.FAIL);
+        }
+    }
 }

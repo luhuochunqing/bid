@@ -8,9 +8,11 @@ import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
+import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,31 +33,12 @@ public final class AuthorizationLetterCheckPolicy {
             "法定代表人身份证明", "法定代表人证明书", "法定代表人声明"
     };
 
-    /** 图片证据标识正则：Markdown 图片、HTML img 标签、或转义出的 [已附图片] / 已附图片 标记. */
-    static final Pattern IMAGE_EVIDENCE_PATTERN = Pattern.compile(
-            "!\\[[^\\]]*\\]\\([^)]+\\)|<img[^>]+>|\\[已附图片\\]|已附图片|\\[图片[^\\]]*\\]"
-    );
-
     private static final Pattern UNFILLED_PLACEHOLDER_PATTERN = Pattern.compile(
             "【(?:被授权人|受托人|委托代理人|姓名|身份证号|职务|授权期限|授权单位)[^】]*】|"
                     + "\\[(?:被授权人|受托人|委托代理人|姓名|身份证号|职务|授权期限|授权单位)[^\\]]*\\]|"
                     + "(?:被授权人|受托人|委托代理人|法定代表人)[：:\\s]*_{2,}|"
                     + "身份证(?:号|号码)?[：:\\s]*_{2,}|"
                     + "授权期限[：:\\s]*_{2,}"
-    );
-
-    private static final Pattern ID_CARD_PATTERN = Pattern.compile(
-            "[1-9]\\d{5}(?:18|19|20)\\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\\d|3[01])\\d{3}[\\dXx]"
-                    + "|[1-9]\\d{5}\\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\\d|3[01])\\d{3}"
-                    + "|[1-9]\\d{5}[*×＊Xx]{4,8}\\d{3,4}[Xx\\d]?"
-    );
-
-    private static final Pattern AGENT_NAME_PATTERN = Pattern.compile(
-            "(?:委托代理人|受托人|被授权人|授权代表)[（(]?(?:签字|盖章|姓名)?[）)]?[：:\\s]*([\\u4e00-\\u9fa5]{2,6})"
-    );
-
-    private static final Pattern PRINCIPAL_NAME_PATTERN = Pattern.compile(
-            "(?:法定代表人|委托人)[（(]?(?:签字|盖章|姓名)?[）)]?[：:\\s]*([\\u4e00-\\u9fa5]{2,6})"
     );
 
     private AuthorizationLetterCheckPolicy() {
@@ -75,10 +58,34 @@ public final class AuthorizationLetterCheckPolicy {
         }
 
         // 1. 优先在非目录页检索真实授权委托书
-        PageMatch authMatch = findFirstNonCatalogPage(bidDoc, AUTH_LETTER_KEYWORDS);
-        if (authMatch != null) {
-            return evaluateAuthorizationPage(item, authMatch);
+        QualityCheckItemResult firstUncertain = null;
+        boolean uncertainHasFields = false;
+        QualityCheckItemResult firstPass = null;
+        String actualGrant = null;
+        boolean conflictingGrants = false;
+        List<QualityEvidence> grantEvidences = new ArrayList<>();
+        for (DocumentContent.PageContent page : bidDoc.pages()) {
+            if (isCatalogOrOutlinePage(page.text())
+                    || !BasicInfoCheckPolicy.containsAnyKeyword(page.text(), AUTH_LETTER_KEYWORDS)) continue;
+            QualityCheckItemResult candidate = evaluateAuthorizationPage(item, new PageMatch(page.pageNumber(), page.text()));
+            boolean structured = AuthorizationFieldPolicy.hasStructuredFields(page.text());
+            if (structured) {
+                String normalized = page.text().replaceAll("\\s+", "");
+                if (actualGrant != null && !actualGrant.equals(normalized)) conflictingGrants = true;
+                actualGrant = normalized;
+                grantEvidences.addAll(candidate.evidences());
+            }
+            if (candidate.status() == QualityCheckStatus.PASS && firstPass == null) firstPass = candidate;
+            if (firstUncertain == null || structured && !uncertainHasFields) {
+                firstUncertain = candidate;
+                uncertainHasFields = structured;
+            }
         }
+        if (conflictingGrants) return QualityCheckItemResult.manualReview(item,
+                "存在多个内容不同的授权正文，无法确认本次适用的唯一人员、权限及期限",
+                "请核对原页及授权版本；系统不默认选择其中一份通过", grantEvidences);
+        if (firstPass != null) return firstPass;
+        if (firstUncertain != null) return firstUncertain;
 
         // 2. 若未找到授权委托书，检索法定代表人身份证明
         PageMatch legalRepMatch = findFirstNonCatalogPage(bidDoc, LEGAL_REP_KEYWORDS);
@@ -117,24 +124,30 @@ public final class AuthorizationLetterCheckPolicy {
                     "请确保授权委托书已完成真实填写、签署并加盖公章，避免留白废标风险", evidences);
         }
 
-        boolean hasPrincipal = text.contains("法定代表人") || text.contains("委托人")
-                || PRINCIPAL_NAME_PATTERN.matcher(text).find();
-        boolean hasAgent = text.contains("受托人") || text.contains("委托代理人")
-                || text.contains("被授权人") || AGENT_NAME_PATTERN.matcher(text).find();
-        boolean hasStrongScope = text.contains("授权范围") || text.contains("全权代表")
-                || text.contains("授权期限") || text.contains("授权事项") || text.contains("代理权限")
-                || text.contains("委托事项") || text.contains("委托权限");
-        boolean hasIdCard = ID_CARD_PATTERN.matcher(text).find();
-        boolean hasImage = IMAGE_EVIDENCE_PATTERN.matcher(text).find();
-
-        if (hasPrincipal && hasAgent && (hasStrongScope || hasIdCard || hasImage)) {
+        AuthorizationFieldPolicy.Assessment fields = AuthorizationFieldPolicy.assess(text);
+        boolean isInstructions = text.contains("填写要求") || text.contains("填表说明") || text.contains("格式说明");
+        if (fields.filled() && !isInstructions) {
             return QualityCheckItemResult.pass(item,
-                    "已提供法定代表人授权委托书，委托人与受托人授权关系清晰明确，要素齐全", evidences);
+                    "已提供法定代表人授权委托书，授权人员、权限及期限文字要素齐全（身份与签章须另行核验）", evidences);
         }
-
         return QualityCheckItemResult.manualReview(item,
-                "检测到授权委托书，但委托人或受托人身份信息与授权范围不完整",
-                "请核实授权委托书中法定代表人与受托人姓名、身份证号及授权权限是否清晰明确", evidences);
+                fields.hasPlaceholder() ? "授权字段包含占位或空白，不能确认已真实填写"
+                        : "授权人员、权限或期限尚无法正向确认，不能仅凭非空文字判定完整",
+                "请核对原页的授权人员、具体代理权限及明确期限；未识别写法保留人工，不推断材料缺失", evidences);
+    }
+
+    public static QualityCheckItemResult enforcePositiveContract(final QualityCheckItemResult result,
+            final DocumentContent document, final AuthorizationRequirement requirement) {
+        if (result == null || !BidQualityCheckItem.AUTHORIZATION_LETTER.getCode().equals(result.itemCode())) return result;
+        QualityCheckItemResult deterministic = check(document, requirement);
+        if (deterministic.status() == QualityCheckStatus.MANUAL_REVIEW) return ManualReasons.manual(
+                BidQualityCheckItem.AUTHORIZATION_LETTER, ManualReasons.EVIDENCE_INSUFFICIENT,
+                deterministic.conclusion(), deterministic.suggestion(), deterministic.evidences());
+        if (result.status() != QualityCheckStatus.PASS) return result;
+        if (deterministic.status() == QualityCheckStatus.PASS) return deterministic;
+        return QualityCheckItemResult.manualReview(BidQualityCheckItem.AUTHORIZATION_LETTER,
+                "授权人员、权限或期限缺少正向填写证据，AI通过结论不能替代字段核验",
+                deterministic.suggestion(), deterministic.evidences());
     }
 
     private static QualityCheckItemResult evaluateLegalRepOnlyPage(
@@ -145,12 +158,9 @@ public final class AuthorizationLetterCheckPolicy {
                 BasicInfoCheckPolicy.snippetAround(text, 200, LEGAL_REP_KEYWORDS)));
 
         boolean allowLegalRepOnly = requirement != null && Boolean.TRUE.equals(requirement.allowLegalRepresentativeOnly());
-        boolean hasPrincipal = text.contains("法定代表人") || text.contains("身份证");
-        boolean hasImage = IMAGE_EVIDENCE_PATTERN.matcher(text).find();
-
-        if (allowLegalRepOnly && (hasPrincipal || hasImage)) {
+        if (allowLegalRepOnly && AuthorizationFieldPolicy.legalRepresentativeProofFilled(text)) {
             return QualityCheckItemResult.pass(item,
-                    "已附法定代表人身份证明，符合招标文件关于法定代表人亲自参加的合规规定（免除授权委托书）", evidences);
+                    "已附法定代表人身份证明，招标允许仅附该证明（免除授权委托书）；实际参与人员身份与签章须另行核验", evidences);
         }
 
         return QualityCheckItemResult.manualReview(item,

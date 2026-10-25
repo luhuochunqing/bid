@@ -1504,3 +1504,6 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 - 顺带修复 `todayStr()` UTC 时区缺陷（toISOString 在东八区每天 8 小时会写成昨天日期）。
 - 新增契约测试 `scripts/test/wiki-backfill-active-contract.sh`：锁定"archive 刷 / 活跃拒 / dry-run 零写入 / updated 不动 / archive 标记不丢"五条语义。
 - 真实 wiki dry-run 验证：36 个 archive 页可刷、109 个活跃页拒绝（旧版会把这 109 页全刷）。
+## [2026-10-25] compound | 报告58程序修复候选：835项回归通过但第三轮授权占位假通过阻断，未发布。
+
+## [2026-10-26] compound | 报告58正向三态程序修复本地验证完成：850项与两轴审查通过，未部署/未重算生产。

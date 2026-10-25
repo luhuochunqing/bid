@@ -271,7 +271,8 @@ public final class BidDocumentQualityEngine {
         // 11. 严格按 25 项标准序号排序输出
         List<QualityCheckItemResult> sorted = new ArrayList<>();
         for (QualityCheckItemResult result : resultMap.values()) {
-            sorted.add(SemanticEvidenceBoundary.reconcile(result, bidDoc));
+            sorted.add(SemanticEvidenceBoundary.reconcile(AuthorizationLetterCheckPolicy.enforcePositiveContract(
+                    result, bidDoc, effective.authorizationRequirement()), bidDoc));
         }
         sorted.sort(Comparator.comparingInt(QualityCheckItemResult::order));
         return sorted;
