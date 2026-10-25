@@ -234,6 +234,17 @@ class KnowledgeCategoryPolicyTest {
         assertThat(policy.extractProjectRequiredCount(detail, new java.math.BigDecimal("15"))).isEqualTo(8);
     }
 
+    @Test
+    @DisplayName("项目22 模型仅返回 business 维度时，明确业绩阶梯规则仍归类为 PROJECT")
+    void categorize_project22_genericModelDimension_usesExecutablePerformanceRule() {
+        String detail = "3.2.3\n（1）\n商务评分\n标准\n供应商业绩\n（7分）\n"
+                + "供应商具有1\n项大型集团型国央企电子商城办公用品服务业绩的不得分，每\n"
+                + "增加1个得1分，最高得7分。";
+
+        assertThat(policy.categorize("business", detail))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_PROJECT);
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // 根因 1：多级管道符维度解构（项目 30/33 生产失效样本）
     // ─────────────────────────────────────────────────────────────────────────
