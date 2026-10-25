@@ -230,6 +230,10 @@ const kbLinks = computed(() => {
   if (isCaItem.value && !links.some(l => l.source === 'ca-certificate')) {
     links.push({ source: 'ca-certificate', label: 'CA证书管理', route: '/resource/ca-management' })
   }
+  const code = props.item?.itemCode?.toLowerCase()
+  if (code === 'qualification_match' || code === 'qualification_veto') {
+    return links.filter(l => l.source === 'qualification')
+  }
   return links
 })
 

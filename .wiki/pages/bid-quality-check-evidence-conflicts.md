@@ -7,6 +7,9 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BasicInfoCheckPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicCaCertificateExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationMatchPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationDetailReconciler.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/EvidenceAssembler.java
+  - src/views/Project/stages/components/QualityCheckDetailDialog.vue
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/SubItemAndAttachmentRules.java
   - backend/src/main/java/com/xiyu/bid/compliance/service/QualificationQueryDelegate.java
   - specs/077-fix-ai-quality-1117/spec.md
@@ -30,10 +33,16 @@ archive: false
 | 保证金回单报缺失 | 文本未抽取等同附件不存在 | 复用页面图像提取真实交易要素；视觉不可用或要素不足时转人工 |
 | 三项 ISO 只关联一项 | 长要求未原子化 | 三项标准分别匹配有效证书 |
 | 评分类型错误 | 页面读取旧激活解析 | 分类器与生产激活版本分别核验 |
+| 临期降级文案自相矛盾 | 细分不彻底，统一拼接“证明待核实”且残留“匹配通过” | 细分 ATTENTION 为临期与未维护；清洗残留冲突短语 |
+| 标书证据命中目录页 | 资质与否决检索未跳过目录索引页 | 全面切换为 `locateBidSkippingCatalog`，仅正文命中才返回页码 |
+| 资质核查显示业绩库来源 | 装配未设白名单，前端未阻断 | 后端白名单限定源（QUALIFICATION 仅放行资质库），前端纵深防御 |
 
 ## 不变量
 
-- `MANUAL_REVIEW` 表示证据通道不足，不是业务材料缺失。
+- `MANUAL_REVIEW` 表示证据通道不足或需人工复核状态，不是业务材料缺失。
+- 证书临期触发需关注（ATTENTION）时，精准归因为证书临期与换证复核，禁止报“标书证明材料待核实”；且结论中禁止残留“资质匹配通过/完全满足”等矛盾表述。
+- 标书正文证据装配禁止将目录页（带引导点线）作为有效定位；若正文未命中，诚实置空页码由前端展示“未定位”。
+- 纯资质检查项（`QUALIFICATION_MATCH`）的证据装配仅允许资质库（`SOURCE_QUALIFICATION`），禁止业绩库等异构库来源穿透。
 - 保证金文本关键词不能单独产生 PASS；视觉凭证必须包含至少三项交易要素，且包含金额或银行流水号。
 - 单张证书不能代表多个 ISO 标准，过期证书不得关联。
 - 新解析候选不等于生产事实；部署后必须核验并显式激活。
@@ -42,13 +51,15 @@ archive: false
 
 - CA 提取同时影响招标要求融合与 CA 台账联动。
 - ISO 原子化同时服务知识库查询和结构化明细，禁止双轨漂移。
+- 证据装配跳过目录页影响资质比对与一票否决项的页码提取，避免假定位引导。
+- 前端过滤必须精确限定为 `QUALIFICATION_MATCH`/`QUALIFICATION_VETO`，放行包含业绩库的 `QUALIFICATION_REVIEW` 综合审查项。
 - 代码修复不会回填已持久化报告或评分项。
 
 ## 验证入口
 
 ```bash
 cd backend
-mvn -Dtest=BasicInfoAndAttachmentRulesTest,DeterministicCaCertificateExtractorTest,DepositReceiptVisionFusionPolicyTest,OpenAiDepositReceiptVisionDetectorTest,QualificationMatchPolicyTest,QualificationQueryDelegateTest,ScoreTypeClassificationPolicyTest,ResponsibilityArchitectureTest test
+mvn -Dtest=BasicInfoAndAttachmentRulesTest,DeterministicCaCertificateExtractorTest,DepositReceiptVisionFusionPolicyTest,OpenAiDepositReceiptVisionDetectorTest,QualificationMatchPolicyTest,QualificationDetailReconcilerTest,EvidenceAssemblerTest,QualificationQueryDelegateTest,ScoreTypeClassificationPolicyTest,ResponsibilityArchitectureTest test
 ```
 
 ## 2026-10-25 生产复验与 CA 平台名称修复

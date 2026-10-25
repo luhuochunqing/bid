@@ -10,6 +10,7 @@ import com.xiyu.bid.compliance.domain.QualityEvidence;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 语义项证据组装（纯函数）.
@@ -75,29 +76,33 @@ public final class EvidenceAssembler {
         switch (item) {
             case QUALIFICATION_MATCH -> {
                 if (requirements != null && requirements.mandatoryQualifications() != null) {
-                    for (String qual : requirements.mandatoryQualifications()) {
+                    for (String qual : QualificationMatchPolicy.expandCombinedIsoRequirements(requirements.mandatoryQualifications())) {
                         if (qual != null && !qual.isBlank() && DeterministicQualificationExtractor.isSpecificCertificate(qual)) {
                             evidences.add(locateTender(tenderDoc, "招标文件资质要求", List.of(qual)));
-                            evidences.add(locateBid(bidDoc, "资质证明材料正文", List.of(qual)));
+                            evidences.add(locateBidSkippingCatalog(bidDoc, "资质证明材料正文", List.of(qual)));
                         }
                     }
                 }
-                evidences.add(locateBid(bidDoc, "资质证书分卷", List.of("资质证书", "企业资质", "认证证书", "许可证", "ISO")));
-                appendKnowledgeEvidences(evidences, kbEvidences);
+                evidences.add(locateBidSkippingCatalog(bidDoc, "资质证书分卷", List.of("资质证书", "企业资质", "认证证书", "许可证", "ISO")));
+                appendKnowledgeEvidences(evidences, kbEvidences, Set.of(KnowledgeMatch.SOURCE_QUALIFICATION));
             }
             case QUALIFICATION_VETO -> {
-                for (String qualification : requirements.mandatoryQualifications()) {
-                    if (!qualification.isBlank()) {
-                        evidences.add(locateTender(tenderDoc, "招标文件资质要求", List.of(qualification)));
+                if (requirements != null && requirements.mandatoryQualifications() != null) {
+                    for (String qualification : QualificationMatchPolicy.expandCombinedIsoRequirements(requirements.mandatoryQualifications())) {
+                        if (qualification != null && !qualification.isBlank()) {
+                            evidences.add(locateTender(tenderDoc, "招标文件资质要求", List.of(qualification)));
+                        }
                     }
                 }
-                for (TenderRequirements.VetoClause veto : requirements.vetoClauses()) {
-                    if (!veto.keywords().isEmpty()) {
-                        evidences.add(locateTender(tenderDoc, "招标一票否决条款", veto.keywords()));
+                if (requirements != null && requirements.vetoClauses() != null) {
+                    for (TenderRequirements.VetoClause veto : requirements.vetoClauses()) {
+                        if (veto != null && !veto.keywords().isEmpty()) {
+                            evidences.add(locateTender(tenderDoc, "招标一票否决条款", veto.keywords()));
+                        }
                     }
                 }
-                evidences.add(locateBid(bidDoc, "一票否决与实质性响应条款", List.of("一票否决", "否决投标", "废标", "转包", "分包", "资格审查", "实质性响应")));
-                appendKnowledgeEvidences(evidences, kbEvidences);
+                evidences.add(locateBidSkippingCatalog(bidDoc, "一票否决与实质性响应条款", List.of("一票否决", "否决投标", "废标", "转包", "分包", "资格审查", "实质性响应")));
+                appendKnowledgeEvidences(evidences, kbEvidences, Set.of(KnowledgeMatch.SOURCE_QUALIFICATION));
             }
             case FRONT_TABLE_RESPONSE -> evidences.add(locateBidSkippingCatalog(
                     bidDoc, "前附表关键条款响应", FrontTableResponsePolicy.RESPONSE_HEADINGS));
@@ -111,7 +116,7 @@ public final class EvidenceAssembler {
             case QUALIFICATION_REVIEW -> {
                 evidences.add(locateBidSkippingCatalog(bidDoc, "企业信誉、纳税社保与类似业绩", List.of("信用中国", "纳税", "社保", "信誉", "业绩", "履约")));
                 evidences.add(locateBidSkippingCatalog(bidDoc, "财务证明正文", List.of("审计报告", "财务报表", "资产负债表", "利润表", "现金流量表")));
-                appendKnowledgeEvidences(evidences, kbEvidences);
+                appendKnowledgeEvidences(evidences, kbEvidences, Set.of(KnowledgeMatch.SOURCE_QUALIFICATION, KnowledgeMatch.SOURCE_PERFORMANCE));
             }
             case SCORING_RESPONSE -> {
                 if (requirements != null && requirements.scoringItems() != null) {
@@ -150,8 +155,8 @@ public final class EvidenceAssembler {
                         && requirements.caCertificateRequirement().description() != null) {
                     evidences.add(locateTender(tenderDoc, "招标CA数字证书要求", List.of("CA", "数字证书", "电子签章", "电子交易")));
                 }
-                evidences.add(locateBid(bidDoc, "CA数字证书及签章凭据", List.of("CA证书", "数字证书", "电子签章", "有效性证明", "证书序列号", "CFCA")));
-                appendKnowledgeEvidences(evidences, kbEvidences);
+                evidences.add(locateBidSkippingCatalog(bidDoc, "CA数字证书及签章凭据", List.of("CA证书", "数字证书", "电子签章", "有效性证明", "证书序列号", "CFCA")));
+                appendKnowledgeEvidences(evidences, kbEvidences, Set.of(KnowledgeMatch.SOURCE_CA_CERTIFICATE));
             }
             default -> {
                 // 其余项未特化证据
@@ -160,13 +165,17 @@ public final class EvidenceAssembler {
         return evidences;
     }
 
-    /** 附加知识库证据（上限 {@link #MAX_KB_EVIDENCES}）并返回合并后的证据列表. */
+    /** 附加知识库证据（上限 {@link #MAX_KB_EVIDENCES}，按白名单源过滤）并返回合并后的证据列表. */
     private static List<QualityEvidence> appendKnowledgeEvidences(
-            final List<QualityEvidence> target, final List<QualityEvidence> kbEvidences) {
+            final List<QualityEvidence> target, final List<QualityEvidence> kbEvidences, final Set<String> allowedSources) {
         if (kbEvidences == null) {
             return target;
         }
-        target.addAll(kbEvidences.stream().limit(MAX_KB_EVIDENCES).toList());
+        target.addAll(kbEvidences.stream()
+                .filter(e -> allowedSources == null || allowedSources.isEmpty()
+                        || (e.knowledgeSource() != null && allowedSources.contains(e.knowledgeSource())))
+                .limit(MAX_KB_EVIDENCES)
+                .toList());
         return target;
     }
 }

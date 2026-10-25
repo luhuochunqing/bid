@@ -72,7 +72,7 @@ public final class QualificationDetailReconciler {
                     .map(d -> !d.matchedCertName().isBlank() ? d.matchedCertName() : d.requirement())
                     .toList();
             String conclusion = "【资质已过期】核查发现证书「" + String.join("、", expiredCerts) + "」已超出有效期，存在实质性废标风险；"
-                    + rawResult.conclusion();
+                    + cleansePassPhrasesForFail(rawResult.conclusion());
             String suggestion = "请更新或替换已过期的资质证书后重新核查";
             return new QualityCheckItemResult(
                     rawResult.itemCode(), rawResult.category(), rawResult.title(), rawResult.description(),
@@ -88,7 +88,7 @@ public final class QualificationDetailReconciler {
                     .toList();
             String conclusion = "【资质未匹配】招标文件要求的硬性资质（" + String.join("；", missingReqs)
                     + "）在企业资质库及投标文件中均未检索到对应证明材料，存在实质性偏离或废标风险；"
-                    + rawResult.conclusion();
+                    + cleansePassPhrasesForFail(rawResult.conclusion());
             String suggestion = "请在投标文件中完整补充对应资质证明材料或更新企业资质库";
             return new QualityCheckItemResult(
                     rawResult.itemCode(), rawResult.category(), rawResult.title(), rawResult.description(),
@@ -107,15 +107,36 @@ public final class QualificationDetailReconciler {
                     "请对照逐项匹配明细核对证书，不得仅依据冲突的缺失结论判定不合格", rawResult.evidences(), details);
         }
 
-        // 3. 存在需关注项（ATTENTION）：标书有疑似证明但未在资质库收录，或即将过期
+        // 3. 存在需关注项（ATTENTION）：区分仅临期 vs 资质库未维护
         if (!attentionList.isEmpty() && rawResult.status() == QualityCheckStatus.PASS) {
-            List<String> attentionReqs = attentionList.stream()
-                    .map(d -> d.requirement() + (d.bidPageNumber() != null ? "（标书第" + d.bidPageNumber() + "页）" : ""))
+            List<QualificationDetail> expiringList = attentionList.stream()
+                    .filter(d -> d.matchedCertName() != null && !d.matchedCertName().isBlank())
                     .toList();
-            String conclusion = "[" + ManualReasons.MANUAL_REVIEW_REQUIRED + "] 资质比对存在待人工核实项（"
-                    + String.join("；", attentionReqs) + "），请人工复核标书中资质证明材料的有效性；"
-                    + rawResult.conclusion();
-            String suggestion = "请人工复核标书中资质证明材料与资质有效期后确认";
+            List<QualificationDetail> unmaintainedList = attentionList.stream()
+                    .filter(d -> d.matchedCertName() == null || d.matchedCertName().isBlank())
+                    .toList();
+
+            String conclusionPrefix;
+            String suggestion;
+            if (unmaintainedList.isEmpty()) {
+                // 纯证书临期预警，标书材料本身齐全
+                List<String> expiringNotices = expiringList.stream()
+                        .map(d -> "证书「" + d.matchedCertName() + "」即将到期"
+                                + (d.remainingDays() != null ? "（剩余 " + d.remainingDays() + " 天）" : ""))
+                        .toList();
+                conclusionPrefix = "[" + ManualReasons.MANUAL_REVIEW_REQUIRED + "] 资质比对提示证书临期（"
+                        + String.join("；", expiringNotices) + "），请人工复核资质有效期与换证进度；";
+                suggestion = "请复核即将到期的资质证书有效期并及时推进换证续期";
+            } else {
+                List<String> attentionReqs = attentionList.stream()
+                        .map(d -> d.requirement() + (d.bidPageNumber() != null ? "（标书第" + d.bidPageNumber() + "页）" : ""))
+                        .toList();
+                conclusionPrefix = "[" + ManualReasons.MANUAL_REVIEW_REQUIRED + "] 资质比对存在待人工核实项（"
+                        + String.join("；", attentionReqs) + "），请人工复核标书中资质证明材料的有效性；";
+                suggestion = "请人工复核标书中资质证明材料与资质有效期后确认";
+            }
+
+            String conclusion = conclusionPrefix + cleansePassPhrasesForManual(rawResult.conclusion());
             return new QualityCheckItemResult(
                     rawResult.itemCode(), rawResult.category(), rawResult.title(), rawResult.description(),
                     QualityCheckStatus.MANUAL_REVIEW, rawResult.severity(), rawResult.order(),
@@ -124,6 +145,32 @@ public final class QualificationDetailReconciler {
 
         // 4. 全量 MATCHED 或非 PASS 原始状态保持
         return rawResult.withDetails(details);
+    }
+
+    /**
+     * 清洗降级为人工复核结论中的陈述冲突短语（避免前称待核实、后称匹配通过）.
+     */
+    static String cleansePassPhrasesForManual(final String rawConclusion) {
+        if (rawConclusion == null || rawConclusion.isBlank()) {
+            return "";
+        }
+        String text = rawConclusion
+                .replaceAll("，?\\s*完全满足招标文件的硬性资格要求", "，硬性证明材料已在标书中呈现，但需结合资质状态人工复核")
+                .replaceAll("，?\\s*资质匹配通过[。]?", "，建议人工复核确认。");
+        return text.replaceAll("，+", "，").replaceAll("。+", "。").replaceAll("，。", "。");
+    }
+
+    /**
+     * 清洗降级为失败结论中的通过类表述.
+     */
+    static String cleansePassPhrasesForFail(final String rawConclusion) {
+        if (rawConclusion == null || rawConclusion.isBlank()) {
+            return "";
+        }
+        String text = rawConclusion
+                .replaceAll("，?\\s*完全满足招标文件的硬性资格要求", "，硬性资质未能完全满足")
+                .replaceAll("，?\\s*资质匹配通过[。]?", "，存在实质性偏离或废标风险。");
+        return text.replaceAll("，+", "，").replaceAll("。+", "。").replaceAll("，。", "。");
     }
 
     /**

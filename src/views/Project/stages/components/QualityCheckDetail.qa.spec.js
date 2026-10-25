@@ -283,12 +283,43 @@ describe('质量核查详情弹窗字段对照表', () => {
         itemCode: 'qualification_match', status: 'FAIL', title: '资质匹配',
         conclusion: '缺少证书。',
         evidences: [
-          { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'performance', sourceRecordId: 'p-1', matched: true }
+          { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'qualification', sourceRecordId: 'q-1', matched: true }
         ]
       }
     })
     await wrapper.find('.dt-source').trigger('click')
-    expect(pushMock).toHaveBeenCalledWith('/knowledge/performance')
+    expect(pushMock).toHaveBeenCalledWith('/knowledge/qualification')
+  })
+
+  it('qualification_match 项防御过滤非资质库链接（不显示业绩库等杂音）', () => {
+    const wrapper = mountDialog({
+      item: {
+        itemCode: 'qualification_match', status: 'FAIL', title: '资质匹配',
+        conclusion: '缺少证书。',
+        evidences: [
+          { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'qualification', sourceRecordId: 'q-1', matched: true },
+          { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'performance', sourceRecordId: 'p-1', matched: true }
+        ]
+      }
+    })
+    const links = wrapper.findAll('.dt-source')
+    expect(links.length).toBe(1)
+    expect(links[0].text()).toContain('资质库')
+  })
+
+  it('非 qualification_match/veto 项（如 qualification_review）保留业绩库等来源', () => {
+    const wrapper = mountDialog({
+      item: {
+        itemCode: 'qualification_review', status: 'FAIL', title: '资质业绩审查',
+        conclusion: '待审查。',
+        evidences: [
+          { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'qualification', sourceRecordId: 'q-1', matched: true },
+          { sourceType: 'KNOWLEDGE_BASE', knowledgeSource: 'performance', sourceRecordId: 'p-1', matched: true }
+        ]
+      }
+    })
+    const links = wrapper.findAll('.dt-source')
+    expect(links.length).toBe(2)
   })
 
   it('CA_CERTIFICATE 项点击联动数据来源直达 /resource/ca-management，并在结论中提示录入证书', async () => {
