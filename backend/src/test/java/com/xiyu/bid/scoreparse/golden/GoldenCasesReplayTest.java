@@ -214,6 +214,14 @@ class GoldenCasesReplayTest {
         assertEquals("IN_SCHEME", OriginalScoringContext.textScopeAt(text,
                 expected.path("inSchemeLine").asInt()).scopeStatus());
 
+        String performanceRule = expected.path("supplierPerformanceRule").asText();
+        assertEquals("OBJECTIVE", new com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy()
+                .classify(performanceRule, "SUBJECTIVE"));
+        var staircase = com.xiyu.bid.scoreparse.domain.IncrementalCountScorePolicy.parse(performanceRule)
+                .orElseThrow();
+        assertEquals(8, staircase.requiredCountForMaximumScore());
+        assertEquals(new BigDecimal("7"), staircase.score(8, new BigDecimal("7")));
+
         var p1 = facts.stream().filter(f -> "P1".equals(f.code())).findFirst().orElseThrow();
         var p2 = facts.stream().filter(f -> "P2".equals(f.code())).findFirst().orElseThrow();
         var r1 = OriginalRuleRestoration.restore(p1, artifact, validation.facts());

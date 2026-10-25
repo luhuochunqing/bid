@@ -83,6 +83,8 @@ public final class IncrementalCountScorePolicy {
             return zeroScoreBaseCount + increments * incrementCount;
         }
 
+        // REUSE-OK: backend/src/main/java/com/xiyu/bid/biddraftagent/domain/MaterialMatchScoringPolicy.java — 该方法计算评分项数量阶梯，另一策略计算物料匹配度，输入与业务语义不同
+        // REUSE-OK: backend/src/main/java/com/xiyu/bid/casework/domain/policy/KnowledgeCaseMatchPolicy.java — 该方法按合格数量计算阶梯分，另一策略对知识案例与条件计算相似度，输入与返回类型不同
         public BigDecimal score(int qualifiedCount, BigDecimal weight) {
             int additionalCount = Math.max(0, qualifiedCount - zeroScoreBaseCount);
             int completedIncrements = additionalCount / incrementCount;
