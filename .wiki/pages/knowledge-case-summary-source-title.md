@@ -5,7 +5,7 @@ category: guide
 tags: [案例库, knowledge_case, 摘要截断, SummaryTruncator, sourceSectionTitle, provenance, V1215, 回填脚本]
 created: 2026-09-16
 updated: 2026-09-17
-health_checked: 2026-09-18
+health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/casework/application/util/SummaryTruncator.java
   - backend/src/main/java/com/xiyu/bid/casework/application/MarkdownSourceSectionIndex.java

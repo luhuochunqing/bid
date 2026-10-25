@@ -447,6 +447,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-project-1384-docx-continuation"),
                 Arguments.of("case-price-markdown-star"),
                 Arguments.of("case-markdown-whole-rule"),
+                Arguments.of("case-chapter-heading-inter-spaces"),
                 Arguments.of("case-markdown-inner-row"));
     }
 

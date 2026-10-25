@@ -5,7 +5,7 @@ category: guide
 tags: [db-schema, flyway, 数据字典, 注释, 动态SQL, V1218]
 created: 2026-09-25
 updated: 2026-09-25
-health_checked: 2026-09-25
+health_checked: 2026-10-25
 sources:
   - scripts/generate-db-schema.mjs
   - backend/src/main/resources/db/migration-mysql/V1218__backfill_table_column_comments.sql

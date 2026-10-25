@@ -17,7 +17,7 @@ backlinks:
   - .wiki/pages/scoreparse-multimodal-primary.md
 created: 2026-09-25
 updated: 2026-09-25
-health_checked: 2026-09-25
+health_checked: 2026-10-25
 archive: false
 ---
 

@@ -15,7 +15,9 @@ import java.util.regex.Pattern;
 
 /** Resolves logical scoring sections and the tables they own. */
 final class OriginalScoringSchemePolicy {
-    private static final Pattern SCHEME = Pattern.compile(".*(?:评分办法|评审办法|评分方案|评标办法|评分标准|评审标准|综合评分法).*", Pattern.DOTALL);
+    private static final Pattern SCHEME = Pattern.compile(
+            ".*(?:评\\s*分\\s*办\\s*法|评\\s*审\\s*办\\s*法|评\\s*分\\s*方\\s*案|评\\s*标\\s*办\\s*法|评\\s*标\\s*方\\s*法|评\\s*审\\s*方\\s*法|评\\s*分\\s*标\\s*准|评\\s*审\\s*标\\s*准|综\\s*合\\s*评\\s*分\\s*法).*",
+            Pattern.DOTALL);
     private static final Pattern OTHER = Pattern.compile(".*(?:其他标包|其它标包|示例|样例|参考).*", Pattern.DOTALL);
     private static final Pattern CONTRACT_AUDIT = Pattern.compile(".*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*", Pattern.DOTALL);
     private static final Pattern GENERIC_SECTION = Pattern.compile(".*(?:商务|技术|价格|报价|服务|资信|资格|响应|综合|评分|评标|分值).*", Pattern.DOTALL);
@@ -150,7 +152,7 @@ final class OriginalScoringSchemePolicy {
 
     static boolean isOtherSection(String title) { return title != null && OTHER.matcher(title).matches(); }
 
-    static boolean isSchemeTitle(String title) { return title != null && SCHEME.matcher(title).matches(); }
+    static boolean isSchemeTitle(String title) { return title != null && SCHEME.matcher(compact(title)).matches(); }
 
     static boolean scoringSection(String section) { return section != null && (section.contains("评分") || section.contains("评标")); }
 
@@ -195,13 +197,19 @@ final class OriginalScoringSchemePolicy {
         return text != null && SCHEME.matcher(text).matches();
     }
 
+    private static String compact(String title) {
+        return title == null ? "" : title.replaceAll("[\\s　]+", "");
+    }
+
     static boolean isValidSchemeRoot(String title) {
-        return title != null && SCHEME.matcher(title).matches() && !OTHER.matcher(title).matches()
-                && !CONTRACT_AUDIT.matcher(title).matches();
+        if (title == null || title.isBlank()) return false;
+        String compactTitle = compact(title);
+        return SCHEME.matcher(compactTitle).matches() && !OTHER.matcher(compactTitle).matches()
+                && !CONTRACT_AUDIT.matcher(compactTitle).matches();
     }
 
     static boolean isContractAuditTitle(String title) {
-        return title != null && CONTRACT_AUDIT.matcher(title).matches();
+        return title != null && CONTRACT_AUDIT.matcher(compact(title)).matches();
     }
 
     static boolean sameScheme(String first, String second) {

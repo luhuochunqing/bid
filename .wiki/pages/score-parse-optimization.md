@@ -5,7 +5,7 @@ category: lessons-learned
 tags: []
 created: 2026-09-05
 updated: 2026-09-19
-health_checked: 2026-09-19
+health_checked: 2026-10-25
 sources:
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
   - docs/lessons/lessons-learned.md

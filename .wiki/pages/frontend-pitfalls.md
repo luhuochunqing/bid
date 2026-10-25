@@ -5,7 +5,7 @@ category: guide
 tags: [前端, Vue3, Element Plus, reactive, ref, v-model, el-upload, el-form, 权限, E2E, scoped, teleport]
 created: 2026-07-10
 updated: 2026-10-09
-health_checked: 2026-10-09
+health_checked: 2026-10-25
 sources:
   - src/
   - .wiki/pages/lessons-learned.md

@@ -5,7 +5,7 @@ category: testing
 tags: [testing, 蓝图对照, 数据分析, analytics]
 created: 2026-05-28
 updated: 2026-08-12
-health_checked: 2026-09-18
+health_checked: 2026-10-25
 sources:
   - .wiki/sources/testing/module-06-analytics-test.md
   - .wiki/sources/testing/module-06-analytics-test.md

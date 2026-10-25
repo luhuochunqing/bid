@@ -1,0 +1,14 @@
+{
+  "synthetic": true,
+  "desensitization": "根据河南神火项目章节标题字间空格特征合成",
+  "focus": "章标题字间空格（评 标 办 法）被正确识别为根，同级二级小节不提前截断作用域，表格正常解析且闭合100分",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": true,
+  "laneHints": ["table"],
+  "items": [
+    { "code": "1", "dim": "平台自营", "detail": "供应商具备自营电商平台得 8 分，否则得 0 分。", "weight": 8, "sourceText": "供应商具备自营电商平台得 8 分" },
+    { "code": "2", "dim": "服务承诺", "detail": "售后服务响应迅速且方案完备得 12 分，一般得 6 分。", "weight": 12, "sourceText": "售后服务响应迅速且方案完备得 12 分" },
+    { "code": "3", "dim": "投标报价", "detail": "满足招标文件要求且报价合理得 80 分。", "weight": 80, "sourceText": "满足招标文件要求且报价合理得 80 分" }
+  ]
+}

@@ -5,7 +5,7 @@ category: guide
 tags: [案例沉淀, 超大文件, 流式, 摘录化, LLM, choices包装, 唯一键, spec049]
 created: 2026-08-20
 updated: 2026-09-18
-health_checked: 2026-09-18
+health_checked: 2026-10-25
 sources:
   - specs/049-case-precipitation-streaming/
   - docs/implementation-notes/case-precipitation-spec049.md

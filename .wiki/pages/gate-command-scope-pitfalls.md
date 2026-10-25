@@ -5,7 +5,7 @@ category: lessons
 tags: [门禁, doc-governance, line-budget, 评审凭证, diff_hash, pre-push, wiki]
 created: 2026-09-22
 updated: 2026-09-22
-health_checked: 2026-09-22
+health_checked: 2026-10-25
 sources:
   - scripts/check-doc-governance.mjs
   - scripts/lib/doc-governance-checker.mjs

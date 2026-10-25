@@ -5,7 +5,7 @@ category: guide
 tags: [SOP, 多Agent协作, lease协议, worktree, 开发流程]
 created: 2026-04-26
 updated: 2026-09-26
-health_checked: 2026-09-26
+health_checked: 2026-10-25
 sources:
   - CLAUDE.md
   - scripts/who-touches.sh

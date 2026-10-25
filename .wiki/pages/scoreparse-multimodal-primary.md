@@ -49,7 +49,7 @@ backlinks:
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
 created: 2026-09-20
 updated: 2026-09-25
-health_checked: 2026-09-25
+health_checked: 2026-10-25
 archive: false
 ---
 

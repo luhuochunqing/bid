@@ -5,7 +5,7 @@ category: guide
 tags: [评分解析, 分表完整性, 数量启发式, 项目级全量替换, parseTaskId 隔离, spec062]
 created: 2026-09-19
 updated: 2026-09-19
-health_checked: 2026-09-19
+health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreCompletenessPolicy.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableSplitPolicy.java

@@ -5,7 +5,7 @@ category: pitfall
 tags: [spring, bean-conflict, tenderevent, sdk, @Primary]
 created: 2026-08-26
 updated: 2026-08-26
-health_checked: 2026-09-18
+health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/infrastructure/sdk/TenderEventSdkConfig.java
   - docs/release/deploy-report-2026-08-26-143rd-test.md

@@ -5,7 +5,7 @@ category: analysis
 tags: [bug, 根因分析, 立项预填, 标讯转项目, 数据覆盖防护]
 created: 2026-10-10
 updated: 2026-10-10
-health_checked: 2026-10-10
+health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/tender/service/EvaluationToInitiationMapper.java
   - backend/src/main/java/com/xiyu/bid/tender/service/InitiationPrefillService.java

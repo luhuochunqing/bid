@@ -5,7 +5,7 @@ category: lessons
 tags: [tender, event-sdk, integration, contract, review]
 created: 2026-09-09
 updated: 2026-09-09
-health_checked: 2026-09-18
+health_checked: 2026-10-25
 sources:
   - backend/libs/ClientSDK-release_0.0.2.jar
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/application/TenderEventPublishService.java

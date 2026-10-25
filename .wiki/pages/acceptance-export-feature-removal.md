@@ -5,7 +5,7 @@ category: refactoring
 tags: [refactoring, dead-code, feature-removal, acceptance-export, deletion-first, hidden-menu, shared-symbol-whitelist]
 created: 2026-09-22
 updated: 2026-09-22
-health_checked: 2026-09-22
+health_checked: 2026-10-25
 sources:
   - src/config/sidebar-menu.js
   - src/router/index.js
