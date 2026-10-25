@@ -31,26 +31,35 @@ public final class IncrementalCountScorePolicy {
         if (!baseMatcher.find() || !incrementMatcher.find()) {
             return Optional.empty();
         }
-        try {
-            int baseCount = parseCount(baseMatcher.group(1));
-            int incrementCount = parseCount(incrementMatcher.group(1));
-            BigDecimal pointsPerIncrement = new BigDecimal(incrementMatcher.group(2));
-            BigDecimal maximumScore = new BigDecimal(incrementMatcher.group(3));
-            if (baseCount < 0 || incrementCount <= 0
-                    || pointsPerIncrement.signum() <= 0 || maximumScore.signum() <= 0) {
-                return Optional.empty();
-            }
-            return Optional.of(new Rule(baseCount, incrementCount, pointsPerIncrement, maximumScore));
-        } catch (NumberFormatException exception) {
+        Optional<Integer> baseCount = parseCount(baseMatcher.group(1));
+        Optional<Integer> incrementCount = parseCount(incrementMatcher.group(1));
+        if (baseCount.isEmpty() || incrementCount.isEmpty()) {
             return Optional.empty();
         }
+        int base = baseCount.orElse(0);
+        int increment = incrementCount.orElse(0);
+        BigDecimal pointsPerIncrement = new BigDecimal(incrementMatcher.group(2));
+        BigDecimal maximumScore = new BigDecimal(incrementMatcher.group(3));
+        if (increment <= 0 || pointsPerIncrement.signum() <= 0 || maximumScore.signum() <= 0) {
+            return Optional.empty();
+        }
+        BigDecimal increments = maximumScore.divide(pointsPerIncrement, 0, RoundingMode.CEILING);
+        BigDecimal requiredCount = increments.multiply(BigDecimal.valueOf(increment))
+                .add(BigDecimal.valueOf(base));
+        if (requiredCount.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) > 0) {
+            return Optional.empty();
+        }
+        return Optional.of(new Rule(base, increment, pointsPerIncrement, maximumScore));
     }
 
-    private static int parseCount(String value) {
+    static Optional<Integer> parseCount(String value) {
         if (value.matches("\\d+")) {
-            return Integer.parseInt(value);
+            BigDecimal parsed = new BigDecimal(value);
+            return parsed.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) <= 0
+                    ? Optional.of(parsed.intValue())
+                    : Optional.empty();
         }
-        return switch (value) {
+        Integer parsed = switch (value) {
             case "一" -> 1;
             case "二", "两" -> 2;
             case "三" -> 3;
@@ -61,22 +70,20 @@ public final class IncrementalCountScorePolicy {
             case "八" -> 8;
             case "九" -> 9;
             case "十" -> 10;
-            default -> throw new NumberFormatException("无法识别数量");
+            default -> null;
         };
+        return Optional.ofNullable(parsed);
     }
 
     public record Rule(int zeroScoreBaseCount, int incrementCount,
                        BigDecimal pointsPerIncrement, BigDecimal maximumScore) {
 
         public int requiredCountForMaximumScore() {
-            int increments = maximumScore.divide(pointsPerIncrement, 0, RoundingMode.CEILING).intValueExact();
-            return Math.addExact(zeroScoreBaseCount, Math.multiplyExact(increments, incrementCount));
+            int increments = maximumScore.divide(pointsPerIncrement, 0, RoundingMode.CEILING).intValue();
+            return zeroScoreBaseCount + increments * incrementCount;
         }
 
-        public BigDecimal score(int qualifiedCount, BigDecimal weight, String scoreType) {
-            if ("SUBJECTIVE".equals(scoreType)) {
-                return null;
-            }
+        public BigDecimal score(int qualifiedCount, BigDecimal weight) {
             int additionalCount = Math.max(0, qualifiedCount - zeroScoreBaseCount);
             int completedIncrements = additionalCount / incrementCount;
             BigDecimal calculated = pointsPerIncrement.multiply(BigDecimal.valueOf(completedIncrements));

@@ -78,7 +78,7 @@ public class KnowledgeCategoryPolicy {
 
         // 模型偶尔仅返回 business 等通用代码。若完整原文同时包含业绩语义和可执行的
         // “基数不得分、每增加计分、最高封顶”规则，可安全落到项目业绩库。
-        if (detail != null && Pattern.compile("业绩|合同|案例").matcher(detail).find()
+        if (detail != null && detail.contains("业绩")
                 && IncrementalCountScorePolicy.parse(detail).isPresent()) {
             return CATEGORY_PROJECT;
         }

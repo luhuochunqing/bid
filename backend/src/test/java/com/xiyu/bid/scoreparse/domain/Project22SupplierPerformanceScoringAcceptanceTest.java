@@ -22,7 +22,8 @@ class Project22SupplierPerformanceScoringAcceptanceTest {
                                                                       String expectedScore) {
         String scoreType = new ScoreTypeClassificationPolicy().classify(DETAIL, "SUBJECTIVE");
         BigDecimal actual = IncrementalCountScorePolicy.parse(DETAIL)
-                .map(rule -> rule.score(qualifiedCount, WEIGHT, scoreType))
+                .filter(rule -> "OBJECTIVE".equals(scoreType))
+                .map(rule -> rule.score(qualifiedCount, WEIGHT))
                 .orElse(null);
 
         assertThat(actual).isEqualByComparingTo(expectedScore);

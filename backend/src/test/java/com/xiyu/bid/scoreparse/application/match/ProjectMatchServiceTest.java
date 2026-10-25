@@ -214,6 +214,13 @@ class ProjectMatchServiceTest {
     }
 
     @Test
+    @DisplayName("项目类型解析：办公用品按办公业绩精确匹配")
+    void parseProjectType_officeSupplies_mapsToOffice() {
+        assertThat(ProjectMatchService.parseProjectType("办公用品")).isEqualTo(ProjectType.OFFICE);
+        assertThat(ProjectMatchService.parseProjectType("办公类")).isEqualTo(ProjectType.OFFICE);
+    }
+
+    @Test
     @DisplayName("1374 央企业绩匹配：央企+MRO+2022年起 → 命中央企MRO合同")
     void match_centralSOE_matchesCentralSOEContracts() {
         PerformanceRecordEntity row1 = PerformanceRecordEntity.builder()

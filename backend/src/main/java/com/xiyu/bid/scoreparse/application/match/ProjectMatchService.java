@@ -105,21 +105,20 @@ public class ProjectMatchService {
             if (!customerTypeHits.isEmpty()) {
                 predicates.add(root.get("customerType").in(customerTypeHits));
             }
-            List<Predicate> contentPredicates = new ArrayList<>();
             if (!enumHits.isEmpty()) {
-                contentPredicates.add(root.get("projectType").in(enumHits));
-            }
-            textKeywords.stream()
-                    .filter(StringUtils::hasText)
-                    .forEach(keyword -> {
-                        String pattern = "%" + keyword.trim() + "%";
-                        contentPredicates.add(cb.or(
-                                cb.like(root.get("industry"), pattern),
-                                cb.like(root.get("contractName"), pattern),
-                                cb.like(root.get("groupCompany"), pattern)
-                        ));
-                    });
-            if (!contentPredicates.isEmpty()) {
+                predicates.add(root.get("projectType").in(enumHits));
+            } else if (!textKeywords.isEmpty()) {
+                List<Predicate> contentPredicates = new ArrayList<>();
+                textKeywords.stream()
+                        .filter(StringUtils::hasText)
+                        .forEach(keyword -> {
+                            String pattern = "%" + keyword.trim() + "%";
+                            contentPredicates.add(cb.or(
+                                    cb.like(root.get("industry"), pattern),
+                                    cb.like(root.get("contractName"), pattern),
+                                    cb.like(root.get("groupCompany"), pattern)
+                            ));
+                        });
                 predicates.add(cb.or(contentPredicates.toArray(new Predicate[0])));
             }
             if (signedAfter != null) {
@@ -191,11 +190,17 @@ public class ProjectMatchService {
         return null;
     }
 
-    private static ProjectType parseProjectType(String keyword) {
+    static ProjectType parseProjectType(String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return null;
         }
         String trimmed = keyword.trim();
+        if ("办公用品".equals(trimmed) || "办公类".equals(trimmed)) {
+            return ProjectType.OFFICE;
+        }
+        if ("MRO".equalsIgnoreCase(trimmed)) {
+            return ProjectType.INDUSTRIAL;
+        }
         for (ProjectType type : ProjectType.values()) {
             if (type.name().equalsIgnoreCase(trimmed) || type.displayName().equals(trimmed)) {
                 return type;

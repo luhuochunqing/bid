@@ -171,7 +171,7 @@ public class EstimatedScoreService {
         boolean flagged = hasFlaggedItems(match.matched());
         BigDecimal estScore = KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
                 ? IncrementalCountScorePolicy.parse(item.getDetail())
-                        .map(rule -> rule.score(match.matched().size(), item.getWeight(), TYPE_OBJECTIVE))
+                        .map(rule -> rule.score(match.matched().size(), item.getWeight()))
                         .orElseGet(() -> partialScorePolicy.compute(
                                 item.getWeight(), match.tier(), match.matchRatio(), TYPE_OBJECTIVE))
                 : partialScorePolicy.compute(item.getWeight(), match.tier(), match.matchRatio(), TYPE_OBJECTIVE);

@@ -350,4 +350,20 @@ class KnowledgeCategoryPolicyTest {
                 "营业收入连续三年增长，得5分；须提供完整授权审计材料"))
                 .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_FINANCIAL);
     }
+
+    @Test
+    @DisplayName("通用维度下普通合同数量阶梯不冒充项目业绩")
+    void categorize_genericDimension_contractCountWithoutPerformance_staysOther() {
+        assertThat(policy.categorize("business",
+                "提交1份合同不得分，每增加1份得1分，最高得7分"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_OTHER);
+    }
+
+    @Test
+    @DisplayName("通用维度下普通案例数量阶梯不冒充项目业绩")
+    void categorize_genericDimension_caseCountWithoutPerformance_staysOther() {
+        assertThat(policy.categorize("business",
+                "提供1个案例不得分，每增加1个得1分，最高得7分"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_OTHER);
+    }
 }
