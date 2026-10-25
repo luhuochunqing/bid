@@ -11,6 +11,7 @@ import com.xiyu.bid.scoreparse.dto.CertMatchedItem;
 import com.xiyu.bid.scoreparse.dto.KnowledgeMatchResult;
 import com.xiyu.bid.scoreparse.dto.PersonMatchRequest;
 import com.xiyu.bid.scoreparse.dto.ProjectMatchRequest;
+import com.xiyu.bid.scoreparse.dto.ProjectMatchedItem;
 import com.xiyu.bid.scoreparse.dto.WarehouseMatchRequest;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
@@ -183,6 +184,28 @@ class EstimatedScoreServiceTest {
 
         verify(projectMatchService).match(any(ProjectMatchRequest.class));
         assertThat(project.getEstScore()).isEqualByComparingTo("6");
+        assertThat(project.getStatusStage1()).isEqualTo("OK");
+    }
+
+    @Test
+    void project22IncrementalRule_scoresOnlyPerformancesBeyondTheFreeFirstItem() {
+        String detail = "供应商具有近三年内（2023年1月1日起至今，供应商具有1项大型集团型国央企电子商城办公用品服务业绩的不得分，"
+                + "每增加1个得1分，最高得7分。";
+        ScoreItem project = item("供应商业绩", detail, "7", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(22L)).thenReturn(List.of(project));
+        List<ProjectMatchedItem> matched = java.util.stream.LongStream.rangeClosed(1, 8)
+                .mapToObj(id -> new ProjectMatchedItem(id, "合同" + id, "办公用品电子商城", "央企客户" + id,
+                        "央企", LocalDate.of(2023, 1, 1), null))
+                .toList();
+        when(projectMatchService.match(any(ProjectMatchRequest.class)))
+                .thenReturn(new KnowledgeMatchResult("FULL", 100, matched, "命中业绩 8/8"));
+
+        service.estimateForProject(22L);
+
+        ArgumentCaptor<ProjectMatchRequest> captor = ArgumentCaptor.forClass(ProjectMatchRequest.class);
+        verify(projectMatchService).match(captor.capture());
+        assertThat(captor.getValue().requiredCount()).isEqualTo(8);
+        assertThat(project.getEstScore()).isEqualByComparingTo("7");
         assertThat(project.getStatusStage1()).isEqualTo("OK");
     }
 

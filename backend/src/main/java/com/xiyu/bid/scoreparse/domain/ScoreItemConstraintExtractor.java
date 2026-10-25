@@ -204,6 +204,10 @@ public final class ScoreItemConstraintExtractor {
         if (text == null || text.isBlank()) {
             return null;
         }
+        var incrementalRule = IncrementalCountScorePolicy.parse(text);
+        if (incrementalRule.isPresent()) {
+            return incrementalRule.get().requiredCountForMaximumScore();
+        }
         Matcher perMatch = Pattern.compile("每(?:增加|提供|具备)?\\s*(\\d+|[一二两三四五六七八九十]+)\\s*(?:个|项|份)[^，。；;\\n]*?得\\s*(\\d+(?:\\.\\d+)?)\\s*分(?:[,，\\s]*?(?:最高|满分|最多)[^，。；;\\n]*?得?\\s*(\\d+(?:\\.\\d+)?)\\s*分)?").matcher(text);
         if (perMatch.find()) {
             try {

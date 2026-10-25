@@ -44,6 +44,9 @@ public class ScoreTypeClassificationPolicy {
         if (DESCRIPTIVE_PATTERN.matcher(detail).find()) {
             return "SUBJECTIVE";
         }
+        if (IncrementalCountScorePolicy.parse(detail).isPresent()) {
+            return "OBJECTIVE";
+        }
         // 明确可验证条件优先于模型猜测；报价公式属于可计算客观项。
         if (QUANTIFIED_PATTERN.matcher(detail).find()
                 || Pattern.compile("(具备|提供|满足|达到).{0,40}[0-9０-９]+").matcher(detail).find()) {

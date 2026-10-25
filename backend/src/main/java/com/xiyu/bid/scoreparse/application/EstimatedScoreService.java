@@ -10,6 +10,7 @@ import com.xiyu.bid.scoreparse.application.match.PersonMatchService;
 import com.xiyu.bid.scoreparse.application.match.ProjectMatchService;
 import com.xiyu.bid.scoreparse.application.match.WarehouseMatchService;
 import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
+import com.xiyu.bid.scoreparse.domain.IncrementalCountScorePolicy;
 import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
 import com.xiyu.bid.scoreparse.domain.ProjectEvidenceRequirementPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreRangeGuard;
@@ -168,8 +169,12 @@ public class EstimatedScoreService {
             return;
         }
         boolean flagged = hasFlaggedItems(match.matched());
-        BigDecimal estScore = partialScorePolicy.compute(
-                item.getWeight(), match.tier(), match.matchRatio(), TYPE_OBJECTIVE);
+        BigDecimal estScore = KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
+                ? IncrementalCountScorePolicy.parse(item.getDetail())
+                        .map(rule -> rule.score(match.matched().size(), item.getWeight(), TYPE_OBJECTIVE))
+                        .orElseGet(() -> partialScorePolicy.compute(
+                                item.getWeight(), match.tier(), match.matchRatio(), TYPE_OBJECTIVE))
+                : partialScorePolicy.compute(item.getWeight(), match.tier(), match.matchRatio(), TYPE_OBJECTIVE);
         ScoreRangeGuard.Result guarded = scoreRangeGuard.guard(estScore, item.getWeight());
         if (!guarded.valid()) {
             log.warn("预计得分超出 [0, weight] 区间，置空待确认: itemId={}, raw={}",

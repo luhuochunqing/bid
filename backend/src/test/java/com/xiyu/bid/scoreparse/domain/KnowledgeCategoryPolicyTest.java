@@ -231,7 +231,7 @@ class KnowledgeCategoryPolicyTest {
         assertThat(policy.categorize(dim, detail)).isEqualTo(KnowledgeCategoryPolicy.CATEGORY_PROJECT);
         assertThat(policy.extractKeywords(dim, detail, 6)).contains("中央企业", "央企", "国企", "办公用品", "电商", "电子商城");
         assertThat(policy.extractSignedAfter(detail)).isEqualTo(java.time.LocalDate.of(2023, 1, 1));
-        assertThat(policy.extractProjectRequiredCount(detail, new java.math.BigDecimal("15"))).isEqualTo(7);
+        assertThat(policy.extractProjectRequiredCount(detail, new java.math.BigDecimal("15"))).isEqualTo(8);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

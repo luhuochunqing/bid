@@ -18,25 +18,16 @@ class Project22SupplierPerformanceScoringAcceptanceTest {
     void exactProject22Rule_scoresOnlyAdditionalQualifiedPerformances(int qualifiedCount,
                                                                       String expectedScore) {
         String scoreType = new ScoreTypeClassificationPolicy().classify(DETAIL, "SUBJECTIVE");
-        Integer requiredCount = ScoreItemConstraintExtractor.extractProjectRequiredCount(DETAIL, WEIGHT);
-        MatchTierPolicy.Outcome match = MatchTierPolicy.evaluate(
-                qualifiedCount, requiredCount, false, false);
-        BigDecimal actual = new PartialScorePolicy().compute(
-                WEIGHT, match.tier(), match.matchRatio(), scoreType);
+        BigDecimal actual = IncrementalCountScorePolicy.parse(DETAIL)
+                .map(rule -> rule.score(qualifiedCount, WEIGHT, scoreType))
+                .orElse(null);
 
         assertThat(actual).isEqualByComparingTo(expectedScore);
     }
 
-    @ParameterizedTest(name = "forced objective: qualified={0} -> score={1}")
-    @CsvSource({"1,0", "2,1", "8,7", "10,7"})
-    void exactProject22Rule_stillHonorsFirstItemFreeWhenClassificationIsForcedObjective(
-            int qualifiedCount, String expectedScore) {
-        Integer requiredCount = ScoreItemConstraintExtractor.extractProjectRequiredCount(DETAIL, WEIGHT);
-        MatchTierPolicy.Outcome match = MatchTierPolicy.evaluate(
-                qualifiedCount, requiredCount, false, false);
-        BigDecimal actual = new PartialScorePolicy().compute(
-                WEIGHT, match.tier(), match.matchRatio(), "OBJECTIVE");
-
-        assertThat(actual).isEqualByComparingTo(expectedScore);
+    @org.junit.jupiter.api.Test
+    void exactProject22Rule_requiresEightQualifiedPerformancesForFullScore() {
+        assertThat(ScoreItemConstraintExtractor.extractProjectRequiredCount(DETAIL, WEIGHT))
+                .isEqualTo(8);
     }
 }
