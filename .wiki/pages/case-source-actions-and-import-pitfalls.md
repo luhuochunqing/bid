@@ -2,7 +2,7 @@
 title: 案例详情"查看源项目 / 标书原文"操作契约与导入数据陷阱
 space: engineering
 category: guide
-tags: [案例库, knowledge_case, 源项目, 标书原文, blob下载, 枚举混用, 章节溯源, 伪标题, 打平文本, 章节号契约]
+tags: [案例库, knowledge_case, 源项目, 标书原文, blob下载, 枚举混用, 章节溯源, 伪标题, 打平文本, 章节号契约, 页码清洗, 存量回填]
 created: 2026-08-31
 updated: 2026-10-24
 health_checked: 2026-10-24
@@ -21,6 +21,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/bootstrap/CaseProvenanceBackfillCommandLineRunner.java
   - src/views/Knowledge/views/components/caseDetailFormatter.js
   - backend/src/test/resources/casework/sentence-like-title-cases.json
+  - backend/src/main/resources/db/migration-mysql/V1224__clean_case_page_numbers_and_backfill_provenance.sql
+  - scripts/backfill-case-provenance.py
 backlinks:
   - _index
 ---
@@ -128,6 +130,17 @@ backlinks:
 - 后端索引定位（`MarkdownSourceSectionIndex.locate`）：
   - 命中合法章节小标题正常返回 `Provenance`，彻底封闭了此前“命中章节自身无编号时定位为 null”的已知缺口。
 - 两侧字符类逐字一致：全角空格（U+3000）与不换行空格（U+00A0）双向对齐，测试由单测夹具与单元测试钉住。
+
+### 契约 4：来源标题与层级路径清洗内嵌页码噪声（2026-10-24 升级收口）
+- 根因：Word/PDF 目录页或大纲提取时，标题后常带有制表符与页码（如 `一、 投标函\t1`、`九、 本项目相关其他内容\t1806`、`7. 响应性评审标准承诺函\t2003`），以及点线（`······12` / `......12`）；前端与后端打平或渲染后，制表符折叠为空格，展示为 `「一、 投标函 1 > 九、 … 1806 > … 2003」`，严重影响可读性。
+- 规则：`MarkdownTitleRules.stripTrailingPageNumber` 与 `caseDetailFormatter.stripTrailingPageNumber`：
+  1. 剥离末尾 `\t\d+`、多空格后数字 `\s{2,}\d+`、前导点线后数字 `[·\.]{2,}\s*\d+`；
+  2. 保护合法实体编号词缀（如 `附录 1`、`附件 2`、`表 3`、`图 4`、`标段 1`、`分包 2`、`阶段 1`、`包 1` 等）；
+  3. 后端解析（`MarkdownHeadingParser.cleanTitle`）在清洗阶段自动剔除页码，防止写入数据库与索引路径；
+  4. 前端展示（`caseDetailFormatter.extractSourceLocationText`）在展示路径段与标题时对存量脏数据兜底过滤。
+- 存量清洗与回填：
+  - Flyway 迁移 `V1224__clean_case_page_numbers_and_backfill_provenance.sql` 清除案例 1254/1255 路径中的内嵌页码，并补齐 1256~1261（项目 1381 `2033厦门ABB招投标` / `张家口银行——投标6.16.docx`）全部来源字段；
+  - `scripts/backfill-case-provenance.py` 补充清洗正则与项目文档映射，测试 RDS 存量 357 条案例来源覆盖率达到 100.0%（357/357），无一遗漏。
 
 ### 存量数据回填（本次未对任何库执行）
 - `CaseProvenanceBackfillAppService.recomputeAll`：只取 `status=ACTIVE` 且来源标题**不是已验证章节**

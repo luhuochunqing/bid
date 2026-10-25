@@ -144,6 +144,34 @@ class ChapterTitleContractTest {
         assertThat(MarkdownTitleRules.isValidSectionTitle("")).isFalse();
     }
 
+    @Test
+    @DisplayName("stripTrailingPageNumber 清洗制表符/多空格末尾页码并保护合法实体编号")
+    void testStripTrailingPageNumber() {
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("一、 投标函\t1")).isEqualTo("一、 投标函");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("一、 投标函 1")).isEqualTo("一、 投标函");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("九、 本项目相关其他内容\t1806")).isEqualTo("九、 本项目相关其他内容");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("九、 本项目相关其他内容 1806")).isEqualTo("九、 本项目相关其他内容");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("7. 响应性评审标准承诺函\t2003")).isEqualTo("7. 响应性评审标准承诺函");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("7. 响应性评审标准承诺函 2003")).isEqualTo("7. 响应性评审标准承诺函");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("技术团队人员安排......12")).isEqualTo("技术团队人员安排");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("七、 服务方案······134")).isEqualTo("七、 服务方案");
+
+        // 保护合法实体编号标题不被误裁
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("附录 1")).isEqualTo("附录 1");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("附件 2")).isEqualTo("附件 2");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("表 3")).isEqualTo("表 3");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("图 4")).isEqualTo("图 4");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("标段 1")).isEqualTo("标段 1");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("分包 2")).isEqualTo("分包 2");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("阶段 1")).isEqualTo("阶段 1");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("包 1")).isEqualTo("包 1");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("技术团队人员安排")).isEqualTo("技术团队人员安排");
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("13.2.1. 对接成功案例清单")).isEqualTo("13.2.1. 对接成功案例清单");
+
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber(null)).isNull();
+        assertThat(MarkdownTitleRules.stripTrailingPageNumber("")).isEqualTo("");
+    }
+
     private JsonNode readFixture() throws Exception {
         try (InputStream stream = getClass().getResourceAsStream(FIXTURE)) {
             assertThat(stream).as("契约夹具不在测试类路径上：%s", FIXTURE).isNotNull();

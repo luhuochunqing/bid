@@ -1,5 +1,16 @@
 # Wiki 操作日志 / Operation Log
 
+## [2026-10-24] fix | 案例来源路径内嵌页码清洗与存量缺口回填收口
+
+- 触发：PR !2859 评审遗留两项体验与数据质量问题：1. 案例 1254 来源路径展示为「一、 投标函 1 > 九、 … 1806 > … 2003」，内嵌页码破坏可读性；2. `knowledge_case` 存量中案例 1256~1261（共 6 条）缺失来源标题，展示为「暂无来源标题」。
+- 根因：Word/PDF TOC 大纲带 `\t页码` / 前导点线，后端提取未剥离；存量回填脚本未覆盖 `2033厦门ABB招投标`（项目 1381）。
+- 方案：
+  1. 后端 `MarkdownTitleRules.stripTrailingPageNumber` + `MarkdownHeadingParser` 剔除末尾 `\t\d+`、点线页码，同时保护 `附录 1`、`表 3` 等合法实体编号；
+  2. 前端 `caseDetailFormatter.stripTrailingPageNumber` 同步正则兜底清洗存量路径与标题；
+  3. 增量 Flyway 迁移 `V1224__clean_case_page_numbers_and_backfill_provenance.sql` 及回滚脚本 `U1224`；
+  4. 回填脚本 `scripts/backfill-case-provenance.py` 补充清洗并补齐 1256~1261 数据，测试 RDS 回填率达 100.0%（357/357）。
+- 回填：更新 [[case-source-actions-and-import-pitfalls]]。
+
 ## [2026-10-24] fix | JJWT ServiceLoader 并发竞争与 Filter 旁路防御（线上 500 修复）
 
 - 触发：`GET /api/workbench/deadline-items?period=week` 线上偶发 500，堆栈为 `NoSuchElementException -> JwtUtil.extractAllClaims -> RateLimitFilter.resolveUserRateLimitKey`。

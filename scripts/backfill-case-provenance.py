@@ -19,16 +19,34 @@ import sys
 
 ALLOWED_DB_HOSTS = {'127.0.0.1', 'localhost', '172.16.38.78', 'winbid-01.test.rds.ehsy.com'}
 
+PAGE_NUM_PATTERN = re.compile(
+    r'(?:[\t\s]*\t[\t\s]*\d+|[\s\t]*[·.．…_—\-]{2,}[\s\t]*\d+|\s{2,}\d+|(?<!附录)(?<!附件)(?<!表)(?<!图)(?<!标段)(?<!分包)(?<!阶段)(?<!包)(?<!卷)(?<!册)(?<!Part)(?<!Volume)(?<!Appendix)\s+\d+)$'
+)
+
+def strip_trailing_page_number(s):
+    if not s:
+        return s
+    return PAGE_NUM_PATTERN.sub('', str(s)).strip()
+
+def strip_trailing_page_number_from_path(p):
+    if not p:
+        return p
+    return ' > '.join(strip_trailing_page_number(seg) for seg in str(p).split(' > '))
+
 # 真实结项项目精准大纲序号映射表（来自原始标书与招标文件真实目录）
 ZHANGJIAKOU_SECTIONS = {
     '投标报价': ('二、 投标报价表', '二、 投标报价表'),
     '公司综合实力': ('1. 公司综合实力', '九、 本项目相关其他内容 > （二） 其他 > 1. 公司综合实力'),
+    '公司综合实 力': ('1. 公司综合实力', '九、 本项目相关其他内容 > （二） 其他 > 1. 公司综合实力'),
+    '类似业绩': ('（一） 近年完成的项目情况表', '九、 本项目相关其他内容 > （一） 近年完成的项目情况表'),
     '技术评审': ('（一） 技术方案', '七、 服务方案 > （一） 技术方案'),
     '技术方案': ('（一） 技术方案', '七、 服务方案 > （一） 技术方案'),
     '供货方案': ('（二） 供货方案', '七、 服务方案 > （二） 供货方案'),
     '人员配备': ('（三） 人员配备', '七、 服务方案 > （三） 人员配备'),
     '质量管理方案': ('1. 商品安全溯源', '七、 服务方案 > （四） 质量管理方案 > 1. 商品安全溯源'),
+    '质量管理方 案': ('1. 商品安全溯源', '七、 服务方案 > （四） 质量管理方案 > 1. 商品安全溯源'),
     '售后服务方案': ('1. 售前咨询', '七、 服务方案 > （五） 售后服务方案 > 1. 售前咨询'),
+    '售后服务方 案': ('1. 售前咨询', '七、 服务方案 > （五） 售后服务方案 > 1. 售前咨询'),
     '业绩/商务': ('（一） 近年完成的项目情况表', '九、 本项目相关其他内容 > （一） 近年完成的项目情况表'),
 }
 
@@ -36,6 +54,7 @@ PROJECT_SECTION_MAP = {
     '张家口': ZHANGJIAKOU_SECTIONS,
     'ai测试01': ZHANGJIAKOU_SECTIONS,
     'aiaiaiai': ZHANGJIAKOU_SECTIONS,
+    '2033厦门ABB': ZHANGJIAKOU_SECTIONS,
     '吉祥航空': {
         '服务标评审': ('6.2 服务标评审', '第六章 评标办法 > 6.2 商务和服务评分'),
         '技术标评审': ('6.3 技术标评审', '第六章 评标办法 > 6.3 技术评分'),
@@ -171,15 +190,28 @@ def connect_db(args):
         sys.exit(f'❌ 安全拒绝：主机 {args.db_host} 不在允许白名单 {ALLOWED_DB_HOSTS} 内')
 
     try:
-        import mysql.connector
-        return mysql.connector.connect(
-            host=args.db_host,
-            port=args.db_port,
-            user=args.db_user,
-            password=args.db_pass,
-            database=args.db_name,
-            autocommit=False
-        )
+        try:
+            import mysql.connector
+            return mysql.connector.connect(
+                host=args.db_host,
+                port=args.db_port,
+                user=args.db_user,
+                password=args.db_pass,
+                database=args.db_name,
+                autocommit=False
+            )
+        except ImportError:
+            import pymysql
+            return pymysql.connect(
+                host=args.db_host,
+                port=args.db_port,
+                user=args.db_user,
+                password=args.db_pass,
+                database=args.db_name,
+                charset='utf8mb4',
+                autocommit=False,
+                cursorclass=pymysql.cursors.DictCursor
+            )
     except Exception as e:
         sys.exit(f'❌ 数据库连接失败: {e}')
 
@@ -197,7 +229,10 @@ def load_slice_results():
 
 def run_backfill(args):
     conn = connect_db(args)
-    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor = conn.cursor(dictionary=True)
+    except TypeError:
+        cursor = conn.cursor()
 
     print(f'🔍 正在查询 {args.db_host}:{args.db_port}/{args.db_name} 当前数据状态...')
     cursor.execute('''
@@ -275,11 +310,18 @@ def run_backfill(args):
                         break
                 sec_title = sec_path.split(' > ')[-1].strip() if ' > ' in sec_path else sec_path
 
+        # 存在多级已有路径且带合法结构（如 1254/1255），优先保留并清洗内嵌页码
+        if not sec_path and r.get('source_section_path'):
+            raw_path = r['source_section_path'].strip()
+            if ' > ' in raw_path:
+                sec_path = strip_trailing_page_number_from_path(raw_path)
+                sec_title = strip_trailing_page_number(r.get('source_section_title') or sec_path.split(' > ')[-1].strip())
+
         if not sec_path:
-            # 真实项目大纲映射匹配
+            # 真实项目大纲映射匹配（支持项目名、文件名或归档文件名匹配）
             matched_project_key = None
             for pkey in PROJECT_SECTION_MAP:
-                if pkey in proj_name:
+                if pkey in proj_name or pkey in doc_name or pkey in af_name:
                     matched_project_key = pkey
                     break
             
@@ -291,11 +333,15 @@ def run_backfill(args):
                         sec_title, sec_path = val
                         break
                 if not sec_path:
+                    scoring_clean = re.sub(r'\s+', '', scoring)
                     if scoring in sec_map:
                         sec_title, sec_path = sec_map[scoring]
+                    elif scoring_clean in sec_map:
+                        sec_title, sec_path = sec_map[scoring_clean]
                     else:
                         for sk, val in sec_map.items():
-                            if sk in scoring or scoring in sk:
+                            sk_clean = re.sub(r'\s+', '', sk)
+                            if sk_clean in scoring_clean or scoring_clean in sk_clean:
                                 sec_title, sec_path = val
                                 break
 
@@ -314,6 +360,10 @@ def run_backfill(args):
                 sec_path = sec_path.replace(k, v, 1)
                 sec_title = sec_path.split(' > ')[-1].strip() if ' > ' in sec_path else sec_path
                 break
+
+        # 清洗末尾页码与制表符噪声
+        sec_path = strip_trailing_page_number_from_path(sec_path)
+        sec_title = strip_trailing_page_number(sec_title)
 
         # 兜底确保非空
         if not sec_title:
@@ -347,6 +397,11 @@ def run_backfill(args):
     for u in updates:
         if 946 <= u['id'] <= 955:
             print(f"ID {u['id']:4d} | 评分项: {u['scoring'][:12]:12s} | 来源路径: {u['path']}")
+
+    print('\n--- 案例 1254-1261 样例 ---')
+    for u in updates:
+        if 1254 <= u['id'] <= 1261:
+            print(f"ID {u['id']:4d} | 评分项: {u['scoring'][:12]:12s} | 标题: {u['title']:22s} | 来源路径: {u['path']}")
 
     if args.dry_run:
         print('\n⚠️ --dry-run 模式：未执行写入与提交。')
