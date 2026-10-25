@@ -14,7 +14,7 @@ public final class IncrementalCountScorePolicy {
                     + ".{0,80}?(?:不得分|得\\s*0(?:\\.0+)?\\s*分)",
             Pattern.DOTALL);
     private static final Pattern INCREMENT_AND_CAP = Pattern.compile(
-            "每增加\\s*(\\d+|[一二两三四五六七八九十]+)\\s*(?:个|项|份)"
+            "每\\s*增加\\s*(\\d+|[一二两三四五六七八九十]+)\\s*(?:个|项|份)"
                     + ".{0,40}?得\\s*(\\d+(?:\\.\\d+)?)\\s*分"
                     + "[,，\\s]*?(?:最高|满分|最多).{0,20}?得?\\s*(\\d+(?:\\.\\d+)?)\\s*分",
             Pattern.DOTALL);
