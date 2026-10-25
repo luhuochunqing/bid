@@ -121,9 +121,9 @@ echo ""
 # ── 0. 持久 Worktree 完整性检查 ─────────────────────────
 echo "── 持久 Worktree 完整性 ──"
 if bash "$ROOT_DIR/scripts/check-worktree-protection.sh" 2>/dev/null; then
-  pass "持久 Worktree 完好"
+  pass "持久 Worktree 完整且共享 gitdir"
 else
-  fail "持久 Worktree 缺失 — 请先恢复再推送!"
+  fail "持久 Worktree 缺失或 gitdir 分叉 — 请先修复再推送!"
 fi
 
 # ── 0.5 Git 合并冲突标记扫描 ─────────────────────────────
@@ -741,6 +741,11 @@ else
     pass "token CLI 回归"
   else
     fail "token CLI 回归"
+  fi
+  if bash "$ROOT_DIR/scripts/check-worktree-protection.test.sh"; then
+    pass "共享 gitdir CLI 回归"
+  else
+    fail "共享 gitdir CLI 回归"
   fi
   if [ "$SP_PROD_CHANGED" -gt 0 ] && [ "${SCOREPARSE_GATE_SKIP:-0}" != "1" ]; then
     if bash "$ROOT_DIR/scripts/check-scoreparse-root-cause.sh"; then

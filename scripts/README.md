@@ -7,6 +7,8 @@
 
 | 文件 | 地位 | 功能 |
 |------|------|------|
+| `check-worktree-protection.sh` | 推送前门禁 | 从受管目录直接枚举持久 worktree，校验目录有效性与 canonical common gitdir 一致性；支持 `--worktree-base`、`--expected-common-dir` 供隔离回归使用 |
+| `check-worktree-protection.test.sh` | CLI 回归 | 在临时真实 Git 仓库中证明 linked worktree 通过、受管目录内独立 clone 被拒绝，不改动真实 worktree |
 | `check-scoreparse-root-cause.sh` | 根因回归门禁 | 离线运行独立原文夹具及真实 DOCX 转换跨层回归，含 1382 Task291 线上事实全链路重放（`Project1382FullPipelineIntegrationTest`）；需设置含 Sidecar 依赖的 `SIDECAR_PYTHON`，失败不跳过 |
 | `check-pre-push-dispatch.test.mjs` | 分发回归 | 执行实际脚本的参数/分支/新增检查分发段；记录调用，保证 agent 默认不跳过新增根因和 token 检查，显式 skip 生效 |
 | `check-token-coverage.test.mjs` | CLI 回归 | 临时目录实测扫描空格路径、嵌套 node_modules 和扫描失败；不吞错伪造 0/0 |
