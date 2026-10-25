@@ -1497,3 +1497,10 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 - **归档 15 页**（纯历史 RCA/修复记录/快照，产物核实存在后 archive:true）：bid-quality-check-pagination-fix、bid-quality-check-parse-timeout-fix、score-parse-split-completeness-and-partial-overwrite-fix、tender-create-upload-triage、project-detail-toolbar-back-fix、initiation-form-fake-zero-display、tenderevent-sdk-bean-conflict（附复核注记：@Primary 方案已被"不引入 SDKClientConfiguration"重构取代）、event-library-integration-rca、lessons-learned/case-precipitation-oversize-oom、evaluation-form-field-adjustments、tender-event-pr2598-contract-review、score-parse-optimization、dashboard-gap-analysis、workflow-form-center、production-deployment-lessons。
 - **核实通过不改 48 页**：承重声明抽样验证成立、或主题域自页面 updated 后零 churn（如 integration-tender-event-push、data-analysis-revamp、effective-role-resolution、roles-and-permissions、gitee-token-resolution 等）。
 - **纪律结论**：wiki-backfill-active.mjs 批量刷 health_checked 会架空"health_checked=7 天内核实"豁免语义，建议仅限 archive 页使用；本次为每页建立了真实核实记录。
+
+## [2026-10-26] tooling | wiki-backfill-active 收紧为 archive-only（task: agent/zcode/wiki-backfill-archive-only）
+
+- `scripts/wiki-backfill-active.mjs` 重写：废除 2026-07-23 硬编码 35 页活跃文档清单，改为扫描全量页面、仅刷新 `archive: true` 页的 health_checked；非 archive 页逐条拒绝并提示需人工核实。呼应 2026-10-25 全量复核（!2877）的纪律结论：批量刷活跃文档会架空 §3.4 豁免条款。
+- 顺带修复 `todayStr()` UTC 时区缺陷（toISOString 在东八区每天 8 小时会写成昨天日期）。
+- 新增契约测试 `scripts/test/wiki-backfill-active-contract.sh`：锁定"archive 刷 / 活跃拒 / dry-run 零写入 / updated 不动 / archive 标记不丢"五条语义。
+- 真实 wiki dry-run 验证：36 个 archive 页可刷、109 个活跃页拒绝（旧版会把这 109 页全刷）。
