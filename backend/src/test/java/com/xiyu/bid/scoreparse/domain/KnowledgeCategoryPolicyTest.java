@@ -231,7 +231,18 @@ class KnowledgeCategoryPolicyTest {
         assertThat(policy.categorize(dim, detail)).isEqualTo(KnowledgeCategoryPolicy.CATEGORY_PROJECT);
         assertThat(policy.extractKeywords(dim, detail, 6)).contains("中央企业", "央企", "国企", "办公用品", "电商", "电子商城");
         assertThat(policy.extractSignedAfter(detail)).isEqualTo(java.time.LocalDate.of(2023, 1, 1));
-        assertThat(policy.extractProjectRequiredCount(detail, new java.math.BigDecimal("15"))).isEqualTo(7);
+        assertThat(policy.extractProjectRequiredCount(detail, new java.math.BigDecimal("15"))).isEqualTo(8);
+    }
+
+    @Test
+    @DisplayName("项目22 模型仅返回 business 维度时，明确业绩阶梯规则仍归类为 PROJECT")
+    void categorize_project22_genericModelDimension_usesExecutablePerformanceRule() {
+        String detail = "3.2.3\n（1）\n商务评分\n标准\n供应商业绩\n（7分）\n"
+                + "供应商具有1\n项大型集团型国央企电子商城办公用品服务业绩的不得分，每\n"
+                + "增加1个得1分，最高得7分。";
+
+        assertThat(policy.categorize("business", detail))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_PROJECT);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -338,5 +349,21 @@ class KnowledgeCategoryPolicyTest {
         assertThat(policy.categorize("财务评价",
                 "营业收入连续三年增长，得5分；须提供完整授权审计材料"))
                 .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_FINANCIAL);
+    }
+
+    @Test
+    @DisplayName("通用维度下普通合同数量阶梯不冒充项目业绩")
+    void categorize_genericDimension_contractCountWithoutPerformance_staysOther() {
+        assertThat(policy.categorize("business",
+                "提交1份合同不得分，每增加1份得1分，最高得7分"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_OTHER);
+    }
+
+    @Test
+    @DisplayName("通用维度下普通案例数量阶梯不冒充项目业绩")
+    void categorize_genericDimension_caseCountWithoutPerformance_staysOther() {
+        assertThat(policy.categorize("business",
+                "提供1个案例不得分，每增加1个得1分，最高得7分"))
+                .isEqualTo(KnowledgeCategoryPolicy.CATEGORY_OTHER);
     }
 }

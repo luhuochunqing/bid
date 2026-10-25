@@ -35,6 +35,14 @@ class ScoreTypeClassificationPolicyTest {
     }
 
     @Test
+    void classify_project22IncrementalSupplierPerformance_objective() {
+        String detail = "供应商具有近三年内（2023年1月1日起至今，供应商具有1项大型集团型国央企电子商城办公用品服务业绩的不得分，"
+                + "每增加1个得1分，最高得7分。";
+
+        assertThat(policy.classify(detail, "SUBJECTIVE")).isEqualTo("OBJECTIVE");
+    }
+
+    @Test
     void classify_quantifiedYears_objective() {
         assertThat(policy.classify("项目经理具备 5 年以上项目管理经验得 3 分")).isEqualTo("OBJECTIVE");
     }

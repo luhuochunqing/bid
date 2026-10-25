@@ -204,18 +204,23 @@ public final class ScoreItemConstraintExtractor {
         if (text == null || text.isBlank()) {
             return null;
         }
+        var incrementalRule = IncrementalCountScorePolicy.parse(text);
+        if (incrementalRule.isPresent()) {
+            return incrementalRule.get().requiredCountForMaximumScore();
+        }
         Matcher perMatch = Pattern.compile("每(?:增加|提供|具备)?\\s*(\\d+|[一二两三四五六七八九十]+)\\s*(?:个|项|份)[^，。；;\\n]*?得\\s*(\\d+(?:\\.\\d+)?)\\s*分(?:[,，\\s]*?(?:最高|满分|最多)[^，。；;\\n]*?得?\\s*(\\d+(?:\\.\\d+)?)\\s*分)?").matcher(text);
         if (perMatch.find()) {
-            try {
-                int unitCount = parseSmallCount(perMatch.group(1));
+            var unitCount = IncrementalCountScorePolicy.parseCount(perMatch.group(1));
+            if (unitCount.isPresent()) {
+                int unit = unitCount.orElse(0);
                 BigDecimal perScore = new BigDecimal(perMatch.group(2));
                 String maxScoreStr = perMatch.group(3);
                 BigDecimal maxScore = (maxScoreStr != null) ? new BigDecimal(maxScoreStr) : weight;
                 if (perScore.compareTo(BigDecimal.ZERO) > 0 && maxScore != null && maxScore.compareTo(BigDecimal.ZERO) > 0) {
-                    int calcCount = maxScore.divide(perScore, 0, java.math.RoundingMode.CEILING).intValue() * unitCount;
+                    int calcCount = maxScore.divide(perScore, 0, java.math.RoundingMode.CEILING).intValue()
+                            * unit;
                     if (calcCount > 0) return calcCount;
                 }
-            } catch (NumberFormatException | ArithmeticException ignored) {
             }
         }
         Matcher minMatch = Pattern.compile("(?:不少于|提供|具备|具有|完成)\\s*(\\d+)\\s*(?:个|项|份)").matcher(text);
@@ -223,19 +228,6 @@ public final class ScoreItemConstraintExtractor {
             return Integer.valueOf(minMatch.group(1));
         }
         return extractCount(text, "个|项|份");
-    }
-
-    private static int parseSmallCount(String value) {
-        if (value.matches("\\d+")) {
-            return Integer.parseInt(value);
-        }
-        return switch (value) {
-            case "一" -> 1; case "二", "两" -> 2; case "三" -> 3;
-            case "四" -> 4; case "五" -> 5; case "六" -> 6;
-            case "七" -> 7; case "八" -> 8; case "九" -> 9;
-            case "十" -> 10;
-            default -> throw new NumberFormatException("无法识别数量");
-        };
     }
 
     /** 提取业务关键词：按非字母数字汉字切分，过滤停用词/短 token/纯数字，去重保序。 */
