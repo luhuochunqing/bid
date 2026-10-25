@@ -104,10 +104,11 @@ describe('WarehouseExportPackageDetail', () => {
     expect(wrapper4.text()).toContain('—')
   })
 
-  it('链接有效期固定显示 7 天', () => {
+  it('提示用户在后端有效期24小时内下载', () => {
     const wrapper = mount(WarehouseExportPackageDetail, {
       props: { totalCount: 1, summary: {}, attachmentForms: [] }
     })
-    expect(wrapper.text()).toContain('7 天')
+    expect(wrapper.text()).toContain('请在24小时内下载')
+    expect(wrapper.text()).not.toContain('7 天')
   })
 })

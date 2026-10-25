@@ -14,7 +14,7 @@
     <div class="meta-row"><span class="meta-label">附件范围：</span><span>{{ summary.attachmentScope || '—' }}</span></div>
     <div class="meta-row"><span class="meta-label">处理耗时：</span><span>{{ formatElapsed(summary.elapsedMs) }}</span></div>
     <div class="meta-row"><span class="meta-label">包大小：</span><span>{{ formatBytes(summary.zipBytes) }}</span></div>
-    <div class="meta-row"><span class="meta-label">链接有效期：</span><span>7 天</span></div>
+    <div class="meta-row"><span class="meta-label">链接有效期：</span><span>请在24小时内下载</span></div>
   </div>
 </template>
 
