@@ -4,7 +4,7 @@ space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出, 资质智能匹配, 三级穿透]
 created: 2026-08-20
-updated: 2026-09-18
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - specs/049-bid-quality-check-realization/spec.md
@@ -85,6 +85,17 @@ backlinks:
 
 > spec 049 将标书质量核查从"固定文案证据 + page=1 硬编码"的验收失真状态实质化为全真实链路：真实投标文件 → 真实招标要求 → 四知识库真实查询 → 真实页码/原文定位 → LLM 混合裁决。旧同步链路已删除，唯一主线为异步任务链（trigger → 轮询 → 报告）。
 > 核心目标：构建可溯源证据链（页码+原文切片）、严格区分系统判定与人工复核，杜绝假通过与假不通过。
+
+## 2026-10 复核增量（09-18 后合入的行为变更，阅读下文时以本节为准）
+
+| 变更 | commit | 要点 |
+|---|---|---|
+| 保证金凭证视觉核验 | `623caf5e5` | 保证金回执接页面视觉通道（与签章视觉同源 `/convert-images`） |
+| CA 平台身份核实 | `7de6fee9b` | CA 证书检查核实平台身份并保留原文证据 |
+| 证据边界 + 财务人工复审 | `e20fc9a22` | 跨源证据穿透治理，财务审查强制人工复审边界，详见 [[bid-quality-check-evidence-conflicts]] |
+| 承诺函签字检查契约化 | `a881dbfd5` / `2e645058c` | commitment signature check 显名与契约说明 |
+| 资质文案/目录页治理 | PR !2872 | 根治资质核查文案自相矛盾、目录页干扰与知识库来源杂音 |
+| 解析失败分类化（spec 066） | `6da93ac38` 等 | `SidecarStreamDocumentAdapter` 返回 `SidecarParseOutcome` 五分类，失败不再静默空册，详见 [[bid-quality-check-parse-timeout-fix]] |
 
 ## 1. 25 项检查项架构布局与数据流
 

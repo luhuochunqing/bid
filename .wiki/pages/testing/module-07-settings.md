@@ -4,7 +4,7 @@ space: engineering
 category: testing
 tags: [testing, 蓝图对照, 系统设置, settings]
 created: 2026-05-28
-updated: 2026-08-12
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - .wiki/sources/testing/module-07-settings-test.md
@@ -27,7 +27,7 @@ backlinks:
 | 用户组织归属 | ✅ 已完成 | API | `UserOrganizationPanel.vue`, `PUT /api/admin/users/{id}/organization` |
 | AI 模型配置 | ✅ 已完成 | API | `AiModelSettingsPanel.vue`, `GET/PUT /api/settings` |
 | 投标匹配评分 | ✅ 已完成 | API | `BidMatchScoringSettingsPanel.vue`, `GET/PUT /api/settings` |
-| 系统集成 | ✅ 已完成 | API + 手动 | `SystemIntegrationPanel.vue`, 集成配置子页面 |
+| 系统集成 | ✅ 已完成 | API + 手动 | `SystemIntegration.vue`, 集成配置子页面 |
 | 审计日志 | ✅ 已完成 | API | `AuditLogPanel.vue`, `GET /api/audit` |
 
 ## 功能 1：数据权限(部门树)
@@ -326,7 +326,7 @@ for k,v in sc.items():
 企业微信、~~泛微 OA（已取消）~~、CRM、组织架构同步配置入口。
 
 ### 实现说明
-- 前端：`SystemIntegrationPanel.vue` — 集成配置总面板
+- 前端：`SystemIntegration.vue` — 集成配置总面板
   - `WeComIntegrationCard.vue` — 企业微信绑定（Corp ID、Agent ID、Secret）
   - `WeaverIntegrationCard.vue` — 泛微 OA 集成（地址、账号、密钥）
   - `CrmIntegrationCard.vue` — CRM 连接配置（地址、Token、Client ID）

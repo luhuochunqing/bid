@@ -4,7 +4,7 @@ space: engineering
 category: module
 tags: [模块, 前端, 后端, 功能清单, 边界]
 created: 2026-04-15
-updated: 2026-08-12
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - README.md
@@ -156,7 +156,7 @@ backlinks:
 
 **Tender 状态枚举**（产品蓝图 §4.2.2）：PENDING_ASSIGNMENT（待分配）→ TRACKING（跟踪中）→ EVALUATED（已评估）→ BIDDING（投标中）→ WON（已中标）/ LOST（未中标），各阶段均可弃标进入 ABANDONED（已放弃）。
 
-**API 端点**：9 个（列表、详情、创建、更新、删除、AI 分析、按状态/来源查询、统计）
+**API 端点**：21 个（列表/详情/CRUD/AI 分析/统计/查询等，以 `TenderController` 为准；另有下方大标书异步上传端点）
 
 异步上传端点：
 
@@ -183,7 +183,7 @@ backlinks:
 
 **Task.Status 枚举（扩展后）**：TODO、IN_PROGRESS、REVIEW、COMPLETED、CANCELLED
 
-**API 端点**：19 个（原 13 个 + 新增 6 个）
+**API 端点**：20 个（以 `ProjectController` 为准；含服务端分页快慢双路径与独立 `ownerUnit` 筛选，见 [[project-list-server-side-paging]] / [[project-search-owner-unit]]）
 
 新增端点：
 
@@ -232,7 +232,8 @@ backlinks:
 |------|--------|------|
 | docinsight | `com.xiyu.bid.docinsight` | **文档智能引擎**（通用解析、结构化切片、证据锚定） |
 | ai | `com.xiyu.bid.ai` | AI 核心服务（Provider 抽象、异步分析） |
-| compliance | `com.xiyu.bid.compliance` | 合规检查（6 维度检测、风险评估） |
+| scoreparse | `com.xiyu.bid.scoreparse` | **评分解析**（表格拆分、证据管线、金标回放，2026-09 起最大开发域） |
+| compliance | `com.xiyu.bid.compliance` | 标书质量核查引擎（25 项检查项、混合裁决、证据链，见 [[bid-quality-check-realization]]） |
 | competitionintel | `com.xiyu.bid.competitionintel` | 竞争情报（竞对管理、竞争分析） |
 | scoreanalysis | `com.xiyu.bid.scoreanalysis` | 评分分析（多维度评分、趋势、对比） |
 | roi | `com.xiyu.bid.roi` | ROI 核算（投入产出分析） |
@@ -266,6 +267,18 @@ backlinks:
 | export | `com.xiyu.bid.export` | 通用导出服务（Excel 等） |
 
 ---
+
+### 3.9 集成与平台域（2026-10 增补）
+
+| 模块 | 包路径 | 说明 |
+|------|--------|------|
+| integration | `com.xiyu.bid.integration` | 外部集成（organization 组织架构同步、tenderevent 事件推送 SDK、external CRM 链接） |
+| crm | `com.xiyu.bid.crm` | CRM 客户端（商机检索/反查/校验，`CrmProperties` 统一配置） |
+| webhook | `com.xiyu.bid.webhook` | CRM 出站推送（bidInfoSync 契约、delivery task 队列） |
+| wecom | `com.xiyu.bid.wecom` | 企业微信（SSO、消息推送 `WecomMessageSender`） |
+| workbench | `com.xiyu.bid.workbench` | 工作台服务（含商机预测提醒） |
+| formengine | `com.xiyu.bid.formengine` | 动态表单引擎（见 [[dynamic-form-engine]]） |
+| notification | `com.xiyu.bid.notification` | 站内通知（企微镜像、见 [[notification-system-pitfalls]]） |
 
 ## 4. 模块与业务流程映射
 

@@ -1488,3 +1488,12 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 - **阻断补记**：quality-evidence-context第三轮独立审查仍NEEDS_FIXES（同句财务豁免假PASS），未提交/未部署；知识页描述安全边界目标，不表示本分支已可发布。
 
 ## [2026-10-25] compound | quality-evidence-context 用户升级选择部分纠偏＋资格人工兜底，原财务解析阻断历史保留；PR同步主线!2871，避免覆盖CA身份与原文证据修复。
+
+## [2026-10-25] bulk-verify | 78 个 updated>30d 过期页面全量复核（task: agent/zcode/wiki-stale-refresh）
+
+- **背景**：全量体检发现 144 页中 78 页非 archive 页面 updated 超 30 天（41 页停在 08-12）；此前 wiki:check 全绿系 111803b91 批量刷 health_checked 触发豁免，非逐页核实。
+- **方法**：逐页对照当前代码/文档核实承重声明（git churn 热力图定优先级），**只改核实过的内容**；不跑 wiki:build（其全量归一化会污染未触碰页面）。
+- **修正 15 页**（实质漂移）：integration-oa-crm（组织同步已实现/CO-302 反查已接线/补 bidInfoSync 出站推送节）、project-search-owner-unit（双模架构+独立 ownerUnit 参数）、integration-wecom（CRM/组织架构/企微推送三行转正）、bid-quality-multifile-check（spec066 outcome 契约覆盖空册陷阱）、bid-quality-check-realization（补 09-18 后 6 项行为变更增量节）、ai-capabilities + modules（合规雷达 6 维度→25 项检查项；补 scoreparse/集成域模块行/端点数）、data-model（迁移章节 V56→双轨 V1224；cases→knowledge_case）、architecture（95 包/RBAC 口径/补 7 模块行）、overview + api-openapi（端口 1314/18080→1323/18089）、testing/module-02/03/04/07（5 处失效文件引用）。
+- **归档 15 页**（纯历史 RCA/修复记录/快照，产物核实存在后 archive:true）：bid-quality-check-pagination-fix、bid-quality-check-parse-timeout-fix、score-parse-split-completeness-and-partial-overwrite-fix、tender-create-upload-triage、project-detail-toolbar-back-fix、initiation-form-fake-zero-display、tenderevent-sdk-bean-conflict（附复核注记：@Primary 方案已被"不引入 SDKClientConfiguration"重构取代）、event-library-integration-rca、lessons-learned/case-precipitation-oversize-oom、evaluation-form-field-adjustments、tender-event-pr2598-contract-review、score-parse-optimization、dashboard-gap-analysis、workflow-form-center、production-deployment-lessons。
+- **核实通过不改 48 页**：承重声明抽样验证成立、或主题域自页面 updated 后零 churn（如 integration-tender-event-push、data-analysis-revamp、effective-role-resolution、roles-and-permissions、gitee-token-resolution 等）。
+- **纪律结论**：wiki-backfill-active.mjs 批量刷 health_checked 会架空"health_checked=7 天内核实"豁免语义，建议仅限 archive 页使用；本次为每页建立了真实核实记录。

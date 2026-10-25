@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [质量核查, 多文件, DocumentContent, sidecar, 合并, spec047]
 created: 2026-09-02
-updated: 2026-09-10
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/ComplianceTargetLoader.java
@@ -37,6 +37,8 @@ backlinks:
 后果：任何"解析失败→跳过/告警"的上层设计都是不可达的死代码；扫描件/损坏册会以空册身份静默进入下游。多册场景下空册并入合并文档 = 用 2/3 内容出"合格"报告。
 
 **正确姿势**：调用侧（`ComplianceTargetLoader.loadBidDocument`）每册解析后显式校验 `fullText().isBlank() && pages().isEmpty()` → 指名该册抛 BusinessException。**宁可整体失败，不可部分假查**。单测 mock 该适配器时禁止用 `thenThrow` 验证失败语义（假绿），必须 mock 真实失败形态（返回空册）。
+
+> **2026-10 复核**：spec 066 已将失败语义显式化——`convertDocument` 返回 `SidecarParseOutcome` 五分类（OK/TIMEOUT/SERVICE_ERROR/EMPTY_TEXT/UNPARSEABLE，仍永不抛异常），调用侧对非 OK 的册指名抛 422（`ComplianceTargetLoader.parseFailureMessage`），「空册静默进入下游」的窗口已被分类契约关闭；§1 合并契约（`DocumentContent.merge`）不变。单测失败语义改为 mock 非 OK 的 outcome（见 [[bid-quality-check-parse-timeout-fix]]）。
 
 ## 3. 顺手清除的假查路径
 

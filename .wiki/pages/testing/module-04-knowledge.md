@@ -4,7 +4,7 @@ space: engineering
 category: testing
 tags: [testing, 蓝图对照, 知识库, knowledge]
 created: 2026-05-28
-updated: 2026-08-12
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - .wiki/sources/testing/module-04-knowledge-test.md
@@ -74,7 +74,7 @@ curl -s -X POST 'http://127.0.0.1:18081/api/archive/export-excel' \
 案例创建/编辑/检索/复用，置顶/优质标记，上架/下架/删除，AI 推荐案例。
 
 ### 实现说明
-- 前端：`Case.vue`(传统案例库) + `CaseWrapper.vue`(统一容器) + `CaseDetail.vue`
+- 前端：`CaseGrid.vue`(案例库网格，2026-08 PRD 精简后) + `CaseWrapper.vue`(统一容器) + `CaseDetailDialog.vue`(详情弹窗)
 - 后端：2 套控制器并行：
   - `CaseController`（`/api/knowledge/cases` — CRUD + 搜索 + 相关推荐）
   - `KnowledgeCaseController`（`/api/cases` — 置顶/上下架/网格查询）

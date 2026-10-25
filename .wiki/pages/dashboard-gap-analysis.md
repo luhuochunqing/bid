@@ -6,6 +6,7 @@ tags: [工作台, dashboard, 标书, 需求追溯, 缺口分析, gap]
 created: 2026-04-16
 updated: 2026-08-12
 health_checked: 2026-10-25
+archive: true
 sources:
   - docs/research/COMMERCIAL_SCOPE.md
   - src/views/Dashboard/Workbench.vue

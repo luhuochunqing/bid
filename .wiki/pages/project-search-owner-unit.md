@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [项目搜索, 招标主体, ownerUnit, purchaser_name, 内存过滤, useProjectFilter]
 created: 2026-08-31
-updated: 2026-08-31
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/project/controller/ProjectController.java
@@ -27,17 +27,23 @@ backlinks:
 - 立项后 `project_initiation_details.owner_unit` 快照优先（提交后锁定，见 ProjectFieldLockPolicy）。
 - 列表页"招标主体"列展示的就是 DTO 的 `ownerUnit` —— **搜到的 = 看到的**。
 
-## 关键词过滤契约（name 参数）
+## 关键词过滤契约（name / ownerUnit 参数）
 
-| 层 | 位置 | name 匹配字段 |
+| 层 | 位置 | 匹配字段 |
 |---|---|---|
-| 后端列表 | `ProjectController.getAllProjects` | `name` ∪ `customer` ∪ **`ownerUnit`** |
-| 后端导出 | `ProjectExportService` | 同上（注释级契约：与列表保持一致） |
-| 前端过滤 | `useProjectFilter.js` | `p.name` ∪ `p.projectName` ∪ **`p.ownerUnit`** |
+| 后端列表 `name` | `ProjectListQueryService`（内存筛选分支） | `name` ∪ `customer` ∪ **`ownerUnit`** |
+| 后端列表 `ownerUnit`（独立参数） | 同上 | 仅 **`ownerUnit`**（`ProjectListQuery.ownerUnit`） |
+| 后端导出 | `ProjectExportService` | `name` 同列表；另有独立 `ownerUnit` 导出参数 |
+| 前端过滤 | `useProjectFilter.js` | `f.name` → `p.name` ∪ `p.projectName` ∪ `p.ownerUnit`；`f.ownerUnit` → 仅 `p.ownerUnit` |
 
-- 项目列表是**内存过滤**架构（`getAllProjects()` 全量 + Controller 流式 filter），
-  过滤发生在 enrichment **之后**，所以 `ownerUnit` 已回填、加字段零 SQL 改动。
-  标讯模块的 JPA Specification（`TenderSpecification`）是另一范式，勿混淆。
+- 项目列表是**双模架构**（2026-10 复核更新）：无任何筛选时走快路径，排序/分页/权限下推
+  SQL、只富化当页（`ProjectListQuery#hasNoEffectiveFilter()`）；传了任一筛选（含 `name`/
+  `ownerUnit`）回落全量内存筛选，过滤发生在 enrichment **之后**（`ownerUnit` 已回填、
+  加字段零 SQL 改动）。筛选判据集中在 `ProjectListQueryService`，`ProjectQueryService`
+  只承载富化链。标讯模块的 JPA Specification（`TenderSpecification`）是另一范式，勿混淆。
+- 独立 `ownerUnit` 筛选已前后端打通：`List.vue` 搜索表单提交 `params.ownerUnit`，
+  后端 `ProjectController` 装配进 `ProjectListQuery`。注意它只匹配 `ownerUnit` 本身，
+  与 `name` 的三字段并集语义不同。
 - 大小写不敏感：后端 `containsIgnoreCase`（null 安全）；前端 `.includes`（`|| ''` 兜底）。
 - "招标主体"匹配**不含**代理机构 `tender_agency`——与列表列展示保持一致。
 
@@ -57,4 +63,4 @@ backlinks:
 1. **测试库（H2）`projects.tender_id` NOT NULL**：集成测试造数不能创建无标讯项目，
    每个项目必须关联 tender，用不同 `purchaserName` 区分正反例。
 2. **`GET /api/projects/search?name=` 遗留接口只搜项目名**：前端无调用方，勿与列表接口混淆。
-3. `searchForm.ownerUnit` 前端字段存在但 UI 未暴露——它是导出参数的历史遗留，非筛选入口。
+3. `ownerUnit` 独立筛选已全链路打通（List.vue 表单 → `params.ownerUnit` → `ProjectListQuery.ownerUnit`）：只匹配 ownerUnit 字段本身，比 `name` 的三字段并集语义更窄，两者勿混淆。

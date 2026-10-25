@@ -4,7 +4,7 @@ space: engineering
 category: reference
 tags: [数据模型, 实体, JPA, 数据库, 真实API]
 created: 2026-04-15
-updated: 2026-08-12
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
@@ -29,7 +29,9 @@ backlinks:
 | **Task** | `tasks` | id, projectId, title, type, priority, status, assigneeId, dueDate, deliverableCount | 项目任务，支持看板式管理（待办 / 进行中 / 待审核 / 已完成），可关联多个交付物 |
 | **TaskDeliverable** | `task_deliverables` | id, taskId, name, deliverableType, size, fileType, storagePath, storageKey, version, uploaderId, uploaderName, createdAt | 任务交付物文件/文档，支持版本管理，5 种类型分类 |
 | **Qualification** | `qualifications` | id, name, type, number, issuingAuthority, issueDate, expiryDate, status | 企业资质证书，支持到期预警 |
-| **Case** | `cases` | id, title, customer, industry, amount, result, tags | 历史投标案例，支持按行业 / 标签检索复用 |
+| **KnowledgeCase**（casework 域） | `knowledge_case` + `case_*` 关联表（bid_case_slice / case_tags / case_highlights / case_reference_records 等） | 标题、客户、行业、来源项目、obsBidFileKey | 案例沉淀与复用主表；`cases` 为遗留表（schema 中仍在，勿新增依赖） |
+| **ScoreItem / ScoreParseEvidence**（scoreparse 域） | `score_item` / `score_parse_evidence` / `score_parse_fact` | 评分项、分值、证据锚定、parseTaskId | 评分解析管线核心表，按 parseTaskId 隔离 |
+| **OpportunityPredictionReminderLog** | `opportunity_prediction_reminder_log` | projectId 唯一键、event_published_at | 商机预测提醒一次性发送去重 |
 | **Template** | `templates` | id, name, category, description, fileUrl, version | 标书模板，支持一键使用和版本管理 |
 | **AuditLog** | `audit_logs` | id, userId, action, entityType, entityId, details, timestamp | 操作审计日志，自动记录关键业务操作 |
 | **Expense** | `expenses` | id, projectId, type, amount, status, applicant | 投标费用（保证金、标书费等），支持审批流程 |
@@ -159,18 +161,13 @@ backlinks:
 
 项目使用 **Flyway** 进行数据库迁移管理：
 
-- 迁移脚本存放于 `backend/src/main/resources/db/migration/`
-- 命名规范：`V{版本号}__{描述}.sql`（例如 `V47__add_customer_manager.sql`）
-- 当前已有 V1 ~ V56 的迁移版本，涵盖：
-  - 基础表结构创建（用户、标讯、项目、任务等）
-  - 知识库表（资质、案例、模板）
-  - 资源管理表（费用、账户）
-  - 审计日志表
-  - 客户经理字段扩展（V47）
-  - 历史来源兼容字段扩展（V48）
-  - 历史数据导入（V49）
-  - 投标结果表（V50）
-  - **任务交付物表 + REVIEW 状态扩展（V56）** — 新增 `task_deliverables` 表，Task.Status 枚举新增 REVIEW
+- 迁移脚本双轨存放（2026-10 复核更新，详见 [[flyway-migration-pitfalls]]）：
+  - `backend/src/main/resources/db/migration/` — H2/默认基线轨
+  - `backend/src/main/resources/db/migration-mysql/` — MySQL 生产轨（2026-10 最新至 V1224）
+  - `backend/src/main/resources/db/rollback/` — 对应 U 前缀回滚脚本
+- 命名规范：`V{版本号}__{描述}.sql` / `U{版本号}__{描述}.sql`
+- 规模参考：全库约 208 张表（`docs/generated/db-schema.md`，由 `npm run db:generate-schema` 机器生成，**以它为表结构唯一真相**，本页只保留核心实体导航）
+- 早期里程碑（V1~V56）覆盖基础表/知识库/资源/审计/交付物；V1000+ 量级为各业务域持续演进（评分解析、案例沉淀、竞品库、组织同步、事件推送等）
 - 应用启动时 Flyway 自动检测并执行未应用的迁移
 - E2E 测试环境使用 Testcontainers 进行 baseline 验证
 

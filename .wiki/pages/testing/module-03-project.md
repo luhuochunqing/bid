@@ -4,7 +4,7 @@ space: engineering
 category: testing
 tags: [testing, 蓝图对照, 投标项目, project]
 created: 2026-05-28
-updated: 2026-08-12
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - .wiki/sources/testing/module-03-project-test.md
@@ -22,7 +22,7 @@ backlinks:
 | 项目列表(筛选/排序/导出) | ✅ 已完成 | E2E + API | `List.vue`, `GET /api/projects`, `GET /export` |
 | 项目创建(从标讯/手动) | ✅ 已完成 | E2E + API | `Create.vue`(4步表单), `POST /api/projects` |
 | 项目详情(6 阶段 Tab) | ✅ 已完成 | E2E | `Detail.vue` → `ProjectDetailShell.vue` |
-| Tab1-项目立项 | ✅ 已完成 | API | `InitiationStage.vue`, `InitiationController` |
+| Tab1-项目立项 | ✅ 已完成 | API | `InitiationStage.vue`, `ProjectInitiationController` |
 | Tab2-标书制作 | ✅ 已完成 | E2E | `DraftingStage.vue`, 含 AI 拆解/合规检查 |
 | Tab3-评标中 | ✅ 已完成 | API | `EvaluationStage.vue` |
 | Tab4-结果确认 | ✅ 已完成 | API | `ResultConfirmStage.vue`(4 种结果) |

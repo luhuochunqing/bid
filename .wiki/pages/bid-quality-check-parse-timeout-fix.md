@@ -6,6 +6,7 @@ tags: [质量核查, compliance, sidecar, 超时预算, 失败分类, 大文件,
 created: 2026-09-20
 updated: 2026-09-20
 health_checked: 2026-10-25
+archive: true
 sources:
   - specs/066-fix-quality-check-parse/spec.md
   - specs/066-fix-quality-check-parse/research.md

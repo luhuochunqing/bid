@@ -6,6 +6,7 @@ tags: [spring, bean-conflict, tenderevent, sdk, @Primary]
 created: 2026-08-26
 updated: 2026-08-26
 health_checked: 2026-10-25
+archive: true
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/infrastructure/sdk/TenderEventSdkConfig.java
   - docs/release/deploy-report-2026-08-26-143rd-test.md
@@ -59,3 +60,7 @@ public ServiceRegisterProperties serviceRegisterProperties(TenderEventSdkPropert
 2. **@Import SDK 类时检查 bean 重复**：SDK 内部可能定义了与项目配置类同类型的 bean
 3. **@Primary 优于 @Qualifier**：对于"项目配置优先于 SDK 默认"的场景，`@Primary` 更简洁
 4. **部署前确保 Docker 可用**：容器测试是 crash-loop 的最后一道防线
+
+## 2026-10-25 复核注记
+
+当前 `TenderEventSdkConfig`（已迁至 `integration/tenderevent/infrastructure/sdk/`）已重构：不再 `@Import(SystemInteractiveServiceImpl.class)`、也无 `@Primary`，而是**刻意不引入 `SDKClientConfiguration`**（避免连带激活 Kafka/ZK 消费侧）。本页仅作 PR !2416 事故历史记录，『修复』一节的 @Primary 方案已不反映现状。

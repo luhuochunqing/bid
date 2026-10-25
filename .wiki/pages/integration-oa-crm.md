@@ -4,7 +4,7 @@ space: engineering
 category: integration
 tags: [integration, crm, api]
 created: 2026-05-07
-updated: 2026-08-12
+updated: 2026-10-25
 health_checked: 2026-10-25
 sources:
   - .wiki/sources/technical/泊冉投标系统与西域对接技术相关内容.md
@@ -115,7 +115,7 @@ https://域名/[服务名]/[客户端类型]/[版本号]/路径
 
 任一环节查不到 → 视为"未查到"，标讯保持"待分配"，不阻塞流程。
 
-> ⚠️ **现状提示**：CO-302 当前实现（PR !967）走的是商机接口 `/customer-chance/page-list`，未走上述两步路径。如需对齐 issue 5.3 描述，需要按 [25338 文档](../../docs/references/xiyu-crm-customer-api-25338-getCompanyNameByLikeName.md) 中的"CO-302 反查路径中的使用方式"小节进行改造。
+> ✅ **已落地（2026-10 复核）**：两步反查路径已实现——`CrmCompanySearchService`（调 25338/25259，路径见 `CrmProperties`）→ 经 `CachedCrmLookupService` 缓存封装 → 接入 `TenderAutoAssignmentService` 自动分配链路；同时商机关联仍走 `/customer-chance/page-list|detail`（`CrmChanceService`，PR !967 引入）。
 
 ### 1.4 配置项范围（待客户确认）
 
@@ -136,9 +136,26 @@ https://域名/[服务名]/[客户端类型]/[版本号]/路径
 | **数据落点** | 不落库，直接返回前端 | 必须 upsert 到本地 `User` / `Department` 表 |
 | **数据用途** | 客户信息检索、消息发送 | 登录鉴权、数据范围权限、审批流人员选择 |
 | **幂等要求** | 无（只读查询） | 必须具备（同一事件重复投递不造成脏数据） |
-| **当前状态** | ✅ PR #450 已完成 BaseUrl 配置化 | ❌ 待实现（需引入 ClientSDK） |
+| **当前状态** | ✅ PR #450 已完成 BaseUrl 配置化 | ✅ 已实现（`integration/organization/` 完整包，详见 [[integration-organization-event-sdk]]） |
 
-**常见误解**："CRM 接口做好了，组织架构就打通了"——这是错误的。页面按钮调用 `/api/xiyu/crm/customers` 只能查客户信息，无法实现员工入职/离职/调部门的自动同步。组织架构同步必须走事件库 SDK 方案（见 [[integration-organization-event-sdk]]）。
+**常见误解**："CRM 接口做好了，组织架构就打通了"——这是错误的。页面按钮调用 `/api/xiyu/crm/customers` 只能查客户信息，无法实现员工入职/离职/调部门的自动同步。组织架构同步走独立的事件 SDK 方案（已落地，见 [[integration-organization-event-sdk]]）。
+
+---
+
+## 1.6 CRM 出站推送与商机校验（2026-10 复核补记）
+
+除 §1.3 的查询接口外，平台对 CRM 还有三个主动出站方向，代码均在 `com.xiyu.bid.crm` / `com.xiyu.bid.webhook`：
+
+| 能力 | 触发 | 落点 | 关键类 |
+|---|---|---|---|
+| **标讯状态推送** | `TenderStatusChangedEvent`（AFTER_COMMIT） | 写 `webhook_delivery_tasks`（PENDING）→ 异步 `POST /customer-chance/bidInfoSync` | `WebhookEventListener` |
+| **中标结果推送** | 项目结果确认事件 | 同上，bidInfoSync 格式（§4.2 契约） | `ProjectResultConfirmedWebhookListener` |
+| **招标主体校验** | 商机关联（CO-501） | `GET /customer-chance/check-tender-subject`，code=1 按 msg 区分"不存在/不属于集团" | `CrmTenderSubjectChecker` |
+
+副作用与约定：
+- bidInfoSync status 映射：1-跟进中 2-中标 3-丢标 4-流标 5-投标中 6-弃标；`EVALUATED` 不回调 status（CO-346）；payload 含 tenderId（CO-298）。
+- 推送使用 `operatorUsername` 调 CRM，不依赖全局共享账号。
+- token 获取 + 401 重试统一走 `CrmApiTemplate`（副作用层），业务失败不抛异常仅返回结果，仅 CRM 不可用抛 `BusinessException`。
 
 ---
 
