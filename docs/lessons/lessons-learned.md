@@ -7502,7 +7502,6 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - 后端 JUnit `ChapterTitleContractTest`、`MarkdownSourceSectionIndexTest`、`CaseProvenanceBackfillAppServiceTest`、`FlywayRollbackScriptCoverageTest` 等全部通过；
   - 测试数据库 357 条全量回填，`count(source_section_title) == 357`，制表符内嵌页码 0 残留。
 
-
 ## 451. 标书质量核查不能把规则引用、检索抽样与相似标准当成缺陷事实（项目1117报告56，2026-10-25）
 
 - **现场证据**：生产报告56已修正封面日期，但仍把“有串通投标将否决”等规则引用当自身违规、把检索8→12页当PDF缺页、把“或称交易平台”当CA平台；资质汇总称无ISO14001，而明细显示已匹配。
@@ -7514,3 +7513,25 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 
 
 2026-10-25 人工升级安全范围：用户要求“不要假通过”。财务解析器仍有“无需审计报告但须资产负债表”的对象范围缺陷。暂禁财务与复合资格性评审自动PASS，规则/LLM/最终引擎共用转换为人工确认；不把待确认等同失败或通过。旧三轮NEEDS_FIXES保持有效，不宣称条款解析已修复或生产已上线。
+
+---
+
+## 452. 资质核查临期降级文案冲突、目录索引伪命中与跨源证据穿透治理（项目 1117，2026-10-25）
+
+- **现场证据**：
+  1. 资质核查项中证书即将到期（ATTENTION 需关注）降级为人工复核时，AI 检查结论头部报“请人工复核标书中资质证明材料的有效性”，尾部却拼接了“资质匹配通过/完全满足招标文件的硬性资格要求”等冲突表述；
+  2. 标书定位命中目录索引页（如第 4 页），导致问题定位摘录目录点线无意义文本（`......... 236`）；
+  3. 纯资质比对项（`QUALIFICATION_MATCH`）的联动数据来源错误展示了「业绩库」标签。
+- **致错机制**：
+  1. 状态细分不彻底：`QualificationDetailReconciler` 将纯临期混入资质库未维护列表（`attentionReqs`），套用了统一复核模板；且在降级为 `MANUAL_REVIEW`/`FAIL` 时未清洗底层规则产生的“通过/完全满足”模板短语，造成结论前后自相矛盾；
+  2. 证据定位未过滤目录页：`EvidenceAssembler` 在资质与一票否决检索中直接调用未跳过目录的 `locateBid`，优先命中了目录页；
+  3. 知识库来源透传未受限：后端装配证据时未对 `kbEvidences` 的 `knowledgeSource` 做白名单过滤，造成跨业务库（业绩库）来源穿透；前端弹窗原样渲染所有返回的知识库来源。
+- **修复与边界**：
+  1. `QualificationDetailReconciler` 细分 `attentionList` 为 `expiringList`（纯临期）与 `unmaintainedList`，临期精准提示“核查发现证书临期...建议人工复核换证续期”；新增 `cleansePassPhrasesForManual` 与 `cleansePassPhrasesForFail` 正则消除矛盾短语并清洗标点连接；
+  2. `EvidenceAssembler` 针对资质与否决条款全面改用 `locateBidSkippingCatalog`，只有命中真实正文页才返回页码，若仅命中目录页则诚实返回“未定位”（`page=null`），彻底阻断点线伪证据；
+  3. 后端 `appendKnowledgeEvidences` 引入白名单 `Set<String> allowedSources`（`QUALIFICATION_MATCH` 仅保留 `SOURCE_QUALIFICATION`，`CA_CERTIFICATE` 仅保留 `SOURCE_CA_CERTIFICATE`）并增加 `knowledgeSource() != null` 空指针守卫；前端 `QualityCheckDetailDialog.vue` 对 `qualification_match` / `qualification_veto` 进行纵深防御过滤，同时放行 `qualification_review` 允许的业绩库链接。
+- **验证纪律**：
+  - 新增 `EvidenceAssemblerTest` 独立验证正文页跳过目录页、白名单源过滤与 null 安全；
+  - `QualificationDetailReconcilerTest` 验证临期精准文案与矛盾表述清洗；
+  - `QualityCheckDetail.qa.spec.js` 验证弹窗过滤与综合审查项放行；
+  - 核心单测（64/64 PASS）、前端单测（24/24 PASS）、架构守卫（32/32 PASS）全绿。
