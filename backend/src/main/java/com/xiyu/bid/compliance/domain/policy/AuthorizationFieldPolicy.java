@@ -48,7 +48,7 @@ public final class AuthorizationFieldPolicy {
 
     private AuthorizationFieldPolicy() { }
 
-    public static Assessment assess(final String text) {
+    public static Assessment assessAuthorizationFields(final String text) {
         String source = text == null ? "" : text;
         return new Assessment(classify(values(source, PRINCIPAL), AuthorizationFieldPolicy::isName),
                 classify(values(source, AGENT), AuthorizationFieldPolicy::isName),

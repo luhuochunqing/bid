@@ -124,7 +124,7 @@ public final class AuthorizationLetterCheckPolicy {
                     "请确保授权委托书已完成真实填写、签署并加盖公章，避免留白废标风险", evidences);
         }
 
-        AuthorizationFieldPolicy.Assessment fields = AuthorizationFieldPolicy.assess(text);
+        AuthorizationFieldPolicy.Assessment fields = AuthorizationFieldPolicy.assessAuthorizationFields(text);
         boolean isInstructions = text.contains("填写要求") || text.contains("填表说明") || text.contains("格式说明");
         if (fields.filled() && !isInstructions) {
             return QualityCheckItemResult.pass(item,
