@@ -7,6 +7,7 @@ package com.xiyu.bid.auth;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.UnsupportedJwtException;
@@ -41,6 +42,9 @@ public class JwtUtil {
     /** HMAC 签名密钥（构造时由密钥字符串派生）. */
     private final SecretKey secretKey;
 
+    /** 预构建且线程安全的 JWT 解析器（单例复用，避免每次请求重复 build 和 SPI 查找）. */
+    private final JwtParser jwtParser;
+
     /** Token 默认过期时长（毫秒）. */
     private final long expiration;
 
@@ -63,6 +67,7 @@ public class JwtUtil {
 
         this.expiration = pExpiration;
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.jwtParser = Jwts.parser().verifyWith(this.secretKey).build();
 
         log.info("JWT initialized with expiration: {} ms", pExpiration);
     }
@@ -179,9 +184,7 @@ public class JwtUtil {
      */
     public Claims extractAllClaims(final String token) {
         try {
-            return Jwts.parser()
-                    .verifyWith(secretKey)
-                    .build()
+            return this.jwtParser
                     .parseSignedClaims(token)
                     .getPayload();
         } catch (ExpiredJwtException e) {

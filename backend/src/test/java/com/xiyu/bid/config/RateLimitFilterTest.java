@@ -19,6 +19,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
+import java.util.NoSuchElementException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -125,6 +126,23 @@ class RateLimitFilterTest {
         MockFilterChain chain = new MockFilterChain();
         filter.doFilter(request, response, chain);
         verify(rateLimiter).allowRequest(eq("user:172.16.38.78"), eq(100), any(Duration.class));
+    }
+
+    @Test
+    void shouldFallbackToIpWhenJwtExtractThrowsUnexpectedException() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/projects");
+        request.setRemoteAddr("172.16.38.78");
+        request.addHeader("Authorization", "Bearer buggy-token");
+        when(jwtUtil.extractUsername("buggy-token")).thenThrow(new NoSuchElementException("ServiceLoader lookup failed"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+        filter.doFilter(request, response, chain);
+        verify(rateLimiter).allowRequest(eq("user:172.16.38.78"), eq(100), any(Duration.class));
+        assertEquals(200, response.getStatus());
+        String logOutput = logAppender.list.stream()
+                .map(ILoggingEvent::getFormattedMessage)
+                .reduce("", (a, b) -> a + "\n" + b);
+        assertTrue(logOutput.contains("Unexpected exception (NoSuchElementException) extracting user identity"));
     }
 
     @Test

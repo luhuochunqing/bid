@@ -1,3 +1,7 @@
+// Input: HTTP 请求对象、客户端 IP、API Key 与 JWT Token
+// Output: 请求放行或 429 限流响应
+// Pos: Web 过滤器层（限流守卫）
+// 维护声明: 仅维护全局与端点限流策略及 Key 解析；限流阈值调整请同步 application.yml。
 package com.xiyu.bid.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -136,6 +140,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
             }
         } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
             log.debug("Failed to extract user identity for rate limiting, falling back to IP: {}", e.getMessage());
+        } catch (java.util.NoSuchElementException | IllegalStateException e) {
+            log.warn("Unexpected exception ({}) extracting user identity for rate limiting, falling back to IP: {}",
+                    e.getClass().getSimpleName(), e.getMessage());
         }
         return "user:" + clientIp;
     }

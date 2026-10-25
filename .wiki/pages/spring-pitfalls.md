@@ -2,10 +2,10 @@
 title: Spring Boot 陷阱集
 space: engineering
 category: guide
-tags: [Spring Boot, 事务, @Transactional, @Async, @ConditionalOnBean, 配置优先级, SPRING_CONFIG_IMPORT, 代理失效, 构造函数注入, @Autowired]
+tags: [Spring Boot, 事务, @Transactional, @Async, @ConditionalOnBean, 配置优先级, SPRING_CONFIG_IMPORT, 代理失效, 构造函数注入, @Autowired, JJWT, ServiceLoader, 并发安全, RateLimitFilter]
 created: 2026-07-10
-updated: 2026-08-17
-health_checked: 2026-09-18
+updated: 2026-10-24
+health_checked: 2026-10-24
 sources:
   - backend/src/main/java/com/xiyu/bid/
   - backend/src/main/resources/application.yml
@@ -627,9 +627,51 @@ public class ScoreResultOverwriter {
 
 ---
 
+## 10.9. JJWT ServiceLoader 并发竞争与 Filter 旁路防御（2026-10-24）
+
+### 现象
+
+线上偶发 `GET /api/workbench/deadline-items?period=week` 返回 HTTP 500，异常堆栈为：
+```text
+java.util.NoSuchElementException
+    at java.base/java.util.ServiceLoader$LayerLookupIterator.next(ServiceLoader.java:1010)
+    at io.jsonwebtoken.lang.Services.loadFirst(Services.java:83)
+    at io.jsonwebtoken.Jwts.parser(Jwts.java:119)
+    at com.xiyu.bid.auth.JwtUtil.extractAllClaims(JwtUtil.java:184)
+    at com.xiyu.bid.config.RateLimitFilter.resolveUserRateLimitKey(RateLimitFilter.java:132)
+```
+仅在偶发高并发窗口出现，单并发复测正常。
+
+### 根因
+
+1. **JJWT 0.12.3 `Services.loadFirst()` 共享内部静态缓存**：底层非线程安全 `ServiceLoader` 在多线程并发执行 `loadFirst()` 时未加锁同步，且缺少 `hasNext()` 边界保护（官方已知 Bug #873）。
+2. **`JwtUtil.extractAllClaims()` 每次请求重复 `build()`**：每次校验 Token 均调用 `Jwts.parser().verifyWith(secretKey).build()`，频繁触发 SPI 服务发现扫描，放大了并发竞态窗口。
+3. **`RateLimitFilter` 旁路异常泄漏**：限流中间件仅捕获了 `JwtException` / `IllegalArgumentException`，未捕获 `NoSuchElementException` 等非预期运行时异常，导致非阻塞式辅助逻辑的故障穿透打垮了核心业务主链路。
+
+### 正确做法
+
+1. **单例化 `JwtParser`**：`JwtParser` 是线程安全且不可变的对象，在 `JwtUtil` 构造器中预先 build 完成（`this.jwtParser = Jwts.parser().verifyWith(this.secretKey).build();`），运行时解析复用单例，彻底规避重复 build 和 SPI 扫描。
+2. **Filter 旁路降级防线**：限流/审计等非核心链路必须做好异常隔离，精准捕获 `NoSuchElementException | IllegalStateException`，记录 WARN 日志并安全降级到客户端 IP 限流，坚决不允许旁路故障阻断业务请求。
+3. **依赖升级**：将 `jjwt.version` 由 0.12.3 升级至 0.12.5（官方已修复 `Services.loadFirst()` 的线程安全缺陷）。
+
+### 预防
+
+1. 任何第三方 SDK 提供的解析器/客户端（如 JWT Parser、ObjectMapper、HttpClient、TemplateEngine），若官方保证不可变且线程安全，必须组件级单例化，严禁在每次 Request Hot Path 中 `build()`。
+2. Filter/Interceptor 中的辅助功能（限流、监控、上下文提取）必须遵守「非侵入、可降级」原则，异常捕获需防御非预期运行时异常并设计兜底路径（如回退至 IP）。
+
+### 相关
+
+- `backend/src/main/java/com/xiyu/bid/auth/JwtUtil.java`（单例化修复）
+- `backend/src/main/java/com/xiyu/bid/config/RateLimitFilter.java`（旁路异常捕获与降级）
+- `backend/pom.xml`（jjwt 0.12.3 → 0.12.5）
+- `docs/lessons/lessons-learned.md` §449
+
+---
+
 ## 11. 相关文档
 
 - [[lessons-learned]] §50 — SPRING_CONFIG_IMPORT 外部配置覆盖案例
+- [[lessons-learned]] §449 — JJWT ServiceLoader 并发竞争与 Filter 旁路防御
 - [[production-deployment-lessons]] — 生产部署中的 Spring 配置陷阱
 - [[architecture]] — 架构合成（FP-Java Contract）
 - [[crm-integration-lessons]] §9 — 外部服务异常状态码处理
@@ -646,3 +688,4 @@ public class ScoreResultOverwriter {
 | 2026-08-17 | 追加 §10.6 多构造函数 @Autowired 陷阱（PR !2301） |
 | 2026-08-17 | 追加 §10.7 @Async 线程事务缺失抛 TransactionRequiredException（spec 045 T025 终验） |
 | 2026-08-19 | 追加 §10.8 静态字段注入反模式与 TenderAttachmentUrlResolver DI 重构 |
+| 2026-10-24 | 追加 §10.9 JJWT ServiceLoader 并发竞争与 Filter 旁路防御（线上 500 修复） |
