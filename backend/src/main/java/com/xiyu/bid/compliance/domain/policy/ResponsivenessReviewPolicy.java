@@ -71,10 +71,12 @@ public final class ResponsivenessReviewPolicy {
         }
 
         // 4. 非表格形式明确自述实质性负偏离拦截（对齐全量 NEGATIVES 词表，排除表头选项说明）
-        String fullText = bidDoc.fullText();
-        for (String negKw : DeviationTableExtractor.NEGATIVES) {
-            if (containsDeclaredNegative(fullText, negKw)) {
-                QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "偏离表负偏离条款", List.of(negKw));
+        for (DocumentContent.PageContent page : bidDoc.pages()) {
+            for (String negKw : DeviationTableExtractor.NEGATIVES) {
+                int index = findDeclaredNegative(page.text(), negKw);
+                if (index < 0) continue;
+                QualityEvidence evidence = QualityEvidence.bid("偏离表负偏离条款", page.pageNumber(),
+                        BasicInfoCheckPolicy.snippetAt(page.text(), index, index + negKw.length(), 200));
                 return QualityCheckItemResult.fail(
                         BidQualityCheckItem.RESPONSIVENESS_REVIEW,
                         "商务或技术条款中存在实质性负偏离（" + negKw + "）！",
@@ -195,16 +197,17 @@ public final class ResponsivenessReviewPolicy {
         return null;
     }
 
-    private static boolean containsDeclaredNegative(final String text, final String keyword) {
+    private static int findDeclaredNegative(final String text, final String keyword) {
         int from = 0;
         int idx;
         while ((idx = text.indexOf(keyword, from)) >= 0) {
-            if (!hasNegationPrefix(text, idx) && !isHeaderChoiceOption(text, idx, keyword)) {
-                return true;
+            if (!hasNegationPrefix(text, idx) && !isHeaderChoiceOption(text, idx, keyword)
+                    && !RuleCitationContext.isRuleCitation(text, idx, idx + keyword.length())) {
+                return idx;
             }
             from = idx + keyword.length();
         }
-        return false;
+        return -1;
     }
 
     private static boolean hasNegationPrefix(final String text, final int idx) {

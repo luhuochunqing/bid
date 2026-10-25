@@ -1481,3 +1481,10 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-10-25] compound | bid-quality-check-evidence-conflicts CA平台泛称误提取、真实PDF与台账别名、查询失败边界回填；生产修复未发布。
 
 ## [2026-10-25] compound | CA未知平台身份按用户裁决统一人工；566项关联回归及冻结PDF通过，两轴独立审查通过，未发布生产。
+## [2026-10-25] fix | 项目1117质量核查证据边界
+
+- 回填quality-evidence-boundary：规则引用不能当违规、抽样不能证明缺页、ISO/CA准确匹配与财务否定边界；生产验收独立于代码验证。
+
+- **阻断补记**：quality-evidence-context第三轮独立审查仍NEEDS_FIXES（同句财务豁免假PASS），未提交/未部署；知识页描述安全边界目标，不表示本分支已可发布。
+
+## [2026-10-25] compound | quality-evidence-context 用户升级选择部分纠偏＋资格人工兜底，原财务解析阻断历史保留；PR同步主线!2871，避免覆盖CA身份与原文证据修复。

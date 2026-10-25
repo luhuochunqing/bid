@@ -54,22 +54,9 @@ public record FinancialRequirement(
         return new FinancialRequirement(req, audit, List.copyOf(years), List.copyOf(stmts), cpa, desc);
     }
 
+    /** 确定性字段来自同一原文义务范围；未知不是豁免，禁止LLM无源扩张字段。 */
     public static FinancialRequirement fuseWithDeterministic(final FinancialRequirement llmReq, final FinancialRequirement detReq) {
-        if (detReq == null) return llmReq;
-        if (llmReq == null) return detReq;
-
-        Boolean req = resolveRequired(detReq.required(), llmReq.required());
-        Boolean audit = Boolean.TRUE.equals(detReq.auditReportRequired()) || Boolean.TRUE.equals(llmReq.auditReportRequired());
-        Boolean cpa = Boolean.TRUE.equals(detReq.requireCpaSeal()) || Boolean.TRUE.equals(llmReq.requireCpaSeal());
-
-        LinkedHashSet<String> years = new LinkedHashSet<>(detReq.requiredYears());
-        years.addAll(llmReq.requiredYears());
-
-        LinkedHashSet<String> stmts = new LinkedHashSet<>(detReq.requiredStatements());
-        stmts.addAll(llmReq.requiredStatements());
-
-        String desc = pickDescription(req, llmReq, detReq);
-        return new FinancialRequirement(req, audit, List.copyOf(years), List.copyOf(stmts), cpa, desc);
+        return detReq != null ? detReq : llmReq;
     }
 
     /** 免/要冲突时按审慎合规保留必须提供，与保证金 fuse 对齐. */

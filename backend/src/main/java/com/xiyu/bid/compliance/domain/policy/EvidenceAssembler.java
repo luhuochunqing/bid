@@ -99,10 +99,18 @@ public final class EvidenceAssembler {
                 evidences.add(locateBid(bidDoc, "一票否决与实质性响应条款", List.of("一票否决", "否决投标", "废标", "转包", "分包", "资格审查", "实质性响应")));
                 appendKnowledgeEvidences(evidences, kbEvidences);
             }
-            case FRONT_TABLE_RESPONSE -> evidences.add(locateBid(bidDoc, "前附表关键条款响应", List.of("前附表", "关键条款", "条款响应")));
+            case FRONT_TABLE_RESPONSE -> evidences.add(locateBidSkippingCatalog(
+                    bidDoc, "前附表关键条款响应", FrontTableResponsePolicy.RESPONSE_HEADINGS));
+            case AUTHORIZATION_LETTER -> {
+                evidences.add(locateBidSkippingCatalog(bidDoc, "授权委托书正文", List.of("授权委托书", "法定代表人授权书")));
+                evidences.add(locateBidSkippingCatalog(bidDoc, "法定代表人身份证明正文", List.of("法定代表人身份证明", "法定代表人证明书")));
+            }
+            case ID_AUTH_LETTER -> evidences.add(locateBidSkippingCatalog(bidDoc, "身份证明附件正文",
+                    List.of("法定代表人身份证明", "身份证扫描件", "身份证复印件", "公民身份号码", "居民身份证")));
             case RESPONSIVENESS_REVIEW -> evidences.add(locateBid(bidDoc, "偏离表章节", List.of("商务偏离表", "技术偏离表", "偏离表", "负偏离", "不满足")));
             case QUALIFICATION_REVIEW -> {
-                evidences.add(locateBid(bidDoc, "企业信誉、纳税社保与类似业绩", List.of("信用中国", "纳税", "社保", "信誉", "业绩", "履约", "审计报告")));
+                evidences.add(locateBidSkippingCatalog(bidDoc, "企业信誉、纳税社保与类似业绩", List.of("信用中国", "纳税", "社保", "信誉", "业绩", "履约")));
+                evidences.add(locateBidSkippingCatalog(bidDoc, "财务证明正文", List.of("审计报告", "财务报表", "资产负债表", "利润表", "现金流量表")));
                 appendKnowledgeEvidences(evidences, kbEvidences);
             }
             case SCORING_RESPONSE -> {

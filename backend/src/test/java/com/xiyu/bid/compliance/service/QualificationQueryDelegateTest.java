@@ -121,4 +121,33 @@ class QualificationQueryDelegateTest {
 
         assertThat(results).isEmpty();
     }
+
+    @Test
+    @DisplayName("项目1117：无关ISO14064排在前面不得遮蔽真正ISO14001证书")
+    void matchQualifications_conflictingStandardFirst_selectsExactCertificateInEitherOrder() {
+        Qualification wrong = Qualification.builder().id(11L).name("ISO14064-3温室气排放管理体系认证证书").build();
+        Qualification exact = Qualification.builder().id(2L).name("ISO14001环境管理体系认证证书").build();
+        QualificationRepository repo = mock(QualificationRepository.class);
+        QualificationQueryDelegate delegate = new QualificationQueryDelegate(repo);
+        when(repo.findAll()).thenReturn(List.of(wrong, exact));
+        assertThat(delegate.matchQualifications(List.of("ISO14001"))).extracting(KnowledgeMatch::recordId).containsExactly("2");
+        when(repo.findAll()).thenReturn(List.of(exact, wrong));
+        assertThat(delegate.matchQualifications(List.of("ISO14001"))).extracting(KnowledgeMatch::recordId).containsExactly("2");
+    }
+
+    @Test
+    @DisplayName("匹配同标准证书时选择有效期更长者且忽略已过期证书")
+    void matchQualifications_sameStandard_choosesBestValidCandidate() {
+        QualificationRepository repo = mock(QualificationRepository.class);
+        Qualification soon = Qualification.builder().id(1L).name("ISO14001环境管理体系认证证书").expiryDate(LocalDate.of(2030, 1, 1)).build();
+        Qualification longer = Qualification.builder().id(2L).name("ISO14001环境管理体系认证证书").expiryDate(LocalDate.of(2035, 1, 1)).build();
+        when(repo.findAll()).thenReturn(List.of(soon, longer));
+        assertThat(new QualificationQueryDelegate(repo).matchQualifications(List.of("ISO14001")))
+                .extracting(KnowledgeMatch::recordId).containsExactly("2");
+        when(repo.findAll()).thenReturn(List.of(Qualification.builder().id(3L).name("ISO14001环境管理体系认证证书")
+                .expiryDate(LocalDate.of(2020, 1, 1)).build(),
+                Qualification.builder().id(4L).name("ISO14064-3认证证书").build()));
+        assertThat(new QualificationQueryDelegate(repo).matchQualifications(List.of("ISO14001"))).isEmpty();
+    }
+
 }

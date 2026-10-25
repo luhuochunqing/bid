@@ -58,20 +58,18 @@ public class QualificationQueryDelegate {
         if (requiredCerts == null || requiredCerts.isEmpty()) {
             return List.of();
         }
-        List<Qualification> all = queryAllQualificationsDirectly();
+        List<Qualification> all = queryAllQualificationsDirectly().stream()
+                .filter(q -> q != null && (q.getExpiryDate() == null || !q.getExpiryDate().isBefore(LocalDate.now())))
+                .toList();
         List<KnowledgeMatch> matches = new ArrayList<>();
         for (String kw : QualificationMatchPolicy.expandCombinedIsoRequirements(requiredCerts)) {
             if (kw == null || kw.isBlank()) {
                 continue;
             }
-            for (Qualification q : all) {
-                boolean valid = q.getExpiryDate() == null || !q.getExpiryDate().isBefore(LocalDate.now());
-                if (valid && q.getName() != null && QualificationMatchPolicy.isQualificationMatch(kw, q.getName())) {
-                    matches.add(new KnowledgeMatch(
-                            KnowledgeMatch.SOURCE_QUALIFICATION,
-                            String.valueOf(q.getId()), KnowledgeMatchFormatters.describe(q), true));
-                    break;
-                }
+            Qualification best = QualificationMatchPolicy.findBestMatchingCert(kw, all);
+            if (best != null) {
+                matches.add(new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION,
+                        String.valueOf(best.getId()), KnowledgeMatchFormatters.describe(best), true));
             }
         }
         return matches;

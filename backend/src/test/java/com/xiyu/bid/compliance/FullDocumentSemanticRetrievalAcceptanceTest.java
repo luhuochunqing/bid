@@ -336,8 +336,13 @@ public class FullDocumentSemanticRetrievalAcceptanceTest {
             // 1. 验证 7 项语义条款全部产生裁决结果
             assertThat(outcomes).hasSize(7);
             assertThat(outcomes.values()).allSatisfy(result -> {
-                assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
-                assertThat(result.conclusion()).contains("全标书语义裁决通过");
+                if (result.itemCode().equals(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode())) {
+                    assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+                    assertThat(result.conclusion()).contains("尚需人工确认");
+                } else {
+                    assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+                    assertThat(result.conclusion()).contains("全标书语义裁决通过");
+                }
             });
 
             // 2. 验证传递给 LLM 的 7 次 Prompt 全部包含真实的 --- [第 X 页] --- 页码标识

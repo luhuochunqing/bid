@@ -132,4 +132,28 @@ class QualificationDetailReconcilerTest {
         List<String> commaCues = QualificationDetailReconciler.buildBidSearchCues(commaReq);
         assertThat(commaCues).contains("增值电信业务经营许可证");
     }
+
+    @Test
+    @DisplayName("资质汇总称缺证但明细已匹配时不得保留矛盾的确定性失败")
+    void reconcile_missingCertificateClaimContradictedByDetails_requiresManualReview() {
+        QualityCheckItemResult raw = QualityCheckItemResult.fail(BidQualityCheckItem.QUALIFICATION_MATCH,
+                "未在企业资质库匹配到ISO14001证书", "请补证", List.of());
+        List<QualificationDetail> details = List.of(new QualificationDetail("ISO14001", "ISO14001环境管理体系认证", "ATTENTION",
+                288, "ISO14001认证证书", 11, "已匹配但即将到期"));
+        QualityCheckItemResult result = QualificationDetailReconciler.reconcile(raw, details);
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).doesNotContain("未在企业资质库匹配到");
+    }
+
+    @Test
+    @DisplayName("真实证明章节占位失败不因库中证书有效而被放宽")
+    void reconcile_hardPlaceholderEvidence_preservesFailure() {
+        QualityCheckItemResult raw = QualityCheckItemResult.fail(BidQualityCheckItem.QUALIFICATION_MATCH,
+                "资质证明章节仍有未填写占位符", "请补全", List.of(
+                        com.xiyu.bid.compliance.domain.QualityEvidence.bid("资质证书证明材料占位留白", 288, "【此处上传ISO14001证书】")));
+        List<QualificationDetail> details = List.of(new QualificationDetail("ISO14001", "ISO14001环境管理体系认证", "ATTENTION",
+                288, "【此处上传ISO14001证书】", 11, "已匹配但即将到期"));
+        assertThat(QualificationDetailReconciler.reconcile(raw, details).status()).isEqualTo(QualityCheckStatus.FAIL);
+    }
+
 }

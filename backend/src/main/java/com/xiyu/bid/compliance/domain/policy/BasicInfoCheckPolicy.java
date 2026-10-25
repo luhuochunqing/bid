@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 /**
  * 基本信息类质量核查策略 (FP-Java).
@@ -118,16 +119,33 @@ public final class BasicInfoCheckPolicy {
 
     public static QualityCheckItemResult checkContactInfo(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.CONTACT_INFO;
-        PageMatch match = findFirstPageContaining(bidDoc, "联系人", "电话", "邮箱", "地址");
-        if (match != null) {
-            boolean hasPhone = PHONE_PATTERN.matcher(match.text()).find();
-            List<QualityEvidence> evidences = List.of(QualityEvidence.bid("联系人信息", match.pageNumber(), snippetAround(match.text(), 200, "联系人", "电话", "邮箱", "地址")));
-            if (hasPhone) {
-                return QualityCheckItemResult.pass(item, "联系人、联系电话及通讯地址信息清晰完整", evidences);
+        PageMatch match = null;
+        for (DocumentContent.PageContent page : bidDoc.pages()) {
+            String text = page.text();
+            if (!containsAnyKeyword(text, "联系人", "电话", "邮箱", "地址")) continue;
+            if (match == null) match = new PageMatch(page.pageNumber(), text);
+            Matcher phones = PHONE_PATTERN.matcher(text);
+            while (phones.find()) {
+                int lineStart = text.lastIndexOf('\n', phones.start()) + 1;
+                int lineEnd = text.indexOf('\n', phones.end());
+                String phoneLine = text.substring(lineStart, lineEnd < 0 ? text.length() : lineEnd);
+                if (containsAnyKeyword(phoneLine, "评审索引", "评审要素", "示例", "例如")) continue;
+                return QualityCheckItemResult.pass(item, "已识别投标人联系信息与有效电话号码",
+                        List.of(QualityEvidence.bid("联系人信息", page.pageNumber(),
+                                snippetAt(text, phones.start(), phones.end(), 200))));
             }
+        }
+        if (match != null) {
+            List<QualityEvidence> evidences = List.of(QualityEvidence.bid("联系人信息", match.pageNumber(), snippetAround(match.text(), 200, "联系人", "电话", "邮箱", "地址")));
             return QualityCheckItemResult.manualReview(item, "包含联系人信息但未能识别到有效电话号码", "请核对联系人电话号码格式", evidences);
         }
         return QualityCheckItemResult.fail(item, "未检索到投标人联系人及联系方式", "请在基本信息或投标函中补充联系人、手机号与邮箱", Collections.emptyList());
+    }
+
+    static String snippetAt(final String text, final int start, final int end, final int maxChars) {
+        int left = Math.max(0, start - maxChars / 3);
+        int right = Math.min(text.length(), Math.max(end, left + maxChars));
+        return text.substring(left, right);
     }
 
     record PageMatch(int pageNumber, String text) {}

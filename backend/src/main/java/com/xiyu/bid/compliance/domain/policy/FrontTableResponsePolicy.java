@@ -19,9 +19,14 @@ import java.util.regex.Pattern;
  */
 public final class FrontTableResponsePolicy {
 
+    static final List<String> RESPONSE_HEADINGS = List.of(
+            "商务条款响应表", "商务响应表", "技术条款响应表", "技术响应表",
+            "前附表关键条款响应表", "前附表响应表", "关键条款响应表");
+
     private static final List<String> FRONT_TABLE_KEYWORDS = List.of(
             "前附表关键条款响应表", "投标人须知前附表关键条款响应", "前附表响应表",
-            "前附表关键条款响应", "投标人须知前附表响应", "前附表响应", "关键条款响应表", "前附表");
+            "前附表关键条款响应", "投标人须知前附表响应", "前附表响应", "关键条款响应表", "前附表",
+            "商务条款响应表", "商务响应表", "技术条款响应表", "技术响应表");
 
     private static final Pattern UNDERLINE_BLANK_PATTERN = Pattern.compile("_{3,}");
     private static final Pattern BRACKET_PLACEHOLDER_PATTERN = Pattern.compile(

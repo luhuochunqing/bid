@@ -95,7 +95,8 @@ public final class LlmAdjudicator {
         LlmVerdict.ChatOutcome<LlmVerdict> outcome =
                 port.chat(buildPrompt(item, bidDoc, tenderDoc, requirements, kbMatches));
         if (outcome instanceof LlmVerdict.Success<LlmVerdict> success) {
-            return toResult(item, success.verdict(), evidences);
+            return SemanticEvidenceBoundary.reconcile(
+                    toResult(item, success.verdict(), evidences), bidDoc);
         }
         if (outcome instanceof LlmVerdict.Noop<LlmVerdict>) {
             return ManualReasons.manual(item,
@@ -206,9 +207,13 @@ public final class LlmAdjudicator {
         }
         if (requirements.financialRequirement() != null) {
             String desc = requirements.financialRequirement().description();
-            sb.append("财务状况要求: ").append(desc != null && !desc.isBlank()
-                    ? desc
-                    : "须提供经会计师事务所审计的财务审计报告（含资产负债表、利润表、现金流量表）").append('\n');
+            FinancialRequirement financial = requirements.financialRequirement();
+            sb.append("财务状况要求: ").append(Boolean.FALSE.equals(financial.required())
+                    ? "招标文件明确不要求财务证明"
+                    : (desc != null && !desc.isBlank() ? desc
+                            : "是否必需=" + financial.required() + "；审计报告=" + financial.auditReportRequired()
+                                    + "；报表=" + String.join("、", financial.requiredStatements())
+                                    + "；会计师事务所印章=" + financial.requireCpaSeal())).append('\n');
         }
         if (requirements.priceRequirement() != null) {
             String desc = requirements.priceRequirement().description();
