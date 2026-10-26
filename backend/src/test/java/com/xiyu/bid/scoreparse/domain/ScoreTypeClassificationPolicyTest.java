@@ -107,6 +107,45 @@ class ScoreTypeClassificationPolicyTest {
     }
 
     @Test
+    void classify_salesAmountWithGeneralTaxpayer_objective() {
+        assertThat(policy.classify("投标人须为增值税一般纳税人，近三年年均销售额达到5000万元以上得10分，3000-5000万元得6分"))
+                .isEqualTo("OBJECTIVE");
+    }
+
+    @Test
+    void classify_salesAmountWithPriority_objective() {
+        assertThat(policy.classify("近三年年均销售额达到1亿元以上者优先得满分15分，8000万元得10分"))
+                .isEqualTo("OBJECTIVE");
+    }
+
+    @Test
+    void classify_revenueThreshold_objective() {
+        assertThat(policy.classify("提供经审计财务报告，年营业收入不低于5000万元得5分"))
+                .isEqualTo("OBJECTIVE");
+        assertThat(policy.classify("年营收≥1亿元得10分，5000万-1亿得5分"))
+                .isEqualTo("OBJECTIVE");
+    }
+
+    @Test
+    void classify_contractAmountWithQualityClient_objective() {
+        assertThat(policy.classify("提供与优质客户签订的合同额在1000万元以上的业绩证明，每份得2分"))
+                .isEqualTo("OBJECTIVE");
+    }
+
+    @Test
+    void classify_descriptiveGrades_remainsSubjective() {
+        assertThat(policy.classify("实施方案优秀得8-10分，优良得5-7分，中等得2-4分，一般得0-1分"))
+                .isEqualTo("SUBJECTIVE");
+    }
+
+    @Test
+    void classify_subjectivePlanWithMaxScore_remainsSubjective() {
+        assertThat(policy.classify("根据投标人的售后服务方案进行打分，满分10分")).isEqualTo("SUBJECTIVE");
+        assertThat(policy.classify("技术方案评审，满分20分")).isEqualTo("SUBJECTIVE");
+        assertThat(policy.classify("应急预案：由专家评审打分，满分5分")).isEqualTo("SUBJECTIVE");
+    }
+
+    @Test
     void classify_productionQualificationPerformanceBaseAndIncremental_objective() {
         String detail = "供应商业绩 | 满足资格条件的业绩得基础分60分，在此基础上每增加一个满足资格条件的业绩（2023年1月1日至首次报价截止日，以合同签订时间为准）加20分，满分100分。 | 5%";
         assertThat(policy.classify(detail, "SUBJECTIVE")).isEqualTo("OBJECTIVE");
