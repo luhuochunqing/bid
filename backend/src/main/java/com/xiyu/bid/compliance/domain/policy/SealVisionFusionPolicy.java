@@ -86,7 +86,9 @@ public final class SealVisionFusionPolicy {
     }
 
     private static boolean isPositive(final SealVisionResult.Observation observation) {
-        return observation.detected() && observation.confidence() >= MIN_CONFIDENCE;
+        return observation.type() != null && observation.type() != SealVisionResult.SealType.UNKNOWN
+                && observation.detected() && Double.isFinite(observation.confidence())
+                && observation.confidence() >= MIN_CONFIDENCE && observation.confidence() <= 1.0;
     }
 
     private static boolean hasType(final SealVisionResult result, final SealVisionResult.SealType type) {

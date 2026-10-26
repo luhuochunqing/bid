@@ -63,3 +63,16 @@ backend/src/test/java/com/xiyu/bid/{compliance,scoreparse}/
 
 ## PR交付追加授权（2026-10-25）
 用户要求创建Gitee PR。保留用户已批准的实现与保守身份边界，原子提交、同步origin/main、通过本地ci:pre-pr及真实pre-push门禁后创建PR；不合并、不部署。先前working_tree描述是实现阶段的交付上限。
+
+## 报告58最小实现计划
+顺序：负偏离语境 -> 授权正文定位/图像风险 -> 签章图像页映射与覆盖 -> 退款适用性及真实账户要素 -> 财务/时点边界回归。每项先RED后GREEN，不为已正确人工行为制造实现变更。候选与基线相同冻结PDF，人工目视只作缺陷定位，程序通过需行为回归。无新依赖、表结构或接口变更。controller-free、spec_backend=既有Spec Kit077，assurance=adversarial，delivery_target=working_tree。
+
+报告58最终实现：DocumentEvidencePageSelector统一抽图/签章目标，ScanPageTextPolicy与真实适配器只补充相关低文本扫描页；SemanticEvidenceBoundary禁止转写文字代替身份证正反面/一致性核验。授权正文通过需填入姓名与权限/期限；评分条件必须证明当前命中属于局部规则。退款未知适用性维持人工。复合资格、证书日期政策未改。独立审查反例转为实际JUnit；冻结PDF物理1610页（解析文本1609页），哈希不变，回放不伪造页面证据。
+
+## 人工确认后的三态实施计划
+1. 对旧实现跑占位/未知/无效日期/AI PASS绕过RED。
+2. 用一个纯核心AuthorizationFieldPolicy集中字段文法，删除旧非空hasFilledValue；外层只消费状态并保留原页。期限解析校验日历与区间，不读取当前时间。
+3. 引擎最终输出处对授权PASS重用同一确定性判定，不改变AI真实FAIL的证据边界。
+4. Mode B删除重复判定；字段矩阵、真实冻结PDF、compliance/ai适配器、三架构和前端构建；独立双轴审查新周期。
+
+正向实现落点：AuthorizationFieldPolicy集中受支持字段文法与日历区间、AuthorizationLetterCheckPolicy消费三态并检查不同授权页，BidDocumentQualityEngine在最终输出前重用同一门禁。RefundAccountEvidencePolicy逐字段正向完整性替换任意字符命中。Mode B已移除旧非空人名/范围规则、图片即身份证明豁免与重复structured判定，无新依赖/表结构/API。真实模型识别效果与生产持久化验收仍属发布后独立步骤，不把本地适配器测试当生产E2E。

@@ -115,4 +115,13 @@ class SealVisionFusionPolicyTest {
         assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(result.conclusion()).contains("页面级");
     }
+
+    @Test
+    void unknownVisualTypeMustNotProveSeal() {
+        var text = SealIntegrityCheckPolicy.check(DocumentContent.fromText("bid.pdf", "hash", "投标人：甲公司 法定代表人：张三 已加盖公章"));
+        var vision = SealVisionResult.available(java.util.List.of(5), java.util.List.of(new SealVisionResult.Observation(
+                5, SealVisionResult.SealType.UNKNOWN, true, 0.99, null, null, null, null)), "model");
+        assertThat(SealVisionFusionPolicy.merge(text, vision).status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
 }

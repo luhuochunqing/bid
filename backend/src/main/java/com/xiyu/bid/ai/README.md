@@ -38,3 +38,8 @@ AI 分析能力的后端入口，负责标讯分析、项目分析与 AI Provide
 - `core/*` 受 `FPJavaArchitectureTest` 保护，不得依赖 Spring、Repository、JPA、日志、IO、时间或随机数。
 - `client/*` 是外部模型供应商边界，可以使用 OpenAI SDK、配置和网络调用。
 - `service/*` 只做应用编排，不新增评分/风险/缺口业务规则。
+
+## 合规图像适配器
+
+- `compliance/OpenAiSealVisionDetector`：每批至多24图，提供图片序号与物理页码映射；程序确定覆盖集合，过滤未送检页观察，模型不能缩小核验范围。
+- `compliance/OpenAiDocumentPageVisionDetector`：复用既有配置与结构化多模态通道，对受限授权扫描页只转写可见文字；失败为空并保留人工，不构造身份或签章结论。

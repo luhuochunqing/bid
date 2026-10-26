@@ -6,6 +6,9 @@ package com.xiyu.bid.compliance.service;
 
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.PageImage;
+import com.xiyu.bid.compliance.domain.policy.DocumentPageVisionDetector;
+import com.xiyu.bid.compliance.domain.policy.ScanPageTextPolicy;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.xiyu.bid.compliance.domain.PageImageExtractor;
 import com.xiyu.bid.compliance.domain.SidecarParseOutcome;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +18,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
+import com.xiyu.bid.compliance.domain.policy.DocumentEvidencePageSelector;
 
 /** 组合文本解析与页面图像抽取，避免 Loader 继续膨胀 collaborator 数量。 */
 @Component
@@ -24,6 +27,9 @@ public class SidecarComplianceDocumentAdapter {
 
     private final SidecarStreamDocumentAdapter textAdapter;
     private final PageImageExtractor imageExtractor;
+
+    @Autowired(required = false)
+    private DocumentPageVisionDetector documentPageVisionDetector;
 
     public SidecarComplianceDocumentAdapter(
             final SidecarStreamDocumentAdapter textAdapter,
@@ -43,15 +49,17 @@ public class SidecarComplianceDocumentAdapter {
             return content;
         }
         try {
-            Set<Integer> pages = content.pages().stream()
-                    .map(DocumentContent.PageContent::pageNumber).collect(Collectors.toSet());
+            Set<Integer> pages = DocumentEvidencePageSelector.select(content);
+            if (pages.isEmpty()) return content;
             List<PageImage> images = imageExtractor.extract(physicalFile, fileName, pages);
             if (images.isEmpty()) {
                 // 空图不是异常但必须可观测：签章视觉核验会因此降级人工复核（2026-09-21 项目 1382 假通过放大器）
                 log.warn("投标文件未抽取到页面图像，签章视觉通道不可用：{}（请求页数={}）", fileName, pages.size());
             }
-            return new DocumentContent(content.fileName(), content.fileHash(), content.fullText(),
+            DocumentContent withImages = new DocumentContent(content.fileName(), content.fileHash(), content.fullText(),
                     content.pages(), images);
+            return documentPageVisionDetector == null ? withImages : ScanPageTextPolicy.enrich(
+                    withImages, documentPageVisionDetector.transcribe(withImages));
         } catch (IOException | InterruptedException | RuntimeException e) {
             log.warn("投标文件页面图像抽取失败，签章视觉通道降级为不可用：{}，原因={}", fileName, e.getMessage());
             return content;

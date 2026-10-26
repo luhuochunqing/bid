@@ -56,3 +56,19 @@
 - 本次代码验证不替代部署后同文件hash强制重算；历史核查结果不会自动更新。
 
 - spec079 安全兜底：财务核查及复合资格性评审的自动 PASS 统一转 MANUAL_REVIEW，规则入口、LLM 入口和引擎输出共享边界；保留证据与明细，不代表财务条款解析已完成修复。
+
+## 报告58程序证据链修复
+
+- `DocumentEvidencePageSelector`：抽图关键词包含签章关键词，单次扫描选取关键业务页与稀疏扫描邻页，抽图集合包含全部签章目标，避免整本渲染先耗尽预算。
+- `ScanPageTextPolicy` / `DocumentPageVisionDetector`：授权/身份证明附近至多8个低文本页允许真实视觉转写；只接受送检物理页、0.90以上置信度及有界非重复文本，哈希不变。文字转写不证明身份证正反面与授权签署有效。
+- `AuthorizationLetterCheckPolicy`：实际填写的人员及权限/期限优先于组成说明与填写要求；不完整仍人工。
+- `RuleCitationContext`：评分条件豁免须绑定当前命中和局部规则导语，不能遮蔽投标人自身事实。
+- 退款账户核查需要户名、开户行和账号实值，不以退还流程/填写模板直接通过；未知适用性保留人工。
+- 证书临期及资格财务人工门禁保持；不改变业务时点，不补章、不更新台账。
+
+## 人工确认后的授权与退款字段契约
+
+- `domain/policy/AuthorizationFieldPolicy.java`：人员、权限、期限三态；仅支持明确动作、投标有效期关联或有效有序日期；未覆盖格式人工，不验证真实身份。
+- `domain/policy/AuthorizationLetterCheckPolicy.java`：不同结构化授权页保留人工与原页证据；法定代表人证明标题或任意图片不直接豁免。
+- `domain/policy/BidDocumentQualityEngine.java`：最终输出强制重用授权三态门禁，AI不能覆盖未知/占位人工。
+- `domain/policy/RefundAccountEvidencePolicy.java`：唯一企业户名、银行名称及数字账号的文字完整性；元标签和掩码不构成实值，不验证账户归属/机构真实性。

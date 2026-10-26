@@ -154,7 +154,7 @@ public final class BidLetterCheckPolicy {
         return idealMatch != null ? idealMatch : candidateMatch;
     }
 
-    static boolean isCatalogOrOutlinePage(final String text) {
+    public static boolean isCatalogOrOutlinePage(final String text) {
         if (text == null || text.isBlank()) {
             return false;
         }

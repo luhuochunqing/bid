@@ -22,6 +22,7 @@ class AuthorizationLetterCheckPolicyTest {
                         法定代表人授权委托书
                         本授权书声明：某某信息技术有限公司法定代表人张三（身份证号：110101198001011234）授权本公司员工李四（身份证号：110101199001015678）为委托代理人。
                         代理人全权代表本公司签署、澄清、提交某某数字化采购平台项目投标文件，处理一切与本次投标有关的事务。
+                        授权范围：签署投标文件
                         本授权书自签字盖章之日起生效，授权期限覆盖本项目投标有效期。
                         
                         法定代表人（签字）：张三
@@ -144,6 +145,7 @@ class AuthorizationLetterCheckPolicyTest {
                         法定代表人授权委托书
                         本公司法定代表人张三授权委托代理人李四（身份证号：110101****1234）为我方代理人。
                         代理人全权代表我方处理本项目投标事宜。
+                        授权期限：自签署之日起至投标有效期结束
                         法定代表人（签字）：张三
                         委托代理人（签字）：李四
                         """, List.of())
@@ -174,5 +176,41 @@ class AuthorizationLetterCheckPolicyTest {
         QualityCheckItemResult result = AuthorizationLetterCheckPolicy.check(bidDoc);
 
         assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+    }
+
+    @Test
+    void compositionInstructionsDoNotShadowActualAuthorization() {
+        var doc = new DocumentContent("bid.pdf", "hash", "正文", List.of(
+                new DocumentContent.PageContent(8, "投标文件应包括下列内容：\n(1)投标函\n(2)法定代表人身份证明\n(3)授权委托书（适用于有委托代理人的情况）", List.of()),
+                new DocumentContent.PageContent(11, "授权委托书\n法定代表人：张三，委托代理人：李四，授权期限：自签署日起至投标有效期结束，授权范围：提交投标文件。", List.of())));
+        var result = AuthorizationLetterCheckPolicy.check(doc);
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.evidences().getFirst().pageNumber()).isEqualTo(11);
+    }
+
+
+    @Test
+    void genericAttachmentNoticeDoesNotShadowActualAuthorization() {
+        var doc = new DocumentContent("bid.pdf", "hash", "正文", List.of(
+                new DocumentContent.PageContent(8, "投标文件须附：投标函、法定代表人身份证明、授权委托书（适用于有委托代理人的情况）", List.of()),
+                new DocumentContent.PageContent(11, "授权委托书\n法定代表人：张三，委托代理人：李四，授权期限：自签署日起至投标有效期结束，授权范围：提交投标文件。", List.of())));
+        assertThat(AuthorizationLetterCheckPolicy.check(doc).evidences().getFirst().pageNumber()).isEqualTo(11);
+    }
+
+    @Test
+    void fillingInstructionsCannotReplaceIncompleteActualAuthorization() {
+        var doc = new DocumentContent("bid.pdf", "hash", "正文", List.of(
+                new DocumentContent.PageContent(11, "授权委托书\n法定代表人：张三\n委托代理人：李四", List.of()),
+                new DocumentContent.PageContent(100, "授权委托书填写要求：应填写法定代表人、委托代理人的姓名、授权期限和授权范围。", List.of())));
+        var result = AuthorizationLetterCheckPolicy.check(doc);
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.evidences().getFirst().pageNumber()).isEqualTo(11);
+    }
+
+    @Test
+    void namedPartiesCannotMakeAnUnfilledScopeValid() {
+        var doc = DocumentContent.fromText("bid.pdf", "hash",
+                "授权委托书\n法定代表人：张三\n委托代理人：李四\n授权期限：请填写");
+        assertThat(AuthorizationLetterCheckPolicy.check(doc).status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 }

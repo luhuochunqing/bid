@@ -190,12 +190,22 @@ public final class SubItemAndAttachmentRules {
         if (isDepositNotRequired(tenderText)) {
             return QualityCheckItemResult.pass(item, "【不涉及】本项目不涉及投标保证金/响应担保，无需提供退款账户信息", Collections.emptyList());
         }
-        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
-                "退还保证金", "保证金退还", "退还开户银行", "退还账户", "退保证金");
-        if (match != null) {
-            return QualityCheckItemResult.pass(item, "包含保证金退还开户行及银行账户信息", List.of(QualityEvidence.bid("退款账户信息页", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "退还", "开户银行", "银行账号", "基本存款账户"))));
+        String[] refundCues = {"退还保证金", "保证金退还", "退还开户银行", "退还账户", "退保证金", "保证金退款信息"};
+        for (DocumentContent.PageContent page : bidDoc == null ? DocumentContent.empty().pages() : bidDoc.pages()) {
+            String text = page.text();
+            if (BidLetterCheckPolicy.isCatalogOrOutlinePage(text)
+                    || !BasicInfoCheckPolicy.containsAnyKeyword(text, refundCues)
+                    || text.contains("请填写") || text.contains("待填写") || text.contains("参考模板")) continue;
+            if (RefundAccountEvidencePolicy.hasCompleteFacts(text)) {
+                return QualityCheckItemResult.pass(item, "已定位保证金退款账户户名、开户银行及账号", List.of(
+                        QualityEvidence.bid("退款账户信息页", page.pageNumber(), BasicInfoCheckPolicy.snippetAround(
+                                text, 240, "户名", "开户银行", "银行账号"))));
+            }
         }
-        return QualityCheckItemResult.manualReview(item, "未检索到明确的保证金退还账户信息表", "若招标文件要求提供退还账户信息，请在附件中补充基本账户开户证明", Collections.emptyList());
+        return QualityCheckItemResult.manualReview(item,
+                "保证金退款材料适用性及账户信息尚待确认，未定位到完整退款账户事实",
+                "请先核对招标文件是否要求单独提交退款信息表；仅有退还流程或关键词不能证明材料齐全，也不能认定缺失",
+                Collections.emptyList());
     }
 
     private static boolean isDepositNotRequired(final String tenderText) {
