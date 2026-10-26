@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-10-24
-health_checked: 2026-10-24
+updated: 2026-10-26
+health_checked: 2026-10-26
 sources:
   - specs/065-tender-large-file-parse/spec.md
   - specs/041-ai-score-parse-backend/spec.md
@@ -76,6 +76,10 @@ trigger（同步<1s，互斥校验+建任务）
       → EstimatedScoreService 阶段1预计得分（链尾）
 ```
 
+- **评分类型（主客观分）精准判定规范（2026-10-26）**：针对招标文件商务/财务项（如销售额、营业收入、净资产等）常包含“优先/优质/一般纳税人”等混淆词汇导致的误判问题，明确判定原则：
+  1. **描述词收敛**：`DESCRIPTIVE_PATTERN` 中收敛 `优[良秀]?` 为 `(优秀|优良|优等|优(?=[、，,和与及/]))`，杜绝匹配“优先/优质/优惠/择优/优于”；`一般` 必须使用负向零宽断言 `一般(?!纳税人)`，排除“增值税一般纳税人”；
+  2. **量化财务特征扩充**：`QUANTIFIED_PATTERN` 覆盖财务量化指标（`营业额|营业收入|营收|合同额|合同金额|开票额|开票金额|纳税额|资产总额|净资产|注册资本|注册资金` 等）与阈值比较词（`[≥>≤<]|不低于|不少于|不小于|超过|达到|满足`）；
+  3. **门槛与分值隔离**：抽取静态常量 `QUALIFIED_NUMERIC_PATTERN`，严禁在量化门槛正则中引入 `满` 或分值 `分`，防止常规主观方案（如“售后服务方案满分10分”）被反向误判为客观分；无法明确判定时坚守保守原则归为主观分。
 - **确定性优先 + 章节定位约束的整表 LLM 智能抽取（2026-09-01）**：针对传统行级正则特征工程与非标复杂表格的冲突，确立「确定性启发式/网格抽取主路优先 + 评分章节约束下的整表 LLM 智能兜底」架构。对于标准招标表格优先走确定性网格解析（0 网络开销、毫秒级响应、100% 规则保真）；当非标复杂排版（跨行合并单元格、异构列头）未命中时平滑启用 `LlmTableScoreExtractor`。LLM 抽取时强制以 `MarkdownScoreSectionLocator` 章节定位（如第三章 评标办法）为范围边界，并严格拦截 `isProcedureNoticeTable`（前附表）与 `CONTRACT_ASSESSMENT_HEADER`（合同履约考核表），彻底防止非评分表格混入候选池导致总分膨胀与裁决失真。
 - **字段长度安全截断与双层防御（2026-08-31）**：大模型结构化抽取评分项时，`location`、`dim`、`code` 字段可能产生多段详细长文本。`ScoreCandidateMapper` 在映射源头做安全长度截断（`code: 50`，`dim/location: 200`，`source_text: 500`），`ScoreItemPersistenceService` 在落库前增加 `resolveLocation` 兜底截断，`ScoreParseTaskStateService` 对 `stage` 描述截断（50 字符），彻底根治 MySQL 严格模式下的 `DataTruncationException`。
 - **评分细则（detail）保真升级与候选池完整透传（2026-09-01）**：`ScoreGlobalMergeExecutor` 将候选池单项 detail 截断上限提升至 4000 字符，避免大模型全局裁决时复述截断摘要；`ScoreMergeResultGuard` 在采纳项中引入 `upgradeWithLongestPoolDetail` 机制，当候选池中存在更长、更完整的逐字原文版本时自动升级，彻底解决 1/2/3 等多子要点条款被截断丢失的问题。
