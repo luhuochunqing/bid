@@ -1,8 +1,8 @@
 # Task List: 080 评分项跨章节穿透资格项业绩检索与精准匹配
 
-**Branch**: `agent/codex/qual-perf-matching`  
-**Status**: Ready for Implementation  
-**Spec**: `specs/080-qualification-performance-cross-matching/spec.md`  
+**Branch**: `agent/codex/qual-perf-matching`
+**Status**: Ready for Implementation
+**Spec**: `specs/080-qualification-performance-cross-matching/spec.md`
 **Plan**: `specs/080-qualification-performance-cross-matching/plan.md`
 
 ---

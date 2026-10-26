@@ -7580,4 +7580,3 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   3. 编排层注入与透传：在 `EstimatedScoreService` 中注入 `TenderQualificationQueryPort`，将穿透的品类与金额装配至 `ProjectMatchRequest`，打破模块孤岛并解除门禁拦截；
   4. 依据可解释性增强：在 `EstimatedScoreBasisFormatter` 中格式化穿透依据文案，明确展示引用的资格项门槛；
   5. 黄金回归固化：新增 `case-production-cross-chapter-perf.md/.expected.json` 夹具，并通过 `ProductionCrossChapterPerformanceGoldenReplayTest` 固化为自动化门禁。
-

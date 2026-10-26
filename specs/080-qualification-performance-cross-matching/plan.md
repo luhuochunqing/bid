@@ -1,6 +1,6 @@
 # Implementation Plan: 080 评分项跨章节穿透资格项业绩检索与精准匹配
 
-**Branch**: `agent/codex/qual-perf-matching`  
+**Branch**: `agent/codex/qual-perf-matching`
 **Spec**: `specs/080-qualification-performance-cross-matching/spec.md`
 
 ## 1. 架构总览与模块协作
@@ -9,16 +9,16 @@
 flowchart TD
     A["招标文件解析入库 (BidTenderDocumentSnapshot)"] --> B["资格审查项提取 (qualificationRequirements + rawText)"]
     A --> C["评分标准项提取 (score_items)"]
-    
+
     C --> D{"评分项包含业绩且引用资格条件?"}
     D -- "否 (普通评分项)" --> E["现有独立匹配逻辑"]
     D -- "是 (供应商业绩+引用资格)" --> F["CrossChapterPerformancePolicy (纯核心策略)"]
-    
+
     B --> F
     F --> G["结构化业绩约束 (CrossChapterPerformanceConstraint)"]
     G --> H["SteppedIncrementalRule (基础分+增项分模型)"]
     G --> I["ProjectMatchRequest (补齐真实金额/品类/时间)"]
-    
+
     I --> J["ProjectMatchService (业绩库精准匹配)"]
     J --> K["EstimatedScoreService (计算预计得分与依据)"]
     H --> K
