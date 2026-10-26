@@ -64,7 +64,7 @@ public final class ScoreParseConstants {
      * 表格行解析/网格提取/列验真/列映射四处共用唯一出处，禁止本地再编译同义正则。
      */
     public static final java.util.regex.Pattern BRACKET_WEIGHT_PATTERN =
-            java.util.regex.Pattern.compile("[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]");
+            java.util.regex.Pattern.compile("[（(\\[【]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)\\]】]");
 
     /**
      * 评分表头逃生词（强评分列名版）：考核/程序表判定命中后的白名单出口。

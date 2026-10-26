@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 final class OriginalScoreWeightEvidencePolicy {
     private static final Pattern SCORE_CELL = Pattern.compile("^[~≈]?\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
     private static final Pattern MAX_SCORE = Pattern.compile("(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
-    private static final Pattern TITLE_SCORE = Pattern.compile("[（(]\\s*(\\d+(?:\\.\\d+)?)\\s*分\\s*[）)]");
+    private static final Pattern TITLE_SCORE = Pattern.compile("[（(\\[【]\\s*(\\d+(?:\\.\\d+)?)\\s*分\\s*[）)\\]】]");
     private static final Pattern AWARD_SCORE = Pattern.compile("(?:得|奖励|加)\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern TIER_SCORE = Pattern.compile("(?:[:：为得]|档)\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern TIER_LANGUAGE = Pattern.compile("(?s).*(?:分档|档次|档位|等级|优良中差|优\\s*[：:为]|良\\s*[：:为]|中\\s*[：:为]|差\\s*[：:为]|择一|互斥|只能选择其中一).*");
@@ -191,8 +191,8 @@ final class OriginalScoreWeightEvidencePolicy {
                 : compactDimension.matches("(?i).*(?:综合|总分|合计|满分|分值构成).*") ? "(?:综合|总分|合计|满分|分值构成)"
                 : Pattern.quote(compactDimension);
         Pattern subtotal = Pattern.compile(dimPattern
-                + "(?:部分|分评审|分)?(?:[：:为\\s]*[（(]?|[（(])(?:满分)?"
-                + "(\\d+(?:\\.\\d+)?)\\s*分?[）)]?");
+                + "(?:部分|分评审|分)?(?:[：:为\\s]*[（(\\[【]?|[（(\\[【])(?:满分)?"
+                + "(\\d+(?:\\.\\d+)?)\\s*分?[）)\\]】]?");
         Matcher matcher = subtotal.matcher(compactEvidence);
         while (matcher.find()) {
             if (new BigDecimal(matcher.group(1)).compareTo(weight) == 0) return true;

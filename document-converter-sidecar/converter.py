@@ -493,6 +493,8 @@ def _pdf_line_inside_table(page, line: dict) -> bool:
     except Exception:
         return False
     for table in tables:
+        if _is_pdf_page_border_table(table, page):
+            continue
         bbox = getattr(table, "bbox", None) or ()
         if len(bbox) >= 4:
             t_y0, t_y1 = float(bbox[1]), float(bbox[3])
@@ -637,6 +639,30 @@ def _pdf_table_section(heading_positions: list[tuple[float, str]], break_tops: l
     return ("", True) if is_break else (title, False)
 
 
+def _is_pdf_page_border_table(table, page) -> bool:
+    """True when table is a decorative or margin full-page border box, not a data table.
+
+    PDFs with page border frames cause pdfplumber to detect a 1-column pseudo-table
+    spanning the entire page (>=90% width & >=90% height). This pseudo-table splits
+    interleaved real tables and breaks multi-page continuation merging.
+    """
+    bbox = getattr(table, "bbox", None) or ()
+    if len(bbox) < 4:
+        return False
+    pw = float(getattr(page, "width", 0) or 0)
+    ph = float(getattr(page, "height", 0) or 0)
+    if pw <= 0 or ph <= 0:
+        return False
+    tw = float(bbox[2]) - float(bbox[0])
+    th = float(bbox[3]) - float(bbox[1])
+    if tw >= pw * 0.9 and th >= ph * 0.9:
+        raw = table.extract() or []
+        max_cols = max((len(r) for r in raw), default=0)
+        if max_cols <= 1:
+            return True
+    return False
+
+
 def _pdf_page_tables(page) -> list[tuple[float | None, list]]:
     """(top, raw rows) for each table on a page, in reading order.
 
@@ -654,6 +680,8 @@ def _pdf_page_tables(page) -> list[tuple[float | None, list]]:
         return [(None, raw) for raw in (page.extract_tables() or [])]
     tables: list[tuple[float | None, list]] = []
     for table in find_tables() or []:
+        if _is_pdf_page_border_table(table, page):
+            continue
         bbox = getattr(table, "bbox", None) or ()
         tables.append((float(bbox[1]) if len(bbox) > 1 else None, table.extract()))
     return tables
@@ -750,11 +778,15 @@ def _is_pdf_score_table_continuation(previous: list[list[str]], current: list[li
         return False
     first_cell = _normalise_cell_text(current[0][0] if current[0] else "")
     if not (not first_cell or re.fullmatch(r"\d+(?:[.、]\d+)?", first_cell) or "合计" in first_cell):
+        # Table notes or supplementary remarks at the bottom of score table
+        if re.match(r"^(?:注[：:]|说明[：:]|需要补充的其他内容|附[：:])", first_cell):
+            return True
         return False
     return (
         _has_pdf_weighted_score_item(current)
         or _has_pdf_total_row(current)
         or _has_numeric_score_item(current)
+        or (not first_cell and any(any(c.strip() for c in r) for r in current))
     )
 
 

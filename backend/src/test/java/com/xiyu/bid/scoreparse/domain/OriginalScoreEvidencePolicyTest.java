@@ -527,6 +527,21 @@ class OriginalScoreEvidencePolicyTest {
                 List.of(summary, business, technical), List.of());
     }
 
+    @Test void squareBracketWeightEvidenceIsVerified() {
+        var table = new DocumentArtifact.CanonicalTable("t-square", 33, "第三章 评审办法", 1, 1,
+                List.of(), List.of(cell("square", 0, 0, "（1）商务部分[20分]")), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.pdf", "sha-square", "PDF", "2.2"),
+                List.of(table), List.of());
+        var claim = new ScoreEvidenceClaim("fact", "fact", "t-square", "商务", List.of("square"),
+                List.of("square"), new BigDecimal("20"), false, true,
+                "（1）商务部分[20分]", "", "", "", ChildAggregation.SUM);
+        var problems = new java.util.ArrayList<OriginalScoreEvidencePolicy.Problem>();
+
+        OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems);
+
+        assertThat(problems).isEmpty();
+    }
+
     private static DocumentArtifact artifact(String section,
                                              List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells) {
         return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.pdf", "sha", "pdf", "2.0"),

@@ -22,8 +22,8 @@ public final class ScoreSubtotalColumnPolicy {
             Pattern.compile("单项|每一?项|每一?条|每一?处|每一?篇|每一?个|本项(?!目)|此项");
     private static final Pattern PER_ITEM_AGGREGATION =
             Pattern.compile("之和|合计|共计|累计|汇总|总和|总计");
-    private static final Pattern MAXIMUM = Pattern.compile("^(?:最高分(?:值|数)?|最高得分|满分)(?:[（(]分[）)])?$");
-    private static final Pattern SCORE = Pattern.compile("^(?:分值|分数|得分|评分分值)(?:[（(]分[）)])?$");
+    private static final Pattern MAXIMUM = Pattern.compile("^(?:最高分(?:值|数)?|最高得分|满分)(?:[（(\\[【]分[）)\\]】])?$");
+    private static final Pattern SCORE = Pattern.compile("^(?:分值|分数|得分|评分分值)(?:[（(\\[【]分[）)\\]】])?$");
     private static final Pattern EXPLICIT_SUMMARY_MAXIMUM = Pattern.compile(
             "(?<!(?:单项|每项|每条|每处|每篇|每个|本项|此项))满分\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private ScoreSubtotalColumnPolicy() {}
