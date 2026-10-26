@@ -59,7 +59,7 @@
 
 ## 报告58程序证据链修复
 
-- `DocumentEvidencePageSelector`：关键业务页与稀疏扫描邻页共享选页，抽图集合包含全部签章目标，避免整本渲染先耗尽预算。
+- `DocumentEvidencePageSelector`：抽图关键词包含签章关键词，单次扫描选取关键业务页与稀疏扫描邻页，抽图集合包含全部签章目标，避免整本渲染先耗尽预算。
 - `ScanPageTextPolicy` / `DocumentPageVisionDetector`：授权/身份证明附近至多8个低文本页允许真实视觉转写；只接受送检物理页、0.90以上置信度及有界非重复文本，哈希不变。文字转写不证明身份证正反面与授权签署有效。
 - `AuthorizationLetterCheckPolicy`：实际填写的人员及权限/期限优先于组成说明与填写要求；不完整仍人工。
 - `RuleCitationContext`：评分条件豁免须绑定当前命中和局部规则导语，不能遮蔽投标人自身事实。
