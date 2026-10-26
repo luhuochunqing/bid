@@ -7619,3 +7619,16 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **人工确认的路由契约**：证书评分识别独立于计分语法，无法解释条件统一待确认。明确CERT/企业荣誉维度不依赖细则前缀，方案/人员/团队/培训/实施计划排除优先，其他业务类别不串库。
 - **发布边界**：本次提交PR，不包含合并、部署或生产重算。自动支持单ISO、三ISO全有全无及明确四荣誉阶梯；其他复杂规则继续待确认。隔离组件验收不等同完整项目页或生产UAT。
 
+## 459. 纯文本段落评分事实穿透还原缺失与表格中间列跨行续行判定过严导致评分标准解析丢分（2026-10-26）
+
+- **现场证据**：项目 43（中粮集团综合消费品招标文件）AI 评分标准解析总分仅得 61 分，招标文件第 673~695 行声明的商务报价条款（30分）以及表格内发生折行的商务业绩（5分）与技术项目团队（4分）丢失（共丢失 39 分）。
+- **致错机制**：
+  1. **纯文本正文引用穿透还原缺失（缺陷 A）**：商务报价条款（30分）属于纯文本段落（`text:line[693]`），不在 `tables` 中。原 `SourceSpanResolver.resolve` 仅检索 `artifact.tables()` 与 `artifact.textBlocks()`，未处理纯文本 `sourceSpans` 事实，导致 `OriginalRuleRestoration` 无法还原出 `restored.text`（返回空字符串），进而触发 `TextPrimaryScoreFactMapper` 的 `!restored.text().isBlank()` 门禁，将 30 分价格条款降级为 `REVIEW_REQUIRED` 且在 candidate 提取快照中被过滤；
+  2. **表格跨行续行识别过严（缺陷 B）**：商务业绩与技术项目团队在 PDF 提取时发生折行，相邻续行仅第 2 列（评审标准列）有文本，分值列（第 3 列）和序号列（第 0 列）为空。原 `LogicalRuleSourceUnit.isContinuationRow()` 死板假定续行文本必在最后一列 `maxCol`（第 3 列），导致判定失败，无法合并为逻辑行，规则还原同样置空降级；
+  3. **短 quote 截断编号材料风险**：在支持纯文本事实穿透还原时，若事实仅引用了短 quote（如“方案最高3分。”）而模型提取的规则包含后续多行编号材料（如“1、须提供合同首页... 2、须提供验收证明...”），若盲目以短 quote 覆盖 `restored.text`，会导致后续编号材料被抹杀。
+- **根治方案与边界**：
+  1. **SourceSpanResolver 增加 fallbackSpans 兜底穿透**：重载 `resolve(artifact, ids, fallbackSpans)`，在无法从 artifact 结构化表中找到 locator 时，从 facts 绑定的 `sourceSpans` 中按 locator/sourceId 提取，确保纯文本段落事实能成功还原 spans；
+  2. **OriginalRuleRestoration 增设编号材料保护守卫**：在 `restore` 中引入 `erasesNumberedMaterials` 正则检测，当非表格正文引用的 raw 文本未能覆盖模型声明的换行编号条款时，保留为空以避免抹杀模型声明的完整规则，与 `FullRuleSourceReplayTest` 回归断言严格对齐；
+  3. **LogicalRuleSourceUnit 支持中间列续行与表头角色扩展**：扩充表头 `ID`、`NAME`、`SCORE` 角色正则，支持常见招投标表头（条款号、评审内容、评分要素、权重、满分等）以及空白/换行清洗；重构 `isContinuationRow`，支持结构列为空且包含正文的中间列续行判定；
+  4. **全套 TDD 与回归验证**：新增 `LogicalRuleSourceUnitTest`（测试中间列折行合并）与 `OriginalRuleRestorationTest`（测试纯文本正文事实穿透还原）；全套 84 个核心回归与业务测试用例全部通过。
+
