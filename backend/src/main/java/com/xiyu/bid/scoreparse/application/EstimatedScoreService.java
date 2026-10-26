@@ -84,6 +84,7 @@ public class EstimatedScoreService {
                 warehouseMatchService, brandMatchService, null);
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public EstimatedScoreService(
             ScoreItemRepository itemRepository,
             CertMatchService certMatchService,
@@ -91,6 +92,7 @@ public class EstimatedScoreService {
             ProjectMatchService projectMatchService,
             WarehouseMatchService warehouseMatchService,
             BrandMatchService brandMatchService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
             TenderQualificationQueryPort qualificationQueryPort) {
         this.itemRepository = itemRepository;
         this.certMatchService = certMatchService;
