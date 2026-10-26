@@ -11,10 +11,10 @@ import java.util.regex.Pattern;
 
 /** Pure structural proof of a complete logical rule, independent of the length of a model quote. */
 public final class LogicalRuleSourceUnit {
-    private static final Pattern ID = Pattern.compile("序号|编号");
-    private static final Pattern NAME = Pattern.compile("评分因素|评分项目|评分项|评审因素|评审项目");
+    private static final Pattern ID = Pattern.compile("序号|编号|条款号|条目");
+    private static final Pattern NAME = Pattern.compile("评分因素|评分项目|评分项|评审因素|评审项目|评审内容|评分内容|评审要素|指标名称");
     private static final Pattern CHAPTER = Pattern.compile("^(第[一二三四五六七八九十百0-9]+章)\\s*.*$");
-    private static final Pattern SCORE = Pattern.compile("分值|分数|得分");
+    private static final Pattern SCORE = Pattern.compile("分值|分数|得分|权重|满分");
     private LogicalRuleSourceUnit() {}
     public record Resolution(boolean applicable, boolean closed, List<SourceSpan> spans) {
         public Resolution { spans = List.copyOf(spans); }
@@ -52,7 +52,7 @@ public final class LogicalRuleSourceUnit {
         var rules = row.stream().filter(c -> !text(c.cell().rawText()).isBlank() && !Boolean.TRUE.equals(c.cell().isMergedContinue()))
                 .filter(c -> {
                     String role = headers.getOrDefault(c.cell().column(), "");
-                    if (ID.matcher(role).matches() || NAME.matcher(role).matches() || SCORE.matcher(role).matches()) return false;
+                    if (isId(role) || isName(role) || isScore(role)) return false;
                     if (!headers.isEmpty()) return true;
                     return !normalized(c.cell().rawText()).equals(normalized(fact.dimension()))
                             && !normalized(c.cell().rawText()).equals(normalized(fact.code()))
@@ -123,15 +123,50 @@ public final class LogicalRuleSourceUnit {
     private static boolean isContinuationRow(CanonicalTable table, int rowIdx) {
         List<CanonicalCellDto> rowCells = table.cells().stream().filter(c -> Integer.valueOf(rowIdx).equals(c.row())).toList();
         if (rowCells.isEmpty()) return false;
+        boolean hasAnyText = rowCells.stream().anyMatch(c -> !text(c.rawText()).isBlank());
+        if (!hasAnyText) return false;
+
         int maxCol = rowCells.stream().map(CanonicalCellDto::column).filter(Objects::nonNull).mapToInt(Integer::intValue).max().orElse(0);
-        if (maxCol <= 0) return false;
-        boolean prefixBlank = rowCells.stream()
-                .filter(c -> c.column() != null && c.column() < maxCol)
-                .allMatch(c -> text(c.rawText()).isBlank());
-        if (!prefixBlank) return false;
-        return rowCells.stream()
-                .filter(c -> Integer.valueOf(maxCol).equals(c.column()))
-                .anyMatch(c -> !text(c.rawText()).isBlank());
+        if (maxCol > 0) {
+            boolean prefixBlank = rowCells.stream()
+                    .filter(c -> c.column() != null && c.column() < maxCol)
+                    .allMatch(c -> text(c.rawText()).isBlank());
+            if (prefixBlank && rowCells.stream().filter(c -> Integer.valueOf(maxCol).equals(c.column())).anyMatch(c -> !text(c.rawText()).isBlank())) {
+                return true;
+            }
+        }
+
+        Map<Integer, String> headers = titles(table.cells().stream()
+                .filter(c -> Integer.valueOf(0).equals(c.row())).toList());
+        boolean hasStructure = headers.values().stream().anyMatch(h -> isId(h) || isScore(h));
+        if (hasStructure) {
+            boolean idBlank = rowCells.stream()
+                    .filter(c -> isId(headers.getOrDefault(c.column(), "")))
+                    .allMatch(c -> text(c.rawText()).isBlank());
+            boolean scoreBlank = rowCells.stream()
+                    .filter(c -> isScore(headers.getOrDefault(c.column(), "")))
+                    .allMatch(c -> text(c.rawText()).isBlank());
+            boolean nameBlank = rowCells.stream()
+                    .filter(c -> isName(headers.getOrDefault(c.column(), "")))
+                    .allMatch(c -> text(c.rawText()).isBlank());
+            if (idBlank && scoreBlank && nameBlank) {
+                return true;
+            }
+        }
+
+        if (rowCells.size() >= 3 && maxCol >= 2) {
+            boolean firstColBlank = rowCells.stream()
+                    .filter(c -> Integer.valueOf(0).equals(c.column()))
+                    .allMatch(c -> text(c.rawText()).isBlank());
+            boolean lastColBlank = rowCells.stream()
+                    .filter(c -> Integer.valueOf(maxCol).equals(c.column()))
+                    .allMatch(c -> text(c.rawText()).isBlank());
+            if (firstColBlank && lastColBlank) {
+                return true;
+            }
+        }
+
+        return false;
     }
     private static List<Cell> cells(DocumentArtifact artifact) {
         return artifact.tables().stream().flatMap(t -> t.cells().stream().map(c -> new Cell(t, c))).toList();
@@ -159,9 +194,9 @@ public final class LogicalRuleSourceUnit {
             for (var cell : cells) {
                 if (text(cell.rawText()).isBlank()) continue;
                 String role = headers.getOrDefault(cell.column(), "");
-                id |= ID.matcher(role).matches();
-                name |= NAME.matcher(role).matches() && (!noId || !Boolean.TRUE.equals(cell.isMergedContinue()));
-                score |= SCORE.matcher(role).matches() && !Boolean.TRUE.equals(cell.isMergedContinue())
+                id |= isId(role);
+                name |= isName(role) && (!noId || !Boolean.TRUE.equals(cell.isMergedContinue()));
+                score |= isScore(role) && !Boolean.TRUE.equals(cell.isMergedContinue())
                         && ScoreSubtotalColumnPolicy.NUMBER.matcher(text(cell.rawText())).matches();
             }
             return id && name || noId && name && score;
@@ -174,15 +209,30 @@ public final class LogicalRuleSourceUnit {
         return OriginalScoringSchemePolicy.isValidSchemeRoot(root);
     }
     private static boolean independentColumns(Map<Integer, String> titles) {
-        var ids = titles.entrySet().stream().filter(e -> ID.matcher(e.getValue()).matches()).map(Map.Entry::getKey).toList();
-        var names = titles.entrySet().stream().filter(e -> NAME.matcher(e.getValue()).matches()).map(Map.Entry::getKey).toList();
+        var ids = titles.entrySet().stream().filter(e -> isId(e.getValue())).map(Map.Entry::getKey).toList();
+        var names = titles.entrySet().stream().filter(e -> isName(e.getValue())).map(Map.Entry::getKey).toList();
         return ids.size() == 1 && names.size() == 1 && !ids.getFirst().equals(names.getFirst()) || unnumbered(titles);
     }
     private static boolean unnumbered(Map<Integer, String> titles) {
-        if (titles.values().stream().anyMatch(title -> ID.matcher(title).matches())) return false;
-        var names = titles.entrySet().stream().filter(e -> NAME.matcher(e.getValue()).matches()).map(Map.Entry::getKey).toList();
-        var scores = titles.entrySet().stream().filter(e -> SCORE.matcher(e.getValue()).matches()).map(Map.Entry::getKey).toList();
+        if (titles.values().stream().anyMatch(LogicalRuleSourceUnit::isId)) return false;
+        var names = titles.entrySet().stream().filter(e -> isName(e.getValue())).map(Map.Entry::getKey).toList();
+        var scores = titles.entrySet().stream().filter(e -> isScore(e.getValue())).map(Map.Entry::getKey).toList();
         return names.size() == 1 && scores.size() == 1 && !names.getFirst().equals(scores.getFirst());
+    }
+    private static String cleanRole(String role) {
+        return role == null ? "" : role.replaceAll("\\s+", "");
+    }
+    private static boolean isId(String role) {
+        String clean = cleanRole(role);
+        return ID.matcher(clean).find();
+    }
+    private static boolean isName(String role) {
+        String clean = cleanRole(role);
+        return NAME.matcher(clean).find();
+    }
+    private static boolean isScore(String role) {
+        String clean = cleanRole(role);
+        return SCORE.matcher(clean).find();
     }
     private static String chapter(CanonicalTable table) {
         var match = CHAPTER.matcher(table.sourceSection().split("[/＞>]", 2)[0].trim());

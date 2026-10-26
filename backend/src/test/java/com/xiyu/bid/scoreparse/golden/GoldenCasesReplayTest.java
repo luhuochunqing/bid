@@ -12,6 +12,8 @@ import com.xiyu.bid.scoreparse.domain.ChildAggregation;
 import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
 import com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
+import com.xiyu.bid.scoreparse.domain.SourceSpan;
+import com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata;
 import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
 import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
@@ -130,6 +132,33 @@ class GoldenCasesReplayTest {
         assertTrue(validation.autoApprovable(), validation.violations().toString());
         assertTrue(validation.violations().stream().noneMatch(violation ->
                 List.of("ITEM_SCHEME_SCOPE_MISMATCH", "WEIGHT_SUM_MISMATCH").contains(violation.code())));
+    }
+
+    @Test
+    void project43TextParagraphAndTableContinuationRestoreRuleAndKeepNumberedMaterials() {
+        // 1. 验证纯文本事实（带有 text:line[...] locator 与 fallback spans）穿透还原
+        String locator = "text:line[693]";
+        String rawText = "最终评审折扣率等于评标基准价，得 30 分；每高于评标基准价 1%扣 0.25 分，最低得 20 分。";
+        var span = new SourceSpan("doc-43", "h43", "TEXT", "scheme-43", 21,
+                "", locator, 100, 100 + rawText.length(), rawText, locator);
+        var claim = new com.xiyu.bid.scoreparse.domain.ModelSourceClaim("第三章 评审标准", 21, "", List.of(locator), "scheme-43", "IN_SCHEME");
+        var metadata = new ScoreSourceMetadata(rawText, rawText, List.of(span), List.of(), "价格", "OBJECTIVE", claim);
+        var fact = new MultimodalScoreFact("第三章 评审标准", "shangwu_baojia", null, "价格",
+                new BigDecimal("30.00"), rawText, "OBJECTIVE", 21, "", List.of(locator), rawText,
+                1.0, ChildAggregation.UNKNOWN, "scheme-43", "IN_SCHEME", metadata);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc.pdf", "hash", "PDF", "2.2"), List.of(), List.of());
+        var res = com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration.restore(fact, artifact, List.of(fact));
+        assertTrue(!res.text().isBlank(), "纯文本段落事实应成功穿透还原");
+        assertTrue(res.text().contains("最终评审折扣率等于评标基准价，得 30 分"));
+
+        // 2. 验证短 quote 在模型包含换行编号条款时不会截断擦除编号材料
+        String ruleWithNumbers = "方案最高3分。\n1、须提供合同首页。\n2、须提供验收证明，缺少不得分。";
+        var shortQuoteMeta = new ScoreSourceMetadata(ruleWithNumbers, "方案最高3分。", List.of(span), List.of(), "方案", "SUBJECTIVE", claim);
+        var shortQuoteFact = new MultimodalScoreFact("第三章 评审标准", "fangan", null, "方案",
+                new BigDecimal("3.00"), ruleWithNumbers, "SUBJECTIVE", 21, "", List.of(locator), "方案最高3分。",
+                1.0, ChildAggregation.UNKNOWN, "scheme-43", "IN_SCHEME", shortQuoteMeta);
+        var shortRes = com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration.restore(shortQuoteFact, artifact, List.of(shortQuoteFact));
+        assertTrue(shortRes.text().isEmpty(), "当模型包含未被覆盖的后续编号条款时，不应截断覆盖，应保留空以供上层回退 MODEL_CLAIM");
     }
 
     @Test
