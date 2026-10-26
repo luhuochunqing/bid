@@ -265,4 +265,44 @@ class AuthorizationLetterCheckPolicyTest {
         assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
         assertThat(result.conclusion()).contains("免除授权委托书");
     }
+
+    @Test
+    @DisplayName("换行无冒号写法：角色与姓名跨行书写时第二份授权正文同样参与冲突比对")
+    void newlineSeparatedAuthorizationPageParticipatesInConflictComparison() {
+        var doc = new DocumentContent("bid.pdf", "hash", "正文", List.of(
+                new DocumentContent.PageContent(5, """
+                        授权委托书
+                        法定代表人：张三
+                        委托代理人：李四
+                        授权范围：提交投标文件
+                        授权期限：自签署日起至投标有效期结束
+                        """, List.of()),
+                new DocumentContent.PageContent(20, """
+                        授权委托书
+                        法定代表人
+                        王五
+                        委托代理人
+                        赵六
+                        授权范围 全权代表本公司参加投标
+                        授权期限 长期有效
+                        """, List.of())));
+
+        var result = AuthorizationLetterCheckPolicy.check(doc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).contains("多个内容不同的授权正文");
+    }
+
+    @Test
+    @DisplayName("截断掩码身份证：位数不足的掩码不得作为法人证明实值")
+    void truncatedMaskedIdCardDoesNotProveLegalRepresentative() {
+        AuthorizationRequirement requirement = new AuthorizationRequirement(
+                true, true, "法定代表人身份证明", "法定代表人亲自参加免授权委托书");
+        var doc = DocumentContent.fromText("bid.pdf", "hash",
+                "法定代表人身份证明\n法定代表人：张三\n身份证号：110101******1234");
+
+        var result = AuthorizationLetterCheckPolicy.check(doc, requirement);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
 }

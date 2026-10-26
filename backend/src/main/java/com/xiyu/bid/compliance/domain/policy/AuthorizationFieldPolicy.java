@@ -26,8 +26,9 @@ public final class AuthorizationFieldPolicy {
     private static final String AGENT = "委托代理人|受托人|被授权人|授权代表";
     private static final String SCOPE = "授权范围|授权事项|代理权限|委托事项|委托权限";
     private static final String TERM = "授权期限|委托期限";
+    private static final String ROLE_SUFFIX = "(?:[（(](?:单位负责人|签字|盖章|姓名)[）)])?";
     private static final Pattern FIELD = Pattern.compile("(" + PRINCIPAL + "|" + AGENT + "|" + SCOPE + "|" + TERM + "|姓名|性别|年龄|职务|身份证号码|身份证号"
-            + ")(?:[（(](?:单位负责人|签字|盖章|姓名)[）)])?[ \\t]*[：:]");
+            + ")" + ROLE_SUFFIX + "[ \\t]*[：:]");
     private static final Pattern PLACEHOLDER = Pattern.compile("[【】\\[\\]{}_＿某]|(?:此处|请|待|未).*(?:填|输入|补充|确定)|姓名");
     private static final String ACTION = "(?:签署|签订|递交|提交|澄清确认|澄清|撤回|修改)";
     private static final String OBJECT = "(?:(?:本项目|本次|该项目)?(?:投标文件|标书|合同))";
@@ -47,10 +48,10 @@ public final class AuthorizationFieldPolicy {
     private static final String PERSON_BODY = "(?:[" + FAMILIES + "][\\p{IsHan}]{1,2}"
             + "|(?:欧阳|司马|上官|诸葛|司徒|夏侯|东方|皇甫|尉迟|公孙|慕容)[\\p{IsHan}]{1,2})";
     private static final Pattern PERSON_CANDIDATE = Pattern.compile(PERSON_BODY);
-    // 无冒号写法（如「委托代理人 王五」）也要能识别出已填写当事人。
+    // 无冒号、跨行书写（如「委托代理人\n王五」）也要能识别出已填写当事人。
     private static final Pattern PARTY_DECLARATION = Pattern.compile(
-            "(" + PRINCIPAL + "|" + AGENT + ")(?:[（(](?:签字|盖章|姓名)[）)])?[ \\t]*[:：]?[ \\t]*" + PERSON_BODY);
-    private static final Pattern ID_CARD = Pattern.compile("[1-9][0-9]{5}(?:[0-9]{8}|[*＊]{6,8})[0-9]{3}[0-9Xx]");
+            "(" + PRINCIPAL + "|" + AGENT + ")" + ROLE_SUFFIX + "\\s*[:：]?\\s*" + PERSON_BODY);
+    private static final Pattern ID_CARD = Pattern.compile("[1-9][0-9]{5}(?:[0-9]{8}|[*＊]{8})[0-9]{3}[0-9Xx]");
 
     private static final String DATE = "([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})";
     private static final Pattern DATE_INTERVAL = Pattern.compile("自?" + DATE + "(?:至|到|—|~)" + DATE + "止?");
