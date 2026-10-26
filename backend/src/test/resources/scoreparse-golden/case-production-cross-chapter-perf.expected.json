@@ -1,0 +1,23 @@
+{
+  "synthetic": false,
+  "caseName": "真实生产标书跨章节穿透业绩与基础分递增计分",
+  "qualificationRequirement": {
+    "category": "工业品",
+    "minAmount": 10000000.0,
+    "hasInvoiceRequirement": true
+  },
+  "scoreItem": {
+    "title": "供应商业绩",
+    "detail": "满足资格条件的业绩得基础分60分，在此基础上每增加一个满足资格条件的业绩（2023年1月1日至首次报价截止日，以合同签订时间为准）加20分，满分100分。 | 5%",
+    "weight": 5.0,
+    "expectedScoreType": "OBJECTIVE",
+    "baseScore": 60.0,
+    "incrementScore": 20.0,
+    "maxScore": 100.0,
+    "requiredCountForMax": 3
+  },
+  "simulation": {
+    "matchingContracts": 3,
+    "expectedCalculatedScore": 5.00
+  }
+}

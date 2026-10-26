@@ -2,6 +2,7 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
 import com.xiyu.bid.scoreparse.domain.ProjectEvidenceRequirementPolicy;
+import com.xiyu.bid.scoreparse.domain.policy.CrossChapterPerformancePolicy;
 import com.xiyu.bid.scoreparse.dto.KnowledgeMatchResult;
 
 import java.util.ArrayList;
@@ -36,6 +37,11 @@ final class EstimatedScoreBasisFormatter {
     }
 
     String matchBasis(String category, KnowledgeMatchResult match, boolean flagged) {
+        return matchBasis(category, match, flagged, null);
+    }
+
+    String matchBasis(String category, KnowledgeMatchResult match, boolean flagged,
+                      CrossChapterPerformancePolicy.Constraint crossConstraint) {
         if (flagged && KnowledgeCategoryPolicy.CATEGORY_CERT.equals(category)) {
             return "证书已过期，标书需补充说明或更新证书";
         }
@@ -53,6 +59,17 @@ final class EstimatedScoreBasisFormatter {
                         .append(condition.evidence()).append("）；"));
                 basis.append("]");
             });
+        }
+        if (crossConstraint != null && crossConstraint.hasEffectiveConstraint()) {
+            basis.append("；跨章节资格项穿透：");
+            List<String> parts = new ArrayList<>();
+            if (!crossConstraint.targetCategories().isEmpty()) {
+                parts.add("品类:" + String.join("/", crossConstraint.targetCategories()));
+            }
+            if (crossConstraint.minContractAmount() != null) {
+                parts.add("金额≥" + crossConstraint.minContractAmount() + "元");
+            }
+            basis.append(String.join(", ", parts));
         }
         if (flagged) {
             basis.append("；命中记录含过期或即将到期标记，需更新资料或人工补充说明");

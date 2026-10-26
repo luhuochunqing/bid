@@ -105,4 +105,10 @@ class ScoreTypeClassificationPolicyTest {
         assertThat(policy.classify("横向比较各供应商方案，优良得8-10分，中等得4-7分"))
                 .isEqualTo("SUBJECTIVE");
     }
+
+    @Test
+    void classify_productionQualificationPerformanceBaseAndIncremental_objective() {
+        String detail = "供应商业绩 | 满足资格条件的业绩得基础分60分，在此基础上每增加一个满足资格条件的业绩（2023年1月1日至首次报价截止日，以合同签订时间为准）加20分，满分100分。 | 5%";
+        assertThat(policy.classify(detail, "SUBJECTIVE")).isEqualTo("OBJECTIVE");
+    }
 }

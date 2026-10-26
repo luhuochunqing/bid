@@ -234,7 +234,7 @@ public class EstimatedScoreService {
         item.setKbHit(!"NONE".equals(match.tier()));
         item.setStatusStage1(scoreStatusPolicy.evaluate(
                 guarded.score(), item.getWeight(), item.getScoreType(), flagged));
-        item.setEstBasis(basisFormatter.matchBasis(category, match, flagged));
+        item.setEstBasis(basisFormatter.matchBasis(category, match, flagged, crossConstraint));
     }
 
     private KnowledgeMatchResult dispatchMatch(
