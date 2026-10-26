@@ -442,4 +442,41 @@ class EstimatedScoreServiceTest {
         assertThat(credit.getStatusStage1()).isEqualTo("PENDING");
         assertThat(credit.getEstBasis()).contains("信用评价类评分项目", "待人工确认");
     }
+
+    @Test
+    void performanceItem_referencesQualification_pullsCrossChapterConstraint() {
+        com.xiyu.bid.casework.application.port.TenderQualificationQueryPort qualPort =
+                org.mockito.Mockito.mock(com.xiyu.bid.casework.application.port.TenderQualificationQueryPort.class);
+        EstimatedScoreService customService = new EstimatedScoreService(itemRepository,
+                certMatchService, personMatchService, projectMatchService,
+                warehouseMatchService, brandMatchService, qualPort);
+
+        String detail = "满足资格条件的业绩得基础分60分，在此基础上每增加一个满足资格条件的业绩（2023年1月1日至首次报价截止日，以合同签订时间为准）加20分，满分100分。 | 5%";
+        ScoreItem item = item("供应商业绩", detail, "5", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(item));
+
+        when(qualPort.findByProjectId(1L)).thenReturn(java.util.Optional.of(
+                new com.xiyu.bid.casework.application.port.TenderQualificationQueryPort.TenderQualificationInfo(
+                        List.of("投标人自2021年1月1日至今具有工业品供货业绩，且单项合同金额不低于1000万元"),
+                        "资格审查标准：需提供合同首页与发票"
+                )
+        ));
+
+        ProjectMatchedItem matchedItem1 = new ProjectMatchedItem(1L, "合同1", "工业品采购", "集团", "央企", LocalDate.of(2023, 2, 1), new BigDecimal("12000000"));
+        ProjectMatchedItem matchedItem2 = new ProjectMatchedItem(2L, "合同2", "工业品供货", "集团", "央企", LocalDate.of(2023, 3, 1), new BigDecimal("15000000"));
+        ProjectMatchedItem matchedItem3 = new ProjectMatchedItem(3L, "合同3", "工业品MRO", "集团", "央企", LocalDate.of(2023, 4, 1), new BigDecimal("20000000"));
+
+        when(projectMatchService.match(any())).thenAnswer(invocation -> {
+            ProjectMatchRequest req = invocation.getArgument(0);
+            assertThat(req.minContractAmount()).isEqualByComparingTo("10000000");
+            assertThat(req.projectTypeKeywords()).contains("工业品");
+            return new KnowledgeMatchResult("FULL", 100, List.of(matchedItem1, matchedItem2, matchedItem3), "命中3项业绩", List.of());
+        });
+
+        customService.estimateForProject(1L);
+
+        assertThat(item.getEstScore()).isEqualByComparingTo("5.00");
+        assertThat(item.getKbHit()).isTrue();
+        assertThat(item.getStatusStage1()).isEqualTo("OK");
+    }
 }
