@@ -4,6 +4,7 @@
 // 维护声明: 维护者按项目SOP；FR-011 / FR-014 / FR-015 / FR-018
 package com.xiyu.bid.scoreparse.application;
 
+import com.xiyu.bid.casework.application.port.TenderQualificationQueryPort;
 import com.xiyu.bid.scoreparse.application.match.BrandMatchService;
 import com.xiyu.bid.scoreparse.application.match.CertMatchService;
 import com.xiyu.bid.scoreparse.application.match.PersonMatchService;
@@ -15,6 +16,7 @@ import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
 import com.xiyu.bid.scoreparse.domain.ProjectEvidenceRequirementPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreRangeGuard;
 import com.xiyu.bid.scoreparse.domain.ScoreStatusPolicy;
+import com.xiyu.bid.scoreparse.domain.policy.CrossChapterPerformancePolicy;
 import com.xiyu.bid.scoreparse.dto.BrandMatchRequest;
 import com.xiyu.bid.scoreparse.dto.CertMatchRequest;
 import com.xiyu.bid.scoreparse.dto.CertMatchedItem;
@@ -25,13 +27,13 @@ import com.xiyu.bid.scoreparse.dto.ProjectMatchRequest;
 import com.xiyu.bid.scoreparse.dto.WarehouseMatchRequest;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -45,7 +47,6 @@ import java.util.List;
  * <p>单项失败不阻断整批（FR-024）：该项置 PENDING 待人工确认。
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class EstimatedScoreService {
 
@@ -62,6 +63,7 @@ public class EstimatedScoreService {
     private final ProjectMatchService projectMatchService;
     private final WarehouseMatchService warehouseMatchService;
     private final BrandMatchService brandMatchService;
+    private final TenderQualificationQueryPort qualificationQueryPort;
 
     private final KnowledgeCategoryPolicy categoryPolicy = new KnowledgeCategoryPolicy();
     private final PartialScorePolicy partialScorePolicy = new PartialScorePolicy();
@@ -69,6 +71,37 @@ public class EstimatedScoreService {
     private final ScoreRangeGuard scoreRangeGuard = new ScoreRangeGuard();
     private final ProjectEvidenceRequirementPolicy projectEvidencePolicy = new ProjectEvidenceRequirementPolicy();
     private final EstimatedScoreBasisFormatter basisFormatter = new EstimatedScoreBasisFormatter();
+    private final CrossChapterPerformancePolicy crossChapterPolicy = new CrossChapterPerformancePolicy();
+
+    public EstimatedScoreService(
+            ScoreItemRepository itemRepository,
+            CertMatchService certMatchService,
+            PersonMatchService personMatchService,
+            ProjectMatchService projectMatchService,
+            WarehouseMatchService warehouseMatchService,
+            BrandMatchService brandMatchService) {
+        this(itemRepository, certMatchService, personMatchService, projectMatchService,
+                warehouseMatchService, brandMatchService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public EstimatedScoreService(
+            ScoreItemRepository itemRepository,
+            CertMatchService certMatchService,
+            PersonMatchService personMatchService,
+            ProjectMatchService projectMatchService,
+            WarehouseMatchService warehouseMatchService,
+            BrandMatchService brandMatchService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
+            TenderQualificationQueryPort qualificationQueryPort) {
+        this.itemRepository = itemRepository;
+        this.certMatchService = certMatchService;
+        this.personMatchService = personMatchService;
+        this.projectMatchService = projectMatchService;
+        this.warehouseMatchService = warehouseMatchService;
+        this.brandMatchService = brandMatchService;
+        this.qualificationQueryPort = qualificationQueryPort;
+    }
 
     /** 对项目全部评分项执行预计得分计算（挂入解析编排链尾）。 */
     @Transactional(propagation=org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
@@ -84,7 +117,7 @@ public class EstimatedScoreService {
                 .detail(i.getDetail()).weight(i.getWeight()).scoreType(i.getScoreType()).build()).toList();
         for (ScoreItem item : items) {
             try {
-                estimateItem(item);
+                estimateItem(projectId, item);
             } catch (RuntimeException exception) {
                 log.warn("评分项预计得分计算失败，保持待确认: itemId={}, code={}",
                         item.getId(), item.getCode(), exception);
@@ -98,7 +131,7 @@ public class EstimatedScoreService {
         else versions.saveEstimates(projectId, snapshot.fingerprint(), items);
     }
 
-    private void estimateItem(ScoreItem item) {
+    private void estimateItem(Long projectId, ScoreItem item) {
         if (item.getWeight() == null) {
             item.setEstScore(null); item.setStatusStage1(ScoreStatusPolicy.PENDING); item.setKbHit(false);
             item.setEstBasis("评分权重未知，无法计算"); return;
@@ -142,9 +175,27 @@ public class EstimatedScoreService {
             item.setEstBasis("未抽取到可执行的仓库匹配约束（面积），禁止按在用仓存在性给满分，待人工确认预计得分");
             return;
         }
+
+        CrossChapterPerformancePolicy.Constraint crossConstraint = null;
+        if (KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
+                && crossChapterPolicy.referencesQualification(item.getDim(), item.getDetail())
+                && qualificationQueryPort != null && projectId != null) {
+            var qualOpt = qualificationQueryPort.findByProjectId(projectId);
+            if (qualOpt.isPresent()) {
+                var qualInfo = qualOpt.get();
+                crossConstraint = crossChapterPolicy.extract(
+                        item.getDim(), item.getDetail(), qualInfo.qualificationRequirements(), qualInfo.rawTenderText());
+            }
+        }
+
+        BigDecimal minContractAmount = categoryPolicy.extractMinContractAmount(item.getDetail());
+        if (minContractAmount == null && crossConstraint != null && crossConstraint.minContractAmount() != null) {
+            minContractAmount = crossConstraint.minContractAmount();
+        }
+
         if (KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
                 && categoryPolicy.hasContractAmountThreshold(item.getDetail())
-                && categoryPolicy.extractMinContractAmount(item.getDetail()) == null) {
+                && minContractAmount == null) {
             item.setEstScore(null);
             item.setKbHit(false);
             item.setStatusStage1(ScoreStatusPolicy.PENDING);
@@ -152,7 +203,7 @@ public class EstimatedScoreService {
             return;
         }
 
-        KnowledgeMatchResult match = dispatchMatch(category, item);
+        KnowledgeMatchResult match = dispatchMatch(category, item, crossConstraint, minContractAmount);
         ProjectEvidenceRequirementPolicy.Assessment evidenceAssessment =
                 KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
                         ? projectEvidencePolicy.assess(item.getDetail())
@@ -165,7 +216,7 @@ public class EstimatedScoreService {
                     match,
                     evidenceAssessment,
                     categoryPolicy.extractSignedAfter(item.getDetail()) != null,
-                    categoryPolicy.extractMinContractAmount(item.getDetail()) != null));
+                    minContractAmount != null));
             return;
         }
         boolean flagged = hasFlaggedItems(match.matched());
@@ -185,12 +236,22 @@ public class EstimatedScoreService {
         item.setKbHit(!"NONE".equals(match.tier()));
         item.setStatusStage1(scoreStatusPolicy.evaluate(
                 guarded.score(), item.getWeight(), item.getScoreType(), flagged));
-        item.setEstBasis(basisFormatter.matchBasis(category, match, flagged));
+        item.setEstBasis(basisFormatter.matchBasis(category, match, flagged, crossConstraint));
     }
 
-    private KnowledgeMatchResult dispatchMatch(String category, ScoreItem item) {
+    private KnowledgeMatchResult dispatchMatch(
+            String category, ScoreItem item,
+            CrossChapterPerformancePolicy.Constraint crossConstraint,
+            BigDecimal resolvedMinAmount) {
         String detail = item.getDetail();
-        List<String> keywords = categoryPolicy.extractKeywords(item.getDim(), detail, KEYWORD_LIMIT);
+        List<String> keywords = new ArrayList<>(categoryPolicy.extractKeywords(item.getDim(), detail, KEYWORD_LIMIT));
+        if (crossConstraint != null && !crossConstraint.targetCategories().isEmpty()) {
+            for (String cat : crossConstraint.targetCategories()) {
+                if (!keywords.contains(cat)) {
+                    keywords.add(cat);
+                }
+            }
+        }
         LocalDate today = LocalDate.now();
         return switch (category) {
             case KnowledgeCategoryPolicy.CATEGORY_CERT -> certMatchService.match(new CertMatchRequest(
@@ -199,7 +260,7 @@ public class EstimatedScoreService {
                     keywords, null, categoryPolicy.extractCount(detail, "人")));
             case KnowledgeCategoryPolicy.CATEGORY_PROJECT -> projectMatchService.match(new ProjectMatchRequest(
                     keywords, categoryPolicy.extractSignedAfter(detail),
-                    categoryPolicy.extractMinContractAmount(detail),
+                    resolvedMinAmount,
                     categoryPolicy.extractProjectRequiredCount(detail, item.getWeight())));
             case KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE -> warehouseMatchService.match(
                     new WarehouseMatchRequest(null, null, categoryPolicy.extractMinArea(detail), null));

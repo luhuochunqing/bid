@@ -7566,3 +7566,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - 人员状态文字不是人名；部分字段页同样参与冲突；AI确定失败也不能覆盖未决字段的人工作业边界。
 - 退款括号内字段说明、元标签与掩码实体不能靠公司/银行后缀变成实际名称；名称主体须在括号外。正样本不能使用“某某公司”等占位值。
 - 不把文字存在性、字段完整性等同于身份、验签、账户归属或业务材料合格；生产仍须发布后重新核查。
+
+## 455. 标书评分项业绩引用资格条件导致孤立单点正则抽取失效与主客观误判根治（2026-10-26）
+
+- **现场证据**：生产环境下评分项「供应商业绩 | 满足资格条件的业绩得基础分60分，在此基础上每增加一个满足资格条件的业绩（2023年1月1日至首次报价截止日，以合同签订时间为准）加20分，满分100分。 | 5%」被误判为「主观项」，且预计得分为待确认；历史上类似问题历经 200+ PR 依然打转反复。
+- **致错机制**：
+  1. 计分模型缺陷：`IncrementalCountScorePolicy` 原正则只识别从 0 递增模型（“每增加X个得Y分、最高Z分”），未识别非零基础分阶梯（“得基础分60分，在此基础上每增加1个加20分，满分100分”），导致阶梯解析失败；`ScoreTypeClassificationPolicy` 无法识别该量化递增规则，从而错误退化为主观项；
+  2. 孤立信息局限：标书编写范式中，评分项往往简短引用前文（如“满足资格条件的业绩”），而品类（工业品/MRO）、金额门槛（1000万元以上）和凭证要求（合同、发票）写在《第三章 资格审查办法》中。过去 200+ PR 局限于评分项单行文本修补，无实质门槛信息可抽；
+  3. 安全门禁拦截：`ProjectMatchService` 防护机制严禁在零约束（无金额/无品类）下直接查询全量业绩给满分，导致空泛引用无法计算预计得分。
+- **根治方案与边界**：
+  1. 阶梯模型升级：扩展 `IncrementalCountScorePolicy`，增加 `BASE_SCORE_PATTERN` 与 `BASE_INCREMENT_AND_CAP`，解析 `baseScore`，准确计算满分所需数量（3个）并支持百分制向权重折算；
+  2. 共享纯策略抽取：新增 `CrossChapterPerformancePolicy`（严格遵守 FP-Java 纯核心无框架依赖），识别跨章节引用信号，穿透提取资格项中的物资品类、单项合同金额门槛与发票要求；
+  3. 编排层注入与透传：在 `EstimatedScoreService` 中注入 `TenderQualificationQueryPort`，将穿透的品类与金额装配至 `ProjectMatchRequest`，打破模块孤岛并解除门禁拦截；
+  4. 依据可解释性增强：在 `EstimatedScoreBasisFormatter` 中格式化穿透依据文案，明确展示引用的资格项门槛；
+  5. 黄金回归固化：新增 `case-production-cross-chapter-perf.md/.expected.json` 夹具，并通过 `ProductionCrossChapterPerformanceGoldenReplayTest` 固化为自动化门禁。
