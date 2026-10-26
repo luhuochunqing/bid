@@ -6,8 +6,7 @@ import com.xiyu.bid.scoreparse.application.match.PersonMatchService;
 import com.xiyu.bid.scoreparse.application.match.ProjectMatchService;
 import com.xiyu.bid.scoreparse.application.match.WarehouseMatchService;
 import com.xiyu.bid.scoreparse.dto.BrandMatchRequest;
-import com.xiyu.bid.scoreparse.dto.CertMatchRequest;
-import com.xiyu.bid.scoreparse.dto.CertMatchedItem;
+import com.xiyu.bid.scoreparse.domain.CertificateScorePolicy;
 import com.xiyu.bid.scoreparse.dto.KnowledgeMatchResult;
 import com.xiyu.bid.scoreparse.dto.PersonMatchRequest;
 import com.xiyu.bid.scoreparse.dto.ProjectMatchRequest;
@@ -79,8 +78,9 @@ class EstimatedScoreServiceTest {
     void objectiveCert_fullMatch_estimatesFullScore() {
         ScoreItem cert = item("资质", "具有 ISO9001 质量管理体系认证证书", "8", "OBJECTIVE");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(cert));
-        when(certMatchService.match(any(CertMatchRequest.class)))
-                .thenReturn(new KnowledgeMatchResult("FULL", 100, List.of(), "命中 1 条有效资质"));
+        when(certMatchService.estimateScore(any(), any(), any(), any()))
+                .thenReturn(new CertMatchService.ScoreEstimate(new CertificateScorePolicy.Assessment(
+                        new BigDecimal("8"), "OK", true, "命中 1 条有效资质"), "fixture-input"));
 
         service.estimateForProject(1L);
 
@@ -95,8 +95,9 @@ class EstimatedScoreServiceTest {
     void objectiveCert_partialMatch_estimatesPartialScore() {
         ScoreItem cert = item("资质", "具有 ISO9001 证书", "8", "OBJECTIVE");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(cert));
-        when(certMatchService.match(any(CertMatchRequest.class)))
-                .thenReturn(new KnowledgeMatchResult("PARTIAL", 50, List.of(), "命中部分资质"));
+        when(certMatchService.estimateScore(any(), any(), any(), any()))
+                .thenReturn(new CertMatchService.ScoreEstimate(new CertificateScorePolicy.Assessment(
+                        new BigDecimal("4"), "PENDING", true, "按明确规则获得部分得分"), "fixture-input"));
 
         service.estimateForProject(1L);
 
@@ -110,8 +111,9 @@ class EstimatedScoreServiceTest {
     void objectiveCert_noneMatch_zeroScoreDanger() {
         ScoreItem cert = item("资质", "具有 ISO9001 证书", "8", "OBJECTIVE");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(cert));
-        when(certMatchService.match(any(CertMatchRequest.class)))
-                .thenReturn(KnowledgeMatchResult.empty("未命中任何资质证书"));
+        when(certMatchService.estimateScore(any(), any(), any(), any()))
+                .thenReturn(new CertMatchService.ScoreEstimate(new CertificateScorePolicy.Assessment(
+                        BigDecimal.ZERO, "DANGER", false, "未命中任何资质证书"), "fixture-input"));
 
         service.estimateForProject(1L);
 
@@ -129,7 +131,7 @@ class EstimatedScoreServiceTest {
         cert.setKbHit(true);
         cert.setEstBasis("旧的满分依据");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(cert));
-        when(certMatchService.match(any(CertMatchRequest.class))).thenThrow(new IllegalStateException("test"));
+        when(certMatchService.estimateScore(any(), any(), any(), any())).thenThrow(new IllegalStateException("test"));
 
         service.estimateForProject(1L);
 
@@ -140,19 +142,17 @@ class EstimatedScoreServiceTest {
     }
 
     @Test
-    void expiredCert_fullMatch_staysPending() {
+    void expiredCert_cannotSatisfyExplicitValidCertificateRequirement() {
         ScoreItem cert = item("资质", "具有 ISO9001 证书", "8", "OBJECTIVE");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(cert));
-        when(certMatchService.match(any(CertMatchRequest.class)))
-                .thenReturn(new KnowledgeMatchResult("PARTIAL", 100,
-                        List.of(new CertMatchedItem(1L, "ISO9001", "一级",
-                                LocalDate.now().minusDays(1), true)),
-                        "命中 1 条资质，其中含过期证书"));
+        when(certMatchService.estimateScore(any(), any(), any(), any()))
+                .thenReturn(new CertMatchService.ScoreEstimate(new CertificateScorePolicy.Assessment(
+                        BigDecimal.ZERO, "DANGER", true, "ISO9001：证书已过期，不满足有效证书要求"), "fixture-input"));
 
         service.estimateForProject(1L);
 
         verify(itemRepository).saveAll(List.of(cert));
-        assertThat(cert.getStatusStage1()).isEqualTo("PENDING");
+        assertThat(cert.getStatusStage1()).isEqualTo("DANGER");
         assertThat(cert.getEstBasis()).contains("过期");
     }
 

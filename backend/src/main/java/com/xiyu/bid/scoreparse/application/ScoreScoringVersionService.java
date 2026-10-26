@@ -60,6 +60,8 @@ public class ScoreScoringVersionService {
     private final ScoreResultRepository results;
     private final ScoreExtractionCodec codec;
     @PersistenceContext private EntityManager em;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private ScoreEstimateFreshness estimateFreshness;
     public record Snapshot(List<ScoreItem> items,String fingerprint,Map<Long,ScoreResult> results,Map<Long,ScoreResult> visibleResults,Map<Long,String> previousStatuses) {}
 
     /** Joins caller transaction so dispatch can be registered on its actual commit. */
@@ -141,12 +143,23 @@ public class ScoreScoringVersionService {
     public boolean saveEstimates(Long projectId,String expected,List<ScoreItem> calculated) {
         lock(projectId);var current=lockedSnapshot(projectId);
         if(!current.fingerprint().equals(expected))return false;
+        if(estimateFreshness!=null && calculated.stream().anyMatch(i ->
+                CertificateScoreEstimateSupport.applies(i) && !clearedFailure(i)
+                        && !"FRESH".equals(estimateFreshness.status(i,java.time.LocalDate.now())))) return false;
         Map<Long,ScoreItem> byId=new HashMap<>();current.items().forEach(i->byId.put(i.getId(),i));
         for(var value:calculated) {
             var row=byId.get(value.getId());if(row==null)throw new IllegalArgumentException("ESTIMATE_ITEM_IDENTITY_MISMATCH");
             row.setEstScore(value.getEstScore());row.setEstBasis(value.getEstBasis());row.setStatusStage1(value.getStatusStage1());row.setKbHit(value.getKbHit());
+            row.setEstimateInputFingerprint(value.getEstimateInputFingerprint());
+            row.setEstimatedAt(value.getEstimatedAt());
         }
         return true;
+    }
+    /** A failed item may clear its own stale score without rejecting unrelated fresh rows. */
+    private static boolean clearedFailure(ScoreItem i) {
+        return i.getEstimateInputFingerprint()==null && i.getEstimatedAt()==null
+                && i.getEstScore()==null && "PENDING".equals(i.getStatusStage1())
+                && !Boolean.TRUE.equals(i.getKbHit());
     }
     @SuppressWarnings("unchecked")
     List<ScoreParseTask> lockedTasks(Long projectId,List<String> statuses) {

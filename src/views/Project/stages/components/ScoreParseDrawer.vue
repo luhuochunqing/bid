@@ -1,6 +1,6 @@
 <!--
   Input: projectId, open options (stage, autoScore, file)
-  Output: AI 评分标准解析 V3 抽屉（阶段 1 招标文件提取 + 阶段 2 投标文件实际打分）
+  Output: AI 评分标准解析 V3 抽屉（阶段 1 招标文件提取及知识库预判更新 + 阶段 2 投标文件实际打分）
   Pos: src/views/Project/stages/components/ScoreParseDrawer.vue
   注：保留解析重试与 E2E 钩子；抽屉遮罩锁定内容滚动，候选支持复核采纳。
       方案资格按原文评分方案判定，清楚标识方案内、方案外与来源未验证事实；多方案需显式选择（2026-09-24）。
@@ -100,6 +100,11 @@
               </div>
             </div>
             <h3 v-if="scoreItems.length">当前生效评分项</h3>
+            <div v-if="scoreItems.length" class="toolbar">
+              <span class="doc-time">需要更新 {{ staleEstimateCount }} 项 · 核验时间 {{ estimateCheckedAt }}</span>
+              <button class="btn-tool" data-test="refresh-estimates" :disabled="estimatesRefreshing || loading || scoringOverlayVisible" @click="refreshEstimates">{{ estimatesRefreshing ? '正在更新知识库预判…' : '更新知识库预判' }}</button>
+            </div>
+            <p v-if="estimateRefreshError" role="alert">{{ estimateRefreshError }}</p>
             <ScoreParseTable
               v-if="scoreItems.length"
               mode="est"
@@ -232,6 +237,7 @@ const {
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
+  estimatesRefreshing, estimateRefreshError, staleEstimateCount, estimateCheckedAt, refreshEstimates,
   decisionBadgeType, decisionBadgeText, decisionBadgeVisible, reviewReason,
   candidateFacts, schemes, selectedSchemeId, schemeSelectionRequired, candidateTotalWeight, declaredTotalWeight,
   adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,

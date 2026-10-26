@@ -115,6 +115,7 @@ backlinks:
 - [[score-subtotal-peritem-semantics-provenance-snapshot]] — 评分小计单项满分语义规则与案例来源快照守卫（单项分句抑制/BINARY 原子校验/Update 9 元穷举）
 - [[score-parse-adoption-consistency]] — 评分候选采纳与最新解析任务一致性（长说明、锁、过期页面）
 - [[score-parse-service]] — AI 评分标准解析后端服务
+- [[scoreparse-certificate-estimate-staleness-rca]] — 证书评分历史漏认、预判残留与组合证书任一命中假满分根因（只读诊断，未修复）
 - [[scoreparse-cross-chapter-qualification-performance]] — 评分项跨章节穿透资格项业绩检索与基础分递增计分规范
 - [[scoreparse-performance-evidence-clarity]] — 业绩预计得分证据可信度、保守计分与中文解释契约
 - [[scoreparse-1384-docx-scheme-contract-rca]] — 项目 1384 DOCX 评分方案资格失效根因（PR #2757 真实输入契约）

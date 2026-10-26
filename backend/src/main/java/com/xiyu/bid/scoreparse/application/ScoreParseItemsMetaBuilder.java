@@ -39,7 +39,7 @@ final class ScoreParseItemsMetaBuilder {
 
     ScoreParseItemsDTO.Meta build(Long projectId, ScoreParseTask parseTask, ScoreParseTask scoringTask) {
         ScoreParseTask activeSource = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId).stream()
-                .filter(i -> i.getActiveVersionId() != null).findFirst().flatMap(i -> taskRepository.findById(i.getParseTaskId())).orElse(null);
+                .filter(i -> i.getParseTaskId() != null).findFirst().flatMap(i -> taskRepository.findById(i.getParseTaskId())).orElse(null);
         String source = activeSource != null ? activeSource.getFileName() : tenderResolver.findLatestTenderDocument(projectId)
                 .map(ProjectDocument::getName)
                 .or(() -> snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)

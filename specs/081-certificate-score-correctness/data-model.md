@@ -1,0 +1,3 @@
+# 数据与状态
+ScoreItem新增estimateInputFingerprint（nullable VARCHAR64）与estimatedAt（nullable DATETIME6）。历史值为空时证书项STALE；非证书项NOT_APPLICABLE；当前输入匹配时FRESH。元数据只和估分列一并CAS更新，规则指纹不把估分派生字段算作规则变化。
+CertificateScoreRule保留要求身份、别名、等级、组合和计分阈值。CertificateScorePolicy接收证书事实和asOf，返回各要求证据与裁决。过期退役不能计为有效标准；无关记录不能凑数量。未知规则返回PENDING。

@@ -82,6 +82,13 @@ public class ScoreItem {
     @Column(name = "kb_hit")
     private Boolean kbHit;
 
+    /** Input identity of the certificate estimate; null marks unverifiable legacy estimates. */
+    @Column(name = "estimate_input_fingerprint", length = 64)
+    private String estimateInputFingerprint;
+
+    @Column(name = "estimated_at")
+    private LocalDateTime estimatedAt;
+
     /** 评分规则上下文（注/说明/备注） */
     @Column(name = "context_note", columnDefinition = "TEXT")
     private String contextNote;

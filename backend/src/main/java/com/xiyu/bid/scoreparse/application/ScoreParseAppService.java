@@ -40,6 +40,8 @@ import java.util.UUID;
 @Slf4j
 public class ScoreParseAppService {
 
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private ScoreEstimateFreshness estimateFreshness;
     private static final String TASK_TYPE_PARSE = "PARSE";
     private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "PROCESSING");
     private static final List<String> ANY_STATUS = List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED");
@@ -258,7 +260,7 @@ public class ScoreParseAppService {
     public ScoreParseItemsDTO getItems(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         return new ScoreParseItemsReadSupport(itemRepository,taskRepository,resultRepository,initiationTenderTextResolver,
-                snapshotRepository,projectDocumentRepository).read(projectId,latestTaskOrNull(projectId,TASK_TYPE_PARSE),latestTaskOrNull(projectId,"SCORING"));
+                snapshotRepository,projectDocumentRepository,estimateFreshness).read(projectId,latestTaskOrNull(projectId,TASK_TYPE_PARSE),latestTaskOrNull(projectId,"SCORING"));
     }
 
     private ScoreParseTask latestTaskOrNull(Long projectId, String taskType) {

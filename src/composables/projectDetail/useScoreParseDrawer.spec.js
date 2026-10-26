@@ -23,6 +23,7 @@ vi.mock('@/api/modules/scoreParse.js', () => ({
     getExtraction: vi.fn(),
     activateExtraction: vi.fn(),
     getItems: vi.fn(),
+    refreshEstimates: vi.fn(),
     getReview: vi.fn(),
     submitReview: vi.fn(),
     triggerParse: vi.fn(),

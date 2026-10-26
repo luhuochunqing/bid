@@ -24,8 +24,18 @@ public record ScoreItemDTO(
         String extractionMethod,
         BigDecimal confidence,
         String validationStatus,
-        Long parentScoreItemId
+        Long parentScoreItemId,
+        String estimateStatus,
+        java.time.LocalDateTime estimatedAt
 ) {
+    public ScoreItemDTO(Long id, String code, String dim, String detail, BigDecimal weight,
+            String scoreType, String status, BigDecimal estScore, String estBasis, Boolean kbHit,
+            String location, String sourceCellIds, String weightEvidence, String extractionMethod,
+            BigDecimal confidence, String validationStatus, Long parentScoreItemId) {
+        this(id, code, dim, detail, weight, scoreType, status, estScore, estBasis, kbHit,
+                location, sourceCellIds, weightEvidence, extractionMethod, confidence,
+                validationStatus, parentScoreItemId, null, null);
+    }
     /** 向后兼容构造器：旧测试/调用方继续可用，新证据字段默认 null。 */
     public ScoreItemDTO(Long id, String code, String dim, String detail, BigDecimal weight,
             String scoreType, String status, BigDecimal estScore, String estBasis,
