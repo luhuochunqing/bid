@@ -23,7 +23,7 @@
 | `qualification.js` | API 模块 | 资质 CRUD 与借阅记录/借阅申请接线，供知识页和 store 复用 |
 | `projectGroups.js` | API 模块 | 项目组正式领域模型的管理、删除与项目绑定配置 |
 | `projectTenderBreakdown.js` | API 模块 | 项目级招标文件解析、最新解析快照复用、已上传文件复用、解析配置 readiness 和上传解析调用 |
-| `scoreParse.js` | API 模块 | 评分项、完整提取快照（可选读取错误由评分抽屉处理）、带预期指纹的全量选择切换及评分接口 |
+| `scoreParse.js` | API 模块 | 评分项、完整提取快照（可选读取错误由评分抽屉处理）、带预期指纹的全量选择切换、独立更新知识库预判及评分接口 |
 | `projects.js` | API 模块 | 项目列表、详情、任务拆解、评分、结果录入调用 |
 | `resources.js` | API 模块 | 平台账号、BAR、证书、资源能力调用 |
 | `settings.js` | API 模块 | 系统设置页的数据权限与组织树读写 |

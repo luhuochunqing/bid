@@ -1,5 +1,5 @@
 // Input: httpClient and score-parse backend endpoints (spec 041, PR !2293)
-// Output: scoreParseApi - optional snapshot errors handled by drawer; active items, CAS activation and scoring
+// Output: scoreParseApi - optional snapshot errors handled by drawer; active items, independent estimate refresh, CAS activation and scoring
 // Pos: src/api/modules/ - Frontend API module layer
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -26,6 +26,11 @@ export const scoreParseApi = {
   /** 阶段 1 评分项清单（含 estScore/estBasis/kbHit 与 summary 统计） */
   async getItems(projectId) {
     return httpClient.get(`/api/projects/${projectId}/score-parse/items`)
+  },
+
+  /** 仅更新已生效评分项的知识库预判，不触发解析或实际打分 */
+  async refreshEstimates(projectId) {
+    return httpClient.post(`/api/projects/${projectId}/score-parse/estimates/refresh`)
   },
 
   /** 人工复核快照（facts/evidence + score_parse_review 审计记录） */

@@ -17,6 +17,7 @@ vi.mock('@/api/modules/scoreParse.js', () => ({
     getExtraction: vi.fn(),
     activateExtraction: vi.fn(),
     getItems: vi.fn(),
+    refreshEstimates: vi.fn(),
     getReview: vi.fn(),
     submitReview: vi.fn(),
     triggerParse: vi.fn(),
@@ -470,5 +471,33 @@ describe('active source time provenance', () => {
     expect(w.text()).not.toContain('本次解析仍有')
     expect(w.find('[data-test="activate-extraction"]').exists()).toBe(false)
     expect(w.find('[data-test="score-parse-reparse"]').exists()).toBe(true)
+  })
+})
+
+
+describe('independent knowledge estimates', () => {
+  it('refreshes existing items with extraction disabled, then reads freshness without parsing or scoring', async () => {
+    vi.clearAllMocks()
+    scoreParseApi.getLatestExtraction.mockResolvedValue({ data: null })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
+    scoreParseApi.getItems.mockResolvedValueOnce({ data: { items: [{ ...itemsFixture[1], estimateStatus: 'STALE', estScore: null, status: 'PENDING' }] } })
+      .mockResolvedValueOnce({ data: { items: [{ ...itemsFixture[1], estimateStatus: 'FRESH', estimatedAt: '2026-10-26T10:00:00' }] } })
+    let finish
+    scoreParseApi.refreshEstimates.mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    const w = mount(ScoreParseDrawer, { props: { projectId: 123, showExtractionReview: false }, global: { stubs: { 'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true } } })
+    await w.vm.open({ stage: 1, autoParse: false, autoScore: false })
+    expect(w.text()).toContain('需要更新 1 项')
+    const button = w.find('[data-test="refresh-estimates"]')
+    await button.trigger('click')
+    expect(button.attributes('disabled')).toBeDefined()
+    await button.trigger('click')
+    finish({ data: {} })
+    await vi.waitFor(() => expect(w.text()).toContain('需要更新 0 项'))
+    expect(w.text()).toContain('核验时间')
+    expect(scoreParseApi.refreshEstimates).toHaveBeenCalledTimes(1)
+    expect(scoreParseApi.getItems).toHaveBeenCalledTimes(2)
+    expect(scoreParseApi.triggerParse).not.toHaveBeenCalled()
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+    expect(scoreParseApi.activateExtraction).not.toHaveBeenCalled()
   })
 })

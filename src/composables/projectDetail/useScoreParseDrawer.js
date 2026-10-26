@@ -1,13 +1,14 @@
 // Input: props.projectId, emit callbacks
-// Output: coherent extraction/active state, explicit CAS selection and separate historical scoring
+// Output: coherent extraction/active state, independent knowledge estimates, explicit CAS selection and historical scoring
 // Pos: src/composables/projectDetail/ - Presentation domain composable
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { getAiDocumentErrorPresentation } from '@/utils/aiDocumentError.js'
-import { formatTime, pollTask, normalizeScoreItem, mapScoreResults, lookupScoreResult, getDecisionBadgeType, getDecisionBadgeText, shouldHideFailureBadge } from './scoreParseTask.js'
+import { formatTime, pollTask, mapScoreResults, lookupScoreResult, getDecisionBadgeType, getDecisionBadgeText, shouldHideFailureBadge } from './scoreParseTask.js'
 import { parseTriggerSource, scoringBody, scoringSkipHint, hasMeaningfulResults, circuitHintFromMeta } from './scoreParseSpendGuard.js'
+import { normalizeEstimatedItem, useScoreEstimateRefresh } from './useScoreEstimateRefresh.js'
 import { useScoreExtraction } from './useScoreExtraction.js'
 import { useScoreCandidateAdoption } from './useScoreCandidateAdoption.js'
 
@@ -34,6 +35,7 @@ export function useScoreParseDrawer(props, emit) {
   const extraction = useScoreExtraction(props, fetchAnalysisData)
   const hasHistoricalResults = ref(false), hasScoreResults = ref(false)
   const scoreItems = ref([]), scoreResults = ref({}), detailModalVisible = ref(false), detailMode = ref('est')
+  const estimates = useScoreEstimateRefresh(props, scoreItems, loading, scoringOverlayVisible)
   // 本次解析失败但仍有历史评分项在生效时不展示失败徽章，避免"评分项正确 + 结构异常"并存误导用户
   const decisionBadgeVisible = computed(() => Boolean(decisionStatus.value) && !extraction.latestExtraction.value
     && !shouldHideFailureBadge(decisionStatus.value, scoreItems.value.length))
@@ -88,7 +90,7 @@ export function useScoreParseDrawer(props, emit) {
 
       sourceFileName.value = data?.sourceFileName || '—'
       parseTime.value = formatTime(data?.parseTime) || '—'
-      scoreItems.value = Array.isArray(apiItems) && apiItems.length > 0 ? apiItems.map(normalizeScoreItem) : []
+      scoreItems.value = Array.isArray(apiItems) && apiItems.length > 0 ? apiItems.map(normalizeEstimatedItem) : []
       normalizationWarning.value = data?.summary?.normalizationWarning || ''
       const meta = res?.data?.meta || {}
       if (meta.sourceFileName) sourceFileName.value = meta.sourceFileName
@@ -276,7 +278,7 @@ export function useScoreParseDrawer(props, emit) {
   })
 
   return {
-    ...extraction, activeParseTime, hasHistoricalResults, hasScoreResults,
+    ...extraction, ...estimates, activeParseTime, hasHistoricalResults, hasScoreResults,
     visible, loading, error, errorPresentation, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
     sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
     scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult,

@@ -7609,3 +7609,13 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   3. **统一中括号与区间上限提取**：扩展 `ScoreParseConstants.BRACKET_WEIGHT_PATTERN` 兼容 `[\\[【]` 与 `[\\]】]`；在 `CellAnchoredScoreExtractor` 中新增 `RANGE_SCORE_PATTERN`，针对 `[a-b）` 等半开区间采用 `v1.max(v2)` 准确提取上限分值；
   4. **全量回归固化**：Sidecar 43 项表格测试与 169 项全量测试 100% 通过；Java 侧单元测试（`ScoreSubtotalColumnPolicyTest`、`OriginalScoreEvidencePolicyTest`、`CellAnchoredScoreExtractorTest`）与架构测试全绿。
 
+## 458. 证书评分任一召回假满分与历史预判残留（2026-10-26）
+
+- **现场证据**：项目1117管理体系三ISO有效却读取9月22日OTHER预判；生产字节码与真实MySQL隔离反例中，逐一缺ISO及仅有无关体系证书均给10分。原始证据仅保留本地，不提交客户文件。
+- **致错机制**：标题词典漏识别“管理体系”；预判更新耦合解析/采纳，待复核候选保留旧项；评分要求降为最多6个任一LIKE词，requiredCount为空按1条计满分。修标题或盲重算不足以消除根因。
+- **修复边界**：`CertificateScoreRule`完整匹配有界评分段，不解释的实质条件保持人工；`CertificateScorePolicy`逐标准、企业认证种类、精确等级、有效期与明确计分裁决；人员/培训证不可冒充企业ISO。输入指纹绑定引擎、规则、证书事实和核验日，旧值隐藏并从汇总排除；独立POST更新复用项目守卫与规则/证书CAS，不采纳候选或修改阶段2。
+- **审查反证**：只搜已知身份仍会忽略CMMI、额外许可证、范围、数量、有效期时长与附加等级；contains等级会误认13A/十三星；无指纹失败项会整批拒写。以上反例均已先失败再修复，未通过新增关键词黑名单或放宽断言掩盖问题。
+- **验证入口**：`CertificateScorePolicyTest`、`CertificateScoreMysqlTest`、`ScoreEstimateRefreshMysqlTest`、`ScoreEstimateReadRegressionTest`；后端最终726项零失败/错误，前端57项与完整build通过。实际Drawer→真实HTTP→MySQL验证STALE隐藏旧分、三ISO FRESH/10/OK、未知企业荣誉FRESH/null/PENDING、退役ISO FRESH/0/DANGER，保护候选与阶段2逐字一致。
+- **人工确认的路由契约**：证书评分识别独立于计分语法，无法解释条件统一待确认。明确CERT/企业荣誉维度不依赖细则前缀，方案/人员/团队/培训/实施计划排除优先，其他业务类别不串库。
+- **发布边界**：本次提交PR，不包含合并、部署或生产重算。自动支持单ISO、三ISO全有全无及明确四荣誉阶梯；其他复杂规则继续待确认。隔离组件验收不等同完整项目页或生产UAT。
+

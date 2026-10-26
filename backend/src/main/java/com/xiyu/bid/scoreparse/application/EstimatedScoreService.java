@@ -3,7 +3,6 @@
 // Pos: scoreparse/application — 阶段 1 预计得分编排（spec 041 US3）
 // 维护声明: 维护者按项目SOP；FR-011 / FR-014 / FR-015 / FR-018
 package com.xiyu.bid.scoreparse.application;
-
 import com.xiyu.bid.casework.application.port.TenderQualificationQueryPort;
 import com.xiyu.bid.scoreparse.application.match.BrandMatchService;
 import com.xiyu.bid.scoreparse.application.match.CertMatchService;
@@ -18,8 +17,6 @@ import com.xiyu.bid.scoreparse.domain.ScoreRangeGuard;
 import com.xiyu.bid.scoreparse.domain.ScoreStatusPolicy;
 import com.xiyu.bid.scoreparse.domain.policy.CrossChapterPerformancePolicy;
 import com.xiyu.bid.scoreparse.dto.BrandMatchRequest;
-import com.xiyu.bid.scoreparse.dto.CertMatchRequest;
-import com.xiyu.bid.scoreparse.dto.CertMatchedItem;
 import com.xiyu.bid.scoreparse.dto.BrandMatchedItem;
 import com.xiyu.bid.scoreparse.dto.KnowledgeMatchResult;
 import com.xiyu.bid.scoreparse.dto.PersonMatchRequest;
@@ -30,12 +27,10 @@ import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-
 /**
  * 阶段 1 预计得分服务（spec 041 US3 编排层）。
  *
@@ -49,14 +44,11 @@ import java.util.List;
 @Service
 @Slf4j
 public class EstimatedScoreService {
-
     private static final String TYPE_SUBJECTIVE = "SUBJECTIVE";
     private static final String TYPE_OBJECTIVE = "OBJECTIVE";
     private static final int KEYWORD_LIMIT = 6;
-
     @org.springframework.beans.factory.annotation.Autowired(required=false)
     private ScoreScoringVersionService versions;
-
     private final ScoreItemRepository itemRepository;
     private final CertMatchService certMatchService;
     private final PersonMatchService personMatchService;
@@ -64,7 +56,6 @@ public class EstimatedScoreService {
     private final WarehouseMatchService warehouseMatchService;
     private final BrandMatchService brandMatchService;
     private final TenderQualificationQueryPort qualificationQueryPort;
-
     private final KnowledgeCategoryPolicy categoryPolicy = new KnowledgeCategoryPolicy();
     private final PartialScorePolicy partialScorePolicy = new PartialScorePolicy();
     private final ScoreStatusPolicy scoreStatusPolicy = new ScoreStatusPolicy();
@@ -72,7 +63,6 @@ public class EstimatedScoreService {
     private final ProjectEvidenceRequirementPolicy projectEvidencePolicy = new ProjectEvidenceRequirementPolicy();
     private final EstimatedScoreBasisFormatter basisFormatter = new EstimatedScoreBasisFormatter();
     private final CrossChapterPerformancePolicy crossChapterPolicy = new CrossChapterPerformancePolicy();
-
     public EstimatedScoreService(
             ScoreItemRepository itemRepository,
             CertMatchService certMatchService,
@@ -83,7 +73,6 @@ public class EstimatedScoreService {
         this(itemRepository, certMatchService, personMatchService, projectMatchService,
                 warehouseMatchService, brandMatchService, null);
     }
-
     @org.springframework.beans.factory.annotation.Autowired
     public EstimatedScoreService(
             ScoreItemRepository itemRepository,
@@ -102,36 +91,46 @@ public class EstimatedScoreService {
         this.brandMatchService = brandMatchService;
         this.qualificationQueryPort = qualificationQueryPort;
     }
-
     /** 对项目全部评分项执行预计得分计算（挂入解析编排链尾）。 */
     @Transactional(propagation=org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     public void estimateForProject(Long projectId) { estimateForVersion(projectId, null); }
-
     @Transactional(propagation=org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     @org.springframework.scheduling.annotation.Async("scoreParseExecutor")
     public void estimateForVersion(Long projectId, String expectedFingerprint) {
+        calculate(projectId, expectedFingerprint, false);
+    }
+    /** Synchronous refresh of certificate estimates, independent of extraction and scoring tasks. */
+    @Transactional(propagation=org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    public boolean refreshForProject(Long projectId) { return calculate(projectId, null, true); }
+    private boolean calculate(Long projectId, String expectedFingerprint, boolean certificateOnly) {
         var snapshot = versions == null ? null : versions.capture(projectId);
-        if (snapshot != null && expectedFingerprint != null && !snapshot.fingerprint().equals(expectedFingerprint)) return;
+        if (snapshot != null && expectedFingerprint != null && !snapshot.fingerprint().equals(expectedFingerprint)) return false;
         List<ScoreItem> items = snapshot == null ? itemRepository.findByProjectIdOrderByItemIndexAsc(projectId)
                 : snapshot.items().stream().map(i -> ScoreItem.builder().id(i.getId()).code(i.getCode()).dim(i.getDim())
                 .detail(i.getDetail()).weight(i.getWeight()).scoreType(i.getScoreType()).build()).toList();
+        if (certificateOnly) items = items.stream().filter(CertificateScoreEstimateSupport::applies).toList();
         for (ScoreItem item : items) {
             try {
                 estimateItem(projectId, item);
             } catch (RuntimeException exception) {
                 log.warn("评分项预计得分计算失败，保持待确认: itemId={}, code={}",
                         item.getId(), item.getCode(), exception);
+                item.setEstimateInputFingerprint(null); item.setEstimatedAt(null);
                 item.setEstScore(null);
                 item.setKbHit(false);
                 item.setStatusStage1(ScoreStatusPolicy.PENDING);
                 item.setEstBasis("预计得分计算失败，未沿用历史匹配结果，待人工确认");
             }
         }
-        if (versions == null) itemRepository.saveAll(items);
-        else versions.saveEstimates(projectId, snapshot.fingerprint(), items);
+        if (versions != null) return versions.saveEstimates(projectId, snapshot.fingerprint(), items);
+        itemRepository.saveAll(items);
+        return true;
     }
-
     private void estimateItem(Long projectId, ScoreItem item) {
+        if (CertificateScoreEstimateSupport.applies(item)) {
+            CertificateScoreEstimateSupport.calculate(item, certMatchService, LocalDate.now());
+            return;
+        }
         if (item.getWeight() == null) {
             item.setEstScore(null); item.setStatusStage1(ScoreStatusPolicy.PENDING); item.setKbHit(false);
             item.setEstBasis("评分权重未知，无法计算"); return;
@@ -144,7 +143,6 @@ public class EstimatedScoreService {
             item.setEstBasis("主观项不计分，待投标文件提交后人工评审确认");
             return;
         }
-
         String category = categoryPolicy.categorize(item.getDim(), item.getDetail());
         if (KnowledgeCategoryPolicy.CATEGORY_OTHER.equals(category)) {
             item.setEstScore(null);
@@ -175,7 +173,6 @@ public class EstimatedScoreService {
             item.setEstBasis("未抽取到可执行的仓库匹配约束（面积），禁止按在用仓存在性给满分，待人工确认预计得分");
             return;
         }
-
         CrossChapterPerformancePolicy.Constraint crossConstraint = null;
         if (KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
                 && crossChapterPolicy.referencesQualification(item.getDim(), item.getDetail())
@@ -187,12 +184,10 @@ public class EstimatedScoreService {
                         item.getDim(), item.getDetail(), qualInfo.qualificationRequirements(), qualInfo.rawTenderText());
             }
         }
-
         BigDecimal minContractAmount = categoryPolicy.extractMinContractAmount(item.getDetail());
         if (minContractAmount == null && crossConstraint != null && crossConstraint.minContractAmount() != null) {
             minContractAmount = crossConstraint.minContractAmount();
         }
-
         if (KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
                 && categoryPolicy.hasContractAmountThreshold(item.getDetail())
                 && minContractAmount == null) {
@@ -202,7 +197,6 @@ public class EstimatedScoreService {
             item.setEstBasis("条款包含合同金额门槛，但系统未能可靠识别具体金额，待人工确认");
             return;
         }
-
         KnowledgeMatchResult match = dispatchMatch(category, item, crossConstraint, minContractAmount);
         ProjectEvidenceRequirementPolicy.Assessment evidenceAssessment =
                 KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
@@ -238,7 +232,6 @@ public class EstimatedScoreService {
                 guarded.score(), item.getWeight(), item.getScoreType(), flagged));
         item.setEstBasis(basisFormatter.matchBasis(category, match, flagged, crossConstraint));
     }
-
     private KnowledgeMatchResult dispatchMatch(
             String category, ScoreItem item,
             CrossChapterPerformancePolicy.Constraint crossConstraint,
@@ -254,8 +247,6 @@ public class EstimatedScoreService {
         }
         LocalDate today = LocalDate.now();
         return switch (category) {
-            case KnowledgeCategoryPolicy.CATEGORY_CERT -> certMatchService.match(new CertMatchRequest(
-                    keywords, categoryPolicy.extractLevel(detail), today, null));
             case KnowledgeCategoryPolicy.CATEGORY_PERSON -> personMatchService.match(new PersonMatchRequest(
                     keywords, null, categoryPolicy.extractCount(detail, "人")));
             case KnowledgeCategoryPolicy.CATEGORY_PROJECT -> projectMatchService.match(new ProjectMatchRequest(
@@ -269,21 +260,16 @@ public class EstimatedScoreService {
             default -> KnowledgeMatchResult.empty("未支持的知识库类别");
         };
     }
-
     /** 过期证书 / 即将到期授权 → FR-015 待确认标记。 */
     private boolean hasFlaggedItems(List<?> matched) {
         if (matched == null) {
             return false;
         }
         for (Object row : matched) {
-            if (row instanceof CertMatchedItem cert && cert.expired()) {
-                return true;
-            }
             if (row instanceof BrandMatchedItem brand && brand.expireSoon()) {
                 return true;
             }
         }
         return false;
     }
-
 }

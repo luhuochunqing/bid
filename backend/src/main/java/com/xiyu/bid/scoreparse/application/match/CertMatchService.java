@@ -4,6 +4,13 @@ import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.BusinessQualificationEntity;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.BusinessQualificationJpaRepository;
 import com.xiyu.bid.scoreparse.domain.MatchTierPolicy;
+import com.xiyu.bid.scoreparse.domain.CertificateScorePolicy;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.Comparator;
 import com.xiyu.bid.scoreparse.dto.CertMatchRequest;
 import com.xiyu.bid.scoreparse.dto.CertMatchedItem;
 import com.xiyu.bid.scoreparse.dto.KnowledgeMatchResult;
@@ -29,6 +36,53 @@ import java.util.List;
 public class CertMatchService {
 
     private final BusinessQualificationJpaRepository repository;
+
+    public record ScoreEstimate(CertificateScorePolicy.Assessment assessment, String inputFingerprint) {}
+
+    public ScoreEstimate estimateScore(String dim, String detail, BigDecimal weight, LocalDate asOf) {
+        var facts = scoreFacts();
+        return new ScoreEstimate(CertificateScorePolicy.assess(dim, detail, weight, asOf, facts),
+                fingerprint(dim, detail, weight, asOf, facts));
+    }
+
+    public String fingerprintForScore(String dim, String detail, BigDecimal weight, LocalDate asOf) {
+        return fingerprint(dim, detail, weight, asOf, scoreFacts());
+    }
+
+    private List<CertificateScorePolicy.Fact> scoreFacts() {
+        return repository.findAll().stream().map(row -> new CertificateScorePolicy.Fact(
+                row.getId(), row.getName(), row.getLevel(), row.getExpiryDate(),
+                row.getStatus() == null ? null : row.getStatus().name(), row.isRetired(), row.getIssueDate(),
+                row.getCategory() == null ? null : row.getCategory().name()))
+                .sorted(Comparator.comparing(Object::toString)).toList();
+    }
+
+    private static String fingerprint(String dim, String detail, BigDecimal weight, LocalDate asOf,
+                                      List<CertificateScorePolicy.Fact> facts) {
+        StringBuilder input = new StringBuilder();
+        for (Object value : List.of(CertificateScorePolicy.ENGINE_VERSION,
+                String.valueOf(dim), String.valueOf(detail), String.valueOf(weight), String.valueOf(asOf))) {
+            appendFingerprint(input, value);
+        }
+        for (var fact : facts) {
+            appendFingerprint(input, fact.id()); appendFingerprint(input, fact.name()); appendFingerprint(input, fact.level());
+            appendFingerprint(input, fact.expiryDate()); appendFingerprint(input, fact.status());
+            appendFingerprint(input, fact.retired()); appendFingerprint(input, fact.issueDate());
+            appendFingerprint(input, fact.category());
+        }
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(input.toString().getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 unavailable", impossible);
+        }
+    }
+
+    private static void appendFingerprint(StringBuilder target, Object value) {
+        if (value == null) { target.append("-1:"); return; }
+        String text = value.toString();
+        target.append(text.length()).append(':').append(text);
+    }
 
     public KnowledgeMatchResult match(CertMatchRequest request) {
         if (request == null) {

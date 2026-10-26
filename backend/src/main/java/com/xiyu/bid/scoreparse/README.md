@@ -53,3 +53,12 @@
 - 招标文件正文复用 `bid_tender_document_snapshots` 快照（`TenderDocumentStoredListener` 监听落库事件），不重复解析文件；
 - 知识库匹配读取现有资质/人员/业绩/仓储/品牌授权存储，部分字段降级匹配（无精确字段时按名称/等级模糊匹配），不新建知识库表；
 - 前端消费方为 `ScoreParseDrawer.vue`（PR !2292），API 封装见 `src/api/modules/scoreParse.js`。
+
+## 证书评分与预判更新（spec 081）
+
+- `CertificateScoreRule` 完整解析已支持的证书评分段，未解释附加条件、材料引用或冲突条件保持待确认。
+- `CertificateScorePolicy` 按标准身份、企业证书种类、等级、有效期逐项裁决；`CertMatchService.estimateScore` 将真实库存映射为事实，并保存输入指纹。
+- `POST /api/projects/{projectId}/score-parse/estimates/refresh` 复用项目访问守卫，独立更新已生效证书项预判，不采纳候选、不改阶段2。
+- `ScoreEstimateFreshness` 校验计算引擎、规则、证书事实和核验日；无记录或不一致为STALE，读取投影隐藏历史分且从汇总排除。当前指纹保守绑定全企业证书快照。
+- nullable字段由V1225新增；迁移不重算、不提升历史满足状态。独立刷新有规则CAS及证书指纹校验，失败项可清空自身结果并保留其他新鲜项。
+- 通用 `POST /api/knowledge/cert/match` 仍为兼容召回查询，其任一关键词命中不代表满足组合评分要求。
