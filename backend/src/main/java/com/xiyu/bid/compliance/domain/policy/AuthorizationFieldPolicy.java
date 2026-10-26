@@ -1,6 +1,6 @@
 // Input: 单个授权正文页的文字字段
-// Output: 人员、权限、期限的FILLED/PLACEHOLDER/UNKNOWN状态（不验证身份与签章）
-// Pos: compliance/domain/policy/ - 授权文字要素的保守正向文法
+// Output: 人员、权限、期限的FILLED/PLACEHOLDER/UNKNOWN状态（不验证身份与签章），以及该页是否声明授权事实
+// Pos: compliance/domain/policy/ - 授权文字要素的保守正向文法（含代表参加投标、长期有效、掩码身份证）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -32,16 +32,25 @@ public final class AuthorizationFieldPolicy {
     private static final String ACTION = "(?:签署|签订|递交|提交|澄清确认|澄清|撤回|修改)";
     private static final String OBJECT = "(?:(?:本项目|本次|该项目)?(?:投标文件|标书|合同))";
     private static final String ACTION_CLAUSE = ACTION + "(?:[、，,及和与并]" + ACTION + ")*" + OBJECT;
+    // 代表公司参加投标类写法也属明确授权范围（如「全权代表本公司参加投标」）。
+    private static final String REPRESENTATION = "(?:全权)?代表(?:我方|本公司|公司|本单位)?"
+            + "(?:参加|参与|出席|办理|处理)?(?:本项目|本次|该项目)?(?:投标|招投标|开标)(?:活动|事宜)?";
     private static final Pattern ACTION_SCOPE = Pattern.compile("(?:" + ACTION_CLAUSE
-            + ")(?:[、，,及和与并](?:" + ACTION_CLAUSE + "))*|处理本项目投标事宜");
+            + ")(?:[、，,及和与并](?:" + ACTION_CLAUSE + "))*|处理本项目投标事宜|" + REPRESENTATION);
     private static final Pattern VALIDITY_TERM = Pattern.compile(
             "(?:自(?:本授权(?:委托)?书)?(?:签字盖章|签字|签署)(?:之日|日)?起?(?:生效)?(?:至|到))"
                     + "(?:本项目)?投标有效期(?:结束|届满)(?:之日)?止?"
-                    + "|(?:覆盖|至|到)(?:本项目)?投标有效期(?:结束|届满)?");
+                    + "|(?:覆盖|至|到)(?:本项目)?投标有效期(?:结束|届满)?"
+                    + "|(?:长期|永久)(?:有效)?");
     // 仅覆盖明确的人名候选文法；未覆盖姓氏/写法为UNKNOWN，不宣称真实身份已核验。
     private static final String FAMILIES = "赵钱孙李周吴郑王冯陈卫蒋沈韩杨朱秦许何吕张孔曹严华金魏姜谢邹柏苏潘葛范彭韦马袁柳鲍史唐薛雷贺倪汤殷罗毕郝安常于傅齐康伍余顾孟黄尹姚邵汪毛戴宋庞熊舒屈董梁杜阮贾江童颜郭梅林钟徐邱高夏蔡田胡霍万卢莫宗丁邓石崔龚程裴陆翁甄段侯刘景詹龙叶黎乔白蒲赖卓蒙商谭申冉桑牛尚温庄柴阎连艾向古易廖耿文寇欧曾关聂游鞠丰沙";
-    private static final Pattern PERSON_CANDIDATE = Pattern.compile(
-            "(?:[" + FAMILIES + "][\\p{IsHan}]{1,2}|(?:欧阳|司马|上官|诸葛|司徒|夏侯|东方|皇甫|尉迟|公孙|慕容)[\\p{IsHan}]{1,2})");
+    private static final String PERSON_BODY = "(?:[" + FAMILIES + "][\\p{IsHan}]{1,2}"
+            + "|(?:欧阳|司马|上官|诸葛|司徒|夏侯|东方|皇甫|尉迟|公孙|慕容)[\\p{IsHan}]{1,2})";
+    private static final Pattern PERSON_CANDIDATE = Pattern.compile(PERSON_BODY);
+    // 无冒号写法（如「委托代理人 王五」）也要能识别出已填写当事人。
+    private static final Pattern PARTY_DECLARATION = Pattern.compile(
+            "(" + PRINCIPAL + "|" + AGENT + ")(?:[（(](?:签字|盖章|姓名)[）)])?[ \\t]*[:：]?[ \\t]*" + PERSON_BODY);
+    private static final Pattern ID_CARD = Pattern.compile("[1-9][0-9]{5}(?:[0-9]{8}|[*＊]{6,8})[0-9]{3}[0-9Xx]");
 
     private static final String DATE = "([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})";
     private static final Pattern DATE_INTERVAL = Pattern.compile("自?" + DATE + "(?:至|到|—|~)" + DATE + "止?");
@@ -64,10 +73,23 @@ public final class AuthorizationFieldPolicy {
         return false;
     }
 
+    /**
+     * 该页是否声明了可用于冲突比对的授权事实：结构化字段、无冒号的当事人声明，
+     * 或任一要素已非 UNKNOWN。用于避免「第二份授权正文」因写法差异被静默忽略。
+     */
+    public static boolean declaresAuthorizationFacts(final String text) {
+        String source = text == null ? "" : text;
+        Assessment fields = assessAuthorizationFields(source);
+        return hasStructuredFields(source) || PARTY_DECLARATION.matcher(source).find()
+                || List.of(fields.principal(), fields.agent(), fields.scope(), fields.term())
+                        .stream().anyMatch(state -> state != State.UNKNOWN);
+    }
+
     public static boolean legalRepresentativeProofFilled(final String text) {
-        return text != null && text.contains("法定代表人")
-                && classify(values(text, "姓名"), AuthorizationFieldPolicy::isName) == State.FILLED
-                && Pattern.compile("[1-9][0-9]{16}[0-9Xx]").matcher(text).find();
+        if (text == null || !text.contains("法定代表人")) return false;
+        boolean nameFilled = classify(values(text, "姓名"), AuthorizationFieldPolicy::isName) == State.FILLED
+                || classify(values(text, PRINCIPAL), AuthorizationFieldPolicy::isName) == State.FILLED;
+        return nameFilled && ID_CARD.matcher(text).find();
     }
 
     private static List<String> values(final String text, final String labels) {

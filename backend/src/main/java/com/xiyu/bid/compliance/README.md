@@ -68,7 +68,7 @@
 
 ## 人工确认后的授权与退款字段契约
 
-- `domain/policy/AuthorizationFieldPolicy.java`：人员、权限、期限三态；仅支持明确动作、投标有效期关联或有效有序日期；未覆盖格式人工，不验证真实身份。
-- `domain/policy/AuthorizationLetterCheckPolicy.java`：不同结构化授权页保留人工与原页证据；法定代表人证明标题或任意图片不直接豁免。
+- `domain/policy/AuthorizationFieldPolicy.java`：人员、权限、期限三态；支持明确动作、代表公司参加投标、投标有效期关联、长期有效或有效有序日期，法人证明接受姓名加掩码身份证；`declaresAuthorizationFacts` 判定该页是否参与授权冲突比对（覆盖无冒号写法）；未覆盖格式人工，不验证真实身份。
+- `domain/policy/AuthorizationLetterCheckPolicy.java`：不同内容授权页一律人工并保留原页证据，第二份无冒号写法不再被静默忽略；法定代表人证明标题或任意图片不直接豁免。
 - `domain/policy/BidDocumentQualityEngine.java`：最终输出强制重用授权三态门禁，AI不能覆盖未知/占位人工。
 - `domain/policy/RefundAccountEvidencePolicy.java`：唯一企业户名、银行名称及数字账号的文字完整性；元标签和掩码不构成实值，不验证账户归属/机构真实性。
