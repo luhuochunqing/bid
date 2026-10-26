@@ -106,11 +106,6 @@ public final class IncrementalCountScorePolicy {
                        BigDecimal pointsPerIncrement, BigDecimal maximumScore,
                        BigDecimal baseScore) {
 
-        public Rule(int zeroScoreBaseCount, int incrementCount,
-                    BigDecimal pointsPerIncrement, BigDecimal maximumScore) {
-            this(zeroScoreBaseCount, incrementCount, pointsPerIncrement, maximumScore, BigDecimal.ZERO);
-        }
-
         public int requiredCountForMaximumScore() {
             BigDecimal pointsNeeded = maximumScore.subtract(baseScore != null ? baseScore : BigDecimal.ZERO);
             if (pointsNeeded.signum() <= 0) {

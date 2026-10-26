@@ -6,12 +6,10 @@
 package com.xiyu.bid.scoreparse.domain.policy;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,6 +41,12 @@ public final class CrossChapterPerformancePolicy {
             "(\\d+(?:\\.\\d+)?)\\s*(万|亿)?元"
     );
 
+    /** 资格审查/初步评审章节正则（从标书全文截取候选段落） */
+    private static final Pattern QUALIFICATION_SECTION_PATTERN = Pattern.compile(
+            "(?:初步评审|资格审查|资格评审|资格条件|投标人资格)[^\\n]*([\\s\\S]*?)(?=(?:\\n\\s*(?:[一二三四五六七八九十\\d]+[、.\\s]*)?(?:详细评审|技术需求|商务要求|投标文件格式)|$))",
+            Pattern.CASE_INSENSITIVE
+    );
+
     public record Constraint(
             boolean referencesQualification,
             String rawClauseText,
@@ -62,9 +66,9 @@ public final class CrossChapterPerformancePolicy {
         if (!hasText(detail)) {
             return false;
         }
-        String combined = ((dim != null ? dim : "") + " " + detail).toLowerCase(Locale.ROOT);
+        String combined = (dim != null ? dim : "") + " " + detail;
         for (String indicator : QUALIFICATION_REFERENCE_INDICATORS) {
-            if (combined.contains(indicator.toLowerCase(Locale.ROOT))) {
+            if (combined.contains(indicator)) {
                 return true;
             }
         }
@@ -128,12 +132,7 @@ public final class CrossChapterPerformancePolicy {
 
     private static List<String> scanRawTenderForQualificationPerformance(String rawTenderText) {
         List<String> results = new ArrayList<>();
-        // 匹配资格审查章节
-        Pattern sectionPattern = Pattern.compile(
-                "(?:初步评审|资格审查|资格评审|资格条件|投标人资格)[^\\n]*([\\s\\S]*?)(?=(?:\\n\\s*(?:[一二三四五六七八九十\\d]+[、.\\s]*)?(?:详细评审|技术需求|商务要求|投标文件格式)|$))",
-                Pattern.CASE_INSENSITIVE
-        );
-        Matcher matcher = sectionPattern.matcher(rawTenderText);
+        Matcher matcher = QUALIFICATION_SECTION_PATTERN.matcher(rawTenderText);
         if (matcher.find()) {
             String sectionContent = matcher.group(1);
             String[] lines = sectionContent.split("\\n");
