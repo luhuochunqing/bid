@@ -91,3 +91,11 @@ mvn -Dtest=BasicInfoAndAttachmentRulesTest,DeterministicCaCertificateExtractorTe
 - 退款元标签、括号字段说明、某某/XX掩码不构成企业/银行名称；完整字段不等于账户归属或有效性核验。
 - 本地850项、冻结PDF、三架构、构建和变更源码Checkstyle通过，独立两轴审查通过。基线7e0481cd2，分支agent/claude/quality58-program-repair，源码未提交/未部署。
 - 生产报告58未在本轮重算。部署后必须另验真实模型、页面和持久化结果，不能把本地通过当业务UAT。
+
+## 2026-10-25 22:27 生产项目1117 CA专项验收
+
+- 生产运行 release `838ee5742`；浏览器执行跳过缓存重新核查，任务 `dcf7fd5189c94831a5bf007cebbf9384`，报告58于22:27:33完成。
+- 同一投标PDF哈希 `9ec146ad0344b5196d81edce9b59f8ab5485afbea353b72f7f5eedb86a180646`，与旧报告55/56一致。
+- CA项PASS：平台为“招商局集团电子招标采购交易网”，招标原文第4页；知识库证据 `sourceRecordId=65`、`knowledgeSource=ca-certificate`、`matched=true`，有效至2027-09-08，在库。生产台账65/66均有效在库，本次实际引用65。
+- 页面与数据库报告一致。此验收仅覆盖项目1117电子标识别与CA关联；全报告17通过、1不通过、7待确认，不代表整份标书或通用回归验收通过。
+- 操作边界：评分重新解析不会自动更新质量报告；本次另行触发AI标书质量重新核查。
