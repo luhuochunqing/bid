@@ -7595,3 +7595,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   3. 扩充商业量化词库：`QUANTIFIED_PATTERN` 增加 `营业额|营业收入|营收|合同额|合同金额|开票额|开票金额|纳税额|资产总额|净资产|注册资本|注册资金`，门槛正则覆盖 `年及以上|万元及以上|万以上|亿以上` 及 `[≥>≤<]|不低于|不少于|不小于|超过|达到|满足`；
   4. 静态编译与分值隔离：提取静态编译常量 `QUALIFIED_NUMERIC_PATTERN` 消除热路径动态编译开销，严禁将 `满` 或分值 `分` 纳入量化单位；
   5. 自动化测试防御：新增 `classify_subjectivePlanWithMaxScore_remainsSubjective` 及销售额/营业收入/优质客户合同额等双向单测，确保主客观分类语义边界严密。
+
+## 457. PDF 全页装饰边框伪表格破坏跨页续表合并与半开闭区间分值提取缺陷（2026-10-26）
+
+- **现场证据**：项目 1118（贵州能源集团办公用品电商供应商采购）标书在线解析两次均识别错误，第 38-49 页评分办法包含 100 分完整评分表，但仅提取出第 38 页的前 20 分（商务部分），技术评分（45分）与报价评分（35分）全部丢失，总分断裂。
+- **致错机制**：
+  1. **全页装饰边框伪表格阻断**：pdfplumber 在提取包含页面边框（page border frame/margin box）的 PDF 时，将该边框识别为一个宽高 $\ge 90\%$ 页面尺寸、仅有 1 列的“伪表格”，交替插入在正文多列表格之间；跨页续表合并算法检测到前后表格列数不匹配或夹带无关表格，导致续表合并在第 38 页直接截断；同时导致正文行被误判为“表内行”而丢失段落标题锚点；
+  2. **跨页续表合并判定过严**：原 `_is_pdf_score_table_continuation` 要求续表必须每行包含数字或分值，对于首格为空且跨页长描述文本（无数字）的纯文本延续行，以及以“注：”、“说明：”、“需要补充的其他内容”开头的表尾注释行，直接拒绝合并并导致后续表格断链；
+  3. **Java 侧佐证判定与分值正则覆盖不全**：标书表格大量使用中括号与粗括号（如 `[20分]`、`【45分】`、`分值[分]`），而 `ScoreParseConstants.BRACKET_WEIGHT_PATTERN` 与 `ScoreSubtotalColumnPolicy` / `OriginalScoreWeightEvidencePolicy` 仅覆盖圆括号 `( )` `（ ）`；同时评分标准中出现 `[8-5）分` 等半开半闭区间，`CellAnchoredScoreExtractor` 原正则无法识别区间上限。
+- **根治方案与边界**：
+  1. **几何启发式边框剔除**：Sidecar 增加 `_is_pdf_page_border_table`，当表格宽度与高度均 $\ge 90\%$ 页面尺寸且提取列数 $\le 1$ 时，判定为页面装饰边框并从 `_pdf_page_tables` 与 `_pdf_line_inside_table` 中统一排除；
+  2. **续表合并宽容化扩展**：放宽跨页续表条件，支持首列为空但包含长文本的纯描述行，以及以 `注：/说明：/需要补充的其他内容/附：` 开头的注释行合并入主表；
+  3. **统一中括号与区间上限提取**：扩展 `ScoreParseConstants.BRACKET_WEIGHT_PATTERN` 兼容 `[\\[【]` 与 `[\\]】]`；在 `CellAnchoredScoreExtractor` 中新增 `RANGE_SCORE_PATTERN`，针对 `[a-b）` 等半开区间采用 `v1.max(v2)` 准确提取上限分值；
+  4. **全量回归固化**：Sidecar 43 项表格测试与 169 项全量测试 100% 通过；Java 侧单元测试（`ScoreSubtotalColumnPolicyTest`、`OriginalScoreEvidencePolicyTest`、`CellAnchoredScoreExtractorTest`）与架构测试全绿。
+
