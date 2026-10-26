@@ -787,3 +787,90 @@ def test_pdf_score_table_continuation_allows_empty_first_cell():
     assert len(merged) == 1
     assert len(merged[0]["rows"]) == 4
     assert merged[0]["rows"][2][3] == "财务会计报表复印件（满分3分）"
+
+
+def test_pdf_page_tables_skips_full_page_border_pseudo_table():
+    class FakeTable:
+        def __init__(self, bbox, rows):
+            self.bbox = bbox
+            self._rows = rows
+        def extract(self):
+            return self._rows
+
+    class FakePage:
+        width = 595.25
+        height = 841.9
+        def __init__(self, tables):
+            self._tables = tables
+        def find_tables(self):
+            return self._tables
+
+    border_table = FakeTable(
+        bbox=(0.0, 0.0, 600.0, 900.0),
+        rows=[["页眉/边框说明"], ["页脚说明"]]  # cols = 1, >=90% of page
+    )
+    real_table = FakeTable(
+        bbox=(55.0, 100.0, 550.0, 750.0),
+        rows=[["条款号", "评分因素", "评分标准", "分值"], ["1", "技术", "方案详实", "10分"]]
+    )
+
+    page = FakePage([border_table, real_table])
+    tables = _pdf_page_tables(page)
+    # The full-page 1-column pseudo-table must be skipped
+    assert len(tables) == 1
+    top, rows = tables[0]
+    assert top == 100.0
+    assert len(rows) == 2
+    assert len(rows[0]) == 4
+
+
+def test_pdf_score_table_continuation_allows_purely_descriptive_continuation_rows():
+    first = {
+        "sourcePage": 46,
+        "sourceTableIndex": 0,
+        "sourceSection": "第三章 评标办法",
+        "rows": [
+            ["条款号", "评分因素", "评分标准", "分值"],
+            ["2.2.3（2）", "技术评分标准", "对接能力和方案（10分）", "对接技术方案成熟先进"],
+        ],
+    }
+    # Continuation page has no new score numbers; it only continues the description text
+    continuation_pure_desc = {
+        "sourcePage": 47,
+        "sourceTableIndex": 1,
+        "sourceSection": "第三章 评标办法",
+        "rows": [
+            ["", "", "", "对接接口详细规范、数据同步频率及异常恢复时限等满足要求。"],
+            ["", "", "", "完整覆盖上述核心内容，另一项仅作提及但无实质响应扣分。"],
+        ],
+    }
+    merged = _merge_pdf_score_table_continuations([first, continuation_pure_desc])
+    assert len(merged) == 1
+    assert len(merged[0]["rows"]) == 4
+    assert "对接接口详细规范" in merged[0]["rows"][2][3]
+
+
+def test_pdf_score_table_continuation_allows_table_notes_continuation():
+    first = {
+        "sourcePage": 48,
+        "sourceTableIndex": 0,
+        "sourceSection": "第三章 评标办法",
+        "rows": [
+            ["条款号", "评分因素", "评分标准", "分值"],
+            ["2.2.3（3）", "投标报价评分标准（35分）", "投标报价（35分）", "得分计算公式如下..."],
+        ],
+    }
+    continuation_notes = {
+        "sourcePage": 49,
+        "sourceTableIndex": 1,
+        "sourceSection": "第三章 评标办法",
+        "rows": [
+            ["注：1-Bn大于J时，投标人扣分最多扣7分", "", "", ""],
+            ["需要补充的其他内容：", "", "", ""],
+        ],
+    }
+    merged = _merge_pdf_score_table_continuations([first, continuation_notes])
+    assert len(merged) == 1
+    assert len(merged[0]["rows"]) == 4
+    assert "注：1-Bn大于J时" in merged[0]["rows"][2][0]
+

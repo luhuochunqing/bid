@@ -37,6 +37,9 @@ public final class CellAnchoredScoreExtractor {
     private static final Pattern PRICE_SUBITEM_PATTERN = Pattern.compile(
             "[1-9]、\\s*([^\\s。\\n;；，,（(]{2,30}?(?:[（(][^）)]*?[）)])?)\\s*[（(]?\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]?"
     );
+    private static final Pattern RANGE_SCORE_PATTERN = Pattern.compile(
+            "[（(\\[【]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*(?:分)?\\s*[-~～至到—–]+\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*(?:分)?\\s*[）)\\]】]\\s*分?"
+    );
     private static final Pattern NON_SCORE_PROCEDURE_PATTERN = ScoreParseConstants.NON_SCORE_PROCEDURE_PATTERN;
 
     private CellAnchoredScoreExtractor() {
@@ -259,40 +262,34 @@ public final class CellAnchoredScoreExtractor {
     }
 
     private static BigDecimal parseWeight(String cell) {
-        if (cell == null || cell.isBlank()) {
-            return null;
-        }
+        if (cell == null || cell.isBlank()) return null;
         String trimmed = cell.trim();
         Matcher m = NUMERIC_WEIGHT_PATTERN.matcher(trimmed);
-        if (m.matches()) {
-            return new BigDecimal(m.group(1));
-        }
+        if (m.matches()) return new BigDecimal(m.group(1));
         Matcher bm = BRACKET_WEIGHT_PATTERN.matcher(trimmed);
-        if (bm.find()) {
-            return new BigDecimal(bm.group(1));
-        }
-        return null;
+        return bm.find() ? new BigDecimal(bm.group(1)) : null;
     }
 
     private static BigDecimal parseWeightFromDetail(String detail) {
         if (detail == null || detail.isBlank()) return null;
         String cleaned = detail.replaceAll("<[^>]+>", " ");
-        Matcher m = GRADE_SCORE_PATTERN.matcher(cleaned);
         BigDecimal max = null;
+        Matcher m = GRADE_SCORE_PATTERN.matcher(cleaned);
         while (m.find()) {
             BigDecimal v = new BigDecimal(m.group(1));
-            if (max == null || v.compareTo(max) > 0) {
-                max = v;
-            }
+            max = max == null || v.compareTo(max) > 0 ? v : max;
         }
-        if (max == null) {
-            Matcher bm = BRACKET_WEIGHT_PATTERN.matcher(cleaned);
-            while (bm.find()) {
-                BigDecimal v = new BigDecimal(bm.group(1));
-                if (max == null || v.compareTo(max) > 0) {
-                    max = v;
-                }
-            }
+        if (max != null) return max;
+        Matcher bm = BRACKET_WEIGHT_PATTERN.matcher(cleaned);
+        while (bm.find()) {
+            BigDecimal v = new BigDecimal(bm.group(1));
+            max = max == null || v.compareTo(max) > 0 ? v : max;
+        }
+        if (max != null) return max;
+        Matcher rm = RANGE_SCORE_PATTERN.matcher(cleaned);
+        while (rm.find()) {
+            BigDecimal v = new BigDecimal(rm.group(1)).max(new BigDecimal(rm.group(2)));
+            max = max == null || v.compareTo(max) > 0 ? v : max;
         }
         return max;
     }
