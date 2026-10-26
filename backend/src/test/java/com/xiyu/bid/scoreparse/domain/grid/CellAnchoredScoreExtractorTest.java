@@ -359,5 +359,20 @@ class CellAnchoredScoreExtractorTest {
         assertThat(candidates.get(1).weight()).isEqualByComparingTo(new BigDecimal("30.0"));
     }
 
+    @Test
+    void extract_halfOpenRangeScorePattern_extractsUpperScore() {
+        String markdown = """
+                | 序号 | 评分因素 | 评分标准 |
+                |---|---|---|
+                | 1 | 对接能力 | 对接接口满足要求得[8-5）分，方案较完善得[5-3）分 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = new TableColumnMapping(0, -1, 1, 2, -1, 1, false);
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+
+        assertThat(candidates).hasSize(1);
+        assertThat(candidates.get(0).weight()).isEqualByComparingTo(new BigDecimal("8"));
+    }
+
     // 关联：项目 33 真实物理版式中跨页残行大类标题含换行（部分\n（30\n分））单测见 ScoreParseContinuationRowTest
 }
