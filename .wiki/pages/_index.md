@@ -112,7 +112,7 @@ backlinks:
 - [[scoreparse-1391-appendix-scope-weight-closure-rca]] — 项目1391前附表附件承载评分表未入作用域、权重制总分缺失与权重闭合口径
 - [[scoreparse-1359-stale-200-total-rca]] — 项目1359旧200分、最低/最高小计冲突与最新单条总括事实
 - [[scoreparse-48-chapter-heading-spacing-rca]] — 项目48标书章节标题字间空格与同级截断根因分析与作用域自然恢复
-- [[score-subtotal-peritem-semantics-provenance-snapshot]] — 评分小计单项满分语义规则与案例来源快照守卫（单项分句抑制/BINARY 原子校验/Update 9 元穷举）
+- [[score-subtotal-peritem-semantics-provenance-snapshot]] — 评分单项满分及 PDF 跨行范围判断、案例来源快照守卫
 - [[score-parse-adoption-consistency]] — 评分候选采纳与最新解析任务一致性（长说明、锁、过期页面）
 - [[score-parse-service]] — AI 评分标准解析后端服务
 - [[scoreparse-certificate-estimate-staleness-rca]] — 证书评分历史漏认、预判残留与组合证书任一命中假满分根因（只读诊断，未修复）
