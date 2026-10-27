@@ -660,6 +660,23 @@ def _is_pdf_page_border_table(table, page) -> bool:
         max_cols = max((len(r) for r in raw), default=0)
         if max_cols <= 1:
             return True
+
+        # Spatial containment invariant: if this full-page table geometrically encloses
+        # another table on the same page, this table is conclusively an outer container/border.
+        find_tables = getattr(page, "find_tables", None)
+        if callable(find_tables):
+            try:
+                for other in find_tables() or []:
+                    if other is table:
+                        continue
+                    ob = getattr(other, "bbox", None) or ()
+                    if len(ob) >= 4:
+                        if (bbox[0] - 2.0 <= ob[0] and bbox[1] - 2.0 <= ob[1]
+                                and bbox[2] + 2.0 >= ob[2] and bbox[3] + 2.0 >= ob[3]):
+                            return True
+            except Exception:
+                pass
+
         if max_cols <= 2 and len(raw) <= 5 and not _has_pdf_score_header(raw):
             return True
     return False
@@ -751,19 +768,26 @@ def _merge_pdf_score_table_continuations(tables: list[dict]) -> list[dict]:
                 for idx, _ in enumerate(rows)
             ],
         }
-        merges_previous = (
-            merged
+        # Try merging with candidates: first check immediate previous, then look back past noise tables
+        merge_target = None
+        for cand in reversed(merged[-3:]):
             # A table on either side of an unreadable chapter boundary is never merged: merging
             # adopts the earlier table's section, which would reattach this chapter's rows to
             # the previous chapter's scheme — the very adoption `_pdf_table_section` refuses.
-            and not merged[-1].get("sectionBoundaryCut")
-            and not table.get("sectionBoundaryCut")
-            and _same_or_unknown_section(merged[-1].get("sourceSection"), table.get("sourceSection"))
-            and _is_pdf_score_table_continuation(merged[-1]["rows"], rows)
-        )
-        if merges_previous:
-            merged[-1]["rows"].extend(rows)
-            merged[-1]["sourceRows"].extend(enriched["sourceRows"])
+            if cand.get("sectionBoundaryCut") or table.get("sectionBoundaryCut"):
+                break
+            if not _same_or_unknown_section(cand.get("sourceSection"), table.get("sourceSection")):
+                break
+            if _is_pdf_score_table_continuation(cand["rows"], rows):
+                merge_target = cand
+                break
+            # If candidate was already a genuine score table, do not jump past it to an earlier score table
+            if any(_is_genuine_header_row(r) for r in cand["rows"]):
+                break
+
+        if merge_target is not None:
+            merge_target["rows"].extend(rows)
+            merge_target["sourceRows"].extend(enriched["sourceRows"])
         else:
             merged.append(enriched)
     return merged
@@ -800,6 +824,8 @@ def _is_genuine_header_row(row: list[str]) -> bool:
     if not row or len(row) < 3 or len(row) > 15:
         return False
     first = _normalise_cell_text(row[0])
+    if not first:
+        return False
     if re.match(r"^\d", first) or re.fullmatch(r"\d+(?:[.、]\d+)?", first):
         return False
     if re.match(r"^(?:注[：:]|说明[：:]|需要补充的其他内容|附[：:])", first):
