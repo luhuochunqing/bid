@@ -68,17 +68,17 @@ public final class AuthorizationLetterCheckPolicy {
             if (isCatalogOrOutlinePage(page.text())
                     || !BasicInfoCheckPolicy.containsAnyKeyword(page.text(), AUTH_LETTER_KEYWORDS)) continue;
             QualityCheckItemResult candidate = evaluateAuthorizationPage(item, new PageMatch(page.pageNumber(), page.text()));
-            boolean structured = AuthorizationFieldPolicy.hasStructuredFields(page.text());
-            if (structured) {
+            boolean declaresFacts = AuthorizationFieldPolicy.declaresAuthorizationFacts(page.text());
+            if (declaresFacts) {
                 String normalized = page.text().replaceAll("\\s+", "");
                 if (actualGrant != null && !actualGrant.equals(normalized)) conflictingGrants = true;
                 actualGrant = normalized;
                 grantEvidences.addAll(candidate.evidences());
             }
             if (candidate.status() == QualityCheckStatus.PASS && firstPass == null) firstPass = candidate;
-            if (firstUncertain == null || structured && !uncertainHasFields) {
+            if (firstUncertain == null || declaresFacts && !uncertainHasFields) {
                 firstUncertain = candidate;
-                uncertainHasFields = structured;
+                uncertainHasFields = declaresFacts;
             }
         }
         if (conflictingGrants) return QualityCheckItemResult.manualReview(item,

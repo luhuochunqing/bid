@@ -99,3 +99,10 @@ mvn -Dtest=BasicInfoAndAttachmentRulesTest,DeterministicCaCertificateExtractorTe
 - CA项PASS：平台为“招商局集团电子招标采购交易网”，招标原文第4页；知识库证据 `sourceRecordId=65`、`knowledgeSource=ca-certificate`、`matched=true`，有效至2027-09-08，在库。生产台账65/66均有效在库，本次实际引用65。
 - 页面与数据库报告一致。此验收仅覆盖项目1117电子标识别与CA关联；全报告17通过、1不通过、7待确认，不代表整份标书或通用回归验收通过。
 - 操作边界：评分重新解析不会自动更新质量报告；本次另行触发AI标书质量重新核查。
+
+## 2026-10-27 授权冲突比对漏判与三态文法扩充
+
+- 报告58暴露真实漏判：两份内容不同的授权正文，第二份若用空格或跨行书写（如「委托代理人 王五」「委托代理人\n赵六」），旧 `hasStructuredFields` 返回 false，不参与冲突比对，第一份被静默 PASS。现改由 `AuthorizationFieldPolicy.declaresAuthorizationFacts` 判定：结构化字段、无冒号当事人声明、任一要素非 UNKNOWN 三者之一即参与，冲突一律 MANUAL 并保留原页证据。
+- 三态文法按实测真实样本扩充：授权范围「全权代表本公司参加投标」、授权期限「长期有效」、法人证明「法定代表人：姓名 + 18位/8位掩码身份证」。掩码要求恰 8 位，16/17 位截断与下划线留白仍拒绝；姓名可取自「姓名」或「法定代表人」字段，依旧不验证真实身份与签章。
+- 证据：`AuthorizationLetterCheckPolicyTest` 17 项（新增 5 个回归用例，修复前先红 3+2 项）、compliance 全包 834 项、三架构 43 项全绿；S6 独立审查 round 1 NEEDS_FIXES（跨行漏判、掩码位数过宽）→ round 2 MERGE_READY。
+- 分支 `agent/trae/auth-grammar-fix`。生产未部署，报告58须在部署后另验真实模型、页面与持久化结果。
