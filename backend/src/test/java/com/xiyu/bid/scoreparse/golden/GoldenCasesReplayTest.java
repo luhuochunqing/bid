@@ -49,6 +49,16 @@ class GoldenCasesReplayTest {
             Collections.synchronizedList(new ArrayList<>());
 
     @Test
+    void wrappedItemMaximumFixtureDoesNotDeclareSchemeTotal() throws Exception {
+        String text = GoldenCasesReplaySupport.readFixture("case-wrapped-item-maximum.md");
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("synthetic", "score", "pdf", "2.0"),
+                List.of(), List.of());
+        var total = OriginalScoringContext.resolve(artifact, text).total();
+        assertEquals(null, total.value());
+        assertEquals("UNKNOWN", total.source());
+    }
+
+    @Test
     void priceMarkdownStarQuoteRetainsItsOriginalSourceSpan() throws Exception {
         String source = GoldenCasesReplaySupport.readFixture("case-price-markdown-star.md");
         JsonNode expected = GoldenCasesReplaySupport.parseExpected(
@@ -450,6 +460,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-1347-compound-percent"),
                 Arguments.of("case-bracket-vs-pure-conflict"),
                 Arguments.of("case-declared-total-80"),
+                Arguments.of("case-wrapped-item-maximum"),
                 Arguments.of("case-single-unknown-total-adoption"),
                 Arguments.of("case-review-required-80-gap"),
                 Arguments.of("case-1374-redundant-formula"),
