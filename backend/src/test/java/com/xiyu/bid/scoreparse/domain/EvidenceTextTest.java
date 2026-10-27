@@ -4,6 +4,15 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class EvidenceTextTest {
+    @Test void chineseSentenceStopVariantPreservesSourceOffsetsWithoutChangingDecimals() {
+        String source = "每项2.5分，满分5分。提供承诺书。";
+        var found = EvidenceText.normalize(source).uniqueSpan("满分5分.提供承诺书。");
+        assertThat(found).isPresent();
+        var span = found.orElseThrow();
+        assertThat(source.substring(span.start(), span.end())).isEqualTo("满分5分。提供承诺书。");
+        assertThat(EvidenceText.normalize(source).uniqueSpan("每项2。5分")).isEmpty();
+        assertThat(EvidenceText.normalize(source).uniqueSpan("满分6分.提供承诺书。")).isEmpty();
+    }
     @Test void markdownEscapedMultiplicationPreservesSymbolAndRawOffsets() {
         String raw = "价格=商城价\\*折扣率";
         var source = EvidenceText.normalize(raw);

@@ -21,6 +21,18 @@ public final class LogicalRuleSourceUnit {
     }
     private record Cell(CanonicalTable table, CanonicalCellDto cell) {}
 
+    /** A unique exact citation in the source row's name column can anchor its rule column. */
+    public static boolean isExactNamedRowAnchor(DocumentArtifact artifact, MultimodalScoreFact fact) {
+        if (artifact == null || fact.sourceCellIds().size() != 1 || fact.quotedText().isBlank()) return false;
+        var matches = cells(artifact).stream().filter(c -> fact.sourceCellIds().contains(c.cell().cellId())).toList();
+        if (matches.size() != 1) return false;
+        var cell = matches.getFirst();
+        var headers = titles(cell.table().cells().stream().filter(c -> Integer.valueOf(0).equals(c.row())).toList());
+        return isName(headers.getOrDefault(cell.cell().column(), ""))
+                && EvidenceText.normalize(text(cell.cell().rawText())).text()
+                .equals(EvidenceText.normalize(fact.quotedText()).text());
+    }
+
     /** Physical citations can be disjoint while restoration reads the same complete logical source row. */
     public static boolean sharesLogicalRow(DocumentArtifact artifact, MultimodalScoreFact first, MultimodalScoreFact second) {
         if (artifact == null) return false;

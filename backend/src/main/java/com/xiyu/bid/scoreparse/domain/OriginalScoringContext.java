@@ -196,8 +196,8 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             String normalizedLine = normalizeTextLine(line);
             Matcher matcher = TOTAL.matcher(normalizedLine);
             while (matcher.find()) {
-                // 单项分值提及不是整表总量（同表格路径文法，复用 ScoreSubtotalColumnPolicy）
-                if (ScoreSubtotalColumnPolicy.isSingleItemMention(normalizedLine, matcher.start())) continue;
+                if (ScoreSubtotalColumnPolicy.isSingleItemMention(normalizedLine, matcher.start())
+                        || (matcher.start() == 0 && i > 0 && ScoreSubtotalColumnPolicy.isWrappedItemScore(lines[i - 1]))) continue;
                 if (OriginalScoringSchemePolicy.categoryTitle(normalizedLine.substring(0, matcher.start()))) continue;
                 boolean scoped = normalizedLine.contains("总分") && (OriginalScoringSchemePolicy.isSchemeTitle(normalizedLine)
                         || normalizedLine.contains("本项目") || normalizedLine.contains("本标包")

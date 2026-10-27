@@ -34,6 +34,8 @@ public record EvidenceText(String text, List<Integer> offsets) {
                     continue;
                 }
             }
+            // A period between Chinese characters is a sentence-stop glyph variant, never a decimal point.
+            if (c == '.' && i > 0 && i + 1 < raw.length() && han(raw.charAt(i - 1)) && han(raw.charAt(i + 1))) c = '。';
             c = comparisonOperator(c);
             if (Character.isWhitespace(c) || Character.isSpaceChar(c)) {
                 if (pending < 0) pending = i;

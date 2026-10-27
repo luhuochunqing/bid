@@ -21,6 +21,7 @@ public final class OriginalRuleUnitText {
                 continue;
             }
             int start=raw.lastIndexOf('\n',Math.max(0,quote.get().start()-1))+1;
+            if (inlineNumberedSibling(raw, unit, quote.get().start())) start=quote.get().start();
             int end=raw.indexOf('\n',quote.get().start());
             String heading=raw.substring(start,end<0?raw.length():end);
             // Identity comes from the actual sibling candidate graph, never from numbered material clauses.
@@ -31,6 +32,18 @@ public final class OriginalRuleUnitText {
         int end=boundaries.higherKey(targetStart)==null?raw.length():boundaries.higherKey(targetStart);
         var quote=EvidenceText.normalize(raw).uniqueSpan(target.quote()).orElseThrow();
         return quote.end()<=end?raw.substring(targetStart,end).strip():"";
+    }
+    /** Inline boundary is trusted only when the quoted sibling number matches its own graph identity. */
+    private static boolean inlineNumberedSibling(String raw, Unit unit, int start) {
+        if (start <= 0) return false;
+        char before = raw.charAt(start - 1);
+        boolean sentenceEnd = "。；;".indexOf(before) >= 0 || ("）)".indexOf(before) >= 0
+                && start > 1 && "。！？；;".indexOf(raw.charAt(start - 2)) >= 0);
+        if (!sentenceEnd) return false;
+        var code = java.util.regex.Pattern.compile("(?:^|[-.])(\\d+)$").matcher(unit.code() == null ? "" : unit.code());
+        if (!code.find()) return false;
+        String quote = unit.quote() == null ? "" : unit.quote().stripLeading();
+        return quote.matches("(?s)^" + java.util.regex.Pattern.quote(code.group(1)) + "[.、]\\s*.*");
     }
     /** A prefix can be excluded only if another actual peer's quotation owns that entire continuation. */
     public static boolean precedingContinuation(String raw,Unit target,Unit peer) {

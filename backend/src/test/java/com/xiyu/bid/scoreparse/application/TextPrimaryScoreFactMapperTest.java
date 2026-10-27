@@ -11,6 +11,39 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TextPrimaryScoreFactMapperTest {
 
+    @Test void exactNameCellAnchorCanRestoreTheOnlyClosedRuleInItsSourceRow() {
+        var artifact = namedRuleRow();
+        var model = new MultimodalScoreFact("第三章 评审办法", "1", "", "平台对接", BigDecimal.valueOf(5),
+                "", "OBJECTIVE", 1, "t", List.of("r1c1"), "平台对接（5分）", .9);
+        var validation = new MultimodalScoreFactValidator().validate(List.of(model), artifact, BigDecimal.valueOf(5));
+        assertThat(TextPrimaryScoreFactMapper.map(model, artifact, validation).sourceText())
+                .isEqualTo("支持系统对接得5分，提供承诺书。");
+    }
+
+    @Test void tamperedNameCellAnchorCannotRestoreAnUnrelatedRow() {
+        var artifact = namedRuleRow();
+        var model = new MultimodalScoreFact("第三章 评审办法", "1", "", "平台对接", BigDecimal.valueOf(5),
+                "", "OBJECTIVE", 1, "t", List.of("r1c1"), "不存在的名称（5分）", .9);
+        var validation = new MultimodalScoreFactValidator().validate(List.of(model), artifact, BigDecimal.valueOf(5));
+        assertThat(TextPrimaryScoreFactMapper.map(model, artifact, validation).sourceText()).isEmpty();
+    }
+
+    private static com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact namedRuleRow() {
+        var cells = new java.util.ArrayList<com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.CanonicalCellDto>();
+        String[][] rows = {{"序号", "评审因素", "评审标准", "分值"},
+                {"1", "平台对接（5分）", "支持系统对接得5分，提供承诺书。", "5"}};
+        for (int r = 0; r < rows.length; r++) for (int c = 0; c < rows[r].length; c++) {
+            String id = "r" + r + "c" + c;
+            cells.add(new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                    id, r, c, rows[r][c], rows[r][c], 1, 1, false, "pdf:page=1", 1, "t-r" + r));
+        }
+        var table = new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable("t", 1,
+                "第三章 评审办法", 2, 4, List.of(), cells, true, "PDF");
+        return new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact(
+                new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.ArtifactMeta("doc", "hash", "PDF", "2.2"),
+                List.of(table), List.of());
+    }
+
     @Test
     void bounds_fact_id_for_long_section_titles_and_preserves_parent_link() {
         String sectionTitle = "技术评审部分".repeat(20);

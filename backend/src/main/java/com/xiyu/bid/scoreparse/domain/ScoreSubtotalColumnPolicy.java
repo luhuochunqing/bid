@@ -28,6 +28,12 @@ public final class ScoreSubtotalColumnPolicy {
             "(?<!(?:单项|每项|每条|每处|每篇|每个|本项|此项))满分\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private ScoreSubtotalColumnPolicy() {}
 
+    /** A line ending in an item score and comma continues into the next PDF text line. */
+    static boolean isWrappedItemScore(String previousLine) {
+        return previousLine != null && previousLine.strip()
+                .matches(".*(?:得|加|扣)\\s*\\d+(?:\\.\\d+)?\\s*分\\s*[,，、]$");
+    }
+
     public record Selection(int column, boolean unresolved) {
         public OriginalScoreEvidencePolicy.Problem problem(String tableId) {
             return new OriginalScoreEvidencePolicy.Problem("", "subtotal", "TABLE_SUBTOTAL_COLUMN_UNRESOLVED",
