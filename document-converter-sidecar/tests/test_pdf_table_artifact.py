@@ -960,3 +960,102 @@ def test_footnote_with_scoring_keywords_not_misclassified_as_score_header():
     footnote_row = ["注：评分标准中括号表示边界分值。", "", "", ""]
     assert _is_genuine_header_row(footnote_row) is False
 
+
+def test_empty_first_cell_category_row_with_scores_not_misclassified_as_header():
+    """A category continuation row starting with empty cell and containing score keywords
+    must NOT be classified as a table column header.
+    """
+    category_row = ["", "技术评分标准（45分）", "实施方案与进度计划（45分）", "45分"]
+    assert _is_genuine_header_row(category_row) is False
+
+
+def test_pdf_score_table_continuation_merges_across_interleaved_noise_table():
+    """Real-world resilience: continuation merge must tolerate interleaved noise tables
+    (e.g. 1-row page header/footer/sign box) between pages without severing the scoring chain.
+    """
+    t1 = {
+        "sourcePage": 1,
+        "sourceTableIndex": 0,
+        "sourceSection": "第三章 评标办法",
+        "rows": [
+            ["条款号", "评分因素", "评分标准", "分值"],
+            ["1", "商务评分标准（20分）", "企业业绩（20分）", "20分"],
+        ],
+    }
+    # Interleaved noise table at top of page 2 (e.g. page header/doc title box)
+    t_noise = {
+        "sourcePage": 2,
+        "sourceTableIndex": 0,
+        "sourceSection": "第三章 评标办法",
+        "rows": [
+            ["贵州能源集团采购项目", "文件编号：0637-266002041125"],
+        ],
+    }
+    # Real continuation score table on page 2
+    t_cont = {
+        "sourcePage": 2,
+        "sourceTableIndex": 1,
+        "sourceSection": "第三章 评标办法",
+        "rows": [
+            ["", "技术评分标准（45分）", "系统方案（45分）", "45分"],
+            ["2", "投标报价评分标准（35分）", "基准价计算公式", "35分"],
+        ],
+    }
+
+    merged = _merge_pdf_score_table_continuations([t1, t_noise, t_cont])
+    # Must produce 2 tables:
+    # 1. Main score table with 4 rows (t1 + t_cont merged)
+    # 2. Interleaved noise table preserved intact
+    assert len(merged) == 2
+    assert merged[0]["rows"][0] == ["条款号", "评分因素", "评分标准", "分值"]
+    assert len(merged[0]["rows"]) == 4
+    assert merged[0]["rows"][2][1] == "技术评分标准（45分）"
+    assert merged[0]["rows"][3][1] == "投标报价评分标准（35分）"
+    # Noise table preserved as separate non-interfering table
+    assert merged[1]["rows"] == [["贵州能源集团采购项目", "文件编号：0637-266002041125"]]
+
+
+def test_spatial_containment_identifies_multi_column_page_border_enclosing_inner_table():
+    """Spatial topology: any table spanning >=90% page dimensions that geometrically
+    encloses another table on the page is conclusively an outer border container,
+    even if it has 3 columns (e.g. Logo | Title | DocNumber in header box).
+    """
+    class FakeTable:
+        def __init__(self, bbox, rows):
+            self.bbox = bbox
+            self._rows = rows
+        def extract(self):
+            return self._rows
+
+    # 3-column outer frame (e.g. Logo | Title | DocNumber)
+    outer_3col_border = FakeTable(
+        bbox=(25.0, 25.0, 570.0, 815.0),
+        rows=[
+            ["Logo", "贵州能源集团采购项目", "DocNo: 0637"],
+            ["正文区域", "正文区域", "正文区域"],
+        ],
+    )
+    # Inner scoring table completely inside the outer frame
+    inner_table = FakeTable(
+        bbox=(50.0, 100.0, 540.0, 400.0),
+        rows=[
+            ["条款号", "评分因素", "评分标准", "分值"],
+            ["1", "商务标", "业绩", "10分"],
+        ],
+    )
+
+    class FakePage:
+        width = 595.28
+        height = 841.89
+        def __init__(self, tables):
+            self._tables = tables
+        def find_tables(self):
+            return self._tables
+
+    page = FakePage([outer_3col_border, inner_table])
+
+    # Outer 3-col border must be recognized as page border via spatial containment
+    assert _is_pdf_page_border_table(outer_3col_border, page) is True
+    # Inner table must NOT be recognized as page border
+    assert _is_pdf_page_border_table(inner_table, page) is False
+
