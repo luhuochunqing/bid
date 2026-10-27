@@ -56,6 +56,62 @@ final class PdfRowEvidenceBinder {
         return Optional.of(copy(fact, itemName(fact, span), page, span.table().tableId(), cellIds));
     }
 
+    /** Recover only a unique numbered PDF row when the model inserts its row number before 分. */
+    static Optional<MultimodalScoreFact> bindMisplacedOrdinal(MultimodalScoreFact fact,
+            DocumentArtifact artifact, List<OriginalScoringContext.SchemeEvidence> schemes) {
+        String code = TextPrimaryEvidenceBinder.normalizeForEvidence(fact.code());
+        String quote = TextPrimaryEvidenceBinder.normalizeForEvidence(fact.quotedText()).replaceAll("\\s+", "");
+        if (!code.matches("[1-9]\\d*") || fact.weight() == null || quote.isBlank()
+                || !fact.sourceCellIds().isEmpty() || !fact.tableId().isBlank()) return Optional.empty();
+        List<MultimodalScoreFact> matches = new java.util.ArrayList<>();
+        for (var table : artifact.tables()) {
+            if (!"PDF".equalsIgnoreCase(sourceType(table, artifact)) || !Boolean.TRUE.equals(table.isScoreTable())
+                    || !TextPrimaryEvidenceBinder.tableInFactScope(fact, table, schemes)) continue;
+            var headers = rows(table).stream().filter(row -> row.stream().anyMatch(c -> Integer.valueOf(0).equals(c.row())))
+                    .findFirst().orElse(List.of());
+            var columns = headers.stream().filter(c -> c.column() != null && c.rawText() != null)
+                    .collect(java.util.stream.Collectors.toMap(DocumentArtifact.CanonicalTable.CanonicalCellDto::column,
+                            c -> TextPrimaryEvidenceBinder.normalizeForEvidence(c.rawText()), (a, b) -> a));
+            for (var row : rows(table)) {
+                var ids = row.stream().filter(c -> matchesHeader(columns, c, "序号|编号|条款号|条目"))
+                        .filter(c -> code.equals(TextPrimaryEvidenceBinder.normalizeForEvidence(c.rawText()))).toList();
+                var names = row.stream().filter(c -> matchesHeader(columns, c, "评分因素|评分项目|评分项|评审因素|评审项目"))
+                        .filter(c -> contaminatedNameMatches(c.rawText(), code, quote)).toList();
+                var weights = row.stream().filter(c -> matchesHeader(columns, c, "分值|分数|得分"))
+                        .filter(c -> sameWeight(c.rawText(), fact.weight())).toList();
+                var rules = row.stream().filter(c -> matchesHeader(columns, c, "评分标准|评审标准|评分细则|评审细则"))
+                        .filter(c -> c.rawText() != null && !c.rawText().isBlank()).toList();
+                if (ids.size() != 1 || names.size() != 1 || weights.size() != 1 || rules.size() != 1) continue;
+                var name = names.getFirst();
+                List<String> sourceIds = List.of(name.cellId());
+                if (!com.xiyu.bid.scoreparse.domain.LogicalRuleSourceUnit.closed(artifact, sourceIds)) continue;
+                Integer page = name.sourcePage() == null ? table.sourcePage() : name.sourcePage();
+                matches.add(new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(),
+                        cleanedName(name.rawText()), fact.weight(), fact.ruleText(), fact.scoreType(), page,
+                        table.tableId(), sourceIds, name.rawText(), fact.confidence(),
+                        fact.childAggregation(), fact.schemeId(), fact.scopeStatus(), fact.sourceMetadata()));
+            }
+        }
+        return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
+    }
+
+    private static boolean matchesHeader(Map<Integer, String> columns,
+            DocumentArtifact.CanonicalTable.CanonicalCellDto cell, String expression) {
+        return cell.column() != null && columns.getOrDefault(cell.column(), "").matches(expression);
+    }
+
+    private static boolean contaminatedNameMatches(String raw, String code, String quote) {
+        String name = TextPrimaryEvidenceBinder.normalizeForEvidence(raw).replaceAll("\\s+", "");
+        int mark = name.indexOf("分");
+        return mark > 0 && mark == name.lastIndexOf("分")
+                && quote.equals(name.substring(0, mark) + code + name.substring(mark));
+    }
+
+    private static boolean sameWeight(String raw, java.math.BigDecimal expected) {
+        if (raw == null || !raw.trim().matches("\\d+(?:\\.\\d+)?")) return false;
+        return new java.math.BigDecimal(raw.trim()).compareTo(expected) == 0;
+    }
+
     static MultimodalScoreFact addExactQuoteItemName(MultimodalScoreFact fact, MultimodalScoreFact exact,
                                                       DocumentArtifact.CanonicalTable table,
                                                       DocumentArtifact.CanonicalTable.CanonicalCellDto ruleCell,
