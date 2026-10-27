@@ -43,9 +43,9 @@
 ## 改动范围
 
 - **数据库迁移**：无新增迁移（DB 停在 V1225，源码最大版本同为 V1225）
-- **后端主源码**：2 个文件 —— `compliance/domain/policy/AuthorizationFieldPolicy.java`、`AuthorizationLetterCheckPolicy.java`（授权冲突比对无冒号/跨行写法 + 三态文法扩充 + 掩码身份证位数收紧）
+- **后端主源码**：3 个文件 —— `compliance/domain/policy/AuthorizationFieldPolicy.java`、`AuthorizationLetterCheckPolicy.java`（授权冲突比对无冒号/跨行写法 + 三态文法扩充 + 掩码身份证位数收紧）、`compliance/README.md`（模块说明同步）
 - **后端测试**：1 个文件 —— `AuthorizationLetterCheckPolicyTest.java`
-- **Sidecar 源码**：2 个文件 —— `converter.py`（跨页续表合并容忍噪声表、空间拓扑边框判定）、`tests/test_pdf_table_artifact.py` + 新夹具 `page_border_continuation.pdf`；已随部署重启（22:19:32）
+- **Sidecar**：3 个文件 —— `converter.py`（跨页续表合并容忍噪声表、空间拓扑边框判定）、`tests/test_pdf_table_artifact.py`、新夹具 `tests/fixtures/page_border_continuation.pdf`；已随部署重启（22:19:32）
 - **Wiki**：1 个文件（`.wiki/pages/bid-quality-check-evidence-conflicts.md`）
 - **文档**：2 个部署报告（第 236 次 test / 第 31 次 prod）
 
@@ -53,10 +53,10 @@
 
 | 步骤 | 结果 |
 |---|---|
-| Step 1：服务器 `flyway-repair-runner.sh validate` | ⚠️ 首次失败（`1225 not resolved locally`），根因为服务器 `/tmp/migration-mysql/` 过时；同步目录后 ✅ `VALIDATE OK - all checksums match`（285 个迁移） |
+| Step 1：服务器 `flyway-repair-runner.sh validate` | ⚠️ 首次失败（`1225 not resolved locally`），根因为服务器 `/tmp/migration-mysql/` 过时；同步目录后 ✅ `VALIDATE OK - all checksums match`（285 个版本 = 284 个 `V*.sql` + `B73` 基线） |
 | Step 2：DB 已应用版本 vs 源码最新版本 | ✅ DB 最新 V1225，源码 V1225，无 pending |
 | Step 3：remote-deploy 内置 validate | ✅ 通过（激活新 jar 前执行） |
-| 打包后 jar 内迁移校验 | ✅ 284 个迁移文件，无重复版本号 |
+| 打包后 jar 内迁移校验 | ✅ `BOOT-INF/classes/db/migration-mysql/V*.sql` 共 284 个，无重复版本号 |
 
 ## 部署步骤
 
@@ -69,7 +69,7 @@
 7. 产物校验：`obsEnabled=true`、`.upload(`=2、`apiBaseUrl=""`、前端入口 `index-1_idEp5T.js`
 8. 上传 + 远程部署：`SYSTEMCTL_SUDO=true`，激活前自动 DB 备份 + Flyway validate
 9. 旧版本前端 assets 补齐（防旧标签页跨版本 404）
-10. 健康检查 + 迁移验证 + 外部 Smoke + 临时配置检查
+10. 健康检查 + 迁移验证 + 外部 Smoke + Sidecar 冒烟 + 临时配置检查
 
 ## 验证结果
 
@@ -80,6 +80,13 @@
 | systemd `xiyu-bid-backend` | ✅ active (running)，PID 22338 |
 | `/actuator/health`（本机 18080） | ✅ UP（连续 3/3，共 79 次探测，约 2.6 分钟） |
 | Sidecar 进程 | ✅ 22:19:32 重启（PID 22146），`/health` = `{"status":"up"}` |
+
+### Sidecar 发布冒烟（`smoke-sidecar.sh` @ 127.0.0.1:8000）
+
+- ✅ Health + Schema Fingerprint：200 UP，`X-Schema-Version=2.2`
+- ✅ Fixture 回放（1371_tables_v1.json）：tables=14 / cells=8215 / scoreTables=1
+- ✅ v1 探针 200 / v2 探针 200（DocumentArtifact schemaVersion=2.2）
+- **总结：5 项通过 / 0 失败 / 0 警告**
 
 ### 外部 Smoke（经 Nginx 8080，`--noproxy '*'`）
 
@@ -151,7 +158,7 @@
 - [x] DB 预部署备份完成
 - [x] 服务健康 UP
 - [x] 外部 Smoke 全通过
-- [x] Sidecar 健康 UP
+- [x] Sidecar 冒烟 5/5
 - [x] 前端资产保留完成
 - [x] 部署记录 `deployed-release.json` 已更新
 - [x] 部署报告产出
