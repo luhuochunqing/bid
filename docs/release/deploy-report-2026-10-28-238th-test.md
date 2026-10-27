@@ -21,7 +21,7 @@
 | 构建时间 | 2026-10-27T22:41:23Z（06:41:23 UTC+8） |
 | 增量 | 8 个 commit，17 个文件（+346 / -5） |
 | 激活时间 | 2026-10-28 06:42:13 (UTC+8) |
-| DB 备份 | `db-backups/winbid-2ef3f18df-20261028064204.sql.gz`（15MB） |
+| DB 备份 | `/opt/xiyu-bid/db-backups/winbid-2ef3f18df-20261028064204.sql.gz`（15MB） |
 
 ## PR 列表（增量 8 个 commit，自 7d700af3e..2ef3f18df）
 
@@ -40,7 +40,7 @@
 
 - **数据库迁移**：无新增迁移（DB 停在 V1225，源码最大版本同为 V1225）
 - **后端主源码**：6 个文件 —— `scoreparse/domain/` 下 `EvidenceText.java`、`LogicalRuleSourceUnit.java`、`OriginalRuleRestoration.java`、`OriginalRuleUnitText.java`、`OriginalScoringContext.java`、`ScoreSubtotalColumnPolicy.java`（跨行评分细项满分与总分误判修复、原文恢复）
-- **后端测试 / 金标**：6 个文件 —— `TextPrimaryScoreFactMapperTest`、`EvidenceTextTest`、`OriginalRuleUnitTextTest`、`OriginalScoreEvidenceRoleAndHeadingTest`、`GoldenCasesReplayTest`，新增金标 `case-wrapped-item-maximum.md` + `case-wrapped-item-maximum.expected.json`
+- **后端测试 / 金标**：7 个文件 —— 5 个测试类 `TextPrimaryScoreFactMapperTest`、`EvidenceTextTest`、`OriginalRuleUnitTextTest`、`OriginalScoreEvidenceRoleAndHeadingTest`、`GoldenCasesReplayTest`，新增金标 `case-wrapped-item-maximum.md` + `case-wrapped-item-maximum.expected.json`
 - **Wiki**：2 个文件（`.wiki/log.md`、`.wiki/pages/_index.md`）+ 1 个页面更新（`score-subtotal-peritem-semantics-provenance-snapshot.md`）
 - **文档**：1 个部署报告（第 237 次 test）
 - **Sidecar**：无变更（`sidecarSha256` 与上一版本一致 `c06803d7...`），容器未重建
@@ -113,9 +113,9 @@
 | 项目 | 值 |
 |---|---|
 | 回滚锚点（代码） | `7d700af3e9d70d0426c00370e008c1d3810b1436-api8080` |
-| 回滚 jar | 上一版本 release 目录下的 `backend/app.jar` |
-| 回滚前端 | 上一版本 release 目录下的 `frontend/` |
-| 数据库回滚 | 本次无迁移变更，无需 DB 回滚；如数据异常可用 `db-backups/winbid-2ef3f18df-20261028064204.sql.gz` |
+| 回滚 jar | `/opt/xiyu-bid/releases/7d700af3e...-api8080/backend/app.jar` |
+| 回滚前端 | `/opt/xiyu-bid/releases/7d700af3e...-api8080/frontend/` |
+| 数据库回滚 | 本次无迁移变更，无需 DB 回滚；如数据异常可用 `/opt/xiyu-bid/db-backups/winbid-2ef3f18df-20261028064204.sql.gz` |
 | 回滚操作 | 以 `7d700af3e9d70d0426c00370e008c1d3810b1436` 为 RELEASE_ID 重跑打包 + `remote-deploy.sh` |
 | 回滚判断点 | 健康检查失败 / 登录不可用 / 项目或标讯核心路径阻断 / 评分解读异常 |
 
