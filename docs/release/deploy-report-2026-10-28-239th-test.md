@@ -58,7 +58,7 @@
 3. 服务器现状：旧版本 `2ef3f18df...-api8080`、health 200 UP、服务 active
 4. 增量检查：5 commit / 9 文件，无迁移变更
 5. Flyway 预检 3 步（validate 一次通过）
-6. 本地打包：`VITE_API_BASE_URL=`（同源）+ `VITE_OBS_ENABLED=true` + `COPYFILE_DISABLE=1` + `mvn clean -DskipTests package`
+6. 本地打包：`VITE_API_BASE_URL=`（同源）+ `VITE_OBS_ENABLED=true` + `COPYFILE_DISABLE=1` + 容器门禁 `FlywayMysqlContainerTest` + `mvn clean -DskipTests package`
 7. 产物校验：`obsEnabled=true`、`.upload(`=2、`apiBaseUrl=""`、前端入口 `index-1_idEp5T.js`
 8. 上传 + 远程部署：`SYSTEMCTL_SUDO=true`，激活前自动 DB 备份 + Flyway validate
 9. 旧版本前端 assets 补齐（防旧标签页跨版本 404）
@@ -72,7 +72,7 @@
 |---|---|
 | systemd `xiyu-bid-backend` | ✅ active (running)，MainPID 24346 |
 | `/actuator/health`（本机 18080） | ✅ UP（连续 3/3，共 79 次探测） |
-| Sidecar 容器 `xiyu-sidecar` | ✅ Up 9 hours（本次无 sidecar 源码变更，未重建，符合预期） |
+| Sidecar 容器 `xiyu-sidecar` | ✅ Up 9 hours（`sudo docker ps` 查询；本次无 sidecar 源码变更，未重建，符合预期） |
 
 ### 外部 Smoke（经 Nginx 8080，`--noproxy '*'`）
 
@@ -127,6 +127,7 @@
 | macOS `._*` 残留 | ✅ `COPYFILE_DISABLE=1` |
 | 前端 hash 资产跨版本 404 | ✅ 部署后 `cp -rn` 补齐（193 个文件） |
 | Mac HTTP_PROXY 502 | ✅ 所有 curl 加 `--noproxy '*'` |
+| 容器测试门禁 | ✅ 打包内置 `FlywayMysqlContainerTest` 通过（未设 `XIYU_SKIP_CONTAINER_TEST`） |
 | 锚点分支 sync-env 豁免 | ✅ 直接用 `sync-env.sh`（脚本自设 `XYYU_SYNC_ENV_ACTIVE=1`），避免 dev-env 门禁误拦 |
 
 ## 风险提示
@@ -134,7 +135,7 @@
 1. **`MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always` 仍在 `backend.env`**：属第 13-15 次部署时用户决定保留的配置，非本次新引入，未清理。生产上线前需确认是否收敛。
 2. **完整登录 Smoke 未执行**：admin 密码未知，采用 400/401 替代验证接口路由与守卫（与历史多次一致）。
 3. **前端产物与上一版本一致**：本次为后端评分解析修复，前端无变更，旧标签页无需强刷；仍按惯例补齐旧 assets。
-4. **`.release/` 已自动清理只保留最近 3 个包**：上一版本本地 tarball 已删除，回滚依赖服务器 release 目录内的 jar + 前端产物（已核实存在）。
+4. **本地 `.release/` 保留最近 3 个包**：本次打包清理了 `045ee5948`，上一版本 `2ef3f18df...-api8080.tar.gz` 仍在 `.release/`，回滚可走本地 tarball 或服务器 release 目录双路径（均已核实存在）。
 
 ## 部署确认清单
 
