@@ -12,6 +12,31 @@ class OriginalScoreEvidenceRoleAndHeadingTest {
     private static final String SCHEME = "本项目评分办法";
 
     @Test
+    void wrappedItemMaximumIsNotPromotedToSchemeTotal() {
+        String text = "# 本项目评分办法\n1.商品能够保证即时下单，年度集采品种下单后\n"
+                + "保证72小时到货得2分，每提前8小时加1分，\n"
+                + "满分5分。提供承诺书，格式自拟，盖章有效。\n";
+        var context = OriginalScoringContext.resolve(detailTable(), text);
+        assertThat(context.total().value()).isNull();
+        assertThat(context.total().source()).isEqualTo("UNKNOWN");
+    }
+
+    @Test
+    void wrappedItemMaximumDoesNotConflictWithExplicitSchemeTotal() {
+        String text = "# 本项目评分办法\n本项目评分总分100分。\n"
+                + "每提前8小时加1分，\n满分5分。提供承诺书。\n";
+        var context = OriginalScoringContext.resolve(detailTable(), text);
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void schemeMaximumAfterAnOrdinaryIntroductionRemainsValid() {
+        var context = OriginalScoringContext.resolve(detailTable(),
+                "# 本项目评分办法\n本项目评分规则如下，\n满分100分。\n");
+        assertThat(context.total().value()).isEqualByComparingTo("100");
+    }
+
+    @Test
     void knownAssessmentFactorHeadersProtectItemMaximumFromSchemeTotal() {
         var context = OriginalScoringContext.resolve(detailTable(),
                 "# 本项目评分办法\n评分说明如下，详见下表。\n");
