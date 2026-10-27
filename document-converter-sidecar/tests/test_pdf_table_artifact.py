@@ -10,10 +10,13 @@ import os
 import re
 
 import fitz
+import pdfplumber
 import pytest
 
 from converter import extract_pdf_tables_artifact
 from converter import _is_pdf_score_table
+from converter import _is_pdf_page_border_table
+from converter import _is_genuine_header_row
 from converter import _merge_pdf_score_table_continuations
 from converter import _pdf_chapter_heading
 from converter import _pdf_page_chapter_heading_positions
@@ -24,6 +27,7 @@ from converter import _pdf_section_heading
 from converter import _pdf_table_section
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "sample_multipage.pdf")
+PAGE_BORDER_FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "page_border_continuation.pdf")
 CHINESE_OCR_FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "scanned_chinese_score.png")
 
 
@@ -873,4 +877,86 @@ def test_pdf_score_table_continuation_allows_table_notes_continuation():
     assert len(merged) == 1
     assert len(merged[0]["rows"]) == 4
     assert "注：1-Bn大于J时" in merged[0]["rows"][2][0]
+
+
+def test_real_pdf_page_border_skipped_and_score_continuation_merged():
+    """Environment-level test using real PDF binary with pdfplumber extraction.
+
+    Guards:
+    1. Full-page border frame (>=90% page dimensions) is detected as pseudo-table by pdfplumber
+       and successfully skipped by `_is_pdf_page_border_table`.
+    2. Multi-page scoring tables across pages are not severed by decorative border tables.
+    3. Continuation table with empty first cell and [8-5) half-open interval score merges seamlessly.
+    4. Table footnote starting with '注：' does not false-trigger as a genuine score header.
+    """
+    assert os.path.exists(PAGE_BORDER_FIXTURE), f"Missing golden fixture: {PAGE_BORDER_FIXTURE}"
+
+    with pdfplumber.open(PAGE_BORDER_FIXTURE) as pdf:
+        assert len(pdf.pages) == 2
+        for page in pdf.pages:
+            tables = page.find_tables()
+            assert len(tables) == 2, "Real pdfplumber must detect 1 border table and 1 content table per page"
+            # Verify border detection classifies accurately on real pdfplumber Table objects
+            border_tables = [t for t in tables if _is_pdf_page_border_table(t, page)]
+            content_tables = [t for t in tables if not _is_pdf_page_border_table(t, page)]
+            assert len(border_tables) == 1, "Exactly one pseudo-table border per page"
+            assert len(content_tables) == 1, "Exactly one real table per page"
+
+    artifact = extract_pdf_tables_artifact(PAGE_BORDER_FIXTURE)
+    assert artifact["schemaVersion"] == "2.2"
+    # Border pseudo-tables skipped, real tables merged across pages into 1 logical table
+    assert len(artifact["tables"]) == 1, "Tables on page 1 and page 2 must merge into a single score table"
+
+    score_table = artifact["tables"][0]
+    assert score_table["isScoreTable"] is True
+    assert score_table["rows"] == 6
+    assert score_table["columns"] == 4
+
+    cell_texts = [c["rawText"] for c in score_table["cells"]]
+    # Verify continuous items across both pages
+    assert any("2.2.3（1" in t for t in cell_texts)
+    assert any("2.2.3（2" in t for t in cell_texts)
+    assert any("售后服务" in t for t in cell_texts)
+    assert any("2.2.3（3" in t for t in cell_texts)
+    assert any("[8-5）分" in t for t in cell_texts)
+    assert any("注：评分标准中括号表示边界分值。" in t for t in cell_texts)
+
+
+def test_two_column_page_border_with_binding_line_skipped():
+    """Attack vector: full-page border with left vertical binding line (装订线).
+
+    When a PDF page border includes a binding margin or double vertical line,
+    pdfplumber detects a 2-column pseudo-table. `_is_pdf_page_border_table` must
+    correctly classify and filter it out instead of passing it to table pipeline.
+    """
+    class FakeTable:
+        def __init__(self, bbox, rows):
+            self.bbox = bbox
+            self._rows = rows
+        def extract(self):
+            return self._rows
+
+    class FakePage:
+        width = 595.28
+        height = 841.89
+        def __init__(self, tables):
+            self._tables = tables
+        def find_tables(self):
+            return self._tables
+
+    two_col_border = FakeTable(
+        bbox=(25.0, 25.0, 570.0, 815.0),
+        rows=[
+            ["装订线", "贵州能源集团采购项目 招标文件"],
+            ["装订线", "第 1 页"],
+        ]
+    )
+    page = FakePage([two_col_border])
+    assert _is_pdf_page_border_table(two_col_border, page) is True
+
+
+def test_footnote_with_scoring_keywords_not_misclassified_as_score_header():
+    """Footnote starting with '注：' containing '评分标准' must not be classified as a table header."""
+    footnote_row = ["注：评分标准中括号表示边界分值。", "", "", ""]
+    assert _is_genuine_header_row(footnote_row) is False
 
