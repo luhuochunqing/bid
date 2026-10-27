@@ -660,6 +660,8 @@ def _is_pdf_page_border_table(table, page) -> bool:
         max_cols = max((len(r) for r in raw), default=0)
         if max_cols <= 1:
             return True
+        if max_cols <= 2 and len(raw) <= 5 and not _has_pdf_score_header(raw):
+            return True
     return False
 
 
@@ -799,6 +801,8 @@ def _is_genuine_header_row(row: list[str]) -> bool:
         return False
     first = _normalise_cell_text(row[0])
     if re.match(r"^\d", first) or re.fullmatch(r"\d+(?:[.、]\d+)?", first):
+        return False
+    if re.match(r"^(?:注[：:]|说明[：:]|需要补充的其他内容|附[：:])", first):
         return False
     if any(len(_normalise_cell_text(c)) > 40 for c in row):
         return False
