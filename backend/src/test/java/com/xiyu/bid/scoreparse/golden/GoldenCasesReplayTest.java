@@ -461,6 +461,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-bracket-vs-pure-conflict"),
                 Arguments.of("case-declared-total-80"),
                 Arguments.of("case-wrapped-item-maximum"),
+                Arguments.of("case-pdf-ordinal-contamination"),
                 Arguments.of("case-single-unknown-total-adoption"),
                 Arguments.of("case-review-required-80-gap"),
                 Arguments.of("case-1374-redundant-formula"),

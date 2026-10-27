@@ -57,6 +57,7 @@ final class TextPrimaryEvidenceBinder {
                     : exactCells.size() > 1 ? java.util.Optional.<MultimodalScoreFact>empty()
                     : artifact == null ? java.util.Optional.<MultimodalScoreFact>empty()
                     : PdfRowEvidenceBinder.bindQuote(fact, artifact, schemes)
+                    .or(() -> PdfRowEvidenceBinder.bindMisplacedOrdinal(fact, artifact, schemes))
                     .or(() -> LogicalRowEvidenceBinder.bind(fact, artifact, schemes));
             if (bound.isPresent()) return withOriginalMetadata(fact, addLogicalItemName(fact, bound.get(), artifact));
             if (exactCells.isEmpty() && artifact != null) {
