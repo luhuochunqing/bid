@@ -50,6 +50,12 @@ public final class OriginalRuleRestoration {
         String raw = spans.stream().map(SourceSpan::rawText).collect(Collectors.joining("\n"));
         String rule = OriginalRuleUnitText.restore(raw, target, validPeers.stream()
                 .map(OriginalRuleRestoration::unit).toList());
+        boolean hasChildren = facts.stream().anyMatch(other -> !fact.code().isBlank()
+                && fact.code().equals(other.parentCode()) && fact.schemeId().equals(other.schemeId()));
+        if (rule.isBlank() && structural.applicable() && structural.closed() && validPeers.size() == 1
+                && !hasChildren && LogicalRuleSourceUnit.isExactNamedRowAnchor(artifact, fact)) {
+            rule = raw.strip();
+        }
         String modelRule = fact.sourceMetadata() != null && !fact.sourceMetadata().modelRuleText().isBlank()
                 ? fact.sourceMetadata().modelRuleText() : fact.ruleText();
         if (!structural.applicable() && erasesNumberedMaterials(rule, modelRule)) {
