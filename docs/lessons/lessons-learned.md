@@ -7652,3 +7652,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   2. **Vue 3 SFC 语法纪律**：在 Vue 3.4+ `<script setup>` 中使用 `defineModel` 时，**必须强制使用 `const modelValue = defineModel(...)` 显式解构接收**，严禁使用裸 `defineModel(...)` 宏调用；
   3. **审查契约升级**：独立代码审查若涉及 `.vue` 单文件组件变更，必须将 `npm run build:api` 编译通过的真实日志作为 `MERGE_READY` 的必备证据，绝不能仅凭 Composable 单测放行。
 
+## 461. PDF 跨页续表与大合并单元格导致下游评分事实证据断裂及百度表格 OCR 增强补齐（2026-10-28）
+
+- **现场证据**：项目 1392（24小时反复修复未果）在测试环境部署后，AI 评分标准中第 10、11、12 项（销售价格限制承诺 10分、结算账期 5分、商品推送及上架承诺 5分）评分项名称和分值被模型成功召回，但“标书原文”全部显示为 `—`（丢失），导致人工无法核验打分。
+- **致错机制**：
+  1. **原 Sidecar 在跨页续表识别出现物理级漏洞**：经对真实 PDF（`project1130.pdf`）实测调用 Sidecar `/extract-tables`，Sidecar 识别出的页面表格清单直接从第 13 页跳到了第 15 页（`pages with tables: [6, 7, 10, 11, 12, 13, 15]`），**整整漏掉了第 14 页的全部表格**！而第 14 页正是将这三项合并在同一个单元格“价格优惠(20分)”中的关键页；
+  2. **证据回指链断裂**：大模型从纯文本中识别出该三项，但在调用 `TextPrimaryEvidenceBinder` 和 `OriginalRuleRestoration` 时，系统拿着这三项去 `DocumentArtifact` 寻找源表格单元格；由于 Sidecar 丢掉了整页表格，物理单元格找不到，导致 `sourceCellIds` 为空、`restored.text()` 为空，最终 `sourceText` 显示为 `—`；
+  3. **百度 OCR 客户端未接入主流程**：前期方案虽然实现了百度 OCR 客户端并在前端增加了配置开关，但后端解析核心主干（`ScoreParseAppService` → `StructuredTableExtractionHandler` → `SourceArtifactAcquisition`）依然硬编码只调用 `SidecarDocumentArtifactExtractor`，造成百度 OCR“配了开关却根本没接入”的假象。
+- **根治方案与长效防线**：
+  1. **构建 BaiduTableArtifactEnricher 文档增强器**：利用 PDFBox 智能探测 PDF 中包含评分关键词的关键页及续表候选页（`p` 与 `p + 1`），仅对目标页按需调用百度高保真表格 OCR；
+  2. **单点收敛与平滑降级（Graceful Degradation）**：在 `SidecarDocumentArtifactExtractor` 中接入 `BaiduTableArtifactEnricher`，智能替换同页表格或补齐漏识别表格；若百度 OCR 未开启或出现网络异常，优雅回退到 baseline，保持现有解析逻辑不变；
+  3. **合规 sourceSection 自动推断**：在 `BaiduTableArtifactAdapter` 中为识别出的表格赋予合规的 `sourceSection`（如“第三章 评审办法/详细评审标准”），确保通过 `OriginalScoringSchemePolicy.owns` 的方案从属审查；
+  4. **全套自动化测试验证**：编写 `BaiduTableArtifactEnricherTest`，基于真实 `project1130.pdf` 证明第 14 页表格被精确补齐，且包含价格优惠三项完整细则。
+
+

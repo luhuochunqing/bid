@@ -6,7 +6,9 @@ package com.xiyu.bid.scoreparse.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.domain.grid.StructureValidationResult;
+import com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableArtifactEnricher;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -24,15 +26,7 @@ import java.util.UUID;
  * <p>与 {@link SidecarTableExtractor} 相比：要求 Sidecar 返回 v2 DocumentArtifact 的
  * {@link DocumentArtifact} 形态（含 cellId / XML 路径 / 合并区域），让后端能进入
  * CanonicalTableGrid → ScoreFact 的确定性链路。
- * <p>两条规则：
- * <ul>
- *   <li>Sidecar 拒绝旧 schema 时（旧 header X-Schema-Version: 1.x 仍可用），客户端不会
- *       自动降级；调用方必须显式选择走 {@link SidecarTableExtractor}。</li>
- *   <li>Sidecar HTTP 错误或解析失败时，本类向上抛出 {@link DocumentArtifactUnavailable}，
- *       调用方按 {@link StructureValidationResult.Status#STRUCTURE_INCOMPLETE} 处理。</li>
- * </ul>
- * <p>影子链路现状（审核修复）：本 Bean 已进容器，生产切换在 Phase 3/4 进行；
- * 当前消费方为 {@link ScoreFactShadowPipeline}（只读影子执行）。
+ * <p>同时接入 {@link BaiduTableArtifactEnricher}：在启用了百度表格 OCR 时自动补齐/增强 PDF 跨页续表与大单元格。
  */
 @Slf4j
 @Component
@@ -43,12 +37,23 @@ public class SidecarDocumentArtifactExtractor {
     private final String sharedKey;
     private final long extractTimeoutSeconds;
     private final ObjectMapper objectMapper;
+    private final BaiduTableArtifactEnricher baiduTableArtifactEnricher;
 
     public SidecarDocumentArtifactExtractor(
             @Value("${app.score-parse.sidecar-url:http://localhost:8000}") String sidecarUrl,
             @Value("${app.score-parse.sidecar-shared-key:${SIDECAR_SHARED_KEY:}}") String sharedKey,
             @Value("${app.score-parse.bid-file.extract-timeout-seconds:600}") long extractTimeoutSeconds,
             ObjectMapper objectMapper) {
+        this(sidecarUrl, sharedKey, extractTimeoutSeconds, objectMapper, null);
+    }
+
+    @Autowired
+    public SidecarDocumentArtifactExtractor(
+            @Value("${app.score-parse.sidecar-url:http://localhost:8000}") String sidecarUrl,
+            @Value("${app.score-parse.sidecar-shared-key:${SIDECAR_SHARED_KEY:}}") String sharedKey,
+            @Value("${app.score-parse.bid-file.extract-timeout-seconds:600}") long extractTimeoutSeconds,
+            ObjectMapper objectMapper,
+            @Autowired(required = false) BaiduTableArtifactEnricher baiduTableArtifactEnricher) {
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
         this.sidecarUrl = sidecarUrl.endsWith("/")
                 ? sidecarUrl.substring(0, sidecarUrl.length() - 1)
@@ -56,6 +61,7 @@ public class SidecarDocumentArtifactExtractor {
         this.sharedKey = sharedKey == null ? "" : sharedKey.trim();
         this.extractTimeoutSeconds = extractTimeoutSeconds;
         this.objectMapper = objectMapper;
+        this.baiduTableArtifactEnricher = baiduTableArtifactEnricher;
     }
 
     /**
@@ -63,19 +69,44 @@ public class SidecarDocumentArtifactExtractor {
      */
     public DocumentArtifact extract(java.nio.file.Path file, String fileName)
             throws IOException, InterruptedException {
-        return post(HttpRequest.BodyPublishers.ofFile(file), fileName);
+        DocumentArtifact baseline = null;
+        try {
+            baseline = post(HttpRequest.BodyPublishers.ofFile(file), fileName);
+        } catch (DocumentArtifactUnavailable ex) {
+            if (baiduTableArtifactEnricher == null || !baiduTableArtifactEnricher.isEnabled()) {
+                throw ex;
+            }
+            log.warn("Sidecar document artifact extraction unavailable, attempting Baidu OCR fallback: {}", ex.getMessage());
+        }
+        if (baiduTableArtifactEnricher != null && baiduTableArtifactEnricher.isEnabled() && file != null && java.nio.file.Files.exists(file)) {
+            byte[] bytes = java.nio.file.Files.readAllBytes(file);
+            return baiduTableArtifactEnricher.enrichIfEnabled(baseline, bytes, fileName);
+        }
+        return baseline;
     }
 
     /**
-     * InMemory 路径：上传 docx 字节并解析为 DocumentArtifact。
+     * InMemory 路径：上传 docx/pdf 字节并解析为 DocumentArtifact。
      *
-     * @throws DocumentArtifactUnavailable sidecar 不可达 / 4xx-5xx / 解析失败时抛出，
+     * @throws DocumentArtifactUnavailable sidecar 不可达 / 4xx-5xx / 解析失败且无百度OCR兜底时抛出，
      *         调用方应将 {@link StructureValidationResult.Status#STRUCTURE_INCOMPLETE}
      *         写入任务并保留现有 {@code score_item}。
      */
     public DocumentArtifact extract(byte[] content, String fileName)
             throws IOException, InterruptedException {
-        return post(HttpRequest.BodyPublishers.ofByteArray(content), fileName);
+        DocumentArtifact baseline = null;
+        try {
+            baseline = post(HttpRequest.BodyPublishers.ofByteArray(content), fileName);
+        } catch (DocumentArtifactUnavailable ex) {
+            if (baiduTableArtifactEnricher == null || !baiduTableArtifactEnricher.isEnabled()) {
+                throw ex;
+            }
+            log.warn("Sidecar document artifact extraction unavailable, attempting Baidu OCR fallback: {}", ex.getMessage());
+        }
+        if (baiduTableArtifactEnricher != null && baiduTableArtifactEnricher.isEnabled()) {
+            return baiduTableArtifactEnricher.enrichIfEnabled(baseline, content, fileName);
+        }
+        return baseline;
     }
 
     private DocumentArtifact post(HttpRequest.BodyPublisher fileBody, String fileName)
