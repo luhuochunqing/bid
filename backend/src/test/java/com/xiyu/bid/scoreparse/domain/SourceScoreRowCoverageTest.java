@@ -20,6 +20,11 @@ class SourceScoreRowCoverageTest {
   var r=OriginalScoreEvidencePolicy.verifyModel(artifact(),"# 第四章 评审办法\n",List.of(fact(1,50),fact(2,45),fake),BigDecimal.valueOf(100));
   assertThat(r.problems()).anyMatch(p->p.code().equals("SOURCE_SCORE_ROW_UNCOVERED") && p.locator().contains("t-r3"));
  }
+ @Test void nameOnlyDoesNotProveTheScoringRuleWasExtracted() {
+  var heading=new MultimodalScoreFact("第四章 评审办法","3","","丙",BigDecimal.valueOf(5),"丙","OBJECTIVE",1,"t",List.of("t-r3-c1"),"丙",.9,ChildAggregation.SUM);
+  var result=OriginalScoreEvidencePolicy.verifyModel(artifact(),"# 第四章 评审办法\n",List.of(fact(1,50),fact(2,45),heading),BigDecimal.valueOf(100));
+  assertThat(result.problems()).anyMatch(p -> p.code().equals("SOURCE_SCORE_ROW_UNCOVERED") && p.locator().contains("t-r3"));
+ }
  @Test void zeroPointDeductionRowIsCoveredOnlyWhenVerified() {
   var base=artifact();var t=base.tables().getFirst();var cells=new ArrayList<>(t.cells());
   String[] values={"4","质量扣分","未通过验收扣分。","0"};

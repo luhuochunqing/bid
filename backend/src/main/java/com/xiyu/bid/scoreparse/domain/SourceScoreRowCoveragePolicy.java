@@ -37,7 +37,8 @@ final class SourceScoreRowCoveragePolicy {
                         || !score.matches("[0-9]+(?:[.][0-9]+)?")) continue;
                 BigDecimal amount = new BigDecimal(score);
                 if (amount.signum() == 0 && !name.contains("扣分")) continue;
-                Set<String> rowIds = row.getValue().stream().map(DocumentArtifact.CanonicalTable.CanonicalCellDto::cellId)
+                Set<String> rowIds = row.getValue().stream().filter(c -> ruleColumn.equals(c.column()))
+                        .map(DocumentArtifact.CanonicalTable.CanonicalCellDto::cellId)
                         .collect(java.util.stream.Collectors.toSet());
                 boolean covered = claims.stream().filter(c -> eligibleClaimIds.contains(c.id()))
                         .filter(c -> table.tableId().equals(c.tableId()))
