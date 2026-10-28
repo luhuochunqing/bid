@@ -47,3 +47,44 @@ def test_intra_table_empty_prefix_continuation_linked():
     assert tables[0]["cells"][0]["logicalRowId"] == tables[0]["cells"][4]["logicalRowId"]
     # Row 2 is independent
     assert tables[0]["cells"][0]["logicalRowId"] != tables[0]["cells"][8]["logicalRowId"]
+
+
+def test_rule_column_before_score_column_cross_page_linked():
+    """When the table has columns [序号, 评分项名称, 评分标准, 分值], rule column is col 2 (not col -1).
+
+    Continuation row on next page has text in col 2, while col 0, 1, 3 are empty.
+    It must link to previous page's row.
+    """
+    tables = [
+        table(14, [
+            ["序号", "评分项名称", "评分标准", "分值"],
+            ["9", "服务响应（10分）", "1.能够支持采购人历史交易数据导入...以及系统操作及结果", "10"]
+        ]),
+        table(15, [
+            ["", "", "显示视频。）2.投标人能够提供售前、售中、售后服务，得3分，提供承诺书，格式自拟，盖章有效。3.投标人能够提供人员培训，得2分，提供承诺书，格式自拟，盖章有效。", ""],
+            ["10", "质量验收评价扣分及相关情况说明", "1.按照日常考核扣分...", "0"]
+        ])
+    ]
+    _link_pdf_logical_rows(tables)
+    # Row 1 of page 14 (cells[4..7]) and Row 0 of page 15 (cells[0..3]) must share logicalRowId
+    assert tables[0]["cells"][4]["logicalRowId"] == tables[1]["cells"][0]["logicalRowId"]
+    # Row 1 of page 15 (cells[4..7]) is a new item and must have a different logicalRowId
+    assert tables[1]["cells"][4]["logicalRowId"] != tables[1]["cells"][0]["logicalRowId"]
+
+
+def test_rule_column_before_score_column_intra_table_linked():
+    """Within a single table, if rule column is before score column, continuation row must link."""
+    tables = [
+        table(14, [
+            ["序号", "评审因素", "评审细则", "满分"],
+            ["1", "资质证书（5分）", "具备国家级高新技术企业证书得3分，具备ISO9001证书", "5"],
+            ["", "", "得2分。", ""],
+            ["2", "财务能力（5分）", "资产负债率低于60%得5分", "5"]
+        ])
+    ]
+    _link_pdf_logical_rows(tables)
+    # Row 1 (cells[4..7]) and Row 2 (cells[8..11]) must share logicalRowId
+    assert tables[0]["cells"][4]["logicalRowId"] == tables[0]["cells"][8]["logicalRowId"]
+    # Row 3 (cells[12..15]) is independent
+    assert tables[0]["cells"][4]["logicalRowId"] != tables[0]["cells"][12]["logicalRowId"]
+
