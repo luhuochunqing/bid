@@ -37,7 +37,8 @@ final class MultimodalExtractionReviewPolicy {
         List<MultimodalScoreFact> scopedFacts = extraction.facts().stream()
                 .map(fact -> assignScope(fact, context, artifact, tenderText, schemes)).toList();
         return new MultimodalScoreFactExtractor.ExtractionResult(declaredTotal,
-                MultimodalFactParentCodeNormalizer.normalize(scopedFacts), extraction.model(),
+                ZeroDeductionUnitEvidence.resolve(SingletonScoreUnitEvidence.resolve(
+                        MultimodalFactParentCodeNormalizer.normalize(scopedFacts), artifact), artifact), extraction.model(),
                 extraction.imageCount());
     }
 

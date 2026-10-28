@@ -109,7 +109,7 @@ describe('useScoreCandidateAdoption.js', () => {
     expect(candidateTotalWeight.value).toBe(25)
   })
 
-  it('未知父子计分关系不生成可采纳总分', () => {
+  it('人工核对未知父子关系时按明细计算候选总分', () => {
     reviewFacts.value = [
       { factId: 'unknown-parent', weight: 5, childAggregation: 'UNKNOWN', candidateEligible: true },
       { factId: 'unknown-child', weight: 5, parentFactId: 'unknown-parent', candidateEligible: true },
@@ -118,10 +118,21 @@ describe('useScoreCandidateAdoption.js', () => {
       props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
     })
 
-    expect(candidateTotalWeight.value).toBe(0)
+    expect(candidateTotalWeight.value).toBe(5)
   })
 
-  it('方案外和来源未验证事实只保留审计展示，不进入候选合计或一键采纳 payload', async () => {
+  it('allows a scored source-unverified item into manual review', async () => {
+    reviewFacts.value = [{ factId: 'u', code: '1', dimension: '待核对', weight: 5,
+      candidateEligible: false, scopeStatus: 'SOURCE_UNVERIFIED', schemeId: null }]
+    reviewSnapshot.value = { parseTaskId: 9, facts: reviewFacts.value, schemes: [] }
+    scoreParseApi.submitReview.mockResolvedValue({ data: { facts: reviewFacts.value, audits: [] } })
+    const { candidateTotalWeight, adoptCandidateFacts } = useScoreCandidateAdoption({ props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData })
+    expect(candidateTotalWeight.value).toBe(5)
+    await adoptCandidateFacts()
+    expect(scoreParseApi.submitReview).toHaveBeenCalledWith(49, expect.objectContaining({ actions: [{ factId: 'u', action: 'ADOPT_CANDIDATES' }] }))
+  })
+
+  it('方案外事实保留审计展示，来源未验证事实可供人工采纳', async () => {
     reviewFacts.value = [
       { factId: 'in-scheme', code: '1', dimension: '评分办法内', weight: 100, candidateEligible: true, scopeStatus: 'IN_SCHEME' },
       { factId: 'out-of-scheme', code: '2', dimension: '履约考核', weight: 40, candidateEligible: false, scopeStatus: 'OUT_OF_SCHEME' },
@@ -134,13 +145,21 @@ describe('useScoreCandidateAdoption.js', () => {
     })
 
     expect(candidateFacts.value.map((fact) => fact.factId)).toEqual(['in-scheme', 'out-of-scheme', 'legacy'])
-    expect(candidateTotalWeight.value).toBe(100)
+    expect(candidateTotalWeight.value).toBe(125)
     await adoptCandidateFacts()
     expect(scoreParseApi.submitReview).toHaveBeenCalledWith(49, {
       parseTaskId: 9,
       reason: '人工确认采纳候选评分标准',
-      actions: [{ factId: 'in-scheme', action: 'ADOPT_CANDIDATES' }],
+      actions: [{ factId: 'in-scheme', action: 'ADOPT_CANDIDATES' }, { factId: 'legacy', action: 'ADOPT_CANDIDATES' }],
     })
+  })
+
+  it('keeps the server uncovered-row status when a scheme has a verified total', () => {
+    reviewSnapshot.value = { adoptionStatus: 'SOURCE_ROWS_UNCOVERED', schemes: [
+      { schemeId: 'a', totalEvidenceStatus: 'VERIFIED', declaredTotal: 100, tableIds: ['t'] },
+    ] }
+    const { adoptionStatus } = useScoreCandidateAdoption({ props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData })
+    expect(adoptionStatus.value).toBe('SOURCE_ROWS_UNCOVERED')
   })
 
   it('多个方案必须明确选择，当前合计和采纳 payload 只用所选方案', async () => {
@@ -174,6 +193,7 @@ describe('useScoreCandidateAdoption.js', () => {
     expect(declaredTotalWeight.value).toBe(100)
     await adoptCandidateFacts()
     expect(scoreParseApi.submitReview).toHaveBeenCalledWith(49, expect.objectContaining({
+      schemeId: 'scheme-a',
       actions: [{ factId: 'a', action: 'ADOPT_CANDIDATES' }],
     }))
   })

@@ -36,9 +36,12 @@ public final class OriginalRuleUnitText {
     /** Inline boundary is trusted only when the quoted sibling number matches its own graph identity. */
     private static boolean inlineNumberedSibling(String raw, Unit unit, int start) {
         if (start <= 0) return false;
-        char before = raw.charAt(start - 1);
+        int previous = start - 1;
+        while (previous >= 0 && (raw.charAt(previous) == ' ' || raw.charAt(previous) == '\t')) previous--;
+        if (previous < 0) return false;
+        char before = raw.charAt(previous);
         boolean sentenceEnd = "。；;".indexOf(before) >= 0 || ("）)".indexOf(before) >= 0
-                && start > 1 && "。！？；;".indexOf(raw.charAt(start - 2)) >= 0);
+                && previous > 0 && "。！？；;".indexOf(raw.charAt(previous - 1)) >= 0);
         if (!sentenceEnd) return false;
         var code = java.util.regex.Pattern.compile("(?:^|[-.])(\\d+)$").matcher(unit.code() == null ? "" : unit.code());
         if (!code.find()) return false;

@@ -34,6 +34,9 @@ final class TextPrimaryEvidenceBinder {
         List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact, tenderText);
         return facts.stream().map(fact -> {
             if (!fact.sourceMetadata().sourceSpans().isEmpty()) return fact;
+            var abbreviated = artifact == null ? java.util.Optional.<MultimodalScoreFact>empty()
+                    : PdfEllipsisEvidenceBinder.bind(fact, artifact, schemes);
+            if (abbreviated.isPresent()) return withOriginalMetadata(fact, abbreviated.get());
             // Page hints may be printed page labels; an exact unique artifact match owns the physical locator.
             List<Object[]> exactCells = artifact == null ? List.of() : artifact.tables().stream()
                     .flatMap(table -> table.cells().stream().map(cell -> new Object[]{table, cell}))

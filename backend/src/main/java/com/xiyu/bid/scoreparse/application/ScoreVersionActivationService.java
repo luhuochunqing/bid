@@ -165,6 +165,7 @@ public class ScoreVersionActivationService {
         var token=currentToken(projectId);
         if(!token.fingerprint().equals(record.getBaseFingerprint()) || token.hasManualEdits()) return false;
         var snapshot=codec.decode(record.getPayload());
+        if(snapshot.sourceDiagnostics().stream().anyMatch(d -> d.startsWith("SOURCE_SCORE_ROW_UNCOVERED:"))) return false;
         if(snapshot.schemes().size()!=1) return false;
         var scheme=snapshot.schemes().get(0);
         if(scheme.computableCount()==0) return false;

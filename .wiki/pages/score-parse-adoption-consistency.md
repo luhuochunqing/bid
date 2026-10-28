@@ -15,8 +15,8 @@ backlinks:
   - .wiki/pages/_index.md
   - .wiki/log.md
 created: 2026-09-22
-updated: 2026-09-22
-health_checked: 2026-10-25
+updated: 2026-10-28
+health_checked: 2026-10-28
 ---
 
 # 评分标准候选采纳与解析任务一致性
@@ -38,12 +38,14 @@ health_checked: 2026-10-25
 
 - 采纳事务内的预计得分计算会延长同项目 PARSE 创建等待时间；若出现耗时问题，应评估提交后计算，但不可移走任务身份校验与正式项校验之间的锁。
 - 多物理表格且原文缺少统一方案总分声明时，系统原先以 `UNKNOWN_TOTAL` 硬编码禁用一键采纳。现已放宽为支持人工复核确认：以人工核对后的候选项总分（如 69 分）兜底作为方案生效总分，不再阻断后续打分。
-- 前端新增评分事实移出与方案外项一键纳入当前方案能力，彻底打通人工干预闭环。
+- 人工采纳与自动采纳分开：有可采纳分值时，总分不符、漏行、未知父子关系和缺少规则显示提示，不以这些诊断阻止人工确认。未知父子关系的人工候选暂按所选明细计分，移出明细后可单独采纳父项；自动启用仍执行原有证据约束。
+- 人工采纳仍要求当前用户有项目权限、任务未过期、选择单个评分方案且分值非负；来源未核验的评分事实可在提示后由人确认采纳，不会自动纳入明确标记为方案外的事实。多方案时人工选择的方案随请求提交，后端校验不混入其他方案。界面显示方案外项的纳入操作，但现有后端仍会拒绝方案外事实，不能将其视为已打通。
+- 规则为空时人工采纳允许落库，正式项保留 `—` 占位，提示人工补充；不把占位视为真实评分规则。新版本提取面板仍限制选择 `computable` 的项目，此约束独立于旧版人工复核卡片。
 - `TEXT` 扩容属于数据库迁移；仅代码合并不等于测试服/生产库已生效。需部署 V1216 后重新解析，再核对最新任务、候选和正式项；不得以本地测试替代线上验收。
 - 回滚前必须处置所有超过 255 字的说明；U1216 会明确拒绝不安全缩列。回滚 DDL 失败后须按迁移运维流程处理残留状态，不得继续假定已恢复旧列。
 
 ## 回归入口
 
 - 后端：`ScoreParseReviewAppServiceTest`、`ScoreParseControllerTest`、`ScoreParseTaskStateServiceTest`。
-- MySQL：`ScoreParseEvidenceMigrationMysqlTest`、`ScoreParseTaskLockMysqlTest`；Docker 不可用时它们会跳过，必须明确报告。
+- MySQL：`ScoreParseEvidenceMigrationMysqlTest`、`ScoreParseTaskLockMysqlTest`、`LegacyScoringVersionMysqlTest`、`ScoreExtractionPersistenceMysqlTest`；Docker 不可用时必须明确报告。
 - 前端：`useScoreCandidateAdoption.spec.js`、`useScoreParseDrawer.spec.js`。

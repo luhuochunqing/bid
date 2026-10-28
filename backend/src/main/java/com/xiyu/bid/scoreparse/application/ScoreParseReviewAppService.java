@@ -112,7 +112,7 @@ public class ScoreParseReviewAppService {
             if ("MANUAL_APPROVED".equals(task.getDecisionStatus())) {
                 throw new IllegalArgumentException("当前评分标准已采纳，请刷新页面查看正式评分项");
             }
-            handleAdoptCandidates(projectId, task, facts, actions, fallbackReason, operatorName);
+            handleAdoptCandidates(projectId, task, facts, actions, fallbackReason, operatorName, command.schemeId());
             return getReviewSnapshot(projectId);
         }
         for (ScoreParseReviewCommand.Action action : actions) {
@@ -149,7 +149,8 @@ public class ScoreParseReviewAppService {
             List<ScoreParseFact> facts,
             List<ScoreParseReviewCommand.Action> actions,
             String fallbackReason,
-            String operatorName
+            String operatorName,
+            String requestedScheme
     ) {
         java.util.Set<String> selectedFactIds = new java.util.LinkedHashSet<>();
         java.util.Map<String, BigDecimal> adjustedWeights = new java.util.LinkedHashMap<>();
@@ -172,59 +173,41 @@ public class ScoreParseReviewAppService {
         qualificationEvidence.stream().filter(evidence -> "ITEM_SCHEME_SCOPE_MISMATCH".equals(evidence.getKind()))
                 .forEach(evidence -> qualifications.putIfAbsent(evidence.getFactId(), ScoreParseReviewFactMapper.qualification(evidence)));
         List<ScoreParseFact> eligibleFacts = facts.stream().filter(fact -> {
-            ScoreParseReviewFactMapper.Qualification qualification = qualifications.get(fact.getFactId());
-            return qualification != null && qualification.candidateEligible();
+            ScoreParseReviewFactMapper.Qualification q = qualifications.get(fact.getFactId());
+            return q == null || !"OUT_OF_SCHEME".equals(q.scopeStatus());
         }).toList();
         Set<String> eligibleIds = eligibleFacts.stream().map(ScoreParseFact::getFactId)
                 .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
-        if (!eligibleIds.containsAll(selectedFactIds)) {
-            throw new IllegalArgumentException("方案外或来源未验证的评分事实不能采纳");
-        }
-        if (selectedFactIds.isEmpty()) {
-            if (eligibleFacts.isEmpty()) {
-                throw new IllegalArgumentException("没有来源已验证且属于评分方案的候选项");
-            }
-            Set<String> schemeIds = eligibleFacts.stream().map(fact -> qualifications.get(fact.getFactId()).schemeId())
-                    .filter(id -> id != null && !id.isBlank()).collect(Collectors.toSet());
-            if (schemeIds.size() != 1) {
-                throw new IllegalArgumentException("存在多个评分方案，请先选择一个方案再采纳");
-            }
-            selectedFactIds.addAll(eligibleIds);
-        }
-        Set<String> selectedSchemeIds = selectedFactIds.stream().map(qualifications::get)
+        if (!eligibleIds.containsAll(selectedFactIds))
+            throw new IllegalArgumentException("方案外的评分事实不能采纳");
+        if (selectedFactIds.isEmpty()) selectedFactIds.addAll(eligibleIds);
+        if (selectedFactIds.isEmpty()) throw new IllegalArgumentException("没有可供人工核对的候选项");
+        Set<String> documentSchemes = qualifications.values().stream()
+                .filter(q -> !"OUT_OF_SCHEME".equals(q.scopeStatus()))
+                .map(ScoreParseReviewFactMapper.Qualification::schemeId)
+                .filter(id -> id != null && !id.isBlank()).collect(Collectors.toSet());
+        Set<String> selectedSchemes = selectedFactIds.stream().map(qualifications::get)
                 .filter(java.util.Objects::nonNull).map(ScoreParseReviewFactMapper.Qualification::schemeId)
                 .filter(id -> id != null && !id.isBlank()).collect(Collectors.toSet());
-        if (selectedSchemeIds.size() != 1) {
-            throw new IllegalArgumentException("一次采纳只能包含同一评分方案的事实");
-        }
-        String adoptedSchemeId = selectedSchemeIds.iterator().next();
+        String requested = requestedScheme == null ? "" : requestedScheme.trim();
+        if ((!requested.isEmpty() && !documentSchemes.contains(requested)) || selectedSchemes.size() > 1
+                || (!requested.isEmpty() && !selectedSchemes.isEmpty() && !selectedSchemes.contains(requested)))
+            throw new IllegalArgumentException("一次采纳只能包含所选评分方案的事实");
+        if (requested.isEmpty() && selectedSchemes.isEmpty() && documentSchemes.size() > 1)
+            throw new IllegalArgumentException("存在多个评分方案，请先选择一个方案再采纳");
+        String adoptedSchemeId = !requested.isEmpty() ? requested : !selectedSchemes.isEmpty()
+                ? selectedSchemes.iterator().next() : documentSchemes.size() == 1
+                ? documentSchemes.iterator().next() : "MANUAL_UNVERIFIED";
         List<com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput> inputs = eligibleFacts.stream()
-                .filter(fact -> adoptedSchemeId.equals(qualifications.get(fact.getFactId()).schemeId()))
-                .map(f -> toCandidateInput(f, edits.get(f.getFactId())))
-                .toList();
+                .filter(fact -> {
+                    var q = qualifications.get(fact.getFactId());
+                    return q == null || q.schemeId() == null || q.schemeId().isBlank() || adoptedSchemeId.equals(q.schemeId());
+                }).map(f -> toCandidateInput(f, edits.get(f.getFactId()))).toList();
 
         com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.AdoptionResult result =
                 adoptionPolicy.adopt(inputs, selectedFactIds, adjustedWeights);
         if (!result.success()) {
             throw new IllegalArgumentException(result.errorMessage());
-        }
-        ScoreParseReviewFactMapper.Qualification selectedScheme = qualifications.values().stream()
-                .filter(qualification -> adoptedSchemeId.equals(qualification.schemeId())).findFirst().orElse(null);
-        BigDecimal declaredTotal = selectedScheme == null ? null : selectedScheme.declaredTotal();
-        String totalEvidenceStatus = selectedScheme == null ? "UNKNOWN" : selectedScheme.totalEvidenceStatus();
-        if (declaredTotal == null && "UNKNOWN".equals(totalEvidenceStatus)) {
-            // 人工复核确认：无论是单表还是多物理表格，当原文无可验证总分且无冲突证据时，允许以人工核对采纳的候选项总分作为生效总分
-            declaredTotal = result.totalWeight();
-        }
-        if ("CONFLICT".equals(totalEvidenceStatus)) {
-            throw new IllegalArgumentException("所选评分方案的原文总分存在冲突，请先核验冲突证据");
-        }
-        if (declaredTotal == null) {
-            throw new IllegalArgumentException("所选评分方案没有可验证的原文总分，不能自动按表格分值合并");
-        }
-        if (!ScoreReviewAdoptionPolicy.isWithinDeclaredTotal(result.totalWeight(), declaredTotal)) {
-            throw new IllegalArgumentException("候选评分项合计不能超过原文声明总分" + declaredTotal
-                    + "分，当前为" + result.totalWeight() + "分");
         }
         if (itemPersistenceService != null) {
             itemPersistenceService.persistItems(projectId, task.getId(), result.candidates());

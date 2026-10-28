@@ -25,23 +25,28 @@
       </el-select>
     </div>
     <el-alert
-      v-if="adoptionStatus === 'CONFLICTING_TOTAL' || adoptionStatus === 'UNKNOWN_TOTAL' || schemeSelectionRequired || declaredTotalWeight == null || candidateTotalWeight !== declaredTotalWeight"
+      v-if="adoptionStatus === 'SOURCE_ROWS_UNCOVERED' || adoptionStatus === 'CONFLICTING_TOTAL' || adoptionStatus === 'UNKNOWN_TOTAL' || schemeSelectionRequired || declaredTotalWeight == null || candidateTotalWeight !== declaredTotalWeight"
       type="warning"
       :closable="false"
       show-icon
       class="candidate-weight-alert"
-      :title="adoptionStatus === 'CONFLICTING_TOTAL'
-        ? '所选评分方案的原文总分存在冲突，请核验原文后再采纳。'
+      :title="adoptionStatus === 'SOURCE_ROWS_UNCOVERED'
+        ? '原文评分表仍有未识别行，请核对后决定是否采纳。'
+        : adoptionStatus === 'CONFLICTING_TOTAL'
+        ? '所选评分方案的原文总分存在冲突，请核验后决定是否采纳。'
         : schemeSelectionRequired && !selectedSchemeId
         ? '文档包含多个评分方案，请先选择一个方案；不同方案不会合并计分。'
         : adoptionStatus === 'UNKNOWN_TOTAL'
         ? `该方案包含多个物理表格，原文未声明统一总分（当前候选合计 ${candidateTotalWeight} 分）；核对后可人工采纳。`
         : declaredTotalWeight == null
-        ? '原文尚无可验证总分；仅在单表方案且候选项核验通过时可人工确认。'
+        ? '原文尚无可验证总分；请核对候选项后决定是否采纳。'
         : candidateTotalWeight > declaredTotalWeight
-        ? `候选合计为 ${candidateTotalWeight} 分，超过原文声明的 ${declaredTotalWeight} 分，请核对后再采纳。`
+        ? `候选合计为 ${candidateTotalWeight} 分，超过原文声明的 ${declaredTotalWeight} 分，请核对后决定是否采纳。`
         : `候选合计为 ${candidateTotalWeight} 分，原文声明 ${declaredTotalWeight} 分，尚差 ${declaredTotalWeight - candidateTotalWeight} 分；核对后可人工采纳当前候选。`"
     />
+    <el-alert v-if="adoptionStatus === 'SOURCE_ROWS_UNCOVERED' && declaredTotalWeight != null && candidateTotalWeight > declaredTotalWeight"
+      type="warning" :closable="false" show-icon class="candidate-weight-alert"
+      :title="`候选合计为 ${candidateTotalWeight} 分，超过原文声明的 ${declaredTotalWeight} 分，请核对后决定是否采纳。`" />
     <div v-if="schemeSelectionRequired && !selectedSchemeId" class="scheme-selection-hint">请选择方案以查看其候选总分与原文总分证据。</div>
     <div class="candidate-table-wrapper">
       <table class="candidate-table">
@@ -71,6 +76,8 @@
             </td>
             <td class="col-detail">
               <el-input v-model="fact.sourceText" :disabled="readonly" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" aria-label="完整规则" />
+              <div v-if="fact.scopeStatus === 'SOURCE_UNVERIFIED' || fact.candidateEligible !== true" class="validation-diff">来源未核验，请人工核对后决定是否采纳。</div>
+              <div v-if="!fact.sourceText || fact.sourceText.trim() === '—'" class="validation-diff">评分规则尚未填写，请核对后决定是否采纳。</div>
               <div v-for="evidence in readableEvidences(fact)" :key="evidence.quotedText" class="evidence-block">
                 <span>{{ evidence.quotedText }}</span>
               </div>
@@ -118,10 +125,12 @@
       </ul>
     </section>
     <div class="candidate-review-actions">
+      <el-alert v-if="hasUnresolvedRelationship" type="warning" :closable="false"
+        title="父子评分关系未确认，暂按明细计分；请核对后决定是否采纳。" />
       <el-button
         type="primary"
         :loading="isAdoptingCandidates"
-        :disabled="readonly || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId) || adoptionStatus === 'CONFLICTING_TOTAL' || (declaredTotalWeight != null && candidateTotalWeight > declaredTotalWeight)"
+        :disabled="readonly || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId)"
         data-test="btn-adopt-candidates"
         @click="$emit('adopt', candidateFacts)"
       >
@@ -136,6 +145,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { isManualScoreCandidate } from '@/composables/projectDetail/manualScoreCandidate.js'
 import {
   exclusionLabel,
   readableEvidences,
@@ -180,15 +190,19 @@ const selectedSchemeTitle = computed(() => {
   const index = props.schemes.findIndex((scheme) => scheme.schemeId === props.selectedSchemeId)
   return index < 0 ? '' : schemeLabel(props.schemes[index], index)
 })
-const eligibleFacts = computed(() => props.candidateFacts.filter((fact) => fact.candidateEligible === true
-  && (props.selectedSchemeId ? fact.schemeId === props.selectedSchemeId : props.schemes.length === 0)))
-const auditFacts = computed(() => props.candidateFacts.filter((fact) => fact.candidateEligible !== true
-  || (props.selectedSchemeId && fact.schemeId !== props.selectedSchemeId)))
+const eligibleFacts = computed(() => props.candidateFacts.filter((fact) =>
+  isManualScoreCandidate(fact, props.selectedSchemeId, props.schemes.length)))
+const hasUnresolvedRelationship = computed(() => eligibleFacts.value.some((parent) =>
+  String(parent.childAggregation || '').toUpperCase() === 'UNKNOWN'
+  && eligibleFacts.value.some((child) => child.parentFactId === parent.factId)))
+const auditFacts = computed(() => props.candidateFacts.filter((fact) =>
+  !isManualScoreCandidate(fact, props.selectedSchemeId, props.schemes.length)))
 
 const emit = defineEmits(['adopt', 'reparse', 'scheme-change', 'fact-change'])
 
 function toggleFactEligibility(fact, eligible) {
   if (props.readonly) return
+  fact.manualExcluded = !eligible
   fact.candidateEligible = eligible
   if (eligible && props.selectedSchemeId) {
     fact.schemeId = props.selectedSchemeId

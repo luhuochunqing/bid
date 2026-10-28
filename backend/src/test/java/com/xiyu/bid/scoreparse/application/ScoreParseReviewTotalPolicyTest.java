@@ -28,6 +28,17 @@ class ScoreParseReviewTotalPolicyTest {
         assertThat(ScoreParseReviewTotalPolicy.adoptionStatus(task)).isEqualTo("UNKNOWN_TOTAL");
     }
 
+    @Test
+    void uncoveredSourceRowsOverrideOtherwiseValidTotals() {
+        var task = ScoreParseTask.builder().taskId("task").runSummary(
+                "{\"sourceDiagnostics\":[\"SOURCE_SCORE_ROW_UNCOVERED:t:t-r3\"]}").build();
+        var valid = scheme("scheme-a", "SINGLE_TABLE", "VERIFIED", "100", List.of("t"));
+        assertThat(ScoreParseReviewTotalPolicy.hasUncoveredRows(task)).isTrue();
+        assertThat(ScoreParseReviewTotalPolicy.adoptionStatus(task, List.of(valid))).isEqualTo("SOURCE_ROWS_UNCOVERED");
+        task.setRunSummary("{\"sourceDiagnostics\":[\"OTHER\"]}");
+        assertThat(ScoreParseReviewTotalPolicy.hasUncoveredRows(task)).isFalse();
+    }
+
     private static ScoreParseReviewDTO.Scheme scheme(String id, String layout, String status,
                                                       String total, List<String> tableIds) {
         return new ScoreParseReviewDTO.Scheme(id, id, tableIds, layout, status,

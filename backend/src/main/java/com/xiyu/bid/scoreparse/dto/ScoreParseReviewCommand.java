@@ -9,10 +9,14 @@ import java.util.List;
 public record ScoreParseReviewCommand(
         List<Action> actions,
         String reason,
-        Long parseTaskId
+        Long parseTaskId,
+        String schemeId
 ) {
+    public ScoreParseReviewCommand(List<Action> actions, String reason, Long parseTaskId) {
+        this(actions, reason, parseTaskId, null);
+    }
     public ScoreParseReviewCommand(List<Action> actions, String reason) {
-        this(actions, reason, null);
+        this(actions, reason, null, null);
     }
     public record Action(
             String factId,

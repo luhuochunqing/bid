@@ -158,6 +158,9 @@ public final class OriginalScoreEvidencePolicy {
             problems.add(new Problem("", "facts", "ORIGINAL_ELIGIBLE_FACTS_MISSING",
                     "at least one source-verified fact in the scoring scheme", claims.size(), context.scheme()));
         }
+        Set<String> coveredClaimIds = qualifications.stream().filter(Qualification::candidateEligible)
+                .map(Qualification::factId).collect(java.util.stream.Collectors.toSet());
+        problems.addAll(SourceScoreRowCoveragePolicy.uncovered(artifact, context, claims, coveredClaimIds));
         context.subtotals().forEach((tableId, subtotal) -> {
             BigDecimal leafSum = claims.stream().filter(claim -> eligibleClaimIds.contains(claim.id())
                             && tableId.equals(claim.tableId())
@@ -172,15 +175,12 @@ public final class OriginalScoreEvidencePolicy {
         return new Verification(context.documentId(), context.scheme(), total, List.copyOf(problems),
                 List.copyOf(qualifications));
     }
-
     public static String qualificationFactKey(MultimodalScoreFact fact) {
         return OriginalScoreQualificationPolicy.qualificationFactKey(fact);
     }
-
     public static String modelFactId(MultimodalScoreFact fact) {
         return OriginalScoreQualificationPolicy.modelFactId(fact);
     }
-
     public static List<MultimodalScoreFact> eligibleModelFacts(List<MultimodalScoreFact> facts,
                                                                 Verification verification) {
         return OriginalScoreQualificationPolicy.eligibleModelFacts(facts, verification);

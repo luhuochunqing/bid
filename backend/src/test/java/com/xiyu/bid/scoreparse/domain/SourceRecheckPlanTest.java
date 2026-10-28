@@ -78,6 +78,22 @@ class SourceRecheckPlanTest {
                 .containsExactly(failed,successful,alien);
     }
 
+    @Test void mergedRetryRestoresRelationshipAcrossSeparateModelResults() {
+        var parent = new MultimodalScoreFact("评分办法", "5", "", "运营", BigDecimal.valueOf(5),
+                "", "OBJECTIVE", 1, "t", List.of("name"), "运营（5分）", .9,
+                ChildAggregation.UNKNOWN, "scheme", "IN_SCHEME");
+        var retryChild = new MultimodalScoreFact("评分办法", "5.1", "", "运营", BigDecimal.valueOf(5),
+                "规则", "OBJECTIVE", 1, "t", List.of("rule"), "规则", .9,
+                ChildAggregation.UNKNOWN, "scheme", "IN_SCHEME");
+        var merged = SourceRecheckPlan.merge(List.of(parent), List.of(retryChild),
+                List.of(OriginalScoreEvidencePolicy.modelFactId(retryChild)), List.of());
+        assertThat(merged.get(1).parentCode()).isEqualTo("5");
+        var nodes = List.of(new ScoreUnitPolicy.Node("p", "", BigDecimal.valueOf(5), "UNKNOWN"),
+                new ScoreUnitPolicy.Node("c", merged.get(1).parentCode().isBlank() ? "" : "p", BigDecimal.valueOf(5), "UNKNOWN"));
+        assertThat(ScoreUnitPolicy.totalWeight(nodes)).isEqualByComparingTo("0");
+        assertThat(ScoreUnitPolicy.hasUnknownRelation(nodes)).isTrue();
+    }
+
     private static DocumentArtifact.CanonicalTable table(String id,String raw) {
         return new DocumentArtifact.CanonicalTable(id,1,"评分办法",1,1,List.of(),List.of(
                 new DocumentArtifact.CanonicalTable.CanonicalCellDto(id+"-cell",0,0,raw,raw,1,1,false,"pdf:page=1",1)),true);
