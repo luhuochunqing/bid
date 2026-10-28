@@ -18,7 +18,7 @@
 | HEAD Commit | `233f9921c` |
 | 旧版本 | `de14363ad-api8080`（第 245 次，2026-10-28 22:07） |
 | 构建包 | `.release/xiyu-bid-release-233f9921c-api8080.tar.gz`（155M，MD5 `7325c82d3e7b942110b6735ac2daf520`） |
-| 构建时间 | 2026-10-29T07:31:59 (UTC+8) |
+| 构建时间 | 2026-10-28T23:32:38Z（07:32:38 UTC+8） |
 | 增量 | 9 个 commit，16 个文件（+1289 / -167）：backend 9 / wiki 2 / sidecar 2 / docs 2 / 决策记录 1 |
 | 激活时间 | 2026-10-29 07:34:39 (UTC+8) |
 | DB 备份 | `/opt/xiyu-bid/db-backups/winbid-233f9921c-20261029073324.sql.gz`（15M） |
@@ -36,7 +36,7 @@
 ## 改动范围
 
 - **数据库迁移**：无新增迁移（DB 停在 V1225，源码最大版本同为 V1225）
-- **后端主源码**：5 个文件 —— `scoreparse/application/CellSubRuleRecovery.java`、`MultimodalExtractionReviewPolicy.java`、`scoreparse/infrastructure/baidu/BaiduCrossPageTableLinker.java`、`BaiduTableArtifactAdapter.java`、`BaiduTableArtifactEnricher.java`、`BaiduTableGridBuilder.java`
+- **后端主源码**：6 个文件 —— `scoreparse/application/CellSubRuleRecovery.java`、`MultimodalExtractionReviewPolicy.java`、`scoreparse/infrastructure/baidu/BaiduCrossPageTableLinker.java`、`BaiduTableArtifactAdapter.java`、`BaiduTableArtifactEnricher.java`、`BaiduTableGridBuilder.java`
 - **后端测试**：3 个文件 —— `CellSubRuleRecoveryTest.java`、`BaiduTableArtifactAdapterTest.java`、`BaiduTableArtifactEnricherTest.java`
 - **Sidecar**：2 个文件 —— `converter.py`（按表头动态识别规则列 + 跨页逻辑行缝合）、`tests/test_pdf_logical_rows.py`；sidecar 源码指纹 `c06803d7…` → `5eacdf5c…`，**容器已自动重建并重启**
 - **Wiki**：2 个文件 —— `baidu-table-ocr-pipeline.md`、`scoreparse-text-paragraph-and-continuation-fix.md`
