@@ -65,8 +65,10 @@ final class MultimodalExtractionReviewPolicy {
             }
             boolean hasScoringTables = artifact != null && artifact.tables().stream().anyMatch(candidate -> Boolean.TRUE.equals(candidate.isScoreTable()));
             if (hasScoringTables && fact.tableId().isBlank() && (fact.sourceCellIds() == null || fact.sourceCellIds().isEmpty())) {
-                if (isScoringSection(fact.sectionTitle()) && hasScoringCode(fact.code())
-                        && fact.weight() != null && fact.weight().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                boolean hasPositiveWeight = fact.weight() != null && fact.weight().compareTo(java.math.BigDecimal.ZERO) > 0;
+                boolean scoringSection = isScoringSection(fact.sectionTitle());
+                boolean scoringCodeOrDim = hasScoringCode(fact.code()) || isScoringDimension(fact.dimension());
+                if (scoringSection && hasPositiveWeight && scoringCodeOrDim) {
                     return fact.withScope(contextSchemeId, "IN_SCHEME");
                 }
                 return fact.withScope(contextSchemeId, "OUT_OF_SCHEME");
@@ -164,5 +166,10 @@ final class MultimodalExtractionReviewPolicy {
     private static boolean hasScoringCode(String code) {
         if (code == null || code.isBlank()) return false;
         return code.matches("^(?:3\\.2\\.\\d|\\d+[._()（）\\-0-9]|\\d+（\\d+）|\\d+\\(\\d+\\)|(?i)(?:BIZ|TECH|PRICE)[_\\d]).*");
+    }
+
+    private static boolean isScoringDimension(String dim) {
+        if (dim == null || dim.isBlank()) return false;
+        return dim.matches("(?i).*(?:技术|商务|报价|价格|资质|综合|TECH|BIZ|PRICE).*");
     }
 }
