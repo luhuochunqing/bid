@@ -80,6 +80,7 @@ class LegacyScoringVersionMysqlTest extends AbstractTransactionBoundaryTest {
  @Autowired ScoreParseReviewAppService review;
  @Autowired ScoreParseFactRepository facts;
  @Autowired ScoreParseEvidenceRepository evidence;
+ @Autowired ScoreParseReviewRepository reviews;
  @Autowired org.springframework.transaction.PlatformTransactionManager txm;
  @Autowired ScoreScoringAppService scoring;
  @Autowired ScoreScoringVersionService boundary;
@@ -100,14 +101,31 @@ class LegacyScoringVersionMysqlTest extends AbstractTransactionBoundaryTest {
      evidence.saveAndFlush(ScoreParseEvidence.builder().parseTaskId(task.getId()).factId("f").kind("SCHEME_QUALIFICATION").explanation("{\"schemeId\":\"s\",\"scopeStatus\":\"IN_SCHEME\",\"candidateEligible\":true,\"declaredTotal\":10,\"totalEvidenceStatus\":\"VERIFIED\",\"tableIds\":[\"t\"]}").build());
      return new com.xiyu.bid.scoreparse.dto.ScoreParseReviewCommand(List.of(new com.xiyu.bid.scoreparse.dto.ScoreParseReviewCommand.Action("f","ADOPT_CANDIDATES",null,"确认")),"确认",task.getId());
  }
- @Test void uncoveredSourceRowRejectsLegacyAdoptionWithoutWrites() {
+ @Test void uncoveredSourceRowAllowsManualAdoptionAndPersistsAudit() {
      var command=adoption();var task=tasks.findById(command.parseTaskId()).orElseThrow();
      task.setRunSummary("{\"sourceDiagnostics\":[\"SOURCE_SCORE_ROW_UNCOVERED:t:t-r3\"]}");tasks.saveAndFlush(task);
      assertThat(review.getReviewSnapshot(project).adoptionStatus()).isEqualTo("SOURCE_ROWS_UNCOVERED");
-     assertThatThrownBy(() -> review.submitReview(project,command,"reviewer"))
-         .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("未识别行");
-     assertThat(items.findByProjectIdOrderByItemIndexAsc(project)).isEmpty();
-     assertThat(tasks.findById(task.getId()).orElseThrow().getDecisionStatus()).isEqualTo("REVIEW_REQUIRED");
+     when(certs.match(any())).thenReturn(com.xiyu.bid.scoreparse.dto.KnowledgeMatchResult.empty("fixture"));
+     when(certs.estimateScore(anyString(),anyString(),any(),any())).thenReturn(
+         new CertMatchService.ScoreEstimate(new com.xiyu.bid.scoreparse.domain.CertificateScorePolicy.Assessment(null,"PENDING",false,"待核对"),"fixture"));
+     review.submitReview(project,command,"reviewer");
+     assertThat(items.findByProjectIdOrderByItemIndexAsc(project)).singleElement()
+         .satisfies(i -> assertThat(i.getWeight()).isEqualByComparingTo("10"));
+     assertThat(tasks.findById(task.getId()).orElseThrow().getDecisionStatus()).isEqualTo("MANUAL_APPROVED");
+ }
+ @Test void manualAdoptionPersists100PointsDespiteDeclared5AndMissingRule() {
+     var command=adoption();var task=tasks.findById(command.parseTaskId()).orElseThrow();
+     var fact=facts.findByParseTaskId(task.getId()).getFirst();fact.setWeight(new BigDecimal("100"));fact.setSourceText("");facts.saveAndFlush(fact);
+     var source=evidence.findByParseTaskId(task.getId()).getFirst();source.setExplanation("{\"schemeId\":\"s\",\"scopeStatus\":\"IN_SCHEME\",\"candidateEligible\":true,\"declaredTotal\":5,\"totalEvidenceStatus\":\"VERIFIED\",\"tableIds\":[\"t\"]}");evidence.saveAndFlush(source);
+     when(certs.match(any())).thenReturn(com.xiyu.bid.scoreparse.dto.KnowledgeMatchResult.empty("fixture"));
+     when(certs.estimateScore(anyString(),anyString(),any(),any())).thenReturn(
+         new CertMatchService.ScoreEstimate(new com.xiyu.bid.scoreparse.domain.CertificateScorePolicy.Assessment(null,"PENDING",false,"待核对"),"fixture"));
+     review.submitReview(project,command,"reviewer");
+     assertThat(items.findByProjectIdOrderByItemIndexAsc(project)).singleElement().satisfies(i -> {
+         assertThat(i.getWeight()).isEqualByComparingTo("100");assertThat(i.getDetail()).isEqualTo("—"); });
+     assertThat(tasks.findById(task.getId()).orElseThrow().getDecisionStatus()).isEqualTo("MANUAL_APPROVED");
+     assertThat(reviews.findByParseTaskId(task.getId())).anySatisfy(r -> {
+         assertThat(r.getAction()).isEqualTo("ADOPT_CANDIDATES");assertThat(r.getOperatorName()).isEqualTo("reviewer"); });
  }
  @Test void legacyReviewEstimatesAfterActualCallerCommit() {
      var command=adoption();

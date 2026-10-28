@@ -12,33 +12,33 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ScoreReviewAdoptionPolicyTest {
 
-    @Test void rejectsMissingOriginalRuleWithoutPublishingItsWeight() {
+    @Test void allowsManualAdoptionWithMissingRuleTextWithoutInventingContent() {
         for (String text : List.of("", "   ", "—")) {
             var result = new ScoreReviewAdoptionPolicy().adopt(List.of(
                     new ScoreReviewAdoptionPolicy.CandidateInput("f", "business_financial", "商务", BigDecimal.valueOf(5), text, "")), Set.of("f"), Map.of());
-            assertThat(result.success()).as("original rule: %s", text).isFalse();
-            assertThat(result.candidates()).isEmpty();
-            assertThat(result.errorMessage()).contains("原文");
+            assertThat(result.success()).as("original rule: %s", text).isTrue();
+            assertThat(result.totalWeight()).isEqualByComparingTo("5");
+            assertThat(result.candidates()).singleElement().satisfies(candidate -> assertThat(candidate.sourceText()).isEqualTo(text.trim()));
         }
     }
-    @Test void rejectsSelectedUnknownParentAndChildrenInsteadOfPublishingPartialTotal() {
+    @Test void allowsSelectedUnknownParentAndChildrenByReviewingLeafItems() {
         var unrelated = new ScoreReviewAdoptionPolicy.CandidateInput("ok", "1", "商务", BigDecimal.valueOf(85), "规则", "");
         var parent = new ScoreReviewAdoptionPolicy.CandidateInput("p", "2", "商务", BigDecimal.valueOf(15), "规则", "", "OBJECTIVE", "UNKNOWN");
         var child = new ScoreReviewAdoptionPolicy.CandidateInput("c", "2.1", "商务", BigDecimal.valueOf(15), "规则", "p", "OBJECTIVE", "SUM");
         var result = new ScoreReviewAdoptionPolicy().adopt(List.of(unrelated,parent,child), Set.of("ok","p","c"), Map.of());
-        assertThat(result.success()).isFalse();
-        assertThat(result.errorMessage()).contains("关系");
-        assertThat(result.candidates()).isEmpty();
+        assertThat(result.success()).isTrue();
+        assertThat(result.totalWeight()).isEqualByComparingTo("100");
+        assertThat(result.candidates()).hasSize(2);
+    }
+    @Test void selectingOnlyParentDoesNotRequireAnUnselectedChild() {
+        var parent=new ScoreReviewAdoptionPolicy.CandidateInput("p","1","父项",BigDecimal.TEN,"父项规则","","OBJECTIVE","UNKNOWN");
+        var child=new ScoreReviewAdoptionPolicy.CandidateInput("c","1.1","子项",BigDecimal.TEN,"子项规则","p","OBJECTIVE","SUM");
+        var result=new ScoreReviewAdoptionPolicy().adopt(List.of(parent,child),Set.of("p"),Map.of());
+        assertThat(result.success()).isTrue();
+        assertThat(result.totalWeight()).isEqualByComparingTo("10");
+        assertThat(result.candidates()).singleElement().satisfies(c -> assertThat(c.dim()).isEqualTo("父项"));
     }
     private final ScoreReviewAdoptionPolicy policy = new ScoreReviewAdoptionPolicy();
-
-    @Test
-    @DisplayName("人工采纳允许低于原文总分但不允许超过原文总分")
-    void isWithinDeclaredTotal_allowsPartialAndExactButRejectsExcess() {
-        assertThat(ScoreReviewAdoptionPolicy.isWithinDeclaredTotal(new BigDecimal("91"), new BigDecimal("100"))).isTrue();
-        assertThat(ScoreReviewAdoptionPolicy.isWithinDeclaredTotal(new BigDecimal("100"), new BigDecimal("100"))).isTrue();
-        assertThat(ScoreReviewAdoptionPolicy.isWithinDeclaredTotal(new BigDecimal("101"), new BigDecimal("100"))).isFalse();
-    }
 
     @Test
     @DisplayName("显式调整的负分候选必须拒绝，不能抵消其他候选权重")

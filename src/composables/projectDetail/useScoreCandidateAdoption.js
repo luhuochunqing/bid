@@ -137,7 +137,7 @@ function effectiveCandidateWeight(facts) {
     const children = childrenByParent.get(fact.factId) || []
     if (children.length === 0) return Number(fact.weight) || 0
     const relation = String(fact.childAggregation || 'SUM').toUpperCase()
-    if (relation === 'UNKNOWN') return 0
+    if (relation === 'UNKNOWN') return children.reduce((total, child) => total + contribution(child), 0)
     if (relation === 'SUM') return children.reduce((total, child) => total + contribution(child), 0)
     return Number(fact.weight) || 0
   }

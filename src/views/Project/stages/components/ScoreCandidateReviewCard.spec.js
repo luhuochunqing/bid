@@ -8,17 +8,17 @@ describe('ScoreCandidateReviewCard.vue', () => {
     { factId: 'f2', code: '2', dimension: '财务状况', weight: 3, scoreType: 'SUBJECTIVE', sourceText: '财务指标', candidateEligible: true },
   ]
 
-  it('blocks adoption and explains missing original scoring rows', () => {
+  it('allows adoption with a warning when original rows are missing', () => {
     const wrapper = mount(ScoreCandidateReviewCard, { props: { candidateFacts, candidateTotalWeight: 9,
       declaredTotalWeight: 9, adoptionStatus: 'SOURCE_ROWS_UNCOVERED' },
       global: { stubs: { 'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
         'el-alert': { props: ['title'], template: '<div>{{ title }}</div>' } } },
     })
-    expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
     expect(wrapper.text()).toContain('原文评分表仍有未识别行')
   })
 
-  it('disables adoption when selected parent-child relationship is unresolved', () => {
+  it('allows adoption with a warning when parent-child relationship is unresolved', () => {
     const facts = [
       { factId: 'p', code: '1', dimension: '商务', weight: 15, candidateEligible: true, childAggregation: 'UNKNOWN' },
       { factId: 'c', code: '1.1', parentFactId: 'p', dimension: '商务', weight: 15, candidateEligible: true },
@@ -26,7 +26,7 @@ describe('ScoreCandidateReviewCard.vue', () => {
     const wrapper = mount(ScoreCandidateReviewCard, { props: { candidateFacts: facts, candidateTotalWeight: 85 },
       global: { stubs: { 'el-button': { template: '<button v-bind="$attrs"><slot /></button>' }, 'el-alert': { props: ['title'], template: '<div>{{ title }}</div>' } } },
     })
-    expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
     expect(wrapper.text()).toContain('父子评分关系未确认')
   })
 
@@ -121,13 +121,13 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.find('[data-test="btn-adopt-candidates"]').element.disabled).toBe(false)
   })
 
-  it('blocks a candidate total above the declared total', () => {
+  it('allows manual review of a candidate total above the declared total', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: { candidateFacts, candidateTotalWeight: 101, declaredTotalWeight: 100 },
       global: { stubs: { 'el-alert': true, 'el-button': { template: '<button v-bind="$attrs"><slot /></button>' } } },
     })
 
-    expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
   })
 
   it('shows Chinese explanations instead of raw validator codes and JSON', () => {
@@ -247,6 +247,25 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.find('.el-alert-mock').exists()).toBe(false)
   })
 
+  it('shows both omitted rows and total mismatch without blocking manual adoption', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, { props: { candidateFacts, candidateTotalWeight: 100,
+      declaredTotalWeight: 5, adoptionStatus: 'SOURCE_ROWS_UNCOVERED' }, global: { stubs: {
+        'el-alert': { props: ['title'], template: '<div>{{ title }}</div>' },
+        'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
+      } } })
+    expect(wrapper.text()).toContain('原文评分表仍有未识别行')
+    expect(wrapper.text()).toContain('超过原文声明的 5 分')
+    expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('allows manual adoption of 100 points despite a reported total of 5', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, { props: { candidateFacts, candidateTotalWeight: 100, declaredTotalWeight: 5 },
+      global: { stubs: { 'el-alert': { props: ['title'], template: '<div>{{ title }}</div>' },
+        'el-button': { template: '<button v-bind="$attrs"><slot /></button>' } } } })
+    expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.text()).toContain('超过')
+  })
+
   it('allows an 80-point candidate set when the document declares 80 points', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: { candidateFacts, candidateTotalWeight: 80, declaredTotalWeight: 80 },
@@ -268,11 +287,11 @@ describe('ScoreCandidateReviewCard.vue', () => {
       },
     })
 
-    expect(wrapper.find('.el-alert-mock').text()).toContain('单表方案且候选项核验通过')
+    expect(wrapper.find('.el-alert-mock').text()).toContain('请核对候选项后决定是否采纳')
     expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('keeps adoption disabled when multiple table totals conflict', () => {
+  it('allows manual adoption when multiple table totals conflict', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: { candidateFacts, candidateTotalWeight: 100, declaredTotalWeight: null, adoptionStatus: 'CONFLICTING_TOTAL' },
       global: {
@@ -284,7 +303,7 @@ describe('ScoreCandidateReviewCard.vue', () => {
     })
 
     expect(wrapper.find('.el-alert-mock').text()).toContain('所选评分方案的原文总分存在冲突')
-    expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
   })
 
   it('does not show internal evidence locators or qualification JSON', () => {

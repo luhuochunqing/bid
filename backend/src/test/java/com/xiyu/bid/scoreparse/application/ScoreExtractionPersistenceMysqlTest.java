@@ -488,16 +488,16 @@ class ScoreExtractionPersistenceMysqlTest extends AbstractTransactionBoundaryTes
         return StructuredTableResult.evidencePipeline(List.of(fact), List.of(), null, List.of(), List.of(), FullRuleSourceReplayTest.knownTotal(fact), null);
     }
     private ScoreParseTask task(){return state.createTask(UUID.randomUUID().toString(),project,"PARSE",null,null,"MANUAL");}
-    @Test void uncoveredSourceRowCannotAutoOrManuallyActivateFirstVersion() {
+    @Test void uncoveredSourceRowBlocksAutoButAllowsManualFirstVersion() {
         var t=task(); var original=snapshot(t,1,false);
         var incomplete=new ScoreExtractionSnapshot(1,original.items(),original.schemes(),
                 List.of("SOURCE_SCORE_ROW_UNCOVERED:t:t-r3"),Map.of());
         writer.freeze(project,t.getId(),incomplete);t.setStatus("COMPLETED");tasks.saveAndFlush(t);
         assertThat(activation.tryAutoActivate(project,t.getTaskId())).isFalse();
-        assertThatThrownBy(() -> activation.activate(project,t.getTaskId(),
-                new ActivateScoreExtractionCommand("s","empty:v1","确认",null),"reviewer"))
-                .isInstanceOfSatisfying(ScoreExtractionException.class,e -> assertThat(e.status()).isEqualTo(409));
         assertThat(items.findByProjectIdOrderByItemIndexAsc(project)).isEmpty();
+        activation.activate(project,t.getTaskId(),new ActivateScoreExtractionCommand("s","empty:v1","人工确认",null),"reviewer");
+        assertThat(items.findByProjectIdOrderByItemIndexAsc(project)).singleElement()
+                .satisfies(i -> assertThat(i.getWeight()).isEqualByComparingTo("10"));
     }
     private ScoreParseTask frozen(int count,boolean unknown){var t=task();writer.freeze(project,t.getId(),snapshot(t,count,unknown));t.setStatus("COMPLETED");t.setDecisionStatus("REVIEW_REQUIRED");return tasks.saveAndFlush(t);}
     private ScoreExtractionSnapshot snapshot(ScoreParseTask t,int count,boolean unknown) {

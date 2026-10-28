@@ -252,18 +252,15 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
-    void submitReview_adoptCandidates_rejectsWeightAboveDeclaredTotalBeforePersistence() {
+    void submitReview_adoptCandidates_acceptsWeightAboveDeclaredTotalAfterManualReview() {
         mockLatestTask();
         when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "101")));
         when(evidenceRepository.findByParseTaskId(9L)).thenReturn(eligibleEvidenceTotal("100", "fact-1"));
 
-        assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
                 new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "人工确认")
-        ), "人工确认采纳", 9L), "admin"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("不能超过原文声明总分");
-
-        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+        ), "人工确认采纳", 9L), "admin");
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), anyList());
     }
 
     @Test
@@ -382,7 +379,7 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
-    void submitReview_adoptCandidates_rejectsConflictingDeclaredTotalsWithoutPersistence() {
+    void submitReview_adoptCandidates_acceptsConflictingDeclaredTotalsAfterManualReview() {
         mockLatestTask();
         ScoreParseTask task = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                 PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")).get(0);
@@ -395,15 +392,10 @@ class ScoreParseReviewAppServiceTest {
                 schemeQualification("fact-2", "scheme-main", "IN_SCHEME", true, null, "本项目评分办法",
                         null, "CONFLICT", "", "MULTI_TABLE_SAME_SCHEME", List.of("business", "technical"))));
 
-        assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
-                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "采纳冲突候选项")
-        ), "人工确认采纳", 9L), "admin"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("原文总分存在冲突");
-
-        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
-        verify(taskRepository, never()).save(task);
-        verify(reviewRepository, never()).save(org.mockito.ArgumentMatchers.any());
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "人工确认")
+        ), "人工确认采纳", 9L), "admin");
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), anyList());
     }
 
     @Test

@@ -31,19 +31,22 @@
       show-icon
       class="candidate-weight-alert"
       :title="adoptionStatus === 'SOURCE_ROWS_UNCOVERED'
-        ? '原文评分表仍有未识别行，请重新解析并核对后再采纳。'
+        ? '原文评分表仍有未识别行，请核对后决定是否采纳。'
         : adoptionStatus === 'CONFLICTING_TOTAL'
-        ? '所选评分方案的原文总分存在冲突，请核验原文后再采纳。'
+        ? '所选评分方案的原文总分存在冲突，请核验后决定是否采纳。'
         : schemeSelectionRequired && !selectedSchemeId
         ? '文档包含多个评分方案，请先选择一个方案；不同方案不会合并计分。'
         : adoptionStatus === 'UNKNOWN_TOTAL'
         ? `该方案包含多个物理表格，原文未声明统一总分（当前候选合计 ${candidateTotalWeight} 分）；核对后可人工采纳。`
         : declaredTotalWeight == null
-        ? '原文尚无可验证总分；仅在单表方案且候选项核验通过时可人工确认。'
+        ? '原文尚无可验证总分；请核对候选项后决定是否采纳。'
         : candidateTotalWeight > declaredTotalWeight
-        ? `候选合计为 ${candidateTotalWeight} 分，超过原文声明的 ${declaredTotalWeight} 分，请核对后再采纳。`
+        ? `候选合计为 ${candidateTotalWeight} 分，超过原文声明的 ${declaredTotalWeight} 分，请核对后决定是否采纳。`
         : `候选合计为 ${candidateTotalWeight} 分，原文声明 ${declaredTotalWeight} 分，尚差 ${declaredTotalWeight - candidateTotalWeight} 分；核对后可人工采纳当前候选。`"
     />
+    <el-alert v-if="adoptionStatus === 'SOURCE_ROWS_UNCOVERED' && declaredTotalWeight != null && candidateTotalWeight > declaredTotalWeight"
+      type="warning" :closable="false" show-icon class="candidate-weight-alert"
+      :title="`候选合计为 ${candidateTotalWeight} 分，超过原文声明的 ${declaredTotalWeight} 分，请核对后决定是否采纳。`" />
     <div v-if="schemeSelectionRequired && !selectedSchemeId" class="scheme-selection-hint">请选择方案以查看其候选总分与原文总分证据。</div>
     <div class="candidate-table-wrapper">
       <table class="candidate-table">
@@ -73,6 +76,7 @@
             </td>
             <td class="col-detail">
               <el-input v-model="fact.sourceText" :disabled="readonly" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" aria-label="完整规则" />
+              <div v-if="!fact.sourceText || fact.sourceText.trim() === '—'" class="validation-diff">评分规则尚未填写，请核对后决定是否采纳。</div>
               <div v-for="evidence in readableEvidences(fact)" :key="evidence.quotedText" class="evidence-block">
                 <span>{{ evidence.quotedText }}</span>
               </div>
@@ -121,11 +125,11 @@
     </section>
     <div class="candidate-review-actions">
       <el-alert v-if="hasUnresolvedRelationship" type="warning" :closable="false"
-        title="父子评分关系未确认，请先核对或重新解析后再采纳。" />
+        title="父子评分关系未确认，暂按明细计分；请核对后决定是否采纳。" />
       <el-button
         type="primary"
         :loading="isAdoptingCandidates"
-        :disabled="readonly || hasUnresolvedRelationship || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId) || adoptionStatus === 'SOURCE_ROWS_UNCOVERED' || adoptionStatus === 'CONFLICTING_TOTAL' || (declaredTotalWeight != null && candidateTotalWeight > declaredTotalWeight)"
+        :disabled="readonly || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId)"
         data-test="btn-adopt-candidates"
         @click="$emit('adopt', candidateFacts)"
       >

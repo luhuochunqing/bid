@@ -109,7 +109,7 @@ describe('useScoreCandidateAdoption.js', () => {
     expect(candidateTotalWeight.value).toBe(25)
   })
 
-  it('未知父子计分关系不生成可采纳总分', () => {
+  it('人工核对未知父子关系时按明细计算候选总分', () => {
     reviewFacts.value = [
       { factId: 'unknown-parent', weight: 5, childAggregation: 'UNKNOWN', candidateEligible: true },
       { factId: 'unknown-child', weight: 5, parentFactId: 'unknown-parent', candidateEligible: true },
@@ -118,7 +118,7 @@ describe('useScoreCandidateAdoption.js', () => {
       props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
     })
 
-    expect(candidateTotalWeight.value).toBe(0)
+    expect(candidateTotalWeight.value).toBe(5)
   })
 
   it('方案外和来源未验证事实只保留审计展示，不进入候选合计或一键采纳 payload', async () => {
