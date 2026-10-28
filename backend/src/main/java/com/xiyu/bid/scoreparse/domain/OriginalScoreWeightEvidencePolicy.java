@@ -93,7 +93,7 @@ final class OriginalScoreWeightEvidencePolicy {
                 }
             }
             boolean itemMatched = (!claim.dimension().isBlank() && containsDimension(rowText, claim.dimension()))
-                    || (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
+                    || (!claim.quotedText().isBlank() && containsQuote(rowText, claim.quotedText())
                     && (claim.dimension().isBlank() || containsDimension(claim.quotedText(), claim.dimension())));
             List<BigDecimal> explicit = new ArrayList<>();
             List<BigDecimal> capped = new ArrayList<>();
@@ -123,7 +123,8 @@ final class OriginalScoreWeightEvidencePolicy {
             List<BigDecimal> authoritative = claim.parent() && !title.isEmpty() ? title
                     : !explicit.isEmpty() ? explicit : !capped.isEmpty() ? capped
                     : !title.isEmpty() ? title : awarded;
-            if (!claim.parent() && !explicit.isEmpty() && !capped.isEmpty()) authoritative = concat(explicit, capped);
+            if (!claim.parent() && !capped.isEmpty()) authoritative = concat(authoritative, capped);
+            if (!claim.parent() && !awarded.isEmpty()) authoritative = concat(authoritative, awarded);
             List<BigDecimal> tierValues = tierScores(rowText);
             if (tierSet(rowText, tierValues)
                     && (!claim.parent() || claim.childAggregation() == ChildAggregation.MUTUALLY_EXCLUSIVE)) {
@@ -139,7 +140,7 @@ final class OriginalScoreWeightEvidencePolicy {
             }
             Pattern claimWeightPattern = claim.weight() == null ? null
                     : Pattern.compile("(?<!\\d)" + Pattern.quote(claim.weight().stripTrailingZeros().toPlainString()) + "\\s*分");
-            if (explicit.isEmpty() && claim.weight() != null
+            if ((explicit.isEmpty() || !claim.parent()) && claim.weight() != null
                     && authoritative.stream().anyMatch(w -> w.compareTo(claim.weight()) == 0)
                     && (claim.quotedText().isBlank() || claimWeightPattern.matcher(claim.quotedText()).find())) {
                 return;
@@ -175,6 +176,14 @@ final class OriginalScoreWeightEvidencePolicy {
         return EvidenceText.normalize(source).text().contains(EvidenceText.normalize(quote).text());
     }
 
+    private static boolean containsQuote(String source, String quote) {
+        if (quote == null || quote.isBlank()) return false;
+        if (contains(source, quote)) return true;
+        String normSource = EvidenceText.normalize(source).text();
+        String normQuote = EvidenceText.normalize(quote).text();
+        return normQuote.length() >= 20 && normSource.contains(normQuote.substring(0, Math.min(normQuote.length(), 25)));
+    }
+
     private static List<BigDecimal> concat(List<BigDecimal> first, List<BigDecimal> second) {
         List<BigDecimal> values = new ArrayList<>(first);
         values.addAll(second);
@@ -186,6 +195,7 @@ final class OriginalScoreWeightEvidencePolicy {
     }
 
     private static boolean containsDimension(String source, String dimension) {
+        if (dimension == null || dimension.isBlank()) return true;
         if (contains(source, dimension)) return true;
         if (isPriceDimension(dimension) && (contains(source, "价格") || contains(source, "报价"))) return true;
         return OriginalScoreEvidencePolicy.matchesDimensionAlias(source, dimension);
