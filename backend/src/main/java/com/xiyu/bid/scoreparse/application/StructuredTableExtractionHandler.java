@@ -204,7 +204,7 @@ final class StructuredTableExtractionHandler {
                 new RunSummaryAssembler.MergeView(false, false, 0, 0, 0), weightResult, candidates.size(),
                 structured.aiProviderDiagnostics() != null ? structured.aiProviderDiagnostics().model() : "",
                 ScoreParsePipeline.EVIDENCE_PIPELINE_V1, decision.name(), fallbackReason,
-                tableSplits, subtotalDefects, structured.aiProviderDiagnostics()).json());
+                tableSplits, java.util.stream.Stream.concat(subtotalDefects.stream(), structured.sourceDiagnostics().stream()).distinct().toList(), structured.aiProviderDiagnostics()).json());
         task.setPipelineVersion(ScoreParsePipeline.EVIDENCE_PIPELINE_V1);
         task.setDecisionStatus(decision.name());
         task.setFallbackReason(fallbackReason);

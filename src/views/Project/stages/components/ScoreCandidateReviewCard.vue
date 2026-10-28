@@ -25,12 +25,14 @@
       </el-select>
     </div>
     <el-alert
-      v-if="adoptionStatus === 'CONFLICTING_TOTAL' || adoptionStatus === 'UNKNOWN_TOTAL' || schemeSelectionRequired || declaredTotalWeight == null || candidateTotalWeight !== declaredTotalWeight"
+      v-if="adoptionStatus === 'SOURCE_ROWS_UNCOVERED' || adoptionStatus === 'CONFLICTING_TOTAL' || adoptionStatus === 'UNKNOWN_TOTAL' || schemeSelectionRequired || declaredTotalWeight == null || candidateTotalWeight !== declaredTotalWeight"
       type="warning"
       :closable="false"
       show-icon
       class="candidate-weight-alert"
-      :title="adoptionStatus === 'CONFLICTING_TOTAL'
+      :title="adoptionStatus === 'SOURCE_ROWS_UNCOVERED'
+        ? '原文评分表仍有未识别行，请重新解析并核对后再采纳。'
+        : adoptionStatus === 'CONFLICTING_TOTAL'
         ? '所选评分方案的原文总分存在冲突，请核验原文后再采纳。'
         : schemeSelectionRequired && !selectedSchemeId
         ? '文档包含多个评分方案，请先选择一个方案；不同方案不会合并计分。'
@@ -123,7 +125,7 @@
       <el-button
         type="primary"
         :loading="isAdoptingCandidates"
-        :disabled="readonly || hasUnresolvedRelationship || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId) || adoptionStatus === 'CONFLICTING_TOTAL' || (declaredTotalWeight != null && candidateTotalWeight > declaredTotalWeight)"
+        :disabled="readonly || hasUnresolvedRelationship || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId) || adoptionStatus === 'SOURCE_ROWS_UNCOVERED' || adoptionStatus === 'CONFLICTING_TOTAL' || (declaredTotalWeight != null && candidateTotalWeight > declaredTotalWeight)"
         data-test="btn-adopt-candidates"
         @click="$emit('adopt', candidateFacts)"
       >

@@ -8,6 +8,16 @@ describe('ScoreCandidateReviewCard.vue', () => {
     { factId: 'f2', code: '2', dimension: '财务状况', weight: 3, scoreType: 'SUBJECTIVE', sourceText: '财务指标', candidateEligible: true },
   ]
 
+  it('blocks adoption and explains missing original scoring rows', () => {
+    const wrapper = mount(ScoreCandidateReviewCard, { props: { candidateFacts, candidateTotalWeight: 9,
+      declaredTotalWeight: 9, adoptionStatus: 'SOURCE_ROWS_UNCOVERED' },
+      global: { stubs: { 'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
+        'el-alert': { props: ['title'], template: '<div>{{ title }}</div>' } } },
+    })
+    expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('原文评分表仍有未识别行')
+  })
+
   it('disables adoption when selected parent-child relationship is unresolved', () => {
     const facts = [
       { factId: 'p', code: '1', dimension: '商务', weight: 15, candidateEligible: true, childAggregation: 'UNKNOWN' },

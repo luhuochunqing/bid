@@ -107,6 +107,7 @@ export function useScoreCandidateAdoption({
       return Number.isFinite(parsed) ? parsed : null
     }),
     adoptionStatus: computed(() => {
+      if (reviewSnapshot.value?.adoptionStatus === 'SOURCE_ROWS_UNCOVERED') return 'SOURCE_ROWS_UNCOVERED'
       if (schemeSelectionRequired.value && !activeSchemeId.value) return 'SCHEME_SELECTION_REQUIRED'
       const selected = schemes.value.find((scheme) => scheme.schemeId === activeSchemeId.value)
       if (selected?.totalEvidenceStatus === 'CONFLICT') return 'CONFLICTING_TOTAL'

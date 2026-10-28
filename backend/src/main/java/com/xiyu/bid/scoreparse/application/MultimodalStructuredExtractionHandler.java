@@ -208,8 +208,10 @@ final class MultimodalStructuredExtractionHandler {
                             .filter(id -> retryReport.violations().stream().noneMatch(v -> id.equals(v.factId())))
                             .toList();
                     var merged = retryPlan.merge(extracted.facts(), rechecked.facts(), verifiedIds);
-                    extracted = new MultimodalScoreFactExtractor.ExtractionResult(extracted.declaredTotal(), merged,
-                            extracted.model(), extracted.imageCount());
+                    extracted = MultimodalExtractionReviewPolicy.normalized(
+                            new MultimodalScoreFactExtractor.ExtractionResult(extracted.declaredTotal(), merged,
+                                    extracted.model(), extracted.imageCount()), originalContext, artifact, tenderSectionText);
+                    merged = extracted.facts();
                     validation = validator.validate(merged, artifact, originalContext, tenderSectionText, extracted.declaredTotal());
                     eligibleModelFacts = OriginalScoreEvidencePolicy.eligibleModelFacts(merged, validation.sourceVerification());
                     multiTableModelScopeUnknown = MultimodalExtractionReviewPolicy.hasMultipleTables(eligibleModelFacts)
@@ -233,9 +235,9 @@ final class MultimodalStructuredExtractionHandler {
             StructuredTableResult deterministicFallback = artifact == null ? null : MultimodalReviewFallback.completeDeterministic(
                     originalContext, artifact, tenderSectionText, validation);
             if (deterministicFallback != null) {
-                return StructuredSourceDiagnostics.attach(anchored
+                return StructuredSourceDiagnostics.attachFallback(anchored
                         ? FallbackCandidateRetention.retain(deterministicFallback, validation, artifact) : deterministicFallback,
-                        retryPlan == null ? List.of() : retryPlan.diagnostics());
+                        retryPlan, originalContext, artifact);
             }
         }
         var finalValidation = validation;
@@ -290,6 +292,6 @@ final class MultimodalStructuredExtractionHandler {
                 validation.sourceVerification(), validation.leafTotal(), facts, candidates) : null;
         return StructuredSourceDiagnostics.attach(StructuredTableResult.evidencePipeline(facts, candidates, completeness, tables,
                 proof == null ? List.of() : List.of(proof), validation.sourceVerification().qualifications(), null),
-                retryPlan == null ? List.of() : retryPlan.diagnostics());
+                StructuredSourceDiagnostics.forValidation(retryPlan, validation));
     }
 }

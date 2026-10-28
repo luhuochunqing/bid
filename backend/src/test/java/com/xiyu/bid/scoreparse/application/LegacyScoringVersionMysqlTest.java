@@ -100,6 +100,15 @@ class LegacyScoringVersionMysqlTest extends AbstractTransactionBoundaryTest {
      evidence.saveAndFlush(ScoreParseEvidence.builder().parseTaskId(task.getId()).factId("f").kind("SCHEME_QUALIFICATION").explanation("{\"schemeId\":\"s\",\"scopeStatus\":\"IN_SCHEME\",\"candidateEligible\":true,\"declaredTotal\":10,\"totalEvidenceStatus\":\"VERIFIED\",\"tableIds\":[\"t\"]}").build());
      return new com.xiyu.bid.scoreparse.dto.ScoreParseReviewCommand(List.of(new com.xiyu.bid.scoreparse.dto.ScoreParseReviewCommand.Action("f","ADOPT_CANDIDATES",null,"确认")),"确认",task.getId());
  }
+ @Test void uncoveredSourceRowRejectsLegacyAdoptionWithoutWrites() {
+     var command=adoption();var task=tasks.findById(command.parseTaskId()).orElseThrow();
+     task.setRunSummary("{\"sourceDiagnostics\":[\"SOURCE_SCORE_ROW_UNCOVERED:t:t-r3\"]}");tasks.saveAndFlush(task);
+     assertThat(review.getReviewSnapshot(project).adoptionStatus()).isEqualTo("SOURCE_ROWS_UNCOVERED");
+     assertThatThrownBy(() -> review.submitReview(project,command,"reviewer"))
+         .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("未识别行");
+     assertThat(items.findByProjectIdOrderByItemIndexAsc(project)).isEmpty();
+     assertThat(tasks.findById(task.getId()).orElseThrow().getDecisionStatus()).isEqualTo("REVIEW_REQUIRED");
+ }
  @Test void legacyReviewEstimatesAfterActualCallerCommit() {
      var command=adoption();
      when(certs.match(any())).thenReturn(com.xiyu.bid.scoreparse.dto.KnowledgeMatchResult.empty("fixture"));

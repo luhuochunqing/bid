@@ -29,6 +29,24 @@ final class StructuredSourceDiagnostics {
                 result.aiProviderDiagnostics(), result.qualifications(), all);
     }
 
+    static List<String> forValidation(com.xiyu.bid.scoreparse.domain.SourceRecheckPlan plan,
+            com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator.ValidationReport validation) {
+        return java.util.stream.Stream.concat(plan == null ? java.util.stream.Stream.empty() : plan.diagnostics().stream(),
+                validation.violations().stream().filter(v -> "SOURCE_SCORE_ROW_UNCOVERED".equals(v.code()))
+                        .map(v -> v.code() + ":" + v.evidence())).distinct().toList();
+    }
+
+    static StructuredTableResult attachFallback(StructuredTableResult result,
+            com.xiyu.bid.scoreparse.domain.SourceRecheckPlan plan,
+            com.xiyu.bid.scoreparse.domain.OriginalScoringContext context,
+            com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact artifact) {
+        var verification = com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.verifyFacts(context, artifact, result.facts());
+        var notes = verification.problems().stream().filter(p -> "SOURCE_SCORE_ROW_UNCOVERED".equals(p.code()))
+                .map(p -> p.code() + ":" + p.locator());
+        return attach(result, java.util.stream.Stream.concat(
+                plan == null ? java.util.stream.Stream.empty() : plan.diagnostics().stream(), notes).distinct().toList());
+    }
+
     private static ScoreFact annotate(ScoreFact fact, List<String> diagnostics) {
         var old = fact.sourceMetadata();
         var metadata = new ScoreSourceMetadata(old.modelRuleText(), old.modelQuotedText(), old.sourceSpans(),

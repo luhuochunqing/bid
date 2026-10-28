@@ -151,6 +151,8 @@ public class ScoreParseReviewAppService {
             String fallbackReason,
             String operatorName
     ) {
+        if (ScoreParseReviewTotalPolicy.hasUncoveredRows(task))
+            throw new IllegalArgumentException("原文评分表仍有未识别行，请重新解析并核对后再采纳");
         java.util.Set<String> selectedFactIds = new java.util.LinkedHashSet<>();
         java.util.Map<String, BigDecimal> adjustedWeights = new java.util.LinkedHashMap<>();
         java.util.Map<String, ScoreParseReviewCommand.Action> edits = new java.util.LinkedHashMap<>();

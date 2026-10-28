@@ -165,6 +165,7 @@ public class ScoreVersionActivationService {
         var token=currentToken(projectId);
         if(!token.fingerprint().equals(record.getBaseFingerprint()) || token.hasManualEdits()) return false;
         var snapshot=codec.decode(record.getPayload());
+        if(snapshot.sourceDiagnostics().stream().anyMatch(d -> d.startsWith("SOURCE_SCORE_ROW_UNCOVERED:"))) return false;
         if(snapshot.schemes().size()!=1) return false;
         var scheme=snapshot.schemes().get(0);
         if(scheme.computableCount()==0) return false;
@@ -191,6 +192,8 @@ public class ScoreVersionActivationService {
         var record=snapshots.findById(task.getId()).orElseThrow(() -> new ScoreExtractionException(409,"EXTRACTION_NOT_FROZEN"));
         if(record.getFrozenAt()==null || !"COMPLETED".equals(task.getStatus()) || Boolean.TRUE.equals(task.getTimeoutMarked())) throw new ScoreExtractionException(409,"EXTRACTION_NOT_COMPLETED");
         var snapshot=codec.decode(record.getPayload());
+        if(snapshot.sourceDiagnostics().stream().anyMatch(d -> d.startsWith("SOURCE_SCORE_ROW_UNCOVERED:")))
+            throw new ScoreExtractionException(409,"SOURCE_SCORE_ROW_UNCOVERED");
         if(snapshot.schemes().stream().noneMatch(s -> s.schemeId().equals(command.schemeId()))) throw new ScoreExtractionException(400,"SCHEME_NOT_FOUND");
         var selection=snapshot.items().stream().filter(i -> i.schemeId().equals(command.schemeId()) && i.computable())
                 .filter(i -> command.selectedItemIds()==null || command.selectedItemIds().contains(i.itemId())).toList();

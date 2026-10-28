@@ -23,7 +23,15 @@ public record SourceRecheckPlan(DocumentArtifact artifact, String text, List<Str
         Set<String> invalid = new LinkedHashSet<>();
         violations.stream().map(MultimodalScoreFactValidator.Violation::factId).filter(id -> !id.isBlank())
                 .forEach(invalid::add);
+        Set<String> missingRows = violations.stream().filter(v -> SourceScoreRowCoveragePolicy.UNCOVERED.equals(v.code()))
+                .map(MultimodalScoreFactValidator.Violation::evidence).collect(java.util.stream.Collectors.toSet());
+        Set<String> missingCells = new LinkedHashSet<>();
+        for (var table : artifact.tables()) for (var cell : table.cells()) {
+            if (cell.row() != null && missingRows.contains(table.tableId() + ":" + table.tableId() + "-r" + cell.row()))
+                missingCells.add(cell.cellId());
+        }
         var unresolved = SourceAnchorCatalog.build(artifact).stream().filter(anchor -> {
+            if (anchor.sourceCellIds().stream().anyMatch(missingCells::contains)) return true;
             List<MultimodalScoreFact> owners = facts.stream().filter(fact -> fact.sourceCellIds().stream()
                     .anyMatch(anchor.sourceCellIds()::contains)).toList();
             if (!owners.isEmpty()) return owners.stream().anyMatch(f -> invalid.contains(OriginalScoreEvidencePolicy.modelFactId(f)));
@@ -91,8 +99,9 @@ public record SourceRecheckPlan(DocumentArtifact artifact, String text, List<Str
                         List.of("SOURCE_RECHECK_FAILED:" + candidate.quotedText())));
             }
         }
-        if (!diagnostics.isEmpty()) return merged.stream().map(fact -> annotate(fact, diagnostics)).toList();
-        return List.copyOf(merged);
+        List<MultimodalScoreFact> combined = diagnostics.isEmpty() ? List.copyOf(merged)
+                : merged.stream().map(fact -> annotate(fact, diagnostics)).toList();
+        return MultimodalFactParentCodeNormalizer.normalize(combined);
     }
 
     private static String key(MultimodalScoreFact fact) {

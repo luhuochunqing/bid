@@ -143,6 +143,14 @@ describe('useScoreCandidateAdoption.js', () => {
     })
   })
 
+  it('keeps the server uncovered-row status when a scheme has a verified total', () => {
+    reviewSnapshot.value = { adoptionStatus: 'SOURCE_ROWS_UNCOVERED', schemes: [
+      { schemeId: 'a', totalEvidenceStatus: 'VERIFIED', declaredTotal: 100, tableIds: ['t'] },
+    ] }
+    const { adoptionStatus } = useScoreCandidateAdoption({ props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData })
+    expect(adoptionStatus.value).toBe('SOURCE_ROWS_UNCOVERED')
+  })
+
   it('多个方案必须明确选择，当前合计和采纳 payload 只用所选方案', async () => {
     reviewFacts.value = [
       { factId: 'a', schemeId: 'scheme-a', code: '1', dimension: '方案甲', weight: 100, candidateEligible: true },
