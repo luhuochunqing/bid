@@ -69,7 +69,7 @@ public final class ScoreFactShadowPipeline {
             CanonicalTableGrid grid = CanonicalTableGridFactory.fromSidecarTable(table);
             TableColumnMapping mapping = HeuristicTableColumnMapper.infer(toLegacyGrid(grid));
             List<ScoreFact> facts = grid.isStructurallyValid()
-                    ? DeterministicScoreFactExtractor.extract(grid, mapping)
+                    ? ShadowLogicalRowRestoration.restore(artifact, DeterministicScoreFactExtractor.extract(grid, mapping))
                     : List.of();
             outcomes.add(new TableOutcome(grid, mapping, facts, grid.isStructurallyValid()));
         }

@@ -129,6 +129,25 @@ class ScoreTableSplitPolicyTest {
     }
 
     @Test
+    void multiTablePartialMaximumMustNotProveDocumentTotal() {
+        var tables = List.of(
+                new ScoreTableSplitPolicy.ScoreTableInput("t1", true, List.of(fact("a", "t1", "商务", "30"), fact("b", "t1", "业绩", "40"))),
+                new ScoreTableSplitPolicy.ScoreTableInput("t2", true, List.of(fact("c", "t2", "技术", "30"))));
+        var result = ScoreTableSplitPolicy.split(tables, List.of(), "本项目评分部分满分为100分。");
+        assertThat(result.documentLevel().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(result.tables()).noneMatch(t -> "DOCUMENT".equals(t.tableId()));
+    }
+
+    @Test
+    void multiTablePartialTotalMustNotProveDocumentTotal() {
+        var tables = List.of(
+                new ScoreTableSplitPolicy.ScoreTableInput("t1", true, List.of(fact("a", "t1", "商务", "30"), fact("b", "t1", "业绩", "40"))),
+                new ScoreTableSplitPolicy.ScoreTableInput("t2", true, List.of(fact("c", "t2", "技术", "30"))));
+        var result = ScoreTableSplitPolicy.split(tables, List.of(), "本项目评分部分总分为100分。");
+        assertThat(result.documentLevel().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+    }
+
+    @Test
     void singleTableSelfConsistent_resultMatchesDirectPolicyCall() {
         List<ScoreFact> facts = List.of(
                 fact("t1-f1", "t1", "技术方案", "30"),

@@ -32,7 +32,7 @@ final class TextPrimaryEvidenceBinder {
         NormalizedEvidence normalizedText = tenderText == null || tenderText.isBlank()
                 ? null : normalizeWithOffsets(tenderText);
         List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact, tenderText);
-        return facts.stream().map(fact -> {
+        List<MultimodalScoreFact> boundFacts = facts.stream().map(fact -> {
             if (!fact.sourceMetadata().sourceSpans().isEmpty()) return fact;
             var abbreviated = artifact == null ? java.util.Optional.<MultimodalScoreFact>empty()
                     : PdfEllipsisEvidenceBinder.bind(fact, artifact, schemes);
@@ -69,6 +69,7 @@ final class TextPrimaryEvidenceBinder {
             }
             return textEvidence(fact, tenderText, normalizedText).map(value -> withOriginalMetadata(fact, value)).orElse(fact);
         }).toList();
+        return SourceRuleEvidenceExpansion.expand(boundFacts, artifact);
     }
 
     static boolean tableInFactScope(MultimodalScoreFact fact,

@@ -75,3 +75,14 @@ it('does not compare against an unverified source total', () => {
   expect(w.text()).toContain('招标文件总分：待确认')
   expect(w.text()).not.toContain('9 分待核对')
 })
+
+it('allows selecting a verified zero-point deduction without adding points', async () => {
+  const data = snapshot()
+  data.items = [item('扣分项', { rawMaximum: 0, effectiveMaximum: 0, ruleText: '验收不通过扣1分。' })]
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+  expect(w.text()).toContain('扣分规则')
+  await w.get('input[type="checkbox"]').setValue(true)
+  await w.get('textarea').setValue('核对原文')
+  await w.get('[data-test="activate-extraction"]').trigger('click')
+  expect(w.emitted('activate')[0][0].selectedItemIds).toEqual(['扣分项'])
+})

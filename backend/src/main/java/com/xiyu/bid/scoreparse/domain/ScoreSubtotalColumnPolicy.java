@@ -14,12 +14,12 @@ import java.util.stream.Collectors;
 public final class ScoreSubtotalColumnPolicy {
     static final Pattern NUMBER = Pattern.compile("^\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
     static final Pattern EXPLICIT_TOTAL = Pattern.compile("(?<!(?:单项|每项|每条|每处|每篇|每个|本项|此项))(?:总分|满分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
-    /** 单项分值语义：同一分句内匹配点左侧的单项量词/主体。该数字是单项分值而非整表总量。
+    /** 局部范围语义：同一分句内匹配点左侧的单项量词或评分部分主体，不是整表总量。
      * 覆盖"一"插入变体（每一项/每一条）；"本项"后跟"目"时是"本项目"（整表主体），用 (?!目) 排除。
      * 汇总语义：最后一个单项词与总分关键词之间出现汇总词（之和/合计/共计/累计/汇总/总和/总计）时，
      * 该数字是「各单项之合计」——整表总量，不得判为单项（如"所有单项合计总分100分"）。 */
     private static final Pattern SINGLE_ITEM_CONTEXT =
-            Pattern.compile("单项|每一?项|每一?条|每一?处|每一?篇|每一?个|本项(?!目)|此项");
+            Pattern.compile("单项|每一?项|每一?条|每一?处|每一?篇|每一?个|本项(?!目)|此项|评分项|评审项|(?:评分|评审|评标|商务|技术|报价|采购)部分");
     private static final Pattern PER_ITEM_AGGREGATION =
             Pattern.compile("之和|合计|共计|累计|汇总|总和|总计");
     private static final Pattern MAXIMUM = Pattern.compile("^(?:最高分(?:值|数)?|最高得分|满分)(?:[（(\\[【]分[）)\\]】])?$");

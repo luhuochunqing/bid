@@ -58,6 +58,46 @@ class ScoreCompletenessPolicyTest {
     }
 
     @Test
+    void itemMaximumMustNotBecomeDocumentTotal() {
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(createFact("a", null, "甲", 40.0), createFact("b", null, "乙", 35.0), createFact("c", null, "丙", 25.0)),
+                "提供产品得5分，每增加一项加1分，满分10分。\n本项满分5分。");
+        assertThat(result.declaredTotalSource()).isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.DEFAULT_100);
+    }
+
+    @Test
+    void projectWordingDoesNotTurnAScoringItemMaximumIntoWholeTotal() {
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(createFact("a", null, "甲", 40.0), createFact("b", null, "乙", 35.0), createFact("c", null, "丙", 25.0)),
+                "本项目评分项满分10分。");
+        assertThat(result.declaredTotalSource()).isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.DEFAULT_100);
+    }
+
+    @Test
+    void projectSubsectionMaximumMustNotBecomeWholeTotal() {
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(createFact("a", null, "甲", 40.0), createFact("b", null, "乙", 35.0), createFact("c", null, "丙", 25.0)),
+                "本项目评分部分满分10分。");
+        assertThat(result.declaredTotalSource()).isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.DEFAULT_100);
+    }
+
+    @Test
+    void projectTextWithPartialTotalMustNotBecomeWholeTotal() {
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(createFact("a", null, "甲", 40.0), createFact("b", null, "乙", 35.0), createFact("c", null, "丙", 25.0)),
+                "本项目采用评分部分总分100分。");
+        assertThat(result.declaredTotalSource()).isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.DEFAULT_100);
+    }
+
+    @Test
+    void conflictingWholeTotalsMustNotSelectTheLargest() {
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(createFact("a", null, "甲", 40.0), createFact("b", null, "乙", 35.0), createFact("c", null, "丙", 25.0)),
+                "本项目评分总分100分。\n本项目评分总分120分。");
+        assertThat(result.decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+    }
+
+    @Test
     void evaluate_declaredTotalCustom_matchesCorrectly() {
         // Tender explicitly declares 120 points
         ScoreFact f1 = createFact("f1", null, "商务", 40.0);

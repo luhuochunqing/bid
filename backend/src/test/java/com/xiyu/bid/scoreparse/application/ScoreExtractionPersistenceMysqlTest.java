@@ -354,12 +354,80 @@ class ScoreExtractionPersistenceMysqlTest extends AbstractTransactionBoundaryTes
         assertThat(facts.findByParseTaskId(t.getId())).hasSize(5);
         var model=view.items().stream().filter(i -> i.name().equals("审查原始未核验候选")).findFirst().orElseThrow();
         assertThat(model.diagnostics()).contains("ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED");
+        assertThat(evidence.findByParseTaskId(t.getId())).filteredOn(e -> model.factId().equals(e.getFactId()))
+                .extracting(ScoreParseEvidence::getKind).contains("ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED");
+        var savedModel = facts.findByParseTaskId(t.getId()).stream()
+                .filter(f -> model.factId().equals(f.getFactId())).findFirst().orElseThrow();
+        var savedEvidence = evidence.findByParseTaskId(t.getId()).stream()
+                .filter(e -> model.factId().equals(e.getFactId())).toList();
+        assertThat(ScoreParseReviewFactMapper.toFactDTO(savedModel, savedEvidence).evidences())
+                .extracting(com.xiyu.bid.scoreparse.dto.ScoreParseReviewDTO.Evidence::kind)
+                .contains("ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED");
         assertThat(model.fact().sourceMetadata().modelRuleText()).isEqualTo("模型原始规则最高6分");
         assertThat(model.computable()).isFalse();
         assertThat(view.items().stream().filter(ExtractedScoreItem::computable)).allSatisfy(i -> assertThat(i.fact().sourceMetadata().sourceSpans()).isNotEmpty());
         assertThat(items.findByProjectIdOrderByItemIndexAsc(project).stream().map(ScoreItem::getWeight).reduce(BigDecimal.ZERO,BigDecimal::add)).isEqualByComparingTo("100");
         assertThat(view.active().hasManualEdits()).isFalse();
     }
+    @Test void recoveredSourceRowMustNotAutoActivateFirstParse() throws Exception {
+        var t = task();
+        var result = SourceCoverageFlowTest.omittedRowResult();
+        completion.structured(t, result);
+        var snapshot = reads.getByTaskId(project, t.getTaskId());
+        assertThat(snapshot.items()).anyMatch(i -> "3".equals(i.fact().code()));
+        assertThat(snapshot.sourceDiagnostics()).anyMatch(d -> d.startsWith("SOURCE_ROW_RECOVERED_FOR_REVIEW:"));
+        assertThat(items.findByProjectIdOrderByItemIndexAsc(project)).isEmpty();
+    }
+
+    @Test void recoveredRowCanBeManuallyAdoptedAndPersistedAtHundred() throws Exception {
+        var t = task();
+        completion.structured(t, SourceCoverageFlowTest.omittedRowAndDeductionResult());
+        assertThat(items.findByProjectIdOrderByItemIndexAsc(project)).isEmpty();
+        var view = reads.getByTaskId(project, t.getTaskId());
+        assertThat(view.schemes()).singleElement().satisfies(scheme -> {
+            assertThat(scheme.extractedKnownTotal()).isEqualByComparingTo("100");
+            assertThat(scheme.declaredTotal()).isNull();
+            assertThat(scheme.declaredTotalStatus()).isEqualTo("UNKNOWN");
+        });
+        assertThat(view.items()).anySatisfy(item -> {
+            assertThat(item.fact().code()).isEqualTo("4");
+            assertThat(item.computable()).isTrue();
+            assertThat(item.rawMaximum()).isEqualByComparingTo("0");
+        });
+        var selected = view.items().stream().filter(ExtractedScoreItem::computable).map(ExtractedScoreItem::itemId).toList();
+        assertThat(selected).hasSize(4);
+        var command = new com.xiyu.bid.scoreparse.dto.ActivateScoreExtractionCommand(
+                view.schemes().getFirst().schemeId(), activation.currentToken(project).fingerprint(), "人工复核原文", selected);
+        activation.activate(project, t.getTaskId(), command, "test-reviewer");
+        var saved = items.findByProjectIdOrderByItemIndexAsc(project);
+        assertThat(saved).hasSize(4);
+        assertThat(saved.stream().map(ScoreItem::getWeight).reduce(BigDecimal.ZERO, BigDecimal::add))
+                .isEqualByComparingTo("100");
+        assertThat(saved).anySatisfy(item -> assertThat(item.getDetail()).isEqualTo("丙项依据年报综合评审。"));
+        assertThat(saved).anySatisfy(item -> {
+            assertThat(item.getWeight()).isEqualByComparingTo("0");
+            assertThat(item.getDetail()).isEqualTo("未通过验收按规定扣分。");
+        });
+        assertThat(versions.findFirstByProjectIdOrderByIdDesc(project).orElseThrow().getActivationSource()).isEqualTo("MANUAL");
+    }
+
+    @Test void zeroPointDeductionAloneMustNotAutoActivate() {
+        var t = task();
+        var span = new SourceSpan("doc", "hash", "PDF", "s", 1, "t", "rule", 0, 12,
+                "验收不通过按规定扣分。", "rule");
+        var metadata = new ScoreSourceMetadata("", "", List.of(span), List.of(), "", "OBJECTIVE");
+        var deduction = new ScoreFact("d", "t", List.of("rule"), "验收不通过按规定扣分。", "4", "质量扣分",
+                BigDecimal.ZERO, null, null, "", "SOURCE", .9, ScoreFact.ValidationStatus.REVIEW_REQUIRED,
+                ChildAggregation.SUM, metadata);
+        var q = new OriginalScoreEvidencePolicy.Qualification("d", "s", "IN_SCHEME", true, null, "t:rule");
+        var snapshot = ScoreExtractionSnapshot.from(t.getTaskId(), List.of(deduction), List.of(q), List.of());
+        assertThat(snapshot.items()).singleElement().satisfies(i -> assertThat(i.computable()).isTrue());
+        writer.freeze(project, t.getId(), snapshot);
+        state.markCompleted(t.getTaskId());
+        assertThat(activation.tryAutoActivate(project, t.getTaskId())).isFalse();
+        assertThat(items.findByProjectIdOrderByItemIndexAsc(project)).isEmpty();
+    }
+
     @Test void subCentWeightRemainsExactInSnapshotWithoutDatabaseRounding() {
         var t=task();var f=new ScoreFact("precise","t",List.of(),"满分0.125分","p","精确分值",new BigDecimal("0.125"),null,null,null,"MODEL",.8,ScoreFact.ValidationStatus.REVIEW_REQUIRED);
         var q=new OriginalScoreEvidencePolicy.Qualification(f.factId(),"s","IN_SCHEME",false,"SOURCE_UNVERIFIED","");

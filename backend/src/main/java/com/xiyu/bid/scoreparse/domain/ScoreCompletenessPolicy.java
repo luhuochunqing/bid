@@ -11,8 +11,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 评分完整性校验策略（spec 059 Phase 4）。
@@ -31,9 +29,6 @@ public final class ScoreCompletenessPolicy {
     private static final BigDecimal DEFAULT_TOTAL_SCORE = BigDecimal.valueOf(100);
     private static final int MIN_REASONABLE_ITEM_COUNT = 3;
     private static final int LONG_SECTION_TEXT_THRESHOLD = 300;
-    private static final Pattern DECLARED_TOTAL_PATTERN = Pattern.compile(
-            "(?:总分|满分|分值构成|合计|总得分)[：:\\s\\n\\r（(]*?(\\d+(?:\\.\\d+)?)\\s*分"
-    );
     private ScoreCompletenessPolicy() { }
 
     public static ScoreCompletenessResult evaluateCompleteness(List<ScoreFact> facts, String tenderSectionText) {
@@ -189,33 +184,15 @@ public final class ScoreCompletenessPolicy {
                     List.of("结构化声明总分冲突: 评分表汇总行同时声明 [" + values + "] 分，禁止自动选择"));
         }
 
-        BigDecimal textValue = extractDeclaredTotalFromText(text);
-        if (textValue != null) {
-            return new DeclaredTotalResolution(textValue, DeclaredTotalSource.TENDER_TEXT, List.of());
+        var sourceTotal = TextScoringTotalEvidence.textTotal(text);
+        if (sourceTotal.value() != null) {
+            return new DeclaredTotalResolution(sourceTotal.value(), DeclaredTotalSource.TENDER_TEXT, List.of());
+        }
+        if ("CONFLICT".equals(sourceTotal.source())) {
+            return new DeclaredTotalResolution(DEFAULT_TOTAL_SCORE, DeclaredTotalSource.DEFAULT_100,
+                    List.of("正文声明总分冲突，禁止自动选择"));
         }
         return new DeclaredTotalResolution(DEFAULT_TOTAL_SCORE, DeclaredTotalSource.DEFAULT_100, List.of());
-    }
-
-    private static BigDecimal extractDeclaredTotalFromText(String text) {
-        if (text == null || text.isBlank()) {
-            return null;
-        }
-        Matcher m = DECLARED_TOTAL_PATTERN.matcher(text);
-        BigDecimal best = null;
-        while (m.find()) {
-            try {
-                BigDecimal val = new BigDecimal(m.group(1));
-                if (val.compareTo(BigDecimal.ZERO) > 0 && val.compareTo(BigDecimal.valueOf(1000)) <= 0) {
-                    BigDecimal normalized = val.setScale(2, RoundingMode.HALF_UP);
-                    if (best == null || normalized.compareTo(best) > 0) {
-                        best = normalized;
-                    }
-                }
-            } catch (NumberFormatException ignored) {
-                // 忽略异常，降级默认
-            }
-        }
-        return best;
     }
 
     private static String resolvePrimaryFallback(List<String> defects) {

@@ -165,10 +165,11 @@ public class ScoreVersionActivationService {
         var token=currentToken(projectId);
         if(!token.fingerprint().equals(record.getBaseFingerprint()) || token.hasManualEdits()) return false;
         var snapshot=codec.decode(record.getPayload());
-        if(snapshot.sourceDiagnostics().stream().anyMatch(d -> d.startsWith("SOURCE_SCORE_ROW_UNCOVERED:"))) return false;
+        if(snapshot.sourceDiagnostics().stream().anyMatch(d -> d.startsWith("SOURCE_SCORE_ROW_UNCOVERED:")
+                || d.startsWith("SOURCE_ROW_RECOVERED_FOR_REVIEW:"))) return false;
         if(snapshot.schemes().size()!=1) return false;
         var scheme=snapshot.schemes().get(0);
-        if(scheme.computableCount()==0) return false;
+        if(scheme.computableCount()==0 || scheme.computableTotal().signum() <= 0) return false;
         // A partial first parse has no active projection to protect. It must still
         // not become the active version when the extracted total is lower than the
         // tender's declared total (for example 40/100 in project 1383).

@@ -127,6 +127,8 @@
     <div class="candidate-review-actions">
       <el-alert v-if="hasUnresolvedRelationship" type="warning" :closable="false"
         title="父子评分关系未确认，暂按明细计分；请核对后决定是否采纳。" />
+      <el-alert v-if="hasExplicitAlternative" type="warning" :closable="false"
+        title="已选择备用提取结果，请核对是否与其他候选项重复计分。" />
       <el-button
         type="primary"
         :loading="isAdoptingCandidates"
@@ -195,6 +197,8 @@ const eligibleFacts = computed(() => props.candidateFacts.filter((fact) =>
 const hasUnresolvedRelationship = computed(() => eligibleFacts.value.some((parent) =>
   String(parent.childAggregation || '').toUpperCase() === 'UNKNOWN'
   && eligibleFacts.value.some((child) => child.parentFactId === parent.factId)))
+const hasExplicitAlternative = computed(() => eligibleFacts.value.some((fact) => fact.manualIncluded
+  && fact.evidences?.some((evidence) => evidence.kind === 'ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED')))
 const auditFacts = computed(() => props.candidateFacts.filter((fact) =>
   !isManualScoreCandidate(fact, props.selectedSchemeId, props.schemes.length)))
 
@@ -203,6 +207,7 @@ const emit = defineEmits(['adopt', 'reparse', 'scheme-change', 'fact-change'])
 function toggleFactEligibility(fact, eligible) {
   if (props.readonly) return
   fact.manualExcluded = !eligible
+  fact.manualIncluded = eligible
   fact.candidateEligible = eligible
   if (eligible && props.selectedSchemeId) {
     fact.schemeId = props.selectedSchemeId

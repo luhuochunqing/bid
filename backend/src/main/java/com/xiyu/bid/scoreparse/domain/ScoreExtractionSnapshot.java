@@ -76,8 +76,9 @@ public record ScoreExtractionSnapshot(int payloadVersion, List<ExtractedScoreIte
             boolean precision = f.weight()==null || f.weight().stripTrailingZeros().scale()<=2;
             if (!precision) problems.add("WEIGHT_PRECISION_UNSUPPORTED");
             if (ratio) problems.add("RATIO_UNRESOLVED");
+            boolean zeroDeduction = SourceDeductionSelectionPolicy.verified(f, q);
             if (f.weight() == null) problems.add("WEIGHT_UNKNOWN");
-            else if (f.weight().signum() <= 0 || f.weight().compareTo(new BigDecimal("9999.99")) > 0) problems.add("WEIGHT_INVALID");
+            else if ((f.weight().signum() <= 0 && !zeroDeduction) || f.weight().compareTo(new BigDecimal("9999.99")) > 0) problems.add("WEIGHT_INVALID");
             var localGraph=factMap.values().stream().filter(ScoreExtractionSnapshot::selected).filter(x -> scheme.equals(scopedSchemes.get(x.factId())))
                     .filter(x -> occurrences.get(x.factId())==1).collect(Collectors.toMap(ScoreFact::factId,java.util.function.Function.identity(), (first, duplicate) -> first));
             boolean structure = validPath(f, localGraph, new HashSet<>());
@@ -88,7 +89,7 @@ public record ScoreExtractionSnapshot(int payloadVersion, List<ExtractedScoreIte
                     .map(x -> new ScoreUnitPolicy.Node(x.factId(),x.parentFactId(),x.weight(),x.childAggregation().name())).toList();
             boolean unit = ScoreUnitPolicy.effectiveUnitIds(nodes).contains(f.factId());
             if (!unit) problems.add("NOT_EFFECTIVE_SCORING_UNIT");
-            boolean computable = selected(f) && precision && !scheme.isBlank() && !ratio && f.weight()!=null && f.weight().signum()>0
+            boolean computable = selected(f) && precision && !scheme.isBlank() && !ratio && f.weight()!=null && (f.weight().signum()>0 || zeroDeduction)
                     && f.weight().compareTo(new BigDecimal("9999.99"))<=0 && !numericalConflict && structure && unit && occurrences.get(f.factId())==1 && sourceIdentityCounts.getOrDefault(ids.get(f.factId()),0L)==1
                     && f.validationStatus()!=ScoreFact.ValidationStatus.DUPLICATE && f.validationStatus()!=ScoreFact.ValidationStatus.STRUCTURE_INCOMPLETE;
             String scoreType = f.sourceMetadata().modelScoreType();

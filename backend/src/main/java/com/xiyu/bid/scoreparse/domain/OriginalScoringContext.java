@@ -162,7 +162,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 || raw.matches("(?s).*(?:本项目|本标包)\\s*满分.*");
     }
 
-    private static void parseText(String text, String scheme, List<Evidence> totals) {
+    static void parseText(String text, String scheme, List<Evidence> totals) {
         if (text == null) return;
         List<TextScope> scopes = textScopes(text);
         List<Heading> headings = new ArrayList<>();
@@ -230,7 +230,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         }
     }
     /** 主解析单行输入归一化（调用方 split("\\R") 后无换行）：空白全压平。 */
-    private static String normalizeTextLine(String value) {
+    static String normalizeTextLine(String value) {
         return OriginalScoringTextScopePolicy.stripEmphasis(value)
                 .replaceAll("[\\u00a0\\u2007\\u202f\\t\\r\\n]+", " ").replaceAll(" +", " ").trim(); }
     /** 兜底跨行窗口归一化：唯一差别是保留 \n，让行边界按分句参与 isSingleItemMention 判定。 */
@@ -264,7 +264,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         return structure.explicitHeaders() && mapping.headerRows() > 0 && mapping.dimCol() >= 0
                 && mapping.detailCol() >= 0 && mapping.weightCol() >= 0;
     }
-    private static OriginalScoreEvidencePolicy.Total total(List<Evidence> values, String scheme) {
+    static OriginalScoreEvidencePolicy.Total total(List<Evidence> values, String scheme) {
         if (values.isEmpty()) return unknown();
         Evidence first = values.get(0);
         if (values.stream().anyMatch(value -> value.value().compareTo(first.value()) != 0))
@@ -280,7 +280,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 new OriginalScoreEvidencePolicy.Problem("", "declaredTotal", "ORIGINAL_TOTAL_UNKNOWN",
                         "original document total", "no scoped original total", "")));
     }
-    private record Evidence(BigDecimal value, String source, String scope, String locator, String quote) {}
+    record Evidence(BigDecimal value, String source, String scope, String locator, String quote) {}
     private record TableStructure(TableGrid grid, TableColumnMapping mapping) {
         private boolean explicitHeaders() {
             return HeuristicTableColumnMapper.hasExplicitScoreHeaders(grid);

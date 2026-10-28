@@ -198,6 +198,17 @@ describe('useScoreCandidateAdoption.js', () => {
     }))
   })
 
+  it('does not add an unselected alternative to the displayed total', () => {
+    reviewFacts.value = [
+      { factId: 'selected', weight: 100, candidateEligible: true, schemeId: 'a' },
+      { factId: 'alternative', weight: 20, candidateEligible: true, schemeId: 'a',
+        evidences: [{ kind: 'ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED' }] },
+    ]
+    reviewSnapshot.value = { parseTaskId: 9, selectedSchemeId: 'a', schemes: [{ schemeId: 'a' }] }
+    const { candidateTotalWeight } = useScoreCandidateAdoption({ props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData })
+    expect(candidateTotalWeight.value).toBe(100)
+  })
+
   it('adoptCandidateFacts 默认调用 submitReview 一键采纳所有候选并刷新数据', async () => {
     scoreParseApi.submitReview.mockResolvedValue({
       data: {

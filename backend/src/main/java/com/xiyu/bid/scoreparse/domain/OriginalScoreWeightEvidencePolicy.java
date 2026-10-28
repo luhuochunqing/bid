@@ -11,6 +11,8 @@ import java.util.regex.Pattern;
 
 /** Checks item maxima against their cited source rows or paragraphs. */
 final class OriginalScoreWeightEvidencePolicy {
+    private static final Pattern ITEM_SCOPED_MAX = Pattern.compile(
+            "(?:本项(?!目)|该项|此项|本评分项|该评分项)\\s*(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern SCORE_CELL = Pattern.compile("^[~≈]?\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
     private static final Pattern MAX_SCORE = Pattern.compile("(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern TITLE_SCORE = Pattern.compile("[（(\\[【]\\s*(\\d+(?:\\.\\d+)?)\\s*分\\s*[）)\\]】]");
@@ -65,6 +67,15 @@ final class OriginalScoreWeightEvidencePolicy {
             String directRowText = row.stream().map(c -> c.rawText() == null ? "" : c.rawText())
                     .reduce((a, b) -> a + " " + b).orElse("");
             String rowText = directRowText + " " + inheritedCategoryText(table, anchor.row());
+            Matcher itemMax = ITEM_SCOPED_MAX.matcher(directRowText);
+            while (itemMax.find()) {
+                BigDecimal maximum = new BigDecimal(itemMax.group(1));
+                if (claim.weight() != null && claim.weight().compareTo(maximum) != 0) {
+                    problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
+                            maximum, claim.weight(), locator));
+                    return;
+                }
+            }
             if (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
                     && declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight())) return;
             if (claim.parent()) {

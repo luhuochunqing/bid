@@ -6,6 +6,8 @@ tags: [scoreparse, subtotal, provenance, concurrency, data-integrity]
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreSubtotalColumnPolicy.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoringContext.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/PdfRowEvidenceBinder.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/LogicalRuleSourceUnit.java
   - backend/src/main/java/com/xiyu/bid/casework/infrastructure/KnowledgeCaseRepository.java
   - backend/src/main/java/com/xiyu/bid/casework/application/port/CaseProvenanceBackfillPort.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/domain/Project1359ScoringContractTest.java
@@ -27,20 +29,21 @@ archive: false
 - 测试环境重新解析可能产生单子项父节点且汇总关系为 UNKNOWN，页面将该节点贡献记为零；多个节点叠加会让候选合计低于原文。只有同一来源行、名称和完整规则真实引用、分值相同且只有一个子项，才可确定为单一评分单位。
 - 模型省略号引文需要前后片段足够长、顺序一致且唯一匹配同一原文规则单元格，才能以原文全文替换摘要；重复匹配保持未确认。
 - 原文明确为零分的扣分规则，只有所有编号子条款完整覆盖同一原文行，才能安全展开；同一行句末与下个编号之间的空格不应吞掉前一条。
-- 未证明的父子关系禁止一键采纳，前后端都要阻断。测试环境冻结事实的 100 分与扣分条款回放不能替代真实模型重跑及页面、数据库验收。
+- 未证明的父子关系保留人工提示，人工采纳暂按所选明细计分；自动启用仍须通过证据校验。冻结事实的 100 分与扣分条款回放不能替代真实模型重跑及页面、数据库验收。
 
 ### PDF 名称引文误插条款号（2026-10-28）
 
-- 真实解析中，PDF 转换行的编号、名称、规则和 5 分均完整；模型把行号插入跨行名称引文，导致引用无法匹配，事实被排除，人工采纳仅 95 分。
+- 测试项目 1392 的任务 338 对原始 PDF 真实重解析后，候选合计为 90 分：第 7、8 项各 5 分的模型引文把行号插入名称中部，定位失败并被标为方案外；第 10 项零分扣分行有同类序号污染。原附件哈希与冻结生产原件一致。
+- 原恢复仅识别条款号插在“分”字前；候选修复支持只插入一次该行编号后与完整原文名称严格相等，并且要求唯一条款号、分值、完整规则及闭合的同一物理行。来源同时保留名称和规则单元格；多源同一行的完整规则恢复不得因名称锚点判定退化。
 - 仅在 PDF 评分表中，以明确表头识别编号、名称、规则、分值，并要求编号与事实一致、名称仅存在该行号错插、分值一致、规则完整且整方案唯一，才使用原文名称单元格作为锚点恢复整行规则；歧义、缺规则、分值或编号不符仍不绑定。
-- 测试项目冻结事实与原始 PDF 转换产物离线回放得到 18 项、100 分；模型的重新解析、页面采纳和持久化必须在部署候选版本后的测试环境重新验证。未知总分时人工采纳并不自动证明评分项完整。
+- 任务 338 的持久化候选与原始 PDF 转换产物重建回放得到 18 项、100 分，九个计分行及扣分行的规则与原文逐行一致；第 5 项原文规则已恢复但仍误报漏行。持久化重建不含完整原始模型响应，不等于候选版本的真实模型重新解析；测试环境页面采纳和持久化尚未验收。
 
 ### PDF 跨行细项满分（2026-10-27）
 
 - PDF 评审标准单元格中的“每提前若干小时加 1 分，满分 5 分”可被转换为两行；第二行以“满分”开头并不意味着评分方案总分。生产任务 152 保存的 `text:line[455]` 误将细项 5 分设为方案总分，阻断 100 分候选的人工采纳。
 - `OriginalScoringContext` 对正文行首总分匹配，排除前一行以“得/加/扣 + 数字 + 分 + 逗号”结束的续句；无可靠总分时保持 UNKNOWN，不从候选分值推定方案总分。明确的方案总分和普通说明后的独立满分保留识别。
 - 真实 PDF 与转换文本、结构表格隔离回放后总分为 UNKNOWN；这不证明候选评分项完整或线上可采纳。其他跨行句式未被此规则完全覆盖，重新解析与人工复核仍需线上验证。
-- 回归：`OriginalScoreEvidenceRoleAndHeadingTest` 的跨行细项、真实方案总分冲突和正常方案总分对照；前后端采纳保护不得仅为解锁按钮而移除。
+- 回归：`OriginalScoreEvidenceRoleAndHeadingTest` 的跨行细项、真实方案总分冲突和正常方案总分对照；自动采纳不得仅为解锁人工按钮而放宽原文证据约束。
 
 - 判定位置：`ScoreSubtotalColumnPolicy.hasTableTotalEvidence`（语义规则，非关键词紧邻排除）。
 - 满分/总分匹配仅当所在分句（按 ，。；; 与换行划分）左侧无单项量词/主体时，才算整表满分声明。

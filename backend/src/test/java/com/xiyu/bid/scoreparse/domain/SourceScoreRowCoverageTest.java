@@ -15,6 +15,13 @@ class SourceScoreRowCoverageTest {
   var r=OriginalScoreEvidencePolicy.verifyModel(artifact(),"# 第四章 评审办法\n",List.of(fact(1,50),fact(2,45),fact(3,5)),BigDecimal.valueOf(100));
   assertThat(r.problems()).noneMatch(p->p.code().equals("SOURCE_SCORE_ROW_UNCOVERED"));
  }
+ @Test void synonymousNameHeaderStillDetectsOmittedScoreRow() {
+  var original=artifact();var table=original.tables().getFirst();var cells=new ArrayList<>(table.cells());
+  cells.set(1,new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r0-c1",0,1,"评审内容","评审内容",1,1,false,"pdf:page=1",1,"t-r0"));
+  var altered=new DocumentArtifact(original.artifact(),List.of(new DocumentArtifact.CanonicalTable("t",1,"第四章 评审办法",4,4,List.of(),cells,true,"PDF")),List.of());
+  var result=OriginalScoreEvidencePolicy.verifyModel(altered,"# 第四章 评审办法\n",List.of(fact(1,50),fact(2,45)),BigDecimal.valueOf(95));
+  assertThat(result.problems()).anyMatch(p -> p.code().equals("SOURCE_SCORE_ROW_UNCOVERED") && p.locator().contains("t-r3"));
+ }
  @Test void sourceUnverifiedClaimDoesNotCoverOriginalRow() {
   var fake=new MultimodalScoreFact("第四章 评审办法","3","","丙",BigDecimal.valueOf(5),"丙项得5分。","OBJECTIVE",1,"t",List.of("t-r3-c2"),"伪造的规则",.9,ChildAggregation.SUM);
   var r=OriginalScoreEvidencePolicy.verifyModel(artifact(),"# 第四章 评审办法\n",List.of(fact(1,50),fact(2,45),fake),BigDecimal.valueOf(100));
