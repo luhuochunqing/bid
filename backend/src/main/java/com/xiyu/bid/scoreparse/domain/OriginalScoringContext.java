@@ -162,32 +162,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 || raw.matches("(?s).*(?:本项目|本标包)\\s*满分.*");
     }
 
-    /** Text-only callers must apply the same scoring-scope rules as source verification. */
-    static OriginalScoreEvidencePolicy.Total textTotal(String text) {
-        List<Evidence> evidence = new ArrayList<>();
-        parseText(text, "", evidence);
-        // A generic in-scheme "总分" can belong to a section or a single criterion.
-        // Text-only completeness has no table identity, so require an explicit whole-scheme subject
-        // or a standalone total statement; ambiguity remains unknown.
-        evidence.removeIf(item -> !wholeTextDeclaration(item.quote()));
-        if (text != null) {
-            Pattern explicitWhole = Pattern.compile("本(?:采购)?项目(?:(?:评标|评审|评分)(?:总分|满分)|采用(?:综合评分法|综合评估法)[，,]?\\s*总分)\\s*[：:（(为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
-            Matcher matcher = explicitWhole.matcher(text);
-            while (matcher.find()) {
-                evidence.add(new Evidence(new BigDecimal(matcher.group(1)), "TENDER_TEXT", "",
-                        "text:offset[" + matcher.start() + "]", matcher.group()));
-            }
-        }
-        return total(evidence, "");
-    }
-
-    private static boolean wholeTextDeclaration(String quote) {
-        String text = normalizeTextLine(quote);
-        return text.matches("(?s)^(?:评分总分|评审总分|评标总分|总分|满分)\\s*[：:（(为]?\\s*\\d+(?:\\.\\d+)?\\s*分.*")
-                || text.matches("(?s).*(?:本项目|本标包|评分办法|评审办法|评标办法|评分方案)\\s*(?:评分|评审|评标)?\\s*总分\\s*[：:（(为]?\\s*\\d+(?:\\.\\d+)?\\s*分.*");
-    }
-
-    private static void parseText(String text, String scheme, List<Evidence> totals) {
+    static void parseText(String text, String scheme, List<Evidence> totals) {
         if (text == null) return;
         List<TextScope> scopes = textScopes(text);
         List<Heading> headings = new ArrayList<>();
@@ -255,7 +230,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         }
     }
     /** 主解析单行输入归一化（调用方 split("\\R") 后无换行）：空白全压平。 */
-    private static String normalizeTextLine(String value) {
+    static String normalizeTextLine(String value) {
         return OriginalScoringTextScopePolicy.stripEmphasis(value)
                 .replaceAll("[\\u00a0\\u2007\\u202f\\t\\r\\n]+", " ").replaceAll(" +", " ").trim(); }
     /** 兜底跨行窗口归一化：唯一差别是保留 \n，让行边界按分句参与 isSingleItemMention 判定。 */
@@ -289,7 +264,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         return structure.explicitHeaders() && mapping.headerRows() > 0 && mapping.dimCol() >= 0
                 && mapping.detailCol() >= 0 && mapping.weightCol() >= 0;
     }
-    private static OriginalScoreEvidencePolicy.Total total(List<Evidence> values, String scheme) {
+    static OriginalScoreEvidencePolicy.Total total(List<Evidence> values, String scheme) {
         if (values.isEmpty()) return unknown();
         Evidence first = values.get(0);
         if (values.stream().anyMatch(value -> value.value().compareTo(first.value()) != 0))
@@ -305,7 +280,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 new OriginalScoreEvidencePolicy.Problem("", "declaredTotal", "ORIGINAL_TOTAL_UNKNOWN",
                         "original document total", "no scoped original total", "")));
     }
-    private record Evidence(BigDecimal value, String source, String scope, String locator, String quote) {}
+    record Evidence(BigDecimal value, String source, String scope, String locator, String quote) {}
     private record TableStructure(TableGrid grid, TableColumnMapping mapping) {
         private boolean explicitHeaders() {
             return HeuristicTableColumnMapper.hasExplicitScoreHeaders(grid);

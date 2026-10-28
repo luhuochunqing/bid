@@ -83,8 +83,9 @@ public final class ScoreTableSplitPolicy {
                 && result.completeness().decision() == ScoreParseDecision.REVIEW_REQUIRED
                 && result.completeness().fallbackReason() != null
                 && result.completeness().fallbackReason().contains("DECLARED_TOTAL_UNKNOWN"))) {
-            var sourceTotal = OriginalScoringContext.textTotal(tenderSectionText);
-            if (sourceTotal.value() != null) {
+            var sourceTotal = TextScoringTotalEvidence.textTotal(tenderSectionText);
+            if (sourceTotal.value() != null && sourceTotal.quote().matches(
+                    "(?s).*(?:本项目|本标包)[^\\n]{0,40}(?:总分|满分)\\s*(?:为|：|:)\\s*\\d+(?:\\.\\d+)?\\s*分.*")) {
                 BigDecimal declared = sourceTotal.value();
                 List<ScoreFact> allFacts = tablesById.values().stream().flatMap(table -> table.facts().stream()).toList();
                 BigDecimal leafTotal = ScoreUnitPolicy.totalWeight(allFacts.stream().map(fact ->

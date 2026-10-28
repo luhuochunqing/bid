@@ -184,7 +184,7 @@ public final class ScoreCompletenessPolicy {
                     List.of("结构化声明总分冲突: 评分表汇总行同时声明 [" + values + "] 分，禁止自动选择"));
         }
 
-        var sourceTotal = OriginalScoringContext.textTotal(text);
+        var sourceTotal = TextScoringTotalEvidence.textTotal(text);
         if (sourceTotal.value() != null) {
             return new DeclaredTotalResolution(sourceTotal.value(), DeclaredTotalSource.TENDER_TEXT, List.of());
         }
