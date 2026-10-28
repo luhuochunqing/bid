@@ -130,7 +130,7 @@ import BaiduOcrSettingsCard from './BaiduOcrSettingsCard.vue'
 
 defineModel('systemConfig', { type: Object, required: true })
 defineModel('aiModelConfig', { type: Object, required: true })
-defineModel('baiduOcrConfig', { type: Object, required: true })
+const baiduOcrConfig = defineModel('baiduOcrConfig', { type: Object, required: true })
 defineProps({
   loading: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
