@@ -30,6 +30,12 @@
 - `bash scripts/pre-push-dry-run.sh` — 模拟推送前质量门禁
 - `npm run ci:pre-pr` / `bash scripts/ci-pre-pr.sh` — 提交 PR 前一站式门禁
 - `npm run check:duplicate-implementations` — 防造轮子：检查 PR 新增代码是否与仓库已有 Component/Hook/Service/API/Function/Utils 重复
+- `npm run build:api` — 前端生产构建编译（凡触及 `src/` 代码必查，验证 Vue SFC 模板与编译器宏）
+
+### 前端编译构建门禁（Vite Build）
+
+- **硬性防御**：凡改动 `src/` 目录下文件（尤其是 `.vue` 单文件组件），`scripts/pre-push-gate.sh` 严禁对 `agent/*` 分支跳过前端构建（`npm run build:api`）。
+- **审查证据链**：独立代码审查（S6 Code Review）若涉及 `.vue` 改动，必须将 `npm run build:api` 编译成功的日志作为放行依据，杜绝 Vue 3.4+ 编译器宏（如 `defineModel` 只读 Prop 绑定）等运行时/模板语义缺陷穿透。
 
 ### 重复实现门禁（防造轮子）
 

@@ -7632,3 +7632,23 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   3. **LogicalRuleSourceUnit 支持中间列续行与表头角色扩展**：扩充表头 `ID`、`NAME`、`SCORE` 角色正则，支持常见招投标表头（条款号、评审内容、评分要素、权重、满分等）以及空白/换行清洗；重构 `isContinuationRow`，支持结构列为空且包含正文的中间列续行判定；
   4. **全套 TDD 与回归验证**：新增 `LogicalRuleSourceUnitTest`（测试中间列折行合并）与 `OriginalRuleRestorationTest`（测试纯文本正文事实穿透还原）；全套 84 个核心回归与业务测试用例全部通过。
 
+## 460. 门禁脚本对 Agent 分支跳过前端构建导致 Vue SFC 编译器宏（defineModel）只读 Prop 赋值编译错误穿透（2026-10-28）
+
+- **现场证据**：
+  1. 提交 `279a935b6`（方案 A 前端可视化配置百度表格 OCR）合入后，在生产构建阶段阻塞（`vite build --mode api` 报错退出）；
+  2. 编译器致命报错：`[vite:vue] v-model cannot be used on a prop, because local prop bindings are not writable. Use a v-bind binding combined with a v-on listener that emits update:x event instead.`；
+  3. 出错代码位置：`src/views/System/settings/AiModelSettingsPanel.vue:120`，在 `<BaiduOcrSettingsCard v-model="baiduOcrConfig" />` 调用处。
+- **致错机制（代码与语义层）**：
+  1. **Vue 3 SFC 编译器宏经验主义仿写**：为了满足单文件行数预算门禁（<300行），将百度 OCR 表单抽离为子组件；在父组件中仿照历史代码写了裸 `defineModel('baiduOcrConfig', ...)`，未用 `const baiduOcrConfig = defineModel(...)` 显式解构接收；
+  2. **对象属性赋值 vs 变量赋值的假象**：历史组件中写 `v-model="systemConfig.enableAI"`，改的是对象内部属性（引用属性写入合法，Vue 编译器不报错）；但将变量本身作为子组件的整个 `v-model` 时，编译器将其识别为外部只读 Prop（`props.baiduOcrConfig`），直接禁止可写绑定并抛出编译期致命异常；
+  3. **单测维度脱节**：本地新增单测 `useAiModelSettings.spec.js` 只测试了 Composable（JS 纯逻辑）的响应式状态流转与 Mock 接口，未通过 `@vue/test-utils` 进行组件挂载测试（`mount()`），无法在测试运行期触发 Vue SFC 模板编译。
+- **门禁击穿深层根因（制度与工程层）**：
+  1. **门禁脚本为 Agent 分支开后门（虚假安全感）**：`scripts/pre-push-gate.sh` 历史代码硬编码了 `if [[ "$branch" == agent/* ]]; then SKIP_TESTS=true; fi`，导致只要是 Agent 任务分支，第 14 步直接输出 `⊘ build:api (--skip-tests) (skipped)`，前端根本没有执行 `npm run build:api`（即 Vite 生产构建打包）；
+  2. **ESLint 对 Vue SFC 模板编译器宏约束失明**：本地门禁跑了 `eslint`。但 ESLint 仅做 JS/TS AST 语法和通用规则校验，对 Vue 专用编译器（`@vue/compiler-sfc`）在 template 编译成 render function 阶段才抛出的“模板语义约束错误”完全失明；
+  3. **后端严谨 vs 前端虚浮（防御双标）**：门禁对后端设置了极高防线（强制 `mvn compile` + 5 个 ArchUnit 架构测试），但对前端只测 Token 覆盖率、裸色扫描、行数预算，把最底层的“能否编译成功（Vite Build）”当成了可选略过的非核心项；
+  4. **审查者盲从测试绿灯**：独立 Reviewer 子代理与主代理被“14 道门禁全绿”的表面日志麻痹，未强制验证打包产物，放行了带病代码。
+- **长效防范与防线改进**：
+  1. **门禁补位（杜绝双标）**：严禁在 `pre-push-gate.sh` 中对 `agent/*` 分支完全跳过前端构建；只要改动触及 `src/**/*.{vue,js,ts}`，必须强制执行至少一次轻量级的编译打包检查（`npm run build:api` 或 `vue-tsc --noEmit`），杜绝“后端硬编译、前端假绿灯”；
+  2. **Vue 3 SFC 语法纪律**：在 Vue 3.4+ `<script setup>` 中使用 `defineModel` 时，**必须强制使用 `const modelValue = defineModel(...)` 显式解构接收**，严禁使用裸 `defineModel(...)` 宏调用；
+  3. **审查契约升级**：独立代码审查若涉及 `.vue` 单文件组件变更，必须将 `npm run build:api` 编译通过的真实日志作为 `MERGE_READY` 的必备证据，绝不能仅凭 Composable 单测放行。
+

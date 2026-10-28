@@ -4,7 +4,7 @@ space: engineering
 category: lessons
 tags: [门禁, doc-governance, line-budget, 评审凭证, diff_hash, pre-push, wiki]
 created: 2026-09-22
-updated: 2026-09-22
+updated: 2026-10-28
 health_checked: 2026-10-25
 sources:
   - scripts/check-doc-governance.mjs
@@ -75,6 +75,12 @@ backlinks:
   不是 `WIKI_CHECK_MODE=warning`（需 PR 里给出理由）也不是 `WIKI_CHECK_SKIP=1`（仅生产事故抢修）。
 - **报价**：一次回填 = 新增页面 + 索引行 + 日志条目 ⇒ **改提交范围 ⇒ 改 `diff_hash` ⇒ 多一轮独立评审**。
   wiki 回填不是"顺手补个文档"，它按铁律要付一轮评审成本，排期时要算进去。
+
+## 陷阱 5：`pre-push-gate.sh` 对 `agent/*` 分支默认跳过前端构建导致 Vue SFC 编译错误穿透
+
+- **现象**：`pre-push-gate.sh` §14 历史代码判定分支名为 `agent/*` 时自动将 `SKIP_TESTS` 置为 true，并在前端构建步骤中直接 `skip "build:api (--skip-tests)"`，导致修改了 `.vue` 单文件组件的 Agent 分支在本地推送时压根没有执行 `npm run build:api`。
+- **代价**：Vue 3.4+ 模板中的编译器宏错误（如 `defineModel` 裸调用作为子组件整体 `v-model` 被识别为只读 Prop 导致 `v-model cannot be used on a prop`）在本地被当成绿灯放行，直接阻塞生产部署打包。
+- **修复与长效契约**：在 §0 增加 `FRONTEND_CHANGED` 源码改动检测，只要改动触及 `src/`，即使是 `agent/*` 分支也**强制执行 `npm run build:api` 编译门禁**；同时要求 Code Review 必须附带 `build:api` 真实通过日志。
 
 ## 副作用（Cross-Module Impact）
 

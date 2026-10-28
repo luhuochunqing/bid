@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import AiModelSettingsPanel from './AiModelSettingsPanel.vue'
 
 const getSystemSettings = vi.fn()
 const updateSystemSettings = vi.fn()
@@ -79,5 +81,35 @@ describe('useAiModelSettings', () => {
     })
     expect(baiduOcrConfig.value.lastTestStatus).toBe('success')
     expect(elMessage.success).toHaveBeenCalledWith('百度智能云表格识别连接测试成功')
+  })
+
+  it('compiles and mounts AiModelSettingsPanel with defineModel bindings', () => {
+    const wrapper = mount(AiModelSettingsPanel, {
+      props: {
+        systemConfig: { enableAI: true },
+        aiModelConfig: { activeProvider: 'deepseek', providers: [] },
+        baiduOcrConfig: { enabled: false, apiKey: '', secretKey: '' },
+        loading: false,
+        saving: false,
+        testingProvider: '',
+        testingBaiduOcr: false,
+        save: vi.fn(),
+        testProvider: vi.fn(),
+        testBaiduOcr: vi.fn(),
+      },
+      global: {
+        stubs: {
+          ElForm: true,
+          ElFormItem: true,
+          ElSwitch: true,
+          ElRadioGroup: true,
+          ElRadioButton: true,
+          ElButton: true,
+          ElIcon: true,
+          BaiduOcrSettingsCard: true,
+        },
+      },
+    })
+    expect(wrapper.exists()).toBe(true)
   })
 })

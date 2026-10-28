@@ -58,6 +58,8 @@ GATE_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo origin/main)
 
 # 后端变更检测：无 backend/ 改动则跳过 3 个后端 mvn 架构测试（省 ~7 min JVM 启动+编译）。
 BACKEND_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^backend/' || true)
+# 前端源码变更检测：有 src/ 改动时，哪怕是 agent/* 分支也必须执行前端编译构建校验，杜绝模板语法与编译器宏错误。
+FRONTEND_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^src/' || true)
 
 # 合并 4 个后端架构测试为一次 mvn 调用（省 3 次 JVM 启动 + 重复编译），逐项结果从 surefire XML 读取以保留精度。
 # EntityTableMigrationCoverageTest（2026-07-04 CO-483/484 P0 事故 P2 守卫）：
@@ -780,13 +782,16 @@ fi
 
 # ── 14. 前端构建 ────────────────────────────────────────
 echo "── 前端构建 ──"
-if [ "$SKIP_TESTS" = "true" ]; then
-  skip "build:api (--skip-tests)"
+if [ "${FRONTEND_CHANGED:-0}" -eq 0 ]; then
+  skip "build:api（无 src/ 变更）"
+elif [ "$EXPLICIT_SKIP_TESTS" = "true" ]; then
+  skip "build:api (--skip-tests 显式跳过)"
 else
+  # 即使是 agent/* 分支，只要触及 src/ 源码，就必须执行构建编译门禁，严防 Vue SFC 模板宏与语法错误
   if npm run build:api --silent 2>/dev/null; then
     pass "build:api"
   else
-    fail "build:api — 前端构建失败"
+    fail "build:api — 前端构建失败。请本地运行 npm run build:api 查看详细编译错误。"
   fi
 fi
 

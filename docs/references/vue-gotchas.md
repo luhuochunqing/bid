@@ -367,3 +367,25 @@ watch(() => props.visible, (val) => {
 3. **Pinia store 在 setup 顶层调用时必须在 fixture mock** — 否则组件挂载时 `getActivePinia()` 报错；项目惯例是 `vi.mock('@/stores/xxx', ...)` 而非初始化 Pinia
 4. **characterization test 必须随 UI 重构同步更新** — 重构移除/替换模块时，依赖这些模块的测试 case 必须删除或更新，否则断言过期
 
+## 8. Vue 3.4+ defineModel 裸写宏调用导致子组件 v-model 只读 Prop 编译崩溃（2026-10-28）
+
+### 问题
+
+在 `<script setup>` 中使用 `defineModel('baiduOcrConfig', ...)` 未用 `const` 接收返回值，在模板中传递给子组件 `<BaiduOcrSettingsCard v-model="baiduOcrConfig" />` 时，Vite 编译期直接抛出：
+`[vite:vue] v-model cannot be used on a prop, because local prop bindings are not writable.`
+
+### 根因
+
+1. **宏展开与 Prop 语义区别**：Vue 3.4+ 的 `defineModel` 宏在底层会被展开为对应的 props 声明与 update 事件处理。当且仅当用 `const x = defineModel(...)` 接收时，Vue 编译器才会将 `x` 在 setup 作用域内注册为双向可写的 Ref；
+2. **裸调用的陷阱**：若直接写孤立的 `defineModel('x', ...)`，模板里访问 `x` 时会被回退解析为外部只读的 `props.x`。如果模板仅仅是读取或访问对象属性（如 `v-model="x.attr"`，属于引用的内部属性修改），编译器不报错；但如果是将 `x` 自身做双向绑定（`v-model="x"`），则相当于直接给只读 Prop 赋值，Vue SFC 编译器直接阻断构建。
+
+### 修复与规范
+
+在 `<script setup>` 中，凡使用 `defineModel`，必须声明变量接收：
+```vue
+<script setup>
+// 正确：用 const 显式接收
+const baiduOcrConfig = defineModel('baiduOcrConfig', { type: Object, required: true })
+</script>
+```
+

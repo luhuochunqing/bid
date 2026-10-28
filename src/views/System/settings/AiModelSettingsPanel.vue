@@ -128,8 +128,8 @@
 import { Check, Connection } from '@element-plus/icons-vue'
 import BaiduOcrSettingsCard from './BaiduOcrSettingsCard.vue'
 
-defineModel('systemConfig', { type: Object, required: true })
-defineModel('aiModelConfig', { type: Object, required: true })
+const systemConfig = defineModel('systemConfig', { type: Object, required: true })
+const aiModelConfig = defineModel('aiModelConfig', { type: Object, required: true })
 const baiduOcrConfig = defineModel('baiduOcrConfig', { type: Object, required: true })
 defineProps({
   loading: { type: Boolean, default: false },
