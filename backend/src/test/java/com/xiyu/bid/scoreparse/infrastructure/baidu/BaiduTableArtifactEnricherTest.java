@@ -80,28 +80,25 @@ class BaiduTableArtifactEnricherTest {
         BaiduTableOcrClient client = new BaiduTableOcrClient(props, objectMapper);
         BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(client);
 
-        // 模拟 Sidecar 漏掉第 14 页表格的 baseline
+        // 模拟 Sidecar 提取的 baseline：已有第 13 页和第 15 页评分表格，独缺第 14 页
         ArtifactMeta meta = new ArtifactMeta("doc-1130", "sha1130", "PDF", "pdf-table-v2");
-        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(), List.of());
+        CanonicalTable t13 = new CanonicalTable("sidecar_13", 13, "第四章 评审办法", 4, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t15 = new CanonicalTable("sidecar_15", 15, "第四章 评审办法", 3, 4, List.of(), List.of(), true, "PDF");
+        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(t13, t15), List.of());
 
         DocumentArtifact enriched = enricher.enrichIfEnabled(baseline, pdfBytes, "project1130.pdf");
         assertThat(enriched).isNotNull();
-        assertThat(enriched.tables()).isNotEmpty();
+        // 原有 baseline 的 13 和 15 页完整保留，第 14 页由百度 OCR 补齐
+        assertThat(enriched.tables()).hasSize(3);
 
-        // 验证必须包含第 14 页的表格
+        // 验证必须包含第 14 页的表格，且 section 智能继承邻近页的 "第四章 评审办法"
         CanonicalTable page14Table = enriched.tables().stream()
                 .filter(t -> t.sourcePage() != null && t.sourcePage() == 14)
                 .findFirst()
                 .orElse(null);
         assertThat(page14Table).isNotNull();
         assertThat(page14Table.isScoreTable()).isTrue();
-        assertThat(page14Table.sourceSection()).contains("评审");
-
-        // 验证第 14 页表格中包含困扰了 24 小时的那条关键单元格（价格优惠20分：价格承诺10分、账期5分、推送5分）
-        System.out.println("=== Page 14 table cells count: " + page14Table.cells().size() + " ===");
-        for (var c : page14Table.cells()) {
-            System.out.println("Cell [" + c.row() + "," + c.column() + "]: " + c.rawText());
-        }
+        assertThat(page14Table.sourceSection()).isEqualTo("第四章 评审办法");
 
         boolean foundPricingRule = page14Table.cells().stream()
                 .map(c -> c.rawText() == null ? "" : c.rawText().replaceAll("\\s+", ""))
@@ -109,5 +106,22 @@ class BaiduTableArtifactEnricherTest {
                         && text.contains("结算账期必须在90天及以上")
                         && text.contains("对应推送及上架相关商品得5分"));
         assertThat(foundPricingRule).as("第14页应包含完整的价格优惠三项合一细则").isTrue();
+    }
+
+    @Test
+    @DisplayName("determinePagesToScan测试: 当baseline已有评分表时只精确补齐缺失页，绝不重复调用")
+    void shouldDetermineOnlyMissingPages() {
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-1", "sha", "PDF", "sidecar");
+        CanonicalTable t13 = new CanonicalTable("t13", 13, "第四章 评审办法", 1, 1, List.of(), List.of(), true, "PDF");
+        CanonicalTable t15 = new CanonicalTable("t15", 15, "第四章 评审办法", 1, 1, List.of(), List.of(), true, "PDF");
+        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(t13, t15), List.of());
+
+        List<Integer> candidates = List.of(3, 4, 9, 10, 13, 14, 15, 16);
+        List<Integer> target = enricher.determinePagesToScan(baseline, candidates);
+
+        // 已有 13 和 15 页评分表，目标扫描页应排除已有的 13 和 15，包含缺失的 14
+        assertThat(target).doesNotContain(13, 15);
+        assertThat(target).contains(14);
     }
 }

@@ -194,3 +194,9 @@ archive: false
 
 - 与 DOCX 入口同型、但致病点不同：PDF 表格此前被硬编码 `"sourceSection": ""`（只有 OCR textBlocks 走章节识别），导致表格派生事实无方案锚点 → `SOURCE_SCHEME_NOT_VERIFIED`；同时目录点线行会被当成方案根 → `ORIGINAL_SCHEME_AMBIGUOUS`。根因链、`pdf-table-v2` 语义变更与 D6 残留风险见 [[scoreparse-1382-pdf-scheme-gate-rca]]。
 - 消费方注意：`DocumentArtifact` 的 `extractionVersion` 升级为 `pdf-table-v2`，此后 PDF 表格的 `sourceSection` 不再是恒空串。
+
+## 2026-10-28 百度表格 OCR 增量补漏与章节名称继承
+
+- **增量补漏（Missing-Only Enrichment）**：当 Sidecar 已经成功抽取部分评分表格（如第 13、15 页）而仅在特定复杂续表页（如第 14 页）发生跳页时，`BaiduTableArtifactEnricher` 仅针对评分表区间内缺失的候选页精准调用百度 OCR。绝不全量无差别覆盖已有健康表格，防止耗时过长触发前端/网关网络超时（Network Error）以及表格被破碎化切割。
+- **章节名称动态继承**：百度 OCR 补齐的表格其 `sourceSection` 绝不得硬编码特定章节（如“第三章”），而必须优先继承自邻近已识别表格，或通过 PDFBox 实时提取当前页所在的真实章节大标题（如“第四章 评审办法”）。避免因章节名失配导致表格被 `OriginalScoringSchemePolicy.owns` 拒绝，防止残余孤立数字被误判为方案声明总分。
+

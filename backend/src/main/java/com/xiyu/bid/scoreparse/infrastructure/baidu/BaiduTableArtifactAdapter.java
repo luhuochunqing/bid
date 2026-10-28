@@ -128,7 +128,7 @@ public final class BaiduTableArtifactAdapter {
             boolean isScore = isLikelyScoreTable(item);
             String effectiveSection = (sourceSection != null && !sourceSection.isBlank())
                     ? sourceSection
-                    : (isScore ? "第三章 评审办法/详细评审标准" : "招标文件正文");
+                    : (isScore ? "评审办法/详细评审标准" : "招标文件正文");
             canonicalTables.add(new CanonicalTable(
                     tableId,
                     pageNum,

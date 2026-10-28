@@ -34,6 +34,9 @@ public class BaiduTableArtifactEnricher {
             "评分", "评标", "评审标准", "评审因素", "分值", "详细评审", "综合评分", "得分", "价格优惠", "商务标", "技术标"
     );
 
+    private static final java.util.regex.Pattern SECTION_PATTERN =
+            java.util.regex.Pattern.compile("(?m)^\\s*(第[一二三四五六七八九十0-9]+章\\s*[^\\r\\n]+)");
+
     private static final int MAX_PAGES_TO_SCAN = 15;
 
     private final BaiduTableOcrClient baiduTableOcrClient;
@@ -69,15 +72,22 @@ public class BaiduTableArtifactEnricher {
                 return baseline;
             }
 
-            log.info("BaiduTableArtifactEnricher: Detected scoring pages {} for {}", candidatePages, fileName);
+            List<Integer> pagesToScan = determinePagesToScan(baseline, candidatePages);
+            if (pagesToScan.isEmpty()) {
+                log.info("BaiduTableArtifactEnricher: All scoring pages already covered in baseline for {}", fileName);
+                return baseline;
+            }
+
+            log.info("BaiduTableArtifactEnricher: Scanning target missing pages {} (candidates={}) for {}",
+                    pagesToScan, candidatePages, fileName);
             List<CanonicalTable> ocrTables = new ArrayList<>();
             List<String> warnings = new ArrayList<>();
 
-            for (int pageNum : candidatePages) {
+            for (int pageNum : pagesToScan) {
                 try {
                     var response = baiduTableOcrClient.extractTablesFromPdf(pdfBytes, pageNum);
                     if (response != null && response.isSuccess() && !response.tablesResult().isEmpty()) {
-                        String section = inferSectionForPage(baseline, pageNum);
+                        String section = inferSectionForPage(baseline, pdfBytes, pageNum);
                         List<CanonicalTable> tables = BaiduTableArtifactAdapter.toCanonicalTables(response, pageNum, section);
                         ocrTables.addAll(tables);
                         log.info("BaiduTableArtifactEnricher: Page {} recognized {} tables via Baidu OCR", pageNum, tables.size());
@@ -150,25 +160,78 @@ public class BaiduTableArtifactEnricher {
         return false;
     }
 
-    private String inferSectionForPage(DocumentArtifact baseline, int pageNum) {
-        if (baseline != null && baseline.tables() != null) {
-            for (CanonicalTable t : baseline.tables()) {
-                if (t != null && t.sourcePage() != null && t.sourcePage() == pageNum) {
-                    if (t.sourceSection() != null && !t.sourceSection().isBlank()) {
-                        return t.sourceSection();
-                    }
+    List<Integer> determinePagesToScan(DocumentArtifact baseline, List<Integer> candidatePages) {
+        if (baseline == null || baseline.tables() == null || baseline.tables().isEmpty()) {
+            return candidatePages;
+        }
+        Set<Integer> existingPages = new LinkedHashSet<>();
+        List<Integer> scoreTablePages = new ArrayList<>();
+        for (CanonicalTable t : baseline.tables()) {
+            if (t != null && t.sourcePage() != null) {
+                existingPages.add(t.sourcePage());
+                if (Boolean.TRUE.equals(t.isScoreTable())) {
+                    scoreTablePages.add(t.sourcePage());
                 }
             }
-            // 邻近页推断
+        }
+        if (scoreTablePages.isEmpty()) {
+            return candidatePages;
+        }
+        scoreTablePages.sort(Integer::compareTo);
+        int minScorePage = scoreTablePages.get(0);
+        int maxScorePage = scoreTablePages.get(scoreTablePages.size() - 1);
+
+        // 仅对评分表区间内（跨页缺失）或紧随其后的续表页调用百度 OCR 补漏
+        List<Integer> missingPages = new ArrayList<>();
+        for (int p : candidatePages) {
+            if (!existingPages.contains(p) && p >= minScorePage && p <= maxScorePage + 1) {
+                missingPages.add(p);
+            }
+        }
+        return missingPages;
+    }
+
+    private String inferSectionForPage(DocumentArtifact baseline, byte[] pdfBytes, int pageNum) {
+        if (baseline != null && baseline.tables() != null) {
             for (CanonicalTable t : baseline.tables()) {
-                if (t != null && t.sourcePage() != null && Math.abs(t.sourcePage() - pageNum) <= 1) {
-                    if (t.sourceSection() != null && !t.sourceSection().isBlank()) {
+                if (t != null && t.sourcePage() != null && t.sourcePage() == pageNum
+                        && t.sourceSection() != null && !t.sourceSection().isBlank()) {
+                    return t.sourceSection();
+                }
+            }
+            for (int diff = 1; diff <= 3; diff++) {
+                for (CanonicalTable t : baseline.tables()) {
+                    if (t != null && t.sourcePage() != null && Math.abs(t.sourcePage() - pageNum) == diff
+                            && t.sourceSection() != null && !t.sourceSection().isBlank()) {
                         return t.sourceSection();
                     }
                 }
             }
         }
-        return "第三章 评审办法/详细评审标准";
+        String fromDoc = extractSectionHeading(pdfBytes, pageNum);
+        if (fromDoc != null && !fromDoc.isBlank()) {
+            return fromDoc;
+        }
+        return "评审办法/详细评审标准";
+    }
+
+    private String extractSectionHeading(byte[] pdfBytes, int pageNum) {
+        if (pdfBytes == null || pdfBytes.length == 0) return null;
+        try (PDDocument doc = PDDocument.load(new ByteArrayInputStream(pdfBytes))) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            for (int p = pageNum; p >= Math.max(1, pageNum - 2); p--) {
+                stripper.setStartPage(p);
+                stripper.setEndPage(p);
+                String text = stripper.getText(doc);
+                var matcher = SECTION_PATTERN.matcher(text);
+                if (matcher.find()) {
+                    return matcher.group(1).trim();
+                }
+            }
+        } catch (IOException ignored) {
+            // PDFBox 文本提取异常降级
+        }
+        return null;
     }
 
     private DocumentArtifact mergeArtifact(DocumentArtifact baseline, List<CanonicalTable> ocrTables,
