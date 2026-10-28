@@ -252,6 +252,43 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
+    void submitReview_allowsExplicitSourceUnverifiedFactWithoutScheme() {
+        mockLatestTask();
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("unverified", "100")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of());
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("unverified", "ADOPT_CANDIDATES", null, "人工确认")
+        ), "人工确认采纳", 9L), "admin");
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+    }
+
+    @Test
+    void submitReview_unverifiedFactFollowsExplicitSelectedScheme() {
+        mockLatestTask();
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("a", "10"), fact("b", "20"), fact("u", "5")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                qualification("a", "scheme-a", "IN_SCHEME", true, null),
+                qualification("b", "scheme-b", "IN_SCHEME", true, null)));
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("u", "ADOPT_CANDIDATES", null, "人工确认")
+        ), "人工确认采纳", 9L, "scheme-a"), "admin");
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+    }
+
+    @Test
+    void submitReview_rejectsSelectedFactFromAnotherScheme() {
+        mockLatestTask();
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("a", "10"), fact("b", "20")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                qualification("a", "scheme-a", "IN_SCHEME", true, null),
+                qualification("b", "scheme-b", "IN_SCHEME", true, null)));
+        assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("b", "ADOPT_CANDIDATES", null, "人工确认")
+        ), "人工确认采纳", 9L, "scheme-a"), "admin")).isInstanceOf(IllegalArgumentException.class);
+        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+    }
+
+    @Test
     void submitReview_adoptCandidates_acceptsWeightAboveDeclaredTotalAfterManualReview() {
         mockLatestTask();
         when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "101")));

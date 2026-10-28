@@ -3,6 +3,7 @@
 // Pos: src/composables/projectDetail/ - Candidate adoption sub-composable (under 300 lines)
 
 import { ref, computed, watch } from 'vue'
+import { isManualScoreCandidate } from './manualScoreCandidate.js'
 import { ElMessage } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
@@ -32,8 +33,8 @@ export function useScoreCandidateAdoption({
     || (!schemeSelectionRequired.value ? reviewSnapshot.value?.selectedSchemeId || schemes.value[0]?.schemeId || null : null))
 
   const candidateFacts = computed(() => reviewFacts.value)
-  const eligibleFacts = computed(() => reviewFacts.value.filter((fact) => fact.candidateEligible === true
-    && (activeSchemeId.value ? fact.schemeId === activeSchemeId.value : schemes.value.length === 0)))
+  const eligibleFacts = computed(() => reviewFacts.value.filter((fact) =>
+    isManualScoreCandidate(fact, activeSchemeId.value, schemes.value.length)))
 
   const candidateTotalWeight = computed(() => {
     const sum = effectiveCandidateWeight(eligibleFacts.value)
@@ -47,11 +48,10 @@ export function useScoreCandidateAdoption({
       return
     }
     const factsToAdopt = editedFacts.length > 0
-      ? editedFacts.filter((fact) => fact.candidateEligible === true
-        && (!activeSchemeId.value || fact.schemeId === activeSchemeId.value))
+      ? editedFacts.filter((fact) => isManualScoreCandidate(fact, activeSchemeId.value, schemes.value.length))
       : eligibleFacts.value
     if (factsToAdopt.length === 0) {
-      ElMessage.warning('没有来源已验证且属于所选评分方案的候选项')
+      ElMessage.warning('没有属于所选评分方案的候选项')
       return
     }
     isAdoptingCandidates.value = true
@@ -71,6 +71,7 @@ export function useScoreCandidateAdoption({
 
       const res = await scoreParseApi.submitReview(props.projectId, {
         parseTaskId: reviewSnapshot.value?.parseTaskId,
+        ...(activeSchemeId.value ? { schemeId: activeSchemeId.value } : {}),
         reason: '人工确认采纳候选评分标准',
         actions,
       })

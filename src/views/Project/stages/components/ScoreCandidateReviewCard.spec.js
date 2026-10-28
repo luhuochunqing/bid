@@ -8,6 +8,16 @@ describe('ScoreCandidateReviewCard.vue', () => {
     { factId: 'f2', code: '2', dimension: '财务状况', weight: 3, scoreType: 'SUBJECTIVE', sourceText: '财务指标', candidateEligible: true },
   ]
 
+  it('shows source-unverified scored facts for manual review and permits adoption', () => {
+    const facts = [{ factId: 'u', code: '1', dimension: '待核对', weight: 5, sourceText: '规则',
+      candidateEligible: false, scopeStatus: 'SOURCE_UNVERIFIED', schemeId: null }]
+    const wrapper = mount(ScoreCandidateReviewCard, { props: { candidateFacts: facts, candidateTotalWeight: 5 },
+      global: { stubs: { 'el-button': { template: '<button v-bind="$attrs"><slot /></button>' } } } })
+    expect(wrapper.findAll('.candidate-table tbody tr')).toHaveLength(1)
+    expect(wrapper.text()).toContain('来源未核验')
+    expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
+  })
+
   it('allows adoption with a warning when original rows are missing', () => {
     const wrapper = mount(ScoreCandidateReviewCard, { props: { candidateFacts, candidateTotalWeight: 9,
       declaredTotalWeight: 9, adoptionStatus: 'SOURCE_ROWS_UNCOVERED' },
@@ -152,7 +162,7 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.text()).not.toContain('internal-id')
   })
 
-  it('separates out-of-scheme and unverified facts into an audit-only section', () => {
+  it('shows unverified facts for review while separating out-of-scheme facts', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: {
         candidateFacts: [
@@ -167,11 +177,11 @@ describe('ScoreCandidateReviewCard.vue', () => {
         'el-select': true, 'el-option': true } },
     })
 
-    expect(wrapper.findAll('.candidate-table tbody tr')).toHaveLength(1)
+    expect(wrapper.findAll('.candidate-table tbody tr')).toHaveLength(2)
     expect(wrapper.find('.audit-facts').text()).toContain('履约考核')
     expect(wrapper.find('.audit-facts').text()).toContain('方案外')
-    expect(wrapper.find('.audit-facts').text()).toContain('来源未验证')
-    expect(wrapper.text()).toContain('本方案内 1 项，合计 6 分')
+    expect(wrapper.text()).toContain('来源未核验')
+    expect(wrapper.text()).toContain('本方案内 2 项，合计 6 分')
     expect(wrapper.find('.audit-facts').text()).toContain('不计当前候选、不计当前总分')
   })
 

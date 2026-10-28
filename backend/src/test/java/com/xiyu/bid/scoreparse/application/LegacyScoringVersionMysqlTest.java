@@ -127,6 +127,16 @@ class LegacyScoringVersionMysqlTest extends AbstractTransactionBoundaryTest {
      assertThat(reviews.findByParseTaskId(task.getId())).anySatisfy(r -> {
          assertThat(r.getAction()).isEqualTo("ADOPT_CANDIDATES");assertThat(r.getOperatorName()).isEqualTo("reviewer"); });
  }
+ @Test void sourceUnverifiedScoredFactCanBeManuallyAdopted() {
+     var command=adoption();var task=tasks.findById(command.parseTaskId()).orElseThrow();
+     evidence.deleteAll(evidence.findByParseTaskId(task.getId()));evidence.flush();
+     when(certs.estimateScore(anyString(),anyString(),any(),any())).thenReturn(
+         new CertMatchService.ScoreEstimate(new com.xiyu.bid.scoreparse.domain.CertificateScorePolicy.Assessment(null,"PENDING",false,"待核对"),"fixture"));
+     review.submitReview(project,command,"reviewer");
+     assertThat(items.findByProjectIdOrderByItemIndexAsc(project)).singleElement()
+         .satisfies(i -> assertThat(i.getWeight()).isEqualByComparingTo("10"));
+     assertThat(reviews.findByParseTaskId(task.getId())).anySatisfy(r -> assertThat(r.getAction()).isEqualTo("ADOPT_CANDIDATES"));
+ }
  @Test void legacyReviewEstimatesAfterActualCallerCommit() {
      var command=adoption();
      when(certs.match(any())).thenReturn(com.xiyu.bid.scoreparse.dto.KnowledgeMatchResult.empty("fixture"));

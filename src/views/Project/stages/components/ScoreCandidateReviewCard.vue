@@ -76,6 +76,7 @@
             </td>
             <td class="col-detail">
               <el-input v-model="fact.sourceText" :disabled="readonly" type="textarea" :autosize="{ minRows: 2, maxRows: 8 }" aria-label="完整规则" />
+              <div v-if="fact.scopeStatus === 'SOURCE_UNVERIFIED' || fact.candidateEligible !== true" class="validation-diff">来源未核验，请人工核对后决定是否采纳。</div>
               <div v-if="!fact.sourceText || fact.sourceText.trim() === '—'" class="validation-diff">评分规则尚未填写，请核对后决定是否采纳。</div>
               <div v-for="evidence in readableEvidences(fact)" :key="evidence.quotedText" class="evidence-block">
                 <span>{{ evidence.quotedText }}</span>
@@ -144,6 +145,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { isManualScoreCandidate } from '@/composables/projectDetail/manualScoreCandidate.js'
 import {
   exclusionLabel,
   readableEvidences,
@@ -188,18 +190,19 @@ const selectedSchemeTitle = computed(() => {
   const index = props.schemes.findIndex((scheme) => scheme.schemeId === props.selectedSchemeId)
   return index < 0 ? '' : schemeLabel(props.schemes[index], index)
 })
-const eligibleFacts = computed(() => props.candidateFacts.filter((fact) => fact.candidateEligible === true
-  && (props.selectedSchemeId ? fact.schemeId === props.selectedSchemeId : props.schemes.length === 0)))
+const eligibleFacts = computed(() => props.candidateFacts.filter((fact) =>
+  isManualScoreCandidate(fact, props.selectedSchemeId, props.schemes.length)))
 const hasUnresolvedRelationship = computed(() => eligibleFacts.value.some((parent) =>
   String(parent.childAggregation || '').toUpperCase() === 'UNKNOWN'
   && eligibleFacts.value.some((child) => child.parentFactId === parent.factId)))
-const auditFacts = computed(() => props.candidateFacts.filter((fact) => fact.candidateEligible !== true
-  || (props.selectedSchemeId && fact.schemeId !== props.selectedSchemeId)))
+const auditFacts = computed(() => props.candidateFacts.filter((fact) =>
+  !isManualScoreCandidate(fact, props.selectedSchemeId, props.schemes.length)))
 
 const emit = defineEmits(['adopt', 'reparse', 'scheme-change', 'fact-change'])
 
 function toggleFactEligibility(fact, eligible) {
   if (props.readonly) return
+  fact.manualExcluded = !eligible
   fact.candidateEligible = eligible
   if (eligible && props.selectedSchemeId) {
     fact.schemeId = props.selectedSchemeId
