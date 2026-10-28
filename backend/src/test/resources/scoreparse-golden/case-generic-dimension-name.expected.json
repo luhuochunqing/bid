@@ -1,0 +1,9 @@
+{
+  "synthetic": true,
+  "focus": "泛化模型维度从唯一原文名称列恢复",
+  "items": [
+    {"code": "1", "dimension": "服务能力", "weight": 40},
+    {"code": "2", "dimension": "履约能力", "weight": 60}
+  ],
+  "expectedLeafTotal": 100
+}
