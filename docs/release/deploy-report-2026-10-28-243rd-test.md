@@ -14,12 +14,12 @@
 | 项目 | 值 |
 |---|---|
 | Release ID | `dd29f5965-api8080` |
-| 部署分支 | 打包在 `agent/trae-init`（锚点分支，纯 ff-only 同步） |
+| 部署分支 | 打包在 `agent/trae-init`（锚点分支，纯 ff-only 同步）——属偏离「任务分支打包」规范的偏差项，后续部署应回到任务分支执行 |
 | HEAD Commit | `dd29f5965` |
 | 旧版本 | `df41c64a7-api8080`（第 242 次，2026-10-28 15:33） |
 | 构建包 | `.release/xiyu-bid-release-dd29f5965-api8080.tar.gz`（155M，MD5 `d9d34721632e2430ecce24eac9824bc0`） |
 | 构建时间 | 2026-10-28T11:25:02Z（19:25:02 UTC+8） |
-| 增量 | 8 个 commit，20 个文件（+771 / -27）：backend 7 / frontend 2 / scripts 1 / docs 5 / wiki 3 / 其他 2 |
+| 增量 | 8 个 commit，20 个文件（+771 / -27）：backend 8 / frontend 2 / scripts 1 / docs 5 / wiki 3 / 其他 1（`decisions.tsv`） |
 | 激活时间 | 2026-10-28 19:26:48 (UTC+8) |
 | DB 备份 | `/opt/xiyu-bid/db-backups/winbid-dd29f5965-20261028192639.sql.gz`（15M） |
 
@@ -39,7 +39,7 @@
 ## 改动范围
 
 - **数据库迁移**：无新增迁移（DB 停在 V1225，源码最大版本同为 V1225）
-- **后端主源码/测试**：7 个文件，集中在 `scoreparse` 模块（`BaiduTableArtifactEnricher` 新增、`BaiduTableArtifactAdapter`、`SidecarDocumentArtifactExtractor`、3 个测试类 + `project1130.pdf` 测试资源）
+- **后端主源码/测试**：8 个文件（含 `baidu/README.md`），集中在 `scoreparse` 模块（`BaiduTableArtifactEnricher` 新增、`BaiduTableArtifactAdapter`、`SidecarDocumentArtifactExtractor`、3 个测试类 + `project1130.pdf` 测试资源）
 - **前端**：2 个文件 —— `src/views/System/settings/AiModelSettingsPanel.vue`（defineModel 解构绑定修复）、`useAiModelSettings.spec.js`
 - **脚本 / 门禁**：1 个文件 —— `scripts/pre-push-gate.sh`（补齐构建门禁）
 - **文档**：5 个文件 —— `FRONTEND.md`、`RELIABILITY.md`、`docs/lessons/lessons-learned.md`、`docs/references/vue-gotchas.md`、第 242 次部署报告
@@ -123,7 +123,7 @@
 | 回滚 jar | `/opt/xiyu-bid/releases/df41c64a7-api8080/backend/app.jar` |
 | 回滚前端 | `/opt/xiyu-bid/releases/df41c64a7-api8080/frontend/` |
 | 数据库回滚 | 本次无迁移变更，无需 DB 回滚；如数据异常可用 `/opt/xiyu-bid/db-backups/winbid-dd29f5965-20261028192639.sql.gz` |
-| 回滚操作 | 以 `df41c64a7` 为 RELEASE_ID 重跑打包 + `remote-deploy.sh`（或直接回切 releases 目录内旧 artifact） |
+| 回滚操作 | 以 `df41c64a7` 为 RELEASE_ID 重跑打包 + `remote-deploy.sh`（或直接回切 releases 目录内旧 artifact）；前端须随同 release 重铺 `/srv/www/xiyu-bid`（`remote-deploy.sh` 已覆盖），或按 `docs/release/ROLLBACK.md` 回切——只拷目录会导致 `index.html` 与 assets 版本不匹配 |
 | 回滚判断点 | 健康检查失败 / 登录不可用 / 项目或标讯核心路径阻断 / 评分解析（本次改动区域）报错 |
 
 ## 经验沉淀应用情况
@@ -146,7 +146,7 @@
 1. **`MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always` 仍在 `backend.env`**：历史用户决定保留的配置，非本次新引入，未清理。生产上线前需确认是否收敛。
 2. **完整登录 Smoke 未执行**：admin 密码未知，采用 400/401 替代验证接口路由与守卫（与历史多次一致）。
 3. **本次改动集中在评分解析（`BaiduTableArtifactEnricher`）**：需重点回归「标讯/评分解析」链路中 PDF 跨页续表与大单元格表格的证据抽取结果。
-4. **前端仅 `AiModelSettingsPanel.vue` 变更**：与第 242 次已修复的 defineModel 问题同源，本次为规范收口，建议顺手回归「系统设置 → AI 模型配置」页面。
+4. **前端业务代码仅 `AiModelSettingsPanel.vue` 变更**（另有测试文件 `useAiModelSettings.spec.js`）：与第 242 次已修复的 defineModel 问题同源，本次为规范收口，建议顺手回归「系统设置 → AI 模型配置」页面。
 5. **GitHub 镜像与 Gitee 方向告警**：早操时 `sync-env.sh` 报告 GitHub main 领先 Gitee 97 个 commit，属跨远端同步问题，不影响本次从 Gitee main 打包部署，但需单独立项收敛。
 6. **服务器 `/tmp/migration-mysql/` 目录可能过时**：validate 已通过，不影响本次部署。
 
