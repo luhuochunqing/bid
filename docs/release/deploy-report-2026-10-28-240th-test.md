@@ -40,9 +40,10 @@
 ## 改动范围
 
 - **数据库迁移**：无新增迁移（DB 停在 V1225，源码最大版本同为 V1225）
-- **后端主源码**：16 个文件，集中在 `scoreparse` 模块（`application` 12 个 + `domain` 5 个 + `dto` 1 个），属评分解析人工采纳链路（保留风险提示、未验证候选人工核对、父子关系校验、评分行覆盖关联原文规则、省略号单例扣分证据绑定）
-- **后端测试 / 金标**：15 个测试文件 + 1 个金标用例（`case-ellipsis-singleton-deduction.md` / `.expected.json`），`GoldenCasesReplayTest` 增用例
+- **后端主源码**：17 个文件，集中在 `scoreparse` 模块（`application` 11 个 + `domain` 5 个 + `dto` 1 个），属评分解析人工采纳链路（保留风险提示、未验证候选人工核对、父子关系校验、评分行覆盖关联原文规则、省略号单例扣分证据绑定）
+- **后端测试 / 金标**：13 个测试类 + 1 个金标用例（`case-ellipsis-singleton-deduction.md` / `.expected.json` 共 2 个文件），`GoldenCasesReplayTest` 增用例
 - **前端**：6 个文件 —— `useScoreCandidateAdoption.js` / `manualScoreCandidate.js` 及其单测、`ScoreCandidateReviewCard.vue` 及其单测
+- **Wiki**：3 个文件 —— `.wiki/log.md`、`.wiki/pages/score-parse-adoption-consistency.md`、`.wiki/pages/score-subtotal-peritem-semantics-provenance-snapshot.md`
 - **文档**：1 个部署报告（第 239 次 test）
 - **Sidecar**：无变更（`sidecarSha256` = `c06803d7...`，与上一版本一致），容器未重建（`xiyu-sidecar` Up 11 hours）
 
