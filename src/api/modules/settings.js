@@ -323,6 +323,11 @@ export const settingsApi = {
     return httpClient.post('/api/settings/ai-models/test', payload)
   },
 
+  async testBaiduOcrConnection(payload) {
+
+    return httpClient.post('/api/settings/baidu-ocr/test', payload)
+  },
+
   async getSystemInfo() {
 
     return httpClient.get('/api/settings/system-info')

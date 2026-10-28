@@ -1,3 +1,7 @@
+// Input: system default configurations
+// Output: default SettingsResponse payload
+// Pos: settings/service - default payload factory
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.settings.service;
 
 import com.xiyu.bid.settings.dto.SettingsResponse;
@@ -15,6 +19,7 @@ class SettingsDefaultPayloadFactory {
                 .deptDataScope(defaultDeptScopes())
                 .projectGroupScope(defaultProjectScopes())
                 .integrationConfig(defaultIntegrationConfig())
+                .baiduOcrConfig(defaultBaiduOcrConfig())
                 .flowMappings(defaultFlowMappings())
                 .apiList(defaultApiSettings())
                 .build();
@@ -99,5 +104,15 @@ class SettingsDefaultPayloadFactory {
                 SettingsResponse.ApiSetting.builder().name("更新项目").path("/api/projects/{id}").method("PUT").description("更新项目信息").status("enabled").enabled(true).build(),
                 SettingsResponse.ApiSetting.builder().name("数据看板总览").path("/api/analytics/overview").method("GET").description("获取核心看板指标").status("enabled").enabled(true).build()
         );
+    }
+
+    private SettingsResponse.BaiduOcrConfig defaultBaiduOcrConfig() {
+        return SettingsResponse.BaiduOcrConfig.builder()
+                .enabled(false)
+                .apiKeyConfigured(false)
+                .secretKeyConfigured(false)
+                .apiKeyMasked("")
+                .secretKeyMasked("")
+                .build();
     }
 }

@@ -20,6 +20,7 @@ public class SettingsUpdateRequest {
     private List<ProjectGroupScopeUpdate> projectGroupScope;
     private IntegrationConfigUpdate integrationConfig;
     private AiModelConfigUpdate aiModelConfig;
+    private BaiduOcrConfigUpdate baiduOcrConfig;
     private List<FlowMappingUpdate> flowMappings;
     private List<ApiSettingUpdate> apiList;
 
@@ -149,5 +150,15 @@ public class SettingsUpdateRequest {
         private String description;
         private String status;
         private Boolean enabled;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BaiduOcrConfigUpdate {
+        private Boolean enabled;
+        private String apiKey;
+        private String secretKey;
     }
 }

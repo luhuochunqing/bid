@@ -1,3 +1,7 @@
+// Input: SettingsResponse and SettingsUpdateRequest DTOs
+// Output: mapped and copied settings entities and response structures
+// Pos: settings/service - payload mapping component
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.settings.service;
 
 import com.xiyu.bid.settings.dto.SettingsResponse;
@@ -25,6 +29,7 @@ class SettingsPayloadMapper {
                 .deptDataScope(copyDeptScopes(source.getDeptDataScope()))
                 .projectGroupScope(copyProjectScopes(source.getProjectGroupScope()))
                 .integrationConfig(copyIntegrationConfig(source.getIntegrationConfig()))
+                .baiduOcrConfig(copyBaiduOcrConfig(source.getBaiduOcrConfig()))
                 .flowMappings(copyFlowMappings(source.getFlowMappings()))
                 .apiList(copyApiSettings(source.getApiList()))
                 .build();
@@ -45,6 +50,22 @@ class SettingsPayloadMapper {
                 .depositWarnDays(source.getDepositWarnDays())
                 .qualWarnDays(source.getQualWarnDays())
                 .enableAI(source.getEnableAI())
+                .build();
+    }
+
+    SettingsResponse.BaiduOcrConfig copyBaiduOcrConfig(SettingsResponse.BaiduOcrConfig source) {
+        if (source == null) return null;
+        return SettingsResponse.BaiduOcrConfig.builder()
+                .enabled(source.getEnabled())
+                .encryptedApiKey(source.getEncryptedApiKey())
+                .encryptedSecretKey(source.getEncryptedSecretKey())
+                .apiKeyMasked(source.getApiKeyMasked())
+                .secretKeyMasked(source.getSecretKeyMasked())
+                .apiKeyConfigured(source.getApiKeyConfigured())
+                .secretKeyConfigured(source.getSecretKeyConfigured())
+                .lastTestStatus(source.getLastTestStatus())
+                .lastTestMessage(source.getLastTestMessage())
+                .lastTestAt(source.getLastTestAt())
                 .build();
     }
 

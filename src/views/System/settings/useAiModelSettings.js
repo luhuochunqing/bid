@@ -21,6 +21,19 @@ const DEFAULT_SYSTEM_CONFIG = {
   enableAI: true,
 }
 
+const DEFAULT_BAIDU_OCR_CONFIG = {
+  enabled: false,
+  apiKey: '',
+  secretKey: '',
+  apiKeyMasked: '',
+  secretKeyMasked: '',
+  apiKeyConfigured: false,
+  secretKeyConfigured: false,
+  lastTestStatus: '',
+  lastTestMessage: '',
+  lastTestAt: '',
+}
+
 const DEFAULT_PROVIDER_CONFIG = {
   openai: {
     providerCode: 'openai',
@@ -95,12 +108,29 @@ const normalizeAiModelConfig = (config = {}) => {
   }
 }
 
+const normalizeBaiduOcrConfig = (config = {}) => ({
+  ...DEFAULT_BAIDU_OCR_CONFIG,
+  ...config,
+  enabled: Boolean(config.enabled),
+  apiKey: '',
+  secretKey: '',
+  apiKeyMasked: config.apiKeyMasked || '',
+  secretKeyMasked: config.secretKeyMasked || '',
+  apiKeyConfigured: Boolean(config.apiKeyConfigured),
+  secretKeyConfigured: Boolean(config.secretKeyConfigured),
+  lastTestStatus: config.lastTestStatus || '',
+  lastTestMessage: config.lastTestMessage || '',
+  lastTestAt: config.lastTestAt || '',
+})
+
 export function useAiModelSettings() {
   const loading = ref(false)
   const saving = ref(false)
   const testingProvider = ref('')
+  const testingBaiduOcr = ref(false)
   const systemConfig = ref({ ...DEFAULT_SYSTEM_CONFIG })
   const aiModelConfig = ref(normalizeAiModelConfig())
+  const baiduOcrConfig = ref(normalizeBaiduOcrConfig())
 
   const activeProvider = computed(() => aiModelConfig.value.providers.find(
     (provider) => provider.providerCode === aiModelConfig.value.activeProvider,
@@ -113,6 +143,7 @@ export function useAiModelSettings() {
       if (!result?.success) throw new Error(result?.msg || '加载 AI 模型配置失败')
       systemConfig.value = { ...DEFAULT_SYSTEM_CONFIG, ...(result.data?.systemConfig || {}) }
       aiModelConfig.value = normalizeAiModelConfig(result.data?.aiModelConfig)
+      baiduOcrConfig.value = normalizeBaiduOcrConfig(result.data?.baiduOcrConfig)
     } catch (error) {
       ElMessage.error(error?.message || '加载 AI 模型配置失败')
     } finally {
@@ -140,6 +171,11 @@ export function useAiModelSettings() {
         apiKeyPlaintext: provider.apiKeyPlaintext,
       })),
     },
+    baiduOcrConfig: {
+      enabled: Boolean(baiduOcrConfig.value.enabled),
+      apiKey: baiduOcrConfig.value.apiKey ? baiduOcrConfig.value.apiKey.trim() : undefined,
+      secretKey: baiduOcrConfig.value.secretKey ? baiduOcrConfig.value.secretKey.trim() : undefined,
+    },
   })
 
   const save = async () => {
@@ -151,6 +187,7 @@ export function useAiModelSettings() {
       if (!result?.success) throw new Error(result?.msg || '保存 AI 模型配置失败')
       systemConfig.value = { ...DEFAULT_SYSTEM_CONFIG, ...(result.data?.systemConfig || {}) }
       aiModelConfig.value = normalizeAiModelConfig(result.data?.aiModelConfig)
+      baiduOcrConfig.value = normalizeBaiduOcrConfig(result.data?.baiduOcrConfig)
       ElMessage.success('AI 模型配置已保存')
     } catch (error) {
       ElMessage.error(error?.message || '保存 AI 模型配置失败')
@@ -185,15 +222,41 @@ export function useAiModelSettings() {
     }
   }
 
+  const testBaiduOcr = async () => {
+    testingBaiduOcr.value = true
+    try {
+      const result = await settingsApi.testBaiduOcrConnection({
+        apiKey: baiduOcrConfig.value.apiKey,
+        secretKey: baiduOcrConfig.value.secretKey,
+      })
+      if (!result?.success) throw new Error(result?.msg || '百度表格识别连接测试失败')
+      baiduOcrConfig.value.lastTestStatus = result.data?.status || ''
+      baiduOcrConfig.value.lastTestMessage = result.data?.message || ''
+      baiduOcrConfig.value.lastTestAt = result.data?.testedAt || new Date().toISOString()
+      if (baiduOcrConfig.value.lastTestStatus === 'success') {
+        ElMessage.success('百度智能云表格识别连接测试成功')
+      } else {
+        ElMessage.error(baiduOcrConfig.value.lastTestMessage || '百度智能云表格识别连接测试失败')
+      }
+    } catch (error) {
+      ElMessage.error(error?.message || '测试连接异常')
+    } finally {
+      testingBaiduOcr.value = false
+    }
+  }
+
   return {
     loading,
     saving,
     testingProvider,
+    testingBaiduOcr,
     systemConfig,
     aiModelConfig,
+    baiduOcrConfig,
     activeProvider,
     load,
     save,
     testProvider,
+    testBaiduOcr,
   }
 }

@@ -1,9 +1,15 @@
+// Input: system settings update and test requests
+// Output: admin system settings, runtime permissions and connectivity test results
+// Pos: settings controller
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.settings.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.settings.dto.AiModelTestRequest;
 import com.xiyu.bid.settings.dto.AiModelTestResponse;
+import com.xiyu.bid.settings.dto.BaiduOcrTestRequest;
+import com.xiyu.bid.settings.dto.BaiduOcrTestResponse;
 import com.xiyu.bid.settings.dto.SettingsResponse;
 import com.xiyu.bid.settings.dto.SettingsUpdateRequest;
 import com.xiyu.bid.settings.dto.SystemInfoResponse;
@@ -47,6 +53,12 @@ public class SettingsController {
     @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<AiModelTestResponse>> testAiModel(@RequestBody AiModelTestRequest request) {
         return ResponseEntity.ok(ApiResponse.success("AI model connection tested", aiModelConnectionTestService.testConnection(request)));
+    }
+
+    @PostMapping("/baidu-ocr/test")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
+    public ResponseEntity<ApiResponse<BaiduOcrTestResponse>> testBaiduOcr(@RequestBody(required = false) BaiduOcrTestRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("百度表格识别连接测试已完成", settingsService.testBaiduOcrConnection(request)));
     }
 
     @GetMapping("/runtime-permissions")

@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-10-23
-health_checked: 2026-10-23
+updated: 2026-10-28
+health_checked: 2026-10-28
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -29,6 +29,7 @@ backlinks:
 - [[_index]] — 西域投标管理平台知识库
 - [[agent-sop-quickref]] — Agent 开发 SOP 快速参考
 - [[ai-capabilities]] — AI 能力
+- [[baidu-table-ocr-pipeline]] — 百度表格文字识别 (Table OCR) 旁路对照管线
 - [[ai-case-recommend-data-source-fix]] — AI 智能案例推荐契约与陷阱（数据源、裸响应、前端分数门禁、资质提示边界）
 - [[ai-case-precipitation-concurrency]] — AI 案例沉淀并发任务与大文件隔离契约（projectId 门禁 + UUID 临时文件 + 前端状态）
 - [[ai-provider-configuration]] — AI Provider 配置与陷阱指南
