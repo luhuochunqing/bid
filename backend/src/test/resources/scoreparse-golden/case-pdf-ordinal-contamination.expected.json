@@ -1,14 +1,38 @@
 {
   "synthetic": true,
   "desensitization": "全文合成，保留评分行编号、名称、规则和分值列，不含真实客户信息",
-  "focus": "名称引用中错插本行编号时，以唯一原文行恢复规则，不遗漏5分",
+  "focus": "名称中任意位置错插唯一行编号时，唯一条款号、名称、分值和闭合规则共同确定原文行",
   "threshold": 0.95,
   "expectTotal": 100,
-  "laneHints": ["table"],
+  "laneHints": [
+    "table"
+  ],
   "items": [
-    {"code":"1","dim":"技术方案","detail":"技术架构完整且实施路径可落地的得30分。","weight":30},
-    {"code":"2","dim":"服务保障","detail":"提供完整服务方案并承诺按期交付的得30分。","weight":30},
-    {"code":"3","dim":"团队能力","detail":"项目团队满足全部配置要求的得35分。","weight":35},
-    {"code":"5","dim":"资产运营情况（5分）","detail":"提供完整财务报告得5分，无报告不得分。","weight":5}
-  ]
+    {
+      "code": "1",
+      "dim": "技术方案",
+      "detail": "技术架构完整且实施路径可落地的得30分。",
+      "weight": 30
+    },
+    {
+      "code": "2",
+      "dim": "服务保障",
+      "detail": "提供完整服务方案并承诺按期交付的得30分。",
+      "weight": 30
+    },
+    {
+      "code": "3",
+      "dim": "团队能力",
+      "detail": "项目团队满足全部配置要求的得35分。",
+      "weight": 35
+    },
+    {
+      "code": "5",
+      "dim": "资产运营情况（5分）",
+      "detail": "提供完整财务报告得5分，无报告不得分。",
+      "weight": 5
+    }
+  ],
+  "modelQuotationFolded": "资产运\n5 营情况（5分）",
+  "modelQuotationWrongOrdinal": "资产运\n6 营情况（5分）"
 }

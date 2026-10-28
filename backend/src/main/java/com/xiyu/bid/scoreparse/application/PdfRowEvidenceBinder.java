@@ -56,7 +56,7 @@ final class PdfRowEvidenceBinder {
         return Optional.of(copy(fact, itemName(fact, span), page, span.table().tableId(), cellIds));
     }
 
-    /** Recover only a unique numbered PDF row when the model inserts its row number before 分. */
+    /** Recover only a unique numbered PDF row when its row number is inserted in the name quote. */
     static Optional<MultimodalScoreFact> bindMisplacedOrdinal(MultimodalScoreFact fact,
             DocumentArtifact artifact, List<OriginalScoringContext.SchemeEvidence> schemes) {
         String code = TextPrimaryEvidenceBinder.normalizeForEvidence(fact.code());
@@ -83,7 +83,7 @@ final class PdfRowEvidenceBinder {
                         .filter(c -> c.rawText() != null && !c.rawText().isBlank()).toList();
                 if (ids.size() != 1 || names.size() != 1 || weights.size() != 1 || rules.size() != 1) continue;
                 var name = names.getFirst();
-                List<String> sourceIds = List.of(name.cellId());
+                List<String> sourceIds = List.of(name.cellId(), rules.getFirst().cellId());
                 if (!com.xiyu.bid.scoreparse.domain.LogicalRuleSourceUnit.closed(artifact, sourceIds)) continue;
                 Integer page = name.sourcePage() == null ? table.sourcePage() : name.sourcePage();
                 matches.add(new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(),
@@ -102,9 +102,11 @@ final class PdfRowEvidenceBinder {
 
     private static boolean contaminatedNameMatches(String raw, String code, String quote) {
         String name = TextPrimaryEvidenceBinder.normalizeForEvidence(raw).replaceAll("\\s+", "");
-        int mark = name.indexOf("分");
-        return mark > 0 && mark == name.lastIndexOf("分")
-                && quote.equals(name.substring(0, mark) + code + name.substring(mark));
+        if (quote.length() != name.length() + code.length()) return false;
+        for (int pos = quote.indexOf(code); pos >= 0; pos = quote.indexOf(code, pos + 1)) {
+            if ((quote.substring(0, pos) + quote.substring(pos + code.length())).equals(name)) return true;
+        }
+        return false;
     }
 
     private static boolean sameWeight(String raw, java.math.BigDecimal expected) {
