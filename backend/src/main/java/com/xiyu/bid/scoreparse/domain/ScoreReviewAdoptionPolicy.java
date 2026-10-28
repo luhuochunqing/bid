@@ -85,6 +85,16 @@ public final class ScoreReviewAdoptionPolicy {
         Map<String, BigDecimal> adjustments = adjustedWeights == null ? Map.of() : adjustedWeights;
         boolean filterByIds = selectedFactIds != null && !selectedFactIds.isEmpty();
 
+        boolean unresolvedSelectedRelation = facts.stream().filter(Objects::nonNull)
+                .filter(parent -> parent.childAggregation().equals("UNKNOWN"))
+                .anyMatch(parent -> facts.stream().filter(Objects::nonNull)
+                        .anyMatch(child -> parent.factId().equals(child.parentFactId())
+                                && (!filterByIds || selectedFactIds.contains(parent.factId())
+                                || selectedFactIds.contains(child.factId()))));
+        if (unresolvedSelectedRelation) {
+            return AdoptionResult.failure("父子评分关系未确认，请先核对或重新解析后再采纳");
+        }
+
         List<ScoreCandidate> converted = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
         int index = 1;

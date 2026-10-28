@@ -118,10 +118,12 @@
       </ul>
     </section>
     <div class="candidate-review-actions">
+      <el-alert v-if="hasUnresolvedRelationship" type="warning" :closable="false"
+        title="父子评分关系未确认，请先核对或重新解析后再采纳。" />
       <el-button
         type="primary"
         :loading="isAdoptingCandidates"
-        :disabled="readonly || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId) || adoptionStatus === 'CONFLICTING_TOTAL' || (declaredTotalWeight != null && candidateTotalWeight > declaredTotalWeight)"
+        :disabled="readonly || hasUnresolvedRelationship || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId) || adoptionStatus === 'CONFLICTING_TOTAL' || (declaredTotalWeight != null && candidateTotalWeight > declaredTotalWeight)"
         data-test="btn-adopt-candidates"
         @click="$emit('adopt', candidateFacts)"
       >
@@ -182,6 +184,9 @@ const selectedSchemeTitle = computed(() => {
 })
 const eligibleFacts = computed(() => props.candidateFacts.filter((fact) => fact.candidateEligible === true
   && (props.selectedSchemeId ? fact.schemeId === props.selectedSchemeId : props.schemes.length === 0)))
+const hasUnresolvedRelationship = computed(() => eligibleFacts.value.some((parent) =>
+  String(parent.childAggregation || '').toUpperCase() === 'UNKNOWN'
+  && eligibleFacts.value.some((child) => child.parentFactId === parent.factId)))
 const auditFacts = computed(() => props.candidateFacts.filter((fact) => fact.candidateEligible !== true
   || (props.selectedSchemeId && fact.schemeId !== props.selectedSchemeId)))
 

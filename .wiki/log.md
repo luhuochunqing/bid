@@ -1,5 +1,9 @@
 # Wiki 操作日志 / Operation Log
 
+## [2026-10-28] fix | 单子项与扣分规则来源复核
+
+- 记录单子项、摘要引文、零分扣分规则及未知关系的采纳阻断，见 [[score-subtotal-peritem-semantics-provenance-snapshot]]。
+
 ## [2026-10-28] fix | PDF 评分名称引文误插编号
 
 - 记录唯一行证据约束、冻结事实回放结果及真实模型验收边界，见 [[score-subtotal-peritem-semantics-provenance-snapshot]]。

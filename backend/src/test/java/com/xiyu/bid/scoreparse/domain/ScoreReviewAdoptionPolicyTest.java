@@ -21,6 +21,15 @@ class ScoreReviewAdoptionPolicyTest {
             assertThat(result.errorMessage()).contains("原文");
         }
     }
+    @Test void rejectsSelectedUnknownParentAndChildrenInsteadOfPublishingPartialTotal() {
+        var unrelated = new ScoreReviewAdoptionPolicy.CandidateInput("ok", "1", "商务", BigDecimal.valueOf(85), "规则", "");
+        var parent = new ScoreReviewAdoptionPolicy.CandidateInput("p", "2", "商务", BigDecimal.valueOf(15), "规则", "", "OBJECTIVE", "UNKNOWN");
+        var child = new ScoreReviewAdoptionPolicy.CandidateInput("c", "2.1", "商务", BigDecimal.valueOf(15), "规则", "p", "OBJECTIVE", "SUM");
+        var result = new ScoreReviewAdoptionPolicy().adopt(List.of(unrelated,parent,child), Set.of("ok","p","c"), Map.of());
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorMessage()).contains("关系");
+        assertThat(result.candidates()).isEmpty();
+    }
     private final ScoreReviewAdoptionPolicy policy = new ScoreReviewAdoptionPolicy();
 
     @Test

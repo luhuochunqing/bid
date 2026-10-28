@@ -14,6 +14,14 @@ class OriginalRuleUnitTextTest {
         assertThat(OriginalRuleUnitText.restore(raw, a, List.of(a, b))).isEqualTo(first);
         assertThat(OriginalRuleUnitText.restore(raw, b, List.of(a, b))).isEqualTo(second);
     }
+    @Test void siblingAfterWhitespaceFollowingSentenceKeepsPriorRule() {
+        String first = "1.验收问题对应扣除相关分数后作为最后得分。";
+        String second = "2.平台出现问题时限制相关交易权限。";
+        var a = new OriginalRuleUnitText.Unit("10.1", "综合", first);
+        var b = new OriginalRuleUnitText.Unit("10.2", "综合", second);
+        assertThat(OriginalRuleUnitText.restore(first + " " + second, a, List.of(a, b))).isEqualTo(first);
+        assertThat(OriginalRuleUnitText.restore(first + " " + second, b, List.of(a, b))).isEqualTo(second);
+    }
     @Test void inlineNumberCannotSplitWhenItDoesNotMatchSiblingIdentity() {
         String first = "1.第一项得5分。";
         String second = "2.第二项得5分。";
