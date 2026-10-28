@@ -8,8 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.math.BigDecimal;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 多表评分标准自动拆分策略（spec 062 方案 A）。
@@ -21,8 +19,6 @@ import java.util.regex.Pattern;
 public final class ScoreTableSplitPolicy {
 
     public static final String NO_DECLARED_TOTAL = "NO_DECLARED_TOTAL";
-    private static final Pattern DOCUMENT_TOTAL = Pattern.compile("(?:本项目|本标包)[^\\n]{0,40}(?:总分|满分)\\s*(?:为|：|:)\\s*(\\d+(?:\\.\\d+)?)\\s*分");
-
     private ScoreTableSplitPolicy() {
     }
 
@@ -87,16 +83,16 @@ public final class ScoreTableSplitPolicy {
                 && result.completeness().decision() == ScoreParseDecision.REVIEW_REQUIRED
                 && result.completeness().fallbackReason() != null
                 && result.completeness().fallbackReason().contains("DECLARED_TOTAL_UNKNOWN"))) {
-            Matcher matcher = DOCUMENT_TOTAL.matcher(tenderSectionText == null ? "" : tenderSectionText);
-            if (matcher.find()) {
-                BigDecimal declared = new BigDecimal(matcher.group(1));
+            var sourceTotal = OriginalScoringContext.textTotal(tenderSectionText);
+            if (sourceTotal.value() != null) {
+                BigDecimal declared = sourceTotal.value();
                 List<ScoreFact> allFacts = tablesById.values().stream().flatMap(table -> table.facts().stream()).toList();
                 BigDecimal leafTotal = ScoreUnitPolicy.totalWeight(allFacts.stream().map(fact ->
                         new ScoreUnitPolicy.Node(fact.factId(), fact.parentFactId(), fact.weight(), fact.childAggregation().name())).toList());
                 if (leafTotal.compareTo(declared) == 0) {
                     var closed = ScoreCompletenessPolicy.evaluateCompleteness(allFacts, tenderSectionText, true,
                             List.of(new ScoreTableSummaryPolicy.DeclaredTotalEvidence(declared, "DOCUMENT", 0,
-                                    "text:document-total", matcher.group(0))));
+                                    sourceTotal.locator(), sourceTotal.quote())));
                     if (closed.decision() == ScoreParseDecision.AUTO_APPROVED) {
                         results.clear();
                         results.add(new TableCompleteness("DOCUMENT", true, closed,

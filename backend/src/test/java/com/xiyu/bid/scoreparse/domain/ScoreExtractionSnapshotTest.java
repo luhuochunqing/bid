@@ -101,6 +101,49 @@ class ScoreExtractionSnapshotTest {
         var q=new OriginalScoreEvidencePolicy.Qualification("a","s","IN_SCHEME",false,"SOURCE_UNVERIFIED","");
         assertThat(ScoreExtractionSnapshot.from("task",List.of(f),List.of(q),List.of()).items()).noneMatch(ExtractedScoreItem::computable);
     }
+    @Test void sourceVerifiedZeroPointDeductionCanBeManuallySelected() {
+        var span = new SourceSpan("doc", "hash", "PDF", "s", 1, "t", "rule", 0, 12,
+                "验收不通过按规定扣分。", "rule");
+        var metadata = new ScoreSourceMetadata("", "", List.of(span), List.of(), "", "OBJECTIVE");
+        var deduction = new ScoreFact("d", "t", List.of("rule"), "验收不通过按规定扣分。", "4", "质量扣分",
+                BigDecimal.ZERO, null, null, "", "SOURCE", .9, ScoreFact.ValidationStatus.REVIEW_REQUIRED,
+                ChildAggregation.SUM, metadata);
+        var q = new OriginalScoreEvidencePolicy.Qualification("d", "s", "IN_SCHEME", true, null, "t:rule");
+        var item = ScoreExtractionSnapshot.from("task", List.of(deduction), List.of(q), List.of()).items().getFirst();
+        assertThat(item.computable()).isTrue();
+        assertThat(item.effectiveMaximum()).isEqualByComparingTo("0");
+    }
+    @Test void unverifiedDeductionCannotBePromoted() {
+        var span = new SourceSpan("doc", "hash", "PDF", "s", 1, "t", "rule", 0, 12,
+                "验收不通过扣1分。", "rule");
+        var metadata = new ScoreSourceMetadata("", "", List.of(span), List.of(), "", "OBJECTIVE");
+        var deduction = new ScoreFact("d", "t", List.of("rule"), "验收不通过扣1分。", "4", "质量扣分",
+                BigDecimal.ZERO, null, null, "", "SOURCE", .9, ScoreFact.ValidationStatus.REVIEW_REQUIRED,
+                ChildAggregation.SUM, metadata);
+        var q = new OriginalScoreEvidencePolicy.Qualification("d", "s", "SOURCE_UNVERIFIED", false, "SOURCE_UNVERIFIED", "t:rule");
+        assertThat(ScoreExtractionSnapshot.from("task", List.of(deduction), List.of(q), List.of()).items().getFirst().computable()).isFalse();
+        var verified = new OriginalScoreEvidencePolicy.Qualification("d", "s", "IN_SCHEME", true, null, "t:rule");
+        assertThat(ScoreExtractionSnapshot.from("task", List.of(deduction), List.of(verified), List.of()).items().getFirst().computable()).isTrue();
+    }
+
+    @Test void partialDeductionRuleCannotBePromotedAsComplete() {
+        var span = new SourceSpan("doc", "hash", "PDF", "s", 1, "t", "rule", 0, 25,
+                "验收不通过扣分。每次另扣1分。", "rule");
+        var metadata = new ScoreSourceMetadata("", "", List.of(span), List.of(), "", "OBJECTIVE");
+        var deduction = new ScoreFact("d", "t", List.of("rule"), "验收不通过扣分。", "4", "质量扣分",
+                BigDecimal.ZERO, null, null, "", "SOURCE", .9, ScoreFact.ValidationStatus.REVIEW_REQUIRED,
+                ChildAggregation.SUM, metadata);
+        var q = new OriginalScoreEvidencePolicy.Qualification("d", "s", "IN_SCHEME", true, null, "t:rule");
+        assertThat(ScoreExtractionSnapshot.from("task", List.of(deduction), List.of(q), List.of()).items().getFirst().computable()).isFalse();
+    }
+
+    @Test void zeroPointPlaceholderRemainsUnselectable() {
+        var item = ScoreExtractionSnapshot.from("task", List.of(fact("placeholder", BigDecimal.ZERO)),
+                List.of(new OriginalScoreEvidencePolicy.Qualification("placeholder", "s", "IN_SCHEME", true, null, "")),
+                List.of()).items().getFirst();
+        assertThat(item.computable()).isFalse();
+    }
+
     static ScoreFact fact(String id, BigDecimal weight) {
         var m = new ScoreSourceMetadata("规则最高" + weight + "分", "原文", List.of(), List.of("SOURCE_UNVERIFIED"), "TECHNICAL", "OBJECTIVE", new ModelSourceClaim("评分标准",1,"t",List.of(),"s","IN_SCHEME"));
         return new ScoreFact(id,"t",List.of(),"原文","1",id,weight,null,null,null,"MODEL",.6,ScoreFact.ValidationStatus.REVIEW_REQUIRED,ChildAggregation.SUM,m);

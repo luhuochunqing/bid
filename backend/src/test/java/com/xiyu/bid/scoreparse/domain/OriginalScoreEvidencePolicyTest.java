@@ -39,6 +39,13 @@ class OriginalScoreEvidencePolicyTest {
                 "## 本项目评分办法\n本项目该评分项满分10分。").total().value()).isNull();
     }
 
+    @Test void scoringSectionPartialTotalCannotInventWholeSchemeTotal() {
+        var source = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("synthetic", "hash", "PDF", "2.2"), List.of(), List.of());
+        var result = OriginalScoringContext.resolve(source, "# 第四章 评审办法\n本项目评分部分总分100分。");
+        assertThat(result.total().value()).isNull();
+        assertThat(result.total().source()).isEqualTo("UNKNOWN");
+    }
+
     @Test void unscopedBusinessTableSubtotalCannotInventSchemeTotal() {
         var source = artifact("商务评分表", List.of(
                 cell("h1", 0, 0, "评分项目"), cell("h2", 0, 1, "评分规则"),

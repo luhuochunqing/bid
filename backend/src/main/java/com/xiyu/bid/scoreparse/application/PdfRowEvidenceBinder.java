@@ -62,9 +62,10 @@ final class PdfRowEvidenceBinder {
         String code = TextPrimaryEvidenceBinder.normalizeForEvidence(fact.code());
         String quote = TextPrimaryEvidenceBinder.normalizeForEvidence(fact.quotedText()).replaceAll("\\s+", "");
         if (!code.matches("[1-9]\\d*") || fact.weight() == null || quote.isBlank()
-                || !fact.sourceCellIds().isEmpty() || !fact.tableId().isBlank()) return Optional.empty();
+                || !fact.sourceCellIds().isEmpty()) return Optional.empty();
         List<MultimodalScoreFact> matches = new java.util.ArrayList<>();
         for (var table : artifact.tables()) {
+            if (!fact.tableId().isBlank() && !fact.tableId().equals(table.tableId())) continue;
             if (!"PDF".equalsIgnoreCase(sourceType(table, artifact)) || !Boolean.TRUE.equals(table.isScoreTable())
                     || !TextPrimaryEvidenceBinder.tableInFactScope(fact, table, schemes)) continue;
             var headers = rows(table).stream().filter(row -> row.stream().anyMatch(c -> Integer.valueOf(0).equals(c.row())))

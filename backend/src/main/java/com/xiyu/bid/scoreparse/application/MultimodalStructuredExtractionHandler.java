@@ -240,11 +240,11 @@ final class MultimodalStructuredExtractionHandler {
                         retryPlan, originalContext, artifact);
             }
         }
-        var finalValidation = validation;
-        List<ScoreFact> facts = validation.facts().stream().map(f -> TextPrimaryScoreFactMapper.map(f, artifact, finalValidation)).toList();
-        Set<String> eligibleFactIds = OriginalScoreEvidencePolicy.eligibleModelFacts(validation.facts(),
-                validation.sourceVerification()).stream().map(OriginalScoreEvidencePolicy::modelFactId)
-                .collect(java.util.stream.Collectors.toSet());
+        var recovery = SourceReviewRowRecovery.recover(artifact, originalContext, tenderSectionText, validation);
+        var finalValidation = SourceReviewRowRecovery.reviewValidation(validation, recovery, artifact);
+        List<ScoreFact> facts = SourceReviewRowRecovery.reviewFacts(finalValidation, artifact, recovery);
+        List<OriginalScoreEvidencePolicy.Qualification> reviewQualifications = SourceReviewRowRecovery.reviewQualifications(validation, recovery);
+        Set<String> eligibleFactIds = SourceReviewRowRecovery.eligibleFactIds(reviewQualifications);
         List<ScoreFact> eligibleScoreFacts = facts.stream().filter(fact -> eligibleFactIds.contains(fact.factId())).toList();
         var decision = validation.autoApprovable() && !multiTableModelScopeUnknown
                 ? ScoreParseDecision.AUTO_APPROVED : ScoreParseDecision.REVIEW_REQUIRED;
@@ -253,14 +253,15 @@ final class MultimodalStructuredExtractionHandler {
         TableSplitResult modelSplit = MultimodalExtractionReviewPolicy.hasMultipleFactTables(eligibleScoreFacts)
                 ? MultimodalExtractionReviewPolicy.splitModelFacts(eligibleScoreFacts, originalContext, tenderSectionText) : null;
         var completeness = new ScoreCompletenessPolicy.ScoreCompletenessResult(validation.autoApprovable(), decision,
-                validation.autoApprovable() ? null : validation.violations().get(0).code(), validation.originalTotal(),
+                validation.autoApprovable() ? null : finalValidation.violations().isEmpty()
+                        ? "SOURCE_ROW_RECOVERED_FOR_REVIEW" : finalValidation.violations().getFirst().code(), validation.originalTotal(),
                 "TENDER_TEXT".equals(validation.sourceVerification().total().source())
                         ? ScoreCompletenessPolicy.DeclaredTotalSource.TENDER_TEXT
                         : validation.originalTotal() == null
                         ? ScoreCompletenessPolicy.DeclaredTotalSource.UNKNOWN
                         : ScoreCompletenessPolicy.DeclaredTotalSource.STRUCTURED_SUMMARY_ROW,
-                validation.leafTotal(),
-                leaves.size(), parents.size(), 0, validation.violations().stream()
+                finalValidation.leafTotal(),
+                leaves.size(), parents.size(), 0, finalValidation.violations().stream()
                 .map(v -> v.code() + "[fact=" + v.factId() + ",field=" + v.field()
                         + ",source=" + v.evidence() + "] " + v.message()
                         + " expected=" + v.expected() + " actual=" + v.actual()).toList(),
@@ -291,7 +292,8 @@ final class MultimodalStructuredExtractionHandler {
         var proof = validation.autoApprovable() ? OriginalScoreEvidencePolicy.publicationProof(
                 validation.sourceVerification(), validation.leafTotal(), facts, candidates) : null;
         return StructuredSourceDiagnostics.attach(StructuredTableResult.evidencePipeline(facts, candidates, completeness, tables,
-                proof == null ? List.of() : List.of(proof), validation.sourceVerification().qualifications(), null),
-                StructuredSourceDiagnostics.forValidation(retryPlan, validation));
+                proof == null ? List.of() : List.of(proof), reviewQualifications, null),
+                java.util.stream.Stream.concat(StructuredSourceDiagnostics.forValidation(retryPlan, finalValidation).stream(),
+                        recovery.recoveredRows().stream().map(row -> "SOURCE_ROW_RECOVERED_FOR_REVIEW:" + row)).toList());
     }
 }

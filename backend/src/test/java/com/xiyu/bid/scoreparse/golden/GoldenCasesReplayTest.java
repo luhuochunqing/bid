@@ -53,9 +53,12 @@ class GoldenCasesReplayTest {
         String text = GoldenCasesReplaySupport.readFixture("case-wrapped-item-maximum.md");
         var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("synthetic", "score", "pdf", "2.0"),
                 List.of(), List.of());
+        var scope = GoldenCasesReplaySupport.parseExpected(
+                GoldenCasesReplaySupport.readFixture("case-wrapped-item-maximum.expected.json")).path("scopeRegression");
+        assertTrue(text.contains(scope.path("partialTotalText").asText()));
         var total = OriginalScoringContext.resolve(artifact, text).total();
         assertEquals(null, total.value());
-        assertEquals("UNKNOWN", total.source());
+        assertEquals(scope.path("expectedSource").asText(), total.source());
     }
 
     @Test

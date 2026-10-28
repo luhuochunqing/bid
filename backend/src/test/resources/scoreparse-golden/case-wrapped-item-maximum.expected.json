@@ -1,14 +1,40 @@
 {
   "synthetic": true,
   "desensitization": "全文合成，保留细项满分换行及百分制评分表形态",
-  "focus": "换行的细项满分5分不得作为整表总分",
+  "focus": "换行的细项满分与评分部分总分不得作为整表总分",
   "threshold": 0.95,
   "expectTotal": 100,
-  "laneHints": ["table"],
+  "laneHints": [
+    "table"
+  ],
   "items": [
-    { "code": "1", "dim": "服务能力", "detail": "提供完整服务方案并承诺按期交付的得20分。", "weight": 20 },
-    { "code": "2", "dim": "技术方案", "detail": "技术架构完整且实施路径可落地的得30分。", "weight": 30 },
-    { "code": "3", "dim": "项目团队", "detail": "配置符合要求的项目团队得25分。", "weight": 25 },
-    { "code": "4", "dim": "运维保障", "detail": "提供完整运维保障方案得25分。", "weight": 25 }
-  ]
+    {
+      "code": "1",
+      "dim": "服务能力",
+      "detail": "提供完整服务方案并承诺按期交付的得20分。",
+      "weight": 20
+    },
+    {
+      "code": "2",
+      "dim": "技术方案",
+      "detail": "技术架构完整且实施路径可落地的得30分。",
+      "weight": 30
+    },
+    {
+      "code": "3",
+      "dim": "项目团队",
+      "detail": "配置符合要求的项目团队得25分。",
+      "weight": 25
+    },
+    {
+      "code": "4",
+      "dim": "运维保障",
+      "detail": "提供完整运维保障方案得25分。",
+      "weight": 25
+    }
+  ],
+  "scopeRegression": {
+    "partialTotalText": "本项目评分部分总分100分。",
+    "expectedSource": "UNKNOWN"
+  }
 }

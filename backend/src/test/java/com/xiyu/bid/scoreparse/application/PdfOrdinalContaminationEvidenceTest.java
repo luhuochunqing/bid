@@ -37,6 +37,49 @@ class PdfOrdinalContaminationEvidenceTest {
                 .contains("提供完整财务报告");
     }
 
+    @Test void exactNameWithCompleteStandaloneRuleCoversSourceRow() {
+        var source = artifact(false, 5);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact("5", "资产运营情况（5\n分）", 5)), source).getFirst();
+        assertThat(bound.sourceCellIds()).containsExactly("t-r1-c1", "t-r1-c2");
+        var validation = new com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator()
+                .validate(List.of(bound), source, BigDecimal.valueOf(5));
+        assertThat(validation.sourceVerification().problems()).noneMatch(p -> p.code().equals("SOURCE_SCORE_ROW_UNCOVERED"));
+        assertThat(TextPrimaryScoreFactMapper.map(bound, source, validation).sourceText()).contains("提供完整财务报告");
+    }
+
+    @Test void exactNameWithChildDoesNotClaimCompleteStandaloneRule() {
+        var source = artifact(false, 5);
+        var child = new MultimodalScoreFact("第四章 评审办法", "5.1", "5", "商务", BigDecimal.valueOf(5),
+                "评估财务状况", "OBJECTIVE", 13, "", List.of(), "资产运营情况（5\n分）", .9);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact("5", "资产运营情况（5\n分）", 5), child), source);
+        assertThat(bound.getFirst().sourceCellIds()).doesNotContain("t-r1-c2");
+    }
+
+    @Test void sameSourceRowWithTwoPeerFactsMustNotClaimStandaloneCoverage() {
+        var source = artifact(false, 5);
+        var peer = fact("6", "资产运营情况（5\n分）", 5);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact("5", "资产运营情况（5\n分）", 5), peer), source);
+        assertThat(bound.getFirst().sourceCellIds()).doesNotContain("t-r1-c2");
+        assertThat(bound.getLast().sourceCellIds()).doesNotContain("t-r1-c2");
+    }
+
+    @Test void knownCorrectTableIdDoesNotPreventUniqueOrdinalBinding() {
+        var original = fact("5", "资产运5营情况（5分）", 5);
+        var withTable = new MultimodalScoreFact(original.sectionTitle(), original.code(), original.parentCode(),
+                original.dimension(), original.weight(), original.ruleText(), original.scoreType(),
+                original.pageNumber(), "t", List.of(), original.quotedText(), original.confidence());
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(withTable), artifact(false, 5)).getFirst();
+        assertThat(bound.sourceCellIds()).containsExactly("t-r1-c1", "t-r1-c2");
+    }
+
+    @Test void wrongTableIdMustNotBindAnotherTable() {
+        var original = fact("5", "资产运5营情况（5分）", 5);
+        var withTable = new MultimodalScoreFact(original.sectionTitle(), original.code(), original.parentCode(),
+                original.dimension(), original.weight(), original.ruleText(), original.scoreType(),
+                original.pageNumber(), "other", List.of(), original.quotedText(), original.confidence());
+        assertThat(TextPrimaryEvidenceBinder.bind(List.of(withTable), artifact(false, 5)).getFirst().sourceCellIds()).isEmpty();
+    }
+
     @Test void wrongOrdinalInsideNameMustRemainUnbound() throws Exception {
         var bound = TextPrimaryEvidenceBinder.bind(List.of(fact("5", goldenQuote("modelQuotationWrongOrdinal"), 5)), artifact(false, 5)).getFirst();
         assertThat(bound.sourceCellIds()).isEmpty();

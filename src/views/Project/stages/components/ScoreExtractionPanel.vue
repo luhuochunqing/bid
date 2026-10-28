@@ -28,7 +28,7 @@
         <input v-model="selectedIds" type="checkbox" :value="item.itemId" :disabled="blocked || busy || !selectable(item)" :aria-label="'选择' + item.name" />
       {{ categoryLabel(item.category) }} · {{ item.name }}
       </label>
-      <p>{{ item.computable ? '可计算' : '不可计算' }} · {{ adopted.has(item.itemId) ? '已采纳' : '未采纳' }} · {{ item.validationStatus === 'AUTO_APPROVED' ? '原文已核验' : '原文未核验' }}</p>
+      <p>{{ item.computable && Number(item.rawMaximum) === 0 ? '扣分规则' : item.computable ? '可计算' : '不可计算' }} · {{ adopted.has(item.itemId) ? '已采纳' : '未采纳' }} · {{ item.validationStatus === 'AUTO_APPROVED' ? '原文已核验' : '原文未核验' }}</p>
       <p>{{ item.fieldSources?.rawMaximum === 'SOURCE_EVIDENCE' ? '原文依据最大分' : '候选最大分（模型提取，未核验）' }}：{{ scoreNumber(item.rawMaximum) }}{{ item.scoreUnit === 'PERCENTAGE' ? '%' : ' 分' }} · 有效分：{{ scoreNumber(item.effectiveMaximum) }} · 方案比例：{{ item.schemeRatio == null ? '未提供' : item.schemeRatio }}</p>
       <p v-if="item.schemeId !== schemeId">其他方案或方案归属待确认，本次不计分</p>
       <p v-if="!item.computable" class="diagnostic">该项尚未确认，暂不计入总分</p>

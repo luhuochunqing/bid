@@ -23,7 +23,7 @@ final class SourceScoreRowCoveragePolicy {
             table.cells().stream().filter(c -> Integer.valueOf(0).equals(c.row()) && c.column() != null)
                     .forEach(c -> headers.putIfAbsent(c.column(), compact(c.rawText())));
             Integer codeColumn = column(headers,"序号|编号|条款号|条目");
-            Integer nameColumn = column(headers,"评分因素|评分项目|评分项|评审因素|评审项目");
+            Integer nameColumn = column(headers,"评分因素|评分项目|评分项|评审因素|评审项目|评审内容|评分内容|评审要素|指标名称");
             Integer ruleColumn = column(headers,"评分标准|评审标准|评分细则|评审细则");
             Integer scoreColumn = column(headers,"分值|分数|得分");
             if (codeColumn == null || nameColumn == null || ruleColumn == null || scoreColumn == null) continue;

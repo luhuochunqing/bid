@@ -268,6 +268,21 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeUndefined()
   })
 
+  it('warns after a reviewer explicitly includes an alternative extraction', async () => {
+    const alternative = { factId: 'alt', code: '1', dimension: '备用项', weight: 5,
+      candidateEligible: true, scopeStatus: 'IN_SCHEME', schemeId: 's', sourceText: '完整规则',
+      evidences: [{ kind: 'ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED' }] }
+    const wrapper = mount(ScoreCandidateReviewCard, { props: { candidateFacts: [alternative],
+      candidateTotalWeight: 5, selectedSchemeId: 's', schemes: [{ schemeId: 's' }] }, global: { stubs: {
+        'el-alert': { props: ['title'], template: '<div>{{ title }}</div>' },
+        'el-button': { template: `<button v-bind="$attrs" @click="$emit('click')"><slot /></button>` },
+      } } })
+    expect(wrapper.text()).not.toContain('已选择备用提取结果')
+    await wrapper.get('[data-test="btn-include-fact"]').trigger('click')
+    expect(wrapper.text()).toContain('已选择备用提取结果')
+    expect(alternative.manualIncluded).toBe(true)
+  })
+
   it('allows manual adoption of 100 points despite a reported total of 5', () => {
     const wrapper = mount(ScoreCandidateReviewCard, { props: { candidateFacts, candidateTotalWeight: 100, declaredTotalWeight: 5 },
       global: { stubs: { 'el-alert': { props: ['title'], template: '<div>{{ title }}</div>' },

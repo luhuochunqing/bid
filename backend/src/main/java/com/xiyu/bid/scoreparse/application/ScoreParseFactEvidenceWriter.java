@@ -67,6 +67,13 @@ final class ScoreParseFactEvidenceWriter {
                         .explanation(ev.explanation())
                         .build());
             }
+            if (f.sourceMetadata().diagnostics().contains("ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED")) {
+                evidenceEntities.add(com.xiyu.bid.scoreparse.entity.ScoreParseEvidence.builder()
+                        .factId(f.factId()).parseTaskId(parseTaskId)
+                        .kind("ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED")
+                        .explanation("备用提取结果默认不计入；人工选入时请核对是否重复计分。")
+                        .build());
+            }
             var qualification = qualificationByFact.get(f.factId());
             if (qualification != null) {
                 evidenceEntities.add(com.xiyu.bid.scoreparse.entity.ScoreParseEvidence.builder()
