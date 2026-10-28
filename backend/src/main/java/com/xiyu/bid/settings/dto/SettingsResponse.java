@@ -20,6 +20,7 @@ public class SettingsResponse {
     private List<ProjectGroupScopeSetting> projectGroupScope;
     private IntegrationConfig integrationConfig;
     private AiModelConfig aiModelConfig;
+    private BaiduOcrConfig baiduOcrConfig;
     private List<FlowMappingSetting> flowMappings;
     private List<ApiSetting> apiList;
     private RuntimePermissionProfile runtimePermissionProfile;
@@ -153,6 +154,23 @@ public class SettingsResponse {
         private String description;
         private String status;
         private Boolean enabled;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BaiduOcrConfig {
+        private Boolean enabled;
+        private String encryptedApiKey;
+        private String encryptedSecretKey;
+        private String apiKeyMasked;
+        private String secretKeyMasked;
+        private Boolean apiKeyConfigured;
+        private Boolean secretKeyConfigured;
+        private String lastTestStatus;
+        private String lastTestMessage;
+        private Instant lastTestAt;
     }
 
     @Data

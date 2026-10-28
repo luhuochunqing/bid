@@ -1,3 +1,7 @@
+// Input: SettingsUpdateRequest, authentication and user profile
+// Output: persistent settings and role runtime permissions
+// Pos: settings/service - central system settings management
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.settings.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -7,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.settings.dto.BaiduOcrTestRequest;
+import com.xiyu.bid.settings.dto.BaiduOcrTestResponse;
 import com.xiyu.bid.settings.dto.SettingsResponse;
 import com.xiyu.bid.settings.dto.SettingsUpdateRequest;
 import com.xiyu.bid.settings.entity.SystemSetting;
@@ -26,6 +32,7 @@ public class SettingsService {
     private final ObjectReader settingsReader;
     private final ObjectWriter settingsWriter;
     private final AiConfigService aiConfigService;
+    private final BaiduOcrSettingsService baiduOcrSettingsService;
     private final EffectiveRoleResolver effectiveRoleResolver;
 
     public SettingsService(
@@ -36,12 +43,32 @@ public class SettingsService {
             AiConfigService aiConfigService,
             EffectiveRoleResolver pEffectiveRoleResolver
     ) {
+        this(pSystemSettingRepository, pUserRepository, objectMapper, pPayloadMapper, aiConfigService, null, pEffectiveRoleResolver);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SettingsService(
+            SystemSettingRepository pSystemSettingRepository,
+            UserRepository pUserRepository,
+            ObjectMapper objectMapper,
+            SettingsPayloadMapper pPayloadMapper,
+            AiConfigService aiConfigService,
+            BaiduOcrSettingsService baiduOcrSettingsService,
+            EffectiveRoleResolver pEffectiveRoleResolver
+    ) {
         this.systemSettingRepository = pSystemSettingRepository;
         this.userRepository = pUserRepository;
         this.payloadMapper = pPayloadMapper;
         this.settingsReader = objectMapper.readerFor(SettingsResponse.class);
         this.settingsWriter = objectMapper.writerFor(SettingsResponse.class);
         this.aiConfigService = aiConfigService;
+        if (baiduOcrSettingsService != null) {
+            this.baiduOcrSettingsService = baiduOcrSettingsService;
+        } else {
+            com.xiyu.bid.platform.util.PasswordEncryptionUtil fallbackUtil = new com.xiyu.bid.platform.util.PasswordEncryptionUtil();
+            fallbackUtil.initialize();
+            this.baiduOcrSettingsService = new BaiduOcrSettingsService(fallbackUtil, null, objectMapper);
+        }
         this.effectiveRoleResolver = pEffectiveRoleResolver;
     }
 
@@ -57,6 +84,7 @@ public class SettingsService {
         if (request.getProjectGroupScope() != null) current.setProjectGroupScope(payloadMapper.copyProjectScopesFromUpdate(request.getProjectGroupScope()));
         if (request.getIntegrationConfig() != null) current.setIntegrationConfig(payloadMapper.copyIntegrationConfigFromUpdate(request.getIntegrationConfig()));
         if (request.getAiModelConfig() != null) current.setAiModelConfig(aiConfigService.mergeAiModelConfig(current.getAiModelConfig(), request.getAiModelConfig()));
+        if (request.getBaiduOcrConfig() != null) current.setBaiduOcrConfig(baiduOcrSettingsService.mergeBaiduOcrConfig(current.getBaiduOcrConfig(), request.getBaiduOcrConfig()));
         if (request.getFlowMappings() != null) current.setFlowMappings(payloadMapper.copyFlowMappingsFromUpdate(request.getFlowMappings()));
         if (request.getApiList() != null) current.setApiList(payloadMapper.copyApiSettingsFromUpdate(request.getApiList()));
         saveSettings(current);
@@ -88,6 +116,7 @@ public class SettingsService {
     private SettingsResponse createAndPersistDefaultSettings() {
         SettingsResponse defaults = payloadMapper.createDefaultSettings();
         defaults.setAiModelConfig(aiConfigService.normalizeAiModelConfig(null));
+        defaults.setBaiduOcrConfig(baiduOcrSettingsService.normalizeBaiduOcrConfig(null));
         saveSettings(defaults);
         return defaults;
     }
@@ -108,9 +137,27 @@ public class SettingsService {
     }
     private SettingsResponse deserialize(String json) { try { return settingsReader.readValue(json); } catch (JsonProcessingException e) { throw new IllegalStateException("Failed to deserialize settings", e); } }
     private String serialize(SettingsResponse s) { try { return settingsWriter.writeValueAsString(s); } catch (JsonProcessingException e) { throw new IllegalStateException("Failed to serialize settings", e); } }
+    @Transactional
+    public BaiduOcrTestResponse testBaiduOcrConnection(BaiduOcrTestRequest request) {
+        SettingsResponse current = readSettings();
+        BaiduOcrTestResponse testResponse = baiduOcrSettingsService.testConnection(request, current.getBaiduOcrConfig());
+        if (current.getBaiduOcrConfig() != null) {
+            current.getBaiduOcrConfig().setLastTestStatus(testResponse.getStatus());
+            current.getBaiduOcrConfig().setLastTestMessage(testResponse.getMessage());
+            current.getBaiduOcrConfig().setLastTestAt(testResponse.getTestedAt());
+            saveSettings(current);
+        }
+        return testResponse;
+    }
+
+    public BaiduOcrSettingsService.EffectiveBaiduCredentials getEffectiveBaiduCredentials() {
+        return baiduOcrSettingsService.resolveEffectiveCredentials(readSettings().getBaiduOcrConfig());
+    }
+
     private SettingsResponse copyForResponse(SettingsResponse source) {
         SettingsResponse copied = payloadMapper.copy(source);
         copied.setAiModelConfig(aiConfigService.copyAiModelConfigForResponse(source.getAiModelConfig()));
+        copied.setBaiduOcrConfig(baiduOcrSettingsService.copyForResponse(source.getBaiduOcrConfig()));
         return copied;
     }
 }

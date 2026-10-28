@@ -14,10 +14,13 @@
       :loading="aiLoading"
       :saving="aiSaving"
       :testing-provider="testingProvider"
+      :testing-baidu-ocr="testingBaiduOcr"
       v-model:system-config="systemConfig"
       v-model:ai-model-config="aiModelConfig"
+      v-model:baidu-ocr-config="baiduOcrConfig"
       :save="saveAiSettings"
       :test-provider="testProvider"
+      :test-baidu-ocr="testBaiduOcr"
     />
   </div>
 </template>
@@ -31,11 +34,14 @@ const {
   loading: aiLoading,
   saving: aiSaving,
   testingProvider,
+  testingBaiduOcr,
   systemConfig,
   aiModelConfig,
+  baiduOcrConfig,
   load,
   save: saveAiSettings,
-  testProvider
+  testProvider,
+  testBaiduOcr
 } = useAiModelSettings()
 
 onMounted(() => { load() })

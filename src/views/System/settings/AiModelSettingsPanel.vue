@@ -115,20 +115,30 @@
         </div>
       </section>
     </div>
+
+    <BaiduOcrSettingsCard
+      v-model="baiduOcrConfig"
+      :testing="testingBaiduOcr"
+      @test="testBaiduOcr"
+    />
   </div>
 </template>
 
 <script setup>
 import { Check, Connection } from '@element-plus/icons-vue'
+import BaiduOcrSettingsCard from './BaiduOcrSettingsCard.vue'
 
 defineModel('systemConfig', { type: Object, required: true })
 defineModel('aiModelConfig', { type: Object, required: true })
+defineModel('baiduOcrConfig', { type: Object, required: true })
 defineProps({
   loading: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
   testingProvider: { type: String, default: '' },
+  testingBaiduOcr: { type: Boolean, default: false },
   save: { type: Function, required: true },
   testProvider: { type: Function, required: true },
+  testBaiduOcr: { type: Function, required: true },
 })
 </script>
 

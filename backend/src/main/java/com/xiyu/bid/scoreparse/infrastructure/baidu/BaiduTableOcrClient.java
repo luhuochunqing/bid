@@ -1,3 +1,7 @@
+// Input: PDF file bytes and page numbers
+// Output: SidecarTableExtraction and raw Baidu OCR table response
+// Pos: scoreparse/infrastructure/baidu - Baidu Table OCR client
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.scoreparse.infrastructure.baidu;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -5,6 +9,7 @@ import com.xiyu.bid.scoreparse.domain.SidecarTableExtraction;
 import com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableModels.BaiduTableResponse;
 import com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableModels.BaiduTokenResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -31,21 +36,41 @@ public class BaiduTableOcrClient {
     private final BaiduOcrProperties properties;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final BaiduOcrCredentialsProvider credentialsProvider;
 
     private final AtomicReference<CachedToken> tokenCache = new AtomicReference<>();
 
-    private record CachedToken(String token, Instant expireAt) {
-        boolean isValid() {
-            return token != null && Instant.now().isBefore(expireAt.minusSeconds(600)); // 提前10分钟刷新
+    private record CachedToken(String token, String apiKey, Instant expireAt) {
+        boolean isValid(String currentApiKey) {
+            return token != null
+                    && Objects.equals(apiKey, currentApiKey)
+                    && Instant.now().isBefore(expireAt.minusSeconds(600)); // 提前10分钟刷新
         }
     }
 
     public BaiduTableOcrClient(BaiduOcrProperties properties, ObjectMapper objectMapper) {
+        this(properties, objectMapper, null);
+    }
+
+    @Autowired
+    public BaiduTableOcrClient(
+            BaiduOcrProperties properties,
+            ObjectMapper objectMapper,
+            @Autowired(required = false) BaiduOcrCredentialsProvider credentialsProvider
+    ) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.credentialsProvider = credentialsProvider;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(properties.getConnectTimeoutSeconds()))
                 .build();
+    }
+
+    public boolean isEnabled() {
+        if (credentialsProvider != null) {
+            return credentialsProvider.isEnabled();
+        }
+        return properties != null && properties.isEnabled();
     }
 
     /**
@@ -95,15 +120,17 @@ public class BaiduTableOcrClient {
      * 获取有效的 AccessToken，优先读内存缓存，失效时自动刷新。
      */
     public synchronized String getAccessToken() throws IOException, InterruptedException {
-        CachedToken current = tokenCache.get();
-        if (current != null && current.isValid()) {
-            return current.token();
+        String apiKey = (credentialsProvider != null && credentialsProvider.getApiKey() != null && !credentialsProvider.getApiKey().isBlank())
+                ? credentialsProvider.getApiKey() : properties.getApiKey();
+        String secretKey = (credentialsProvider != null && credentialsProvider.getSecretKey() != null && !credentialsProvider.getSecretKey().isBlank())
+                ? credentialsProvider.getSecretKey() : properties.getSecretKey();
+        if (apiKey == null || apiKey.isBlank() || secretKey == null || secretKey.isBlank()) {
+            throw new IllegalStateException("Baidu OCR API Key or Secret Key is not configured.");
         }
 
-        String apiKey = properties.getApiKey();
-        String secretKey = properties.getSecretKey();
-        if (apiKey.isBlank() || secretKey.isBlank()) {
-            throw new IllegalStateException("Baidu OCR API Key or Secret Key is not configured.");
+        CachedToken current = tokenCache.get();
+        if (current != null && current.isValid(apiKey)) {
+            return current.token();
         }
 
         String tokenUrl = String.format("%s?grant_type=client_credentials&client_id=%s&client_secret=%s",
@@ -131,7 +158,7 @@ public class BaiduTableOcrClient {
 
         long expiresIn = tokenResponse.expiresIn() != null ? tokenResponse.expiresIn() : 2592000L;
         Instant expireAt = Instant.now().plusSeconds(expiresIn);
-        tokenCache.set(new CachedToken(tokenResponse.accessToken(), expireAt));
+        tokenCache.set(new CachedToken(tokenResponse.accessToken(), apiKey, expireAt));
         log.info("Baidu OCR access token refreshed successfully, expires in {}s", expiresIn);
         return tokenResponse.accessToken();
     }

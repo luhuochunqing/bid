@@ -37,6 +37,9 @@ class SettingsServiceTest {
     @Autowired
     private AiConfigService aiConfigService;
 
+    @Autowired
+    private PasswordEncryptionUtil passwordEncryptionUtil;
+
     private UserRepository userRepository;
     private ObjectMapper objectMapper;
     private SettingsPayloadMapper payloadMapper;
@@ -60,6 +63,7 @@ class SettingsServiceTest {
                 objectMapper,
                 payloadMapper,
                 aiConfigService,
+                new BaiduOcrSettingsService(passwordEncryptionUtil, null, objectMapper),
                 effectiveRoleResolver
         );
     }
@@ -202,5 +206,34 @@ class SettingsServiceTest {
         );
 
         assertEquals("AI API 地址必须匹配当前厂商的官方域名", exception.getMessage());
+    }
+
+    @Test
+    void updateSettings_WithBaiduOcrConfig_ShouldEncryptAndMask() {
+        SettingsResponse initial = settingsService.getSettings();
+        assertNotNull(initial.getBaiduOcrConfig());
+        assertFalse(initial.getBaiduOcrConfig().getEnabled());
+
+        settingsService.updateSettings(SettingsUpdateRequest.builder()
+                .baiduOcrConfig(SettingsUpdateRequest.BaiduOcrConfigUpdate.builder()
+                        .enabled(true)
+                        .apiKey("VJ8ZnT3WTnUR433O7QX6sWlY")
+                        .secretKey("QE4wXv7U774mb5IceRRY3XpI7FsY7bKC")
+                        .build())
+                .build());
+
+        SettingsResponse updated = settingsService.getSettings();
+        assertNotNull(updated.getBaiduOcrConfig());
+        assertTrue(updated.getBaiduOcrConfig().getEnabled());
+        assertTrue(updated.getBaiduOcrConfig().getApiKeyConfigured());
+        assertTrue(updated.getBaiduOcrConfig().getSecretKeyConfigured());
+        assertEquals("VJ8Z****sWlY", updated.getBaiduOcrConfig().getApiKeyMasked());
+        assertEquals("QE4w****7bKC", updated.getBaiduOcrConfig().getSecretKeyMasked());
+
+        // 验证有效凭据解密与生效
+        var effective = settingsService.getEffectiveBaiduCredentials();
+        assertTrue(effective.enabled());
+        assertEquals("VJ8ZnT3WTnUR433O7QX6sWlY", effective.apiKey());
+        assertEquals("QE4wXv7U774mb5IceRRY3XpI7FsY7bKC", effective.secretKey());
     }
 }
