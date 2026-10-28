@@ -69,7 +69,7 @@ final class TextPrimaryEvidenceBinder {
             }
             return textEvidence(fact, tenderText, normalizedText).map(value -> withOriginalMetadata(fact, value)).orElse(fact);
         }).toList();
-        return SourceRuleEvidenceExpansion.expand(boundFacts, artifact);
+        return SourceRuleEvidenceExpansion.expand(SourceItemNameRestoration.restore(boundFacts, artifact), artifact);
     }
 
     static boolean tableInFactScope(MultimodalScoreFact fact,
