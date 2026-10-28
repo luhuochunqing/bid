@@ -59,4 +59,13 @@ backlinks:
 - **动态凭证服务**：`BaiduOcrSettingsService.java` & `DatabaseBaiduOcrCredentialsProvider.java`
 - **后台设置控制器**：`SettingsController.java` (`POST /api/settings/baidu-ocr/test`)
 - **前端配置卡片**：`src/views/System/settings/AiModelSettingsPanel.vue` & `useAiModelSettings.js`
+- **细则对账回补**：`CellSubRuleRecovery.java` & `CellSubRuleRecoveryTest.java`
 - **测试验证**：`BaiduTableOcrTest.java`、`BaiduTableArtifactEnricherTest.java`、`BaiduOcrSettingsServiceTest.java`、`useAiModelSettings.spec.js`
+
+## 5. 单元格内细则确定性对账回补机制 (CellSubRuleRecovery)
+
+针对大模型在处理单单元格包含多细则时存在的非确定性遗漏（如父项10分，单元格内有“1.ICP备案...得5分”和“2.三年信用良好...得5分”，大模型偶发性仅抽出细则1，导致子项合计仅5分产生5分缺口）：
+1. **确定性对账发现缺口**：当父项声明为 `SUM` 且直接子项合计小于父项权重（产生 `deficit > 0`）；
+2. **物理单元格证据定位与文本细则分解**：通过父项/子项引用的物理单元格，解析单元格内的编号格式（如 `1.`、`2.`、`（1）`）及对应的分值（`得X分`）；
+3. **精准增量回补**：过滤已抽取的细则，当未抽取的单条或多条细则分值之和恰好等于缺口分值时，在 Java 领域层确定性构造补齐 `MultimodalScoreFact`，并织入 `MultimodalExtractionReviewPolicy` 归一化流，实现端到端 100 分确定性闭合。
+
