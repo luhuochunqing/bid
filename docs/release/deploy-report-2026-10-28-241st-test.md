@@ -13,13 +13,13 @@
 
 | 项目 | 值 |
 |---|---|
-| Release ID | `8c219056d` |
+| Release ID | `8c219056d`（本次未沿用历史 `-api8080` 后缀，服务器 release 目录同名） |
 | 部署分支 | `agent/trae-init`（锚点分支，纯 ff-only 同步，未在其上改代码） |
 | HEAD Commit | `8c219056d` |
 | 旧版本 | `7fec3671d-api8080`（第 240 次，2026-10-28 09:27） |
 | 构建包 | `.release/xiyu-bid-release-8c219056d.tar.gz`（155M，MD5 `c3e20dcaab6203438cf523010a78da1c`） |
 | 构建时间 | 2026-10-28T05:47:23Z（13:47:23 UTC+8） |
-| 增量 | 7 个 commit，46 个文件（+1215 / -100），代码变更 5 个 commit |
+| 增量 | 7 个 commit，46 个文件（+1215 / -100），其中代码变更 4 个 commit（其余 3 个为文档提交） |
 | 激活时间 | 2026-10-28 13:48:28 (UTC+8) |
 | DB 备份 | `/opt/xiyu-bid/db-backups/winbid-8c219056d-20261028134819.sql.gz`（15M） |
 
@@ -107,7 +107,8 @@
 
 ### 迁移应用验证
 
-- `flyway_schema_history` 最新成功记录：V1225 `score estimate freshness`，success=1
+- `flyway_schema_history` 最新成功记录：V1225 `score estimate freshness`，success=1，installed_on = 2026-10-26 20:01:47
+- `failed_count` = 0（`success=1` 过滤查询均无失败记录）
 - 本次无新增迁移，DB 结构未变化
 
 ## 回滚信息
@@ -140,7 +141,7 @@
 2. **完整登录 Smoke 未执行**：admin 密码未知，采用 400/401 替代验证接口路由与守卫（与历史多次一致）。
 3. **前端产物有变更**：本次含 `src/views/Project` 与 `projectDetail` 组合式改动，入口 `index-DhPvgRNM.js` 与上一版本不同；已补齐旧 assets，旧标签页仍建议刷新。
 4. **服务器 `/tmp/migration-mysql/` 目录可能过时**：validate 已通过，不影响本次部署。
-5. **`agent/trae-init` 锚点分支上执行了部署操作**：仅涉及 ff-only 同步与打包，未在锚点分支产生代码提交，符合规范。
+5. **在 `agent/trae-init` 锚点分支上执行了部署操作（自评偏差，非合规基线）**：本次仅在锚点分支做 ff-only 同步与打包，未产生代码提交；但第 240 次部署报告已把「新建任务分支再操作」列为经验项，本次属规范偏差，后续部署应回到任务分支执行。
 
 ## 部署确认清单
 
