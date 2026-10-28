@@ -238,8 +238,7 @@ public final class OriginalScoreEvidencePolicy {
     /** 模型常把「商务/技术/报价」写进 dimension，项名和分值在原文标题里。 */
     static boolean sectionCategory(String dimension) {
         if (dimension == null || dimension.isBlank()) return false;
-        return dimension.replaceAll("\\s+", "")
-                .matches("(?:商务|技术|报价|价格|其他|财务|运营|业绩|资质|服务|实施|方案)(?:部分|评分标准|评分|标准|因素|状况|经验|要求|方案)?");
+        return dimension.replaceAll("\\s+", "").matches("(?:商务|技术|报价|价格|其他|财务|运营|业绩|资质|服务|实施|方案)(?:部分|评分标准|评分|标准|因素|状况|经验|要求|方案)?");
     }
 
     static boolean matchesDimensionAlias(String source, String dimension) {
@@ -248,7 +247,7 @@ public final class OriginalScoreEvidencePolicy {
         String normSource = EvidenceText.normalize(source).text();
         return (dim.contains("运营") && normSource.contains("电子商城运营时间"))
                 || (dim.contains("财务") && normSource.contains("授信额度"))
-                || ((dim.contains("实施") || dim.contains("方案")) && normSource.contains("服务方案"));
+                || ((dim.contains("实施") || dim.contains("方案")) && normSource.contains("服务方案")) || (dim.contains("历史交易数据") && normSource.contains("历史交易数据"));
     }
 
     public static String publishedDimension(String dimension, String sourceText, BigDecimal weight) {

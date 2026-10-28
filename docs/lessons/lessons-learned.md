@@ -7665,4 +7665,16 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   3. **合规 sourceSection 自动推断**：在 `BaiduTableArtifactAdapter` 中为识别出的表格赋予合规的 `sourceSection`（如“第三章 评审办法/详细评审标准”），确保通过 `OriginalScoringSchemePolicy.owns` 的方案从属审查；
   4. **全套自动化测试验证**：编写 `BaiduTableArtifactEnricherTest`，基于真实 `project1130.pdf` 证明第 14 页表格被精确补齐，且包含价格优惠三项完整细则。
 
+## 462. 跨页单元格文本截断与整行总分列对正文细则得分遮蔽导致方案外误判（2026-10-28）
+
+- **现场证据**：项目 1392 在接入百度 OCR 补齐漏页表格后，评分标准从 16 项（85分）成功升至 23 项（95分），但仍差 5 分达到 100 分。最后 5 分（细则 1：历史交易数据，5分）被系统判定为 `ITEM_SOURCE_SCOPE_MISMATCH` 并归入“当前方案外或来源未验证事实”（提示“无法确认属于当前评分方案”）。
+- **致错机制**：
+  1. **跨页物理截断引发引文与词素失配**：该评分细则横跨两页，前半部分文字落在第 13 页末尾，后半部分跨至第 14 页。大模型抽取的引用原文跨越了换页断点，而表格提取引擎只能按单页表格单元格切割，导致源单元格文本与大模型给出的完整长引用无法进行全量 `contains` 匹配；同时大模型泛化抽取的项名（“历史交易数据导入及分析”）多于源文本词（“历史交易数据”），导致严格词素匹配失败；
+  2. **整行总分列对正文细则得分的“一票否决”遮蔽**：在 `OriginalScoreWeightEvidencePolicy` 中，该行右侧权重列明确标注了上级总分“10分”，而单元格正文内写明了细则得分子项“得5分”。在分值校验中，由于该行存在“10分”，权威分值判定逻辑将总分 10 视作唯一的有效分值，且对非父节点（叶子节点）排除了正文声明得分（`awarded`），误将 5 分断言为 `ITEM_WEIGHT_SOURCE_MISMATCH, expected=10, actual=5`，进而将合法细则移入方案外。
+- **根治方案与长效防线**：
+  1. **长引文弹性前缀锚定与词素宽容度**：在 `OriginalScoreWeightEvidencePolicy.containsQuote` 中对 $\ge 20$ 字符的长引文引入前 25 字符前缀匹配，容忍换页截断；在 `containsDimension` 中对 $\ge 4$ 字项名引入前 6 字符主要词素匹配，容忍大模型概括性后缀；
+  2. **正文细则得分与父级整行总分解耦**：修改权威分值仲裁逻辑，当项为叶子项（`!claim.parent()`）且单元格内提取出正文细则得分（`awarded`）时，允许采纳正文细则得分（如“得5分”），不再被整行父级总分（如“10分”）误杀；
+  3. **单测回归保护**：在 `OriginalScoreEvidencePolicyTest` 中新增 `crossPageTruncatedCellAndSummarizedDimensionIsVerified` 专项测试，确保未来任何评分策略重构均不破坏跨页断行与细则分值保护机制。
+
+
 

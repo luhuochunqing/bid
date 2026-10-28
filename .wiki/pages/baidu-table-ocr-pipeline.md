@@ -48,6 +48,13 @@ backlinks:
 - **适配转换器**：`BaiduTableArtifactAdapter.java`
 - **网络客户端**：`BaiduTableOcrClient.java`（带内存 Token 缓存及提前 10 分钟自动刷新）
 - **文档增强器**：`BaiduTableArtifactEnricher.java`（基于关键词与续表探测按需增强 DocumentArtifact）
+
+## 4. 跨页断行与细则分值解耦机制
+
+在复杂版式中，单元格文本跨越页面底端物理断句，且表格右侧往往包含父级大项合并总分（如“服务响应 10分”），而单元格内部包含得分子项（如“得5分”）。
+1. **长引文前缀弹性匹配**：在 `OriginalScoreWeightEvidencePolicy.containsQuote` 中引入前缀容错，引文 $\ge 20$ 字时允许前 25 字符前缀匹配，容忍换页截断；
+2. **正文细则得分与父级整行总分解耦**：对叶子节点细则项，当单元格正文中提取出具体分值（`awarded`）时，权威分值仲裁逻辑允许采纳正文分值，避免被整行合并总分列误判为分值失配。
+
 - **凭据提供 SPI**：`BaiduOcrCredentialsProvider.java`
 - **动态凭证服务**：`BaiduOcrSettingsService.java` & `DatabaseBaiduOcrCredentialsProvider.java`
 - **后台设置控制器**：`SettingsController.java` (`POST /api/settings/baidu-ocr/test`)

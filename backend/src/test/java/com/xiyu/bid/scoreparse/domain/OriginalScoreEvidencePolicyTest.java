@@ -549,6 +549,27 @@ class OriginalScoreEvidencePolicyTest {
         assertThat(problems).isEmpty();
     }
 
+    @Test void crossPageTruncatedCellAndSummarizedDimensionIsVerified() {
+        String p14CellText = "1.能够支持采购人历史交易数据导入，能够通过系统建立采购模型，按照品牌或品类等多维度进行价格、成本分析的，得5分。（投标人需提供满足招标要求的证明材料，以及系统操作及结果";
+        var table = new DocumentArtifact.CanonicalTable("t-p14", 14, "第四章 评审办法", 1, 4,
+                List.of(), List.of(
+                cell("c-id", 0, 0, "9"),
+                cell("c-name", 0, 1, "服务响应(10分)"),
+                cell("c-rule", 0, 2, p14CellText),
+                cell("c-score", 0, 3, "10")), true);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.pdf", "sha-p14", "PDF", "2.2"),
+                List.of(table), List.of());
+        String fullQuote = "1.能够支持采购人历史交易数据导入，能够通过系统建立采购模型，按照品牌或品类等多维度进行价格、成本分析的，得5分。（投标人需提供满足招标要求的证明材料，以及系统操作及结果显示视频。）";
+        var claim = new ScoreEvidenceClaim("fact-p14", "fact-p14", "t-p14", "历史交易数据导入及分析",
+                List.of("c-rule"), List.of("c-rule"), new BigDecimal("5"), false, true,
+                fullQuote, "", "", "", ChildAggregation.UNKNOWN);
+        var problems = new java.util.ArrayList<OriginalScoreEvidencePolicy.Problem>();
+
+        OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems);
+
+        assertThat(problems).isEmpty();
+    }
+
     private static DocumentArtifact artifact(String section,
                                              List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells) {
         return new DocumentArtifact(new DocumentArtifact.ArtifactMeta("bid.pdf", "sha", "pdf", "2.0"),
