@@ -1055,6 +1055,73 @@ def _strip_markdown_emphasis(value: str) -> str:
     return value.replace("**", "").replace("__", "").strip()
 
 
+_PDF_RULE_HEADER_RE = re.compile(
+    r"评分标准|评分细则|评审标准|评审细则|评分办法|评审办法|考核标准|评分内容|考核细则|评审要求|评分要求|评分规则|评审内容"
+)
+_PDF_SCORE_HEADER_RE = re.compile(r"分值|满分|权重|得分|最高分")
+_PDF_HEADER_KEYWORD_RE = re.compile(
+    r"^(?:序号|编号|条款号?|评审项目|评分项目|评分项|评审因素|评分因素|指标名称|主要内容|评审标准|评分标准|评审细则|评分细则|评分办法|评审办法|分值|满分|权重|得分)$"
+)
+
+
+def _detect_pdf_table_rule_col(table: dict) -> int:
+    """Find the column index for scoring rules in a table based on header text."""
+    row_map = {}
+    for cell in table.get("cells", []):
+        row_map.setdefault(cell.get("row", 0), []).append(cell)
+    for r in range(min(2, table.get("rows", 0))):
+        cells = sorted(row_map.get(r, []), key=lambda c: c.get("column", 0))
+        # Header rows contain short labels without long rule descriptions or score annotations
+        is_header = bool(cells) and all(
+            len((c.get("rawText") or "").strip()) <= 30
+            and not re.search(r"[（(]\s*\d+(?:\.\d+)?\s*分\s*[）)]", (c.get("rawText") or "").strip())
+            for c in cells
+        ) and any(
+            _PDF_HEADER_KEYWORD_RE.match((c.get("rawText") or "").strip().replace(" ", ""))
+            for c in cells
+        )
+        if not is_header:
+            continue
+        for c in cells:
+            text = (c.get("rawText") or "").strip()
+            if _PDF_RULE_HEADER_RE.search(text) and not _PDF_SCORE_HEADER_RE.search(text):
+                return c.get("column", 0)
+    return -1
+
+
+
+def _is_pdf_row_continuation(
+    prev_row: list[dict], curr_row: list[dict], num_cols: int, rule_col: int = -1
+) -> bool:
+    """Check if curr_row is a physical continuation of prev_row in the rule column."""
+    if len(curr_row) != num_cols or len(prev_row) != num_cols:
+        return False
+    curr_by_col = {c.get("column", idx): (c.get("rawText") or "").strip() for idx, c in enumerate(curr_row)}
+    prev_by_col = {c.get("column", idx): (c.get("rawText") or "").strip() for idx, c in enumerate(prev_row)}
+
+    if rule_col < 0 or rule_col >= num_cols:
+        non_empty = [col for col, text in curr_by_col.items() if text]
+        if len(non_empty) == 1 and non_empty[0] > 0:
+            rule_col = non_empty[0]
+        else:
+            rule_col = num_cols - 1
+
+    # 1. Preceding columns (ID, Category, Name) must be empty (no new item).
+    if any(curr_by_col.get(c, "") for c in range(rule_col)):
+        return False
+    # 2. Rule column in curr must have continuation text.
+    if not curr_by_col.get(rule_col, ""):
+        return False
+    # 3. Rule column in prev must have had text.
+    if not prev_by_col.get(rule_col, ""):
+        return False
+    # 4. Trailing columns (e.g. separate score/note column) in curr must be empty.
+    if any(curr_by_col.get(c, "") for c in range(rule_col + 1, num_cols)):
+        return False
+
+    return True
+
+
 def _link_pdf_logical_rows(tables: list[dict]) -> None:
     """Attach business row identities without replacing physical source coordinates."""
     for table in tables:
@@ -1063,19 +1130,16 @@ def _link_pdf_logical_rows(tables: list[dict]) -> None:
         num_rows = table.get("rows", 0)
         num_cols = table.get("columns", 0)
         if num_rows > 1 and num_cols >= 2:
+            table_rule_col = _detect_pdf_table_rule_col(table)
             row_map = {}
             for cell in table["cells"]:
                 row_map.setdefault(cell["row"], []).append(cell)
             for r in range(1, num_rows):
                 curr_row = sorted(row_map.get(r, []), key=lambda c: c["column"])
                 prev_row = sorted(row_map.get(r - 1, []), key=lambda c: c["column"])
-                if len(curr_row) == num_cols and len(prev_row) == num_cols:
-                    prefix_empty = all(not (c.get("rawText") or "").strip() for c in curr_row[:-1])
-                    rule_has_text = bool((curr_row[-1].get("rawText") or "").strip())
-                    prev_rule_has_text = bool((prev_row[-1].get("rawText") or "").strip())
-                    if prefix_empty and rule_has_text and prev_rule_has_text:
-                        for c in curr_row:
-                            c["logicalRowId"] = prev_row[0]["logicalRowId"]
+                if _is_pdf_row_continuation(prev_row, curr_row, num_cols, table_rule_col):
+                    for c in curr_row:
+                        c["logicalRowId"] = prev_row[0]["logicalRowId"]
     for previous, current in zip(tables, tables[1:]):
         if (not previous.get("sourceSection")
                 or previous.get("sourceSection") != current.get("sourceSection")
@@ -1088,13 +1152,14 @@ def _link_pdf_logical_rows(tables: list[dict]) -> None:
         first = [cell for cell in current["cells"] if cell["row"] == 0]
         if len(last) != columns or len(first) != columns:
             continue
-        # Only the rule column may continue; any new identifier, category or item ends the row.
-        if any(cell.get("rawText", "").strip() for cell in first[:-1]):
+        rule_col = _detect_pdf_table_rule_col(current)
+        if rule_col < 0:
+            rule_col = _detect_pdf_table_rule_col(previous)
+        if not _is_pdf_row_continuation(last, first, columns, rule_col):
             continue
-        if not first[-1].get("rawText", "").strip() or not last[-1].get("rawText", "").strip():
-            continue
-        identity = "".join(cell.get("rawText", "") for cell in last[:-1])
-        if not re.search(r"[（(]\s*\d+(?:\.\d+)?\s*分\s*[）)]|评分\s*标准", identity):
+        identity = "".join(cell.get("rawText", "") for cell in last)
+        if not re.search(r"[（(]\s*\d+(?:\.\d+)?\s*分\s*[）)]|评分\s*标准|\d+(?:\.\d+)?\s*分", identity):
             continue
         for cell in first:
             cell["logicalRowId"] = last[0]["logicalRowId"]
+

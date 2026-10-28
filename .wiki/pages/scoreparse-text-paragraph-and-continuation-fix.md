@@ -4,14 +4,16 @@ space: engineering
 category: architecture
 tags: [scoreparse, 评分解析, 文本穿透, 表格折行, 证据还原]
 sources:
+  - document-converter-sidecar/converter.py
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/LogicalRuleSourceUnit.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalRuleRestoration.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/SourceSpanResolver.java
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-10-26
-updated: 2026-10-26
-health_checked: 2026-10-26
+updated: 2026-10-29
+health_checked: 2026-10-29
+
 archive: false
 ---
 
@@ -49,9 +51,16 @@ archive: false
 - 扩充表头 `ID`、`NAME`、`SCORE` 角色正则，支持常见招投标表头（条款号、条目、评审内容、评分内容、评审要素、指标名称、权重、满分等）以及空白/换行清洗。
 - 重构 `isContinuationRow`：支持结构列为空且包含正文的中间列续行判定，并在 `logicalRow` 中双向合并续行，形成完整逻辑行单元。
 
+### 4. Sidecar 跨页与表内续行动态规则列识别 (`converter.py`)
+- **根除硬编码末列假设**：原 `_link_pdf_logical_rows` 硬编码要求末列非空且前缀全空，但真实招标文件表格常采用 `[序号, 评分项名称, 评分标准, 分值]` 排版，分值在最后一列，规则在倒数第二列。
+- **表头语义感知**：新增 `_detect_pdf_table_rule_col`，扫描表头行识别规则列索引；
+- **自适应续行判定引擎**：新增 `_is_pdf_row_continuation`，确保规则列前置列（序号/名称）与后置列（分值）均为空，且当前行与上一行规则列均有文字时稳定聚合；若表头缺失，自动根据单列文本自适应推断续行，彻底打通跨页截断规则（如项目 1392 跨页 9.1 细则）的 `logicalRowId` 缝合。
+
 ## 验证基线
 
+- `document-converter-sidecar/tests/test_pdf_logical_rows.py`
 - `backend/src/test/java/com/xiyu/bid/scoreparse/domain/LogicalRuleSourceUnitTest.java`
 - `backend/src/test/java/com/xiyu/bid/scoreparse/domain/OriginalRuleRestorationTest.java`
 - `backend/src/test/java/com/xiyu/bid/scoreparse/golden/GoldenCasesReplayTest.java`
 - `backend/src/test/java/com/xiyu/bid/scoreparse/application/FullRuleSourceReplayTest.java`
+
