@@ -277,5 +277,8 @@ class CrossFormatDocumentSourceReplayTest {
     void crossFormatBundleSafelyIntegratesEnrichedPdfTables() {
         // 验证组合多个源文档时，BaiduTableArtifactEnricher产出的CanonicalTable能够无缝参与回放与归属推导
         assertThat(pdf()).isNotNull();
+        var table = new DocumentArtifact.CanonicalTable("baidu_t14", 14, "第四章 评审办法", 3, 4, List.of(), List.of(), true, "PDF");
+        assertThat(table.sourceSection()).contains("评审办法");
+        assertThat(table.isScoreTable()).isTrue();
     }
 }
