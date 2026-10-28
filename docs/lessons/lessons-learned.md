@@ -7688,6 +7688,23 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   2. **自适应续行判定引擎**：构建 `_is_pdf_row_continuation`，确保规则列前置列（序号/名称）与后置列（分值）均为空，且当前行与上一行规则列均有文字时稳定聚合；若表头缺失，自动根据单列文本自适应推断续行；
   3. **自动化测试与回归保障**：在 `test_pdf_logical_rows.py` 中新增 `test_rule_column_before_score_column_cross_page_linked` 和 `test_rule_column_before_score_column_intra_table_linked`，全部 8 项逻辑行单测 100% 绿色通过。
 
+## 465. 百度 OCR 评分核心区间第一权威主干（Primary Authority）接管与拓扑网格拓扑契约闭合（2026-10-29）
+
+- **现场证据**：开启百度 OCR 后，测试系统部署后依然是 95 分。缺失的 5 分项（9.1 项）在界面下方沦为“当前方案外或来源未验证事实”，显示“技术方案外：无法确认属于当前评分方案”（带“+ 纳入本方案”绿色按钮）。
+- **致错机制**：
+  1. **“补漏”模式导致坏表未被替换**：`BaiduTableArtifactEnricher.determinePagesToScan` 原逻辑要求 `!existingPages.contains(p)`，只要 Sidecar 在某页提取了哪怕一个破碎的表格，百度 OCR 就会直接跳过该页！因此下游依然在使用 Sidecar 破损的逻辑行，导致 9.1 项无法跨页绑定；
+  2. **网格拓扑不合法与契约断链**：旧适配器只把 OCR 的起点单元格放入 cells，缺失合并占位格（`isMergedContinue=true`），`logicalRowId` 为空且缺少 `sourceXmlPath`，直接导致 `CanonicalTableGridFactory` 判为结构不完整，`LogicalRowEvidenceBinder` 根本无法使用百度 OCR 的表格进行逻辑行绑定；
+  3. **OCR 视觉模型坐标重叠引发拓扑冲突**：百度视觉模型在复杂表头时偶尔出现坐标轻微重叠，合并声明覆盖了已独立存在的真实单元格，触发 `CanonicalTableGridFactory` 拒绝；
+  4. **跨页首行续表行未缝合**：第 15 页顶部首行“显示视频。）...”作为第 14 页末尾 9.1 项的断行续接，在跨页表格间未建立相同的 `logicalRowId`；
+  5. **范围判定策略误杀未决项**：`MultimodalExtractionReviewPolicy` 中对正分且属于正规评分维度（技术/商务/报价）的事实，若大模型未给出标准序号编码，因无 tableId 被武断判定为 `OUT_OF_SCHEME`。
+- **根治方案与长效防线**：
+  1. **确立 Primary Authority 主管接管机制**：在 `BaiduTableArtifactEnricher` 中对评分核心区间 `[minScorePage, maxScorePage + 1]` 内的所有关键页，百度 OCR 均为主干提取源，在 `mergeArtifact` 时全面覆盖替换原 Sidecar 破碎表格；
+  2. **构建 BaiduTableGridBuilder 自适应拓扑收缩引擎**：对 OCR 识别出的单元格自适应收缩合并跨度，绝不吞并相邻已声明的真实单元格，补全占位格并填满 2D 网格，100% 满足 `CanonicalTableGridFactory` 校验；
+  3. **构建 BaiduCrossPageTableLinker 跨页首行关联**：当下一页首行前置列为空且规则列有文字时，自动将其 `logicalRowId` 缝合到上一页最后一行的 `logicalRowId`；
+  4. **方案范围误判免疫保护**：在 `MultimodalExtractionReviewPolicy` 中增加正分与正规评分维度（技术/商务/报价）保护，防止跨页未决项沦为方案外；
+  5. **自动化测试覆盖**：编写 `BaiduTableArtifactAdapterTest` 与 `BaiduTableArtifactEnricherTest`，验证 2D 拓扑合法性、跨页续行衔接、真实 PDF 抽取替换与 15 个 Golden/Evidence 回归测试全绿。
+
+
 
 
 

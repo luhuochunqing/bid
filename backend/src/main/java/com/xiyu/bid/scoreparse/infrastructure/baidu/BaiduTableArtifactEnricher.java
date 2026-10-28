@@ -1,16 +1,12 @@
-// Input: DocumentArtifact baseline, PDF bytes and file name
-// Output: Baidu Table OCR enriched DocumentArtifact
-// Pos: scoreparse/infrastructure/baidu - PDF Table OCR enricher
-// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.scoreparse.infrastructure.baidu;
 
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.ArtifactMeta;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
@@ -19,29 +15,32 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
- * 百度智能云表格识别（Table OCR）文档增强器。
- * <p>当系统配置启用了百度 OCR 时，针对 PDF 招投标文件智能探测并调用高精度表格识别，
- * 解决底层 Sidecar 在跨页续表、大合并单元格处丢失表格或坐标断裂的缺陷。
- * <p>具备平滑降级（Graceful Degradation）容灾能力：百度 OCR 未启用或调用异常时直接回退 baseline。
+ * 百度表格 OCR 增强器与主干抽取服务。
+ * <p>在启用百度表格 OCR 时，作为评分页面的第一权威主干（Primary Authority）：
+ * 扫描整个评分区间页面，提取高保真 2D 网格结构表格，并替换原 Sidecar 提取的粗粒度或断裂表格。
  */
-@Slf4j
 @Component
 public class BaiduTableArtifactEnricher {
 
+    private static final Logger log = LoggerFactory.getLogger(BaiduTableArtifactEnricher.class);
+
     private static final List<String> SCORING_KEYWORDS = List.of(
-            "评分", "评标", "评审标准", "评审因素", "分值", "详细评审", "综合评分", "得分", "价格优惠", "商务标", "技术标"
+            "评分标准", "评分细则", "详细评审标准", "评审因素及分值", "综合评分表",
+            "评标办法", "评审办法", "分值构成", "技术评分", "商务评分", "综合评标", "评标得分", "评审因素"
     );
 
-    private static final java.util.regex.Pattern SECTION_PATTERN =
-            java.util.regex.Pattern.compile("(?m)^\\s*(第[一二三四五六七八九十0-9]+章\\s*[^\\r\\n]+)");
+    private static final Pattern SECTION_PATTERN = Pattern.compile(
+            "(第[一二三四五六七八九十0-9]+章\\s*[^\\r\\n]+)"
+    );
 
-    private static final int MAX_PAGES_TO_SCAN = 15;
+    private static final int MAX_PAGES_TO_SCAN = 10;
 
     private final BaiduTableOcrClient baiduTableOcrClient;
 
-    public BaiduTableArtifactEnricher(@Autowired(required = false) BaiduTableOcrClient baiduTableOcrClient) {
+    public BaiduTableArtifactEnricher(BaiduTableOcrClient baiduTableOcrClient) {
         this.baiduTableOcrClient = baiduTableOcrClient;
     }
 
@@ -50,7 +49,7 @@ public class BaiduTableArtifactEnricher {
     }
 
     /**
-     * 尝试用百度表格 OCR 增强现有的 DocumentArtifact。
+     * 尝试用百度表格 OCR 增强或主管替换现有的 DocumentArtifact。
      *
      * @param baseline 原 Sidecar 提取的 DocumentArtifact（可为 null）
      * @param pdfBytes PDF 原始二进制数据
@@ -74,11 +73,11 @@ public class BaiduTableArtifactEnricher {
 
             List<Integer> pagesToScan = determinePagesToScan(baseline, candidatePages);
             if (pagesToScan.isEmpty()) {
-                log.info("BaiduTableArtifactEnricher: All scoring pages already covered in baseline for {}", fileName);
+                log.info("BaiduTableArtifactEnricher: No target scoring pages to scan for {}", fileName);
                 return baseline;
             }
 
-            log.info("BaiduTableArtifactEnricher: Scanning target missing pages {} (candidates={}) for {}",
+            log.info("BaiduTableArtifactEnricher: Scanning target scoring pages {} (candidates={}) for {}",
                     pagesToScan, candidatePages, fileName);
             List<CanonicalTable> ocrTables = new ArrayList<>();
             List<String> warnings = new ArrayList<>();
@@ -107,7 +106,8 @@ public class BaiduTableArtifactEnricher {
                 return baseline;
             }
 
-            return mergeArtifact(baseline, ocrTables, warnings, fileName);
+            List<CanonicalTable> linkedOcrTables = BaiduCrossPageTableLinker.linkCrossPageLogicalRows(ocrTables);
+            return mergeArtifact(baseline, linkedOcrTables, warnings, fileName);
         } catch (IOException | RuntimeException e) {
             log.error("BaiduTableArtifactEnricher: Unexpected error while enriching artifact for {}: {}", fileName, e.getMessage(), e);
             return baseline;
@@ -135,13 +135,9 @@ public class BaiduTableArtifactEnricher {
                 String text = stripper.getText(doc);
                 if (containsScoringKeyword(text)) {
                     targetPages.add(p);
-                    // 续表守护：若当前页包含评分关键词，其下一页极大可能是跨页续表，一并加入
                     if (p + 1 <= totalPages) {
                         targetPages.add(p + 1);
                     }
-                }
-                if (targetPages.size() >= MAX_PAGES_TO_SCAN) {
-                    break;
                 }
             }
         }
@@ -160,35 +156,49 @@ public class BaiduTableArtifactEnricher {
         return false;
     }
 
+    /**
+     * 确定需要百度 OCR 扫描的页面列表。
+     * <p>在 Primary Authority 模式下，覆盖整个评分区间的所有关键页，进行高精度主干抽取并替换原表。
+     */
     List<Integer> determinePagesToScan(DocumentArtifact baseline, List<Integer> candidatePages) {
-        if (baseline == null || baseline.tables() == null || baseline.tables().isEmpty()) {
-            return candidatePages;
+        if (candidatePages == null || candidatePages.isEmpty()) {
+            return List.of();
         }
-        Set<Integer> existingPages = new LinkedHashSet<>();
+        if (baseline == null || baseline.tables() == null || baseline.tables().isEmpty()) {
+            return candidatePages.stream().limit(MAX_PAGES_TO_SCAN).toList();
+        }
+
         List<Integer> scoreTablePages = new ArrayList<>();
         for (CanonicalTable t : baseline.tables()) {
-            if (t != null && t.sourcePage() != null) {
-                existingPages.add(t.sourcePage());
-                if (Boolean.TRUE.equals(t.isScoreTable())) {
-                    scoreTablePages.add(t.sourcePage());
-                }
+            if (t != null && t.sourcePage() != null && Boolean.TRUE.equals(t.isScoreTable())) {
+                scoreTablePages.add(t.sourcePage());
             }
         }
         if (scoreTablePages.isEmpty()) {
-            return candidatePages;
+            return candidatePages.stream().limit(MAX_PAGES_TO_SCAN).toList();
         }
+
         scoreTablePages.sort(Integer::compareTo);
         int minScorePage = scoreTablePages.get(0);
         int maxScorePage = scoreTablePages.get(scoreTablePages.size() - 1);
 
-        // 仅对评分表区间内（跨页缺失）或紧随其后的续表页调用百度 OCR 补漏
-        List<Integer> missingPages = new ArrayList<>();
+        // 评分核心区间为 [minScorePage, maxScorePage + 1]
+        List<Integer> pagesToScan = new ArrayList<>();
         for (int p : candidatePages) {
-            if (!existingPages.contains(p) && p >= minScorePage && p <= maxScorePage + 1) {
-                missingPages.add(p);
+            if (p >= minScorePage && p <= maxScorePage + 1) {
+                pagesToScan.add(p);
+                if (pagesToScan.size() >= MAX_PAGES_TO_SCAN) {
+                    break;
+                }
             }
         }
-        return missingPages;
+        for (int p = minScorePage; p <= maxScorePage + 1; p++) {
+            if (!pagesToScan.contains(p) && pagesToScan.size() < MAX_PAGES_TO_SCAN) {
+                pagesToScan.add(p);
+            }
+        }
+        pagesToScan.sort(Integer::compareTo);
+        return List.copyOf(pagesToScan);
     }
 
     private String inferSectionForPage(DocumentArtifact baseline, byte[] pdfBytes, int pageNum) {
@@ -249,7 +259,6 @@ public class BaiduTableArtifactEnricher {
         }
 
         List<CanonicalTable> mergedTables = new ArrayList<>();
-        // 保留 baseline 中未被百度 OCR 覆盖的页面表格
         if (baseline.tables() != null) {
             for (CanonicalTable bt : baseline.tables()) {
                 if (bt.sourcePage() == null || !ocrPages.contains(bt.sourcePage())) {
@@ -257,7 +266,6 @@ public class BaiduTableArtifactEnricher {
                 }
             }
         }
-        // 加入百度 OCR 高保真提取的表格（含补漏和替换）
         mergedTables.addAll(ocrTables);
 
         List<String> mergedWarnings = new ArrayList<>(baseline.warnings() != null ? baseline.warnings() : List.of());
