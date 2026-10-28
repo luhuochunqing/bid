@@ -20,6 +20,7 @@
 
 - API-only：`src/api/config.js` 硬编码 `mode: 'api'`，禁止在 `src/mock` 或非 API 路径写代码。
 - 富文本入库前必走 `dompurify.sanitize()`。
+- **Vue 3.4+ 编译器宏**：使用 `defineModel` 必须使用 `const model = defineModel(...)` 显式解构接收，严禁使用裸 `defineModel(...)` 宏调用（裸写在子组件整体 `v-model` 时会被 Vue 识别为只读 Prop 并触发编译崩溃）。
 
 ## 新增前端规范请放
 
