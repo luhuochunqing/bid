@@ -116,6 +116,19 @@ class PdfOrdinalContaminationEvidenceTest {
         assertThat(bound.sourceCellIds()).isEmpty();
     }
 
+    @Test void restoresNameFromUniqueNameColumnForAnchoredGenericDimension() {
+        var source = artifact(false, 5);
+        var original = new MultimodalScoreFact("第四章 评审办法", "5", "", "详细评审", BigDecimal.valueOf(5),
+                "评估财务状况", "OBJECTIVE", 14, "t", List.of("t-r1-c1", "t-r1-c2"),
+                "资产运营情况（5\n分）", .9);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(original), source).getFirst();
+        assertThat(bound.dimension()).isEqualTo("资产运营情况");
+        var validation = new com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator()
+                .validate(List.of(bound), source, BigDecimal.valueOf(5));
+        assertThat(TextPrimaryScoreFactMapper.map(bound, source, validation).sourceText())
+                .isEqualTo("提供完整财务报告得5分，无报告不得分。");
+    }
+
     private static String goldenQuote(String field) throws Exception {
         try (var input = PdfOrdinalContaminationEvidenceTest.class.getResourceAsStream(
                 "/scoreparse-golden/case-pdf-ordinal-contamination.expected.json")) {

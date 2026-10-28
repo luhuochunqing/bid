@@ -44,3 +44,9 @@ archive: false
 - 字段冻结不等于评分字段真值已验收；外部条款、缺附件、名称/编号冲突继续报告未解决，不把关联正确当闭合。
 - 下一轮只实验通用来源约束：Word主/备用分支及文本框形成唯一可回指序列；评分区域所有原文单位进入引用审计；PDF物理网格与逻辑续表分开，具体引用缺范围须PARTIAL。先复验本轮失败和旧正确案例，再换陌生文件，不落业务代码或加项目专属补丁。
 - 可复核证据：`evaluation/baseline-measurement-correction.json`、`checks-r5.json`、`semantic-audit-r5.json`、`regression-r5.json`；`holdout/evaluation/d1109-source-blocker.json`、`d1050-results.json`、`source-derived-focal-inventory.json`、`d1050-crosspage-evidence.json`及两份`final-verification.json`。
+
+## 2026-10-28 项目339评分项原文名称恢复
+
+- 根因：真实任务339已识别24条候选、18个细项合计100分，但模型把多个有明确原文名称的维度统一输出为“详细评审”。既有分类投影只能保留模型维度，不能从唯一原文名称单元格恢复评分项名称，导致来源范围校验报`ITEM_SOURCE_SCOPE_MISMATCH`，并使后续采纳链路无法把100分候选视为完整规则。
+- 修复边界：仅在同一表、同一逻辑行、表头唯一且名称列唯一可回指时恢复名称；跨行、重复表头、缺失名称、`OUT_OF_SCHEME`或已有具体名称均不猜测。恢复时保留模型分类、父子编码、权重、规则和原始证据，并追加来源单元格证据及诊断。
+- 回归门禁：新增父子项、完整规则、100分合计、歧义拒绝、跨行拒绝和锚定来源测试；补充泛化维度金标回放。真实测试任务339的100分/人工采纳验证仍属于部署后业务验收，不由本地测试替代。

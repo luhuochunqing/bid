@@ -62,6 +62,19 @@ class GoldenCasesReplayTest {
     }
 
     @Test
+    void genericModelDimensionUsesUniqueOriginalNameColumn() throws Exception {
+        JsonNode expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(
+                "case-generic-dimension-name.expected.json"));
+        String text = GoldenCasesReplaySupport.readFixture("case-generic-dimension-name.md");
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("synthetic", "name", "pdf", "2.0"),
+                List.of(), List.of());
+        assertTrue(text.contains("服务能力（40分）"));
+        assertEquals(expected.path("expectedLeafTotal").decimalValue(), new BigDecimal("100"));
+        assertEquals("服务能力", expected.path("items").get(0).path("dimension").asText());
+        assertEquals("履约能力", expected.path("items").get(1).path("dimension").asText());
+    }
+
+    @Test
     void priceMarkdownStarQuoteRetainsItsOriginalSourceSpan() throws Exception {
         String source = GoldenCasesReplaySupport.readFixture("case-price-markdown-star.md");
         JsonNode expected = GoldenCasesReplaySupport.parseExpected(
