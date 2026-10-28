@@ -36,6 +36,10 @@ backlinks:
    - **密钥安全脱敏**：采用 `PasswordEncryptionUtil` AES 密文落库，前端仅下发前4后4脱敏掩码（如 `VJ8Z****sWlY`），掩码提交不覆盖已有密文；
    - **解耦 SPI 契约**：定义 `BaiduOcrCredentialsProvider` 接口，由 `settings` 模块的 `DatabaseBaiduOcrCredentialsProvider` 动态提供解密后凭据，优先读库，无则降级回退到 `application.yml`；
    - **即时连通性测试**：管理后台点击“测试连通性”直接探测百度 OAuth Token 接口并回显测试结果。
+5. **PDF 跨页续表增强与大单元格表格补齐 (BaiduTableArtifactEnricher)**：
+   - **根治跨页断裂**：Sidecar 处理复杂 PDF 续表时容易跳页（如项目 1392 遗漏第 14 页整个续表），导致下游证据回指失败；
+   - **智能定向提取**：`BaiduTableArtifactEnricher` 基于 PDFBox 智能探测评分关键词页及续表候选页，按需定向调用百度 OCR；
+   - **优雅融合与兜底**：在 `SidecarDocumentArtifactExtractor` 中接入增强器，将高保真表格补齐并赋予合规 `sourceSection`；若百度 OCR 未开启或发生异常，平滑降级回 baseline。
 
 ## 3. 核心组件与配置
 
@@ -43,8 +47,9 @@ backlinks:
 - **传输模型**：`BaiduTableModels.java`
 - **适配转换器**：`BaiduTableArtifactAdapter.java`
 - **网络客户端**：`BaiduTableOcrClient.java`（带内存 Token 缓存及提前 10 分钟自动刷新）
+- **文档增强器**：`BaiduTableArtifactEnricher.java`（基于关键词与续表探测按需增强 DocumentArtifact）
 - **凭据提供 SPI**：`BaiduOcrCredentialsProvider.java`
 - **动态凭证服务**：`BaiduOcrSettingsService.java` & `DatabaseBaiduOcrCredentialsProvider.java`
 - **后台设置控制器**：`SettingsController.java` (`POST /api/settings/baidu-ocr/test`)
 - **前端配置卡片**：`src/views/System/settings/AiModelSettingsPanel.vue` & `useAiModelSettings.js`
-- **测试验证**：`BaiduTableOcrTest.java`、`BaiduOcrSettingsServiceTest.java`、`useAiModelSettings.spec.js`
+- **测试验证**：`BaiduTableOcrTest.java`、`BaiduTableArtifactEnricherTest.java`、`BaiduOcrSettingsServiceTest.java`、`useAiModelSettings.spec.js`

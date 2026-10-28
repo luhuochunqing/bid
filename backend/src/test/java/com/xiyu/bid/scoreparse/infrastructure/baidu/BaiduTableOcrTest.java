@@ -108,4 +108,53 @@ class BaiduTableOcrTest {
         // 验证全页边框的页眉被成功分离并记入 warnings，没有污染正文表格
         assertThat(page1Result.warnings()).anyMatch(w -> w.contains("贵州能源集团采购项目招标文件"));
     }
+
+    @Test
+    @DisplayName("诊断测试: 使用真实百度OCR识别project1130.pdf中的评分表格，检查缺失的第10/11/12项")
+    void client_shouldDiagnoseProject1130ScoringTables() throws Exception {
+        File pdfFile = new File("src/test/resources/project1130.pdf");
+        if (!pdfFile.exists()) {
+            pdfFile = new File("backend/src/test/resources/project1130.pdf");
+        }
+        assertThat(pdfFile).exists();
+        byte[] pdfBytes = Files.readAllBytes(pdfFile.toPath());
+
+        // 1. 扫描页码
+        List<Integer> targetPages = new java.util.ArrayList<>();
+        try (var doc = org.apache.pdfbox.pdmodel.PDDocument.load(pdfFile)) {
+            var stripper = new org.apache.pdfbox.text.PDFTextStripper();
+            for (int p = 1; p <= doc.getNumberOfPages(); p++) {
+                stripper.setStartPage(p);
+                stripper.setEndPage(p);
+                String text = stripper.getText(doc);
+                if (text.contains("评分") || text.contains("评标") || text.contains("详细评审") || text.contains("价格限制") || text.contains("结算账期")) {
+                    System.out.println("Page " + p + " has scoring keywords: " + text.lines().limit(3).toList());
+                    targetPages.add(p);
+                }
+            }
+        }
+        System.out.println("=== Target scoring pages in project1130: " + targetPages + " ===");
+
+        BaiduOcrProperties props = new BaiduOcrProperties();
+        props.setEnabled(true);
+        props.setApiKey("VJ8ZnT3WTnUR433O7QX6sWlY");
+        props.setSecretKey("QE4wXv7U774mb5IceRRY3XpI7FsY7bKC");
+
+        BaiduTableOcrClient client = new BaiduTableOcrClient(props, objectMapper);
+
+        for (int pageNum : targetPages) {
+            System.out.println("\n>>> Calling Baidu OCR for Page " + pageNum + "...");
+            var result = client.extractSidecarTables(pdfBytes, pageNum);
+            System.out.println("Page " + pageNum + " tables count: " + result.tables().size());
+            for (int tIdx = 0; tIdx < result.tables().size(); tIdx++) {
+                var table = result.tables().get(tIdx);
+                System.out.println("  Table " + tIdx + " isScore=" + table.isScoreTable() + " rows=" + table.rows().size());
+                for (int r = 0; r < table.rows().size(); r++) {
+                    var row = table.rows().get(r);
+                    var rowText = row.stream().map(c -> "[" + c.text() + "]").toList();
+                    System.out.println("    Row " + r + ": " + String.join(" | ", rowText));
+                }
+            }
+        }
+    }
 }

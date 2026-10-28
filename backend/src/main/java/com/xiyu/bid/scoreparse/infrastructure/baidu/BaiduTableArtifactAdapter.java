@@ -67,14 +67,27 @@ public final class BaiduTableArtifactAdapter {
      * 将百度表格识别结果转换为 DocumentArtifact.CanonicalTable 列表。
      */
     public static DocumentArtifact toDocumentArtifact(BaiduTableResponse response, String documentId, int pageNum) {
+        return toDocumentArtifact(response, documentId, pageNum, null);
+    }
+
+    /**
+     * 将百度表格识别结果转换为 DocumentArtifact，支持传入所属章节。
+     */
+    public static DocumentArtifact toDocumentArtifact(BaiduTableResponse response, String documentId, int pageNum, String sourceSection) {
+        List<CanonicalTable> canonicalTables = toCanonicalTables(response, pageNum, sourceSection);
+        ArtifactMeta meta = new ArtifactMeta(documentId, "", "PDF", "baidu-ocr");
+        return new DocumentArtifact(meta, canonicalTables, List.of());
+    }
+
+    /**
+     * 将百度表格识别结果映射为标准的 CanonicalTable 列表。
+     */
+    public static List<CanonicalTable> toCanonicalTables(BaiduTableResponse response, int pageNum, String sourceSection) {
         if (response == null || !response.isSuccess() || response.tablesResult().isEmpty()) {
-            ArtifactMeta meta = new ArtifactMeta(documentId, "", "PDF", "baidu-ocr");
-            return new DocumentArtifact(meta, List.of(), List.of());
+            return List.of();
         }
 
         List<CanonicalTable> canonicalTables = new ArrayList<>();
-        List<String> warnings = new ArrayList<>();
-
         for (int tIdx = 0; tIdx < response.tablesResult().size(); tIdx++) {
             BaiduTableItem item = response.tablesResult().get(tIdx);
             if (item.body().isEmpty()) {
@@ -113,10 +126,13 @@ public final class BaiduTableArtifactAdapter {
             }
 
             boolean isScore = isLikelyScoreTable(item);
+            String effectiveSection = (sourceSection != null && !sourceSection.isBlank())
+                    ? sourceSection
+                    : (isScore ? "第三章 评审办法/详细评审标准" : "招标文件正文");
             canonicalTables.add(new CanonicalTable(
                     tableId,
                     pageNum,
-                    "",
+                    effectiveSection,
                     rowCount,
                     colCount,
                     mergedRegions,
@@ -126,8 +142,7 @@ public final class BaiduTableArtifactAdapter {
             ));
         }
 
-        ArtifactMeta meta = new ArtifactMeta(documentId, "", "PDF", "baidu-ocr");
-        return new DocumentArtifact(meta, canonicalTables, warnings);
+        return List.copyOf(canonicalTables);
     }
 
     private static List<List<CellPayload>> buildGrid(List<BaiduTableCell> cells) {

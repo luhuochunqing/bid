@@ -7,3 +7,13 @@ ts	phase	decision	why	evidence	result
 2026-10-26T11:42:00Z	governance	回填 Wiki 知识库并补充 Spring 构造器注入注解	消除 Wiki 健康检查警告并确保 Spring Boot 容器与单测装配正常	commit b930a513c	wiki:check passed (146 pages)
 2026-10-26T11:48:00Z	gate	执行本地全量 pre-push-gate 门禁验证	验证代码质量、架构守卫与回归测试，确保符合发布标准	scripts/pre-push-gate.sh	passed (37 pass, 0 fail, 8 skip)
 2026-10-26T12:03:00Z	review	独立子代理完成三透镜审查并放行	遵循铁律主Agent不自证清白，由独立审视者执行三透镜与深度审计	.omc/review-d7b4411a-f11e-47a0-82c5-8bce2191420f.md	verdict: MERGE_READY
+2026-10-28T05:30:00Z	spec	采纳路线 C 设计非侵入式百度表格 OCR 旁路对照管线	验证商用表格引擎排版识别能力且不破坏现有 Sidecar 生产稳定性	application.yml:app.score-parse.baidu-ocr	enabled=false 默认旁路隔离
+2026-10-28T05:40:00Z	core	采用不可变 Java 21 record 与纯函数式网格转换适配器	严格遵循 FP-Java 规范与 ArchUnit 架构守卫，不在 infrastructure 直接构造 ScoreFact	BaiduTableArtifactAdapter.java	ScoreParseArchitectureTest green (3/3)
+2026-10-28T05:55:00Z	client	客户端集成 Token 自动续期并按契约填充合并子单元格占位	下游表格分割策略强依赖 isMergedContinue=true 标记，确保网格对齐	BaiduTableOcrClient.java	BaiduTableOcrTest green (2/2)
+2026-10-28T06:05:00Z	governance	回填 Wiki 知识库沉淀技术架构并更新全局索引与变更日志	遵守 Agent Wiki 维护纪律，防止未记录架构演进并满足门禁硬约束	.wiki/pages/baidu-table-ocr-pipeline.md	wiki:check passed
+2026-10-28T06:08:00Z	review	独立子 Agent 完成 S6 独立审查并生成三透镜评审工件	遵守不自证清白原则，确保外部模型独立审计代码边界与防御性	.omc/review-83ac470e-7733-4f4b-9095-f165ac36487a.md	verdict: MERGE_READY
+2026-10-28T06:11:00Z	delivery	全量门禁检查通过并使用统一脚本创建 Gitee PR	交付百度表格 OCR 旁路对照基线，供团队审查与多模态对照评测	PR #2900 (commit 0e7f09d03)	HTTP 201 PR created
+2026-10-28T06:30:00Z	settings	落地方案 A：前端可视化配置与 SPI 动态凭据热加载	实现管理员在 AI能力模型页面可视化配置开关与密钥，AES 加密落库并脱敏	BaiduOcrSettingsService.java, AiModelSettingsPanel.vue	BaiduOcrSettingsServiceTest green (7/7)
+2026-10-28T06:40:00Z	dip	基于 SPI 契约解耦 scoreparse 与 settings 循环依赖	严格遵循依赖倒置与 ArchUnit 规则，客户端优先读库并优雅回退	BaiduOcrCredentialsProvider.java	ScoreParseArchitectureTest green (3/3)
+2026-10-28T07:40:00Z	gate	修复 defineModel 解构绑定并改造 pre-push 强制构建门禁	彻底根除 Vue SFC 模板只读 Prop 赋值编译错误并消除 Agent 构建盲区	AiModelSettingsPanel.vue, pre-push-gate.sh	npm run build:api passed (9.45s)
+2026-10-28T10:35:00Z	enricher	实现 BaiduTableArtifactEnricher 接入 SidecarExtractor 补齐跨页续表与大单元格	通过 PDFBox 智能扫描评分关键页并调用百度表格 OCR 融合生成高保真 DocumentArtifact	BaiduTableArtifactEnricherTest.java	4/4 passed (覆盖 project1130 第14页三项合一细则)

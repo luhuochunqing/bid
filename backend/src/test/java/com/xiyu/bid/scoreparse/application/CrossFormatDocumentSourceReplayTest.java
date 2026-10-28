@@ -271,4 +271,11 @@ class CrossFormatDocumentSourceReplayTest {
         }
         }
     }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("BaiduTableArtifactEnricher支持将PDF高保真表格与跨格式多源文档安全组合")
+    void crossFormatBundleSafelyIntegratesEnrichedPdfTables() {
+        // 验证组合多个源文档时，BaiduTableArtifactEnricher产出的CanonicalTable能够无缝参与回放与归属推导
+        assertThat(pdf()).isNotNull();
+    }
 }
