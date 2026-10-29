@@ -99,3 +99,14 @@ backlinks:
 4. **分项累加分值识别与评审因素列名恢复 (`OriginalScoreWeightEvidencePolicy` & `SourceItemNameRestoration`)**：
    - `OriginalScoreWeightEvidencePolicy` 在行内查找单元格时纳入同一 `logicalRowId` 的跨页续行单元格，并新增 `quoteSubscoresSumToWeight` 识别叶子细则内括号分项累加（如 `2.2` 引文内 `（2分）...（3分）` 合计 `5分`），解决整行仅标大项总分 `20` 时子项 `5分` 被误判 `SOURCE_UNVERIFIED` 的问题；
    - `SourceItemNameRestoration` 支持当模型输出泛化章节名 `"详细评审"` 时，从唯一 `评审因素` 列（含跨页 `logicalRowId` 锚点行及 `claim.sourceCellIds()` 为空的回绑事实）确定性恢复真实评分项名称。
+
+
+## 9. 同行中文句号子项切分与评审因素名称列隔离 (Project 1392 标书原文全闭环)
+
+在 `project1130.pdf` 恢复 100 分后，序号 3 (`2.1`)、7 (`4.1`)、10 (`6.1`)、11 (`6.2`)、15 (`9.1`)、16 (`9.2`) 曾出现“标书原文”为空（`—`），且紧随其后的序号 4 (`2.2`)、8 (`4.2`)、12 (`6.3`)、17 (`9.3`) 开头多吞入上一条末句：
+1. **百度 OCR 同行子项中文句号与行尾序号切分 (`OriginalRuleUnitText.resolveStart`)**：
+   - 百度 OCR 将同一单元格内紧跟在上一句句号 `。` 或 `。)` 后的同行子项序号识别为 `2。投标人...`、`3。投标人...`（或行尾 `3。\n投标人...`）。
+   - `OriginalRuleUnitText` 将同行子项标点从 `[.、]` 扩展为 `[.、。．]`，并通过 `resolveStart` 同时支持 `quote` 自带序号与 `quote` 省略前导序号（此时 `num + [.、。．]\s*` 紧邻在 `quote.start()` 之前）两种形态，将后一子项起点精确锚定在编号起始处，避免回退至当前物理行行首导致前一项 `quote.end() <= end` 失败及后一项吞入前项尾句；
+   - 当行尾仅含短序号（如 `3。\n`）时自动跨换行截取 `heading`，并在 `identified` 中匹配首个归一化长度 $\ge 2$ 的有效正文行。
+2. **多子项同行时隔离评审因素名称列 (`OriginalRuleRestoration.collectSourceIds`)**：
+   - 当 `structural.applicable()` / `peerUnit.applicable()` 为真时，仅收集 `LogicalRuleSourceUnit.resolve` 过滤后的规则列 `spans()`，避免将 `SourceItemNameRestoration` 追加的 `评审因素` 名称列单元格（`rX_c1`）混入规则原文 `raw`。
