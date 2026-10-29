@@ -7737,3 +7737,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   2. **放开跨章表尾自然闭合**：移除跨章结束条件中的 `unnumbered(headers)` 限制，只要当前表与后续表已跨入不同章节，末行直接闭合。
   3. **基于引用列隔离前置维度列**：在 `LogicalRuleSourceUnit.resolve` 过滤规则列时，严格排除排在当前引用列左侧（`column < minCitedCol`）的前置分类列。
   4. **自动化测试覆盖**：在 `LogicalRuleSourceUnitTest` 中新增针对 DOCX 嵌套纵向合并与跨章表尾闭合的单测，52 个全量 Golden Cases 回归与 40 个领域单测 100% 绿灯。
+
+## 468. 结构未闭合时优雅降级保留原文与建立 Holdout 留出评测体系（2026-10-29）
+
+- **现场证据**：项目 1371（`SJZBJM08000026H101FV88...docx`，Task 351）大模型已成功抽取 100 分（14 项），但在前端“当前生效评分项”中，第 1~5 项及第 7~14 项的“标书原文”全部显示为空横线 `—`，且评分项退化为一级大类“商务”/“技术”。
+- **致错机制**：
+  1. **未闭合粗暴抹空原文（全有或全无陷阱）**：在 `OriginalRuleRestoration.java` 中，原逻辑判定一旦表格几何未完成严格闭合证明（`structural.applicable() && !structural.closed()`），直接执行 `return new Result("", cited);` 将 `sourceText` 强行清空为 `""`。
+  2. **项名提取级联失效**：下游 `publishedDimension` 依赖 `restored.text()` 提取分值前缀及具体评审因素名称（如“质量管理体系认证证书”），当原文被清空为 `""` 时，无法解析出具体细则名称，直接退化回保底的顶层一级维度（“商务”/“技术”）。
+  3. **落库硬编码空横线**：人工采纳候选时，`ScoreReviewAdoptionPolicy` 取 `detail = fact.sourceText()`，持久化层 `ScoreItemPersistenceService` 发现 `candidate.detail()` 为空，硬编码赋值为 `" — "` 落库，最终在 UI 上呈现为缺失标书原文。
+  4. **缺乏统一留出评测门禁**：此前改动主要依赖个别测试用例验证，容易在解决特定标书排版时引发边界条件退化或“修一漏一”。
+- **根治方案与长效防线**：
+  1. **非歧义单元格优雅降级保真**：在 `OriginalRuleRestoration` 中废除粗暴清空机制；除跨项混淆共享单元格（`ambiguousCellShare`）外，对未闭合证明项降级保留引用单元格原文（`citedRaw`）或模型规则主张（`modelRuleText`），并将 `closed` 显式标记为 `false`。
+  2. **发布状态受护与诊断透传**：在 `TextPrimaryScoreFactMapper` 中对 `!restored.closed()` 项强制降级为 `REVIEW_REQUIRED` 阻止盲目自动发布，在 `diagnostics` 中追加 `UNVERIFIED_CLOSURE` 与 `FULL_RULE_UNIT_UNRESOLVED`，同时打通基于完整规则文本提取具体叶子评审要素名称，杜绝粗粒度分类。
+  3. **快照模型主张契约解耦**：在 `ScoreExtractionSnapshot` 中将规则来源判定与 `sourceText.isBlank()` 盲目判断解耦，未验证项如实标记来源为 `"MODEL_CLAIM"`，保障数据契约真实可信。
+  4. **建立 Holdout 留出评测基准（25 份核心样本）**：编写 `docs/testing/scoreparse-holdout-benchmark.md`，确立四大核心金标度量指标（叶子 $F_1 \ge 92\%$、总分闭合率 $\ge 96\%$、证据溯源率 $\ge 95\%$、优雅降级率 $100\%$），作为后续推进 Sidecar 表格平铺归一化与统一网格契约演进的客观验收门禁。

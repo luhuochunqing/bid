@@ -660,4 +660,27 @@ class GoldenCasesReplayTest {
     void childAggregationSupportsAdditiveTotalWithoutMisclassifyingAsSharedCap() {
         assertTrue(ChildAggregation.SUM.supportedByOriginalText("服务网点及仓储（3分）：提供网点证明，合计最高得3分，各网点分值累加计算。"));
     }
+
+    @org.junit.jupiter.api.Test
+    void unclosedItemRetainsCitedRuleTextInGracefulDegradation() {
+        // Project 1371 / Holdout Benchmark 回归：结构未闭合时优雅降级保留引用单元格原文，消灭空横线破损
+        String text = GoldenCasesReplaySupport.readFixture("case-project-1371-docx-vmerge.md");
+        assertTrue(text.contains("综合服务方案及技术响应"));
+        var cells = List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r0_c0", 0, 0, "序号", "序号", 1, 1, false, "", 1, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r1_c0", 1, 0, "", "", 1, 1, false, "", 1, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r1_c1", 1, 1, "综合服务方案及技术响应", "综合服务方案及技术响应", 1, 1, false, "", 1, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r1_c2", 1, 2, "方案编制完整且技术响应完善得44分。", "方案编制完整且技术响应完善得44分。", 1, 1, false, "", 1, "")
+        );
+        var table = new DocumentArtifact.CanonicalTable("t", 1, "第三章 评标办法", 2, 3, List.of(), cells, true, "DOCX");
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc.docx", "hash", "DOCX", "2.0"), List.of(table), List.of());
+        var metadata = new com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata("方案编制完整且技术响应完善得44分。", "综合服务方案及技术响应", List.of(), List.of());
+        var fact = new MultimodalScoreFact("第三章 评标办法", "4", "", "综合服务方案及技术响应",
+                new BigDecimal("44.00"), "方案编制完整且技术响应完善得44分。", "SUBJECTIVE", 1, "t", List.of("t_r1_c2"),
+                "方案编制完整且技术响应完善得44分。", 0.95, ChildAggregation.UNKNOWN, "scheme-1", "IN_SCHEME", metadata);
+
+        var restored = com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration.restore(fact, artifact, List.of(fact));
+        assertEquals("方案编制完整且技术响应完善得44分。", restored.text());
+        org.junit.jupiter.api.Assertions.assertFalse(restored.closed());
+    }
 }

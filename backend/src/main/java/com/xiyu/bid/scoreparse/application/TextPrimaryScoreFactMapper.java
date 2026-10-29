@@ -37,10 +37,14 @@ final class TextPrimaryScoreFactMapper {
                 .anyMatch(qualification -> factId.equals(qualification.factId())
                         && qualification.candidateEligible());
         var restored = com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration.restore(fact, artifact, validation.facts());
-        var status = candidateEligible && !restored.text().isBlank() && violations.isBlank() && validation.autoApprovable()
+        boolean verified = restored.closed();
+        var status = candidateEligible && !restored.text().isBlank() && verified && violations.isBlank() && validation.autoApprovable()
                 ? ScoreFact.ValidationStatus.AUTO_APPROVED : ScoreFact.ValidationStatus.REVIEW_REQUIRED;
+        String ruleTextForDimension = !restored.text().isBlank() ? restored.text()
+                : (fact.sourceMetadata() != null && !fact.sourceMetadata().modelRuleText().isBlank()
+                ? fact.sourceMetadata().modelRuleText() : fact.ruleText());
         String dimension = com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.publishedDimension(
-                fact.dimension(), restored.text(), fact.weight());
+                fact.dimension(), ruleTextForDimension, fact.weight());
         return new ScoreFact(factId, fact.tableId(), fact.sourceCellIds(), restored.text(), fact.code(), dimension,
                 fact.weight(), new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, fact.quotedText(), cellId,
                 start, start < 0 ? -1 : start + fact.quotedText().length(), "page=" + fact.pageNumber() + "; scoreType="
@@ -51,7 +55,12 @@ final class TextPrimaryScoreFactMapper {
             MultimodalScoreFact fact, DocumentArtifact artifact, MultimodalScoreFactValidator.ValidationReport validation, com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration.Result restored) {
         var existing = fact.sourceMetadata();
         var diagnostics = new java.util.ArrayList<>(existing.diagnostics());
-        if (restored.text().isBlank()) diagnostics.add("FULL_RULE_UNIT_UNRESOLVED");
+        if (restored.text().isBlank() || !restored.closed()) {
+            if (!diagnostics.contains("FULL_RULE_UNIT_UNRESOLVED")) diagnostics.add("FULL_RULE_UNIT_UNRESOLVED");
+        }
+        if (!restored.closed() && !diagnostics.contains("UNVERIFIED_CLOSURE")) {
+            diagnostics.add("UNVERIFIED_CLOSURE");
+        }
         var sourceSpans = new java.util.LinkedHashMap<String, com.xiyu.bid.scoreparse.domain.SourceSpan>();
         existing.sourceSpans().forEach(span -> sourceSpans.put(span.sourceId(), span));
         com.xiyu.bid.scoreparse.domain.SourceSpanResolver.resolve(artifact, fact.sourceCellIds())
