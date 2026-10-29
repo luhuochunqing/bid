@@ -1,5 +1,12 @@
 # Wiki 操作日志 / Operation Log
 
+## [2026-10-29] fix | 百度 OCR 扫描范围免疫 Sidecar isScoreTable 误标 (project1130 85分根治)
+
+- 触发：部署 Primary Authority 模式后 project1130 实测得 85 分，漏掉 15 分（9.2 3分 + 9.3 2分 + 10 10分）。
+- 根因：`determinePagesToScan()` 仅依据 Sidecar baseline 中 `isScoreTable=true` 计算上界，第 15 页由于首行为无表头跨页续行被误标为 false，导致扫描截断于第 14 页。
+- 方案：改为从 `minScorePage` 起在 PDFBox 候选页中取连续候选页（相邻差 $\le 2$），遇到大跨度才停止，不再受 baseline 的 `isScoreTable` 影响；同时守卫 `MultimodalExtractionReviewPolicy` 避免无表无格事实误判入方案。
+- 回填：更新 [[baidu-table-ocr-pipeline]] 第 7 节。
+
 ## [2026-10-28] fix | 单子项与扣分规则来源复核
 
 - 记录单子项、摘要引文、零分扣分规则及未知关系的采纳阻断，见 [[score-subtotal-peritem-semantics-provenance-snapshot]]。

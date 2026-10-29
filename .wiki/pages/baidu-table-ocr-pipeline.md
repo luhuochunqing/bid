@@ -73,7 +73,14 @@ backlinks:
 ## 6. 评分核心区间第一权威主干（Primary Authority）接管模式
 
 从仅作为“Sidecar缺失页补漏”升级为“评分区间第一主干权威（Primary Authority）”：
-1. **全区间主动接管与替换**：当开启百度 OCR 时，在评分表区间 `[minScorePage, maxScorePage + 1]` 内的所有关键页，全部由百度 OCR 提取，并在 `mergeArtifact` 时全面覆盖替换原 Sidecar 破碎表格；
+1. **全区间主动接管与替换**：当开启百度 OCR 时，在评分表区间内的所有关键页全部由百度 OCR 提取，并在 `mergeArtifact` 时全面覆盖替换原 Sidecar 破碎表格；
 2. **2D 网格坐标重叠收缩（BaiduTableGridBuilder）**：百度视觉模型在复杂表头时偶尔出现坐标轻微重叠，适配器在构建网格前自适应收缩合并跨度，绝不吞并相邻已声明的真实单元格，100% 满足 `CanonicalTableGridFactory` 拓扑不变式；
-3. **跨页首行续行无缝关联（BaiduCrossPageTableLinker）**：当跨页首行（第 0 行）前置列为空且规则列有文字时，自动将其 `logicalRowId` 缝合到前一页最后一行的 `logicalRowId`；
-4. **方案范围误判免疫**：在 `MultimodalExtractionReviewPolicy` 中增加正分与正规评分维度（技术/商务/报价）保护，防止跨页未决项被武断判定为 `OUT_OF_SCHEME`。
+3. **跨页首行续行无缝关联（BaiduCrossPageTableLinker）**：当跨页首行（第 0 行）前置列为空且规则列有文字时，自动将其 `logicalRowId` 缝合到前一页最后一行的 `logicalRowId`。
+
+## 7. 续表页扫描区间连续候选覆盖（免疫 Sidecar isScoreTable 误标）
+
+在真实复杂 PDF（如 `project1130.pdf`）中，续表页（如第 15 页）往往以断开的半句（如“显示视频。）”）开头，不含显式表头，导致 Sidecar 常将其误标为 `isScoreTable: false`。
+1. **根因**：原 `determinePagesToScan()` 仅从 baseline 中收集 `isScoreTable=true` 的页面，若第 15 页为 false，则收集到的 `maxScorePage` 停留在 13，扫描上限截断于 $13+1=14$，第 15 页（包含 9.2 项 3分、9.3 项 2分、10 项 10分，合计 15分）被完全跳过，直接导致总分从 100 分跌落至 85 分；
+2. **确定性连续扩展算法**：修改为从 `minScorePage` 出发，在 PDFBox 检测出的 `candidatePages` 中向后连续提取所有候选页（相邻差值 $\le 2$，容许中间有不含关键词但承接评分的物理页），直到遇到明显跨章断裂（差值 $>2$）或达到最大页面预算，不再受 Sidecar `isScoreTable` 标记误导；
+3. **范围守卫纯净性**：`MultimodalExtractionReviewPolicy` 中对无表格且无单元格事实的 `IN_SCHEME` 认定必须保留条款号（`hasScoringCode`）强约束，避免将纯文本履约考核指标（如 `system_response_metrics`）误放行入评分方案。
+
