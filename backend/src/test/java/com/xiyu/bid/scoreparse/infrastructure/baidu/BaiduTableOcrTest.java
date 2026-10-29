@@ -157,4 +157,34 @@ class BaiduTableOcrTest {
             }
         }
     }
+
+    @Test
+    @DisplayName("单元测试: slicePdfPage 应能精准切出目标单页并将体积大幅缩减")
+    void slicePdfPage_shouldExtractOnlyTargetPage() throws Exception {
+        // 创建一个包含 3 页的测试 PDF
+        byte[] multiPagePdf;
+        try (var doc = new org.apache.pdfbox.pdmodel.PDDocument()) {
+            doc.addPage(new org.apache.pdfbox.pdmodel.PDPage());
+            doc.addPage(new org.apache.pdfbox.pdmodel.PDPage());
+            doc.addPage(new org.apache.pdfbox.pdmodel.PDPage());
+            var baos = new java.io.ByteArrayOutputStream();
+            doc.save(baos);
+            multiPagePdf = baos.toByteArray();
+        }
+
+        // 切第 2 页
+        byte[] sliced = BaiduTableOcrClient.slicePdfPage(multiPagePdf, 2);
+        assertThat(sliced).isNotNull();
+        assertThat(sliced.length).isGreaterThan(0);
+
+        // 验证切片后的 PDF 只有 1 页
+        try (var doc = org.apache.pdfbox.pdmodel.PDDocument.load(sliced)) {
+            assertThat(doc.getNumberOfPages()).isEqualTo(1);
+        }
+
+        // 验证边界异常安全回退
+        assertThat(BaiduTableOcrClient.slicePdfPage(multiPagePdf, 99)).isEqualTo(multiPagePdf);
+        assertThat(BaiduTableOcrClient.slicePdfPage(multiPagePdf, 0)).isEqualTo(multiPagePdf);
+        assertThat(BaiduTableOcrClient.slicePdfPage(null, 1)).isNull();
+    }
 }

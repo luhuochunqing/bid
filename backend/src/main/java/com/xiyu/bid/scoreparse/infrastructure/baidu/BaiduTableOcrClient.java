@@ -1,5 +1,5 @@
 // Input: PDF file bytes and page numbers
-// Output: SidecarTableExtraction and raw Baidu OCR table response
+// Output: SidecarTableExtraction and raw Baidu OCR table response (with in-memory single-page slicing optimization)
 // Pos: scoreparse/infrastructure/baidu - Baidu Table OCR client
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.scoreparse.infrastructure.baidu;
@@ -9,9 +9,12 @@ import com.xiyu.bid.scoreparse.domain.SidecarTableExtraction;
 import com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableModels.BaiduTableResponse;
 import com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableModels.BaiduTokenResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -83,16 +86,32 @@ public class BaiduTableOcrClient {
 
     /**
      * 核心接口：调用百度表格识别 API。
+     * <p>对多页 PDF 执行智能单页切片，仅将目标单页抽离后做 Base64 传输，避免全量大文件反复传输导致的带宽浪费与内存雪崩。
      */
     public BaiduTableResponse extractTablesFromPdf(byte[] pdfBytes, Integer pageNum) throws IOException, InterruptedException {
         Objects.requireNonNull(pdfBytes, "pdfBytes must not be null");
         String accessToken = getAccessToken();
 
-        String pdfBase64 = Base64.getEncoder().encodeToString(pdfBytes);
+        byte[] uploadBytes = pdfBytes;
+        Integer uploadPageNum = pageNum;
+        if (pageNum != null && pageNum > 0) {
+            byte[] sliced = slicePdfPage(pdfBytes, pageNum);
+            if (sliced != pdfBytes && sliced.length > 0) {
+                uploadBytes = sliced;
+                uploadPageNum = 1; // 单页切片后文档仅有第 1 页
+                if (log.isInfoEnabled()) {
+                    double reductionRate = (1.0 - (double) uploadBytes.length / pdfBytes.length) * 100.0;
+                    log.info("BaiduTableOcrClient: Sliced page {} into single-page PDF (payload: {} -> {} bytes, -{}.1f%%)",
+                            pageNum, pdfBytes.length, uploadBytes.length, (int) reductionRate);
+                }
+            }
+        }
+
+        String pdfBase64 = Base64.getEncoder().encodeToString(uploadBytes);
         StringBuilder formBody = new StringBuilder();
         formBody.append("pdf_file=").append(URLEncoder.encode(pdfBase64, StandardCharsets.UTF_8));
-        if (pageNum != null && pageNum > 0) {
-            formBody.append("&pdf_file_num=").append(pageNum);
+        if (uploadPageNum != null && uploadPageNum > 0) {
+            formBody.append("&pdf_file_num=").append(uploadPageNum);
         }
 
         String requestUrl = properties.getTableUrl() + "?access_token=" + accessToken;
@@ -161,5 +180,39 @@ public class BaiduTableOcrClient {
         tokenCache.set(new CachedToken(tokenResponse.accessToken(), apiKey, expireAt));
         log.info("Baidu OCR access token refreshed successfully, expires in {}s", expiresIn);
         return tokenResponse.accessToken();
+    }
+
+    /**
+     * 内存单页切片: 从完整 PDF 中抽取目标单页为独立的微型单页 PDF 字节数组。
+     * <p>大幅降低传输体积与堆内存占用，避免多页大文件全量 Base64 循环编码导致的雪崩。
+     *
+     * @param pdfBytes 完整 PDF 二进制数据
+     * @param pageNum 目标物理页码 (从 1 开始)
+     * @return 抽取的单页 PDF 二进制数据; 若文档本身仅 1 页或发生边界异常，则安全降级返回原始 pdfBytes
+     */
+    public static byte[] slicePdfPage(byte[] pdfBytes, int pageNum) {
+        if (pdfBytes == null || pdfBytes.length == 0 || pageNum <= 0) {
+            return pdfBytes;
+        }
+        try (PDDocument doc = PDDocument.load(new ByteArrayInputStream(pdfBytes))) {
+            int totalPages = doc.getNumberOfPages();
+            if (totalPages <= 1) {
+                return pdfBytes;
+            }
+            if (pageNum > totalPages) {
+                log.warn("slicePdfPage: requested pageNum {} exceeds totalPages {}, fallback to original bytes", pageNum, totalPages);
+                return pdfBytes;
+            }
+            try (PDDocument singlePageDoc = new PDDocument()) {
+                singlePageDoc.addPage(doc.getPage(pageNum - 1));
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                singlePageDoc.save(baos);
+                return baos.toByteArray();
+            }
+        } catch (IOException | RuntimeException e) {
+            log.warn("slicePdfPage: Failed to slice single page {} from PDF (size={}), fallback to original bytes: {}",
+                    pageNum, pdfBytes.length, e.getMessage());
+            return pdfBytes;
+        }
     }
 }
