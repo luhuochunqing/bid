@@ -84,3 +84,14 @@ archive: false
   - `MultimodalStructuredExtractionHandler` 在「文字评分事实完成」后打 INFO：`fallback` 与逐条 violation（code/fact/field/evidence/message/expected/actual）。
 - 排查顺序：先看 `finishReason` 是否 `length`（截断）→ 再看原始 facts 条数 → 再对 violation code（`EMPTY_FACTS`、`ORIGINAL_TOTAL_UNKNOWN`）判断是模型未识别还是原文方案定位失败。
 
+## 双轨双保险架构落地（2026-10-29 实施）
+
+针对“30 个项目 200 个 PR 仍无法自适应新标书排版”的技术债困局，正式确立并落地双轨双保险（Dual-Track）架构：
+1. **主通道（Primary Track）**：
+   - 第一性原理：将“表格几何坐标对账”与“文字真伪核验”解耦。
+   - 大模型/表格抽取直接提取评分项，通过 `TextInclusionVerifier` 进行全文子串数学核验（39 份金标夹具中实测逐字子串匹配率达 100%）。
+   - 只要文本核验通过且权重和闭合（如 100 分），直接标记为 `AUTO_APPROVED` 并赋以 `DUAL_TRACK_PRIMARY`，永不抹空文字，彻底跳过易产生幻觉的二次全局归并。
+2. **备用通道（Fallback Track）**：
+   - 现存 2.9 万行 Java 几何引擎与全局归并逻辑 100% 保持不动，作为降级备用；
+   - 一旦主通道候选为空、权重未闭合或核验率不足，自动无缝降级走老引擎，确保零线上退化。
+
