@@ -150,6 +150,33 @@ class TextPrimaryScoreFactMapperTest {
         assertThat(mapped.sourceMetadata().modelRuleText()).isEqualTo("按项目经验评分");
     }
 
+    @Test
+    void unverifiedClosureRetainsSourceTextSetsReviewRequiredAndDiagnostics() {
+        String tableId = "doc0-tbl_0";
+        String cellRule = "投标人具有有效的质量管理体系认证证书（10分）；未提供不得分。";
+        var cells = List.of(
+                new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r0_c0", 0, 0, "序号", "序号", 1, 1, false, "", 1, ""),
+                new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r0_c1", 0, 1, "评分标准", "评分标准", 1, 1, false, "", 1, ""),
+                new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r1_c0", 1, 0, "1", "1", 1, 1, false, "", 1, ""),
+                new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r1_c1", 1, 1, cellRule, cellRule, 1, 1, false, "", 1, "")
+        );
+        var table = new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable(tableId, 1, "第四章 评标办法", 2, 2, List.of(), cells, true, "DOCX");
+        var artifact = new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact(
+                new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.ArtifactMeta("doc0.docx", "hash", "DOCX", "2.2"), List.of(table), List.of());
+
+        var model = new MultimodalScoreFact("第四章 评标办法", "1", "", "商务",
+                BigDecimal.TEN, cellRule, "SUBJECTIVE", 1, tableId, List.of(tableId + "_r1_c1"),
+                "质量管理体系认证证书（10分）", 0.95, com.xiyu.bid.scoreparse.domain.ChildAggregation.UNKNOWN, "scheme-1", "IN_SCHEME");
+        var validation = new MultimodalScoreFactValidator().validate(List.of(model), artifact, BigDecimal.TEN);
+
+        var mapped = TextPrimaryScoreFactMapper.map(model, artifact, validation);
+
+        assertThat(mapped.sourceText()).isEqualTo(cellRule);
+        assertThat(mapped.validationStatus()).isEqualTo(com.xiyu.bid.scoreparse.domain.ScoreFact.ValidationStatus.REVIEW_REQUIRED);
+        assertThat(mapped.sourceMetadata().diagnostics()).contains("UNVERIFIED_CLOSURE");
+        assertThat(mapped.dimension()).isEqualTo("投标人具有有效的质量管理体系认证证书");
+    }
+
     private static MultimodalScoreFact fact(String sectionTitle, String code, String parentCode, int weight) {
         return new MultimodalScoreFact(sectionTitle, code, parentCode, "技术方案",
                 BigDecimal.valueOf(weight), "满足要求得" + weight + "分", "OBJECTIVE", 1,

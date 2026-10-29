@@ -96,11 +96,16 @@ public record ScoreExtractionSnapshot(int payloadVersion, List<ExtractedScoreIte
             if (!Set.of("OBJECTIVE","SUBJECTIVE").contains(scoreType)) scoreType = new ScoreTypeClassificationPolicy().classify(f.sourceText());
             String id = ids.get(f.factId());
             if (occurrences.get(f.factId()) > 1 || sourceIdentityCounts.getOrDefault(id,0L)>1) id = "local:"+ScoreVersionFingerprint.hash(taskId+":"+f.factId()+":"+result.size()).substring(0,40);
+            boolean ruleSourceVerified = !f.sourceMetadata().diagnostics().contains("FULL_RULE_UNIT_UNRESOLVED")
+                    && !f.sourceMetadata().diagnostics().contains("UNVERIFIED_CLOSURE")
+                    && !f.sourceText().isBlank();
+            String itemRule = ruleSourceVerified ? f.sourceText()
+                    : (!f.sourceMetadata().modelRuleText().isBlank() ? f.sourceMetadata().modelRuleText() : f.sourceText());
             result.add(new ExtractedScoreItem(1,id,f.factId(),scheme,fileId(f),f.dimension(),
-                    f.sourceMetadata().modelCategory(), f.sourceText().isBlank()?f.sourceMetadata().modelRuleText():f.sourceText(),
+                    f.sourceMetadata().modelCategory(), itemRule,
                     List.of(),f.weight(),null,computable?f.weight():null,ratio?"PERCENTAGE":"POINTS",scoreType,
                     ids.get(f.parentFactId()),f.childAggregation().name(),Map.of("rawMaximum",f.isAutoApprovable() && f.weightEvidence()!=null?"SOURCE_EVIDENCE":"MODEL_CLAIM",
-                    "ruleText",f.sourceText().isBlank()?"MODEL_CLAIM":"SOURCE",
+                    "ruleText",ruleSourceVerified?"SOURCE":"MODEL_CLAIM",
                     "schemeId",q!=null && "IN_SCHEME".equals(q.scopeStatus())?"SOURCE_EVIDENCE":"MODEL_CLAIM"),
                     problems.stream().filter(Objects::nonNull).distinct().toList(),f.validationStatus().name(),
                     BigDecimal.valueOf(f.confidence()),computable,f,q));

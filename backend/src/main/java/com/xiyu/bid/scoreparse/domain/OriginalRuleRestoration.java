@@ -7,17 +7,34 @@ import java.util.stream.Collectors;
 /** Full source rule and raw provenance are one pure result; model claims stay separate. */
 public final class OriginalRuleRestoration {
     private OriginalRuleRestoration() {}
-    public record Result(String text, java.util.List<SourceSpan> spans) {
-        public Result { spans = java.util.List.copyOf(spans); }
+    public record Result(String text, java.util.List<SourceSpan> spans, boolean closed) {
+        public Result {
+            spans = java.util.List.copyOf(spans);
+        }
+        public Result(String text, java.util.List<SourceSpan> spans) {
+            this(text, spans, true);
+        }
     }
 
     public static Result restore(MultimodalScoreFact fact, DocumentArtifact artifact, java.util.List<MultimodalScoreFact> facts) {
         var fallbackSpans = extractSpans(facts);
         var structural = LogicalRuleSourceUnit.resolve(artifact, fact);
         var cited = SourceSpanResolver.resolve(artifact, fact.sourceCellIds(), fallbackSpans);
-        if (structural.applicable() && !structural.closed()) return new Result("", cited);
-        var target = unit(fact);
         String citedRaw = cited.stream().map(SourceSpan::rawText).collect(Collectors.joining("\n"));
+        String modelRule = fact.sourceMetadata() != null && !fact.sourceMetadata().modelRuleText().isBlank()
+                ? fact.sourceMetadata().modelRuleText() : fact.ruleText();
+
+        boolean ambiguousCellShare = facts != null && facts.stream().anyMatch(other ->
+                !java.util.Objects.equals(other, fact)
+                && java.util.Objects.equals(other.schemeId(), fact.schemeId())
+                && other.sourceCellIds().stream().anyMatch(fact.sourceCellIds()::contains));
+
+        if (structural.applicable() && !structural.closed()) {
+            if (ambiguousCellShare) return new Result("", cited, false);
+            String fallback = fallbackRuleText(citedRaw, modelRule, fact.quotedText());
+            return new Result(fallback, cited, false);
+        }
+        var target = unit(fact);
         var peers = facts.stream().filter(other -> OriginalScoreEvidencePolicy.modelFactId(other)
                 .equals(OriginalScoreEvidencePolicy.modelFactId(fact)) ||
                 java.util.Objects.equals(other.parentCode(), fact.parentCode())
@@ -35,7 +52,9 @@ public final class OriginalRuleRestoration {
             var peerUnit = LogicalRuleSourceUnit.resolve(artifact, peer);
             if (peerUnit.applicable() && !peerUnit.closed()) {
                 if (structural.applicable() && structural.closed()) continue;
-                return new Result("", cited);
+                if (ambiguousCellShare) return new Result("", cited, false);
+                String fallback = fallbackRuleText(citedRaw, modelRule, fact.quotedText());
+                return new Result(fallback, cited, false);
             }
             collectSourceIds(ids, peerUnit, peer.sourceCellIds());
             validPeers.add(peer);
@@ -55,12 +74,18 @@ public final class OriginalRuleRestoration {
                 && !hasChildren && LogicalRuleSourceUnit.isExactNamedRowAnchor(artifact, fact)) {
             rule = raw.strip();
         }
-        String modelRule = fact.sourceMetadata() != null && !fact.sourceMetadata().modelRuleText().isBlank()
-                ? fact.sourceMetadata().modelRuleText() : fact.ruleText();
-        if (!structural.applicable() && erasesNumberedMaterials(rule, modelRule)) {
+        boolean erased = !structural.applicable() && erasesNumberedMaterials(rule, modelRule);
+        if (erased) {
             rule = "";
         }
-        return new Result(rule, spans);
+        boolean closed = !structural.applicable() || structural.closed();
+        return new Result(rule, spans, closed);
+    }
+
+    private static String fallbackRuleText(String citedRaw, String modelRule, String quotedText) {
+        if (citedRaw != null && !citedRaw.isBlank()) return citedRaw.strip();
+        if (modelRule != null && !modelRule.isBlank()) return modelRule.strip();
+        return quotedText != null && !quotedText.isBlank() ? quotedText.strip() : "";
     }
 
     private static final java.util.regex.Pattern NUMBERED_MATERIAL_PATTERN =

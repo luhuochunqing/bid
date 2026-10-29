@@ -73,4 +73,54 @@ class OriginalRuleRestorationTest {
         assertThat(r1.text()).isEqualTo(firstRule);
         assertThat(r2.text()).isEqualTo(secondRule);
     }
+
+    @Test
+    @DisplayName("表格单元格结构未闭合时（applicable=true 但 closed=false），应降级保留引用单元格原文并将 closed 标为 false")
+    void shouldFallbackToCitedCellRawTextAndMarkNotClosedWhenStructuralProofIsNotClosed() {
+        String tableId = "doc0-tbl_0";
+        String cellRule = "投标人具有有效的质量管理体系认证证书（ISO9001）得10分；未提供不得分。";
+        // 构造缺失 logicalRowId 的单元格，使 LogicalRuleSourceUnit 判定 applicable=true 但 closed=false
+        var cells = List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r0_c0", 0, 0, "序号", "序号", 1, 1, false, "", 1, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r0_c1", 0, 1, "评分标准", "评分标准", 1, 1, false, "", 1, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r1_c0", 1, 0, "1", "1", 1, 1, false, "", 1, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r1_c1", 1, 1, cellRule, cellRule, 1, 1, false, "", 1, "")
+        );
+        var table = new DocumentArtifact.CanonicalTable(tableId, 1, "第四章 评标办法", 2, 2, List.of(), cells, true, "DOCX");
+        var artifact = new DocumentArtifact(new ArtifactMeta("doc0.docx", "hash", "DOCX", "2.2"), List.of(table), List.of());
+
+        var fact = new MultimodalScoreFact("第四章 评标办法", "1", "", "质量管理体系（10分）",
+                new BigDecimal("10.00"), cellRule, "SUBJECTIVE", 1, tableId, List.of(tableId + "_r1_c1"),
+                "质量管理体系认证证书（ISO9001）得10分", 0.95, ChildAggregation.UNKNOWN, "scheme-1", "IN_SCHEME");
+
+        var result = OriginalRuleRestoration.restore(fact, artifact, List.of(fact));
+
+        assertThat(result.text()).isEqualTo(cellRule);
+        assertThat(result.closed()).isFalse();
+        assertThat(result.spans()).isNotEmpty();
+        assertThat(result.spans().getFirst().sourceId()).isEqualTo(tableId + "_r1_c1");
+    }
+
+    @Test
+    @DisplayName("表格单元格结构未闭合且引用单元格无文本时，应降级保留模型规则文本并将 closed 标为 false")
+    void shouldFallbackToModelRuleTextWhenCitedCellsHaveNoText() {
+        String tableId = "doc0-tbl_0";
+        String modelRule = "投标人具有有效的质量管理体系认证证书（ISO9001）得10分；未提供不得分。";
+        var cells = List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r0_c0", 0, 0, "序号", "序号", 1, 1, false, "", 1, ""),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r1_c0", 1, 0, "", "", 1, 1, false, "", 1, "")
+        );
+        var table = new DocumentArtifact.CanonicalTable(tableId, 1, "第四章 评标办法", 2, 1, List.of(), cells, true, "DOCX");
+        var artifact = new DocumentArtifact(new ArtifactMeta("doc0.docx", "hash", "DOCX", "2.2"), List.of(table), List.of());
+
+        var metadata = new ScoreSourceMetadata(modelRule, "质量管理体系", List.of(), List.of());
+        var fact = new MultimodalScoreFact("第四章 评标办法", "1", "", "质量管理体系",
+                new BigDecimal("10.00"), modelRule, "SUBJECTIVE", 1, tableId, List.of(tableId + "_r1_c0"),
+                "质量管理体系", 0.95, ChildAggregation.UNKNOWN, "scheme-1", "IN_SCHEME", metadata);
+
+        var result = OriginalRuleRestoration.restore(fact, artifact, List.of(fact));
+
+        assertThat(result.text()).isEqualTo(modelRule);
+        assertThat(result.closed()).isFalse();
+    }
 }
