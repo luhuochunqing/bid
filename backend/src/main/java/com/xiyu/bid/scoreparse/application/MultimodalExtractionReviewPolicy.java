@@ -164,6 +164,6 @@ final class MultimodalExtractionReviewPolicy {
 
     private static boolean hasScoringCode(String code) {
         if (code == null || code.isBlank()) return false;
-        return code.matches("^(?:3\\.2\\.\\d|\\d+[._()（）\\-0-9]|\\d+（\\d+）|\\d+\\(\\d+\\)|(?i)(?:BIZ|TECH|PRICE)[_\\d]).*");
+        return code.matches("^(?:\\d+|3\\.2\\.\\d|\\d+[._()（）\\-0-9]|\\d+（\\d+）|\\d+\\(\\d+\\)|(?i)(?:BIZ|TECH|PRICE)[_\\d]).*");
     }
 }

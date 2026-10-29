@@ -7765,3 +7765,18 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
      - **主通道（Primary Track）**：大模型/表格直接抽取 + 文本子串数学核验 + 权重求和闭合校验。满足条件时直接采纳，标记为 `AUTO_APPROVED` 与 `DUAL_TRACK_PRIMARY`，永不抹空文字，彻底跳过易产生幻觉的二次全局归并；
      - **备用通道（Fallback Track）**：原 2.9 万行老几何引擎完全保留作为安全气囊。当主通道候选为空、权重未闭合或核验率不足时，无缝平滑降级执行老引擎通道，实现零线上回归。
   3. **自动化测试与双向验证**：新增 `TextInclusionVerifierTest` 与 `DualTrackScoreExtractorTest`，在 `ScoreCandidatePostProcessorTest` 中验证主通道直接放行且跳过全局归并，全量金标夹具回放 100% 保持通过。
+
+## 470. 评分项编号正则缺陷与人工采纳死锁闭环（2026-10-29）
+
+- **现场证据**：
+  项目 1392（`project1130.pdf`）在重新解析时，抽屉弹出黄色待复核卡片显示总分仅 95 分（方案内 22 项），而在卡片底部“当前方案外或来源未验证事实”中展示了 2 项：
+  1. `7: 大型企事业客户数量和经验 (5.0分)`（方案外：无法确认属于当前评分方案）
+  2. `10: 质量验收评价扣分及相关情况说明 (0.0分)`（方案外：无法确认属于当前评分方案）
+  当用户在前端点击右侧【+ 纳入本方案】将 5 分纳入并使总分达到 100 分后，点击【⚡ 一键采纳为正式评分标准（100分）】时，页面右上角弹出红色报错阻断：`方案外的评分事实不能采纳`（HTTP 400），导致用户陷入死锁无法人工纠错。
+- **致错机制**：
+  1. **评分项编号正则漏掉纯单数字（`hasScoringCode` 漏洞）**：在 `MultimodalExtractionReviewPolicy.java` 中，方法 `hasScoringCode` 的正则定义为 `^(?:3\.2\.\d|\d+[._()（）\-0-9]|\d+（\d+）|\d+\(\d+\)|(?i)(?:BIZ|TECH|PRICE)[_\d]).*`。由于 `\d+[._()（）\-0-9]` 强制要求至少两位（一位数字加一个符号或第二位数字），对于纯单数字编号（如 `"7"`），正则匹配返回 `false`。导致序号为 `"7"` 的真实评分项（大型企事业客户经验，5分）在跨页或表格未闭合时被错误判定为 `OUT_OF_SCHEME`，原本 100 分的单方案被无端扣减 5 分变成 95 分。
+  2. **人工复核采纳闭环存在设计死锁**：前端 `ScoreCandidateReviewCard.vue` 专门为方案外或未验证事实提供了【+ 纳入本方案】按钮（`toggleFactEligibility`），允许用户人工核对后纳入当前方案并提交采纳。然而后端 `ScoreParseReviewAppService.java` 中却粗暴断言 `if (!eligibleIds.containsAll(selectedFactIds)) throw new IllegalArgumentException("方案外的评分事实不能采纳");`，且 `inputs` 候选集仅过滤 scheme 内事实，导致用户主动纳入的事实被无情拒绝，彻底封死了人工纠错通道。
+- **根治方案与长效防线**：
+  1. **修复评分编号正则支持纯数字编号**：将 `hasScoringCode` 的前缀正则扩展为包含 `\d+`，支持 `"7"`、`"1"` 等单数字与多位纯数字编号，确保单数字一级项正确被归入当前方案 `IN_SCHEME`。
+  2. **打通人工采纳通道解除死锁**：在 `ScoreParseReviewAppService.java` 中，支持用户显式选择事实（包含人工纳入的事实），将其正确并入目标方案的候选输入集 `inputs`，仅在传入非法不存在的事实 ID 时拦截；默认未显式选择时依然严格保持只采纳方案内核验项的安全策略。
+  3. **单元测试与双向验证**：更新 `ScoreParseReviewAppServiceTest`，验证人工显式纳入项在提交采纳时成功落库，并拦截不存在的幽灵 ID；全量 55 个 Golden Cases 回放与前端 41 个 Vitest 单测 100% 绿灯。

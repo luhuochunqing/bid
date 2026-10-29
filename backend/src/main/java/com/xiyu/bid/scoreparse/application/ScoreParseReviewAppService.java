@@ -178,15 +178,19 @@ public class ScoreParseReviewAppService {
         }).toList();
         Set<String> eligibleIds = eligibleFacts.stream().map(ScoreParseFact::getFactId)
                 .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
-        if (!eligibleIds.containsAll(selectedFactIds))
-            throw new IllegalArgumentException("方案外的评分事实不能采纳");
+        Set<String> allFactIds = facts.stream().map(ScoreParseFact::getFactId)
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (!allFactIds.containsAll(selectedFactIds))
+            throw new IllegalArgumentException("包含不存在的评分事实");
         if (selectedFactIds.isEmpty()) selectedFactIds.addAll(eligibleIds);
         if (selectedFactIds.isEmpty()) throw new IllegalArgumentException("没有可供人工核对的候选项");
         Set<String> documentSchemes = qualifications.values().stream()
                 .filter(q -> !"OUT_OF_SCHEME".equals(q.scopeStatus()))
                 .map(ScoreParseReviewFactMapper.Qualification::schemeId)
                 .filter(id -> id != null && !id.isBlank()).collect(Collectors.toSet());
-        Set<String> selectedSchemes = selectedFactIds.stream().map(qualifications::get)
+        Set<String> selectedSchemes = selectedFactIds.stream()
+                .filter(eligibleIds::contains)
+                .map(qualifications::get)
                 .filter(java.util.Objects::nonNull).map(ScoreParseReviewFactMapper.Qualification::schemeId)
                 .filter(id -> id != null && !id.isBlank()).collect(Collectors.toSet());
         String requested = requestedScheme == null ? "" : requestedScheme.trim();
@@ -198,8 +202,10 @@ public class ScoreParseReviewAppService {
         String adoptedSchemeId = !requested.isEmpty() ? requested : !selectedSchemes.isEmpty()
                 ? selectedSchemes.iterator().next() : documentSchemes.size() == 1
                 ? documentSchemes.iterator().next() : "MANUAL_UNVERIFIED";
-        List<com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput> inputs = eligibleFacts.stream()
+        List<com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput> inputs = facts.stream()
                 .filter(fact -> {
+                    if (selectedFactIds.contains(fact.getFactId())) return true;
+                    if (!eligibleIds.contains(fact.getFactId())) return false;
                     var q = qualifications.get(fact.getFactId());
                     return q == null || q.schemeId() == null || q.schemeId().isBlank() || adoptedSchemeId.equals(q.schemeId());
                 }).map(f -> toCandidateInput(f, edits.get(f.getFactId()))).toList();
