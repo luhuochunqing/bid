@@ -1086,4 +1086,93 @@ class Project1382FullPipelineIntegrationTest {
         assertThat(result.completeness()).isNotNull();
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
     }
+
+    @Test
+    @DisplayName("项目1392 (project1130.pdf) 真实百度OCR + Task345线上24项事实全链路验证：跨3页评分表合并为单表、非评分表隔离、OCR异形标点对齐、恢复原文评审因素名称、100分全数归入本方案")
+    void verifyProject1392Task345RealBaiduOcrFullPipeline() throws Exception {
+        File pdfFile = new File("src/test/resources/project1130.pdf");
+        if (!pdfFile.exists()) {
+            pdfFile = new File("backend/src/test/resources/project1130.pdf");
+        }
+        assertThat(pdfFile).exists();
+        byte[] pdfBytes = Files.readAllBytes(pdfFile.toPath());
+
+        var props = new com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduOcrProperties();
+        props.setEnabled(true);
+        props.setApiKey("VJ8ZnT3WTnUR433O7QX6sWlY");
+        props.setSecretKey("QE4wXv7U774mb5IceRRY3XpI7FsY7bKC");
+        var client = new com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableOcrClient(props, objectMapper);
+        var enricher = new com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableArtifactEnricher(client);
+
+        var meta = new DocumentArtifact.ArtifactMeta("doc0", "sha1130", "PDF", "pdf-table-v2");
+        var sidecar13 = new DocumentArtifact.CanonicalTable("p13-t0013", 13, "第四章 评审办法", 6, 5, List.of(), List.of(), true, "PDF");
+        var sidecar15 = new DocumentArtifact.CanonicalTable("p15-t0014", 15, "第四章 评审办法", 2, 2, List.of(), List.of(), false, "PDF");
+        var baseline = new DocumentArtifact(meta, List.of(sidecar13, sidecar15), List.of());
+
+        DocumentArtifact enriched = enricher.enrichIfEnabled(baseline, pdfBytes, "project1130.pdf");
+        DocumentArtifact artifact = SourceArtifactBundle.combine(List.of(enriched));
+
+        List<DocumentArtifact.CanonicalTable> scoreTables = artifact.tables().stream()
+                .filter(t -> Boolean.TRUE.equals(t.isScoreTable()))
+                .toList();
+        assertThat(scoreTables).hasSize(1);
+        assertThat(scoreTables.getFirst().tableId()).isEqualTo("doc0-baidu_tbl_13_1");
+        assertThat(scoreTables.getFirst().columns()).isEqualTo(4);
+        assertThat(scoreTables.getFirst().rows()).isEqualTo(13);
+
+        record FactInput(String code, String parentCode, int weight, int page, String quote) {}
+        List<FactInput> inputs = List.of(
+                new FactInput("1", "", 10, 13, "供应商合规性评\n审及企业信用(10\n1 分）"),
+                new FactInput("1.1", "1", 5, 13, "1.进行 ICP 备案核查，以工信部备案管理系统\n（https://beian.miit.gov.cn）公开查询结果为准，\n供应商须提供工信部 ICP 备案管理系统官网实\n时查询截图，提供截图得5分，无截图不得分。"),
+                new FactInput("1.2", "1", 5, 13, "2.投标人近三年信用良好，且无被诉讼记录，得\n5分，有被诉讼记录不得分。（提供“信用中国”官\n网截图证明，截图界面见综合评分办法-企业信\n用截图范例）"),
+                new FactInput("2", "", 15, 13, "商品类目和商品\n品种及保障能力\n和方案（15分）"),
+                new FactInput("2.1", "2", 10, 13, "1.商品品种：低于20万种得0分，20万种（含）\n得5分，每增加10万种加1分，满分10分。提\n供网站查询截图或其他证明材料证明。"),
+                new FactInput("2.2", "2", 5, 13, "2.投标人\n能够提供项目解决方案（2分）、能够配合开展物\n料信息及品类整合归纳（3分）。上述两项内容需\n提供对应承诺书，承诺书格式自拟，盖章有效。"),
+                new FactInput("3", "", 15, 13, "仓储资源保障、\n运 输 资 源 保 障\n（15分）"),
+                new FactInput("3.1", "3", 5, 13, "1.商品能够保证即时下单，年度集采品种下单后\n保证72小时到货得2分，每提前8小时加1分，\n满分5分。提供承诺书，格式自拟，盖章有效。"),
+                new FactInput("3.2", "3", 10, 13, "2.投标人每提供一个地市级及以上的服务城市，\n得2.5分，满分10分。提供承诺书，格式自拟，\n盖章有效。"),
+                new FactInput("4", "", 15, 13, "商品系统对接能\n力和方案（15分）"),
+                new FactInput("4.1", "4", 12, 13, "1、供应商近三年在采购范围内产品销售额2000\n万元（含）得10分，每增加1000万加1分，满\n分12分。采购范围：通用电气、通讯设备及配\n件。"),
+                new FactInput("4.2", "4", 3, 14, "投标人平\n台进货有生产制造商直采渠道，有30家得3分，\n需提供与对应生产制造商的采购合同及发票扫\n描件"),
+                new FactInput("5", "", 5, 14, "公司运营情况（5\n分）"),
+                new FactInput("6", "", 20, 14, "价格优惠（20分）"),
+                new FactInput("6.1", "6", 10, 14, "1.投标人对包钢销售价格不高于向任何第三方销\n售价格，提供承诺书得10分，格式自拟，盖章\n有效。"),
+                new FactInput("6.2", "6", 5, 14, "投标人结算账期必须在90天及以上，\n得5分，提供承诺书，格式自拟，盖章有效。"),
+                new FactInput("6.3", "6", 5, 14, "投标人能按照协商约定对应推送及上架相关商\n品得5分，提供承诺书，格式自拟，盖章有效。"),
+                new FactInput("7", "", 5, 14, "大型企事业客户\n数量和经验（5分）"),
+                new FactInput("8", "", 5, 14, "网络平台数据及\n功能对接（5分）"),
+                new FactInput("9", "", 10, 14, "服务响应（10分）"),
+                new FactInput("9.1", "9", 5, 14, "1.能够支持采购人历史交易数据导入，能够通过\n系统建立采购模型，按照品牌或品类等多维度进\n行价格、成本分析的，得5分。（投标人需提供\n满足招标要求的证明材料，以及系统操作及结果\n显示视频。）"),
+                new FactInput("9.2", "9", 3, 15, "2.投标人能够提供售前、售中、售后\n服务，得3分，提供承诺书，格式自拟，盖章有\n效。"),
+                new FactInput("9.3", "9", 2, 15, "3.投标人能够提供人员培训，得2分，提供\n承诺书，格式自拟，盖章有效。"),
+                new FactInput("10", "", 0, 15, "质量验收评价扣\n分及相关情况说\n明")
+        );
+
+        List<MultimodalScoreFact> rawFacts = inputs.stream().map(in -> new MultimodalScoreFact(
+                "第四章 评审办法", in.code(), in.parentCode(), "详细评审", new BigDecimal(in.weight()),
+                in.quote(), "OBJECTIVE", in.page(), "", List.of(), in.quote(), 0.95,
+                in.parentCode().isBlank() && List.of("1", "2", "3", "4", "6", "9").contains(in.code())
+                        ? ChildAggregation.SUM : ChildAggregation.UNKNOWN,
+                "", "",
+                new com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata(in.quote(), in.quote(), List.of(), List.of(),
+                        "详细评审", "OBJECTIVE",
+                        new com.xiyu.bid.scoreparse.domain.ModelSourceClaim("第四章 评审办法", in.page(), "", List.of(), "", ""))
+        )).toList();
+
+        String tenderText = "第四章 评审办法\n评审办法前附表\n" + inputs.stream().map(FactInput::quote).reduce("", (a, b) -> a + "\n" + b);
+        OriginalScoringContext context = OriginalScoringContext.resolve(artifact, tenderText);
+        var extractionResult = new MultimodalScoreFactExtractor.ExtractionResult(null, rawFacts, "gemini-3.5-flash", 0);
+
+        StructuredTableResult result = MultimodalStructuredExtractionHandler.run(
+                "project1130.pdf", tenderText, artifact, context, null, () -> {},
+                extractionResult, true, true, true);
+
+        assertThat(result.completeness()).isNotNull();
+        assertThat(result.completeness().leafWeightSum()).as("Project 1392 候选叶子总分必须达到 100 分").isEqualByComparingTo("100");
+        assertThat(result.facts()).hasSize(24);
+        assertThat(result.facts()).allSatisfy(f -> {
+            assertThat(f.sourceTableId()).as("code=" + f.code() + " 必须绑定到合并后的唯一评分表").isEqualTo("doc0-baidu_tbl_13_1");
+            assertThat(f.dimension()).as("code=" + f.code() + " 必须恢复为评审因素列真实名称而非泛化标题").isNotEqualTo("详细评审");
+        });
+    }
 }

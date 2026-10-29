@@ -121,7 +121,7 @@ final class PdfRowEvidenceBinder {
                                                       DocumentArtifact artifact) {
         String code = TextPrimaryEvidenceBinder.normalizeForEvidence(fact.code());
         if (!"PDF".equalsIgnoreCase(sourceType(table, artifact)) || !(Boolean.TRUE.equals(table.isScoreTable()) || !OriginalScoringContext.schemeTitleForTable(table).isBlank())
-                || ruleCell.row() == null || code.isBlank() || code.matches("[\\d.()_-]+")) return exact;
+                || ruleCell.row() == null || code.isBlank() || code.matches("[\\d.()（）_-]+")) return exact;
         List<DocumentArtifact.CanonicalTable.CanonicalCellDto> names = table.cells().stream()
                 .filter(cell -> ruleCell.row().equals(cell.row()) && !ruleCell.cellId().equals(cell.cellId()))
                 .filter(cell -> cell.rawText() != null && TextPrimaryEvidenceBinder.normalizeForEvidence(cell.rawText())
@@ -197,7 +197,7 @@ final class PdfRowEvidenceBinder {
             return fact.dimension();
         }
         String code = TextPrimaryEvidenceBinder.normalizeForEvidence(fact.code());
-        if (!code.isBlank() && !code.matches("[\\d.()_-]+")) {
+        if (!code.isBlank() && !code.matches("[\\d.()（）_-]+")) {
             List<String> matches = span.cells().stream().map(DocumentArtifact.CanonicalTable.CanonicalCellDto::rawText)
                     .filter(java.util.Objects::nonNull)
                     .filter(raw -> TextPrimaryEvidenceBinder.normalizeForEvidence(raw).contains(code)).toList();
@@ -208,7 +208,7 @@ final class PdfRowEvidenceBinder {
         if (CATEGORY_DIMENSION.matcher(dimension).matches() && !span.cells().isEmpty()) {
             for (var cell : span.cells()) {
                 String candidate = cleanedName(cell.rawText());
-                if (!candidate.isBlank() && candidate.length() <= 30 && !candidate.matches("[\\d.()_-]+")) {
+                if (!candidate.isBlank() && candidate.length() <= 30 && !candidate.matches("[\\d.()（）_-]+")) {
                     return candidate;
                 }
             }

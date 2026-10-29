@@ -62,6 +62,27 @@ class SourceItemNameRestorationTest {
         assertThat(result.sourceMetadata().diagnostics()).contains("MODEL_DIMENSION:详细评审");
     }
 
+    @Test void unanchoredTextFactAndContinuationRowRestoreNameFromLogicalRow() {
+        var base=source(false);
+        var table=base.tables().getFirst();
+        var cells=new ArrayList<>(table.cells());
+        for (int c=0;c<4;c++) {
+            String text=c==2 ? "3.提供人员培训得10分。" : "";
+            cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                    "t-r3-c"+c,3,c,text,text,1,1,false,"pdf:page=2",2,"t-r1"));
+        }
+        var contSource=new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc","synthetic","PDF","2.2"),
+                List.of(new DocumentArtifact.CanonicalTable(
+                table.tableId(),1,table.sourceSection(),4,4,List.of(),cells,true,"BAIDU_OCR")),List.of());
+        var unanchored=new MultimodalScoreFact("第四章 评审办法","1.3","1","详细评审",new BigDecimal(10),
+                "3.提供人员培训得10分。","OBJECTIVE",2,"",List.of(),"3.提供人员培训得10分。",.9,
+                ChildAggregation.UNKNOWN,"","",ScoreSourceMetadata.EMPTY);
+        var bound=TextPrimaryEvidenceBinder.bind(List.of(unanchored),contSource).getFirst();
+        assertThat(bound.dimension()).isEqualTo("服务能力");
+        assertThat(bound.tableId()).isEqualTo("t");
+        assertThat(bound.sourceCellIds()).containsExactly("t-r3-c2");
+    }
+
     static MultimodalScoreFact fact(String code, String parent, int weight, String row, String quote) {
         return new MultimodalScoreFact("第四章 评审办法", code, parent, "详细评审", new BigDecimal(weight), quote,
                 "OBJECTIVE", 1, "t", List.of("t-r"+row+"-c1", "t-r"+row+"-c2"), quote, .9,

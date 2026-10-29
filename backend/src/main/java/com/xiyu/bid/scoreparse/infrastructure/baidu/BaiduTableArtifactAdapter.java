@@ -91,9 +91,9 @@ public final class BaiduTableArtifactAdapter {
             var gridResult = BaiduTableGridBuilder.buildCanonicalGrid(item.body(), tableId, pageNum);
 
             boolean isScore = isLikelyScoreTable(item);
-            String effectiveSection = (sourceSection != null && !sourceSection.isBlank())
-                    ? sourceSection
-                    : (isScore ? "评审办法/详细评审标准" : "招标文件正文");
+            String effectiveSection = !isScore
+                    ? "招标文件正文"
+                    : (sourceSection != null && !sourceSection.isBlank() ? sourceSection : "评审办法/详细评审标准");
             canonicalTables.add(new CanonicalTable(
                     tableId,
                     pageNum,
@@ -111,7 +111,11 @@ public final class BaiduTableArtifactAdapter {
     }
 
     private static boolean isLikelyScoreTable(BaiduTableItem item) {
-        return item.body().stream()
+        boolean hasKeyword = item.body().stream()
                 .anyMatch(cell -> cell.words() != null && SCORE_TABLE_KEYWORDS.stream().anyMatch(kw -> cell.words().contains(kw)));
+        boolean hasScoreValue = item.body().stream()
+                .anyMatch(cell -> cell.words() != null && (cell.words().contains("分") || cell.words().contains("%")
+                        || cell.words().contains("％") || cell.words().contains("权重")));
+        return hasKeyword && hasScoreValue;
     }
 }

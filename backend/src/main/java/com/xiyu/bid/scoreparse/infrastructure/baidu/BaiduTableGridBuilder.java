@@ -30,8 +30,8 @@ final class BaiduTableGridBuilder {
     ) {}
 
     static GridResult buildCanonicalGrid(List<BaiduTableCell> rawCells, String tableId, int pageNum) {
-        int maxRow = rawCells.stream().mapToInt(BaiduTableCell::rowEnd).max().orElse(0);
-        int maxCol = rawCells.stream().mapToInt(BaiduTableCell::colEnd).max().orElse(0);
+        int maxRow = rawCells.stream().mapToInt(BaiduTableCell::rowStart).max().orElse(0);
+        int maxCol = rawCells.stream().mapToInt(BaiduTableCell::colStart).max().orElse(0);
         int rowCount = maxRow + 1;
         int colCount = maxCol + 1;
 
@@ -45,7 +45,7 @@ final class BaiduTableGridBuilder {
         }
 
         // 检查并收缩有效 rowspan / colspan，防止 OCR 坐标重叠破坏拓扑结构
-        List<SanitizedCell> sanitizedCells = sanitizeCells(rawCells, originPositions);
+        List<SanitizedCell> sanitizedCells = sanitizeCells(rawCells, originPositions, maxRow, maxCol);
 
         // 放置起始单元格与覆盖占位单元格
         for (SanitizedCell cell : sanitizedCells) {
@@ -96,13 +96,14 @@ final class BaiduTableGridBuilder {
         return new GridResult(List.copyOf(cells), List.copyOf(mergedRegions), rowCount, colCount);
     }
 
-    private static List<SanitizedCell> sanitizeCells(List<BaiduTableCell> rawCells, Set<Long> originPositions) {
+    private static List<SanitizedCell> sanitizeCells(List<BaiduTableCell> rawCells, Set<Long> originPositions,
+                                                     int maxRow, int maxCol) {
         List<SanitizedCell> result = new ArrayList<>();
         for (BaiduTableCell cell : rawCells) {
             int rStart = cell.rowStart();
             int cStart = cell.colStart();
-            int rEnd = cell.rowEnd();
-            int cEnd = cell.colEnd();
+            int rEnd = Math.min(cell.rowEnd(), maxRow);
+            int cEnd = Math.min(cell.colEnd(), maxCol);
 
             int safeCEnd = cStart;
             for (int c = cStart + 1; c <= cEnd; c++) {
@@ -205,6 +206,7 @@ final class BaiduTableGridBuilder {
 
         boolean scoreEmpty = scoreCol >= 0 && scoreCol < colCount
                 && (rowCells[scoreCol].normalizedText().isBlank() || Boolean.TRUE.equals(rowCells[scoreCol].isMergedContinue()));
+        if (!scoreEmpty && colCount >= 3 && !rowCells[1].normalizedText().isBlank()) return false;
         if (prefixEmpty && (scoreEmpty || scoreCol == ruleCol)) return true;
 
         for (int c = 0; c < colCount; c++) {
@@ -214,26 +216,28 @@ final class BaiduTableGridBuilder {
     }
 
     static List<List<CellPayload>> buildSimplePayloadGrid(List<BaiduTableCell> cells) {
-        int maxRow = cells.stream().mapToInt(BaiduTableCell::rowEnd).max().orElse(0);
-        int maxCol = cells.stream().mapToInt(BaiduTableCell::colEnd).max().orElse(0);
+        int maxRow = cells.stream().mapToInt(BaiduTableCell::rowStart).max().orElse(0);
+        int maxCol = cells.stream().mapToInt(BaiduTableCell::colStart).max().orElse(0);
         int rowCount = maxRow + 1;
         int colCount = maxCol + 1;
 
         CellPayload[][] grid = new CellPayload[rowCount][colCount];
         for (BaiduTableCell c : cells) {
             int rStart = c.rowStart();
-            int rEnd = c.rowEnd();
+            int rEnd = Math.min(c.rowEnd(), maxRow);
             int cStart = c.colStart();
-            int cEnd = c.colEnd();
+            int cEnd = Math.min(c.colEnd(), maxCol);
             String text = c.words() != null ? c.words() : "";
+            int safeRowspan = Math.max(1, rEnd - rStart + 1);
+            int safeColspan = Math.max(1, cEnd - cStart + 1);
 
             if (rStart < rowCount && cStart < colCount) {
-                grid[rStart][cStart] = new CellPayload(text, c.rowspan(), c.colspan(), false);
+                grid[rStart][cStart] = new CellPayload(text, safeRowspan, safeColspan, false);
             }
             for (int r = rStart; r <= rEnd && r < rowCount; r++) {
                 for (int col = cStart; col <= cEnd && col < colCount; col++) {
                     if (r == rStart && col == cStart) continue;
-                    grid[r][col] = new CellPayload("", c.rowspan(), c.colspan(), true);
+                    grid[r][col] = new CellPayload("", safeRowspan, safeColspan, true);
                 }
             }
         }
