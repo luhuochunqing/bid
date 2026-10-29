@@ -119,6 +119,7 @@ backlinks:
 - [[scoreparse-certificate-estimate-staleness-rca]] — 证书评分历史漏认、预判残留与组合证书任一命中假满分根因（只读诊断，未修复）
 - [[scoreparse-cross-chapter-qualification-performance]] — 评分项跨章节穿透资格项业绩检索与基础分递增计分规范
 - [[scoreparse-performance-evidence-clarity]] — 业绩预计得分证据可信度、保守计分与中文解释契约
+- [[scoreparse-1371-docx-merged-closure-rca]] — 项目 1371 DOCX 嵌套纵向合并打分表行闭合与标书原文回填根因
 - [[scoreparse-1384-docx-scheme-contract-rca]] — 项目 1384 DOCX 评分方案资格失效根因（PR #2757 真实输入契约）
 - [[scoreparse-1382-live-publish-gate]] — 项目1382线上100分被0分指引和空模型总分否决
 - [[scoreparse-1382-pdf-scheme-gate-rca]] — 项目 1382 PDF 评分方案资格门失效根因（PDF 章节 / DOCX 真实跨层 / 全候选快照 / 生效版本与评分指纹 / 发布开关）
