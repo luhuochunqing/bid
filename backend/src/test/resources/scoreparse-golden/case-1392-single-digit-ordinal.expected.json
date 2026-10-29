@@ -1,0 +1,7 @@
+{
+  "synthetic": true,
+  "desensitization": "标题与评分项全部合成，保留 1-9 单数字编号、总分 100 分评审办法版式",
+  "focus": "单数字编号如 7 必须被 hasScoringCode 识别为合法评分编号，纳入方案内不被误判为 OUT_OF_SCHEME",
+  "declaredTotal": 100,
+  "schemeTitle": "第四章 评审办法"
+}

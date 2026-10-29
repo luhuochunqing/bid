@@ -45,3 +45,4 @@ archive: false
 - `ScoreParseReviewAppServiceTest` 验证显式纳入成功持久化并拦截不存在事实。
 - 55 个 `GoldenCasesReplayTest` 全部通过。
 - 41 个前端组件单测全部通过。
+
