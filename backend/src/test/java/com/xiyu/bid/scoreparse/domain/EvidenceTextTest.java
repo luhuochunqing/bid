@@ -75,4 +75,19 @@ class EvidenceTextTest {
         assertThat(EvidenceText.normalize("运营时间达到 5 年以上").text()).isEqualTo("运营时间达到5年以上");
         assertThat(EvidenceText.normalize("合计 1 000").text()).isEqualTo("合计1 000");
     }
+
+    @Test void ocrOrdinalPeriodAndParenthesesGlyphVariantsMatchPdfText() {
+        String ocrCell = "1.商品品种：满分10分。2。投标人能够提供项目解决方案(2分)、能够配合开展物料信息及品类整合归纳(3分)。3。\n投标人能按照协商约定得5分。";
+        var normalizedCell = EvidenceText.normalize(ocrCell);
+        var span2 = normalizedCell.uniqueSpan("2.投标人能够提供项目解决方案（2分）、能够配合开展物料信息及品类整合归纳（3分）。");
+        assertThat(span2).isPresent();
+        assertThat(ocrCell.substring(span2.get().start(), span2.get().end()))
+                .isEqualTo("2。投标人能够提供项目解决方案(2分)、能够配合开展物料信息及品类整合归纳(3分)。");
+        var span3 = normalizedCell.uniqueSpan("3.投标人能按照协商约定得5分。");
+        assertThat(span3).isPresent();
+        assertThat(EvidenceText.normalize("公司运营情况(5\n分)").text())
+                .isEqualTo(EvidenceText.normalize("公司运营情况（5\n分）").text());
+        assertThat(EvidenceText.normalize("（提供‘信用中国”官网截图证明)").uniqueSpan("（提供“信用中国”官网截图证明）"))
+                .isPresent();
+    }
 }

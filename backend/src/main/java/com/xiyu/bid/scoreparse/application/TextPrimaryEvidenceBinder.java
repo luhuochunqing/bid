@@ -232,7 +232,9 @@ final class TextPrimaryEvidenceBinder {
     }
 
     static String restoredQuote(String raw, String quote) {
-        return com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(raw).uniqueSpan(quote)
+        var norm = com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(raw);
+        return norm.uniqueSpan(quote)
+                .or(() -> norm.uniqueSpan(quote.replaceAll("(?<=\\p{IsHan})\\s+(?=[A-Za-z])|(?<=[A-Za-z])\\s+(?=\\p{IsHan})", "")))
                 .map(span -> raw.substring(span.start(), span.end())).orElse(quote);
     }
 

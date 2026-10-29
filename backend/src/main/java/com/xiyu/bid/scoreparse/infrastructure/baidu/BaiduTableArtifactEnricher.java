@@ -106,7 +106,7 @@ public class BaiduTableArtifactEnricher {
                 return baseline;
             }
 
-            List<CanonicalTable> linkedOcrTables = BaiduCrossPageTableLinker.linkCrossPageLogicalRows(ocrTables);
+            List<CanonicalTable> linkedOcrTables = BaiduCrossPageTableLinker.mergeCrossPageScoreTables(ocrTables);
             return mergeArtifact(baseline, linkedOcrTables, warnings, fileName);
         } catch (IOException | RuntimeException e) {
             log.error("BaiduTableArtifactEnricher: Unexpected error while enriching artifact for {}: {}", fileName, e.getMessage(), e);
@@ -261,6 +261,13 @@ public class BaiduTableArtifactEnricher {
         for (CanonicalTable t : ocrTables) {
             if (t.sourcePage() != null) {
                 ocrPages.add(t.sourcePage());
+            }
+            if (t.cells() != null) {
+                for (var c : t.cells()) {
+                    if (c.sourcePage() != null) {
+                        ocrPages.add(c.sourcePage());
+                    }
+                }
             }
         }
 

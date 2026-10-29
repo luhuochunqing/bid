@@ -84,3 +84,18 @@ backlinks:
 2. **确定性连续扩展算法**：修改为从 `minScorePage` 出发，在 PDFBox 检测出的 `candidatePages` 中向后连续提取所有候选页（相邻差值 $\le 2$，容许中间有不含关键词但承接评分的物理页），直到遇到明显跨章断裂（差值 $>2$）或达到最大页面预算，不再受 Sidecar `isScoreTable` 标记误导；
 3. **范围守卫纯净性**：`MultimodalExtractionReviewPolicy` 中对无表格且无单元格事实的 `IN_SCHEME` 认定必须保留条款号（`hasScoringCode`）强约束，避免将纯文本履约考核指标（如 `system_response_metrics`）误放行入评分方案。
 
+## 8. 跨页物理表格归一、OCR 异形标点对齐与分值/名称全闭环 (Project 1392 100分根治)
+
+在 `project1130.pdf`（项目 1392，Task 345）实测中，仅扩大页面扫描范围仍因以下四重断层卡在 85 分并伴随名称丢失与多表警告：
+1. **百度半开区间坐标 `[row_start, row_end)` 幽灵尾行/尾列与跨页续行断裂**：
+   - `BaiduTableGridBuilder` 改用 `rowStart` / `colStart` 最大值计算网格维度（而非 `rowEnd` / `colEnd`），消除第 13 页底部的全空幽灵行 `r5`，使第 14 页续行 `r0` 精准链接至第 13 页末行 `r4`；
+   - `isContinuationRow` 增加首列为空但次列（评审因素）非空时的非续行守卫，防止首列跨行合并的新大项被误判为上一行的续行。
+2. **跨页无表头续表物理合并与非评分小表隔离**：
+   - `BaiduCrossPageTableLinker.mergeCrossPageScoreTables` 将连续页、同列数、无表头的跨页评分续表（`baidu_tbl_14_0`、`baidu_tbl_15_0`）物理合并入首表 `baidu_tbl_13_1`（统一 `tableId`、平移 row/cellId、保留各单元格真实 `sourcePage` 并串联跨页 `logicalRowId`），消除 `MULTI_TABLE_SCHEME` 警告与多物理表分流（17 项全部归入同一主表）；
+   - `BaiduTableArtifactAdapter.isLikelyScoreTable` 要求同时具备评分表头关键词与分值/权重指示符，且非评分表（如第 13 页 `[资质要求 | 详见采购公告]`、第 15 页 `[开标内容 | 开标要求]`）赋予 `sourceSection = "招标文件正文"`，杜绝混入评分方案。
+3. **OCR 异形标点与中西文边界空格归一化 (`EvidenceText` & `TextPrimaryEvidenceBinder`)**：
+   - `EvidenceText.normalize` 将半角括号 `'('`/`')'` 归一为全角 `'（'`/`'）'`，将引号变体 `'‘'`/`'’'`/`'“'` 归一为 `'”'`，并将数字后紧跟汉字时的句号误识（如 `3。系统架构`、`1．投标人`）归一为 `'.'`（保留小数如 `2。5分` 不变，且严守 1:1 原文字符偏移）；
+   - `TextPrimaryEvidenceBinder.restoredQuote` 在 `uniqueSpan` 匹配时支持剥离 PDFBox/LLM 在汉字与拉丁字母间插入的排版空格（如 `"1.进行 ICP 备案"` 对齐百度 OCR `"1.进行ICP备案"`），确保回填原文子串通过 `OriginalScoreQualificationPolicy` 校验。
+4. **分项累加分值识别与评审因素列名恢复 (`OriginalScoreWeightEvidencePolicy` & `SourceItemNameRestoration`)**：
+   - `OriginalScoreWeightEvidencePolicy` 在行内查找单元格时纳入同一 `logicalRowId` 的跨页续行单元格，并新增 `quoteSubscoresSumToWeight` 识别叶子细则内括号分项累加（如 `2.2` 引文内 `（2分）...（3分）` 合计 `5分`），解决整行仅标大项总分 `20` 时子项 `5分` 被误判 `SOURCE_UNVERIFIED` 的问题；
+   - `SourceItemNameRestoration` 支持当模型输出泛化章节名 `"详细评审"` 时，从唯一 `评审因素` 列（含跨页 `logicalRowId` 锚点行及 `claim.sourceCellIds()` 为空的回绑事实）确定性恢复真实评分项名称。

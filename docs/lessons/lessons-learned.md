@@ -7704,8 +7704,22 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   4. **方案范围误判免疫保护**：在 `MultimodalExtractionReviewPolicy` 中增加正分与正规评分维度（技术/商务/报价）保护，防止跨页未决项沦为方案外；
   5. **自动化测试覆盖**：编写 `BaiduTableArtifactAdapterTest` 与 `BaiduTableArtifactEnricherTest`，验证 2D 拓扑合法性、跨页续行衔接、真实 PDF 抽取替换与 15 个 Golden/Evidence 回归测试全绿。
 
+## 466. 项目 1392 (project1130.pdf) 接入百度 OCR 后倒退至 85 分、名称退化与多表分裂的四重根因闭环（2026-10-29）
 
-
-
-
-
+- **现场证据**：项目 1392（`project1130.pdf`）在合入百度 OCR Primary Authority（PR !2913）后，解析结果反而从 95 分（Task 344）跌落至 **85 分（Task 345，本方案内 14 项）**，同时出现三个新回归：(1) 底部多出 10 条“详细评审 方案外：无法确认属于当前评分方案”；(2) 界面内所有评分项名称全部退化为“详细评审”（丢失“评审因素”列真实名称）；(3) 顶部弹出“该方案包含多个物理表格，原文未声明统一总分（当前候选合计 85 分）”警告。
+- **致错机制（四重因果链）**：
+  1. **百度 OCR 半开区间坐标 `[row_start, row_end)` 制造幽灵空尾行 + 跨页三表物理分裂**：
+     - 百度 `ocr/v1/table` 返回的 `row_end`/`col_end` 是半开区间上界（或包含最末索引），`BaiduTableGridBuilder` 用 `max(rowEnd) + 1` 计算行数，导致第 13 页 `baidu_tbl_13_1` 在真实的 `r0..r4` 之下凭空多出全空幽灵行 `r5`；`BaiduCrossPageTableLinker` 将第 14 页续行 `r0` 链接到了空的 `r5` 而非 `r4`，使跨页项 `4.3` 的逻辑行彻底断裂；
+     - 第 13/14/15 页的同一张 4 列评分表被拆成 `baidu_tbl_13_1`、`baidu_tbl_14_0`、`baidu_tbl_15_0` 三个不同 `tableId`，不仅触发 `MULTI_TABLE_SCHEME` 警告，且因第 15 页 `9.2`（3分）、`9.3`（2分）落入未绑定的孤立续表或无表状态，双双在 `Task 345` 中被判为 `OUT_OF_SCHEME`。
+  2. **OCR 标点异变与中西文边界空格导致引文回绑/核验失配（丢 15 分：`1.1` 5分、`5` 5分、`7` 5分）**：
+     - 百度 OCR 将部分细则编号后的点识别为中文句号 `'。'`（如 `6.2` 的 `2。投标人`、`9.3` 的 `3。投标人`），将括号识别为半角 `'('`/`')'`，将左双引号识别为 `'”'`，而大模型从 PDFBox 文本抽取的引文为标准 `'.'`、全角 `'（'`/`'）'`、`'“'`；`EvidenceText.normalize` 未归一这些 OCR 标点异变，导致第 14 页第 5 项（5分）、第 7 项（5分）无法绑定到 `baidu_tbl_14_0` 单元格，且无 `tableId` 的事实被 `OriginalScoreQualificationPolicy` 拦截；
+     - 第 13 页 `1.1`（5分）大模型引文含 PDFBox 排版空格 `"1.进行 ICP 备案"`，虽通过 `matchesExact` 去空白回绑到 `r1_c2`，但 `TextPrimaryEvidenceBinder.restoredQuote` 调 `uniqueSpan` 时未剥离汉字与拉丁字母间的空格，未能将 `quotedText` 替换为单元格原文 `"1.进行ICP备案"`，随后被 `OriginalScoreQualificationPolicy` 判为 `SOURCE_QUOTE_NOT_VERIFIED`。
+  3. **叶子细则内括号分项累加被整行父项总分遮蔽（丢 5 分：`2.2` 5分）**：
+     - 第 13 页 `2.2`（5分）所在行 `r2` 的分值列仅标注父项总分 `20`，而 `2.2` 引文内为两个括号子分累加：`...（2分）；...（3分）。`（无直接 `"5分"` 字面量）。`OriginalScoreWeightEvidencePolicy` 仅从行分值列提取到 `[20]`，直接将 `2.2` 的 `5分` 判为 `ITEM_WEIGHT_SOURCE_UNKNOWN`（`SOURCE_UNVERIFIED`）。
+  4. **泛化维度名 `"详细评审"` 未触发 `评审因素` 列名恢复**：
+     - `Task 345` 中大模型将所有条目的 `dimension` 统一输出为 `"详细评审"`，而 `SourceItemNameRestoration` 既未覆盖跨页 `logicalRowId` 锚点行，又因 `claim.sourceCellIds()` 为空时的过滤条件限制，未能从唯一的 `评审因素` 列恢复真实评分项名称。
+- **根治方案与长效防线**：
+  1. **消除幽灵尾行与跨页评分续表物理归一**：`BaiduTableGridBuilder` 改用 `rowStart`/`colStart` 最大值计算网格维度；`BaiduCrossPageTableLinker.mergeCrossPageScoreTables` 将连续页、同列数、无表头的跨页评分表（`baidu_tbl_14_0`、`baidu_tbl_15_0`）物理合并入首表 `baidu_tbl_13_1`（13行×4列），同时收紧 `BaiduTableArtifactAdapter.isLikelyScoreTable` 将同页非评分小表（资质要求表、开标一览表）标记为 `isScoreTable=false` 及 `"招标文件正文"`；
+  2. **1:1 偏移保真的 OCR 标点归一与中西文空格回填**：`EvidenceText.normalize` 归一 `'('`→`'（'`、`')'`→`'）'`、引号变体→`'”'` 及数字后紧跟汉字时的 `'。'`/`'．'`→`'.'`（`PdfRowEvidenceBinder` 条款号正则同步兼容 `（）`）；`TextPrimaryEvidenceBinder.restoredQuote` 支持剥离中西文边界空格匹配原文 span；
+  3. **跨页逻辑行分值查找与括号子分累加验证**：`OriginalScoreWeightEvidencePolicy` 行查找纳入同 `logicalRowId` 单元格，并新增 `quoteSubscoresSumToWeight` 支持叶子细则内多个括号分值累加等于条目权重；
+  4. **评审因素列名确定性恢复与真实 PDF 端到端单测**：`SourceItemNameRestoration` 支持按物理行或 `logicalRowId` 从唯一 `评审因素` 列恢复真实名称；在 `Project1382FullPipelineIntegrationTest#verifyProject1392Task345RealBaiduOcrFullPipeline` 中使用 `project1130.pdf` 真实百度 OCR 提取数据完成全链路单测，24 条事实 100% 绑定单表 `doc0-baidu_tbl_13_1`，叶子总分精准闭合 **100 分**，0 条方案外，全部名称恢复。

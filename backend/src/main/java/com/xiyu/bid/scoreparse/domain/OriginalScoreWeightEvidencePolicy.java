@@ -61,7 +61,9 @@ final class OriginalScoreWeightEvidencePolicy {
                 return;
             }
             var row = table.cells().stream().filter(c -> c.row() != null && !Boolean.TRUE.equals(c.isMergedContinue())
-                    && c.row() <= anchor.row() && c.row() + Math.max(1, c.rowspan() == null ? 1 : c.rowspan()) > anchor.row())
+                    && ((c.row() <= anchor.row() && c.row() + Math.max(1, c.rowspan() == null ? 1 : c.rowspan()) > anchor.row())
+                    || (anchor.logicalRowId() != null && !anchor.logicalRowId().isBlank()
+                    && anchor.logicalRowId().equals(c.logicalRowId()))))
                     .toList();
             String locator = table.tableId() + ":" + anchor.cellId();
             String directRowText = row.stream().map(c -> c.rawText() == null ? "" : c.rawText())
@@ -130,10 +132,11 @@ final class OriginalScoreWeightEvidencePolicy {
                     && (!claim.parent() || claim.childAggregation() == ChildAggregation.MUTUALLY_EXCLUSIVE)) {
                 authoritative = List.of(tierValues.stream().max(BigDecimal::compareTo).orElseThrow());
             }
+            boolean subscoresMatched = quoteSubscoresSumToWeight(rowText, claim);
             // 父类词写在 dimension、项名写在行标题时，行内分值已经证明就是这一行。
             // 具体项名对到另一行（分值碰巧相同）仍然拒绝。
             boolean categoryRowProven = OriginalScoreEvidencePolicy.sectionCategory(claim.dimension())
-                    && rowProvesWeight(claim, authoritative, title);
+                    && (rowProvesWeight(claim, authoritative, title) || subscoresMatched);
             if (!itemMatched && !categoryRowProven) {
                 problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "dimension", "ITEM_SOURCE_SCOPE_MISMATCH",
                         claim.dimension(), "not in cited item row", locator));
@@ -141,8 +144,9 @@ final class OriginalScoreWeightEvidencePolicy {
             Pattern claimWeightPattern = claim.weight() == null ? null
                     : Pattern.compile("(?<!\\d)" + Pattern.quote(claim.weight().stripTrailingZeros().toPlainString()) + "\\s*分");
             if ((explicit.isEmpty() || !claim.parent()) && claim.weight() != null
-                    && authoritative.stream().anyMatch(w -> w.compareTo(claim.weight()) == 0)
-                    && (claim.quotedText().isBlank() || claimWeightPattern.matcher(claim.quotedText()).find())) {
+                    && ((authoritative.stream().anyMatch(w -> w.compareTo(claim.weight()) == 0)
+                    && (claim.quotedText().isBlank() || claimWeightPattern.matcher(claim.quotedText()).find()))
+                    || subscoresMatched)) {
                 return;
             }
             if (authoritative.isEmpty() || distinct(authoritative).size() != 1) {
@@ -170,6 +174,15 @@ final class OriginalScoreWeightEvidencePolicy {
                 && distinct(authoritative).iterator().next().compareTo(claim.weight()) == 0) return true;
         return !claim.parent() && distinct(title).size() == 1
                 && distinct(title).iterator().next().compareTo(claim.weight()) == 0;
+    }
+
+    private static boolean quoteSubscoresSumToWeight(String rowText, ScoreEvidenceClaim claim) {
+        if (claim.parent() || claim.weight() == null || claim.quotedText() == null
+                || claim.quotedText().isBlank() || !containsQuote(rowText, claim.quotedText())) return false;
+        List<BigDecimal> parts = new ArrayList<>();
+        collect(TITLE_SCORE, claim.quotedText(), parts);
+        return parts.size() >= 2
+                && parts.stream().reduce(BigDecimal.ZERO, BigDecimal::add).compareTo(claim.weight()) == 0;
     }
 
     private static boolean contains(String source, String quote) {

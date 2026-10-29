@@ -36,6 +36,7 @@ public record EvidenceText(String text, List<Integer> offsets) {
             }
             // A period between Chinese characters is a sentence-stop glyph variant, never a decimal point.
             if (c == '.' && i > 0 && i + 1 < raw.length() && han(raw.charAt(i - 1)) && han(raw.charAt(i + 1))) c = '。';
+            if ((c == '。' || c == '．') && i > 0 && Character.isDigit(raw.charAt(i - 1)) && nextNonWhitespaceIsHan(raw, i + 1)) c = '.';
             c = comparisonOperator(c);
             if (Character.isWhitespace(c) || Character.isSpaceChar(c)) {
                 if (pending < 0) pending = i;
@@ -62,18 +63,31 @@ public record EvidenceText(String text, List<Integer> offsets) {
         return Optional.of(new Span(originalOffsets[start], originalOffsets[start + target.length() - 1] + 1));
     }
 
-    /** Comparison operators differ only by glyph: documents use U+FE64/U+FF1C, model quotes answer ASCII. */
+    /** Comparison operators and CJK parentheses/quotes differ only by glyph between OCR and PDF text. */
     private static char comparisonOperator(char c) {
         return switch (c) {
             case '﹤', '＜' -> '<';
             case '﹥', '＞' -> '>';
+            case '(' -> '（';
+            case ')' -> '）';
+            case '‘', '’', '“' -> '”';
             default -> c;
         };
+    }
+
+    private static boolean nextNonWhitespaceIsHan(String raw, int start) {
+        for (int j = start; j < raw.length(); j++) {
+            char next = raw.charAt(j);
+            if (Character.isWhitespace(next) || Character.isSpaceChar(next)) continue;
+            return han(next);
+        }
+        return false;
     }
 
     private static boolean noSpace(char a, char b) {
         return (layout(a) && layout(b))
                 || cjkPunctuation(a) || cjkPunctuation(b)
+                || (a == '.' && han(b))
                 || (Character.isDigit(a) && isNonLatin(b))
                 || (isNonLatin(a) && Character.isDigit(b));
     }

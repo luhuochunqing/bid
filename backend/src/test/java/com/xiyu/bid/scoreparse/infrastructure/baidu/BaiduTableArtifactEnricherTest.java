@@ -91,21 +91,33 @@ class BaiduTableArtifactEnricherTest {
         DocumentArtifact enriched = enricher.enrichIfEnabled(baseline, pdfBytes, "project1130.pdf");
         assertThat(enriched).isNotNull();
 
-        // 验证必须包含第 14 页的表格，且 section 智能继承邻近页的 "第四章 评审办法"
-        CanonicalTable page14Table = enriched.tables().stream()
-                .filter(t -> t.sourcePage() != null && t.sourcePage() == 14)
-                .findFirst()
-                .orElse(null);
-        assertThat(page14Table).isNotNull();
-        assertThat(page14Table.isScoreTable()).isTrue();
-        assertThat(page14Table.sourceSection()).isEqualTo("第四章 评审办法");
+        // 验证第 13、14、15 页的跨页评分表已合并为同一张 4 列评分表，且包含第 14 页与第 15 页单元格
+        List<CanonicalTable> scoreTables = enriched.tables().stream()
+                .filter(t -> Boolean.TRUE.equals(t.isScoreTable()))
+                .toList();
+        assertThat(scoreTables).hasSize(1);
+        CanonicalTable mergedScoreTable = scoreTables.get(0);
+        assertThat(mergedScoreTable.sourceSection()).isEqualTo("第四章 评审办法");
+        assertThat(mergedScoreTable.columns()).isEqualTo(4);
+        assertThat(mergedScoreTable.cells().stream().map(CanonicalCellDto::sourcePage).distinct().toList())
+                .contains(13, 14, 15);
 
-        boolean foundPricingRule = page14Table.cells().stream()
+        boolean foundPricingRule = mergedScoreTable.cells().stream()
+                .filter(c -> Integer.valueOf(14).equals(c.sourcePage()))
                 .map(c -> c.rawText() == null ? "" : c.rawText().replaceAll("\\s+", ""))
                 .anyMatch(text -> text.contains("销售价格不高于向任何第三方销售价格")
                         && text.contains("结算账期必须在90天及以上")
                         && text.contains("对应推送及上架相关商品得5分"));
-        assertThat(foundPricingRule).as("第14页应包含完整的价格优惠三项合一细则").isTrue();
+        assertThat(foundPricingRule).as("合并后的评分表应包含第14页完整的价格优惠三项合一细则").isTrue();
+
+        boolean foundPage15ContinuationLinked = mergedScoreTable.cells().stream()
+                .filter(c -> Integer.valueOf(15).equals(c.sourcePage()))
+                .anyMatch(c -> c.rawText() != null && c.rawText().contains("人员培训")
+                        && mergedScoreTable.cells().stream()
+                                .anyMatch(prev -> Integer.valueOf(14).equals(prev.sourcePage())
+                                        && prev.rawText() != null && prev.rawText().contains("服务响应")
+                                        && prev.logicalRowId().equals(c.logicalRowId())));
+        assertThat(foundPage15ContinuationLinked).as("第15页首行续行应与第14页末行第9项共享同一logicalRowId").isTrue();
 
         // 验证所有百度 OCR 提取的表格均满足 CanonicalTableGridFactory 校验
         for (CanonicalTable t : enriched.tables()) {

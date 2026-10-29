@@ -1,5 +1,12 @@
 # Wiki 操作日志 / Operation Log
 
+## [2026-10-29] fix | 项目 1392 (project1130.pdf) 百度 OCR 评分项 100 分全闭环与名称/单表恢复
+
+- 触发：项目 1392 接入百度 OCR 后解析停留 85 分，伴随 10 条“详细评审 方案外”、所有条目名称退化为“详细评审”及多物理表格警告。
+- 根因：(1) 百度 `row_end/col_end` 半开区间产生幽灵空尾行导致跨页 `logicalRowId` 断链，且 `baidu_tbl_13_1`/`14_0`/`15_0` 分裂为 3 张物理表使第 15 页 `9.2`（3分）、`9.3`（2分）落入 `OUT_OF_SCHEME`；(2) `EvidenceText.normalize` 未归一 OCR 标点异变（`3。系统架构`、半角括号、弯引号）且 `restoredQuote` 未兼容 PDFBox/LLM 中西文边界空格（`1.进行 ICP 备案`），导致 `1.1`（5分）、`5`（5分）、`7`（5分）回绑或引文校验失败；(3) `2.2`（5分）引文内为分项累加 `（2分）...（3分）` 而行分值列为父项 `20`，被 `OriginalScoreWeightEvidencePolicy` 拦为 `SOURCE_UNVERIFIED`；(4) `SourceItemNameRestoration` 未覆盖泛化名称 `"详细评审"`、跨页 `logicalRowId` 及 `claim.sourceCellIds()` 为空的回绑事实。
+- 方案：修复半开坐标网格与跨页续表物理合并、隔离非评分小表、扩展 `EvidenceText.normalize` 与 `restoredQuote` 兼容 OCR 标点及中西文空格、在 `OriginalScoreWeightEvidencePolicy` 支持 `logicalRowId` 跨页行及括号子分累加、在 `SourceItemNameRestoration` 恢复 `评审因素` 列名，并以 `project1130.pdf` 真实百度 OCR 数据端到端单测验证 100 分闭合。
+- 回填：更新 [[baidu-table-ocr-pipeline]] 第 8 节。
+
 ## [2026-10-29] fix | 百度 OCR 扫描范围免疫 Sidecar isScoreTable 误标 (project1130 85分根治)
 
 - 触发：部署 Primary Authority 模式后 project1130 实测得 85 分，漏掉 15 分（9.2 3分 + 9.3 2分 + 10 10分）。
