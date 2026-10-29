@@ -502,6 +502,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-docx-run-boundary-score"),
                 Arguments.of("case-ocr-chinese-token-spaces"),
                 Arguments.of("case-pdf-row-evidence-contiguous"),
+                Arguments.of("case-project-1371-docx-vmerge"),
                 Arguments.of("case-project-1384-docx-continuation"),
                 Arguments.of("case-price-markdown-star"),
                 Arguments.of("case-markdown-whole-rule"),

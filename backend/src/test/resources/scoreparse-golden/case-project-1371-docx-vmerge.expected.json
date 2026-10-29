@@ -1,0 +1,15 @@
+{
+  "synthetic": true,
+  "desensitization": "合成脱敏回归，不含项目1371原始标书内容",
+  "focus": "DOCX嵌套纵向合并条款号打分表100分闭合与原文回填",
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": true,
+  "laneHints": ["table"],
+  "items": [
+    { "code": "1", "dim": "财务状况及抗风险能力", "detail": "审计意见连续3年无保留意见得10分。", "weight": 10 },
+    { "code": "2", "dim": "运营能力及业绩", "detail": "近三年内具有同类业绩最高得20分。", "weight": 20 },
+    { "code": "3", "dim": "其余商务评分项", "detail": "其余商务评分项合计得26分。", "weight": 26 },
+    { "code": "4", "dim": "综合服务方案及技术响应", "detail": "方案编制完整且技术响应完善得44分。", "weight": 44 }
+  ]
+}

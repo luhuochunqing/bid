@@ -7723,3 +7723,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   2. **1:1 偏移保真的 OCR 标点归一与中西文空格回填**：`EvidenceText.normalize` 归一 `'('`→`'（'`、`')'`→`'）'`、引号变体→`'”'` 及数字后紧跟汉字时的 `'。'`/`'．'`→`'.'`（`PdfRowEvidenceBinder` 条款号正则同步兼容 `（）`）；`TextPrimaryEvidenceBinder.restoredQuote` 支持剥离中西文边界空格匹配原文 span；
   3. **跨页逻辑行分值查找与括号子分累加验证**：`OriginalScoreWeightEvidencePolicy` 行查找纳入同 `logicalRowId` 单元格，并新增 `quoteSubscoresSumToWeight` 支持叶子细则内多个括号分值累加等于条目权重；
   4. **评审因素列名确定性恢复与真实 PDF 端到端单测**：`SourceItemNameRestoration` 支持按物理行或 `logicalRowId` 从唯一 `评审因素` 列恢复真实名称；在 `Project1382FullPipelineIntegrationTest#verifyProject1392Task345RealBaiduOcrFullPipeline` 中使用 `project1130.pdf` 真实百度 OCR 提取数据完成全链路单测，24 条事实 100% 绑定单表 `doc0-baidu_tbl_13_1`，叶子总分精准闭合 **100 分**，0 条方案外，全部名称恢复。
+
+## 467. DOCX 嵌套纵向合并打分表行闭合判断与标书原文回填根因闭环（2026-10-29）
+
+- **现场证据**：项目 1371（`SJZBJM08000026H101FV88 山焦物资焦煤易购工业品服务平台框架协议采购项目.docx`）在 Task 351 解析总分达到 100 分（14 项），但页面展示时第 1~5 项及第 7~14 项的「标书原文」全部显示为 `—`，评分项名称退化为一级维度名称（“商务”/“技术”），仅第 6 项（20 分）能正常显示标书原文与项名。
+- **致错机制**：
+  1. **DOCX 纵向合并条款号使子项行被判定为未闭合**：项目 1371 为 DOCX 5 列表格，条款号列（`c0`）与一级分类列（`c1`）在大类下纵向合并（如商务大类 `3.3(1)` 合并 6 行，技术大类 `3.3(2)` 合并 10 行）。除首行外，后续子项行的 `c0` 在文档中均为合并延续格（`isMergedContinue = true, rawText = ""`）。`LogicalRuleSourceUnit.independent` 在证明下一行是否为独立行时，要求下一行同时存在非空 `id` 列与非空 `name` 列（`id && name`）。由于合并子行的 `c0` 文本为空，导致除第 6 项（其下一行恰好切换到技术大类首行 `3.3(2)`，`c0` 非空）外，其余 13 项全部被误判为 `closed = false`。
+  2. **跨章表尾闭合施加了多余的无序号限制**：`LogicalRuleSourceUnit.closed` 在判断表格末行跨章时，使用了 `if (unnumbered(headers) && !chapter.isBlank() && !nextChapter.isBlank() && !chapter.equals(nextChapter))`，对有条款号列（`ID` 列）的打分表末行施加了多余的 `unnumbered` 前提，导致最后一行无法因跨入第四章表格而正常闭合。
+  3. **未闭合连环熔断抹空原文与项名**：`LogicalRuleSourceUnit.closed` 为 `false` 导致 `SourceRuleEvidenceExpansion` 放弃扩展同行规则列、`SourceItemNameRestoration` 放弃从单元格恢复真实项名、`OriginalRuleRestoration` 触发熔断将 `source_text` 清空为 `""`。人工采纳（`ADOPT_CANDIDATES`）后在 `score_item` 表持久化为 `detail = "—"`。
+  4. **一级分类合并列混入规则正文**：在只有部分列有表头的情况下，前置的大类合并列（如 `c1="商务评分标准（56分）"`）因位于引用列左侧且为无表头列，存在被作为规则列混入的隐患。
+- **根治方案与长效防线**：
+  1. **支持父级 ID 纵向合并行识别**：在 `LogicalRuleSourceUnit.independent` 中，增加 `idMerged` 识别——当 `isId` 列为合并延续（`isMergedContinue = true`）且同行具有非合并的独立非空 `name` 列时，判定下一行为同一父级下的独立子评分项行。
+  2. **放开跨章表尾自然闭合**：移除跨章结束条件中的 `unnumbered(headers)` 限制，只要当前表与后续表已跨入不同章节，末行直接闭合。
+  3. **基于引用列隔离前置维度列**：在 `LogicalRuleSourceUnit.resolve` 过滤规则列时，严格排除排在当前引用列左侧（`column < minCitedCol`）的前置分类列。
+  4. **自动化测试覆盖**：在 `LogicalRuleSourceUnitTest` 中新增针对 DOCX 嵌套纵向合并与跨章表尾闭合的单测，52 个全量 Golden Cases 回归与 40 个领域单测 100% 绿灯。

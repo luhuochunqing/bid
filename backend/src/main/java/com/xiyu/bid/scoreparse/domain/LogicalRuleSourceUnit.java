@@ -62,11 +62,13 @@ public final class LogicalRuleSourceUnit {
                 && OriginalScoreQualificationPolicy.resolveReferencedCells(artifact, row.getFirst().table().tableId(), ids).size() == row.size();
         if (!proven) return new Resolution(true, false, List.of());
         var headers = rowHeaders(row);
+        int minCitedCol = cited.stream().map(c -> c.cell().column()).filter(Objects::nonNull).mapToInt(Integer::intValue).min().orElse(0);
         // Remove structural identity/value columns, retaining rule AND material/notes columns in document order.
         var rules = row.stream().filter(c -> !text(c.cell().rawText()).isBlank() && !Boolean.TRUE.equals(c.cell().isMergedContinue()))
                 .filter(c -> {
                     String role = headers.getOrDefault(c.cell().column(), "");
                     if (isId(role) || isName(role) || isScore(role)) return false;
+                    if (c.cell().column() != null && c.cell().column() < minCitedCol) return false;
                     if (!headers.isEmpty()) return true;
                     return !normalized(c.cell().rawText()).equals(normalized(fact.dimension()))
                             && !normalized(c.cell().rawText()).equals(normalized(fact.code()))
@@ -204,16 +206,19 @@ public final class LogicalRuleSourceUnit {
             var titles = titles(cells);
             if (independentColumns(titles)) { headers = titles; continue; }
             boolean noId = unnumbered(headers);
-            boolean id = false, name = false, score = false;
+            boolean id = false, idMerged = false, name = false, score = false;
             for (var cell : cells) {
-                if (text(cell.rawText()).isBlank()) continue;
                 String role = headers.getOrDefault(cell.column(), "");
+                if (isId(role) && Boolean.TRUE.equals(cell.isMergedContinue())) {
+                    idMerged = true;
+                }
+                if (text(cell.rawText()).isBlank()) continue;
                 id |= isId(role);
                 name |= isName(role) && (!noId || !Boolean.TRUE.equals(cell.isMergedContinue()));
                 score |= isScore(role) && !Boolean.TRUE.equals(cell.isMergedContinue())
                         && ScoreSubtotalColumnPolicy.NUMBER.matcher(text(cell.rawText())).matches();
             }
-            return id && name || noId && name && score;
+            return (id || idMerged) && name || noId && name && score;
         }
         return false;
     }
