@@ -494,6 +494,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-multimodal-incomplete-recall-fallback"),
                 Arguments.of("case-1386-score-summary-and-leaves"),
                 Arguments.of("case-1391-appendix-weight-closure"),
+                Arguments.of("case-1392-single-digit-ordinal"),
                 Arguments.of("case-page-split-parent-child"),
                 Arguments.of("case-long-text-scoring-table"),
                 Arguments.of("case-text-primary-multi-document"),
@@ -538,6 +539,17 @@ class GoldenCasesReplayTest {
             var context = OriginalScoringContext.resolve(artifact, markdown);
             assertEquals(expected.path("declaredTotal").decimalValue(), context.total().value());
             assertEquals(expected.path("totalSource").asText(), context.total().source());
+            assertTrue(context.scheme().contains(expected.path("schemeTitle").asText()), context.scheme());
+            return; // Source-contract case; no extraction PRF claim.
+        }
+        if (caseName.equals("case-1392-single-digit-ordinal")) {
+            var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
+            var markdown = GoldenCasesReplaySupport.readFixture(caseName + ".md");
+            assertTrue(markdown.contains("大型企事业客户数量和经验"));
+            var context = OriginalScoringContext.resolve(new DocumentArtifact(
+                    new DocumentArtifact.ArtifactMeta("synthetic-1392", "sha-1392", "pdf", "2.0"),
+                    List.of(), List.of(), List.of(), "2.0"), markdown);
+            assertEquals(expected.path("declaredTotal").decimalValue(), context.total().value());
             assertTrue(context.scheme().contains(expected.path("schemeTitle").asText()), context.scheme());
             return; // Source-contract case; no extraction PRF claim.
         }

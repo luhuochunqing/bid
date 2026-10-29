@@ -194,7 +194,7 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
-    void submitReview_adoptCandidates_rejectsExplicitOutOfSchemeFactBeforePersistence() {
+    void submitReview_adoptCandidates_allowsExplicitInclusionOfReviewedFacts() {
         mockLatestTask();
         ScoreParseFact outOfScheme = fact("contract-duty", "100");
         outOfScheme.setDimension("履约考核");
@@ -203,11 +203,30 @@ class ScoreParseReviewAppServiceTest {
                 qualification("contract-duty", "contract-performance", "OUT_OF_SCHEME", false,
                         "ITEM_SCHEME_SCOPE_MISMATCH")));
 
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("contract-duty", "ADOPT_CANDIDATES", new BigDecimal("100"), "人工确认纳入")
+        ), "人工确认采纳", 9L), "admin");
+
+        ArgumentCaptor<List<com.xiyu.bid.scoreparse.domain.ScoreCandidate>> captor =
+                ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), captor.capture());
+        assertThat(captor.getValue()).hasSize(1).extracting(com.xiyu.bid.scoreparse.domain.ScoreCandidate::dim)
+                .containsExactly("履约考核");
+    }
+
+    @Test
+    void submitReview_adoptCandidates_rejectsNonExistentFact() {
+        mockLatestTask();
+        ScoreParseFact inScheme = fact("in-scheme", "100");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(inScheme));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                qualification("in-scheme", "scheme-main", "IN_SCHEME", true, null)));
+
         assertThatThrownBy(() -> service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
-                new ScoreParseReviewCommand.Action("contract-duty", "ADOPT_CANDIDATES", new BigDecimal("100"), "显式选择")
+                new ScoreParseReviewCommand.Action("ghost-fact-999", "ADOPT_CANDIDATES", new BigDecimal("100"), "未知事实")
         ), "人工确认采纳", 9L), "admin"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("方案外");
+                .hasMessageContaining("包含不存在的评分事实");
 
         verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
     }
