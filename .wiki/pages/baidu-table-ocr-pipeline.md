@@ -4,8 +4,8 @@ space: engineering
 category: architecture
 tags: [scoreparse, baidu-ocr, table-extraction, shadow-pipeline, settings]
 created: 2026-10-28
-updated: 2026-10-29
-health_checked: 2026-10-29
+updated: 2026-10-30
+health_checked: 2026-10-30
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/baidu/
   - backend/src/main/java/com/xiyu/bid/settings/service/BaiduOcrSettingsService.java
@@ -110,3 +110,11 @@ backlinks:
    - 当行尾仅含短序号（如 `3。\n`）时自动跨换行截取 `heading`，并在 `identified` 中匹配首个归一化长度 $\ge 2$ 的有效正文行。
 2. **多子项同行时隔离评审因素名称列 (`OriginalRuleRestoration.collectSourceIds`)**：
    - 当 `structural.applicable()` / `peerUnit.applicable()` 为真时，仅收集 `LogicalRuleSourceUnit.resolve` 过滤后的规则列 `spans()`，避免将 `SourceItemNameRestoration` 追加的 `评审因素` 名称列单元格（`rX_c1`）混入规则原文 `raw`。
+
+## 10. 内存单页切片与分词器边界防护（2026-10-30 演化）
+
+1. **大文件内存单页切片 (`BaiduTableOcrClient.slicePdfPage`)**：
+   - 针对多页大型 PDF，通过 PDFBox 将目标单页内存抽取为独立 PDF 字节数组（~50KB），将传输体积从 30MB+ 缩减 99.8%，彻底终结每次重复上传全量大文件引起的 Base64 编码耗时与 JVM 内存雪崩。
+2. **评分编号领域分词器 (`HierarchicalCodeTokenizer`)**：
+   - 彻底重构粗暴正则 `^(?:\d+).*`，建立专用的层级分词与编号校验器，支持单数字、层级数字（`1.1`、`3.2.1`）、数字接标点（`1、`、`1.`）、括号（`（1）`、`1-1(1)`）、中文序号（`一、`）、罗马数字（`I`、`II.`）、带圈数字（`①`）与业务编码（`TECH_01`）；
+   - 严格拦截“2024年度”、“3年期”、“5家”、“500万元”等普通正文，从源头杜绝过拟合误判为评分编号。

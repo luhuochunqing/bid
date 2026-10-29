@@ -1,0 +1,7 @@
+{
+  "synthetic": true,
+  "desensitization": "标题与评分项全部合成，验证层级数字、罗马数字、中文数字及普通段落文本拦截边界",
+  "focus": "HierarchicalCodeTokenizer 精准分词，防止 2024年度等正文过拟合误判，同时保障结构化编号正常解析",
+  "declaredTotal": 100,
+  "schemeTitle": "第四章 评审办法"
+}
