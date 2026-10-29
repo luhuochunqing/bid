@@ -26,8 +26,8 @@ public final class OriginalRuleRestoration {
                 && (other.sourceCellIds().stream().anyMatch(fact.sourceCellIds()::contains)
                 || LogicalRuleSourceUnit.sharesLogicalRow(artifact, fact, other)
                 || OriginalRuleUnitText.precedingContinuation(citedRaw, target, unit(other)))).toList();
-        var ids = new java.util.LinkedHashSet<>(fact.sourceCellIds());
-        if (structural.applicable()) structural.spans().forEach(span -> ids.add(span.sourceId()));
+        var ids = new java.util.LinkedHashSet<String>();
+        collectSourceIds(ids, structural, fact.sourceCellIds());
         var validPeers = new java.util.ArrayList<MultimodalScoreFact>();
         validPeers.add(fact);
         if (peers.size() > 1) for (var peer : peers) {
@@ -37,8 +37,7 @@ public final class OriginalRuleRestoration {
                 if (structural.applicable() && structural.closed()) continue;
                 return new Result("", cited);
             }
-            ids.addAll(peer.sourceCellIds());
-            peerUnit.spans().forEach(span -> ids.add(span.sourceId()));
+            collectSourceIds(ids, peerUnit, peer.sourceCellIds());
             validPeers.add(peer);
         }
         var ordered = new java.util.ArrayList<String>();
@@ -92,6 +91,11 @@ public final class OriginalRuleRestoration {
             }
         }
         return List.copyOf(spans);
+    }
+
+    private static void collectSourceIds(java.util.Set<String> ids, LogicalRuleSourceUnit.Resolution unit, List<String> fallbackIds) {
+        if (unit.applicable()) unit.spans().forEach(span -> ids.add(span.sourceId()));
+        else ids.addAll(fallbackIds);
     }
 
     private static OriginalRuleUnitText.Unit unit(MultimodalScoreFact fact) {

@@ -68,4 +68,29 @@ class OriginalRuleUnitTextTest {
         var b=new OriginalRuleUnitText.Unit("乙项","乙项","12分");
         assertThat(OriginalRuleUnitText.restore(raw,a,List.of(a,b))).isEmpty();
     }
+    @Test void inlineSiblingsWithBaiduOcrChinesePeriodRetainCompleteRulesWithoutSwallowingTail() {
+        String first = "1.商品品种：低于20万种得0分，20万种(含)\n得5分，每增加10万种加1分，满分10分。提\n供网站查询截图或其他证明材料证明。";
+        String second = "2。投标人\n能够提供项目解决方案(2分)、能够配合开展物\n料信息及品类整合归纳(3分)。上述两项内容需\n提供对应承诺书，承诺书格式自拟，盖章有效。";
+        String raw = first + second;
+        var a = new OriginalRuleUnitText.Unit("2.1", "商品类目和商品品种及保障能力和方案", first);
+        var b = new OriginalRuleUnitText.Unit("2.2", "商品类目和商品品种及保障能力和方案", second);
+        assertThat(OriginalRuleUnitText.restore(raw, a, List.of(a, b))).isEqualTo(first);
+        assertThat(OriginalRuleUnitText.restore(raw, b, List.of(a, b))).isEqualTo(second);
+    }
+    @Test void inlineSiblingsWithOmittedOrdinalOrLineEndOrdinalRetainExactBoundaries() {
+        String first = "1.投标人对包钢销售价格不高于向任何第三方销\n售价格，提供承诺书得10分，格式自拟，盖章\n有效。";
+        String secondBody = "投标人结算账期必须在90天及以上，\n得5分，提供承诺书，格式自拟，盖章有效。";
+        String thirdBody = "投标人能按照协商约定对应推送及上架相关商\n品得5分，提供承诺书，格式自拟，盖章有效。";
+        String raw = first + "2。" + secondBody + "3。\n" + thirdBody;
+        var u1 = new OriginalRuleUnitText.Unit("6.1", "价格优惠", first);
+        var u2 = new OriginalRuleUnitText.Unit("6.2", "价格优惠", secondBody);
+        var u3 = new OriginalRuleUnitText.Unit("6.3", "价格优惠", thirdBody);
+        assertThat(OriginalRuleUnitText.restore(raw, u1, List.of(u1, u2, u3))).isEqualTo(first);
+        assertThat(OriginalRuleUnitText.restore(raw, u2, List.of(u1, u2, u3))).isEqualTo("2。" + secondBody);
+        assertThat(OriginalRuleUnitText.restore(raw, u3, List.of(u1, u2, u3))).isEqualTo("3。\n" + thirdBody);
+
+        var u3WithPrefix = new OriginalRuleUnitText.Unit("6.3", "价格优惠", "3。\n" + thirdBody);
+        assertThat(OriginalRuleUnitText.restore(raw, u2, List.of(u1, u2, u3WithPrefix))).isEqualTo("2。" + secondBody);
+        assertThat(OriginalRuleUnitText.restore(raw, u3WithPrefix, List.of(u1, u2, u3WithPrefix))).isEqualTo("3。\n" + thirdBody);
+    }
 }

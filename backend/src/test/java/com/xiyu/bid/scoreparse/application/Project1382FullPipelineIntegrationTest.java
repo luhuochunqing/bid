@@ -1173,6 +1173,44 @@ class Project1382FullPipelineIntegrationTest {
         assertThat(result.facts()).allSatisfy(f -> {
             assertThat(f.sourceTableId()).as("code=" + f.code() + " 必须绑定到合并后的唯一评分表").isEqualTo("doc0-baidu_tbl_13_1");
             assertThat(f.dimension()).as("code=" + f.code() + " 必须恢复为评审因素列真实名称而非泛化标题").isNotEqualTo("详细评审");
+            if (!List.of("1", "2", "3", "4", "6", "9").contains(f.code())) {
+                assertThat(f.sourceText()).as("叶子评分项 code=" + f.code() + " 标书原文不得为空").isNotBlank();
+            }
         });
+        assertThat(result.candidates()).allSatisfy(c ->
+                assertThat(c.sourceText()).as("候选评分项 code=" + c.code() + " 标书原文不得为空").isNotBlank());
+
+        java.util.Map<String, com.xiyu.bid.scoreparse.domain.ScoreFact> byCode = result.facts().stream()
+                .collect(java.util.stream.Collectors.toMap(com.xiyu.bid.scoreparse.domain.ScoreFact::code, f -> f));
+        assertThat(byCode.get("2.1").sourceText())
+                .startsWith("1.商品品种")
+                .endsWith("供网站查询截图或其他证明材料证明。");
+        assertThat(byCode.get("2.2").sourceText())
+                .startsWith("2。投标人")
+                .doesNotContain("其他证明材料证明");
+        assertThat(byCode.get("4.1").sourceText())
+                .startsWith("1、供应商近三年")
+                .endsWith("电子商务平台主办单位的业绩证明。");
+        assertThat(byCode.get("4.2").sourceText())
+                .startsWith("2。投标人平")
+                .doesNotContain("采购范围内产品销售额");
+        assertThat(byCode.get("6.1").sourceText())
+                .startsWith("1.投标人对包钢")
+                .endsWith("有效。");
+        assertThat(byCode.get("6.2").sourceText())
+                .startsWith("2。投标人结算账期")
+                .endsWith("盖章有效。");
+        assertThat(byCode.get("6.3").sourceText())
+                .startsWith("3。\n投标人能按照")
+                .doesNotContain("结算账期");
+        assertThat(byCode.get("9.1").sourceText())
+                .startsWith("1.能够支持采购人")
+                .endsWith("显示视频。)");
+        assertThat(byCode.get("9.2").sourceText())
+                .startsWith("2。投标人能够提供售前")
+                .endsWith("效。");
+        assertThat(byCode.get("9.3").sourceText())
+                .startsWith("3。投标人能够提供人员培训")
+                .doesNotContain("售前");
     }
 }
