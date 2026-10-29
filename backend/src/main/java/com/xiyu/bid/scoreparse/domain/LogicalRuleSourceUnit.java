@@ -104,7 +104,7 @@ public final class LogicalRuleSourceUnit {
                 .filter(t -> Objects.equals(document, artifact.documentFor(t.tableId()))).findFirst();
         if (next.isEmpty()) return true;
         String chapter = chapter(first.table()), nextChapter = chapter(next.get());
-        if (!chapter.isBlank() && !nextChapter.isBlank() && !chapter.equals(nextChapter)) return true;
+        if (unnumbered(headers) && !chapter.isBlank() && !nextChapter.isBlank() && !chapter.equals(nextChapter)) return true;
         return independent(next.get(), 0, lastTable.columns() == next.get().columns() ? headers : Map.of(), type);
     }
 

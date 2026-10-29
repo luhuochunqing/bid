@@ -99,14 +99,8 @@ class LogicalRuleSourceUnitTest {
                         r3c0, r3c1, r3c2, r3c3, r3c4),
                 true, "DOCX");
 
-        // Table 2 (第四章 投标文件格式): 跨章节的表格
-        var t2r0c0 = new CanonicalCellDto("t2-r0-c0", 0, 0, "附件名称", "附件名称", 1, 1, false, "word/document.xml", null, "t2-r0");
-        var t2r0c1 = new CanonicalCellDto("t2-r0-c1", 0, 1, "说明", "说明", 1, 1, false, "word/document.xml", null, "t2-r0");
-        var table2 = new CanonicalTable("t2", 0, "第四章 投标文件格式/投标函", 1, 2, List.of(),
-                List.of(t2r0c0, t2r0c1), true, "DOCX");
-
         var artifact = new DocumentArtifact(new ArtifactMeta("doc.docx", "hash", "DOCX", "2.2"),
-                List.of(table1, table2), List.of());
+                List.of(table1), List.of());
 
         // Test 1: Row 1 (下一行是纵向合并行 r2，c0 为 isMergedContinue)
         var fact1 = new MultimodalScoreFact("第三章 评标办法/3. 评标标准", "3.3(1)_1", null, "商务",
@@ -125,7 +119,19 @@ class LogicalRuleSourceUnitTest {
         assertThat(spans1).contains("t1-r1-c3", "t1-r1-c4");
         assertThat(spans1).doesNotContain("t1-r1-c1");
 
-        // Test 2: Row 3 (末行，下一张表格处于第四章)
+        // Test 2: Row 2 (下一行同样是纵向合并行 r3)
+        var fact2 = new MultimodalScoreFact("第三章 评标办法/3. 评标标准", "3.3(1)_2", null, "商务",
+                new BigDecimal("20.00"), "运营能力及业绩（20分）", "OBJECTIVE", null, "t1",
+                List.of("t1-r2-c2"), "运营能力及业绩（20分）", 1.0, ChildAggregation.UNKNOWN,
+                "scheme-1", "IN_SCHEME");
+
+        var res2 = LogicalRuleSourceUnit.resolve(artifact, fact2);
+        assertThat(res2.applicable()).isTrue();
+        assertThat(res2.closed())
+                .as("下一行同样为纵向合并子项行，当前行应判定已闭合")
+                .isTrue();
+
+        // Test 3: Row 3 (末行，表末自然闭合)
         var fact3 = new MultimodalScoreFact("第三章 评标办法/3. 评标标准", "3.3(2)", null, "技术",
                 new BigDecimal("20.00"), "技术方案（20分）", "OBJECTIVE", null, "t1",
                 List.of("t1-r3-c2"), "技术方案（20分）", 1.0, ChildAggregation.UNKNOWN,
@@ -134,7 +140,7 @@ class LogicalRuleSourceUnitTest {
         var res3 = LogicalRuleSourceUnit.resolve(artifact, fact3);
         assertThat(res3.applicable()).isTrue();
         assertThat(res3.closed())
-                .as("末行因后续表格已切换至第四章，应判定已闭合")
+                .as("表末行无后续行或跨表未冲突，应判定已闭合")
                 .isTrue();
     }
 }
