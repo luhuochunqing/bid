@@ -40,7 +40,7 @@
 
 - **数据库迁移**：无新增迁移（DB 停在 V1225，源码最大版本同为 V1225）
 - **后端主源码**：4 个文件 —— `scoreparse/application/TextPrimaryScoreFactMapper`、`scoreparse/domain/LogicalRuleSourceUnit`、`scoreparse/domain/OriginalRuleRestoration`、`scoreparse/domain/ScoreExtractionSnapshot`
-- **后端测试**：5 个文件 + 2 个 golden 用例（`case-project-1371-docx-vmerge`）
+- **后端测试**：4 个测试类 + 2 个 golden 用例文件（`case-project-1371-docx-vmerge`）
 - **Sidecar**：源码指纹 `5eacdf5c19…`（`schemaVersion=2.2`）与上一版本一致，未重建镜像
 - **Wiki**：2 个文件 —— `_index.md`、RCA 页面
 - **文档**：3 个文件 —— 第 248 次部署报告、`lessons-learned.md`、`docs/testing/scoreparse-holdout-benchmark.md`
