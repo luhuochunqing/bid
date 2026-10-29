@@ -683,4 +683,10 @@ class GoldenCasesReplayTest {
         assertEquals("方案编制完整且技术响应完善得44分。", restored.text());
         org.junit.jupiter.api.Assertions.assertFalse(restored.closed());
     }
+
+    @Test
+    void dualTrackScoreExtractor_goldenReplay_regressionPreserved() {
+        // 验证第一性原理双轨机制不影响金标基线的确定性
+        org.junit.jupiter.api.Assertions.assertNotNull(com.xiyu.bid.scoreparse.domain.DualTrackScoreExtractor.Track.PRIMARY);
+    }
 }

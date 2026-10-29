@@ -19,6 +19,9 @@ public final class ScoreParsePipeline {
     /** Phase 1+ Evidence Pipeline 版本（占位；实际启用在 Phase 5 双写阶段）。 */
     public static final String EVIDENCE_PIPELINE_V1 = "EVIDENCE_PIPELINE_V1";
 
+    /** 双轨架构主通道：大模型/表格直接抽取 + 第一性原理文本子串核验 + 满分闭合（spec 070）。 */
+    public static final String DUAL_TRACK_PRIMARY = "DUAL_TRACK_PRIMARY";
+
     private ScoreParsePipeline() {
     }
 }

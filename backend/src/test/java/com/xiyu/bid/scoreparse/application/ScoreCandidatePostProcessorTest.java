@@ -154,4 +154,19 @@ class ScoreCandidatePostProcessorTest {
         assertThat(out.failMessage()).isNull();
         assertThat(out.candidates()).containsExactly(formulaItem);
     }
+
+    @Test
+    void whenCandidatesSatisfyPrimaryTrack_dualTrackAdoptedWithoutGlobalMerge() {
+        String doc = "评分办法：总分100分。1.财务状况10分：审计报告无保留意见。2.业绩90分：具备同类业绩。";
+        var validCandidates = List.of(
+                candidate("1", "财务状况", "审计报告无保留意见。", "10"),
+                candidate("2", "业绩", "具备同类业绩。", "90"));
+
+        var out = processor.process("t8", doc, recallOf(validCandidates, 0), List.of(), NOOP);
+
+        assertThat(out.decisionStatus()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(out.pipelineVersion()).isEqualTo(com.xiyu.bid.scoreparse.domain.ScoreParsePipeline.DUAL_TRACK_PRIMARY);
+        assertThat(out.candidates()).hasSize(2);
+        verify(orchestrator, never()).applyGlobalMergeDetailed(anyList(), anyString(), any());
+    }
 }

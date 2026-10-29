@@ -7751,3 +7751,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   2. **发布状态受护与诊断透传**：在 `TextPrimaryScoreFactMapper` 中对 `!restored.closed()` 项强制降级为 `REVIEW_REQUIRED` 阻止盲目自动发布，在 `diagnostics` 中追加 `UNVERIFIED_CLOSURE` 与 `FULL_RULE_UNIT_UNRESOLVED`，同时打通基于完整规则文本提取具体叶子评审要素名称，杜绝粗粒度分类。
   3. **快照模型主张契约解耦**：在 `ScoreExtractionSnapshot` 中将规则来源判定与 `sourceText.isBlank()` 盲目判断解耦，未验证项如实标记来源为 `"MODEL_CLAIM"`，保障数据契约真实可信。
   4. **建立 Holdout 留出评测基准（25 份核心样本）**：编写 `docs/testing/scoreparse-holdout-benchmark.md`，确立四大核心金标度量指标（叶子 $F_1 \ge 92\%$、总分闭合率 $\ge 96\%$、证据溯源率 $\ge 95\%$、优雅降级率 $100\%$），作为后续推进 Sidecar 表格平铺归一化与统一网格契约演进的客观验收门禁。
+
+## 469. 第一性原理双轨双保险评分解析引擎与文本包含数学核验（2026-10-29）
+
+- **现场证据与业务痛点**：
+  历史排查显示，30 余个项目累计提交超过 200 个 PR 进行排版规则与几何补丁适配，平均每个新标书需提交 7~8 个 PR 耗费 1~2 天。其根本原因在于：系统过度依赖 Java 层 2.9 万行复杂几何推导与审查逻辑（行闭合、跨列连续、单元格 bounding box 拓扑等），试图以有限的硬编码 if-else 穷举无穷多样的 Word/PDF 表格版式。一旦排版未命中既有几何证明，系统便误判未闭合或不合法，粗暴清空细则原文或触发自动拒绝熔断。
+- **致错机制（过度工程迷思）**：
+  1. **错把“表格几何证明”当成“文字真伪判定的硬性前提”**：用户在界面查看“标书原文”，真实诉求仅为证明该句文字确凿出自标书原文（杜绝 AI 幻觉）。判定文字真伪仅需证明其为招标文件全文的物理子串（Substring Inclusion），并不需要证明其严格处于第几行第几列。
+  2. **过度审查抹杀客观事实**：大模型与原生表格提取器在 39 份金标夹具中实测字面子串命中率达 100%（157/157 项全部存在于标书正文中），但 Java 几何证明器一旦因纵向合并（vMerge）或跨页断词无法证明单行封闭，便将真实存在的内容删除为 `""`。
+- **根治方案与长效防线（双轨双保险架构）**：
+  1. **构建第一性原理文本包含校验器（`TextInclusionVerifier`）**：纯函数实现，提供原始字面包含与标点空白归一化包含（去除空白换行、统一中英文标点为半角规范字符），数学级证明模型提取细则 100% 出自标书，杜绝幻觉。
+  2. **设计纯领域双轨调度器（`DualTrackScoreExtractor`）**：
+     - **主通道（Primary Track）**：大模型/表格直接抽取 + 文本子串数学核验 + 权重求和闭合校验。满足条件时直接采纳，标记为 `AUTO_APPROVED` 与 `DUAL_TRACK_PRIMARY`，永不抹空文字，彻底跳过易产生幻觉的二次全局归并；
+     - **备用通道（Fallback Track）**：原 2.9 万行老几何引擎完全保留作为安全气囊。当主通道候选为空、权重未闭合或核验率不足时，无缝平滑降级执行老引擎通道，实现零线上回归。
+  3. **自动化测试与双向验证**：新增 `TextInclusionVerifierTest` 与 `DualTrackScoreExtractorTest`，在 `ScoreCandidatePostProcessorTest` 中验证主通道直接放行且跳过全局归并，全量金标夹具回放 100% 保持通过。
