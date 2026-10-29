@@ -134,6 +134,29 @@ class BaiduTableArtifactEnricherTest {
     }
 
     @Test
+    @DisplayName("回归: Sidecar误标续表页isScoreTable=false时，Baidu OCR仍应覆盖该页（project1130 page15场景）")
+    void shouldScanContinuationPageEvenWhenSidecarMisclassifiedAsNonScore() {
+        // 模拟 project1130 真实场景：
+        // - Sidecar 仅在第13页有 isScoreTable=true（page 15 被误标为 false）
+        // - candidatePages = [13, 14, 15, 16, 26]（PDFBox关键词检测到的候选页）
+        // - 预期：determinePagesToScan 必须包含 page 15，不能因 baseline 无 isScoreTable=true 的15页就截止于14
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-1130", "sha", "PDF", "sidecar");
+        // 只有 page 13 被 Sidecar 标记为评分表，page 15 被误标为 false（续表首行无表头）
+        CanonicalTable t13 = new CanonicalTable("p13-t0013", 13, "第四章 评审办法", 6, 5, List.of(), List.of(), true, "PDF");
+        CanonicalTable t15 = new CanonicalTable("p15-t0014", 15, "第四章 评审办法", 2, 2, List.of(), List.of(), false, "PDF");
+        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(t13, t15), List.of());
+
+        List<Integer> candidates = List.of(2, 3, 7, 8, 9, 10, 13, 14, 15, 16, 26);
+        List<Integer> target = enricher.determinePagesToScan(baseline, candidates);
+
+        // 关键断言：page 15 必须被覆盖（不因 isScoreTable=false 而截止于 page 14）
+        assertThat(target).contains(13, 14, 15, 16);
+        // 远端非评分页不应纳入
+        assertThat(target).doesNotContain(2, 3, 7, 8, 9, 10, 26);
+    }
+
+    @Test
     @DisplayName("跨页续行测试: 自动将下一页首行续行的logicalRowId衔接到前一页最后一行")
     void shouldLinkCrossPageContinuationLogicalRow() {
         // Table 1 on page 14: row 0 (header), row 1 (9.1 item)
