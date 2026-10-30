@@ -6,8 +6,11 @@ package com.xiyu.bid.scoreparse.application;
 import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class LegacyTextScoreExtraction {
+    private static final Logger log = LoggerFactory.getLogger(LegacyTextScoreExtraction.class);
     private LegacyTextScoreExtraction() {}
     static StructuredTableResult extract(TenderTextSource source, List<LoadedBidFile> files,
             List<TenderTextSource> sources, SidecarDocumentArtifactExtractor artifacts,

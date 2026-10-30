@@ -130,7 +130,7 @@ final class MultimodalStructuredExtractionHandler {
                 try {
                     extracted = extractor.recheckWithTextAndProgress(artifact, source.text(), chunkCompleted);
                     rechecked = true;
-                } catch (RuntimeException recheckFailure) {
+                } catch (ScoreModelRequestException failure) { throw failure; } catch (RuntimeException recheckFailure) {
                     log.error("多模态模型复核提取失败: file={}, type={}, msg={}", source.fileName(),
                             recheckFailure.getClass().getName(), recheckFailure.getMessage(), recheckFailure);
                     return MultimodalReviewFallback.reviewOnly(artifact, context, source.text(),
@@ -224,7 +224,7 @@ final class MultimodalStructuredExtractionHandler {
                     log.info("紧凑模型复核通过: file={}, facts={}, declaredTotal={}", fileName,
                             rechecked.facts().size(), rechecked.declaredTotal());
                 }
-            } catch (RuntimeException recheckFailure) {
+            } catch (ScoreModelRequestException failure) { throw failure; } catch (RuntimeException recheckFailure) {
                 log.warn("紧凑模型复核失败，保留首次提取结果: file={}", fileName, recheckFailure);
             }
         }
