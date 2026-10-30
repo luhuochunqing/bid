@@ -185,8 +185,13 @@ public class ScoreItemCaseRecommendAppService {
 
         List<ScoreItemCaseRecommendResponse.CertificateItem> matchedCertificates = List.of();
         if (isQualificationItem && enterpriseQualificationQueryPort != null) {
-            matchedCertificates = enterpriseQualificationQueryPort.findMatchingCertificates(
-                    context.dim(), context.detail(), request.getKeyword());
+            try {
+                matchedCertificates = enterpriseQualificationQueryPort.findMatchingCertificates(
+                        context.dim(), context.detail(), request.getKeyword());
+            } catch (RuntimeException e) {
+                log.warn("查询企业资质证书失败，优雅降级：{}", e.getMessage());
+                matchedCertificates = List.of();
+            }
         }
 
         long totalCount = isQualificationItem ? matchedCertificates.size() : evaluatedItems.size();
@@ -205,18 +210,9 @@ public class ScoreItemCaseRecommendAppService {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         return scoreItemRepository.findByProjectIdOrderByItemIndexAsc(projectId).stream()
                 .map(item -> new ScoreItemDTO(
-                        item.getId(),
-                        item.getCode(),
-                        item.getDim(),
-                        item.getDetail(),
-                        item.getWeight(),
-                        item.getScoreType(),
-                        item.getStatusStage1(),
-                        item.getEstScore(),
-                        item.getEstBasis(),
-                        item.getKbHit(),
-                        item.getLocation()
-                ))
+                        item.getId(), item.getCode(), item.getDim(), item.getDetail(),
+                        item.getWeight(), item.getScoreType(), item.getStatusStage1(),
+                        item.getEstScore(), item.getEstBasis(), item.getKbHit(), item.getLocation()))
                 .toList();
     }
 

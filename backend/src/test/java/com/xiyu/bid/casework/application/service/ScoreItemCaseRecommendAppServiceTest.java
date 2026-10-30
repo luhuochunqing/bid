@@ -615,4 +615,37 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(matched.getStatus()).isEqualTo("VALID");
         assertThat(response.getTotal()).isEqualTo(1);
     }
+
+    @Test
+    @DisplayName("评分项为资质证书但资质端口抛出异常时：优雅降级返回空证书列表而不拖垮主流程")
+    void testRecommendQualificationItemPortThrowsExceptionGracefullyDegrades() {
+        Long projectId = 100L;
+        Long scoreItemId = 99L;
+
+        Project currentProject = new Project();
+        currentProject.setId(projectId);
+
+        ScoreItem certScoreItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("Q1")
+                .dim("企业资质")
+                .detail("投标人具有ISO 9001质量管理体系认证证书")
+                .itemIndex(1)
+                .build();
+
+        when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(currentProject));
+        when(scoreItemRepository.findById(eq(scoreItemId))).thenReturn(Optional.of(certScoreItem));
+        when(enterpriseQualificationQueryPort.findMatchingCertificates(eq("企业资质"), eq("投标人具有ISO 9001质量管理体系认证证书"), eq(null)))
+                .thenThrow(new RuntimeException("Transient DB Connection Failure"));
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(
+                projectId,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(scoreItemId).build()
+        );
+
+        assertThat(response).isNotNull();
+        assertThat(response.getMatchedCertificates()).isEmpty();
+        assertThat(response.getTotal()).isEqualTo(0);
+    }
 }

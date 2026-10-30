@@ -57,7 +57,11 @@ public final class EnterpriseQualificationMatchPolicy {
             List<String> matchReasons
     ) {}
 
-    private record StandardTarget(String code, String name, String regex) {}
+    private record StandardTarget(String code, String name, Pattern pattern) {
+        StandardTarget(String code, String name, String regex) {
+            this(code, name, Pattern.compile(regex));
+        }
+    }
 
     private static final List<StandardTarget> STANDARD_TARGETS = List.of(
             new StandardTarget("ISO9001", "质量管理体系(ISO9001)", "(?i)(?:iso\\s*9001|gb/?t\\s*19001|质量管理体系)"),
@@ -95,7 +99,7 @@ public final class EnterpriseQualificationMatchPolicy {
         // 识别招标条款中要求的标准体系集合
         List<StandardTarget> demandedStandards = new ArrayList<>();
         for (StandardTarget target : STANDARD_TARGETS) {
-            if (Pattern.compile(target.regex()).matcher(fullReqText).find()) {
+            if (target.pattern().matcher(fullReqText).find()) {
                 demandedStandards.add(target);
             }
         }
@@ -115,8 +119,8 @@ public final class EnterpriseQualificationMatchPolicy {
             // 1. 命中具体标准体系
             boolean standardHit = false;
             for (StandardTarget target : demandedStandards) {
-                if (Pattern.compile(target.regex()).matcher(candName).find()
-                        || Pattern.compile(target.regex()).matcher(candScope).find()) {
+                if (target.pattern().matcher(candName).find()
+                        || target.pattern().matcher(candScope).find()) {
                     score = Math.max(score, EXACT_STANDARD_MATCH_SCORE);
                     reasons.add("命中" + target.name() + "认证要求");
                     standardHit = true;
