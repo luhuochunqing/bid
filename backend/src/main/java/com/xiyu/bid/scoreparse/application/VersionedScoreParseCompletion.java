@@ -126,6 +126,11 @@ public class VersionedScoreParseCompletion {
         if(finalizer.finish(task,failure)) activation.tryAutoActivate(task.getProjectId(),task.getTaskId());
         progress.clearProgress(task.getTaskId());
     }
+    public void primary(ScoreParseTask task, ScoreExtractionSnapshot snapshot) {
+        writer.freeze(task.getProjectId(), task.getId(), snapshot);
+        if (finalizer.finish(task, null)) activation.tryAutoActivate(task.getProjectId(), task.getTaskId());
+        progress.clearProgress(task.getTaskId());
+    }
     public ScoreExtractionSnapshot legacyDraft(ScoreParseTask task,List<ScoreCandidate> raw,int skippedChunks) {
         List<ScoreFact> all=new ArrayList<>();
         for(int n=0;n<raw.size();n++) {

@@ -391,6 +391,33 @@ class ScoreParseAppServiceTest {
                 .contains("\"decisionStatus\":\"AUTO_APPROVED\"");
     }
 
+    @Test
+    void primaryEntryPublishesBeforeAnyStructuredExtraction() throws Exception {
+        ScoreParseTask task = docxTaskWithBytes("评分总分100分。资质规则60分；业绩规则40分。");
+        var model = new MultimodalScoreFactExtractor() {
+            public boolean supportsTextOnly() { return true; }
+            public ExtractionResult extract(com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact artifact,
+                    List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
+                throw new AssertionError("primary must not require structured artifact");
+            }
+            public ExtractionResult extractTextAndProgress(String text, Runnable progress) {
+                return new ExtractionResult(new BigDecimal("100"), List.of(
+                        new com.xiyu.bid.scoreparse.domain.MultimodalScoreFact("评分", "1", "", "资质",
+                                new BigDecimal("60"), "资质规则60分", "OBJECTIVE", 1, "", List.of(), "资质规则60分", 1),
+                        new com.xiyu.bid.scoreparse.domain.MultimodalScoreFact("评分", "2", "", "业绩",
+                                new BigDecimal("40"), "业绩规则40分", "OBJECTIVE", 1, "", List.of(), "业绩规则40分", 1)), "test-boundary", 0);
+            }
+        };
+        ReflectionTestUtils.setField(service, "multimodalScoreFactExtractor", model);
+        service.executeParseAsync(TASK_ID);
+        assertThat(task.getPipelineVersion()).isEqualTo("DUAL_TRACK_PRIMARY");
+        assertThat(task.getDecisionStatus()).isEqualTo("AUTO_APPROVED");
+        assertThat(capturedPersistedCandidates().getValue()).extracting(ScoreCandidate::detail)
+                .containsExactly("资质规则60分", "业绩规则40分");
+        org.mockito.Mockito.verifyNoInteractions(sidecarTableExtractor);
+        verify(scoreAnalyzer, never()).recallCandidates(anyString(), isNull(), any());
+    }
+
     private List<ScoreCandidate> defaultCandidates() {
         return List.of(
                 candidate("A1", "资质", "具备 CMMI 5 级认证证书", "60"),

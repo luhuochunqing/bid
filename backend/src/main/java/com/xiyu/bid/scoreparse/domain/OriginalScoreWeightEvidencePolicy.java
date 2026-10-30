@@ -23,6 +23,22 @@ final class OriginalScoreWeightEvidencePolicy {
 
     private OriginalScoreWeightEvidencePolicy() {}
 
+    /** Text-only primary route: a source cap wins; otherwise require the largest stated point value. */
+    static boolean matchesTextMaximum(String rule, BigDecimal weight) {
+        if (rule == null || rule.isBlank() || weight == null) return false;
+        for (Pattern pattern : List.of(ITEM_SCOPED_MAX, MAX_SCORE, TITLE_SCORE)) {
+            Matcher match = pattern.matcher(rule);
+            if (match.find()) return weight.compareTo(new BigDecimal(match.group(1))) == 0;
+        }
+        Matcher points = Pattern.compile("(?<![\\d.])(\\d+(?:\\.\\d+)?)\\s*分(?!钟)").matcher(rule);
+        BigDecimal maximum = null;
+        while (points.find()) {
+            BigDecimal value = new BigDecimal(points.group(1));
+            maximum = maximum == null ? value : maximum.max(value);
+        }
+        return maximum != null && weight.compareTo(maximum) == 0;
+    }
+
     static void verifyWeight(DocumentArtifact artifact, ScoreEvidenceClaim claim,
                              List<OriginalScoreEvidencePolicy.Problem> problems) {
         if (claim.weight() == null && !claim.parent()) return;

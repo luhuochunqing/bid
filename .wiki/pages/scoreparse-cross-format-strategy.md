@@ -13,8 +13,8 @@ sources:
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-10-02
-updated: 2026-10-02
-health_checked: 2026-10-25
+updated: 2026-10-30
+health_checked: 2026-10-30
 archive: false
 ---
 
@@ -84,14 +84,13 @@ archive: false
   - `MultimodalStructuredExtractionHandler` 在「文字评分事实完成」后打 INFO：`fallback` 与逐条 violation（code/fact/field/evidence/message/expected/actual）。
 - 排查顺序：先看 `finishReason` 是否 `length`（截断）→ 再看原始 facts 条数 → 再对 violation code（`EMPTY_FACTS`、`ORIGINAL_TOTAL_UNKNOWN`）判断是模型未识别还是原文方案定位失败。
 
-## 双轨双保险架构落地（2026-10-29 实施）
+## 双轨主通道的入口接管（2026-10-30修正）
 
-针对“30 个项目 200 个 PR 仍无法自适应新标书排版”的技术债困局，正式确立并落地双轨双保险（Dual-Track）架构：
-1. **主通道（Primary Track）**：
-   - 第一性原理：将“表格几何坐标对账”与“文字真伪核验”解耦。
-   - 大模型/表格抽取直接提取评分项，通过 `TextInclusionVerifier` 进行全文子串数学核验（39 份金标夹具中实测逐字子串匹配率达 100%）。
-   - 只要文本核验通过且权重和闭合（如 100 分），直接标记为 `AUTO_APPROVED` 并赋以 `DUAL_TRACK_PRIMARY`，永不抹空文字，彻底跳过易产生幻觉的二次全局归并。
-2. **备用通道（Fallback Track）**：
-   - 现存 2.9 万行 Java 几何引擎与全局归并逻辑 100% 保持不动，作为降级备用；
-   - 一旦主通道候选为空、权重未闭合或核验率不足，自动无缝降级走老引擎，确保零线上退化。
+- 2026-10-29的!2923只在旧候选后处理增加捷径，证据管线提前return时不会触达；当时不能据此认定统一入口已经切换。
+- 项目1135任务159：61条候选、180分、正式项0；重复大项60分与平台父子并计20分组成差额。该任务走`EVIDENCE_PIPELINE_V1`。
+- 新契约：`ScoreParseAppService → ScoreParseEntryRouter → 全文单次文本提取与核验 → 成功完成 / 失败调用旧流程`。主通道不得先获取旧网格。
+- 核验：规则须可唯一回指原文且分值有依据；重复编号、同源重复、歧义父子、多方案、空规则或闭合失败进入兜底。默认100仅是兼容目标，不能冒充原文总分。
+- 版本化结果须含可激活scheme和真实文本SourceSpan；通过既有冻结和激活流程保护手工结果。
+- 本地回放、真实模型提取、生产部署和重解析是四种不同证据，不相互替代。
 
+- 审查限制：同段闭合不证明跨空行的条件完整，当前自动生效契约仍有反例，整体NEEDS_FIXES。入口接通不等于1135业务修复完成。

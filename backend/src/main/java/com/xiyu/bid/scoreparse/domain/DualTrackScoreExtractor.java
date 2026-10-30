@@ -2,7 +2,6 @@ package com.xiyu.bid.scoreparse.domain;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -21,7 +20,6 @@ public final class DualTrackScoreExtractor {
 
     private static final BigDecimal DEFAULT_TOTAL = new BigDecimal("100");
     private static final BigDecimal TOLERANCE = new BigDecimal("0.01");
-    private static final double MIN_VERIFIED_RATIO = 0.80;
 
     private DualTrackScoreExtractor() {}
 
@@ -218,30 +216,20 @@ public final class DualTrackScoreExtractor {
 
         // 4. 校验叶子文本是否均出自标书原文（数学级防伪）
         List<ScoreCandidate> leaves = separation.leafCandidates();
-        int itemsWithDetail = 0;
-        int verifiedItems = 0;
-        List<ScoreCandidate> verifiedLeaves = new ArrayList<>();
-
-        for (ScoreCandidate c : leaves) {
-            String detail = c.detail();
-            if (detail != null && !detail.isBlank()) {
-                itemsWithDetail++;
-                var verification = TextInclusionVerifier.verify(detail, documentText);
-                if (verification.verified()) {
-                    verifiedItems++;
-                }
-            }
-            verifiedLeaves.add(c);
+        if (leaves.isEmpty() || leaves.stream().anyMatch(c -> c.weight() == null || c.weight().signum() <= 0)) {
+            return invokeFallback(fallbackSupplier, "INVALID_PRIMARY_WEIGHT");
         }
-
-        double ratio = itemsWithDetail == 0 ? 1.0 : (double) verifiedItems / itemsWithDetail;
-        if (ratio < MIN_VERIFIED_RATIO) {
-            return invokeFallback(fallbackSupplier, String.format(
-                    "INSUFFICIENT_VERIFIED_TEXT: verifiedRatio=%.2f, threshold=%.2f", ratio, MIN_VERIFIED_RATIO));
+        int verifiedItems = 0;
+        for (ScoreCandidate candidate : leaves) {
+            if (TextInclusionVerifier.verify(candidate.detail(), documentText).verified()) verifiedItems++;
+        }
+        double ratio = (double) verifiedItems / leaves.size();
+        if (verifiedItems != leaves.size()) {
+            return invokeFallback(fallbackSupplier, "INSUFFICIENT_VERIFIED_TEXT: verifiedRatio=" + ratio);
         }
 
         // 5. 主通道完全合格，直接放行末级叶子项（杜绝下游父子平铺重复双计）
-        return new Result(Track.PRIMARY, verifiedLeaves, leafTotal, ratio, "PRIMARY_CLOSED", separation.parentCandidates());
+        return new Result(Track.PRIMARY, leaves, leafTotal, ratio, "PRIMARY_CLOSED", separation.parentCandidates());
     }
 
     private static Result invokeFallback(Supplier<List<ScoreCandidate>> fallbackSupplier, String reason) {

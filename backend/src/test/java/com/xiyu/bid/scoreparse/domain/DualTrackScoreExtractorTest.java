@@ -215,5 +215,21 @@ class DualTrackScoreExtractorTest {
         assertThat(result.candidates()).containsExactlyInAnyOrder(leaf1, leaf2, leaf3);
         assertThat(result.parentCandidates()).containsExactly(parentSingle);
     }
+    @Test
+    void blankRulesCannotQualifyAsVerifiedPrimary() {
+        var result = DualTrackScoreExtractor.dispatch(
+                List.of(candidate("1", "空规则", new BigDecimal("100"), "")),
+                "评分总分100分", new BigDecimal("100"), List::of);
+        assertThat(result.track()).isEqualTo(DualTrackScoreExtractor.Track.FALLBACK);
+    }
+
+    @Test
+    void eightyPercentVerifiedCannotPublishUnverifiedRules() {
+        var facts = java.util.stream.IntStream.range(0, 5)
+                .mapToObj(i -> candidate("" + i, "项" + i, new BigDecimal("20"), "规则" + i)).toList();
+        var result = DualTrackScoreExtractor.dispatch(facts, "规则0规则1规则2规则3",
+                new BigDecimal("100"), List::of);
+        assertThat(result.track()).isEqualTo(DualTrackScoreExtractor.Track.FALLBACK);
+    }
 }
 

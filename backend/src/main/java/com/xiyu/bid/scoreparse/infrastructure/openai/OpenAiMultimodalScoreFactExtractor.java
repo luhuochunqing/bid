@@ -67,6 +67,10 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
         return extractTextChunks(null, sourceText, false, chunkCompleted);
     }
     @Override
+    public ExtractionResult extractPrimaryTextAndProgress(String sourceText, Runnable completed) {
+        return PrimaryTextScoreRequest.extract(sourceText, completed, outputService, configurationResolver);
+    }
+    @Override
     public ExtractionResult recheck(DocumentArtifact artifact) {
         return recheck(artifact, List.of());
     }
