@@ -51,6 +51,11 @@ public class CaseProvenanceBackfillAppService {
     private final ProjectRepository projectRepository;
     private final BidDocumentLoader bidDocumentLoader;
 
+    public CaseProvenanceBackfillPlan preview() {
+        return new CaseProvenancePreviewPlanner(projectRepository, bidDocumentLoader)
+                .plan(caseRepository.findActiveCandidates());
+    }
+
     public record BackfillResult(
             int projectsScanned,
             int casesScanned,
