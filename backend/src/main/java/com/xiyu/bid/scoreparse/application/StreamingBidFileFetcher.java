@@ -80,7 +80,7 @@ public class StreamingBidFileFetcher {
             return;
         }
         if (length > maxBytes) {
-            throw new BidFileQuotaException();
+            throw new BidFileQuotaException(length, maxBytes);
         }
     }
 
@@ -97,7 +97,7 @@ public class StreamingBidFileFetcher {
             while ((n = body.read(buf)) != -1) {
                 total += n;
                 if (total > maxFileLimit) {
-                    throw new BidFileQuotaException();
+                    throw new BidFileQuotaException(total, maxFileLimit);
                 }
                 if (spillOut != null) {
                     tempFileStore.recordSpillChunk(taskId, n);

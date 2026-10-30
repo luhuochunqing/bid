@@ -108,6 +108,22 @@ class CasePrecipitationConcurrencyIntegrationTest {
                 .isEqualTo("FAILED");
     }
 
+    @Test
+    void failureReasonSurvivesMysqlPersistenceAndLatestTaskRead() {
+        Project project = Project.builder().name("失败原因恢复项目").tenderId(9004L).managerId(8004L).build();
+        Long projectId = projectRepository.saveAndFlush(project).getId();
+        var claimed = service.claim(projectId, 7004L);
+        service.start(claimed.task().taskId());
+        String reason = CasePrecipitationFailureMessages.from(
+                new com.xiyu.bid.scoreparse.application.BidFileQuotaException(1603796578L, 1073741824L));
+        service.fail(claimed.task().taskId(), reason);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT user_error_message FROM case_precipitation_task WHERE task_id = ?", String.class,
+                claimed.task().taskId())).isEqualTo(reason);
+        assertThat(service.latest(projectId).message()).isEqualTo(reason);
+        assertThat(service.latest(projectId).status()).isEqualTo("FAILED");
+    }
+
     private <T> T get(Future<T> future) {
         try { return future.get(15, TimeUnit.SECONDS); }
         catch (Exception e) { throw new AssertionError(e); }

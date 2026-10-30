@@ -5,6 +5,7 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { casesApi } from '@/api/modules/knowledge.js'
 
 const mockUserStore = {
   userRole: 'bid-projectLeader',
@@ -57,7 +58,7 @@ const elStubs = {
   'el-input': { template: '<input />' },
   'el-input-number': { template: '<input type="number" />' },
   'el-date-picker': { template: '<input type="datetime-local" />' },
-  'el-alert': { template: '<div class="alert"><slot /></div>' },
+  'el-alert': { props: ['title'], template: '<div class="alert">{{ title }}<slot /></div>' },
   'el-button': {
     props: ['disabled', 'loading', 'type'],
     template: '<button :disabled="disabled" :data-disabled="disabled"><slot /></button>',
@@ -75,6 +76,16 @@ describe('ClosureStage — 蓝图 §3.3.1.6 deposit-return gate', () => {
     mockUserStore.currentUser = { id: 42 }
     // 默认 drafting 视图无 leads；CO-392 用例会覆盖为指定负责人
     projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1 } })
+  })
+
+  it('结项页面刷新后持续显示后台任务失败原因', async () => {
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: { projectId: 1, reviewStatus: 'APPROVED' } })
+    casesApi.getPrecipitationTask.mockResolvedValueOnce({ status: 'FAILED', message: '案例生成失败：文件超过当前处理配额上限，请拆分文件。' })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('文件超过当前处理配额上限')
+    expect(wrapper.text()).toContain('请拆分文件')
+    wrapper.unmount()
   })
 
   it('submit disabled when hasDeposit && status NOT_RETURNED', async () => {

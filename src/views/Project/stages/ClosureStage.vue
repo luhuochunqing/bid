@@ -236,6 +236,14 @@
           </el-tooltip>
         </div>
       </div>
+    <el-alert
+      v-if="precipitationTask?.status === 'FAILED'"
+      :title="precipitationStatusText"
+      type="error"
+      :closable="false"
+      show-icon
+      role="alert"
+    />
       <div class="field-item full-width">
         <template v-if="canEditSummary">
           <div style="border:1px solid var(--el-border-color);border-radius:4px;">
@@ -607,7 +615,7 @@ defineExpose({
   },
 })
 
-const { precipitating, statusText: precipitationStatusText, trigger: triggerTask } =
+const { task: precipitationTask, precipitating, statusText: precipitationStatusText, trigger: triggerTask } =
   useCasePrecipitationTask(computed(() => props.projectId))
 const precipitateReady = ref(false); const precipitateTooltip = ref('')
 

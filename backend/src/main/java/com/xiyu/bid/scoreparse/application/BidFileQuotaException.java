@@ -12,6 +12,11 @@ public class BidFileQuotaException extends RuntimeException {
 
     public static final String MESSAGE = "投标文件过大超出服务器处理配额，请联系管理员";
 
+    public BidFileQuotaException(long actualBytes, long maxBytes) {
+        super("标书文件大小至少为 " + actualBytes + " 字节，超过当前处理配额上限 " + maxBytes
+                + " 字节。请拆分或精简文件后重新生成，或联系管理员。");
+    }
+
     BidFileQuotaException() {
         super(MESSAGE);
     }

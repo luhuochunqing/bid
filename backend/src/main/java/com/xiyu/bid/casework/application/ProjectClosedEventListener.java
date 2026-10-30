@@ -116,7 +116,7 @@ public class ProjectClosedEventListener {
                 List<String> missing = new ArrayList<>();
                 if (!hasBidFile) missing.add("缺少标书文件");
                 if (!hasScoreItems) missing.add("缺少评分项");
-                String reason = "前置条件不满足：" + String.join("；", missing);
+                String reason = CasePrecipitationFailureMessages.prerequisites(missing);
                 log.warn("Skip case precipitation for project {}: {}", projectId, reason);
                 taskStateService.fail(executionTaskId, reason);
                 notifier.notifyFailure(projectId, event.getProjectName(), reason, project, event.getTriggerUserId());
@@ -165,14 +165,15 @@ public class ProjectClosedEventListener {
                         System.currentTimeMillis() - startTime, project, event.getTriggerUserId());
             } else {
                 log.error("Knowledge case persistence failed for project {}", projectId, e);
-                taskStateService.fail(executionTaskId, "案例沉淀失败，请稍后重试");
-                notifier.notifyFailure(projectId, event.getProjectName(), "案例保存失败，请联系管理员",
+                String reason = "案例生成失败：案例保存失败，请联系管理员检查后重新生成。";
+                taskStateService.fail(executionTaskId, reason);
+                notifier.notifyFailure(projectId, event.getProjectName(), reason,
                         project, event.getTriggerUserId());
             }
         } catch (RuntimeException e) {
             log.error("Failed to process project closed AI slicing", e);
-            String reason = e.getMessage() != null ? e.getMessage() : "处理异常，请检查系统日志";
-            taskStateService.fail(executionTaskId, "案例沉淀失败，请稍后重试");
+            String reason = CasePrecipitationFailureMessages.from(e);
+            taskStateService.fail(executionTaskId, reason);
             try {
                 notifier.notifyFailure(projectId, event.getProjectName(), reason, project, event.getTriggerUserId());
             } catch (RuntimeException notifyEx) {

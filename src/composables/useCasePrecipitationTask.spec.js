@@ -39,6 +39,17 @@ describe('useCasePrecipitationTask', () => {
     wrapper.unmount()
   })
 
+  it('失败终态保留服务端原因，并在重试受理后清除旧原因', async () => {
+    casesApi.getPrecipitationTask.mockResolvedValue({ taskId: 'old', status: 'FAILED', message: '缺少评分项，请先完成评分项解析。' })
+    casesApi.precipitateCases.mockResolvedValue({ data: { taskId: 'new', status: 'PENDING' } })
+    const wrapper = mount(Host)
+    await vi.waitFor(() => expect(wrapper.text()).toContain('缺少评分项'))
+    await wrapper.vm.trigger()
+    expect(wrapper.vm.task.message).toBeUndefined()
+    expect(wrapper.text()).not.toContain('缺少评分项')
+    wrapper.unmount()
+  })
+
   it('does not restart polling when an in-flight refresh resolves after unmount', async () => {
     vi.useFakeTimers()
     let resolveRefresh

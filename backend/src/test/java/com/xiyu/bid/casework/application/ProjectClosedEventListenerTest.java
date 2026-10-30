@@ -311,8 +311,8 @@ class ProjectClosedEventListenerTest {
 
         ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
         verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
-        assertThat(reasonCaptor.getValue()).contains("AI 案例沉淀失败");
-        assertThat(reasonCaptor.getValue()).contains("大模型调用失败");
+        assertThat(reasonCaptor.getValue()).contains("案例生成失败");
+        assertThat(reasonCaptor.getValue()).contains("AI 服务调用失败");
         verify(knowledgeCaseRepository, never()).saveAll(any());
     }
 
@@ -489,7 +489,7 @@ class ProjectClosedEventListenerTest {
 
         verify(notifier, never()).notifySuccess(anyLong(), any(), anyInt(), anyLong(), any(), any());
         verify(notifier).notifyFailure(org.mockito.ArgumentMatchers.eq(1L), any(),
-                org.mockito.ArgumentMatchers.eq("案例保存失败，请联系管理员"), any(), any());
+                org.mockito.ArgumentMatchers.eq("案例生成失败：案例保存失败，请联系管理员检查后重新生成。"), any(), any());
     }
 
     @Test
@@ -549,7 +549,7 @@ class ProjectClosedEventListenerTest {
 
         ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
         verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
-        assertThat(reasonCaptor.getValue()).contains("OBS");
+        assertThat(reasonCaptor.getValue()).contains("标书下载权限");
         verify(knowledgeCaseRepository, never()).saveAll(any());
     }
 
