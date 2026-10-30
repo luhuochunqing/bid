@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [通知, Notification, 企微, WeCom, targetUrl, SYSTEM_USER_ID, AlertNotificationOrchestrator]
 created: 2026-07-10
-updated: 2026-09-04
+updated: 2026-10-30
 health_checked: 2026-10-25
 sources:
   - backend/src/main/java/com/xiyu/bid/notification/
@@ -337,3 +337,11 @@ Sentry XIYU-F 持续产生 `WeCom notification skipped: user has no employee_num
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取通知系统陷阱 |
 | 2026-08-04 | 新增 §7：admin 超管误入通知接收人列表导致企微 skip（Sentry XIYU-F） |
 | 2026-08-29 | 新增 §8：定时告警去重策略选择（REUSE_UNTIL_RESOLVED vs DAILY_DEDUP） |
+
+## 自动提醒：业务失败必须可关联，已知邮箱应按契约传递
+
+- `TenderAutoReminderScanner.deliver`非成功返回需记录tenderId/type/userId及code或原因，不能只增加failed；异常也记录type。仅SENT参与24小时去重。
+- `WecomMessageCenterClient`非零业务响应记录userName/code/message/trace；不记录请求消息正文、应用code和OAuth授权链接。
+- `/qywx/sendMSG`契约包含可选email。`WeComPushService`透传User.email，`WecomMessageSender`保留旧调用，无邮箱时仍按工号发送；不伪造邮箱。
+- 测试项目1393/标讯4299的历史证据只能证明无成功记录及同批接收人身份定位失败，不能冒充4299逐条回执。部署后需核对真实投递；本地HTTP契约测试不证明企微送达。
+- 来源：`backend/src/main/java/com/xiyu/bid/wecom/README.md`、`docs/lessons/lessons-learned.md`（2026-10-30）。

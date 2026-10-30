@@ -10,6 +10,11 @@ import com.xiyu.bid.tenderreminder.entity.ReminderType;
 import com.xiyu.bid.tenderreminder.entity.TenderReminderLog;
 import com.xiyu.bid.tenderreminder.repository.TenderReminderLogRepository;
 import com.xiyu.bid.tenderreminder.repository.TenderReminderSettingRepository;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,9 +50,19 @@ class TenderAutoReminderScannerTest {
     private WeComPushService weComPushService;
 
     private TenderAutoReminderScanner scanner;
+    private ListAppender<ILoggingEvent> diagnostics;
+
+    @AfterEach
+    void detachDiagnostics() {
+        ((Logger) LoggerFactory.getLogger(TenderAutoReminderScanner.class)).detachAppender(diagnostics);
+        diagnostics.stop();
+    }
 
     @BeforeEach
     void setUp() {
+        diagnostics = new ListAppender<>();
+        diagnostics.start();
+        ((Logger) LoggerFactory.getLogger(TenderAutoReminderScanner.class)).addAppender(diagnostics);
         scanner = new TenderAutoReminderScanner(
                 tenderRepository, settingRepository, logRepository, recipientResolver, weComPushService);
     }
@@ -146,6 +161,10 @@ class TenderAutoReminderScannerTest {
         verify(logRepository, never()).save(any());
         assertThat(result.sent()).isZero();
         assertThat(result.skipped()).isEqualTo(1);
+        assertThat(diagnostics.list).extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> assertThat(message).contains(
+                        "tenderId=10", "type=REGISTRATION_DEADLINE", "userId=7",
+                        "recipient has no employee number"));
     }
 
     @Test
@@ -164,6 +183,32 @@ class TenderAutoReminderScannerTest {
         verify(logRepository, never()).save(any());
         assertThat(result.sent()).isZero();
         assertThat(result.failed()).isEqualTo(1);
+        assertThat(diagnostics.list).extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> assertThat(message).contains(
+                        "tenderId=10", "type=REGISTRATION_DEADLINE", "userId=7",
+                        "code=1", "wecom down"));
+    }
+
+    @Test
+    void scan_recordsDiagnosticWhenDeliveryResultIsNull() {
+        Tender tender = tender(NOW.plusHours(10), null);
+        when(recipientResolver.getAdminUserIds()).thenReturn(List.of(7L));
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any())).thenReturn(List.of(tender));
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of());
+        when(settingRepository.existsByTenderIdAndReminderType(10L, ReminderType.REGISTRATION_DEADLINE)).thenReturn(false);
+        when(logRepository.findByTenderIdOrderBySentAtDesc(10L)).thenReturn(List.of());
+        when(weComPushService.pushForRecipient(any(), eq(7L)))
+                .thenReturn(null);
+
+        TenderAutoReminderScanner.ScanResult result = scanner.scan(NOW);
+
+        verify(logRepository, never()).save(any());
+        assertThat(result.sent()).isZero();
+        assertThat(result.failed()).isEqualTo(1);
+        assertThat(diagnostics.list).extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> assertThat(message).contains(
+                        "tenderId=10", "type=REGISTRATION_DEADLINE", "userId=7",
+                        "code=null", "empty delivery result"));
     }
 
     @Test

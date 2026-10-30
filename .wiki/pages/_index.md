@@ -91,7 +91,7 @@ backlinks:
 - [[lessons-learned/CO-361-five-rounds-no-fix]] — CO-361 五次修复不彻底的教训 — 反复追症状不追根因的代价
 - [[modules]] — 模块目录
 - [[multi-agent-defense-playbook]] — 多 Agent 并行开发防御工程化手册
-- [[notification-system-pitfalls]] — 通知系统陷阱集
+- [[notification-system-pitfalls]] — 通知系统陷阱集（含自动提醒失败诊断和消息中心邮箱透传）
 - [[operations/logging-bug-investigation-guide]] — 日志系统查 Bug 手册
 - [[opportunity-prediction-reminder]] — 商机预测提醒
 - [[oss-organization-sync-playbook]] — OSS 组织架构同步实战手册

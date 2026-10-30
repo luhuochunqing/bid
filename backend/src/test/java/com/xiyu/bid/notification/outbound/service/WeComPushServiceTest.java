@@ -70,7 +70,7 @@ class WeComPushServiceTest {
         assertThat(result.successful()).isTrue();
         assertThat(result.skipped()).isTrue();
         assertThat(result.message()).contains("employee number");
-        verify(wecomMessageSender, never()).send(anyString(), anyString());
+        verify(wecomMessageSender, never()).send(anyString(), anyString(), eq("a@x.com"));
     }
 
     @Test
@@ -83,7 +83,7 @@ class WeComPushServiceTest {
         assertThat(result.successful()).isTrue();
         assertThat(result.skipped()).isTrue();
         assertThat(result.message()).contains("employee number");
-        verify(wecomMessageSender, never()).send(anyString(), anyString());
+        verify(wecomMessageSender, never()).send(anyString(), anyString(), eq("a@x.com"));
     }
 
     @Test
@@ -91,7 +91,7 @@ class WeComPushServiceTest {
     void successfulSend_returnsSuccess() {
         when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
         when(integrationAppService.getSsoConfig()).thenReturn(Optional.empty());
-        when(wecomMessageSender.send(eq("E007"), anyString()))
+        when(wecomMessageSender.send(eq("E007"), anyString(), eq("a@x.com")))
             .thenReturn(WecomSendResult.success(0, "ok"));
 
         NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
@@ -106,7 +106,7 @@ class WeComPushServiceTest {
     void failedSend_returnsFailure() {
         when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
         when(integrationAppService.getSsoConfig()).thenReturn(Optional.empty());
-        when(wecomMessageSender.send(anyString(), anyString()))
+        when(wecomMessageSender.send(anyString(), anyString(), eq("a@x.com")))
             .thenReturn(WecomSendResult.failure(500, "crm down"));
 
         NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
@@ -121,13 +121,13 @@ class WeComPushServiceTest {
     void send_passesFormattedContent() {
         when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
         when(integrationAppService.getSsoConfig()).thenReturn(Optional.empty());
-        when(wecomMessageSender.send(anyString(), anyString()))
+        when(wecomMessageSender.send(anyString(), anyString(), eq("a@x.com")))
             .thenReturn(WecomSendResult.success(0, "ok"));
 
         service.pushForRecipient(event(), 7L);
 
         ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
-        verify(wecomMessageSender).send(eq("E007"), content.capture());
+        verify(wecomMessageSender).send(eq("E007"), content.capture(), eq("a@x.com"));
         String body = content.getValue();
         assertThat(body).contains(PLATFORM_BASE_URL);
         assertThat(body).contains("<a href=\"" + PLATFORM_BASE_URL);
@@ -139,7 +139,7 @@ class WeComPushServiceTest {
     void senderThrows_bubblesException() {
         when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
         when(integrationAppService.getSsoConfig()).thenReturn(Optional.empty());
-        when(wecomMessageSender.send(anyString(), anyString()))
+        when(wecomMessageSender.send(anyString(), anyString(), eq("a@x.com")))
             .thenThrow(new RuntimeException("timeout"));
 
         assertThatThrownBy(() -> service.pushForRecipient(event(), 7L))
@@ -155,13 +155,13 @@ class WeComPushServiceTest {
         when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
         when(integrationAppService.getSsoConfig()).thenReturn(Optional.of(ssoConfig()));
         when(oAuthStateService.storeStateForMessage()).thenReturn("msg:abc123def456");
-        when(wecomMessageSender.send(anyString(), anyString()))
+        when(wecomMessageSender.send(anyString(), anyString(), eq("a@x.com")))
             .thenReturn(WecomSendResult.success(0, "ok"));
 
         service.pushForRecipient(event(), 7L);
 
         ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
-        verify(wecomMessageSender).send(eq("E007"), content.capture());
+        verify(wecomMessageSender).send(eq("E007"), content.capture(), eq("a@x.com"));
         String body = content.getValue();
         // 关键断言：URL 是 OAuth 授权链接，而非直接业务 URL
         assertThat(body).contains("https://open.weixin.qq.com/connect/oauth2/authorize");
@@ -184,13 +184,13 @@ class WeComPushServiceTest {
     void ssoNotAvailable_messageUrlIsDirectBusinessUrl() {
         when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
         when(integrationAppService.getSsoConfig()).thenReturn(Optional.empty());
-        when(wecomMessageSender.send(anyString(), anyString()))
+        when(wecomMessageSender.send(anyString(), anyString(), eq("a@x.com")))
             .thenReturn(WecomSendResult.success(0, "ok"));
 
         service.pushForRecipient(event(), 7L);
 
         ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
-        verify(wecomMessageSender).send(eq("E007"), content.capture());
+        verify(wecomMessageSender).send(eq("E007"), content.capture(), eq("a@x.com"));
         String body = content.getValue();
         // 关键断言：URL 是直接业务 URL，不含 OAuth
         assertThat(body).contains("<a href=\"https://xiyu.example.com/project/42\">");

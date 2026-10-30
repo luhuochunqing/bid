@@ -133,13 +133,18 @@ public class TenderAutoReminderScanner {
                 return;
             }
             if (result != null && result.skipped()) {
+                log.warn("自动标讯提醒跳过: tenderId={}, type={}, userId={}, reason={}",
+                        tender.getId(), type, userId, result.message());
                 counts.skipped++;
                 return;
             }
+            log.warn("自动标讯提醒发送失败: tenderId={}, type={}, userId={}, code={}, error={}",
+                    tender.getId(), type, userId, result == null ? null : result.errcode(),
+                    result == null ? "empty delivery result" : result.message());
             counts.failed++;
         } catch (RuntimeException ex) {
-            log.warn("自动标讯提醒发送失败: tenderId={}, userId={}, error={}",
-                    tender.getId(), userId, ex.getMessage());
+            log.warn("自动标讯提醒发送失败: tenderId={}, type={}, userId={}, error={}",
+                    tender.getId(), type, userId, ex.getMessage());
             counts.failed++;
         }
     }

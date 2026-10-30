@@ -1,5 +1,7 @@
 package com.xiyu.bid.wecom.infrastructure;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.wecom.config.WecomMessageCenterProperties;
@@ -59,19 +61,28 @@ public class WecomMessageCenterClient {
      * @return 消息中心响应
      */
     public MessageCenterResponse sendMessage(String userName, String message) {
+        return sendMessage(userName, message, null);
+    }
+
+    public MessageCenterResponse sendMessage(String userName, String message, String email) {
         String url = properties.sendUrl();
         String code = properties.getApplicationCode();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        var body = new SendMessageRequest(userName, message, code);
+        var body = new SendMessageRequest(userName, message, code, email == null || email.isBlank() ? null : email.trim());
         HttpEntity<SendMessageRequest> request = new HttpEntity<>(body, headers);
 
         try {
             log.debug("Sending WeCom message via message-center: url={}, userName={}", url, userName);
             var response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
-            return parseResponse(response.getBody());
+            MessageCenterResponse result = parseResponse(response.getBody());
+            if (result.code() != 0) {
+                log.warn("Message-center business failure: userName={}, code={}, message={}, trace={}",
+                        userName, result.code(), result.message(), result.trace());
+            }
+            return result;
         } catch (HttpStatusCodeException ex) {
             log.warn("Message-center send HTTP error: {}", ex.getStatusCode());
             throw new WecomMessageCenterException(
@@ -98,6 +109,7 @@ public class WecomMessageCenterClient {
         }
     }
 
-    private record SendMessageRequest(String userName, String message, String code) {
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private record SendMessageRequest(String userName, String message, String code, String email) {
     }
 }
