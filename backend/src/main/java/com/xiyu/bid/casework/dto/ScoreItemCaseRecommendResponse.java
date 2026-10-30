@@ -17,6 +17,32 @@ public class ScoreItemCaseRecommendResponse {
 
     private List<Item> items;
 
+    /**
+     * 资质证书匹配结果列表（当评分项为资质证书类时直连企业资质库返回）
+     */
+    private List<CertificateItem> matchedCertificates;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CertificateItem {
+        private Long id;
+        private String name;
+        private String level;
+        private String certificateNo;
+        private String issuer;
+        private String issueDate;
+        private String expiryDate;
+        private String status;
+        private String certScope;
+        private String fileUrl;
+        private String fileName;
+        private Integer matchScore;
+        private String matchLabel;
+        private List<String> matchReasons;
+    }
+
     @Data
     @Builder
     @NoArgsConstructor
