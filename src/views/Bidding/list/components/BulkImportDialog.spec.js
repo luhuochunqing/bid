@@ -202,6 +202,27 @@ describe('BulkImportDialog', () => {
       expect(alert.text()).toContain('未写入任何数据')
       expect(wrapper.find('.table-stub').exists()).toBe(true)
     })
+
+    it('failureCount=0 且 totalRows=0 但存在 errors 时，错误表格依然展示且回退行数', () => {
+      const wrapper = mountDialog({
+        polling: false,
+        result: {
+          status: 'FAILED',
+          totalRows: 0,
+          successCount: 0,
+          failureCount: 0,
+          errors: [
+            { rowNumber: 2, field: 'customerType', errorMessage: '客户类型不能为空', tenderTitle: null },
+            { rowNumber: 2, field: 'priority', errorMessage: '优先级不能为空', tenderTitle: null },
+          ],
+        },
+      })
+      const alert = wrapper.find('.alert-stub')
+      expect(alert.attributes('data-type')).toBe('error')
+      expect(alert.text()).toContain('失败 2 行')
+      expect(wrapper.find('.table-stub').exists()).toBe(true)
+      expect(wrapper.text()).toContain('customerType')
+    })
   })
 
   describe('字段标签格式化', () => {
@@ -275,6 +296,13 @@ describe('BulkImportDialog', () => {
       expect(tips.text()).toContain('一级+二级')
       expect(tips.text()).toContain('北京市北京市')
       expect(tips.text()).toContain('广东省深圳市')
+    })
+
+    it('提示中说明客户类型、优先级、项目类型为必填项', () => {
+      const wrapper = mountDialog()
+      const tips = wrapper.find('.bulk-import-tips')
+      expect(tips.text()).toContain('客户类型、优先级、项目类型')
+      expect(tips.text()).toContain('必填项')
     })
   })
 })

@@ -1,3 +1,8 @@
+// Input: MultipartFile, taskId, fileBytes, userId
+// Output: TenderImportTaskDTO, TenderImportProgressDTO
+// Pos: service/标讯批量导入异步编排应用服务
+// 维护声明: 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.exception.ResourceNotFoundException;
@@ -27,25 +32,7 @@ import java.util.UUID;
 
 /**
  * 标讯批量导入应用服务（异步编排层）。
- *
- * <p>职责：
- * <ul>
- *   <li>{@link #triggerImport}：同步阶段，校验文件 + 创建 PENDING 任务 + 读取 byte[] + 触发异步执行</li>
- *   <li>{@link #executeImportAsync}：异步阶段，Excel 解析 + 逐条入库 + 进度更新 + 状态机推进</li>
- *   <li>{@link #getProgress}：进度查询，校验任务归属后委托给 progressService</li>
- * </ul>
- *
- * <p>参考 {@link com.xiyu.bid.personnel.application.service.ImportPersonnelAppService} 的双方法模式：
- * 同步方法创建任务并返回 taskId，异步方法在新线程执行实际导入。
- *
- * <p><b>@Async 自调用问题</b>：Spring @Async 通过 AOP 代理实现，同类内方法互调（this.method()）
- * 不会触发代理。本类通过 {@code @Lazy @Autowired} 注入自身代理（{@link #self}），
- * {@code triggerImport} 内部通过 {@code self.executeImportAsync(...)} 调用，确保 @Async 生效。
- *
- * <p><b>异常兜底</b>：{@code executeImportAsync} 捕获 {@code IOException | RuntimeException | Error}
- * 全部异常（参考 CO-469 第四轮教训），调用 {@code failTaskWithThreeLayerFallback} 三层降级标记失败，
- * 避免任务静默卡死在 PROCESSING。
- *
+ * <p>职责：triggerImport（同步校验与创建）、executeImportAsync（异步导入执行）、getProgress（进度查询）。
  * @see com.xiyu.bid.personnel.application.service.ImportPersonnelAppService
  * @see TenderImportTaskStateService#failTaskWithThreeLayerFallback
  */
@@ -146,10 +133,18 @@ public class TenderImportAppService {
 
             if (!parsed.errors().isEmpty()) {
                 List<TenderImportTaskError> errors = convertErrors(parsed.errors());
-                taskStateService.markFailed(taskId, errors);
-                finalizeProgress(taskId, "FAILED", totalRows, 0, 0, errors.size(), errors);
+                long errorRows = errors.stream()
+                        .map(TenderImportTaskError::rowNumber)
+                        .filter(r -> r != null && r > 0)
+                        .distinct()
+                        .count();
+                int failureCount = errorRows > 0 ? (int) errorRows : errors.size();
+                int effectiveTotalRows = Math.max(totalRows, failureCount);
+
+                taskStateService.markFailed(taskId, effectiveTotalRows, failureCount, errors);
+                finalizeProgress(taskId, "FAILED", effectiveTotalRows, 0, 0, failureCount, errors);
                 log.info("标讯导入校验未通过: taskId={} totalRows={} failureCount={}",
-                        taskId, totalRows, errors.size());
+                        taskId, effectiveTotalRows, failureCount);
                 return;
             }
 
@@ -201,7 +196,7 @@ public class TenderImportAppService {
                         failureCount, importErrors);
                 finalStatus = "PARTIAL_SUCCESS";
             } else {
-                taskStateService.markFailed(taskId, importErrors);
+                taskStateService.markFailed(taskId, totalRows, failureCount, importErrors);
                 finalStatus = "FAILED";
             }
 

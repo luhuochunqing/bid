@@ -7865,10 +7865,15 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **自动化门禁**：`ScoreDocExcerptExtractorTest` 锁定原文偏移，`MarkdownSourceSectionIndexTest` 锁定按偏移定位，`CaseAiMatcherTest` 锁定“模型改写文本仍携带真实来源”和伪造 ID 降级，`ProjectClosedEventListenerTest` 锁定来源落库且案例数量不变。
 - **验证边界**：本地聚焦测试与架构测试通过只证明新生成链路；生产存量回填、部署与业务验收须单独执行和留证。
 
-## 自动标讯提醒失败诊断与邮箱透传（2026-10-30）
+## 477. 标讯批量导入校验失败计数漏回写与前端错误表格误隐藏（2026-10-30）
 
-- 现场：测试项目1393对应标讯4299，2026-10-29创建时两个节点均已进入72小时窗口。设置及成功提醒表为0；整点任务持续sent=0。默认10名接收人中7个测试账号无工号，另3人的同期通知报“未找到对应用户邮箱，无法定位企业微信用户”。这不是4299逐条失败回执，不能混同。
-- 代码缺陷：`TenderAutoReminderScanner.deliver`对失败返回值仅累加计数；跳过及空结果也没有关联诊断。只有异常才有日志。消息中心trace在响应解析后丢失，无法追踪业务失败。
-- 修复：扫描器记录标讯ID、提醒类型、接收人ID、错误码和原因；消息中心客户端记录非零业务响应的工号、code/message/trace。仅成功写SENT，失败仍可下轮重试，24小时成功去重不变。
-- 依赖修复：`wecom/README.md`既有契约支持可选email，但请求DTO此前未包含它。将User.email经推送服务和发送器透传到消息中心，保留双参数与空邮箱兼容；不猜测改写用户数据。可修复已知邮箱未传的契约缺口，不等于已证明消息中心接受并送达。
-- 验证：日志捕获回归先失败；真实本地HTTP服务检查email请求、非零code和trace日志，以及旧调用省略email。真实企微送达需部署后再按标讯/提醒类型/用户与消息中心trace核对，不补发过期节点。
+- **现场证据**：测试环境 2026-10-29 用户上传 `标讯批量导入模板 (1).xlsx` 失败（任务 `0376aad2-1f67-4046-8a3c-be198a0f7411` 等 4 次）。弹窗显示「导入失败：共 0 行，失败 0 行（未写入任何数据）」，且下方原本用于提示修改的错误表格完全不渲染，用户无法得知失败原因。
+- **业务直接原因**：最新导入模板中必填字段「客户类型*」、「优先级*」、「项目类型*」位于表格靠后（P/Q/R 列），用户填表时未向右滑动补全，或使用了旧模板，触发行级校验拦截。
+- **系统代码根因**：
+  1. **后端计数漏更新与缓存清除叠加**：`TenderImportTaskStateService.markFailed` 仅更新了 `status="FAILED"` 与 `errorDetails`，未更新 `totalRows` 和 `failureCount`，数据库保留创建时的初始值 0；同时 `TenderImportAppService.finalizeProgress` 执行后立即清理了 Redis 缓存，导致前端轮询只能走 DB fallback 读取到 `totalRows=0, failureCount=0`。
+  2. **前端错误表格强依赖错误计数**：`BulkImportDialog.vue` 中错误表格展示条件为 `v-if="result.failureCount > 0 && result.errors?.length"`。由于 `failureCount === 0`，即使后端返回了完整的 `errors` 数组，表格也被直接隐藏。
+- **修复方案与长效防线**：
+  1. 后端：`TenderImportTaskStateService` 增加带计数的 `markFailed(taskId, totalRows, failureCount, errors)`，在 Excel 校验未通过及全量入库失败时正确回写去重后的失败行数和总行数；两参数重载与降级层增加安全回退。
+  2. 后端：`TenderExcelParser` 增加空文件守卫，当总数据行数为 0 且无错误时，明确返回文件错误「Excel 文件中未包含任何有效数据行，请填写数据后再上传」，防止空文件静默通过或错乱。
+  3. 前端：`BulkImportDialog.vue` 将错误表格展示条件调整为 `v-if="Boolean(result.errors?.length)"`，确保只要有错误明细即展示；对 `totalRows` 和 `failureCount` 增加自动兜底计算；补全 `FIELD_LABELS` 常见字段中文标签；模板提示中突出显示客户类型、优先级、项目类型必填说明。
+  4. 自动化测试：补充 `TenderImportTaskStateServiceTest`、`TenderImportAppServiceTest` 行去重统计与 `BulkImportDialog.spec.js` 0 计数兜底单测。

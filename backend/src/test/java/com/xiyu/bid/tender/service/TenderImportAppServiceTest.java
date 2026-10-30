@@ -213,7 +213,7 @@ class TenderImportAppServiceTest {
 
         service.executeImportAsync(taskId, fileBytes, userId);
 
-        verify(taskStateService, times(1)).markFailed(eq(taskId), anyList());
+        verify(taskStateService, times(1)).markFailed(eq(taskId), eq(1), eq(1), anyList());
         verify(taskStateService, never()).markCompleted(eq(taskId), anyInt());
         verify(taskStateService, never()).markPartialSuccess(eq(taskId), anyInt(), anyInt(), anyInt(), anyList());
     }
@@ -232,9 +232,30 @@ class TenderImportAppServiceTest {
 
         service.executeImportAsync(taskId, fileBytes, userId);
 
-        verify(taskStateService, times(1)).markFailed(eq(taskId), anyList());
+        verify(taskStateService, times(1)).markFailed(eq(taskId), eq(1), eq(1), anyList());
         verify(tenderCommandService, never()).createTender(any(), any());
         verify(taskStateService, never()).markCompleted(eq(taskId), anyInt());
+    }
+
+    @Test
+    @DisplayName("executeImportAsync: 单行存在多个必填错误时，failureCount 按去重行数统计")
+    void executeImportAsync_validationFails_deduplicatesFailureCountByRow() {
+        String taskId = "task-multi-error-row";
+        Long userId = 100L;
+        byte[] fileBytes = new byte[]{1, 2, 3};
+
+        List<TenderImportResultDTO.RowError> parseErrors = List.of(
+                new TenderImportResultDTO.RowError(2, "customerType", "客户类型不能为空"),
+                new TenderImportResultDTO.RowError(2, "priority", "优先级不能为空"),
+                new TenderImportResultDTO.RowError(2, "projectType", "项目类型不能为空"));
+        when(excelParser.parseExcel(fileBytes)).thenReturn(
+                new TenderExcelParser.ParsedExcel(List.of(), parseErrors, 1));
+
+        service.executeImportAsync(taskId, fileBytes, userId);
+
+        // 3 个错误都在第 2 行，总行数 1，失败行数为 1（非 3）
+        verify(taskStateService, times(1)).markFailed(eq(taskId), eq(1), eq(1), anyList());
+        verify(tenderCommandService, never()).createTender(any(), any());
     }
 
     // ==================== executeImportAsync 异常兜底 ====================

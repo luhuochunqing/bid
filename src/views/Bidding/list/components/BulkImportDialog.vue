@@ -10,6 +10,7 @@
       <p>· 仅支持 <strong>.xlsx</strong> 模板，单次最多 <strong>500</strong> 行，文件大小不超过 <strong>5MB</strong>。</p>
       <p>· 请先点击「下载批量导入模板」获取最新模板，按字典参考填写后再上传。</p>
       <p>· 总部所在地请按字典参考填写一级+二级拼接格式（如 <strong>广东省深圳市</strong>、<strong>北京市北京市</strong>），勿使用连字符分隔。</p>
+      <p>· <strong>客户类型、优先级、项目类型</strong>为必填项（位于模板右侧），请务必向右滑动完整填写。</p>
       <p>· 导入为异步处理：提交后可在下方查看实时进度，处理期间可关闭对话框，进度不会丢失。</p>
     </div>
 
@@ -83,12 +84,12 @@
           v-else
           type="error"
           :closable="false"
-          :title="`导入失败：共 ${result.totalRows} 行，失败 ${result.failureCount} 行（未写入任何数据）`"
+          :title="`导入失败：共 ${displayedTotalRows} 行，失败 ${displayedFailureCount} 行（未写入任何数据）`"
           description="请按下方表格逐行修正 Excel 后重新上传；如反复失败建议重新下载模板对照字段格式。"
           show-icon
         />
         <el-table
-          v-if="result.failureCount > 0 && result.errors?.length"
+          v-if="Boolean(result.errors?.length)"
           :data="result.errors"
           size="small"
           class="bulk-import-error-table"
@@ -121,11 +122,12 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { Download, Upload, Loading } from '@element-plus/icons-vue'
 
 const modelValue = defineModel({ type: Boolean, default: false })
 
-defineProps({
+const props = defineProps({
   selectedFile: { type: Object, default: null },
   // 终态结果（TenderImportProgressDTO，含 status/totalRows/successCount/failureCount/errors）
   result: { type: Object, default: null },
@@ -138,6 +140,18 @@ defineProps({
   accept: { type: String, default: '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
 })
 
+const displayedTotalRows = computed(() => {
+  if (!props.result) return 0
+  if (props.result.totalRows > 0) return props.result.totalRows
+  return props.result.failureCount || props.result.errors?.length || 0
+})
+
+const displayedFailureCount = computed(() => {
+  if (!props.result) return 0
+  if (props.result.failureCount > 0) return props.result.failureCount
+  return props.result.errors?.length || 0
+})
+
 const emit = defineEmits(['reset', 'download-template', 'submit', 'file-change'])
 
 const onFileChange = (file) => emit('file-change', file)
@@ -147,10 +161,21 @@ const FIELD_LABELS = {
   duplicate: '标讯重复(三字段一致)',
   row: '行数据错误',
   file: '文件错误',
-  purchaserName: '采购人字段错误',
+  system: '系统错误',
+  purchaserName: '招标主体错误',
   projectNo: '项目编号错误',
-  title: '标讯标题错误',
+  title: '项目名称错误',
   deadline: '截止时间错误',
+  registrationDeadline: '报名截止时间错误',
+  bidOpeningTime: '开标时间错误',
+  contactName: '联系人错误',
+  contactPhone: '联系人手机号错误',
+  contactTel: '联系人座机错误',
+  contactMail: '联系人邮箱错误',
+  customerType: '客户类型错误',
+  priority: '优先级错误',
+  projectType: '项目类型错误',
+  region: '总部所在地错误',
 }
 const formatField = (_row, _column, cellValue) => FIELD_LABELS[cellValue] || cellValue || '-'
 </script>
