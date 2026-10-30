@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 /**
  * 投标文件评分相关段落提取器（FR-053）。
@@ -40,11 +41,19 @@ public final class ScoreDocExcerptExtractor {
 
     /** dim/detail 重载：供案例沉淀链路直接传评分维度与细则关键词，避免跨模块依赖 ScoreItem */
     public static String extractRelevantExcerpt(String fullText, String dim, String detail, int maxChars) {
+        return extractRelevantExcerptWithSegments(fullText, dim, detail, maxChars).text();
+    }
+
+    public static Excerpt extractRelevantExcerptWithSegments(
+            String fullText, String dim, String detail, int maxChars) {
         if (fullText == null || fullText.isBlank()) {
-            return "";
+            return new Excerpt("", List.of());
         }
+        List<Paragraph> paragraphs = scanParagraphs(fullText);
         if (fullText.length() <= maxChars) {
-            return fullText;
+            return new Excerpt(fullText, toSegments(paragraphs.stream()
+                    .filter(paragraph -> !paragraph.text().isEmpty())
+                    .toList()));
         }
 
         List<String> keywords = new ArrayList<>();
@@ -59,10 +68,9 @@ public final class ScoreDocExcerptExtractor {
             }
         }
 
-        String[] paragraphs = fullText.split("\n{2,}");
         List<ScoredParagraph> scoredList = new ArrayList<>();
-        for (int i = 0; i < paragraphs.length; i++) {
-            String p = paragraphs[i].trim();
+        for (int i = 0; i < paragraphs.size(); i++) {
+            String p = paragraphs.get(i).text();
             if (p.isEmpty() || isTocAnchor(p)) {
                 continue;
             }
@@ -84,15 +92,15 @@ public final class ScoreDocExcerptExtractor {
         Set<Integer> selectedIndices = new TreeSet<>();
         if (topHits.isEmpty()) {
             int picked = 0;
-            for (int i = 0; i < paragraphs.length && picked < 5; i++) {
-                if (!isTocAnchor(paragraphs[i].trim())) {
+            for (int i = 0; i < paragraphs.size() && picked < 5; i++) {
+                if (!isTocAnchor(paragraphs.get(i).text())) {
                     selectedIndices.add(i);
                     picked++;
                 }
             }
             picked = 0;
-            for (int i = paragraphs.length - 1; i >= 0 && picked < 5; i--) {
-                if (!isTocAnchor(paragraphs[i].trim())) {
+            for (int i = paragraphs.size() - 1; i >= 0 && picked < 5; i--) {
+                if (!isTocAnchor(paragraphs.get(i).text())) {
                     selectedIndices.add(i);
                     picked++;
                 }
@@ -100,33 +108,70 @@ public final class ScoreDocExcerptExtractor {
         } else {
             for (ScoredParagraph sp : topHits) {
                 selectedIndices.add(sp.index);
-                if (sp.index > 0 && !isTocAnchor(paragraphs[sp.index - 1].trim())) {
+                if (sp.index > 0 && !isTocAnchor(paragraphs.get(sp.index - 1).text())) {
                     selectedIndices.add(sp.index - 1);
                 }
-                if (sp.index < paragraphs.length - 1 && !isTocAnchor(paragraphs[sp.index + 1].trim())) {
+                if (sp.index < paragraphs.size() - 1 && !isTocAnchor(paragraphs.get(sp.index + 1).text())) {
                     selectedIndices.add(sp.index + 1);
                 }
             }
         }
 
         StringBuilder sb = new StringBuilder();
+        List<Paragraph> selected = new ArrayList<>();
         for (int idx : selectedIndices) {
-            if (sb.length() + paragraphs[idx].length() > maxChars) {
+            Paragraph paragraph = paragraphs.get(idx);
+            if (sb.length() + paragraph.text().length() > maxChars) {
                 break;
             }
             if (!sb.isEmpty()) {
                 sb.append("\n\n---\n\n");
             }
-            sb.append(paragraphs[idx]);
+            sb.append(paragraph.text());
+            selected.add(paragraph);
         }
         if (!sb.isEmpty()) {
-            return sb.toString();
+            return new Excerpt(sb.toString(), toSegments(selected));
         }
         if (selectedIndices.isEmpty()) {
             // 全部段落都是 TOC 锚点（无正文证据）——诚实返回空，由调用方跳过，不把目录当证据
-            return "";
+            return new Excerpt("", List.of());
         }
-        return fullText.substring(0, Math.min(fullText.length(), maxChars));
+        String fallback = fullText.substring(0, Math.min(fullText.length(), maxChars));
+        return new Excerpt(fallback, List.of(new Segment("segment-0", fallback, 0)));
+    }
+
+    private static List<Paragraph> scanParagraphs(String fullText) {
+        List<Paragraph> paragraphs = new ArrayList<>();
+        Matcher separator = Pattern.compile("\n{2,}").matcher(fullText);
+        int start = 0;
+        int index = 0;
+        while (separator.find()) {
+            paragraphs.add(paragraph(index++, fullText, start, separator.start()));
+            start = separator.end();
+        }
+        paragraphs.add(paragraph(index, fullText, start, fullText.length()));
+        return paragraphs;
+    }
+
+    private static Paragraph paragraph(int index, String fullText, int rawStart, int rawEnd) {
+        int start = rawStart;
+        int end = rawEnd;
+        while (start < end && Character.isWhitespace(fullText.charAt(start))) {
+            start++;
+        }
+        while (end > start && Character.isWhitespace(fullText.charAt(end - 1))) {
+            end--;
+        }
+        return new Paragraph(index, fullText.substring(start, end), start);
+    }
+
+    private static List<Segment> toSegments(List<Paragraph> paragraphs) {
+        List<Segment> segments = new ArrayList<>();
+        for (Paragraph paragraph : paragraphs) {
+            segments.add(new Segment("segment-" + segments.size(), paragraph.text(), paragraph.sourceStartOffset()));
+        }
+        return List.copyOf(segments);
     }
 
     /** 是否为 Word 自动目录锚点段（只有导航、无正文证据） */
@@ -149,6 +194,12 @@ public final class ScoreDocExcerptExtractor {
         }
         return result;
     }
+
+    public record Excerpt(String text, List<Segment> segments) {}
+
+    public record Segment(String id, String text, int sourceStartOffset) {}
+
+    private record Paragraph(int index, String text, int sourceStartOffset) {}
 
     private record ScoredParagraph(int index, String text, int score) {}
 }
