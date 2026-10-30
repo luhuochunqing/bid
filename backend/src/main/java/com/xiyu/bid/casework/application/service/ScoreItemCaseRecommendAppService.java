@@ -65,6 +65,7 @@ public class ScoreItemCaseRecommendAppService {
     private final ScoreItemCaseMatchPolicy matchPolicy = new ScoreItemCaseMatchPolicy();
     private final QualificationPerformanceRetriever performanceRetriever = new QualificationPerformanceRetriever();
 
+    @org.springframework.beans.factory.annotation.Autowired
     public ScoreItemCaseRecommendAppService(
             KnowledgeCaseQueryPort knowledgeCaseQueryPort,
             ScoreItemRepository scoreItemRepository,

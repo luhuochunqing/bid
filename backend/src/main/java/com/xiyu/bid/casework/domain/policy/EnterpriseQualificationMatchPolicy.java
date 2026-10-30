@@ -80,6 +80,7 @@ public final class EnterpriseQualificationMatchPolicy {
     /**
      * 针对评分项维度与细则要求，从企业资质库候选集中匹配最符合条件的证书。
      */
+    // REUSE-OK: backend/src/main/java/com/xiyu/bid/casework/domain/policy/BidCaseSliceMatchPolicy.java — 企业资质证书精准匹配对标策略，针对业务资质库实体与ISO标准，不同于案例切片文本匹配
     public static List<MatchResult> match(
             String dim, String detail, String keyword,
             List<Candidate> candidates, LocalDate asOfDate) {
