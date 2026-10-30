@@ -55,6 +55,22 @@ class WecomMessageSenderTest {
     }
 
     @Test
+    void knownEmailIsPassedToMessageCenter() {
+        when(messageCenterClient.sendMessage("E007", "测试消息", "employee@ehsy.com"))
+                .thenReturn(new MessageCenterResponse(0, "ok", "trace-email"));
+        assertThat(sender.send("E007", "测试消息", "employee@ehsy.com").success()).isTrue();
+        verify(messageCenterClient).sendMessage("E007", "测试消息", "employee@ehsy.com");
+    }
+
+    @Test
+    void blankEmailKeepsEmployeeNumberOnlyCall() {
+        when(messageCenterClient.sendMessage("E007", "测试消息"))
+                .thenReturn(new MessageCenterResponse(0, "ok", "trace-old"));
+        assertThat(sender.send("E007", "测试消息", " ").success()).isTrue();
+        verify(messageCenterClient).sendMessage("E007", "测试消息");
+    }
+
+    @Test
     @DisplayName("空 userName -> failure，不调用消息中心")
     void emptyUserName_returnsFailureWithoutCall() {
         WecomSendResult result = sender.send("", "测试消息");

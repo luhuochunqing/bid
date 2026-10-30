@@ -33,13 +33,20 @@ public class WecomMessageSender {
      * @return 发送结果
      */
     public WecomSendResult send(String userName, String message) {
+        return send(userName, message, null);
+    }
+
+    /** 按工号发送，并透传已知邮箱以供消息中心定位企业微信用户。 */
+    public WecomSendResult send(String userName, String message, String email) {
         if (isBlank(userName)) {
             return WecomSendResult.failure(CODE_VALIDATION, "userName is empty");
         }
         if (isBlank(message)) {
             return WecomSendResult.failure(CODE_VALIDATION, "message is empty");
         }
-        MessageCenterResponse response = messageCenterClient.sendMessage(userName, message);
+        MessageCenterResponse response = email == null || email.isBlank()
+                ? messageCenterClient.sendMessage(userName, message)
+                : messageCenterClient.sendMessage(userName, message, email);
         return response.code() == 0
                 ? WecomSendResult.success(response.code(), response.message())
                 : WecomSendResult.failure(response.code(), response.message());

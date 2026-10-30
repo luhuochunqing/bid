@@ -1,3 +1,7 @@
+// Input: 通知投递命令、接收人工号及邮箱、企微SSO配置
+// Output: 消息中心单次发送结果
+// Pos: notification.outbound/service 企微投递编排
+// 维护声明: 更新本文件时同步所属模块 README.md。
 package com.xiyu.bid.notification.outbound.service;
 
 import com.xiyu.bid.auth.OAuthStateService;
@@ -76,7 +80,7 @@ public class WeComPushService {
             + "\n<a href=\"" + finalUrl + "\">" + message.btnText() + "</a>";
 
         try {
-            WecomSendResult result = wecomMessageSender.send(employeeNumber, wecomMessage);
+            WecomSendResult result = wecomMessageSender.send(employeeNumber, wecomMessage, userOpt.get().getEmail());
             return result.success()
                 ? NotificationDeliveryResult.success(result.code(), result.message())
                 : NotificationDeliveryResult.failure(result.code(), result.message());

@@ -5,7 +5,7 @@
 ## 职责说明
 站内通知的出站适配层：在 `NotificationApplicationService.createNotification` 发布 `NotificationCreatedEvent` 之后，异步将通知投递到企微通道，并记录出站日志供管理员排查。对业务模块零耦合。
 
-> 企微传输由独立的 `wecom` 模块承担（`WecomMessageSender`，按工号、走西域统一消息中心 `/qywx/sendMSG`）。本层不再直连企微 API；`WeComPushService` 仅负责"按工号解析收件人 + 委托发送 + 结果映射"。站内信仍由 `notification` 收件箱单一承担。
+> 企微传输由独立的 `wecom` 模块承担（`WecomMessageSender`，按工号、走西域统一消息中心 `/qywx/sendMSG`）。本层不再直连企微 API；`WeComPushService` 仅负责"按工号解析收件人 + 透传已知邮箱 + 委托发送 + 结果映射"。站内信仍由 `notification` 收件箱单一承担。
 
 ## 边界清单
 
