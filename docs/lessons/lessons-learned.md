@@ -7796,3 +7796,21 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
      - 新增 `BaiduTableOcrTest#slicePdfPage_shouldExtractOnlyTargetPage` 单页切片与超界回退单测；
      - 全量 56 个金标用例（`GoldenCasesReplayTest`）零回归全绿。
 
+## 472. DualTrack 双轨调度器树形感知重构与父子防双计（2026-10-30）
+
+- **现场证据与深层隐患**：
+  在多模态与双轨评分项抽取（DualTrack）中，招标文件评分标准通常呈现树形层级（如“一、商务部分 30分”下设“1.1 财务指标 10分”、“1.2 类似业绩 20分”；“二、技术部分 70分”下设“2.1 技术方案 40分”、“2.2 售后服务 30分”）。
+  由于既有 `DualTrackScoreExtractor` 采用平铺简单累加所有候选权重，遇到上述标准层级招标文件时，会将分类父大项与细则叶子项同时加总（30 + 10 + 20 + 70 + 40 + 30 = 200分），误报 `WEIGHT_SUM_MISMATCH: primary=200, target=100`，导致原本高质量的主通道抽取被错误降级为老引擎 fallback。更严重的是，下游 `ScoreCandidatePostProcessor` 在主通道命中时未用清洗后的末级项更新 `valid`，直接导致父子平铺双计穿透至落库与人工复核阶段。
+- **根治方案与长效防线**：
+  1. **构建纯领域树形分离与自洽算法（`separateTree`）**：
+     - **父节点智能识别**：结合 `isParentOnlyDim()`、显式 `parentDim` 引用、以及基于 `HierarchicalCodeTokenizer` 的前缀层级分析，准确识别分类父容器节点；
+     - **父子分值自洽性门禁（Parent-Child Consistency）**：若父容器声明了分值 $W_p$，则其直接子项权重之和必须自洽等于 $W_p$（容差 ±0.01），不自洽时立即阻断降级；
+     - **末级叶子总分闭合**：仅统计末级叶子节点的权重合计，杜绝父子双计，当叶子合计等于声明总分（100分）且文本核验通过时直接放行。
+  2. **主证据流水线闭环合流**：
+     - `DualTrackScoreExtractor.Result` 增加 `parentCandidates` 容器元数据，主通道放行候选集 `candidates` 精确纯化为自洽末级叶子项；
+     - `ScoreCandidatePostProcessor` 在主通道命中时，将 `valid` 及时更新为清洗后的叶子项，使下游 `WeightSumCheck` 与展示彻底摆脱平铺双计。
+  3. **自动化测试与金标固化**：
+     - 新增 `DualTrackScoreExtractorTest` 树形父子层级、不自洽降级、前缀推导与 `PARENT_SINGLE` 测试；
+     - 固化 `case-1392-tree-aware` 金标夹具，全量 58 个金标用例（`GoldenCasesReplayTest`）100% 绿灯。
+
+

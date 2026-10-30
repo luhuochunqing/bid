@@ -5,7 +5,7 @@ category: guide
 tags: [任务看板, 保证金, 项目负责人, 响应式更新, TaskBoard, CO-574]
 created: 2026-10-22
 updated: 2026-10-22
-health_checked: 2026-10-22
+health_checked: 2026-10-30
 sources:
   - src/views/TaskBoard/TaskBoardPage.vue
   - src/views/TaskBoard/components/TaskBoardTaskDrawer.vue

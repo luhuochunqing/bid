@@ -496,6 +496,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-1391-appendix-weight-closure"),
                 Arguments.of("case-1392-single-digit-ordinal"),
                 Arguments.of("case-1392-token-boundary"),
+                Arguments.of("case-1392-tree-aware"),
                 Arguments.of("case-page-split-parent-child"),
                 Arguments.of("case-long-text-scoring-table"),
                 Arguments.of("case-text-primary-multi-document"),
@@ -560,6 +561,18 @@ class GoldenCasesReplayTest {
             assertTrue(markdown.contains("仓储物流保障"));
             var context = OriginalScoringContext.resolve(new DocumentArtifact(
                     new DocumentArtifact.ArtifactMeta("synthetic-1392-boundary", "sha-1392-b", "pdf", "2.0"),
+                    List.of(), List.of(), List.of(), "2.0"), markdown);
+            assertEquals(expected.path("declaredTotal").decimalValue(), context.total().value());
+            assertTrue(context.scheme().contains(expected.path("schemeTitle").asText()), context.scheme());
+            return; // Source-contract case; no extraction PRF claim.
+        }
+        if (caseName.equals("case-1392-tree-aware")) {
+            var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
+            var markdown = GoldenCasesReplaySupport.readFixture(caseName + ".md");
+            assertTrue(markdown.contains("商务资信部分"));
+            assertTrue(markdown.contains("整体服务方案"));
+            var context = OriginalScoringContext.resolve(new DocumentArtifact(
+                    new DocumentArtifact.ArtifactMeta("synthetic-1392-tree", "sha-1392-t", "pdf", "2.0"),
                     List.of(), List.of(), List.of(), "2.0"), markdown);
             assertEquals(expected.path("declaredTotal").decimalValue(), context.total().value());
             assertTrue(context.scheme().contains(expected.path("schemeTitle").asText()), context.scheme());
