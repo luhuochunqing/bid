@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [案例库, knowledge_case, 源项目, 标书原文, blob下载, 枚举混用, 章节溯源, 伪标题, 打平文本, 章节号契约, 页码清洗, 存量回填]
 created: 2026-08-31
-updated: 2026-10-24
-health_checked: 2026-10-24
+updated: 2026-10-30
+health_checked: 2026-10-30
 sources:
   - backend/src/main/java/com/xiyu/bid/casework/application/port/CaseProvenanceBackfillPort.java
   - backend/src/main/java/com/xiyu/bid/casework/infrastructure/CaseProvenanceBackfillAdapter.java
@@ -23,6 +23,9 @@ sources:
   - backend/src/test/resources/casework/sentence-like-title-cases.json
   - backend/src/main/resources/db/migration-mysql/V1224__clean_case_page_numbers_and_backfill_provenance.sql
   - scripts/backfill-case-provenance.py
+  - backend/src/main/java/com/xiyu/bid/casework/application/CaseAiMatcher.java
+  - backend/src/main/java/com/xiyu/bid/casework/application/CaseSourceExcerpt.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreDocExcerptExtractor.java
 backlinks:
   - _index
 ---
@@ -141,6 +144,14 @@ backlinks:
 - 存量清洗与回填：
   - Flyway 迁移 `V1224__clean_case_page_numbers_and_backfill_provenance.sql` 清除案例 1254/1255 路径中的内嵌页码，并补齐 1256~1261（项目 1381 `2033厦门ABB招投标` / `张家口银行——投标6.16.docx`）全部来源字段；
   - `scripts/backfill-case-provenance.py` 补充清洗正则与项目文档映射，测试 RDS 存量 357 条案例来源覆盖率达到 100.0%（357/357），无一遗漏。
+
+### 契约 5：来源身份必须在 AI 调用前建立（2026-10-30）
+
+- **唯一根因**：旧链路丢弃摘录的原文偏移，入库前再用模型可改写的 `matchedSnippet` 精确反查原文；标点、格式或措辞变化都会让来源定位失败。
+- **新链路**：`ScoreDocExcerptExtractor` 保留每个摘录段落的原文偏移；`CaseSourceExcerpt` 为实际候选分配稳定 `sourceSegmentId`，并在 AI 返回后验证该 ID 属于本次候选；`MarkdownSourceSectionIndex.locateByOriginalOffset` 从原文位置取得权威章节。
+- **信任边界**：模型只能选择真实候选 ID，不能生成标题、路径或偏移。`matchedSnippet` 继续保存为案例内容，但不再充当来源身份。
+- **数量边界**：缺失或伪造 ID 不丢弃案例；来源降级为空并保留旧文本反查，因此修复不会减少案例生成量。
+- **跨模块影响**：新生成案例优先落库上游 `Provenance`；既有存量数据不自动变化，回填与生产发布仍是独立操作。
 
 ### 存量数据回填（本次未对任何库执行）
 - `CaseProvenanceBackfillAppService.recomputeAll`：只取 `status=ACTIVE` 且来源标题**不是已验证章节**

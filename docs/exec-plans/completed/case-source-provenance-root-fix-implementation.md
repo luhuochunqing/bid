@@ -30,27 +30,27 @@
 - Produces: `record Segment(String id, String text, int sourceStartOffset)`
 - Preserves: existing `extractRelevantExcerpt(...)` overloads delegate to `Excerpt.text()` without behavior change.
 
-- [ ] **Step 1: Write the failing structured-excerpt test**
+- [x] **Step 1: Write the failing structured-excerpt test**
 
 Add a test that builds three double-newline-separated paragraphs, makes the middle paragraph win keyword scoring, and asserts that `extractRelevantExcerptWithSegments(...)` returns the same rendered excerpt as the legacy method plus segment `sourceStartOffset` values pointing to each selected paragraph in the original string. Assert `fullText.substring(offset, offset + segment.text().length())` equals `segment.text()`.
 
-- [ ] **Step 2: Run the RED test**
+- [x] **Step 2: Run the RED test**
 
 Run: `cd backend && mvn test -Dtest=ScoreDocExcerptExtractorTest`
 
 Expected: compilation failure because `Excerpt`, `Segment`, and `extractRelevantExcerptWithSegments` do not exist.
 
-- [ ] **Step 3: Implement structured extraction minimally**
+- [x] **Step 3: Implement structured extraction minimally**
 
 Replace the lossy `fullText.split("\\n{2,}")` representation with an internal paragraph scanner that records trimmed text and its original start offset. Keep scoring, TOC exclusion, neighbor selection, ordering, separators, and `maxChars` behavior unchanged. Build segment IDs deterministically in rendered order as `segment-0`, `segment-1`, and so on. Make both existing string overloads return `.text()` from the structured method.
 
-- [ ] **Step 4: Run extractor tests GREEN**
+- [x] **Step 4: Run extractor tests GREEN**
 
 Run: `cd backend && mvn test -Dtest=ScoreDocExcerptExtractorTest`
 
 Expected: all extractor tests pass with zero failures and zero errors.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 ```bash
 git add backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreDocExcerptExtractor.java \
@@ -68,27 +68,27 @@ git commit -m "refactor(scoreparse): preserve excerpt source offsets"
 - Consumes: original Markdown character offset from Task 1.
 - Produces: `Provenance locateByOriginalOffset(int originalOffset)` returning the containing valid section or `null`.
 
-- [ ] **Step 1: Write the failing offset-location tests**
+- [x] **Step 1: Write the failing offset-location tests**
 
 Add tests for a Markdown document with two headings and two bodies. Assert offsets inside each body return that body’s exact title/path. Add boundary assertions: negative offset, offset outside the document, text before the first section, and a section with an invalid pure-number title return `null`.
 
-- [ ] **Step 2: Run the RED test**
+- [x] **Step 2: Run the RED test**
 
 Run: `cd backend && mvn test -Dtest=MarkdownSourceSectionIndexTest`
 
 Expected: compilation failure because `locateByOriginalOffset(int)` does not exist.
 
-- [ ] **Step 3: Implement offset lookup**
+- [x] **Step 3: Implement offset lookup**
 
 Reuse `findSectionForOffset`; reject offsets outside `originalMarkdown`; apply the existing `MarkdownTitleRules.isValidSectionTitle` contract; compute the page number with `findPageNumberBefore`; return the existing `Provenance` record. Do not add fuzzy text rules.
 
-- [ ] **Step 4: Run section-index tests GREEN**
+- [x] **Step 4: Run section-index tests GREEN**
 
 Run: `cd backend && mvn test -Dtest=MarkdownSourceSectionIndexTest`
 
 Expected: all tests pass with zero failures and zero errors.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 ```bash
 git add backend/src/main/java/com/xiyu/bid/casework/application/MarkdownSourceSectionIndex.java \
@@ -109,31 +109,31 @@ git commit -m "feat(casework): locate provenance by source offset"
 - Produces: `CaseSourceExcerpt.prepare(...)` as a pure adapter from structured excerpt segments to labelled prompt text and validated provenance lookup.
 - Produces on `AiMatchedSlice`: `MarkdownSourceSectionIndex.Provenance provenance`.
 
-- [ ] **Step 1: Write the failing model-rewrite provenance test**
+- [x] **Step 1: Write the failing model-rewrite provenance test**
 
 Use a Markdown fixture with two valid headings. Configure the AI response as `{"matchedSnippet":"模型改写后的证据","sourceSegmentId":"segment-1","confidence":0.9}` where the returned snippet is not a substring of the Markdown. Assert the returned slice still contains that rewritten snippet and carries the title/path of `segment-1` from the original Markdown. Capture the request and assert the prompt contains both stable segment labels and requests `sourceSegmentId`.
 
-- [ ] **Step 2: Run the RED test**
+- [x] **Step 2: Run the RED test**
 
 Run: `cd backend && mvn test -Dtest=CaseAiMatcherTest`
 
 Expected: test compilation or assertion failure because the prompt and `AiMatchedSlice.provenance` do not exist.
 
-- [ ] **Step 3: Implement validated segment selection**
+- [x] **Step 3: Implement validated segment selection**
 
 Implement the segment-label rendering and ID-to-provenance map in the focused `CaseSourceExcerpt` pure class. Call `extractRelevantExcerptWithSegments`; render the prompt with each segment prefixed by its ID; request JSON fields `matchedSnippet`, `sourceSegmentId`, and `confidence`. Parse `sourceSegmentId`, accept it only if it matches one of the actual excerpt segments, and calculate provenance from that segment’s `sourceStartOffset`. Unknown/missing IDs leave provenance `null` but do not discard a nonblank matched snippet. Keep OpenAI-wrapper parsing, base64 stripping, confidence behavior, and empty-snippet skip unchanged.
 
-- [ ] **Step 4: Add invalid-ID compatibility test**
+- [x] **Step 4: Add invalid-ID compatibility test**
 
 Add a test returning a valid nonblank snippet with `sourceSegmentId:"invented"`; assert the slice is still returned, its provenance is `null`, and case count behavior is therefore unchanged.
 
-- [ ] **Step 5: Run matcher tests GREEN**
+- [x] **Step 5: Run matcher tests GREEN**
 
 Run: `cd backend && mvn test -Dtest=CaseAiMatcherTest`
 
 Expected: all tests pass with zero failures and zero errors.
 
-- [ ] **Step 6: Commit Task 3**
+- [x] **Step 6: Commit Task 3**
 
 ```bash
 git add backend/src/main/java/com/xiyu/bid/casework/application/CaseSourceExcerpt.java \
@@ -152,27 +152,27 @@ git commit -m "fix(casework): preserve provenance across AI matching"
 - Consumes: `AiMatchedSlice.getProvenance()` from Task 3.
 - Preserves: legacy `sectionIndex.locate(matchedSnippet, scoreItem.title())` only when upstream provenance is absent.
 
-- [ ] **Step 1: Write the failing end-to-end persistence test**
+- [x] **Step 1: Write the failing end-to-end persistence test**
 
 Create one score item and one AI slice whose `matchedSnippet` is absent from the Markdown but whose provenance is `new Provenance("二、 应急方案", "六、 技术方案 > 二、 应急方案", 1, 12)`. Capture `knowledgeCaseRepository.saveAll` and assert exactly one case is saved, `responseText` remains the rewritten model text, and all provenance fields use the supplied value and bid document name.
 
-- [ ] **Step 2: Run the RED test**
+- [x] **Step 2: Run the RED test**
 
 Run: `cd backend && mvn test -Dtest=ProjectClosedEventListenerTest`
 
 Expected: compilation failure before Task 3 or assertion failure because the listener ignores upstream provenance.
 
-- [ ] **Step 3: Implement provenance preference**
+- [x] **Step 3: Implement provenance preference**
 
 Extract a small private method that returns `slice.getProvenance()` when nonnull; otherwise executes the existing text lookup. Populate the same five entity fields as today. Preserve the current try/catch degradation and unconditional `casesToSave.add(kCase)`.
 
-- [ ] **Step 4: Run focused regression tests GREEN**
+- [x] **Step 4: Run focused regression tests GREEN**
 
 Run: `cd backend && mvn test -Dtest=ScoreDocExcerptExtractorTest,MarkdownSourceSectionIndexTest,CaseAiMatcherTest,ProjectClosedEventListenerTest,ProjectClosedEventListenerStreamingTest`
 
 Expected: all focused tests pass with zero failures and zero errors.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 ```bash
 git add backend/src/main/java/com/xiyu/bid/casework/application/ProjectClosedEventListener.java \
@@ -192,7 +192,7 @@ git commit -m "fix(casework): persist pre-AI source provenance"
 - Consumes: all implementation and test evidence from Tasks 1–4.
 - Produces: repository knowledge and final verification evidence bound to current HEAD.
 
-- [ ] **Step 1: Run architecture and maintainability gates**
+- [x] **Step 1: Run architecture and maintainability gates**
 
 Run: `cd backend && mvn test -Dtest=ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest`
 
@@ -204,15 +204,17 @@ Run: `cd backend && mvn test`
 
 Expected: `BUILD SUCCESS`, zero failures and zero errors. If an unrelated baseline failure appears, record the exact test and separately rerun the affected suite; do not label the full suite green.
 
-- [ ] **Step 3: Record the root-cause lesson**
+Observed 2026-10-30: suite ran for about 25 minutes and reached unrelated integration tests, then the shared local MySQL on port 13306 refused connections. `WarehouseAttachmentTypePersistenceIntegrationTest` failed during `AbstractMysqlIntegrationTest` static initialization; the remaining run was stopped after the infrastructure failure was proven. Focused and architecture gates remain green.
+
+- [x] **Step 3: Record the root-cause lesson**
 
 Append one numbered entry to `docs/lessons/lessons-learned.md` stating the single root cause, the pre-AI segment-ID/offset repair, the unchanged case-generation contract, and exact RED/GREEN commands. Run the project wiki checkpoint and update the existing case-source wiki page only if the checkpoint requires it.
 
-- [ ] **Step 4: Complete plan documents and verify diff**
+- [x] **Step 4: Complete plan documents and verify diff**
 
 Move both active documents to `docs/exec-plans/completed/`, mark completed checklist items, then run `git diff --check`, `git status --short`, and `git diff origin/main...HEAD --stat`.
 
-- [ ] **Step 5: Commit closeout documentation**
+- [x] **Step 5: Commit closeout documentation**
 
 ```bash
 git add docs/lessons/lessons-learned.md docs/exec-plans/ .wiki/
