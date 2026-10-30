@@ -117,7 +117,7 @@ class LegacyExtractionModeTest {
         assertThat(result.facts()).hasSize(1);
     }
 
-    @Test void extractionFailureLogsAndReturnsStructureIncomplete() {
+    @Test void extractionRecheckFailurePropagatesInsteadOfMisreportingStructure() {
         var failingModel = new MultimodalScoreFactExtractor() {
             public boolean supportsTextOnly() { return true; }
             public ExtractionResult extract(DocumentArtifact a, List<DocumentImage> images) { throw new AssertionError(); }
@@ -128,10 +128,8 @@ class LegacyExtractionModeTest {
                 throw new IllegalStateException("模拟 LLM API 复核连接失败 502");
             }
         };
-        var result = LegacyTextScoreExtraction.extract(
-                new TenderTextSource("test-tender.pdf", null, "第三章 评标办法"),
-                List.of(), List.of(), null, failingModel, () -> {});
-        assertThat(result.structureIncomplete()).isTrue();
-        assertThat(result.failureReason()).isEqualTo("MULTIMODAL_EXTRACTION_FAILED");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> LegacyTextScoreExtraction.extract(
+                new TenderTextSource("test-file.pdf", null, "测试文件"), List.of(), List.of(), null, failingModel, () -> {}))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("复核连接失败 502");
     }
 }

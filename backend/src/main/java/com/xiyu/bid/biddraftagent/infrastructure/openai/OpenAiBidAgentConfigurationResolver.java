@@ -1,3 +1,6 @@
+// Input: provider settings and independent score-extraction request timeout
+// Output: compatible request configuration; scoring disables hidden SDK retries
+// Pos: AI infrastructure provider and request-budget resolution
 package com.xiyu.bid.biddraftagent.infrastructure.openai;
 
 import com.xiyu.bid.settings.dto.SettingsResponse;
@@ -22,6 +25,8 @@ public class OpenAiBidAgentConfigurationResolver {
     private final Environment environment;
     private final Duration timeout;
     private final Duration tenderIntakeTimeout;
+    @Value("${app.score-parse.model.timeout:PT300S}")
+    private Duration scoreExtractionTimeout = Duration.ofSeconds(300);
 
     public OpenAiBidAgentConfigurationResolver(
             AiConfigService pAiConfigService,
@@ -38,9 +43,15 @@ public class OpenAiBidAgentConfigurationResolver {
     }
 
     public OpenAiBidAgentRequestConfig resolve(String useCase) {
-        Duration requestTimeout = effectiveChatCompletionTimeout();
-        return activeProviderRequest(requestTimeout)
+        boolean scoring = "multimodal score fact extraction".equals(useCase);
+        Duration requestTimeout = scoring ? scoreExtractionTimeout : effectiveChatCompletionTimeout();
+        if (requestTimeout == null || requestTimeout.isZero() || requestTimeout.isNegative()) {
+            throw new IllegalArgumentException("AI request timeout must be positive");
+        }
+        var config = activeProviderRequest(requestTimeout)
                 .orElseThrow(() -> missingProviderConfiguration(useCase));
+        return scoring ? new OpenAiBidAgentRequestConfig(config.apiKey(), config.baseUrl(), config.model(),
+                config.timeout(), config.apiStyle(), 0) : config;
     }
 
     OpenAiBidAgentRequestConfig resolveTenderIntake() {

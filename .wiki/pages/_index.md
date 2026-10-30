@@ -123,7 +123,7 @@ backlinks:
 - [[scoreparse-1384-docx-scheme-contract-rca]] — 项目 1384 DOCX 评分方案资格失效根因（PR #2757 真实输入契约）
 - [[scoreparse-1382-live-publish-gate]] — 项目1382线上100分被0分指引和空模型总分否决
 - [[scoreparse-1382-pdf-scheme-gate-rca]] — 项目 1382 PDF 评分方案资格门失效根因（PDF 章节 / DOCX 真实跨层 / 全候选快照 / 生效版本与评分指纹 / 发布开关）
-- [[scoreparse-multimodal-primary]] — 评分方案资格、原文总分、跨表父子、OCR 引文定位与文本分片审核契约
+- [[scoreparse-multimodal-primary]] — 评分方案资格、原文总分、跨表父子、OCR 引文定位与文本分片审核契约；2026-10-30 补充项目1136空指针和价格排序边界。
 - [[scoreparse-cross-format-strategy]] — 跨格式识别日志证据、图文结构联合方案与陌生模板验收边界
 - [[spec059-score-parse-evidence-pipeline]] — spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构
 - [[scoreparse-pdf-page-border-pseudo-table]] — PDF 全页装饰边框伪表格过滤与跨页续表合并契约
@@ -200,4 +200,3 @@ backlinks:
 
 - [标书质量核查证据边界](quality-evidence-boundary.md)：规则引用、抽样页码、ISO与CA匹配边界（spec079）。
 - [[scoreparse-single-digit-code-and-manual-adopt-rca]] — 单数字评分项识别缺陷与人工复核采纳死锁根因分析。
-

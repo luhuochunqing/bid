@@ -97,7 +97,7 @@ final class MultimodalExtractionReviewPolicy {
             try {
                 int line = Integer.parseInt(fact.sourceCellIds().get(0).replaceAll("\\D", ""));
                 OriginalScoringContext.TextScope scope = OriginalScoringContext.textScopeAt(tenderText, line);
-                if (scope != null && !scope.schemeId().isBlank())
+                if (scope != null && scope.schemeId() != null && !scope.schemeId().isBlank())
                     return fact.withScope(scope.schemeId(), scope.scopeStatus());
             } catch (NumberFormatException ignored) {
                 return fact;

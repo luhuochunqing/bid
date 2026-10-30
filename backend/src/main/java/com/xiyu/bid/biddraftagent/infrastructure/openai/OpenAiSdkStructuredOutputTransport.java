@@ -24,6 +24,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
@@ -132,11 +133,15 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
     }
 
     private OpenAIClient client(OpenAiBidAgentRequestConfig config) {
-        return OpenAIOkHttpClient.builder()
-                .apiKey(config.apiKey())
-                .baseUrl(config.baseUrl())
-                .timeout(config.timeout())
-                .build();
+        var builder = OpenAIOkHttpClient.builder().apiKey(config.apiKey()).baseUrl(config.baseUrl())
+                .timeout(config.timeout()).maxRetries(config.maxRetries());
+        if (config.maxRetries() == 0) {
+            String requestId = UUID.randomUUID().toString();
+            builder.putHeader("X-Request-Id", requestId);
+            log.info("AI model request: requestId={}, model={}, timeout={}, maxRetries=0",
+                    requestId, config.model(), config.timeout());
+        }
+        return builder.build();
     }
 
     private <T> Optional<T> requestWithJsonObject(

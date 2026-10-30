@@ -1,0 +1,2 @@
+# 数据模型
+无数据库变更。OpenAiBidAgentRequestConfig增加maxRetries整数字段，保留原5参数构造默认2。新增ScoreModelRequestException携带safe message和cause，不持久化敏感响应；task沿用FAILED/error_message。

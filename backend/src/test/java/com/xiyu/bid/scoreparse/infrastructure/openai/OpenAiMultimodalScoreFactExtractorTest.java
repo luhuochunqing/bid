@@ -103,8 +103,10 @@ class OpenAiMultimodalScoreFactExtractorTest {
         when(output.request(prompts.capture(), images.capture(), eq(OpenAiMultimodalScoreFactExtractor.Output.class),
                 eq(config), any())).thenReturn(response);
         var extractor = new OpenAiMultimodalScoreFactExtractor(output, resolver, new ObjectMapper());
-        String text = "BEGIN_MARKER" + "甲".repeat(30_000) + "MIDDLE_MARKER"
-                + "乙".repeat(30_000) + "END_MARKER";
+        String text = "BEGIN_MARKER" + java.util.stream.IntStream.range(0, 3_000)
+                .mapToObj(i -> "甲段" + i + "固定文本\n").collect(java.util.stream.Collectors.joining())
+                + "MIDDLE_MARKER" + java.util.stream.IntStream.range(3_000, 6_000)
+                .mapToObj(i -> "乙段" + i + "固定文本\n").collect(java.util.stream.Collectors.joining()) + "END_MARKER";
         AtomicInteger extractedHeartbeats = new AtomicInteger();
 
         var extracted = extractor.extractWithTextAndProgress(artifact(), text, extractedHeartbeats::incrementAndGet);
@@ -113,6 +115,7 @@ class OpenAiMultimodalScoreFactExtractorTest {
         assertThat(prompts.getAllValues()).allSatisfy(prompt -> assertThat(prompt.length()).isLessThanOrEqualTo(24_000));
         assertThat(String.join("\n", prompts.getAllValues()))
                 .contains("BEGIN_MARKER", "MIDDLE_MARKER", "END_MARKER");
+        assertFullBoundedCoverage(text, prompts.getAllValues());
         assertThat(images.getAllValues()).allSatisfy(List::isEmpty);
         assertThat(extracted.facts()).hasSize(1);
         assertThat(extracted.imageCount()).isZero();
@@ -128,8 +131,28 @@ class OpenAiMultimodalScoreFactExtractorTest {
         assertThat(recheckPrompts.getAllValues()).hasSize(prompts.getAllValues().size());
         assertThat(String.join("\n", recheckPrompts.getAllValues()))
                 .contains("BEGIN_MARKER", "MIDDLE_MARKER", "END_MARKER");
+        assertFullBoundedCoverage(text, recheckPrompts.getAllValues());
         assertThat(recheckImages.getAllValues()).allSatisfy(List::isEmpty);
         assertThat(recheckHeartbeats).hasValue(recheckPrompts.getAllValues().size());
+    }
+
+    private static void assertFullBoundedCoverage(String source, List<String> prompts) {
+        String marker = "边界重叠处允许重复：\n";
+        String suffix = "\n当前分片结束；它只是全文的一部分。";
+        List<String> chunks = prompts.stream().map(prompt -> {
+            int start = prompt.indexOf(marker) + marker.length();
+            return prompt.substring(start, prompt.indexOf(suffix, start));
+        }).toList();
+        assertThat(chunks).allSatisfy(chunk -> assertThat(chunk.length()).isBetween(1, 6_000));
+        StringBuilder restored = new StringBuilder(chunks.getFirst());
+        for (int i = 1; i < chunks.size(); i++) {
+            String previous = chunks.get(i - 1), current = chunks.get(i);
+            int overlap = Math.min(previous.length(), current.length());
+            while (overlap > 0 && !previous.endsWith(current.substring(0, overlap))) overlap--;
+            assertThat(overlap).isPositive();
+            restored.append(current.substring(overlap));
+        }
+        assertThat(restored.toString()).isEqualTo(source);
     }
 
     @Test
