@@ -43,9 +43,8 @@ final class MultimodalStructuredExtractionHandler {
     static StructuredTableResult extractWithChunkHeartbeat(TenderTextSource source, LoadedBidFile loaded,
                                           SidecarDocumentArtifactExtractor artifactExtractor,
                                           MultimodalScoreFactExtractor extractor, Runnable chunkCompleted) {
-        return extractWithTextModelHeartbeat(source,
-                loaded == null ? List.of() : List.of(loaded), List.of(source),
-                artifactExtractor, extractor, chunkCompleted);
+        return extractWithTextModelHeartbeat(source, loaded == null ? List.of() : List.of(loaded),
+                List.of(source), artifactExtractor, extractor, chunkCompleted);
     }
 
     static StructuredTableResult extractWithTextModelHeartbeat(TenderTextSource source,
@@ -64,7 +63,8 @@ final class MultimodalStructuredExtractionHandler {
             return StructuredSourceDiagnostics.attach(runTextFirst(source.fileName(), source.text(), acquired.artifact(),
                     extractor, chunkCompleted), acquired.diagnostics());
         } catch (RuntimeException exception) {
-            log.warn("文字评分事实提取失败: file={}, cause={}", source.fileName(), exception.getClass().getSimpleName());
+            log.error("文字评分事实提取失败: file={}, type={}, msg={}", source.fileName(),
+                    exception.getClass().getName(), exception.getMessage(), exception);
             return StructuredSourceDiagnostics.attach(StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_FAILED"),
                     acquired.diagnostics());
         }
@@ -79,8 +79,8 @@ final class MultimodalStructuredExtractionHandler {
             extracted = artifact == null ? extractor.extractTextAndProgress(text, chunkCompleted)
                     : extractor.extractWithTextAndProgress(artifact, text, chunkCompleted);
         } catch (RuntimeException firstFailure) {
-            log.warn("文字证据首次提取失败，尝试一次独立模型复核: file={}, cause={}", fileName,
-                    firstFailure.getClass().getSimpleName());
+            log.warn("文字证据首次提取失败，尝试一次独立模型复核: file={}, type={}, msg={}", fileName,
+                    firstFailure.getClass().getName(), firstFailure.getMessage(), firstFailure);
             if (artifact == null) {
                 extracted = extractor.recheckTextAndProgress(text, chunkCompleted);
             } else {
@@ -102,9 +102,7 @@ final class MultimodalStructuredExtractionHandler {
 
     private static StructuredTableResult legacyArtifactOnly(TenderTextSource source, LoadedBidFile loaded,
                                                              SidecarDocumentArtifactExtractor artifactExtractor) {
-        if (loaded == null || artifactExtractor == null) {
-            return StructuredTableResult.structureIncomplete("MULTIMODAL_INPUT_UNAVAILABLE");
-        }
+        if (loaded == null || artifactExtractor == null) return StructuredTableResult.structureIncomplete("MULTIMODAL_INPUT_UNAVAILABLE");
         try {
             DocumentArtifact artifact = MultimodalExtractionReviewPolicy.artifact(loaded, source.fileName(), artifactExtractor);
             return MultimodalReviewFallback.reviewOnly(artifact, OriginalScoringContext.resolve(artifact, source.text()),
@@ -117,11 +115,8 @@ final class MultimodalStructuredExtractionHandler {
 
     static StructuredTableResult legacyModelPath(TenderTextSource source, LoadedBidFile loaded,
                                                           SidecarDocumentArtifactExtractor artifactExtractor,
-                                                          MultimodalScoreFactExtractor extractor,
-                                                          Runnable chunkCompleted) {
-        if (loaded == null || artifactExtractor == null) {
-            return StructuredTableResult.structureIncomplete("MULTIMODAL_INPUT_UNAVAILABLE");
-        }
+                                                          MultimodalScoreFactExtractor extractor, Runnable chunkCompleted) {
+        if (loaded == null || artifactExtractor == null) return StructuredTableResult.structureIncomplete("MULTIMODAL_INPUT_UNAVAILABLE");
         try {
             DocumentArtifact artifact = MultimodalExtractionReviewPolicy.artifact(loaded, source.fileName(), artifactExtractor);
             OriginalScoringContext context = OriginalScoringContext.resolve(artifact, source.text());
@@ -130,10 +125,14 @@ final class MultimodalStructuredExtractionHandler {
             try {
                 extracted = extractor.extractWithTextAndProgress(artifact, source.text(), chunkCompleted);
             } catch (RuntimeException firstFailure) {
+                log.warn("多模态模型首次提取失败，尝试复核: file={}, type={}, msg={}", source.fileName(),
+                        firstFailure.getClass().getName(), firstFailure.getMessage(), firstFailure);
                 try {
                     extracted = extractor.recheckWithTextAndProgress(artifact, source.text(), chunkCompleted);
                     rechecked = true;
                 } catch (RuntimeException recheckFailure) {
+                    log.error("多模态模型复核提取失败: file={}, type={}, msg={}", source.fileName(),
+                            recheckFailure.getClass().getName(), recheckFailure.getMessage(), recheckFailure);
                     return MultimodalReviewFallback.reviewOnly(artifact, context, source.text(),
                             "MULTIMODAL_EXTRACTION_FAILED");
                 }
@@ -149,10 +148,8 @@ final class MultimodalStructuredExtractionHandler {
     private static StructuredTableResult run(String fileName, String tenderSectionText,
                                               DocumentArtifact artifact, OriginalScoringContext originalContext,
                                               MultimodalScoreFactExtractor extractor, Runnable chunkCompleted,
-                                              MultimodalScoreFactExtractor.ExtractionResult extracted,
-                                              boolean textOnly) {
-        return run(fileName, tenderSectionText, artifact, originalContext, extractor, chunkCompleted,
-                extracted, textOnly, false);
+                                              MultimodalScoreFactExtractor.ExtractionResult extracted, boolean textOnly) {
+        return run(fileName, tenderSectionText, artifact, originalContext, extractor, chunkCompleted, extracted, textOnly, false);
     }
 
     private static StructuredTableResult run(String fileName, String tenderSectionText,

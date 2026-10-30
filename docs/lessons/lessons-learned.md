@@ -7820,3 +7820,21 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   3. **自动化测试与金标固化**：
      - 新增 `DualTrackScoreExtractorTest` 树形父子层级、不自洽降级、前缀推导与 `PARENT_SINGLE` 测试；
      - 固化 `case-1392-tree-aware` 金标夹具，全量 58 个金标用例（`GoldenCasesReplayTest`）100% 绿灯。
+
+## 473. 评分事实提取异常静默吞没导致排障黑洞与全链路可观测性加固（2026-10-30）
+
+- **现场证据与深层隐患**：
+  在生产环境排查项目 1135（`妙可蓝多通用MRO物资集中采购招标文件20260821 .pdf`）和项目 1136 重新解析失败时，系统耗时数分钟后界面仅显示“结构异常”或 0 项，但后端日志在文档读取完成（`InitiationTenderTextResolver`）后一片空白，未出现任何错误栈或诊断信息。
+  深入代码发现存在严重的“异常黑洞”：
+  1. `LegacyTextScoreExtraction.java` 中直接使用 `catch(RuntimeException failure) { return StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_FAILED"); }` 将模型首次失败、复核失败及所有运行时异常静默吞没，一行日志都不记录；
+  2. `MultimodalStructuredExtractionHandler.java` 中捕获异常仅记录 `log.warn("... cause={}", exception.getClass().getSimpleName())`，不记录具体的错误 message，完全抹除了调用栈（stack trace）；
+  3. `StructuredTableExtractionHandler.markIncomplete` 直接静默更新任务状态，缺少任务维度的关键原因告警。
+  这种防御式“兜底吞异常”直接切断了排障因果链，导致生产环境无论是 LLM 超时、502 错误、JSON 解析断裂还是逻辑越界，开发人员均无法得知根因。
+- **根治方案与长效防线**：
+  1. **全链路异常日志透明化**：
+     - 在 `LegacyTextScoreExtraction` 中引入规范的 SLF4J 日志器，针对首次抽取失败记录 `WARN`（包含异常类、message 及堆栈），针对最终失败记录 `ERROR` 并完整保留堆栈；
+     - 在 `MultimodalStructuredExtractionHandler` 的 `extractWithTextModelHeartbeat`、`runTextFirst` 与 `legacyModelPath` 中，全部将吞异常改为携带完整异常类、错误信息和调用栈的详细日志；
+     - 在 `StructuredTableExtractionHandler.markIncomplete` 中增加 `log.warn` 明确输出 `taskId`、`projectId`、`fileName` 和 `failureReason`。
+  2. **自动化测试固化**：
+     - 在 `LegacyExtractionModeTest` 中增加 `extractionFailureLogsAndReturnsStructureIncomplete` 单元测试，模拟 LLM 调用抛出异常，断言在保留完整日志的同时系统安全降级不崩溃。
+

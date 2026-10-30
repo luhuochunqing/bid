@@ -26,8 +26,7 @@ import java.util.Optional;
 @Slf4j
 final class StructuredTableExtractionHandler {
     private StructuredTableExtractionHandler() {}
-    static StructuredTableResult extract(TenderTextSource source,
-                                          LoadedBidFile loaded,
+    static StructuredTableResult extract(TenderTextSource source, LoadedBidFile loaded,
                                           SidecarDocumentArtifactExtractor artifactExtractor,
                                           SidecarTableExtractor sidecarTableExtractor) {
         String fileName = source.fileName();
@@ -105,13 +104,12 @@ final class StructuredTableExtractionHandler {
                 acquired.artifact(), source.fileName(), source.text()), acquired.diagnostics());
     }
 
-    static void markIncomplete(ScoreParseTask task,
-                               String taskId,
-                               String failureReason,
+    static void markIncomplete(ScoreParseTask task, String taskId, String failureReason,
                                ScoreParseTaskRepository taskRepository,
-                               ScoreParseTaskStateService stateService,
-                               ScoreParseProgressService progressService) {
+                               ScoreParseTaskStateService stateService, ScoreParseProgressService progressService) {
         String reason = (failureReason == null || failureReason.isBlank()) ? "STRUCTURE_DEFECT" : failureReason;
+        log.warn("结构化提取不完整，任务标记为 STRUCTURE_INCOMPLETE: taskId={}, projectId={}, file={}, failureReason={}",
+                taskId, task.getProjectId(), task.getFileName(), reason);
         task.setRunSummary(RunSummaryAssembler.assemble(
                 new RecallOutcome(List.of(), 0),
                 0,
@@ -134,9 +132,8 @@ final class StructuredTableExtractionHandler {
         progressService.clearProgress(taskId);
     }
 
-    static void markEvidencePipelineCompleted(ScoreParseTask task,
-                                              String taskId,
-                                               StructuredTableResult structured,
+    static void markEvidencePipelineCompleted(ScoreParseTask task, String taskId,
+                                              StructuredTableResult structured,
                                               ScoreParseTaskRepository taskRepository,
                                               ScoreParseTaskStateService stateService,
                                               ScoreParseProgressService progressService,

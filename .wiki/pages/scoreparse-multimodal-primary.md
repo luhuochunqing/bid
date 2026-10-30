@@ -210,4 +210,13 @@ archive: false
   - 计算主通道总分与放行时仅累加末级叶子项，彻底根除 30+70+10+20+40+30=200 分的双计假阳性；
   - `ScoreCandidatePostProcessor` 在主通道命中后将有效候选集纯化为清洗后的叶子项，使后续权重校验、大模型全局归并跳过与人工复核展示全链路畅通。
 
+## 2026-10-30 异常静默吞没根治与可观测性保障
+
+- **消灭排障黑洞**：在 `LegacyTextScoreExtraction` 与 `MultimodalStructuredExtractionHandler` 中，废除直接吞异常或仅打印类名（如 `exception.getClass().getSimpleName()`）的防御性静默代码。
+- **全栈日志留痕**：
+  - 首次模型失败打 `WARN`，复核或全局失败打 `ERROR`，且强制输出完整异常类名、异常 message 以及堆栈追踪（stack trace）；
+  - `StructuredTableExtractionHandler.markIncomplete` 输出含 `taskId`、`projectId`、`fileName` 与 `failureReason` 的 `WARN` 日志；
+  - 生产排查 1135 / 1136 结构异常时可直接通过 journalctl 获取完整错误根因（如网络超时、502 状态、JSON 序列化或越界）。
+
+
 
