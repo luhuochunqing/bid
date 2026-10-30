@@ -132,6 +132,7 @@ backlinks:
 - [[spring-pitfalls]] — Spring Boot 陷阱集
 - [[team-and-timeline]] — 团队与排期
 - [[tender-create-upload-triage]] — 标讯人工录入"未上传"假象排障与 UX 缺陷修复
+- [[tender-bulk-import-failure-metrics-and-error-table]] — 标讯批量导入校验失败计数回写与错误表格防御
 - [[tender-deadline-auto-reminder]] — 标讯截止节点自动提醒（无配置也按 72 小时窗口每天发）
 - [[tender-deadline-zero-hour-formatting]] — 标讯人工创建截止时间零点格式化规则与排错
 - [[tender-event-pr2598-contract-review]] — PR2598 标讯事件推送契约与验证审查
