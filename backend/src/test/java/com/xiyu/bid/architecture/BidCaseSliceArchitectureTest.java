@@ -175,6 +175,7 @@ public class BidCaseSliceArchitectureTest {
         "com.xiyu.bid.casework.application.CaseAiMatcher",
         "com.xiyu.bid.casework.application.CaseExportExcelAppService",
         "com.xiyu.bid.casework.application.CasePrecipitationAppService",
+        "com.xiyu.bid.casework.application.CasePrecipitationTaskStateService",
         "com.xiyu.bid.casework.application.ProjectClosedEventListener",
         // BidDocumentLoader is the narrow legacy document-loading seam introduced with the
         // close-event pipeline; keep its direct JPA access aligned with the listener exemption.

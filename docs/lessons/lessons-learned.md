@@ -7885,7 +7885,34 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **修复**：纯转换规则生成用户可读原因和下一步；同一原因写入任务和通知；两个阶段页面持续显示失败原因，刷新恢复。原始异常只保留日志，不将存储路径、上游响应暴露给用户。
 - **回归**：真实 MySQL 保存后重新查询失败原因、监听器验证任务/通知一致、真实 HTTP 下载配额拒绝，以及两个页面刷新后的错误提示。
 
-## 479. 生产回填的“只读预演”必须约束整个进程而非单个方法（2026-10-30）
+## 479. AI 案例推荐评分项与案例类别互斥穿透及企业资质原件直连推荐（2026-10-30）
+
+- **现场证据（CO-652）**：
+  在招商积余等项目（1358/1360/1361）中，招标文件评分项明确要求资质认证证书（如 ISO 9001、ISO 14001、ISO 45001 等），但 AI 智能案例推荐抽屉推荐的全部是服务方案或技术方案，且匹配度高达 65%~69%（虚标为“良好”）；同时历史项目中大量应急方案仅召回 1 条；用户明确诉求“资质证书属于客观内容，必须精准匹配，且希望把资格项的证书图片原件也匹配展示出来”。
+- **系统代码根因**：
+  1. **泛章节名遮蔽细则大类**：标书中常把资质证书条款置于“第三章 技术部分”或“综合能力”章节。原 `CaseCategoryMatchPolicy.classifyMacroCategory` 只要维度非 OTHER 即直接返回，导致评分项被误判为 `TECHNICAL`，完全跳过了 detail 中的资质/体系认证识别，一票否决门禁失效。
+  2. **双字机械切词与大类一致虚假叠加**：`ScoreItemCaseMatchPolicy` 中由于机械双字滑动切词，即使方案正文与证书无关，也因通用词重叠加上误判的大类一致分与中标加成，轻松越过 60% 良好线。
+  3. **单向互斥 vs 双向互斥失衡**：资质评分项绝不能被方案类案例替代（单向一票否决）；但技术方案评分项历史真实需求允许引用资质证书作为支撑证明材料，双向互斥会导致历史合法推荐被误杀。
+  4. **资质库孤立未直连推荐流**：系统已存在完整的企业资质库（`business_qualifications`）和证书扫描件图片（`qualification_attachments`），但此前案例推荐仅查询 `knowledge_case` 表，对资质项仅弹静态提示甚至留白。
+- **根治方案与长效防线**：
+  1. **大类穿透与严格单向否决**：
+     - `CaseCategoryMatchPolicy.classifyMacroCategory` 增加泛章节穿透：当维度为泛章节名（如技术部分/详细评审/综合能力）时，以详情细则的实质属性（QUALIFICATION/PERFORMANCE/PERSONNEL）为准；
+     - `isCategoryConflict` 实施严格单向否决：`itemCat == QUALIFICATION && (candCat == TECHNICAL || candCat == COMMERCIAL || candCat == PERFORMANCE)` 一票否决；同时保留技术项选用资质作为佐证的兼容性。
+  2. **FP-Java 资质匹配纯策略**：
+     - 新建 `EnterpriseQualificationMatchPolicy`，对标 ISO 9001/14001/45001/27001/20000、AAA 信用、安全生产许可等核心标准；
+     - 结合系统当前日期校验有效期（`VALID`/`EXPIRING`/`EXPIRED` 降级），并过滤报废证书；
+  3. **六边形架构直连资质库**：
+     - 新增端口 `EnterpriseQualificationQueryPort` 与适配器 `EnterpriseQualificationQueryAdapter`，装配真实附件图片 `fileUrl`；
+     - `ScoreItemCaseRecommendAppService` 当识别到资质评分项时直连端口，将匹配证书组装到响应体 `matchedCertificates` 中返回；
+  4. **前端卡片原件图片直连与复制**：
+     - `AiRecommendDrawer.vue` 升级：资质项展示专属证书卡片网格，展示证书原件缩略图、点击大图预览、证书编号、有效期、发证机构与认证范围，并支持一键复制证书信息及原件图片链接。
+  5. **自动化测试守卫**：
+     - `EnterpriseQualificationMatchPolicyTest` 验证 ISO 三体系招商积余对标、有效期降级与报废过滤；
+     - `ScoreItemCaseMatchPolicyTest` 验证穿透大类否决与兼容性；
+     - `ScoreItemCaseRecommendAppServiceTest` 验证资质项直连返回图片；
+    - `AiRecommendDrawer.spec.js` 验证证书卡片图片渲染及复制交互。
+
+## 480. 生产回填的“只读预演”必须约束整个进程而非单个方法（2026-10-30）
 
 - **陷阱**：`CommandLineRunner` 自身不调用更新方法，不代表启动完整 Spring Boot 应用是只读。正常启动还会触发 Flyway、其他 `ApplicationRunner`、`@PostConstruct` 初始化器与 `@Scheduled` 任务；因此“preview 方法零写入”不足以证明生产预演安全。
 - **进程级护栏**：案例来源预演路由到独立 `CaseProvenancePreviewApplication`，强制 `WebApplicationType.NONE`、lazy initialization、Flyway 关闭、Hibernate schema action 关闭及 Hikari read-only，并排除其他 `ApplicationRunner` / `CommandLineRunner`。还必须显式关闭所有 `ApplicationReadyEvent` 外部集成（组织事件 SDK、标讯事件 SDK、历史补发）；lazy initialization 不能阻止事件 SDK 在就绪阶段扫描并实例化全容器。旧 `--recompute-case-provenance=true` 入口明确失败，不能再触发定位失败后清空来源的历史逻辑。

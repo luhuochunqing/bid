@@ -48,6 +48,9 @@ class ScoreItemCaseRecommendAppServiceTest {
     @Mock
     private com.xiyu.bid.casework.application.port.TenderQualificationQueryPort tenderQualificationQueryPort;
 
+    @Mock
+    private com.xiyu.bid.casework.application.port.EnterpriseQualificationQueryPort enterpriseQualificationQueryPort;
+
     @InjectMocks
     private ScoreItemCaseRecommendAppService recommendAppService;
 
@@ -559,5 +562,90 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(item.getSourceDocumentName()).isEqualTo("技术方案响应书.docx");
         assertThat(item.getSourcePageNumber()).isEqualTo(88);
         assertThat(item.getSourceSectionIndex()).isEqualTo(15);
+    }
+
+    @Test
+    @DisplayName("评分项为资质证书时：直连企业资质库返回匹配证书及扫描件图片")
+    void testRecommendQualificationItemDirectlyReturnsCertificatesWithImages() {
+        Long projectId = 100L;
+        Long scoreItemId = 99L;
+
+        Project currentProject = new Project();
+        currentProject.setId(projectId);
+
+        ScoreItem certScoreItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("Q1")
+                .dim("企业资质")
+                .detail("投标人具有ISO 9001质量管理体系认证证书，并在有效期内")
+                .itemIndex(1)
+                .build();
+
+        ScoreItemCaseRecommendResponse.CertificateItem certItem = ScoreItemCaseRecommendResponse.CertificateItem.builder()
+                .id(888L)
+                .name("质量管理体系认证证书 (ISO 9001)")
+                .certificateNo("00121Q31234R0M")
+                .certScope("工业品MRO供应链服务")
+                .issuer("中国质量认证中心")
+                .status("VALID")
+                .expiryDate("2028-12-31")
+                .fileUrl("https://oss.ehsy.com/certs/iso9001.jpg")
+                .fileName("iso9001_scanned.jpg")
+                .matchScore(95)
+                .matchLabel("HIGH")
+                .matchReasons(List.of("资质名称匹配", "证书在有效期内"))
+                .build();
+
+        when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(currentProject));
+        when(scoreItemRepository.findById(eq(scoreItemId))).thenReturn(Optional.of(certScoreItem));
+        when(enterpriseQualificationQueryPort.findMatchingCertificates(eq("企业资质"), eq("投标人具有ISO 9001质量管理体系认证证书，并在有效期内"), eq(null)))
+                .thenReturn(List.of(certItem));
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(
+                projectId,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(scoreItemId).build()
+        );
+
+        assertThat(response).isNotNull();
+        assertThat(response.getMatchedCertificates()).hasSize(1);
+        ScoreItemCaseRecommendResponse.CertificateItem matched = response.getMatchedCertificates().get(0);
+        assertThat(matched.getName()).contains("ISO 9001");
+        assertThat(matched.getFileUrl()).isEqualTo("https://oss.ehsy.com/certs/iso9001.jpg");
+        assertThat(matched.getStatus()).isEqualTo("VALID");
+        assertThat(response.getTotal()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("评分项为资质证书但资质端口抛出异常时：优雅降级返回空证书列表而不拖垮主流程")
+    void testRecommendQualificationItemPortThrowsExceptionGracefullyDegrades() {
+        Long projectId = 100L;
+        Long scoreItemId = 99L;
+
+        Project currentProject = new Project();
+        currentProject.setId(projectId);
+
+        ScoreItem certScoreItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("Q1")
+                .dim("企业资质")
+                .detail("投标人具有ISO 9001质量管理体系认证证书")
+                .itemIndex(1)
+                .build();
+
+        when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(currentProject));
+        when(scoreItemRepository.findById(eq(scoreItemId))).thenReturn(Optional.of(certScoreItem));
+        when(enterpriseQualificationQueryPort.findMatchingCertificates(eq("企业资质"), eq("投标人具有ISO 9001质量管理体系认证证书"), eq(null)))
+                .thenThrow(new RuntimeException("Transient DB Connection Failure"));
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(
+                projectId,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(scoreItemId).build()
+        );
+
+        assertThat(response).isNotNull();
+        assertThat(response.getMatchedCertificates()).isEmpty();
+        assertThat(response.getTotal()).isEqualTo(0);
     }
 }
