@@ -322,5 +322,3 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
    - `ScoreItemCaseRecommendResponse` 扩展 `matchedCertificates: List<CertificateItem>`，包含 `id, name, certificateNo, issuer, expiryDate, status, certScope, fileUrl, fileName, matchScore, matchReasons`；
 4. **前端组件化交互**：
    - 抽离 `EnterpriseCertRecommendList.vue`，渲染证书卡片网格、原件图片缩略图、点击放大预览、有效期标签、一键复制证书信息与一键复制图片链接。
-
-
