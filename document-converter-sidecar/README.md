@@ -176,3 +176,5 @@ to markitdown. On Linux, install `libreoffice` and update the subprocess call in
 ### `SIDECAR_SHARED_KEY is not set` warning at startup
 Expected in local development. Set the env var for any environment reachable over
 a network.
+
+PDF scoring tables with repeated page headers are linked only when adjacent source pages, a shared named section, a continued rule row and consecutive item numbers provide evidence of the same table. Each cell keeps its original page and coordinates; closed, ambiguous and unrelated tables remain separate.

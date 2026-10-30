@@ -43,6 +43,8 @@ _PDF_TOC_LEADER = re.compile(
 # 这类表格**丢掉本来成立的方案归属**（`!section.isBlank()` 分支不成立 → 转人工），
 # 是本轮修复目标（恢复归属）的反方向，故回退。
 _PDF_CHAPTER_HEADING = re.compile(r"^第[一二三四五六七八九十百\d]+章\s*\S.{0,40}$")
+_PDF_NUMBERED_SCORE_HEADING = re.compile(r"^[0-9]{1,2}\s+(?:招标)?评分规则(?:[（(].{0,40}[）)])?$")
+_PDF_NUMBERED_SECTION = re.compile(r"^[0-9]{1,2}\s+[\u4e00-\u9fff][^。；;]{0,40}$")
 # 章级分节信号：只要一行「看起来是新的一章」就记下来（无论我们能否把它变成锚点）。
 # 用于阻断 current_section 跨页继承——继承把无法识别的章标题页的表格挂到上一章，
 # 会把外章表格静默判成 IN_SCHEME（错误采纳），比"无锚点转人工"更危险。
@@ -454,7 +456,7 @@ def _pdf_chapter_heading(text: str) -> str:
         return ""
     if _PDF_TOC_LEADER.search(candidate):
         return ""
-    return candidate if _PDF_CHAPTER_HEADING.match(candidate) else ""
+    return candidate if _PDF_CHAPTER_HEADING.match(candidate) or _PDF_NUMBERED_SCORE_HEADING.match(candidate) else ""
 
 
 def _pdf_page_lines(page) -> list:
@@ -474,6 +476,8 @@ def _pdf_page_chapter_heading_positions(page) -> list[tuple[float, str]]:
     for line in _pdf_page_lines(page):
         raw_text = str(line.get("text", ""))
         title = _pdf_chapter_heading(raw_text)
+        if title and _PDF_NUMBERED_SCORE_HEADING.match(title) and _pdf_line_inside_table(page, line):
+            continue
         if title and _pdf_is_scoring_part_subheading(page, line, raw_text):
             continue
         if title:
@@ -530,7 +534,8 @@ def _pdf_page_unresolved_section_break_tops(page) -> list[float]:
     for line in _pdf_page_lines(page):
         raw_text = str(line.get("text", ""))
         candidate = _pdf_heading_candidate(raw_text)
-        if (_PDF_SECTION_BREAK.match(_pdf_heading_form(candidate))
+        if ((_PDF_SECTION_BREAK.match(_pdf_heading_form(candidate))
+                 or (_PDF_NUMBERED_SECTION.match(candidate) and not _PDF_TOC_LEADER.search(candidate)))
                 and not _pdf_chapter_heading(candidate)
                 and not _pdf_line_inside_table(page, line)
                 and not _pdf_is_scoring_part_subheading(page, line, raw_text)):
@@ -778,8 +783,12 @@ def _merge_pdf_score_table_continuations(tables: list[dict]) -> list[dict]:
                 break
             if not _same_or_unknown_section(cand.get("sourceSection"), table.get("sourceSection")):
                 break
-            if _is_pdf_score_table_continuation(cand["rows"], rows):
+            repeated = _is_repeated_header_continuation(cand, table)
+            if repeated or _is_pdf_score_table_continuation(cand["rows"], rows):
                 merge_target = cand
+                if repeated:
+                    rows = rows[1:]
+                    enriched["sourceRows"] = enriched["sourceRows"][1:]
                 break
             # If candidate was already a genuine score table, do not jump past it to an earlier score table
             if any(_is_genuine_header_row(r) for r in cand["rows"]):
@@ -791,6 +800,34 @@ def _merge_pdf_score_table_continuations(tables: list[dict]) -> list[dict]:
         else:
             merged.append(enriched)
     return merged
+
+
+def _is_repeated_header_continuation(previous: dict, current: dict) -> bool:
+    """Link only an adjacent, numbered continuation with identical repeated header and split row."""
+    prev, rows = previous["rows"], current["rows"]
+    pages = [source["page"] for source in previous.get("sourceRows", [])]
+    if not prev or len(rows) < 3 or not pages or current["sourcePage"] != max(pages) + 1:
+        return False
+    if not previous.get("sourceSection") or previous.get("sourceSection") != current.get("sourceSection"):
+        return False
+    if not _is_genuine_header_row(prev[0]) or not _is_genuine_header_row(rows[0]):
+        return False
+    norm = lambda row: [re.sub(r"\s+", "", cell or "") for cell in row]
+    if norm(prev[0]) != norm(rows[0]):
+        return False
+    if any("合计" in (cell or "") or "总计" in (cell or "")
+           or _normalise_cell_text(cell).replace(" ", "") in ("总分", "总得分", "总评分")
+           for row in prev[1:] for cell in row):
+        return False
+    continuation = rows[1]
+    if len(continuation) != len(prev[0]) or any(_normalise_cell_text(c) for c in continuation[:-2]):
+        return False
+    if not _normalise_cell_text(continuation[-2]):
+        return False
+    def numbered(rows):
+        return [int(text) for row in rows if row and re.fullmatch(r"[0-9]{1,4}", (text := _normalise_cell_text(row[0])))]
+    left, right = numbered(prev[1:]), numbered(rows[2:])
+    return bool(left and right and right[0] == left[-1] + 1)
 
 
 def _is_pdf_score_table_continuation(previous: list[list[str]], current: list[list[str]]) -> bool:

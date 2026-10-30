@@ -116,7 +116,8 @@ public record ScoreFact(
      * fact）调用本方法绕过了"父项不得计入总权重"底线，由调用方负责。
      */
     public Optional<ScoreCandidate> toCandidate() {
-        if (!isAutoApprovable()) {
+        if (!isAutoApprovable() || (weight != null && weight.compareTo(BigDecimal.ZERO) == 0
+                && dimension.replaceAll("\\s+", "").matches("(?s).*[（(]不计分[）)].*"))) {
             return Optional.empty();
         }
         return Optional.of(new ScoreCandidate(

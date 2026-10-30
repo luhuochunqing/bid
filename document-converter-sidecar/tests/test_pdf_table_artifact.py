@@ -1059,3 +1059,63 @@ def test_spatial_containment_identifies_multi_column_page_border_enclosing_inner
     # Inner table must NOT be recognized as page border
     assert _is_pdf_page_border_table(inner_table, page) is False
 
+
+
+def test_repeated_header_continuation_preserves_source_pages_and_joins_closed_score_table():
+    header = ["序号", "评价维度", "评分细则", "分值"]
+    tables = [
+        {"sourcePage": 9, "sourceTableIndex": 0, "sourceSection": "评分规则", "rows": [header, ["1", "价格", "价格得60分", "60"], ["2", "服务", "服务得40分", "40"]]},
+        {"sourcePage": 10, "sourceTableIndex": 1, "sourceSection": "评分规则", "rows": [header, ["", "", "补充服务要求", ""], ["3", "说明", "不计分", "0"], ["4", "合计", "", "100"]]},
+    ]
+    merged = _merge_pdf_score_table_continuations(tables)
+    assert len(merged) == 1
+    assert merged[0]["rows"].count(header) == 1
+    assert [r["page"] for r in merged[0]["sourceRows"]] == [9, 9, 9, 10, 10, 10]
+    assert merged[0]["rows"][-1] == ["4", "合计", "", "100"]
+
+
+@pytest.mark.parametrize("change", ["reset", "gap", "nonadjacent", "different_header", "closed", "total_score", "different_section", "unknown_section", "unicode_code"])
+def test_repeated_header_never_merges_independent_or_unproven_tables(change):
+    header = ["序号", "评价维度", "评分细则", "分值"]
+    first = {"sourcePage": 9, "sourceTableIndex": 0, "sourceSection": "评分规则", "rows": [header, ["1", "价格", "价格得60分", "60"], ["2", "服务", "服务得40分", "40"]]}
+    second = {"sourcePage": 10, "sourceTableIndex": 1, "sourceSection": "评分规则", "rows": [header.copy(), ["", "", "续页描述", ""], ["3", "能力", "能力得10分", "10"]]}
+    if change == "reset": second["rows"][2][0] = "1"
+    if change == "gap": second["rows"][2][0] = "5"
+    if change == "nonadjacent": second["sourcePage"] = 11
+    if change == "different_header": second["rows"][0][1] = "评审项目"
+    if change == "closed": first["rows"].append(["3", "合计", "", "100"]); second["rows"][2][0] = "4"
+    if change == "total_score": first["rows"].append(["3", "总分", "", "100"]); second["rows"][2][0] = "4"
+    if change == "different_section": second["sourceSection"] = "另一评分方案"
+    if change == "unknown_section": first["sourceSection"] = ""; second["sourceSection"] = ""
+    if change == "unicode_code": second["rows"][2][0] = "²"
+    assert len(_merge_pdf_score_table_continuations([first, second])) == 2
+
+
+def test_arabic_numbered_score_heading_anchors_and_next_section_cuts_scope():
+    class Page:
+        def extract_text_lines(self):
+            return [
+                {"text": "7 招标评分规则（投标人提供材料索引）", "top": 30, "bottom": 40},
+                {"text": "8 评标流程", "top": 500, "bottom": 510},
+            ]
+        def find_tables(self):
+            return []
+
+    page = Page()
+    headings = _pdf_page_chapter_heading_positions(page)
+    breaks = _pdf_page_unresolved_section_break_tops(page)
+    assert headings == [(30.0, "7 招标评分规则（投标人提供材料索引）")]
+    assert breaks == [500.0]
+    assert _pdf_table_section(headings, breaks, 100.0, "", inherited_cut=False) == (headings[0][1], False)
+    assert _pdf_table_section(headings, breaks, 520.0, "", inherited_cut=False) == ("", True)
+
+
+def test_numbered_scoring_heading_inside_table_is_not_a_section_anchor():
+    class Table:
+        bbox = (0, 20, 500, 200)
+        def extract(self): return [["序号", "评价维度", "评分细则", "分值"]]
+    class Page:
+        def extract_text_lines(self): return [{"text": "7 招标评分规则", "top": 40, "bottom": 50}]
+        def find_tables(self): return [Table()]
+    assert _pdf_page_chapter_heading_positions(Page()) == []
+    assert _pdf_page_unresolved_section_break_tops(Page()) == []

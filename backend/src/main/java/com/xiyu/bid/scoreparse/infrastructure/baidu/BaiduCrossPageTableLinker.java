@@ -63,45 +63,59 @@ final class BaiduCrossPageTableLinker {
      * 将相邻页面上同列数、无重复表头的跨页评分续表合并入主评分表，保持单一 tableId 与表头结构。
      */
     static List<CanonicalTable> mergeCrossPageScoreTables(List<CanonicalTable> tables) {
+        return mergeCrossPageScoreTables(tables, java.util.Map.of());
+    }
+
+    static List<CanonicalTable> mergeCrossPageScoreTables(List<CanonicalTable> tables,
+            java.util.Map<Integer, CanonicalTable> originalOwners) {
         if (tables == null || tables.size() <= 1) {
             return tables == null ? List.of() : tables;
         }
         List<CanonicalTable> merged = new ArrayList<>();
         for (CanonicalTable curr : tables) {
-            int prevScoreIdx = findMergeablePreviousScoreTable(merged, curr);
+            int prevScoreIdx = findMergeablePreviousScoreTable(merged, curr, originalOwners);
             if (prevScoreIdx < 0) {
                 merged.add(curr);
                 continue;
             }
             CanonicalTable prev = merged.get(prevScoreIdx);
-            merged.set(prevScoreIdx, appendContinuationTable(prev, curr));
+            merged.set(prevScoreIdx, appendContinuationTable(prev, curr, hasHeaderRow(curr)));
         }
         return List.copyOf(merged);
     }
 
-    private static int findMergeablePreviousScoreTable(List<CanonicalTable> merged, CanonicalTable curr) {
-        if (!Boolean.TRUE.equals(curr.isScoreTable()) || curr.sourcePage() == null || hasHeaderRow(curr)) {
+    private static int findMergeablePreviousScoreTable(List<CanonicalTable> merged, CanonicalTable curr,
+            java.util.Map<Integer, CanonicalTable> originalOwners) {
+        if (!Boolean.TRUE.equals(curr.isScoreTable()) || curr.sourcePage() == null) {
             return -1;
         }
         for (int i = merged.size() - 1; i >= 0; i--) {
             CanonicalTable candidate = merged.get(i);
             if (!Boolean.TRUE.equals(candidate.isScoreTable()) || candidate.sourcePage() == null) continue;
-            if (curr.sourcePage() - maxPage(candidate) == 1 && candidate.columns() == curr.columns()) {
+            boolean repeatedHeader = hasHeaderRow(curr);
+            var owner = originalOwners.get(curr.sourcePage());
+            boolean trusted = owner != null && owner == originalOwners.get(maxPage(candidate))
+                    && owner.sourceSection().equals(curr.sourceSection());
+            if (curr.sourcePage() - maxPage(candidate) == 1 && candidate.columns() == curr.columns()
+                    && (!repeatedHeader || (trusted && BaiduRepeatedHeaderPolicy.isContinuation(candidate, curr)))) {
                 return i;
             }
+            if (repeatedHeader) break; // Never jump across a genuine scoring table.
         }
         return -1;
     }
 
-    private static CanonicalTable appendContinuationTable(CanonicalTable prev, CanonicalTable curr) {
-        int rowOffset = prev.rows();
+    private static CanonicalTable appendContinuationTable(CanonicalTable prev, CanonicalTable curr, boolean repeatedHeader) {
+        int skippedRows = repeatedHeader ? 1 : 0;
+        int rowOffset = prev.rows() - skippedRows;
         String lastLogicalRowId = findLastNonBlankLogicalRowId(prev);
-        boolean firstRowCont = !lastLogicalRowId.isBlank() && isFirstRowContinuation(curr);
-        String currRow0LogicalId = curr.tableId() + "-r0";
+        boolean firstRowCont = !lastLogicalRowId.isBlank() && (repeatedHeader || isFirstRowContinuation(curr));
+        String currRow0LogicalId = curr.tableId() + "-r" + skippedRows;
         String currLogicalPrefix = curr.tableId() + "-r";
 
         List<CanonicalCellDto> combinedCells = new ArrayList<>(prev.cells());
         for (CanonicalCellDto c : curr.cells()) {
+            if (repeatedHeader && Integer.valueOf(0).equals(c.row())) continue;
             int newRow = (c.row() == null ? 0 : c.row()) + rowOffset;
             String newCellId = prev.tableId() + "_r" + newRow + "_c" + c.column();
             String oldLogical = c.logicalRowId() == null ? "" : c.logicalRowId();
@@ -125,6 +139,8 @@ final class BaiduCrossPageTableLinker {
         List<MergedRegionDto> combinedRegions = new ArrayList<>(prev.mergedRegions());
         String cellPrefix = curr.tableId() + "_r";
         for (MergedRegionDto reg : curr.mergedRegions()) {
+            if (repeatedHeader && curr.cells().stream().anyMatch(c -> Integer.valueOf(0).equals(c.row())
+                    && c.cellId().equals(reg.startCellId()))) continue;
             String startId = reg.startCellId();
             if (startId != null && startId.startsWith(cellPrefix)) {
                 int cPos = startId.indexOf("_c", cellPrefix.length());
@@ -138,7 +154,7 @@ final class BaiduCrossPageTableLinker {
 
         return new CanonicalTable(
                 prev.tableId(), prev.sourcePage(), prev.sourceSection(),
-                prev.rows() + curr.rows(), prev.columns(),
+                prev.rows() + curr.rows() - skippedRows, prev.columns(),
                 List.copyOf(combinedRegions), List.copyOf(combinedCells),
                 prev.isScoreTable(), prev.sourceFileType()
         );

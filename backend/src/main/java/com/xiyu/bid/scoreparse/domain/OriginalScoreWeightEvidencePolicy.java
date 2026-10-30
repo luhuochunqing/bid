@@ -69,8 +69,17 @@ final class OriginalScoreWeightEvidencePolicy {
             String directRowText = row.stream().map(c -> c.rawText() == null ? "" : c.rawText())
                     .reduce((a, b) -> a + " " + b).orElse("");
             String rowText = directRowText + " " + inheritedCategoryText(table, anchor.row());
+            boolean anchoredScoreColumn = anchor.column() != null && anchor.rawText() != null
+                    && SCORE_CELL.matcher(anchor.rawText()).matches() && table.cells().stream()
+                    .anyMatch(header -> Integer.valueOf(0).equals(header.row())
+                            && anchor.column().equals(header.column()) && header.rawText() != null
+                            && header.rawText().replaceAll("\\s+", "").matches("(?s).*(?:最高分|分值|权重|得分).*"));
             Matcher itemMax = ITEM_SCOPED_MAX.matcher(directRowText);
             while (itemMax.find()) {
+                int sentenceStart = Math.max(directRowText.lastIndexOf('。', itemMax.start()),
+                        Math.max(directRowText.lastIndexOf('；', itemMax.start()), directRowText.lastIndexOf(';', itemMax.start())));
+                String preceding = directRowText.substring(sentenceStart + 1, itemMax.start());
+                if (anchoredScoreColumn && preceding.matches("(?s).*(?:仅提供|仅具备|仅有).{0,80}(?:的|时|情况下)[，,\\s]*$")) continue;
                 BigDecimal maximum = new BigDecimal(itemMax.group(1));
                 if (claim.weight() != null && claim.weight().compareTo(maximum) != 0) {
                     problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
@@ -111,7 +120,7 @@ final class OriginalScoreWeightEvidencePolicy {
                 boolean scoreColumn = cell.column() != null && table.cells().stream()
                         .anyMatch(header -> header.row() != null && header.row() == 0
                                 && cell.column().equals(header.column()) && header.rawText() != null
-                                && header.rawText().matches("(?s).*(?:最高分|分值|权重|得分).*"));
+                                && header.rawText().replaceAll("\\s+", "").matches("(?s).*(?:最高分|分值|权重|得分).*"));
                 if (cell.column() != null && cell.column() > 0 && numeric.matches()
                         && (raw.contains("分") || scoreColumn)) {
                     explicit.add(new BigDecimal(numeric.group(1)));
@@ -128,7 +137,7 @@ final class OriginalScoreWeightEvidencePolicy {
             if (!claim.parent() && !capped.isEmpty()) authoritative = concat(authoritative, capped);
             if (!claim.parent() && !awarded.isEmpty()) authoritative = concat(authoritative, awarded);
             List<BigDecimal> tierValues = tierScores(rowText);
-            if (tierSet(rowText, tierValues)
+            if (explicit.isEmpty() && tierSet(rowText, tierValues)
                     && (!claim.parent() || claim.childAggregation() == ChildAggregation.MUTUALLY_EXCLUSIVE)) {
                 authoritative = List.of(tierValues.stream().max(BigDecimal::compareTo).orElseThrow());
             }
@@ -141,6 +150,9 @@ final class OriginalScoreWeightEvidencePolicy {
                 problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "dimension", "ITEM_SOURCE_SCOPE_MISMATCH",
                         claim.dimension(), "not in cited item row", locator));
             }
+            if (anchoredScoreColumn && itemMatched && claim.weight() != null
+                    && new BigDecimal(SCORE_CELL.matcher(anchor.rawText()).replaceFirst("$1")).compareTo(claim.weight()) == 0
+                    && (claim.quotedText().isBlank() || containsQuote(rowText, claim.quotedText()))) return;
             Pattern claimWeightPattern = claim.weight() == null ? null
                     : Pattern.compile("(?<!\\d)" + Pattern.quote(claim.weight().stripTrailingZeros().toPlainString()) + "\\s*分");
             if ((explicit.isEmpty() || !claim.parent()) && claim.weight() != null
