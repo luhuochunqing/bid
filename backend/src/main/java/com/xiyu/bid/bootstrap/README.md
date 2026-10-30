@@ -11,5 +11,5 @@
 | `DefaultAdminInitializer.java` | Bootstrap | 检测零用户状态，种子化默认管理员账户（dev/prod） |
 | `LocalDevAccountInitializer.java` | Bootstrap | 在 dev profile 下补齐登录页提示的本地员工/经理账号 |
 | `StartupConfigurationSummaryLogger.java` | Bootstrap | 启动后输出外部集成安全配置摘要（仅布尔/模式，不打印密钥与账号值） |
-| `CaseProvenanceBackfillCommandLineRunner.java` | Bootstrap CLI | 仅接受显式 `preview`、绝对审计目录和批次 ID；旧清空式重算参数明确拒绝 |
+| `CaseProvenanceBackfillCommandLineRunner.java` | Bootstrap CLI | 接受显式 `preview` 或 `apply`；`apply` 必须提供完整工件、批次 ID、候选数与清单摘要，并在重算后校验；旧清空式重算参数明确拒绝 |
 | `package-info.java` | Bootstrap | 包文档 |

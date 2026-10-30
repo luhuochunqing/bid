@@ -43,14 +43,15 @@ public final class CaseProvenanceBackfillArtifactWriter {
             Files.writeString(rollback, rollback(plan, batchId), StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE_NEW);
             int fillable = Math.toIntExact(plan.count(CaseProvenanceBackfillPlan.DecisionType.FILLABLE));
-            return new ArtifactReceipt(batchId, fillable, manifestSha256(plan), jsonl, csv, rollback);
+            return new ArtifactReceipt(batchId, fillable, manifestSha256(batchId, plan), jsonl, csv, rollback);
         } catch (IOException exception) {
             throw new IllegalStateException("cannot create provenance backfill artifacts", exception);
         }
     }
 
-    public String manifestSha256(CaseProvenanceBackfillPlan plan) {
-        return sha256(canonicalManifest(plan));
+    public String manifestSha256(String batchId, CaseProvenanceBackfillPlan plan) {
+        requireBatchId(batchId);
+        return sha256(canonicalManifest(batchId, plan));
     }
 
     private String jsonl(CaseProvenanceBackfillPlan plan) {
@@ -101,20 +102,32 @@ public final class CaseProvenanceBackfillArtifactWriter {
         return row;
     }
 
-    private static String canonicalManifest(CaseProvenanceBackfillPlan plan) {
-        StringBuilder value = new StringBuilder();
+    private String canonicalManifest(String batchId, CaseProvenanceBackfillPlan plan) {
+        Map<String, Object> manifest = new LinkedHashMap<>();
+        manifest.put("batchId", batchId);
+        List<Map<String, Object>> decisions = new ArrayList<>();
         for (CaseProvenanceBackfillPlan.Decision decision : plan.decisions()) {
             CaseProvenanceBackfillPlan.Proposed proposed = decision.proposed();
-            value.append(decision.caseId()).append('|').append(decision.type()).append('|')
-                    .append(decision.evidenceSha256()).append('|');
-            if (proposed != null) {
-                value.append(proposed.title()).append('|').append(proposed.path()).append('|')
-                        .append(proposed.index()).append('|').append(proposed.documentName()).append('|')
-                        .append(proposed.pageNumber());
-            }
-            value.append('\n');
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("caseId", decision.caseId());
+            row.put("projectId", decision.candidate().sourceProjectId());
+            row.put("type", decision.type().name());
+            row.put("evidenceSha256", decision.evidenceSha256());
+            Map<String, Object> proposedRow = new LinkedHashMap<>();
+            proposedRow.put("title", proposed == null ? null : proposed.title());
+            proposedRow.put("path", proposed == null ? null : proposed.path());
+            proposedRow.put("index", proposed == null ? null : proposed.index());
+            proposedRow.put("documentName", proposed == null ? null : proposed.documentName());
+            proposedRow.put("pageNumber", proposed == null ? null : proposed.pageNumber());
+            row.put("proposed", proposedRow);
+            decisions.add(row);
         }
-        return value.toString();
+        manifest.put("decisions", decisions);
+        try {
+            return objectMapper.writeValueAsString(manifest);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("cannot serialize provenance manifest", exception);
+        }
     }
 
     private static String rollback(CaseProvenanceBackfillPlan plan, String batchId) {
@@ -143,6 +156,10 @@ public final class CaseProvenanceBackfillArtifactWriter {
         if (outputRoot == null || !outputRoot.isAbsolute()) {
             throw new IllegalArgumentException("artifact output root must be absolute");
         }
+        requireBatchId(batchId);
+    }
+
+    private static void requireBatchId(String batchId) {
         if (batchId == null || !batchId.matches("[A-Za-z0-9._-]+")) {
             throw new IllegalArgumentException("invalid batch id");
         }

@@ -9,6 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.core.env.MapPropertySource;
 
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 @SpringBootApplication
 @EnableScheduling
@@ -25,22 +26,23 @@ public class XiyuBidApplication {
             application.setWebApplicationType(WebApplicationType.NONE);
             application.setLazyInitialization(true);
             application.addInitializers(context -> context.getEnvironment().getPropertySources().addFirst(
-                    new MapPropertySource("caseProvenancePreviewSafety", previewSafetyDefaults())));
+                    new MapPropertySource("caseProvenanceMaintenanceSafety", maintenanceSafetyDefaults(args))));
         }
         application.run(args);
     }
 
     static Class<?> applicationClassFor(String[] args) {
         for (String arg : args) {
-            if ("--case-provenance-backfill=preview".equals(arg)) {
+            if ("--case-provenance-backfill=preview".equals(arg)
+                    || "--case-provenance-backfill=apply".equals(arg)) {
                 return CaseProvenancePreviewApplication.class;
             }
         }
         return XiyuBidApplication.class;
     }
 
-    static Map<String, Object> previewSafetyDefaults() {
-        return Map.ofEntries(
+    static Map<String, Object> maintenanceSafetyDefaults(String[] args) {
+        Map<String, Object> defaults = new LinkedHashMap<>(Map.ofEntries(
                 Map.entry("spring.main.web-application-type", "none"),
                 Map.entry("spring.main.lazy-initialization", "true"),
                 Map.entry("spring.flyway.enabled", "false"),
@@ -48,10 +50,12 @@ public class XiyuBidApplication {
                 Map.entry("spring.jpa.generate-ddl", "false"),
                 Map.entry("spring.jpa.properties.jakarta.persistence.schema-generation.database.action", "none"),
                 Map.entry("spring.jpa.properties.hibernate.hbm2ddl.auto", "none"),
-                Map.entry("spring.datasource.hikari.read-only", "true"),
                 Map.entry("spring.task.scheduling.enabled", "false"),
                 Map.entry("xiyu.integrations.organization.event-sdk.enabled", "false"),
                 Map.entry("xiyu.integrations.tender-event.sdk.enabled", "false"),
-                Map.entry("xiyu.opportunity-history-replay.enabled", "false"));
+                Map.entry("xiyu.opportunity-history-replay.enabled", "false")));
+        boolean preview = java.util.Arrays.asList(args).contains("--case-provenance-backfill=preview");
+        defaults.put("spring.datasource.hikari.read-only", Boolean.toString(preview));
+        return Map.copyOf(defaults);
     }
 }

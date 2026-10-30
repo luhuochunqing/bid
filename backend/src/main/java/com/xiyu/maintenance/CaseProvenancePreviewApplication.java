@@ -1,5 +1,5 @@
-// Input: 生产只读案例来源预演启动参数与既有环境配置
-// Output: 无 Web/Flyway/调度/其他 runner 的只读 Spring 上下文
+// Input: 生产案例来源 preview/apply 启动参数与既有环境配置
+// Output: 无 Web/Flyway/调度/其他 runner 的隔离维护上下文（preview 只读，apply 仅允许受守卫回填）
 // Pos: maintenance 独立启动根——隔离正常服务启动副作用
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.maintenance;

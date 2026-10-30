@@ -8,7 +8,9 @@ import com.xiyu.bid.casework.application.service.CaseProvenanceBackfillAppServic
 import com.xiyu.bid.casework.application.service.CaseProvenanceBackfillArtifactWriter;
 import com.xiyu.bid.casework.application.service.CaseProvenanceBackfillPlan;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -19,6 +21,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CaseProvenanceBackfillCommandLineRunnerTest {
+    @TempDir
+    Path tempDir;
+
     private final CaseProvenanceBackfillAppService service = mock(CaseProvenanceBackfillAppService.class);
     private final CaseProvenanceBackfillArtifactWriter writer = mock(CaseProvenanceBackfillArtifactWriter.class);
     private final CaseProvenanceBackfillCommandLineRunner runner =
@@ -64,5 +69,56 @@ class CaseProvenanceBackfillCommandLineRunnerTest {
                 "--case-provenance-artifact-dir=relative"))
                 .isInstanceOf(IllegalStateException.class);
         verify(service, never()).preview();
+    }
+
+    @Test
+    void applyRecomputesPlanAndUsesCompletePreviewReceipt() throws Exception {
+        String batchId = "batch-apply-1";
+        Path batchDirectory = Files.createDirectory(tempDir.resolve(batchId));
+        Files.writeString(batchDirectory.resolve("audit.jsonl"), "{}\n");
+        Files.writeString(batchDirectory.resolve("audit.csv"), "header\n");
+        Files.writeString(batchDirectory.resolve("rollback.sql"), "ROLLBACK;\n");
+        CaseProvenanceBackfillPlan plan = new CaseProvenanceBackfillPlan(List.of());
+        when(service.preview()).thenReturn(plan);
+        when(service.apply(plan, new CaseProvenanceBackfillAppService.PreviewReceipt(
+                batchId, 0, "a".repeat(64))))
+                .thenReturn(new CaseProvenanceBackfillAppService.ApplyResult(0));
+
+        runner.run("--case-provenance-backfill=apply",
+                "--case-provenance-artifact-dir=" + tempDir,
+                "--case-provenance-batch-id=" + batchId,
+                "--case-provenance-candidate-count=0",
+                "--case-provenance-manifest-sha256=" + "a".repeat(64));
+
+        verify(service).preview();
+        verify(service).apply(plan, new CaseProvenanceBackfillAppService.PreviewReceipt(
+                batchId, 0, "a".repeat(64)));
+        verify(writer, never()).write(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void applyRejectsIncompleteOrInvalidReceiptBeforeScanning() throws Exception {
+        String batchId = "batch-apply-1";
+        Path batchDirectory = Files.createDirectory(tempDir.resolve(batchId));
+        Files.writeString(batchDirectory.resolve("audit.jsonl"), "{}\n");
+        Files.writeString(batchDirectory.resolve("audit.csv"), "header\n");
+        Files.writeString(batchDirectory.resolve("rollback.sql"), "ROLLBACK;\n");
+
+        assertThatThrownBy(() -> runner.run("--case-provenance-backfill=apply",
+                "--case-provenance-artifact-dir=" + tempDir,
+                "--case-provenance-batch-id=" + batchId,
+                "--case-provenance-candidate-count=not-a-number",
+                "--case-provenance-manifest-sha256=" + "a".repeat(64)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> runner.run("--case-provenance-backfill=apply",
+                "--case-provenance-artifact-dir=" + tempDir,
+                "--case-provenance-batch-id=" + batchId,
+                "--case-provenance-candidate-count=0",
+                "--case-provenance-manifest-sha256=bad"))
+                .isInstanceOf(IllegalStateException.class);
+        verify(service, never()).preview();
+        verify(service, never()).apply(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
     }
 }

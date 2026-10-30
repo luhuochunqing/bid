@@ -73,25 +73,27 @@ public class CaseProvenanceBackfillAppService {
         List<CaseProvenanceBackfillPlan.Decision> fillable = plan.decisions().stream()
                 .filter(decision -> decision.type() == CaseProvenanceBackfillPlan.DecisionType.FILLABLE)
                 .toList();
-        String actualDigest = new CaseProvenanceBackfillArtifactWriter().manifestSha256(plan);
+        String actualDigest = new CaseProvenanceBackfillArtifactWriter()
+                .manifestSha256(receipt.batchId(), plan);
         if (receipt.candidateCount() != fillable.size()
                 || !constantTimeEquals(receipt.manifestSha256(), actualDigest)) {
             throw new IllegalStateException("provenance preview receipt does not match current plan");
         }
 
-        Map<Long, List<Update>> updatesByProject = new LinkedHashMap<>();
+        List<Update> updates = new ArrayList<>();
         for (CaseProvenanceBackfillPlan.Decision decision : fillable) {
             Candidate candidate = decision.candidate();
             CaseProvenanceBackfillPlan.Proposed proposed = decision.proposed();
             if (candidate.sourceProjectId() == null || proposed == null) {
                 throw new IllegalStateException("fillable provenance decision is incomplete: " + decision.caseId());
             }
-            updatesByProject.computeIfAbsent(candidate.sourceProjectId(), ignored -> new ArrayList<>())
-                    .add(new Update(candidate.id(), proposed.title(), proposed.path(), proposed.index(),
-                            proposed.documentName(), proposed.pageNumber(), candidate.responseText(),
-                            candidate.scoringPointTitle(), candidate.sourceProjectId()));
+            updates.add(new Update(candidate.id(), proposed.title(), proposed.path(), proposed.index(),
+                    proposed.documentName(), proposed.pageNumber(), candidate.responseText(),
+                    candidate.scoringPointTitle(), candidate.sourceProjectId()));
         }
-        updatesByProject.values().forEach(caseRepository::saveAllIfProvenanceEmpty);
+        if (!updates.isEmpty()) {
+            caseRepository.saveAllIfProvenanceEmpty(updates);
+        }
         return new ApplyResult(fillable.size());
     }
 

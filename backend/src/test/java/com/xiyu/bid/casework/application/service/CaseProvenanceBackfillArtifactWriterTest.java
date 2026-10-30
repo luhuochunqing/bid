@@ -45,4 +45,31 @@ class CaseProvenanceBackfillArtifactWriterTest {
                 .write(plan, tempDir.resolve("second"), "batch-20261030");
         assertThat(second.manifestSha256()).isEqualTo(receipt.manifestSha256());
     }
+
+    @Test
+    void bindsManifestDigestToBatchId() {
+        CaseProvenanceBackfillPlan plan = planWith("标题", "路径", "标书.pdf");
+        CaseProvenanceBackfillArtifactWriter writer = new CaseProvenanceBackfillArtifactWriter();
+
+        assertThat(writer.manifestSha256("batch-a", plan))
+                .isNotEqualTo(writer.manifestSha256("batch-b", plan));
+    }
+
+    @Test
+    void canonicalManifestDoesNotCollideWhenValuesContainDelimitersOrNullText() {
+        CaseProvenanceBackfillArtifactWriter writer = new CaseProvenanceBackfillArtifactWriter();
+        CaseProvenanceBackfillPlan first = planWith("标题|路径", "下一行\nnull", "标书.pdf");
+        CaseProvenanceBackfillPlan second = planWith("标题", "路径|下一行", "null\n标书.pdf");
+
+        assertThat(writer.manifestSha256("batch-a", first))
+                .isNotEqualTo(writer.manifestSha256("batch-a", second));
+    }
+
+    private static CaseProvenanceBackfillPlan planWith(String title, String path, String documentName) {
+        Candidate candidate = new Candidate(9L, 100L, "证据", "案例", null, null, null, null, null);
+        var proposed = new CaseProvenanceBackfillPlan.Proposed(title, path, 2, documentName, 12);
+        return new CaseProvenanceBackfillPlan(List.of(new CaseProvenanceBackfillPlan.Decision(candidate,
+                CaseProvenanceBackfillPlan.DecisionType.FILLABLE, "unique source section verified",
+                proposed, "abc123")));
+    }
 }

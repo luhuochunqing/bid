@@ -11,7 +11,7 @@ public interface CaseProvenanceBackfillPort {
 
     void saveAll(List<Update> updates);
 
-    /** 仅当五个来源字段在写入瞬间仍全为 NULL 时，按项目原子补齐。 */
+    /** 仅当五个来源字段在写入瞬间仍全为 NULL 时，将传入的完整批次原子补齐。 */
     void saveAllIfProvenanceEmpty(List<Update> updates);
 
     record Candidate(Long id, Long sourceProjectId, String responseText, String scoringPointTitle,

@@ -27,13 +27,16 @@ class CaseProvenanceBackfillApplyGuardTest {
     @Test
     void refusesAnyReceiptMismatchWithoutWriting() {
         CaseProvenanceBackfillPlan plan = plan();
-        String digest = writer.manifestSha256(plan);
+        String digest = writer.manifestSha256("batch-1", plan);
 
         assertThatThrownBy(() -> service.apply(plan,
                 new CaseProvenanceBackfillAppService.PreviewReceipt("batch-1", 2, digest)))
                 .isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> service.apply(plan,
                 new CaseProvenanceBackfillAppService.PreviewReceipt("batch-1", 1, "0".repeat(64))))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> service.apply(plan,
+                new CaseProvenanceBackfillAppService.PreviewReceipt("batch-2", 1, digest)))
                 .isInstanceOf(IllegalStateException.class);
 
         verify(port, never()).saveAllIfProvenanceEmpty(org.mockito.ArgumentMatchers.anyList());
@@ -43,7 +46,7 @@ class CaseProvenanceBackfillApplyGuardTest {
     void writesOnlyFillableRowsWhenReceiptMatches() {
         CaseProvenanceBackfillPlan plan = plan();
         var receipt = new CaseProvenanceBackfillAppService.PreviewReceipt(
-                "batch-1", 1, writer.manifestSha256(plan));
+                "batch-1", 1, writer.manifestSha256("batch-1", plan));
 
         var result = service.apply(plan, receipt);
 
@@ -52,6 +55,31 @@ class CaseProvenanceBackfillApplyGuardTest {
                 updates.size() == 1
                         && updates.getFirst().id().equals(1L)
                         && updates.getFirst().sourceSectionTitle().equals("1. 标题")));
+    }
+
+    @Test
+    void submitsCrossProjectUpdatesAsOneAtomicBatch() {
+        Candidate first = new Candidate(1L, 10L, "证据一", "评分项", null, null, null, null, null);
+        Candidate second = new Candidate(2L, 20L, "证据二", "评分项", null, null, null, null, null);
+        CaseProvenanceBackfillPlan plan = new CaseProvenanceBackfillPlan(List.of(
+                fillable(first, "1. 标题", "a".repeat(64)),
+                fillable(second, "2. 标题", "b".repeat(64))));
+        var receipt = new CaseProvenanceBackfillAppService.PreviewReceipt(
+                "batch-cross-project", 2, writer.manifestSha256("batch-cross-project", plan));
+
+        service.apply(plan, receipt);
+
+        verify(port).saveAllIfProvenanceEmpty(org.mockito.ArgumentMatchers.argThat(updates ->
+                updates.size() == 2
+                        && updates.stream().map(CaseProvenanceBackfillPort.Update::expectedSourceProjectId)
+                        .toList().equals(List.of(10L, 20L))));
+    }
+
+    private static CaseProvenanceBackfillPlan.Decision fillable(
+            Candidate candidate, String title, String digest) {
+        return new CaseProvenanceBackfillPlan.Decision(candidate,
+                CaseProvenanceBackfillPlan.DecisionType.FILLABLE, "unique match",
+                new CaseProvenanceBackfillPlan.Proposed(title, title, 0, "标书.pdf", 3), digest);
     }
 
     private static CaseProvenanceBackfillPlan plan() {

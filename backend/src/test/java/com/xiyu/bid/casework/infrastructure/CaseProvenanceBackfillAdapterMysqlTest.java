@@ -74,6 +74,34 @@ class CaseProvenanceBackfillAdapterMysqlTest extends AbstractMysqlIntegrationTes
     }
 
     @Test
+    void provenanceGuardFailureRollsBackTheWholeCrossProjectBatch() {
+        var first = createEmptyProvenance("ACTIVE");
+        first.setSourceProjectId(900075L);
+        first = repository.saveAndFlush(first);
+        var second = createEmptyProvenance("ACTIVE");
+        second.setSourceProjectId(900076L);
+        second.setSourceDocumentName("并发补入.pdf");
+        second = repository.saveAndFlush(second);
+        flushAndClear();
+
+        KnowledgeCase firstSnapshot = first;
+        KnowledgeCase secondSnapshot = second;
+        assertThatThrownBy(() -> adapter.saveAllIfProvenanceEmpty(List.of(
+                new Update(firstSnapshot.getId(), "1. 标题", "1. 标题", 1, "回填.pdf", 2,
+                        firstSnapshot.getResponseText(), firstSnapshot.getScoringPointTitle(),
+                        firstSnapshot.getSourceProjectId()),
+                new Update(secondSnapshot.getId(), "2. 标题", "2. 标题", 2, "回填.pdf", 3,
+                        secondSnapshot.getResponseText(), secondSnapshot.getScoringPointTitle(),
+                        secondSnapshot.getSourceProjectId()))))
+                .isInstanceOf(IllegalStateException.class);
+        flushAndClear();
+
+        assertThat(repository.findById(firstSnapshot.getId()).orElseThrow().getSourceSectionTitle()).isNull();
+        assertThat(repository.findById(secondSnapshot.getId()).orElseThrow().getSourceDocumentName())
+                .isEqualTo("并发补入.pdf");
+    }
+
+    @Test
     void queryIncludesOnlyActiveAndReturnsCompleteSnapshot() {
         var active = create("ACTIVE");
         var offShelf = create("OFF_SHELF");

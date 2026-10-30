@@ -206,21 +206,21 @@ Commit implementation/docs only. Keep production audit artifacts outside Git bec
 - Consumes: 与审计目录一致的显式 `batchId`。
 - Guarantees: 固定字段顺序的 canonical JSON；字符串中的 `|`、换行与 `null` 不产生结构碰撞。
 
-- [ ] **Step 1: Write RED tests for batch binding and unambiguous encoding**
+- [x] **Step 1: Write RED tests for batch binding and unambiguous encoding**
 
 新增测试：相同计划配不同 batch ID 必须得到不同摘要；构造含 `|`、换行和字符串 `"null"` 的不同计划，摘要必须不同；Apply 使用其他批次 ID 与原摘要时必须零写入失败。
 
-- [ ] **Step 2: Run RED tests**
+- [x] **Step 2: Run RED tests**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillArtifactWriterTest,CaseProvenanceBackfillApplyGuardTest`
 
 Expected: FAIL，因为现有 `manifestSha256(plan)` 不绑定批次且使用分隔符拼接。
 
-- [ ] **Step 3: Implement canonical JSON digest**
+- [x] **Step 3: Implement canonical JSON digest**
 
 用 Jackson 序列化固定顺序的 `LinkedHashMap` 清单：顶层包含 `batchId` 和 `decisions`；每个 decision 显式包含 case/project/type/evidence/proposed 五字段。摘要只接受 `(batchId, plan)`，删除无批次重载，ArtifactReceipt 与 Apply 共用同一实现。
 
-- [ ] **Step 4: Run tests GREEN**
+- [x] **Step 4: Run tests GREEN**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillArtifactWriterTest,CaseProvenanceBackfillApplyGuardTest`
 
@@ -239,21 +239,21 @@ Expected: PASS，0 failures / 0 errors。
 - Apply flags: `--case-provenance-backfill=apply`, `--case-provenance-artifact-dir=<absolute-root>`, `--case-provenance-batch-id=<id>`, `--case-provenance-candidate-count=<n>`, `--case-provenance-manifest-sha256=<64-hex>`.
 - Produces: 重新执行 `preview()` 后调用 `apply(freshPlan, PreviewReceipt)`；任一参数缺失或非法时零写入。
 
-- [ ] **Step 1: Write RED CLI tests**
+- [x] **Step 1: Write RED CLI tests**
 
 新增测试：合法 Apply 参数必须先重新 preview 再 apply；缺数量、缺摘要、相对目录、非法 SHA、其他模式均在 preview/apply 前失败；启动根只把显式 preview/apply 路由到 maintenance 上下文。
 
-- [ ] **Step 2: Run RED tests**
+- [x] **Step 2: Run RED tests**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillCommandLineRunnerTest,XiyuBidApplicationTest`
 
 Expected: FAIL，当前 CLI 拒绝 apply，启动根只识别 preview。
 
-- [ ] **Step 3: Implement fail-closed Apply parsing**
+- [x] **Step 3: Implement fail-closed Apply parsing**
 
 解析数值时捕获格式异常并转为明确 `IllegalStateException`。Apply 必须检查批次目录为 `<artifactRoot>/<batchId>` 且 `audit.jsonl`、`audit.csv`、`rollback.sql` 均存在，再重新生成计划并使用人工提供的批次/数量/摘要调用服务；不得从审计文件反序列化拟写值。
 
-- [ ] **Step 4: Run tests GREEN**
+- [x] **Step 4: Run tests GREEN**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillCommandLineRunnerTest,XiyuBidApplicationTest`
 
@@ -272,21 +272,21 @@ Expected: PASS，0 failures / 0 errors。
 - Produces: `void saveAllIfProvenanceEmpty(List<Update> updates)` 作为一个批次事务。
 - Guarantees: 任一 UPDATE 影响行数不是 1 时抛异常并回滚全部项目写入。
 
-- [ ] **Step 1: Write RED transaction regression**
+- [x] **Step 1: Write RED transaction regression**
 
 真实 MySQL 测试创建两个不同项目的全空案例，在第二条写入前制造来源字段漂移；调用一个包含两条 Update 的批次，断言抛异常且第一条来源字段仍全部为空。
 
-- [ ] **Step 2: Run RED test**
+- [x] **Step 2: Run RED test**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillAdapterMysqlTest`
 
 Expected: FAIL，当前服务按项目多次调用 `REQUIRES_NEW`，前序项目可能已提交。
 
-- [ ] **Step 3: Implement one batch transaction**
+- [x] **Step 3: Implement one batch transaction**
 
 AppService 将全部 FILLABLE Update 按确定顺序汇总后只调用一次端口；Adapter 将事务传播改为单次 `REQUIRED` 边界并在循环内任一更新失败时抛异常，由 Spring 回滚整个调用。
 
-- [ ] **Step 4: Run tests GREEN**
+- [x] **Step 4: Run tests GREEN**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillApplyGuardTest,CaseProvenanceBackfillAdapterMysqlTest`
 
@@ -303,14 +303,16 @@ Expected: PASS，0 failures / 0 errors。
 **Interfaces:**
 - Documents: preview/apply 参数、批次绑定、整批事务和“未授权生产 Apply”边界。
 
-- [ ] **Step 1: Run focused verification**
+- [x] **Step 1: Run focused verification**
 
 Run: `cd backend && mvn test -Dtest=XiyuBidApplicationTest,CaseProvenanceBackfillCommandLineRunnerTest,CaseProvenanceBackfillApplyGuardTest,CaseProvenanceBackfillArtifactWriterTest,CaseProvenanceSafePreviewTest,CaseProvenanceBackfillAdapterMysqlTest`
 
-- [ ] **Step 2: Run architecture and governance gates**
+- [x] **Step 2: Run architecture and governance gates**
 
 Run: `cd backend && mvn test -Dtest=ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest && cd .. && npm run wiki:check && git diff --check`
 
-- [ ] **Step 3: Commit and push through normal hooks**
+- [x] **Step 3: Commit and push through normal hooks**
 
 Commit implementation/tests/docs atomically, then `git push origin HEAD` without bypass flags. Confirm PR #2939 head equals local HEAD and remains mergeable. Production Apply, deployment and restart remain explicitly out of scope.
+
+Verification evidence (2026-10-31): focused preview/apply/MySQL suite `29` passed; architecture suite `43` passed; `npm run wiki:check` passed with `153` pages; `git diff --check` passed. All focused Maven commands used `-Djacoco.skip=true` because an earlier interrupted full-suite run left a corrupt generated `target/jacoco.exec`; no source or behavioral assertion was skipped.
