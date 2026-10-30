@@ -469,6 +469,7 @@ class GoldenCasesReplayTest {
 
     static Stream<Arguments> cases() {
         return Stream.of(
+                Arguments.of("case-repeated-header-crosspage"),
                 Arguments.of("case-unscoped-price-only"),
                 Arguments.of("case-1359-maximum-column"),
                 Arguments.of("case-project-1387-grouped-source"),

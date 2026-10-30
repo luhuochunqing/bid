@@ -200,3 +200,5 @@ backlinks:
 
 - [标书质量核查证据边界](quality-evidence-boundary.md)：规则引用、抽样页码、ISO与CA匹配边界（spec079）。
 - [[scoreparse-single-digit-code-and-manual-adopt-rca]] — 单数字评分项识别缺陷与人工复核采纳死锁根因分析。
+
+- [[scoreparse-multimodal-primary]] — 1135 跨页评分表、OCR合行与来源校验回放边界。

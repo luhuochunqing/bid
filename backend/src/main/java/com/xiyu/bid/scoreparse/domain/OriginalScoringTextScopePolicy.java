@@ -14,7 +14,7 @@ final class OriginalScoringTextScopePolicy {
      * 只按标题认会漏掉整段评分内容；是否算作作用域还要看正文是否出现评分关键词（见 {@link #appendixHeadings}）。
      */
     private static final Pattern APPENDIX_TITLE = Pattern.compile(".*(?:之)?(?:附件|附表)\\s*[一二三四五六七八九十百0-9]+\\s*$");
-    private static final Pattern SOURCE_HEADING = Pattern.compile("^(第[一二三四五六七八九十百0-9]+章\\s*.+|[一二三四五六七八九十]+[、.]\\s*.+|\\([^)]{1,24}\\)\\s*.+)$");
+    private static final Pattern SOURCE_HEADING = Pattern.compile("^(第[一二三四五六七八九十百0-9]+章\\s*.+|[0-9]{1,2}\\s+[^0-9].{0,40}|[一二三四五六七八九十]+[、.]\\s*.+|\\([^)]{1,24}\\)\\s*.+)$");
     /**
      * Trailer of a dot-leader table-of-contents line (dot leaders plus a trailing page number).
      * The page number is optional on purpose: any dot-leader-terminated line is refused as a

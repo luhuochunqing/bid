@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 /** Resolves logical scoring sections and the tables they own. */
 final class OriginalScoringSchemePolicy {
     private static final Pattern SCHEME = Pattern.compile(
-            ".*(?:评\\s*分\\s*办\\s*法|评\\s*审\\s*办\\s*法|评\\s*分\\s*方\\s*案|评\\s*标\\s*办\\s*法|评\\s*标\\s*方\\s*法|评\\s*审\\s*方\\s*法|评\\s*分\\s*标\\s*准|评\\s*审\\s*标\\s*准|综\\s*合\\s*评\\s*分\\s*法).*",
+            ".*(?:评\\s*分\\s*办\\s*法|评\\s*审\\s*办\\s*法|评\\s*分\\s*方\\s*案|评\\s*标\\s*办\\s*法|评\\s*标\\s*方\\s*法|评\\s*审\\s*方\\s*法|评\\s*分\\s*规\\s*则|评\\s*分\\s*标\\s*准|评\\s*审\\s*标\\s*准|综\\s*合\\s*评\\s*分\\s*法).*",
             Pattern.DOTALL);
     private static final Pattern OTHER = Pattern.compile(".*(?:其他标包|其它标包|示例|样例|参考).*", Pattern.DOTALL);
     private static final Pattern CONTRACT_AUDIT = Pattern.compile(".*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*", Pattern.DOTALL);
@@ -66,7 +66,7 @@ final class OriginalScoringSchemePolicy {
             OriginalScoringContext context = OriginalScoringContext.resolve(artifact, text);
             boolean hasScoringTables = artifact.tables().stream().anyMatch(table -> table != null
                     && Boolean.TRUE.equals(table.isScoreTable()) && !CONTRACT_AUDIT.matcher(table.sourceSection()).matches()
-                    && !OTHER.matcher(table.sourceSection()).matches() && table.sourceSection() != null
+                    && !isOtherSection(table.sourceSection()) && table.sourceSection() != null
                     && !table.sourceSection().isBlank());
             boolean ambiguous = context.problems().stream().anyMatch(problem -> "ORIGINAL_SCHEME_AMBIGUOUS".equals(problem.code()));
             if (hasScoringTables && !ambiguous && context.total().value() != null) {
@@ -131,7 +131,7 @@ final class OriginalScoringSchemePolicy {
 
     static boolean otherScheme(String section, String scheme) {
         if (section == null) return false;
-        if (OTHER.matcher(section).matches() || CONTRACT_AUDIT.matcher(section).matches()) return true;
+        if (isOtherSection(section) || CONTRACT_AUDIT.matcher(section).matches()) return true;
         Matcher sectionPackage = PACKAGE.matcher(section);
         Matcher schemePackage = PACKAGE.matcher(scheme == null ? "" : scheme);
         if (sectionPackage.find() && schemePackage.find() && !sectionPackage.group().equals(schemePackage.group())) return true;
@@ -150,14 +150,18 @@ final class OriginalScoringSchemePolicy {
 
     static boolean categoryTitle(String title) { return title != null && CATEGORY.matcher(title).matches(); }
 
-    static boolean isOtherSection(String title) { return title != null && OTHER.matcher(title).matches(); }
+    static boolean isOtherSection(String title) {
+        if (title == null) return false;
+        String withoutReviewerPurpose = title.replaceAll("供(?:评委|评审人员|评标委员会)(?:打分|评分|评审)?参考", "");
+        return OTHER.matcher(withoutReviewerPurpose).matches();
+    }
 
     static boolean isSchemeTitle(String title) { return title != null && SCHEME.matcher(compact(title)).matches(); }
 
     static boolean scoringSection(String section) { return section != null && (section.contains("评分") || section.contains("评标")); }
 
     static void addPackage(Set<String> packages, String section) {
-        if (section == null || OTHER.matcher(section).matches()) return;
+        if (section == null || isOtherSection(section)) return;
         Matcher matcher = PACKAGE.matcher(section);
         if (matcher.find()) packages.add(matcher.group());
     }
@@ -181,7 +185,7 @@ final class OriginalScoringSchemePolicy {
 
     private static boolean tableBelongsTo(DocumentArtifact.CanonicalTable table, String scheme, List<String> schemes) {
         String section = table.sourceSection() == null ? "" : table.sourceSection();
-        if (CONTRACT_AUDIT.matcher(section).matches() || OTHER.matcher(section).matches()) return false;
+        if (CONTRACT_AUDIT.matcher(section).matches() || isOtherSection(section)) return false;
         if (section.contains(scheme) || sameScheme(schemeTitleForTable(table), scheme)) return true;
         if (schemeTitleForTable(table).isBlank()) {
             return schemes.size() == 1 && Boolean.TRUE.equals(table.isScoreTable())
@@ -204,7 +208,7 @@ final class OriginalScoringSchemePolicy {
     static boolean isValidSchemeRoot(String title) {
         if (title == null || title.isBlank()) return false;
         String compactTitle = compact(title);
-        return SCHEME.matcher(compactTitle).matches() && !OTHER.matcher(compactTitle).matches()
+        return SCHEME.matcher(compactTitle).matches() && !isOtherSection(compactTitle)
                 && !CONTRACT_AUDIT.matcher(compactTitle).matches();
     }
 

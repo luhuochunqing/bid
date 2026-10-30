@@ -12,3 +12,5 @@
 - `BaiduTableArtifactAdapter`: 纯函数式适配器（FP-Java），负责将百度识别响应转换为系统通用的 `CanonicalTable` 与 `DocumentArtifact`，并智能推断合规的 `sourceSection`。
 - `BaiduTableArtifactEnricher`: 文档增强器，智能扫描 PDF 评分关键页及续表候选页，调用百度 OCR 并与 baseline DocumentArtifact 执行平滑融合。
 - `BaiduOcrProperties` / `BaiduOcrCredentialsProvider`: 配置属性与数据库动态凭证提供者契约。
+- `BaiduRepeatedHeaderPolicy`: 重复表头续表必须由原始网格确认两页属于同一表，且编号连续、存在续行、前表未封口。
+- `BaiduOcrReplacementGuard`: OCR 将两项合为一行时，只有原网格在同页逐项对应编号、分值和名称，且不存在同页额外 OCR 表或越界表，才保留该网格。

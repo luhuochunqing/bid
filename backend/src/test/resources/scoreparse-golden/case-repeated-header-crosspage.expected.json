@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "desensitization": "合成评分表，不包含客户原文",
+  "focus": "重复表头跨页评分项及原文100分总计",
+  "threshold": 1.0,
+  "expectTotal": 100,
+  "strictDim": true,
+  "laneHints": ["table"],
+  "items": [
+    {"code":"1","dim":"报价","detail":"根据报价计算，最高得60分。","weight":60},
+    {"code":"2","dim":"服务","detail":"服务方案完整得40分，不完整得20分。","weight":40}
+  ]
+}

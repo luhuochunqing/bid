@@ -106,7 +106,8 @@ public class BaiduTableArtifactEnricher {
                 return baseline;
             }
 
-            List<CanonicalTable> linkedOcrTables = BaiduCrossPageTableLinker.mergeCrossPageScoreTables(ocrTables);
+            List<CanonicalTable> linkedOcrTables = BaiduCrossPageTableLinker.mergeCrossPageScoreTables(ocrTables,
+                    BaiduRepeatedHeaderPolicy.originalPageOwners(baseline == null ? List.of() : baseline.tables()));
             return mergeArtifact(baseline, linkedOcrTables, warnings, fileName);
         } catch (IOException | RuntimeException e) {
             log.error("BaiduTableArtifactEnricher: Unexpected error while enriching artifact for {}: {}", fileName, e.getMessage(), e);
@@ -257,8 +258,10 @@ public class BaiduTableArtifactEnricher {
             return new DocumentArtifact(meta, ocrTables, extraWarnings);
         }
 
+        Set<Integer> preservedPages = BaiduOcrReplacementGuard.preservedPages(baseline.tables(), ocrTables);
+        List<CanonicalTable> safeOcrTables = BaiduOcrReplacementGuard.excludingPages(ocrTables, preservedPages);
         Set<Integer> ocrPages = new LinkedHashSet<>();
-        for (CanonicalTable t : ocrTables) {
+        for (CanonicalTable t : safeOcrTables) {
             if (t.sourcePage() != null) {
                 ocrPages.add(t.sourcePage());
             }
@@ -279,12 +282,12 @@ public class BaiduTableArtifactEnricher {
                 }
             }
         }
-        mergedTables.addAll(ocrTables);
+        mergedTables.addAll(safeOcrTables);
 
         List<String> mergedWarnings = new ArrayList<>(baseline.warnings() != null ? baseline.warnings() : List.of());
         mergedWarnings.addAll(extraWarnings);
         mergedWarnings.add("Enriched with Baidu Table OCR on pages " + ocrPages);
-
+        if (!preservedPages.isEmpty()) mergedWarnings.add("Preserved PDF grid on OCR-collapsed pages " + preservedPages);
         return new DocumentArtifact(
                 baseline.artifact(),
                 mergedTables,
