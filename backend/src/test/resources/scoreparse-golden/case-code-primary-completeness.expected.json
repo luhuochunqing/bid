@@ -1,0 +1,22 @@
+{
+  "synthetic": true,
+  "focus": "代码候选主通道完整性：空规则不得凑分通过，重复80分候选导致180不得发布",
+  "declaredTotal": 100,
+  "items": [
+    {
+      "code": "1",
+      "dimension": "服务方案",
+      "weight": 80,
+      "rule": "服务方案完整且具备实施计划得80分。"
+    },
+    {
+      "code": "2",
+      "dimension": "履约证明",
+      "weight": 20,
+      "rule": "提供已完成项目验收证明得20分。"
+    }
+  ],
+  "blankRuleCode": "2",
+  "duplicateCode": "1",
+  "duplicateTotal": 180
+}
