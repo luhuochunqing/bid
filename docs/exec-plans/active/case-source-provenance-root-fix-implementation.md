@@ -99,12 +99,14 @@ git commit -m "feat(casework): locate provenance by source offset"
 ### Task 3: 让 AI 选择可验证的来源段落
 
 **Files:**
+- Create: `backend/src/main/java/com/xiyu/bid/casework/application/CaseSourceExcerpt.java`
 - Modify: `backend/src/main/java/com/xiyu/bid/casework/application/CaseAiMatcher.java`
 - Test: `backend/src/test/java/com/xiyu/bid/casework/application/CaseAiMatcherTest.java`
 
 **Interfaces:**
 - Consumes: `ScoreDocExcerptExtractor.Excerpt` and `Segment` from Task 1.
 - Consumes: `MarkdownSourceSectionIndex.locateByOriginalOffset(int)` from Task 2.
+- Produces: `CaseSourceExcerpt.prepare(...)` as a pure adapter from structured excerpt segments to labelled prompt text and validated provenance lookup.
 - Produces on `AiMatchedSlice`: `MarkdownSourceSectionIndex.Provenance provenance`.
 
 - [ ] **Step 1: Write the failing model-rewrite provenance test**
@@ -119,7 +121,7 @@ Expected: test compilation or assertion failure because the prompt and `AiMatche
 
 - [ ] **Step 3: Implement validated segment selection**
 
-Call `extractRelevantExcerptWithSegments`; render the prompt with each segment prefixed by its ID; request JSON fields `matchedSnippet`, `sourceSegmentId`, and `confidence`. Parse `sourceSegmentId`, accept it only if it matches one of the actual excerpt segments, and calculate provenance from that segment’s `sourceStartOffset`. Unknown/missing IDs leave provenance `null` but do not discard a nonblank matched snippet. Keep OpenAI-wrapper parsing, base64 stripping, confidence behavior, and empty-snippet skip unchanged.
+Implement the segment-label rendering and ID-to-provenance map in the focused `CaseSourceExcerpt` pure class. Call `extractRelevantExcerptWithSegments`; render the prompt with each segment prefixed by its ID; request JSON fields `matchedSnippet`, `sourceSegmentId`, and `confidence`. Parse `sourceSegmentId`, accept it only if it matches one of the actual excerpt segments, and calculate provenance from that segment’s `sourceStartOffset`. Unknown/missing IDs leave provenance `null` but do not discard a nonblank matched snippet. Keep OpenAI-wrapper parsing, base64 stripping, confidence behavior, and empty-snippet skip unchanged.
 
 - [ ] **Step 4: Add invalid-ID compatibility test**
 
@@ -134,7 +136,8 @@ Expected: all tests pass with zero failures and zero errors.
 - [ ] **Step 6: Commit Task 3**
 
 ```bash
-git add backend/src/main/java/com/xiyu/bid/casework/application/CaseAiMatcher.java \
+git add backend/src/main/java/com/xiyu/bid/casework/application/CaseSourceExcerpt.java \
+  backend/src/main/java/com/xiyu/bid/casework/application/CaseAiMatcher.java \
   backend/src/test/java/com/xiyu/bid/casework/application/CaseAiMatcherTest.java
 git commit -m "fix(casework): preserve provenance across AI matching"
 ```

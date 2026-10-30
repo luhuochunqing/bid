@@ -25,10 +25,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class CaseAiMatcher {
-
     /** 摘录预算：每评分项交给 LLM 的相关段落上限（字符）。避免超大标书全文直灌导致 LLM 上下文超限 */
     private static final int EXCERPT_MAX_CHARS = 12_000;
-
     private final RoutingAiProvider routingAiProvider;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -56,18 +54,20 @@ public class CaseAiMatcher {
         // 逐评分项摘录化（spec 049 T007）：每项先取 ≤12K 字符相关段落，再单条 prompt 调 LLM，
         // 避免超大标书全文直灌上下文超限。单项目标失败（非 JSON/无证据）降级跳过，真实调用失败整体上报。
         List<AiMatchedSlice> result = new ArrayList<>();
+        MarkdownSourceSectionIndex sectionIndex = MarkdownSourceSectionIndex.parse(markdown);
         for (ScoreItemSnapshot criterion : criteria) {
-            String excerpt = ScoreDocExcerptExtractor.extractRelevantExcerpt(
+            ScoreDocExcerptExtractor.Excerpt excerpt = ScoreDocExcerptExtractor.extractRelevantExcerptWithSegments(
                     markdown, criterion.title(), criterion.ruleText(), EXCERPT_MAX_CHARS);
-            if (excerpt == null || excerpt.isBlank()) {
+            if (excerpt.text().isBlank()) {
                 log.warn("AI 案例匹配：评分项 {}（{}）无可用摘录，跳过（诚实降级，不伪造）", criterion.id(), criterion.title());
                 continue;
             }
+            CaseSourceExcerpt.Prepared preparedExcerpt = CaseSourceExcerpt.prepare(excerpt, sectionIndex);
             log.info("AI 案例匹配：评分项 {}（{}）摘录长度 {} 字符，开头(前200)：{}",
-                    criterion.id(), criterion.title(), excerpt.length(), truncateForLog(excerpt, 200));
+                    criterion.id(), criterion.title(), excerpt.text().length(), truncateForLog(excerpt.text(), 200));
             AiMatchedSlice slice;
             try {
-                slice = extractSliceForCriterion(config, criterion, excerpt);
+                slice = extractSliceForCriterion(config, criterion, preparedExcerpt);
             } catch (RuntimeException e) {
                 log.error("AI 案例匹配：评分项 {}（{}）大模型调用失败", criterion.id(), criterion.title(), e);
                 // AI 真实调用失败时直接抛错；Listener 统一发"AI 沉淀失败"通知给触发者，禁止伪造证明片段入库。
@@ -86,11 +86,12 @@ public class CaseAiMatcher {
      * draftId 由调用方绑定评分项 id，不信任 LLM 回显的结构 id（LLM 编号复述不可靠，lessons §133）。
      * 返回 null 表示该评分项无匹配证据（诚实降级），由调用方跳过。
      */
-    private AiMatchedSlice extractSliceForCriterion(AiProviderRuntimeConfig config, ScoreItemSnapshot criterion, String excerpt) {
+    private AiMatchedSlice extractSliceForCriterion(AiProviderRuntimeConfig config, ScoreItemSnapshot criterion,
+                                                     CaseSourceExcerpt.Prepared preparedExcerpt) {
         // 剥离 markdown 内嵌 base64 图片数据：docx→markdown 转换会把图片内联成 data:image/...;base64,
         // LLM 网关会把 prompt 中的 base64 当多模态输入解析，数据不完整时直接 500（convert_request_failed）。
         // 摘录只服务于文本证据提取，图片对评分证据无意义，统一替换为占位符（spec 049 验收发现）。
-        String cleanExcerpt = stripBase64Images(excerpt);
+        String cleanExcerpt = stripBase64Images(preparedExcerpt.promptText());
         if (cleanExcerpt.contains("data:image") || cleanExcerpt.contains("base64")) {
             // 剥离后仍残留 base64 痕迹：说明真实文档中存在 stripBase64Images 未覆盖的形态，
             // 打印 data:image/base64 出现处的上下文（含序号），便于精确定位残留形态。
@@ -101,7 +102,8 @@ public class CaseAiMatcher {
         String userPrompt = "CRITERION TITLE:\n" + criterion.title()
                 + "\n\nCRITERION RULE:\n" + criterion.ruleText()
                 + "\n\nRELEVANT DOCUMENT EXCERPT:\n" + cleanExcerpt
-                + "\n\nReturn a single JSON object: {\"matchedSnippet\": \"exact proof text from the excerpt\", \"confidence\": 0.0-1.0}. "
+                + "\n\nReturn a single JSON object: {\"matchedSnippet\": \"proof text from the excerpt\", "
+                + "\"sourceSegmentId\": \"the [segment-N] containing that proof\", \"confidence\": 0.0-1.0}. "
                 + "If the excerpt contains no proof for the criterion, return {\"matchedSnippet\": \"\", \"confidence\": 0.0}.";
 
         if (log.isDebugEnabled()) {
@@ -149,20 +151,21 @@ public class CaseAiMatcher {
             return null;
         }
 
-        AiMatchedSlice slice = new AiMatchedSlice();
-        slice.setDraftId(criterion.id());
+        JsonNode matchedNode;
         if (node.isObject()) {
-            slice.setMatchedSnippet(node.path("matchedSnippet").asText(""));
-            slice.setConfidence(node.path("confidence").asDouble(0.8));
+            matchedNode = node;
         } else if (node.isArray() && node.size() > 0) {
             // 兼容大模型返回单元素数组的形态
-            JsonNode first = node.get(0);
-            slice.setMatchedSnippet(first.path("matchedSnippet").asText(""));
-            slice.setConfidence(first.path("confidence").asDouble(0.8));
+            matchedNode = node.get(0);
         } else {
             log.warn("AI 案例匹配：评分项 {}（{}）返回非对象非数组 JSON，跳过", criterion.id(), criterion.title());
             return null;
         }
+        AiMatchedSlice slice = new AiMatchedSlice();
+        slice.setDraftId(criterion.id());
+        slice.setMatchedSnippet(matchedNode.path("matchedSnippet").asText(""));
+        slice.setConfidence(matchedNode.path("confidence").asDouble(0.8));
+        slice.setProvenance(preparedExcerpt.provenanceFor(matchedNode.path("sourceSegmentId").asText(null)));
         if (slice.getMatchedSnippet() == null || slice.getMatchedSnippet().isBlank()) {
             log.info("AI 案例匹配：评分项 {}（{}）无匹配证据，诚实降级不伪造。原始返回(前300): {}",
                     criterion.id(), criterion.title(), truncateForLog(node.toString(), 300));
@@ -292,5 +295,6 @@ public class CaseAiMatcher {
         private Long draftId;
         private String matchedSnippet;
         private double confidence;
+        private MarkdownSourceSectionIndex.Provenance provenance;
     }
 }

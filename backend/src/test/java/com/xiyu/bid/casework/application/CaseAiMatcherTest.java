@@ -161,6 +161,60 @@ class CaseAiMatcherTest {
     }
 
     @Test
+    @DisplayName("模型改写证据文本时，通过真实段落 ID 保留 AI 调用前的来源章节")
+    void rewrittenSnippet_preservesProvenanceFromSelectedSourceSegment() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>("""
+                        {"matchedSnippet":"模型改写后的应急证据", "sourceSegmentId":"segment-1", "confidence":0.9}
+                        """, HttpStatus.OK));
+        String markdown = """
+                # 一、 商务方案
+                商务证据正文。
+
+                ## 二、 应急方案
+                原始应急处置证据。
+                """;
+        ScoreItemSnapshot item = snapshot(101L, "应急方案", "应急处置", "技术方案");
+
+        List<CaseAiMatcher.AiMatchedSlice> slices =
+                caseAiMatcher.extractSlicesWithAi(markdown, List.of(item));
+
+        assertThat(slices).hasSize(1);
+        assertThat(slices.get(0).getMatchedSnippet()).isEqualTo("模型改写后的应急证据");
+        assertThat(markdown).doesNotContain(slices.get(0).getMatchedSnippet());
+        assertThat(slices.get(0).getProvenance()).isNotNull();
+        assertThat(slices.get(0).getProvenance().title()).isEqualTo("二、 应急方案");
+        assertThat(slices.get(0).getProvenance().path())
+                .isEqualTo("一、 商务方案 > 二、 应急方案");
+
+        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).exchange(eq(BASE_URL), eq(HttpMethod.POST), entityCaptor.capture(), eq(String.class));
+        Map<String, Object> body = (Map<String, Object>) entityCaptor.getValue().getBody();
+        List<Map<String, String>> messages = (List<Map<String, String>>) body.get("messages");
+        String prompt = messages.get(1).get("content");
+        assertThat(prompt).contains("[segment-0]", "[segment-1]", "sourceSegmentId");
+    }
+
+    @Test
+    @DisplayName("模型编造段落 ID 时不伪造来源，但仍保留案例候选")
+    void inventedSourceSegmentId_keepsSliceWithoutProvenance() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>("""
+                        {"matchedSnippet":"有效案例内容", "sourceSegmentId":"invented", "confidence":0.8}
+                        """, HttpStatus.OK));
+        ScoreItemSnapshot item = snapshot(101L, "技术方案", "架构", "技术方案");
+
+        List<CaseAiMatcher.AiMatchedSlice> slices =
+                caseAiMatcher.extractSlicesWithAi("# 一、 技术方案\n架构证据正文。", List.of(item));
+
+        assertThat(slices).hasSize(1);
+        assertThat(slices.get(0).getMatchedSnippet()).isEqualTo("有效案例内容");
+        assertThat(slices.get(0).getProvenance()).isNull();
+    }
+
+    @Test
     @DisplayName("调用次数=评分项数 — 逐项单条 prompt")
     void oneCallPerCriterion() {
         when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
