@@ -13,6 +13,7 @@ import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.ScoreParsePipeline;
+import com.xiyu.bid.scoreparse.domain.DualTrackScoreExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreTableSectionPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreVocabularyRegistry;
 import com.xiyu.bid.scoreparse.domain.WeightNormalizationPolicy;
@@ -90,9 +91,25 @@ public class ScoreCandidatePostProcessor {
         log.info("幽灵候选过滤（spec 046 FR-001）: taskId={} {}→{}", taskId, merged.size(), ghostFiltered.size());
         List<ScoreCandidate> valid = filterInvalidWeights(ghostFiltered);
 
-        var stats = globalMergeOrchestrator.applyGlobalMergeDetailed(valid, fullText,
-                vocabularyRegistry.toPromptExamples(null));
-        if (stats.invoked()) valid = stats.candidates();
+        // spec 070: 双轨架构主通道（第一性原理直通）
+        // 若经过基础合并与幽灵过滤后的有效候选已达到 100 分闭合且文本经核验全部出自标书，
+        // 优先采纳为主通道决策，绝不抹空文字，跳过易产生幻觉的大模型二次全局归并
+        var dualTrack = DualTrackScoreExtractor.dispatch(valid, fullText, BigDecimal.valueOf(100), () -> null);
+        boolean isPrimaryTrack = dualTrack.track() == DualTrackScoreExtractor.Track.PRIMARY;
+
+        ScoreGlobalMergeOrchestrator.MergeStats stats;
+        if (isPrimaryTrack) {
+            log.info("DualTrack: 主通道命中并闭合，直接采纳末级叶子项: taskId={}, items={}, verifiedRatio={}",
+                    taskId, dualTrack.candidates().size(), dualTrack.verifiedRatio());
+            valid = dualTrack.candidates();
+            stats = ScoreGlobalMergeOrchestrator.MergeStats.notInvoked("DUAL_TRACK_PRIMARY");
+        } else {
+            stats = globalMergeOrchestrator.applyGlobalMergeDetailed(valid, fullText,
+                    vocabularyRegistry.toPromptExamples(null));
+            if (stats.invoked()) {
+                valid = stats.candidates();
+            }
+        }
 
         WeightSumCheck.Result weightResult = weightSumCheck.checkCandidates(valid);
         ItemCountCheck.Result continuityResult = itemCountCheck.checkCandidates(valid);
@@ -146,7 +163,7 @@ public class ScoreCandidatePostProcessor {
             decision = ScoreParseDecision.AUTO_APPROVED;
             fallbackReason = null;
         }
-        String pipelineVersion = ScoreParsePipeline.LEGACY_FALLBACK;
+        String pipelineVersion = isPrimaryTrack ? ScoreParsePipeline.DUAL_TRACK_PRIMARY : ScoreParsePipeline.LEGACY_FALLBACK;
 
         if (countResult.failed()) {
             String failMsg = countResult.failureMessage();

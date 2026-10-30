@@ -31,11 +31,6 @@ public interface MultimodalScoreFactExtractor {
         return extractWithTextAndProgress(null, sourceText, chunkCompleted);
     }
 
-    /** Fast route: one text-only request, before any legacy evidence restoration. */
-    default ExtractionResult extractPrimaryTextAndProgress(String sourceText, Runnable chunkCompleted) {
-        return extractTextAndProgress(sourceText, chunkCompleted);
-    }
-
     default ExtractionResult recheck(DocumentArtifact artifact) {
         return extract(artifact, List.of());
     }

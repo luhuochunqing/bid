@@ -329,8 +329,12 @@ class ScoreParseAppServiceTest {
         when(artifactExtractorProvider.getIfAvailable()).thenReturn(artifactExtractor);
         when(artifactExtractor.extract(any(byte[].class), eq("project-1381-like.pdf")))
                 .thenReturn(project1381EvidenceArtifact());
+        var model = mock(MultimodalScoreFactExtractor.class);
+        ReflectionTestUtils.setField(service, "multimodalScoreFactExtractor", model);
 
         service.executeParseAsync(TASK_ID);
+        org.mockito.Mockito.verifyNoInteractions(model);
+
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<ScoreCandidate>> candidates = ArgumentCaptor.forClass(List.class);
@@ -392,30 +396,51 @@ class ScoreParseAppServiceTest {
     }
 
     @Test
-    void primaryEntryPublishesBeforeAnyStructuredExtraction() throws Exception {
-        ScoreParseTask task = docxTaskWithBytes("评分总分100分。资质规则60分；业绩规则40分。");
-        var model = new MultimodalScoreFactExtractor() {
-            public boolean supportsTextOnly() { return true; }
-            public ExtractionResult extract(com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact artifact,
-                    List<com.xiyu.bid.scoreparse.domain.DocumentImage> images) {
-                throw new AssertionError("primary must not require structured artifact");
-            }
-            public ExtractionResult extractTextAndProgress(String text, Runnable progress) {
-                return new ExtractionResult(new BigDecimal("100"), List.of(
-                        new com.xiyu.bid.scoreparse.domain.MultimodalScoreFact("评分", "1", "", "资质",
-                                new BigDecimal("60"), "资质规则60分", "OBJECTIVE", 1, "", List.of(), "资质规则60分", 1),
-                        new com.xiyu.bid.scoreparse.domain.MultimodalScoreFact("评分", "2", "", "业绩",
-                                new BigDecimal("40"), "业绩规则40分", "OBJECTIVE", 1, "", List.of(), "业绩规则40分", 1)), "test-boundary", 0);
-            }
-        };
+    void structuredCodeExtractionWinsEvenWhenTextModelIsAvailable() throws Exception {
+        ScoreParseTask task = docxTaskWithBytes();
+        var artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractorProvider.getIfAvailable()).thenReturn(artifactExtractor);
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.docx")))
+                .thenReturn(evidenceArtifact("60", "40"));
+        var model = mock(MultimodalScoreFactExtractor.class);
+        lenient().when(model.supportsTextOnly()).thenReturn(true);
         ReflectionTestUtils.setField(service, "multimodalScoreFactExtractor", model);
+
         service.executeParseAsync(TASK_ID);
-        assertThat(task.getPipelineVersion()).isEqualTo("DUAL_TRACK_PRIMARY");
-        assertThat(task.getDecisionStatus()).isEqualTo("AUTO_APPROVED");
-        assertThat(capturedPersistedCandidates().getValue()).extracting(ScoreCandidate::detail)
-                .containsExactly("资质规则60分", "业绩规则40分");
-        org.mockito.Mockito.verifyNoInteractions(sidecarTableExtractor);
+
+        org.mockito.Mockito.verifyNoInteractions(model);
         verify(scoreAnalyzer, never()).recallCandidates(anyString(), isNull(), any());
+        verify(itemPersistenceService).persistFactsAndEvidence(eq(PROJECT_ID), eq(5L), anyList(), anyList());
+        assertThat(task.getDecisionStatus()).isEqualTo("AUTO_APPROVED");
+    }
+
+    @Test
+    void structuredCodeReadsEveryTenderAttachmentWithoutCallingModel() throws Exception {
+        ScoreParseTask task = ScoreParseTask.builder().id(5L).taskId(TASK_ID)
+                .projectId(PROJECT_ID).taskType("PARSE").status("PENDING").build();
+        when(taskRepository.findByTaskId(TASK_ID)).thenReturn(Optional.of(task));
+        var sources = List.of(new TenderTextSource("first.docx", "first", "评分总分100分。"),
+                new TenderTextSource("second.docx", "second", "评分总分100分。"));
+        var files = List.<LoadedBidFile>of(new LoadedBidFile.InMemory(new byte[]{1}, "first.docx", null),
+                new LoadedBidFile.InMemory(new byte[]{2}, "second.docx", null));
+        when(initiationTenderTextResolver.resolveExecutionSource(PROJECT_ID))
+                .thenReturn(TenderExecutionSource.found(sources, files));
+        var artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractorProvider.getIfAvailable()).thenReturn(artifactExtractor);
+        when(artifactExtractor.extract(any(byte[].class), eq("first.docx"))).thenReturn(evidenceArtifact("60", "40"));
+        when(artifactExtractor.extract(any(byte[].class), eq("second.docx"))).thenReturn(evidenceArtifact("20", "80"));
+        var model = mock(MultimodalScoreFactExtractor.class);
+        ReflectionTestUtils.setField(service, "multimodalScoreFactExtractor", model);
+
+        service.executeParseAsync(TASK_ID);
+
+        org.mockito.Mockito.verifyNoInteractions(model);
+        verify(artifactExtractor).extract(any(byte[].class), eq("first.docx"));
+        verify(artifactExtractor).extract(any(byte[].class), eq("second.docx"));
+        verify(itemPersistenceService).persistFactsAndEvidence(eq(PROJECT_ID), eq(5L),
+                org.mockito.ArgumentMatchers.argThat(facts -> facts.size() == 4
+                        && facts.stream().anyMatch(f -> f.sourceTableId().startsWith("doc0-"))
+                        && facts.stream().anyMatch(f -> f.sourceTableId().startsWith("doc1-"))), anyList());
     }
 
     private List<ScoreCandidate> defaultCandidates() {

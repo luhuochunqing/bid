@@ -159,21 +159,15 @@ public class ScoreParseAppService {
             updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
             SidecarDocumentArtifactExtractor artifactExtractor = artifactExtractorProvider == null
                     ? null : artifactExtractorProvider.getIfAvailable();
-            var route = ScoreParseEntryRouter.extract(source, multimodalScoreFactExtractor,
-                    () -> updateProgress(taskId, 5, "READ_DOCUMENT", "正在提取并核验评分原文"),
+            var structuredCandidates = ScoreParseEntryRouter.extract(
+                    () -> StructuredTableExtractionHandler.extract(source, intake.loadedFiles(), intake.sources(), artifactExtractor, sidecarTableExtractor),
                     () -> multimodalScoreFactExtractor == null
-                    ? StructuredTableExtractionHandler.extract(source, intake.loaded(), artifactExtractor, sidecarTableExtractor)
+                    ? StructuredTableResult.ok(java.util.List.of())
                     : !versioned ? LegacyTextScoreExtraction.extract(source, intake.loadedFiles(), intake.sources(), artifactExtractor, multimodalScoreFactExtractor,
                             () -> updateProgress(taskId, 5, "READ_DOCUMENT", "正在识别招标文件评分内容"))
                     : StructuredTableExtractionHandler.extractWithTextModelHeartbeat(source, intake.loadedFiles(), intake.sources(), artifactExtractor,
                             multimodalScoreFactExtractor,
                             () -> updateProgress(taskId, 5, "READ_DOCUMENT", "正在识别招标文件评分内容")));
-            if (route.primaryAccepted()) {
-                PrimaryScoreParseCompletion.complete(task, route, source, versioned ? versionedCompletion : null,
-                        taskRepository, itemPersistenceService, estimatedScoreService, stateService, progressService);
-                return;
-            }
-            var structuredCandidates = route.fallback();
             if (versioned && (structuredCandidates.structureIncomplete() || structuredCandidates.evidencePipeline())) {
                 versionedCompletion.structured(task, structuredCandidates);
                 return;

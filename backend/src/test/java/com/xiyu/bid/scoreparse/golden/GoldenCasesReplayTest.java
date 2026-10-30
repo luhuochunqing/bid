@@ -469,7 +469,6 @@ class GoldenCasesReplayTest {
 
     static Stream<Arguments> cases() {
         return Stream.of(
-                Arguments.of("case-primary-entry-parent-closure"),
                 Arguments.of("case-1359-maximum-column"),
                 Arguments.of("case-project-1387-grouped-source"),
                 Arguments.of("case-dual-section-renumber"),
@@ -517,24 +516,6 @@ class GoldenCasesReplayTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
     void replayGoldenCase(String caseName) throws Exception {
-        if (caseName.equals("case-primary-entry-parent-closure")) {
-            var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
-            var text = GoldenCasesReplaySupport.readFixture(caseName + ".md");
-            List<MultimodalScoreFact> facts = new ArrayList<>();
-            expected.path("facts").forEach(f -> facts.add(new MultimodalScoreFact("评分", f.path("code").asText(),
-                    f.path("parentCode").asText(), f.path("dimension").asText(), f.path("weight").decimalValue(),
-                    f.path("ruleText").asText(), "OBJECTIVE", 1, "", List.of(), f.path("ruleText").asText(), 1,
-                    ChildAggregation.valueOf(f.path("childAggregation").asText()))));
-            var candidates = com.xiyu.bid.scoreparse.domain.PrimaryScoreFactPolicy.candidates(facts, text);
-            var result = com.xiyu.bid.scoreparse.domain.DualTrackScoreExtractor.dispatch(candidates, text,
-                    expected.path("expectedTotal").decimalValue(), List::of);
-            assertEquals(com.xiyu.bid.scoreparse.domain.DualTrackScoreExtractor.Track.PRIMARY, result.track());
-            assertEquals(expected.path("expectedCandidates").asInt(), candidates.size());
-            assertEquals(0, expected.path("expectedTotal").decimalValue().compareTo(result.totalWeight()));
-            facts.add(facts.get(4));
-            assertTrue(com.xiyu.bid.scoreparse.domain.PrimaryScoreFactPolicy.candidates(facts, text).isEmpty());
-            return;
-        }
         if (caseName.equals("case-project-1387-grouped-source")) {
             var source = new com.xiyu.bid.scoreparse.domain.Project1387SourceRegressionTest();
             source.verifyGoldenSource();
