@@ -157,6 +157,26 @@ public final class MarkdownSourceSectionIndex {
         );
     }
 
+    /**
+     * 根据原始 Markdown 字符偏移返回所在章节。
+     * 偏移是转换与 AI 处理之前的确定性来源，不依赖模型返回文本。
+     */
+    public Provenance locateByOriginalOffset(int originalOffset) {
+        if (originalOffset < 0 || originalOffset >= originalMarkdown.length()) {
+            return null;
+        }
+        Section section = findSectionForOffset(originalOffset);
+        if (section == null || !MarkdownTitleRules.isValidSectionTitle(section.title())) {
+            return null;
+        }
+        return new Provenance(
+                section.title(),
+                section.path(),
+                section.index(),
+                findPageNumberBefore(originalOffset)
+        );
+    }
+
     private Section findSectionForOffset(int origOffset) {
         for (Section sec : sections) {
             if (origOffset >= sec.startOffset() && origOffset < sec.endOffset()) {

@@ -74,6 +74,33 @@ class ScoreDocExcerptExtractorTest {
     }
 
     @Test
+    void structuredExcerpt_preservesOriginalOffsetsForSelectedParagraphs() {
+        String text = String.join("\n\n",
+                "## 一、 商务方案\n商务正文",
+                "## 二、 应急方案\n应急处置关键词与完整证据",
+                "## 三、 售后方案\n售后正文");
+
+        ScoreDocExcerptExtractor.Excerpt result =
+                ScoreDocExcerptExtractor.extractRelevantExcerptWithSegments(
+                        text, "应急方案", "应急处置关键词", 70);
+
+        assertThat(result.text())
+                .isEqualTo(ScoreDocExcerptExtractor.extractRelevantExcerpt(
+                        text, "应急方案", "应急处置关键词", 70));
+        assertThat(result.segments()).isNotEmpty();
+        assertThat(result.segments()).extracting(ScoreDocExcerptExtractor.Segment::id)
+                .containsExactly("segment-0", "segment-1", "segment-2");
+        for (ScoreDocExcerptExtractor.Segment segment : result.segments()) {
+            assertThat(text.substring(
+                    segment.sourceStartOffset(),
+                    segment.sourceStartOffset() + segment.text().length()))
+                    .isEqualTo(segment.text());
+        }
+        assertThat(result.segments()).anySatisfy(segment ->
+                assertThat(segment.text()).contains("应急处置关键词"));
+    }
+
+    @Test
     void dimDetailOverload_equivalentToScoreItemOverload() {
         String text = "首段\n\n中段包含关键内容售后服务承诺书。\n\n尾段";
         String dim = "售后服务";
