@@ -203,6 +203,46 @@ class MarkdownSourceSectionIndexTest {
     }
 
     @Test
+    @DisplayName("原文偏移定位：直接返回偏移所在的权威章节")
+    void locateByOriginalOffset_returnsContainingSection() {
+        String md = """
+                封面说明
+                <!-- Page 3 -->
+                # 一、 商务方案
+                商务正文证据。
+
+                <!-- Page 12 -->
+                ## 二、 应急方案
+                应急处置正文证据。
+                """;
+        MarkdownSourceSectionIndex index = MarkdownSourceSectionIndex.parse(md);
+
+        MarkdownSourceSectionIndex.Provenance business =
+                index.locateByOriginalOffset(md.indexOf("商务正文证据"));
+        MarkdownSourceSectionIndex.Provenance emergency =
+                index.locateByOriginalOffset(md.indexOf("应急处置正文证据"));
+
+        assertThat(business.title()).isEqualTo("一、 商务方案");
+        assertThat(business.path()).isEqualTo("一、 商务方案");
+        assertThat(business.pageNumber()).isEqualTo(3);
+        assertThat(emergency.title()).isEqualTo("二、 应急方案");
+        assertThat(emergency.path()).isEqualTo("一、 商务方案 > 二、 应急方案");
+        assertThat(emergency.pageNumber()).isEqualTo(12);
+    }
+
+    @Test
+    @DisplayName("原文偏移定位：越界、首章前与纯编号章节返回 null")
+    void locateByOriginalOffset_rejectsUnprovableOffsets() {
+        String md = "封面说明\n## 第一章\n正文证据";
+        MarkdownSourceSectionIndex index = MarkdownSourceSectionIndex.parse(md);
+
+        assertThat(index.locateByOriginalOffset(-1)).isNull();
+        assertThat(index.locateByOriginalOffset(md.length())).isNull();
+        assertThat(index.locateByOriginalOffset(md.indexOf("封面"))).isNull();
+        assertThat(index.locateByOriginalOffset(md.indexOf("正文证据"))).isNull();
+    }
+
+    @Test
     @DisplayName("边界情况：空文本/null输入防御")
     void testNullAndEmptyInputs() {
         MarkdownSourceSectionIndex index1 = MarkdownSourceSectionIndex.parse(null);
