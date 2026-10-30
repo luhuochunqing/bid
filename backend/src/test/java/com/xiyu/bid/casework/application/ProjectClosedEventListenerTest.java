@@ -406,6 +406,40 @@ class ProjectClosedEventListenerTest {
     }
 
     @Test
+    @DisplayName("模型改写文本不在原文中时，案例仍保存且使用 AI 调用前的来源")
+    void upstreamProvenance_persistsWithoutRequiringSnippetTextMatch() {
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "应急方案", "需要应急处置证据")));
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument(
+                        "# 六、 技术方案\n## 二、 应急方案\n原始证据。",
+                        12, "text/markdown", "bid.pdf", java.util.Map.of()));
+        CaseAiMatcher.AiMatchedSlice slice = slice(101L, "模型改写后的应急证据", 0.9);
+        slice.setProvenance(new MarkdownSourceSectionIndex.Provenance(
+                "二、 应急方案", "六、 技术方案 > 二、 应急方案", 2, 12));
+        when(caseAiMatcher.extractSlicesWithAi(any(), any())).thenReturn(List.of(slice));
+        when(knowledgeCaseRepository.findBySourceProjectId(1L)).thenReturn(List.of());
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<KnowledgeCase>> captor = ArgumentCaptor.forClass(List.class);
+        verify(knowledgeCaseRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(1);
+        KnowledgeCase saved = captor.getValue().get(0);
+        assertThat(saved.getResponseText()).isEqualTo("模型改写后的应急证据");
+        assertThat(saved.getSourceSectionTitle()).isEqualTo("二、 应急方案");
+        assertThat(saved.getSourceSectionPath()).isEqualTo("六、 技术方案 > 二、 应急方案");
+        assertThat(saved.getSourceSectionIndex()).isEqualTo(2);
+        assertThat(saved.getSourcePageNumber()).isEqualTo(12);
+        assertThat(saved.getSourceDocumentName()).isEqualTo("bid.pdf");
+    }
+
+    @Test
     @DisplayName("并发结项抛出 DataIntegrityViolationException 时应作为幂等成功处理并发送成功通知")
     void onProjectClosed_WhenConcurrentUniqueViolationOccurs_ShouldHandleAsIdempotentSuccess() {
         ProjectArchive archive = new ProjectArchive();

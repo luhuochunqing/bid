@@ -259,19 +259,22 @@ public class ProjectClosedEventListener {
             kCase.setScoringCategory(caseAiMatcher.extractCategory(scoreItem.category()));
             kCase.setProductLine(ctx.productLine);
 
-            if (sectionIndex != null && slice.getMatchedSnippet() != null && !slice.getMatchedSnippet().isBlank()) {
-                try {
-                    MarkdownSourceSectionIndex.Provenance prov = sectionIndex.locate(slice.getMatchedSnippet(), scoreItem.title());
-                    if (prov != null) {
-                        kCase.setSourceSectionTitle(prov.title());
-                        kCase.setSourceSectionPath(prov.path());
-                        kCase.setSourceDocumentName(bidDoc != null ? bidDoc.documentName() : null);
-                        kCase.setSourcePageNumber(prov.pageNumber() != null ? prov.pageNumber() : (bidDoc != null ? bidDoc.pageNumber() : null));
-                        kCase.setSourceSectionIndex(prov.index());
-                    }
-                } catch (RuntimeException e) {
-                    log.warn("来源章节定位失败，降级为 NULL: {}", e.getMessage());
+            try {
+                MarkdownSourceSectionIndex.Provenance prov = slice.getProvenance();
+                if (prov == null && sectionIndex != null
+                        && slice.getMatchedSnippet() != null && !slice.getMatchedSnippet().isBlank()) {
+                    prov = sectionIndex.locate(slice.getMatchedSnippet(), scoreItem.title());
                 }
+                if (prov != null) {
+                    kCase.setSourceSectionTitle(prov.title());
+                    kCase.setSourceSectionPath(prov.path());
+                    kCase.setSourceDocumentName(bidDoc != null ? bidDoc.documentName() : null);
+                    kCase.setSourcePageNumber(prov.pageNumber() != null
+                            ? prov.pageNumber() : (bidDoc != null ? bidDoc.pageNumber() : null));
+                    kCase.setSourceSectionIndex(prov.index());
+                }
+            } catch (RuntimeException e) {
+                log.warn("来源章节定位失败，降级为 NULL: {}", e.getMessage());
             }
 
             casesToSave.add(kCase);
