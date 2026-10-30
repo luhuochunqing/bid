@@ -124,7 +124,7 @@ async function handleCopyCertUrl(url) {
 }
 .cert-card:hover {
   border-color: var(--el-color-primary-light-5);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-sm);
 }
 .cert-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cert-title { font-size: 13px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
