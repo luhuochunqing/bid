@@ -7839,7 +7839,7 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
      - 在 `LegacyExtractionModeTest` 中增加 `extractionFailureLogsAndReturnsStructureIncomplete` 单元测试，模拟 LLM 调用抛出异常，断言在保留完整日志的同时系统安全降级不崩溃。
 
 
-## 473. 评分提取请求预算与SDK重试叠加（2026-10-30）
+## 474. 评分提取请求预算与SDK重试叠加（2026-10-30）
 
 - **现场证据**：生产项目1135任务162在08:08:17—08:19:03运行，转换成功但最终STRUCTURE_INCOMPLETE。网关同窗口8条完成记录显示模型实际耗112—190秒，相同输入约每90秒重发；末请求08:17:32发出，任务08:19:03结束，网关08:20:41才完成。日志列表可用现有业务令牌经Authorization头读取`GET /api/log/token`，不应把令牌放URL。
 - **机制**：通用PT30S被resolver抬到90秒，SDK默认重试2次；初提失败后旧编排再整轮复核，形成重复请求与晚到结果。外层吞RuntimeException后统一显示结构异常，掩盖模型超时。
