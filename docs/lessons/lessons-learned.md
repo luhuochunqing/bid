@@ -7884,3 +7884,11 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **业务边界**：结果登记后立即触发是正确流程；无评分项应失败并提示先解析评分项。文件处理配额保持不变，超限应说明实际大小与上限。
 - **修复**：纯转换规则生成用户可读原因和下一步；同一原因写入任务和通知；两个阶段页面持续显示失败原因，刷新恢复。原始异常只保留日志，不将存储路径、上游响应暴露给用户。
 - **回归**：真实 MySQL 保存后重新查询失败原因、监听器验证任务/通知一致、真实 HTTP 下载配额拒绝，以及两个页面刷新后的错误提示。
+
+## 479. 生产回填的“只读预演”必须约束整个进程而非单个方法（2026-10-30）
+
+- **陷阱**：`CommandLineRunner` 自身不调用更新方法，不代表启动完整 Spring Boot 应用是只读。正常启动还会触发 Flyway、其他 `ApplicationRunner`、`@PostConstruct` 初始化器与 `@Scheduled` 任务；因此“preview 方法零写入”不足以证明生产预演安全。
+- **进程级护栏**：案例来源预演路由到独立 `CaseProvenancePreviewApplication`，强制 `WebApplicationType.NONE`、lazy initialization、Flyway 关闭、Hibernate schema action 关闭及 Hikari read-only，并排除其他 `ApplicationRunner` / `CommandLineRunner`。旧 `--recompute-case-provenance=true` 入口明确失败，不能再触发定位失败后清空来源的历史逻辑。
+- **数据级护栏**：preview 扫描全部 ACTIVE 案例并分类，但不持久化；apply 仅接受 `FILLABLE`，校验候选数与稳定清单 SHA-256，并在数据库 UPDATE 中同时校验 ACTIVE、正文/评分项/项目快照及五个来源字段仍全空。任一来源字段已有值都保持原样。
+- **审计与回滚**：每批输出脱敏 JSONL/CSV、稳定摘要和默认 `ROLLBACK` 的守卫式回滚 SQL。生产工件保存在 Git 外，只记录批次 ID、聚合计数和摘要。
+- **验证证据**：真实 MySQL 集成测试证明并发补入任一来源字段后条件更新返回 0；整包本地演练证明只读上下文不执行 DDL，生成工件后自动退出。生产 preview、apply、部署和业务 UAT仍是独立授权与证据阶段。

@@ -45,6 +45,34 @@ class CaseProvenanceBackfillAdapterMysqlTest extends AbstractMysqlIntegrationTes
         return kase;
     }
 
+    private KnowledgeCase createEmptyProvenance(String status) {
+        KnowledgeCase kase = create(status);
+        kase.setSourceSectionTitle(null);
+        kase.setSourceSectionPath(null);
+        kase.setSourceSectionIndex(null);
+        kase.setSourceDocumentName(null);
+        kase.setSourcePageNumber(null);
+        return repository.saveAndFlush(kase);
+    }
+
+    @Test
+    void refusesWriteWhenAnyProvenanceFieldWasFilledAfterPreview() {
+        var kase = createEmptyProvenance("ACTIVE");
+        kase.setSourceDocumentName("并发补入.pdf");
+        repository.saveAndFlush(kase);
+        flushAndClear();
+
+        assertThatThrownBy(() -> adapter.saveAllIfProvenanceEmpty(List.of(new Update(kase.getId(), "1. 新标题",
+                "1. 新标题", 1, "回填.pdf", 2, kase.getResponseText(), kase.getScoringPointTitle(),
+                kase.getSourceProjectId()))))
+                .isInstanceOf(IllegalStateException.class);
+        flushAndClear();
+
+        var unchanged = repository.findById(kase.getId()).orElseThrow();
+        assertThat(unchanged.getSourceSectionTitle()).isNull();
+        assertThat(unchanged.getSourceDocumentName()).isEqualTo("并发补入.pdf");
+    }
+
     @Test
     void queryIncludesOnlyActiveAndReturnsCompleteSnapshot() {
         var active = create("ACTIVE");

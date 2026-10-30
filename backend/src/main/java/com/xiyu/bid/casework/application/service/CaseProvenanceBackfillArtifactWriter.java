@@ -19,7 +19,9 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
+@Component
 public final class CaseProvenanceBackfillArtifactWriter {
     private static final int EVIDENCE_PREVIEW_LIMIT = 80;
     private final ObjectMapper objectMapper = new ObjectMapper();

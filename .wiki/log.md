@@ -1,3 +1,10 @@
+## [2026-10-30] fix | 案例来源生产安全回填与只读预演进程隔离
+
+- 根因边界：旧重算入口会在定位失败时清空来源；单个 preview 方法零写入也不能排除 Flyway、其他 runner、初始化器与调度器的启动副作用。
+- 契约：仅五来源字段全空且唯一命中的案例可补齐；既有值/歧义/文档不可用全部保持原样；apply 使用回执摘要、业务快照和数据库全空条件三重守卫。
+- 运维：preview 使用独立无 Web/Flyway/调度上下文和只读连接，输出脱敏审计与默认回滚 SQL；旧 `--recompute-case-provenance=true` 明确拒绝。
+- 回填：更新 [[case-source-actions-and-import-pitfalls]]、`docs/lessons/lessons-learned.md` §478。
+
 ## [2026-10-30] compound | 项目1135模型透传日志确认请求预算冲突
 
 - 更新 [[scoreparse-multimodal-primary]]：自行定位网关令牌只读日志，关联8条调用、90秒客户端预算、SDK重试及任务先结束网关后完成的时间线；保留原始异常未获取的证据边界。

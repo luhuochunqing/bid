@@ -34,6 +34,9 @@ class CaseProvenanceBackfillBoundaryTest {
             if (failWrite) { throw new IllegalStateException("write failed"); }
             batches.add(List.copyOf(updates));
         }
+        public void saveAllIfProvenanceEmpty(List<Update> updates) {
+            saveAll(updates);
+        }
     }
 
     @Test

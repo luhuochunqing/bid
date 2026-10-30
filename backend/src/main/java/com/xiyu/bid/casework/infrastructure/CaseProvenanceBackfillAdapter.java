@@ -51,4 +51,20 @@ public class CaseProvenanceBackfillAdapter implements CaseProvenanceBackfillPort
             }
         }
     }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void saveAllIfProvenanceEmpty(List<Update> updates) {
+        for (Update update : updates) {
+            int updated = repository.updateProvenanceIfActiveAndEmpty(
+                    update.id(), update.sourceSectionTitle(), update.sourceSectionPath(),
+                    update.sourceSectionIndex(), update.sourceDocumentName(), update.sourcePageNumber(),
+                    update.expectedResponseText(), update.expectedScoringPointTitle(),
+                    update.expectedSourceProjectId());
+            if (updated != 1) {
+                throw new IllegalStateException(
+                        "回填案例不存在、非ACTIVE、快照过期或来源字段已非全空： " + update.id());
+            }
+        }
+    }
 }

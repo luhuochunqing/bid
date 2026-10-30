@@ -1,51 +1,63 @@
-// Input: 启动参数 --recompute-case-provenance=true
-// Output: 存量知识案例来源章节重算的执行日志与统计
-// Pos: Backend/bootstrap 包——运维 CLI 入口（历史案例来源章节回填）
+// Input: 显式 preview 模式、绝对审计目录与批次 ID
+// Output: 只读预演的分类统计与可审计工件；旧破坏性入口明确拒绝
+// Pos: Backend/bootstrap 包——生产安全案例来源回填 CLI 入口
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
-
 package com.xiyu.bid.bootstrap;
 
 import com.xiyu.bid.casework.application.service.CaseProvenanceBackfillAppService;
+import com.xiyu.bid.casework.application.service.CaseProvenanceBackfillArtifactWriter;
+import com.xiyu.bid.casework.application.service.CaseProvenanceBackfillPlan;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
-/**
- * CLI entry point for recomputing historical knowledge case provenance.
- *
- * <p>Activated only when the program argument {@code --recompute-case-provenance=true}
- * is present. Run it deliberately against one environment at a time; the recompute is
- * idempotent, so a repeated run makes no further writes.</p>
- */
+import java.nio.file.Path;
+import java.util.Arrays;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class CaseProvenanceBackfillCommandLineRunner implements CommandLineRunner {
-
-    static final String RECOMPUTE_FLAG = "--recompute-case-provenance=true";
+    static final String LEGACY_FLAG = "--recompute-case-provenance=true";
+    private static final String MODE = "--case-provenance-backfill=";
+    private static final String ARTIFACT_DIR = "--case-provenance-artifact-dir=";
+    private static final String BATCH_ID = "--case-provenance-batch-id=";
 
     private final CaseProvenanceBackfillAppService backfillAppService;
+    private final CaseProvenanceBackfillArtifactWriter artifactWriter;
 
     @Override
     public void run(String... args) {
-        if (!isRecomputeEnabled(args)) {
+        if (Arrays.asList(args).contains(LEGACY_FLAG)) {
+            throw new IllegalStateException("legacy destructive provenance recompute is disabled; use preview mode");
+        }
+        String mode = value(args, MODE);
+        if (mode == null) {
             return;
         }
-        log.info("Starting case provenance backfill");
-        CaseProvenanceBackfillAppService.BackfillResult result = backfillAppService.recomputeAll();
-        log.info("Case provenance backfill finished: projectsScanned={}, casesScanned={}, casesUpdated={}, "
-                        + "casesCleared={}, casesUnchanged={}, projectsFailed={}",
-                result.projectsScanned(), result.casesScanned(), result.casesUpdated(),
-                result.casesCleared(), result.casesUnchanged(), result.projectsFailed());
+        if (!"preview".equals(mode)) {
+            throw new IllegalStateException("unsupported case provenance backfill mode: " + mode);
+        }
+        String directory = value(args, ARTIFACT_DIR);
+        String batchId = value(args, BATCH_ID);
+        if (directory == null || batchId == null || !Path.of(directory).isAbsolute()) {
+            throw new IllegalStateException("preview requires an absolute artifact directory and explicit batch id");
+        }
+
+        CaseProvenanceBackfillPlan plan = backfillAppService.preview();
+        CaseProvenanceBackfillArtifactWriter.ArtifactReceipt receipt =
+                artifactWriter.write(plan, Path.of(directory), batchId);
+        log.info("Case provenance preview finished: batchId={}, scanned={}, fillable={}, manifestSha256={}",
+                receipt.batchId(), plan.scannedCount(), receipt.candidateCount(), receipt.manifestSha256());
     }
 
-    private static boolean isRecomputeEnabled(String[] args) {
-        for (String arg : args) {
-            if (RECOMPUTE_FLAG.equals(arg)) {
-                return true;
-            }
-        }
-        return false;
+    private static String value(String[] args, String prefix) {
+        return Arrays.stream(args)
+                .filter(arg -> arg.startsWith(prefix))
+                .map(arg -> arg.substring(prefix.length()))
+                .findFirst()
+                .filter(value -> !value.isBlank())
+                .orElse(null);
     }
 }

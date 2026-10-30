@@ -34,27 +34,27 @@
 - Produces: `Decision` containing candidate identity, decision type, reason, proposed provenance and redacted evidence hash.
 - Preserves: candidate queries include every ACTIVE record so `SKIP_EXISTING` is auditable.
 
-- [ ] **Step 1: Write RED tests for preview safety**
+- [x] **Step 1: Write RED tests for preview safety**
 
 Add tests asserting: a fully empty candidate with a unique match is `FILLABLE`; a candidate with any one of the five fields populated is `SKIP_EXISTING`; an unmatched empty candidate is `UNRESOLVED`; preview never calls `saveAll`; and the sum of decision counts equals scanned cases.
 
-- [ ] **Step 2: Run RED tests**
+- [x] **Step 2: Run RED tests**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillAppServiceTest,CaseProvenanceBackfillBoundaryTest`
 
 Expected: compilation failure because `CaseProvenanceBackfillPlan` and `preview()` do not exist.
 
-- [ ] **Step 3: Implement the immutable plan and preview**
+- [x] **Step 3: Implement the immutable plan and preview**
 
 Create focused records/enums in `CaseProvenanceBackfillPlan`. Refactor the service so preview scans all ACTIVE candidates, classifies existing provenance before loading documents, groups only empty-source candidates by project, and returns decisions without persistence. Remove all code paths that create null-valued clearing updates.
 
-- [ ] **Step 4: Run Task 1 tests GREEN**
+- [x] **Step 4: Run Task 1 tests GREEN**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillAppServiceTest,CaseProvenanceBackfillBoundaryTest`
 
 Expected: zero failures and zero errors.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Commit: `refactor(casework): plan provenance backfill without writes`
 
@@ -69,27 +69,27 @@ Commit: `refactor(casework): plan provenance backfill without writes`
 - Produces: `ArtifactReceipt(batchId, candidateCount, manifestSha256, jsonlPath, csvPath, rollbackSqlPath)`.
 - Produces: UTF-8 JSONL/CSV and SQL files under an explicit output directory.
 
-- [ ] **Step 1: Write RED artifact contract tests**
+- [x] **Step 1: Write RED artifact contract tests**
 
 Use `@TempDir` and a fixed plan. Assert JSONL and CSV contain identical case IDs/decision types, never contain the full response text, include only a bounded evidence excerpt plus SHA-256, and the manifest digest is stable for the same ordered decisions. Assert rollback SQL updates only the five source columns, has `WHERE id = ... AND status = 'ACTIVE'`, and guards every current value written by the batch before restoring NULL.
 
-- [ ] **Step 2: Run RED artifact tests**
+- [x] **Step 2: Run RED artifact tests**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillArtifactWriterTest`
 
 Expected: compilation failure because the writer does not exist.
 
-- [ ] **Step 3: Implement deterministic artifact generation**
+- [x] **Step 3: Implement deterministic artifact generation**
 
 Write decisions sorted by case ID. Use Jackson for JSONL, RFC-4180 escaping for CSV, `MessageDigest` SHA-256 over the canonical manifest, and SQL string literal escaping. Create files with `CREATE_NEW`; reject a nonempty existing batch directory.
 
-- [ ] **Step 4: Run Task 2 tests GREEN**
+- [x] **Step 4: Run Task 2 tests GREEN**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillArtifactWriterTest`
 
 Expected: zero failures and zero errors.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 Commit: `feat(casework): emit auditable provenance backfill artifacts`
 
@@ -108,27 +108,27 @@ Commit: `feat(casework): emit auditable provenance backfill artifacts`
 - Consumes: batch ID, FILLABLE count and manifest SHA-256 from preview.
 - Persists: only `FILLABLE` updates whose ACTIVE/business snapshot/source-all-null conditions still hold.
 
-- [ ] **Step 1: Write RED apply and database-guard tests**
+- [x] **Step 1: Write RED apply and database-guard tests**
 
 Assert apply rejects mismatched batch ID/count/digest before any write; valid receipt writes only `FILLABLE`; repository update contains all five `IS NULL` predicates plus existing ACTIVE and snapshot predicates; update count other than one aborts the per-project transaction.
 
-- [ ] **Step 2: Run RED apply tests**
+- [x] **Step 2: Run RED apply tests**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillBoundaryTest,CaseProvenanceBackfillAdapterTest`
 
 Expected: compilation/assertion failure because receipt validation and all-null guard do not exist.
 
-- [ ] **Step 3: Implement apply validation and guarded persistence**
+- [x] **Step 3: Implement apply validation and guarded persistence**
 
 Compute the canonical digest from the freshly generated plan and compare it using constant-time byte comparison. Reject empty batch IDs and nonmatching counts. Change the repository update query to require all five source fields NULL. Keep project-level `REQUIRES_NEW` transaction and throw on any update count other than one.
 
-- [ ] **Step 4: Run Task 3 tests GREEN**
+- [x] **Step 4: Run Task 3 tests GREEN**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillBoundaryTest,CaseProvenanceBackfillAdapterTest`
 
 Expected: zero failures and zero errors.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 Commit: `feat(casework): guard provenance backfill apply`
 
@@ -146,21 +146,21 @@ Commit: `feat(casework): guard provenance backfill apply`
 - Apply flags: `--case-provenance-backfill=apply`, batch ID, candidate count, manifest SHA-256 and artifact directory.
 - Legacy flag: `--recompute-case-provenance=true` terminates with a safety error.
 
-- [ ] **Step 1: Write RED CLI tests**
+- [x] **Step 1: Write RED CLI tests**
 
 Assert no flag performs no work; preview calls only `preview()` and artifact writer; legacy flag throws a message naming the safe preview flag; apply without every receipt field throws before preview or persistence.
 
-- [ ] **Step 2: Run RED CLI tests**
+- [x] **Step 2: Run RED CLI tests**
 
 Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillCommandLineRunnerTest`
 
 Expected: assertion/compilation failure because the new CLI contract does not exist.
 
-- [ ] **Step 3: Implement CLI parsing and fail-closed validation**
+- [x] **Step 3: Implement CLI parsing and fail-closed validation**
 
 Keep parsing local and deterministic. Default artifact root to an explicit argument requirement for production; preview requires `--case-provenance-artifact-dir=<absolute-path>`. Do not accept relative paths. Log only counts, batch ID, digest and artifact paths.
 
-- [ ] **Step 4: Run focused and architecture verification**
+- [x] **Step 4: Run focused and architecture verification**
 
 Run:
 

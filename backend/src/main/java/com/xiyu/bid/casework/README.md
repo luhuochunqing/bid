@@ -19,9 +19,10 @@
 | `application/service/CasePromotionAppService.java` | AppService | 从项目快照晋升案例 |
 | `application/service/CaseShareAppService.java` | AppService | 案例分享记录 |
 | `application/service/CaseReferenceAppService.java` | AppService | 案例引用记录 |
-| `application/port/CaseProvenanceBackfillPort.java` | Port | 严格ACTIVE回填候选快照与五字段更新契约 |
-| `infrastructure/CaseProvenanceBackfillAdapter.java` | Adapter | 候选映射与按项目独立事务批量条件更新持久化，非ACTIVE或缺失案例拒绝整批更新 |
-| `application/service/CaseProvenanceBackfillAppService.java` | AppService | 存量案例来源章节重算（幂等；判据为「现有来源标题不是合法章节标题」；定位成功写回真实章节，失败清空） |
+| `application/port/CaseProvenanceBackfillPort.java` | Port | 严格ACTIVE回填候选快照；历史重算与“来源五字段全空才补齐”使用独立写入契约 |
+| `infrastructure/CaseProvenanceBackfillAdapter.java` | Adapter | 候选映射与按项目独立事务条件更新；安全补齐同时校验ACTIVE、业务快照及五来源字段仍全空 |
+| `application/service/CaseProvenanceBackfillAppService.java` | AppService | 生产安全 preview/apply 编排（回执匹配、按项目写入、只补不清）；保留无 CLI 入口的历史重算实现 |
+| `application/service/CaseProvenanceBackfillArtifactWriter.java` | AppService | 生成脱敏 JSONL/CSV、默认回滚 SQL 与稳定清单 SHA-256 回执 |
 | `application/MarkdownHeadingParser.java` | Domain Util | Markdown 标题解析与章节扫描（构建层级树与祖先路径） |
 | `application/MarkdownTitleRules.java` | Domain Util | 标题分类契约与页码清洗（`isSentenceLikeTitle` 句子门 + `isNumberOnlyTitle` 纯编号伪标题门 + `isChapterTitle` 章节号契约 + `isValidSectionTitle` 合法章节小标题契约 + `stripTrailingPageNumber` 末尾页码与制表符噪声清洗，前后端同规则，由共享测试双向锚定） |
 | `application/MarkdownSourceSectionIndex.java` | Domain Util | Markdown 来源章节索引与定位器（唯一命中且命中章节为合法章节小标题才写来源字段，其余一律返回 null） |
