@@ -191,3 +191,126 @@ Commit implementation/docs only. Keep production audit artifacts outside Git bec
 - Rollback SQL contains zero UPDATE statements and ends in `ROLLBACK`, matching zero fillable candidates.
 - Final preview log contains no organization event SDK, tender event SDK or history replay startup; process exited normally. Production backend remained `active` and health was `UP`.
 - An earlier preview attempt generated the same decision manifest but exposed an unrelated `ApplicationReadyEvent` SDK side effect after artifact creation. The maintenance safety properties now force-disable those integrations; only the corrected `r3` batch is acceptance evidence.
+
+---
+
+### Task 5: Canonical Manifest 必须绑定批次且无编码歧义
+
+**Files:**
+- Modify: `backend/src/main/java/com/xiyu/bid/casework/application/service/CaseProvenanceBackfillArtifactWriter.java`
+- Modify: `backend/src/test/java/com/xiyu/bid/casework/application/service/CaseProvenanceBackfillArtifactWriterTest.java`
+- Modify: `backend/src/test/java/com/xiyu/bid/casework/application/service/CaseProvenanceBackfillApplyGuardTest.java`
+
+**Interfaces:**
+- Produces: `String manifestSha256(String batchId, CaseProvenanceBackfillPlan plan)`.
+- Consumes: 与审计目录一致的显式 `batchId`。
+- Guarantees: 固定字段顺序的 canonical JSON；字符串中的 `|`、换行与 `null` 不产生结构碰撞。
+
+- [ ] **Step 1: Write RED tests for batch binding and unambiguous encoding**
+
+新增测试：相同计划配不同 batch ID 必须得到不同摘要；构造含 `|`、换行和字符串 `"null"` 的不同计划，摘要必须不同；Apply 使用其他批次 ID 与原摘要时必须零写入失败。
+
+- [ ] **Step 2: Run RED tests**
+
+Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillArtifactWriterTest,CaseProvenanceBackfillApplyGuardTest`
+
+Expected: FAIL，因为现有 `manifestSha256(plan)` 不绑定批次且使用分隔符拼接。
+
+- [ ] **Step 3: Implement canonical JSON digest**
+
+用 Jackson 序列化固定顺序的 `LinkedHashMap` 清单：顶层包含 `batchId` 和 `decisions`；每个 decision 显式包含 case/project/type/evidence/proposed 五字段。摘要只接受 `(batchId, plan)`，删除无批次重载，ArtifactReceipt 与 Apply 共用同一实现。
+
+- [ ] **Step 4: Run tests GREEN**
+
+Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillArtifactWriterTest,CaseProvenanceBackfillApplyGuardTest`
+
+Expected: PASS，0 failures / 0 errors。
+
+### Task 6: Apply CLI 必须重新扫描并校验完整 Preview 凭证
+
+**Files:**
+- Modify: `backend/src/main/java/com/xiyu/bid/bootstrap/CaseProvenanceBackfillCommandLineRunner.java`
+- Modify: `backend/src/main/java/com/xiyu/bid/XiyuBidApplication.java`
+- Modify: `backend/src/main/java/com/xiyu/maintenance/CaseProvenancePreviewApplication.java`
+- Modify: `backend/src/test/java/com/xiyu/bid/bootstrap/CaseProvenanceBackfillCommandLineRunnerTest.java`
+- Modify: `backend/src/test/java/com/xiyu/bid/XiyuBidApplicationTest.java`
+
+**Interfaces:**
+- Apply flags: `--case-provenance-backfill=apply`, `--case-provenance-artifact-dir=<absolute-root>`, `--case-provenance-batch-id=<id>`, `--case-provenance-candidate-count=<n>`, `--case-provenance-manifest-sha256=<64-hex>`.
+- Produces: 重新执行 `preview()` 后调用 `apply(freshPlan, PreviewReceipt)`；任一参数缺失或非法时零写入。
+
+- [ ] **Step 1: Write RED CLI tests**
+
+新增测试：合法 Apply 参数必须先重新 preview 再 apply；缺数量、缺摘要、相对目录、非法 SHA、其他模式均在 preview/apply 前失败；启动根只把显式 preview/apply 路由到 maintenance 上下文。
+
+- [ ] **Step 2: Run RED tests**
+
+Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillCommandLineRunnerTest,XiyuBidApplicationTest`
+
+Expected: FAIL，当前 CLI 拒绝 apply，启动根只识别 preview。
+
+- [ ] **Step 3: Implement fail-closed Apply parsing**
+
+解析数值时捕获格式异常并转为明确 `IllegalStateException`。Apply 必须检查批次目录为 `<artifactRoot>/<batchId>` 且 `audit.jsonl`、`audit.csv`、`rollback.sql` 均存在，再重新生成计划并使用人工提供的批次/数量/摘要调用服务；不得从审计文件反序列化拟写值。
+
+- [ ] **Step 4: Run tests GREEN**
+
+Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillCommandLineRunnerTest,XiyuBidApplicationTest`
+
+Expected: PASS，0 failures / 0 errors。
+
+### Task 7: Apply 使用单批次事务并禁止部分成功
+
+**Files:**
+- Modify: `backend/src/main/java/com/xiyu/bid/casework/application/service/CaseProvenanceBackfillAppService.java`
+- Modify: `backend/src/main/java/com/xiyu/bid/casework/application/port/CaseProvenanceBackfillPort.java`
+- Modify: `backend/src/main/java/com/xiyu/bid/casework/infrastructure/CaseProvenanceBackfillAdapter.java`
+- Modify: `backend/src/test/java/com/xiyu/bid/casework/application/service/CaseProvenanceBackfillApplyGuardTest.java`
+- Modify: `backend/src/test/java/com/xiyu/bid/casework/infrastructure/CaseProvenanceBackfillAdapterMysqlTest.java`
+
+**Interfaces:**
+- Produces: `void saveAllIfProvenanceEmpty(List<Update> updates)` 作为一个批次事务。
+- Guarantees: 任一 UPDATE 影响行数不是 1 时抛异常并回滚全部项目写入。
+
+- [ ] **Step 1: Write RED transaction regression**
+
+真实 MySQL 测试创建两个不同项目的全空案例，在第二条写入前制造来源字段漂移；调用一个包含两条 Update 的批次，断言抛异常且第一条来源字段仍全部为空。
+
+- [ ] **Step 2: Run RED test**
+
+Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillAdapterMysqlTest`
+
+Expected: FAIL，当前服务按项目多次调用 `REQUIRES_NEW`，前序项目可能已提交。
+
+- [ ] **Step 3: Implement one batch transaction**
+
+AppService 将全部 FILLABLE Update 按确定顺序汇总后只调用一次端口；Adapter 将事务传播改为单次 `REQUIRED` 边界并在循环内任一更新失败时抛异常，由 Spring 回滚整个调用。
+
+- [ ] **Step 4: Run tests GREEN**
+
+Run: `cd backend && mvn test -Dtest=CaseProvenanceBackfillApplyGuardTest,CaseProvenanceBackfillAdapterMysqlTest`
+
+Expected: PASS，0 failures / 0 errors。
+
+### Task 8: 修复收口、文档同步与 PR 更新
+
+**Files:**
+- Modify: `backend/src/main/java/com/xiyu/bid/bootstrap/README.md`
+- Modify: `backend/src/main/java/com/xiyu/bid/casework/README.md`
+- Modify: `backend/src/main/java/com/xiyu/maintenance/README.md`
+- Modify: `docs/exec-plans/active/case-provenance-safe-backfill-implementation.md`
+
+**Interfaces:**
+- Documents: preview/apply 参数、批次绑定、整批事务和“未授权生产 Apply”边界。
+
+- [ ] **Step 1: Run focused verification**
+
+Run: `cd backend && mvn test -Dtest=XiyuBidApplicationTest,CaseProvenanceBackfillCommandLineRunnerTest,CaseProvenanceBackfillApplyGuardTest,CaseProvenanceBackfillArtifactWriterTest,CaseProvenanceSafePreviewTest,CaseProvenanceBackfillAdapterMysqlTest`
+
+- [ ] **Step 2: Run architecture and governance gates**
+
+Run: `cd backend && mvn test -Dtest=ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest && cd .. && npm run wiki:check && git diff --check`
+
+- [ ] **Step 3: Commit and push through normal hooks**
+
+Commit implementation/tests/docs atomically, then `git push origin HEAD` without bypass flags. Confirm PR #2939 head equals local HEAD and remains mergeable. Production Apply, deployment and restart remain explicitly out of scope.
