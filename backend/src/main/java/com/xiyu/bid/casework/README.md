@@ -20,7 +20,10 @@
 | `application/service/CaseShareAppService.java` | AppService | 案例分享记录 |
 | `application/service/CaseReferenceAppService.java` | AppService | 案例引用记录 |
 | `application/port/CaseProvenanceBackfillPort.java` | Port | 严格ACTIVE回填候选快照与五字段更新契约 |
+| `application/port/EnterpriseQualificationQueryPort.java` | Port | 企业资质证书查询端口（支持按评分项维度与细则匹配） |
 | `infrastructure/CaseProvenanceBackfillAdapter.java` | Adapter | 候选映射与按项目独立事务批量条件更新持久化，非ACTIVE或缺失案例拒绝整批更新 |
+| `infrastructure/EnterpriseQualificationQueryAdapter.java` | Adapter | 企业资质库直连适配器（装配有效证书及原件扫描件图片） |
+| `domain/policy/EnterpriseQualificationMatchPolicy.java` | Policy | 企业资质证书匹配纯策略（ISO标准对标、有效期降级与扫描件图片挂载） |
 | `application/service/CaseProvenanceBackfillAppService.java` | AppService | 存量案例来源章节重算（幂等；判据为「现有来源标题不是合法章节标题」；定位成功写回真实章节，失败清空） |
 | `application/MarkdownHeadingParser.java` | Domain Util | Markdown 标题解析与章节扫描（构建层级树与祖先路径） |
 | `application/MarkdownTitleRules.java` | Domain Util | 标题分类契约与页码清洗（`isSentenceLikeTitle` 句子门 + `isNumberOnlyTitle` 纯编号伪标题门 + `isChapterTitle` 章节号契约 + `isValidSectionTitle` 合法章节小标题契约 + `stripTrailingPageNumber` 末尾页码与制表符噪声清洗，前后端同规则，由共享测试双向锚定） |

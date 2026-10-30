@@ -29,10 +29,13 @@
         <el-alert type="info" :closable="false" show-icon>
           <template #title>
             <div class="qualification-notice-title">资质证书类评分项提醒</div>
-            <div class="qualification-notice-desc">该评分项为资质证书类要求，技术方案案例不予推荐。建议前往「资质中心」选用对应的证书复印件或扫描件。</div>
+            <div class="qualification-notice-desc">该评分项为资质证书类要求，技术方案案例不予推荐。已直连企业资质库精准匹配资质证书及扫描件原件。</div>
           </template>
         </el-alert>
       </div>
+
+      <!-- 资质证书匹配结果展示区域（含证书原件图片直连与预览） -->
+      <EnterpriseCertRecommendList v-if="isQualificationScoreItem" :certificates="matchedCertificates" />
 
       <div class="drawer-section">
         <div class="section-label-row">
@@ -99,6 +102,7 @@ import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import CaseCard from '@/views/Knowledge/views/components/CaseCard.vue'
 import CaseDetailDialog from '@/views/Knowledge/views/components/CaseDetailDialog.vue'
+import EnterpriseCertRecommendList from './EnterpriseCertRecommendList.vue'
 import { useBidCaseSourceActions } from '@/views/Knowledge/views/useBidCaseSourceActions.js'
 import { getMatchLabel } from '@/views/Knowledge/views/caseLabels.js'
 import ScoreItemSelect from '@/components/common/ScoreItemSelect.vue'
@@ -112,6 +116,7 @@ const scoreItemsLoading = ref(false)
 const selectedItemId = ref(null)
 const keywordFilter = ref('')
 const cases = ref([])
+const matchedCertificates = ref([])
 const recommendTotal = ref(0)
 const loadingCases = ref(false)
 const defaultCases = ref([])
@@ -147,16 +152,10 @@ async function handleOpen() {
     const res = await caseRecommendationApi.getScoreItems(props.projectId)
     const items = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : [])
     scoreItems.value = items
-    if (items.length > 0) {
-      selectedItemId.value = items[0].id
-      await handleItemChange()
-    } else {
-      await loadDefaultProjectCases()
-    }
+    if (items.length > 0) { selectedItemId.value = items[0].id; await handleItemChange() }
+    else { await loadDefaultProjectCases() }
   } catch (err) {
-    scoreItems.value = []
-    notifyErrorUnlessRateLimit(err, '获取评分项失败')
-    await loadDefaultProjectCases()
+    scoreItems.value = []; notifyErrorUnlessRateLimit(err, '获取评分项失败'); await loadDefaultProjectCases()
   } finally {
     scoreItemsLoading.value = false
   }
@@ -177,23 +176,21 @@ async function loadDefaultProjectCases() {
 async function handleItemChange() {
   if (!selectedItemId.value) {
     recommendTotal.value = 0
+    matchedCertificates.value = []
     cases.value = defaultCases.value.length === 0 ? (await loadDefaultProjectCases(), cases.value) : [...defaultCases.value]
     return
   }
   loadingCases.value = true
   try {
     const res = await caseRecommendationApi.recommendCases(props.projectId, {
-      scoreItemId: selectedItemId.value,
-      keyword: keywordFilter.value.trim(),
-      page: 0,
-      size: 20
+      scoreItemId: selectedItemId.value, keyword: keywordFilter.value.trim(), page: 0, size: 20
     })
     cases.value = (res?.items || []).map(normalizeRecommendCase)
+    matchedCertificates.value = res?.matchedCertificates || []
     const serverTotal = Number(res?.total)
     recommendTotal.value = Number.isFinite(serverTotal) ? serverTotal : cases.value.length
   } catch (err) {
-    cases.value = []
-    recommendTotal.value = 0
+    cases.value = []; matchedCertificates.value = []; recommendTotal.value = 0
     notifyErrorUnlessRateLimit(err, '获取推荐案例失败')
   } finally {
     loadingCases.value = false

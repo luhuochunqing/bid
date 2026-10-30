@@ -49,8 +49,9 @@ public final class CaseCategoryMatchPolicy {
             String candidateCategory, String candidateTitle) {
         MacroCategory itemCat = classifyMacroCategory(itemDim, itemDetail);
         MacroCategory candCat = classifyMacroCategory(candidateCategory, candidateTitle);
+        // 1. 评分项为纯资质证书类（QUALIFICATION）时，方案类（TECHNICAL）、商务类（COMMERCIAL）、业绩类（PERFORMANCE）案例均一票否决
         if (itemCat == MacroCategory.QUALIFICATION
-                && (candCat == MacroCategory.TECHNICAL || candCat == MacroCategory.COMMERCIAL)) {
+                && (candCat == MacroCategory.TECHNICAL || candCat == MacroCategory.COMMERCIAL || candCat == MacroCategory.PERFORMANCE)) {
             return true;
         }
         return isMutuallyExclusive(itemCat, candCat);
@@ -71,6 +72,7 @@ public final class CaseCategoryMatchPolicy {
 
     /**
      * 解析并归类大类（优先通过维度/分类标题识别，次选条款详情/正文识别）。
+     * 当维度仅为宽泛章节名（如“技术部分”、“商务及技术”、“详细评审”），但详情/正文明确为资质证书或业绩要求时，实质要求优先！
      */
     public static MacroCategory classifyMacroCategory(String categoryOrDim, String detail) {
         // 1. 优先根据维度/类别标题进行识别（最强语义信源）
@@ -81,6 +83,21 @@ public final class CaseCategoryMatchPolicy {
         if (fromDim == MacroCategory.COMMERCIAL && fromDetail == MacroCategory.PERFORMANCE) {
             return MacroCategory.PERFORMANCE;
         }
+
+        // 关键穿透：若维度仅为宽泛章节（如“技术部分/商务部分/详细评审/综合能力”），但详情实质为资质证书、业绩或人员要求，必须以实质要求优先！
+        if ((fromDim == MacroCategory.TECHNICAL || fromDim == MacroCategory.COMMERCIAL)
+                && isGenericChapterDim(categoryOrDim)) {
+            if (fromDetail == MacroCategory.QUALIFICATION) {
+                return MacroCategory.QUALIFICATION;
+            }
+            if (fromDetail == MacroCategory.PERFORMANCE) {
+                return MacroCategory.PERFORMANCE;
+            }
+            if (fromDetail == MacroCategory.PERSONNEL) {
+                return MacroCategory.PERSONNEL;
+            }
+        }
+
         if (fromDim != MacroCategory.OTHER) {
             return fromDim;
         }
@@ -89,6 +106,21 @@ public final class CaseCategoryMatchPolicy {
         }
 
         return MacroCategory.OTHER;
+    }
+
+    public static boolean isGenericChapterDim(String dim) {
+        if (!hasText(dim)) {
+            return true;
+        }
+        String lower = dim.trim().toLowerCase(Locale.ROOT);
+        boolean hasSpecificTopic = lower.contains("方案") || lower.contains("预案")
+                || lower.contains("架构") || lower.contains("设计") || lower.contains("实施")
+                || lower.contains("部署") || lower.contains("对接") || lower.contains("系统")
+                || lower.contains("运维") || lower.contains("售后") || lower.contains("应急");
+        if (hasSpecificTopic) {
+            return lower.matches("^(?:技术(?:方案|部分|标|分|评价|评审|要求)?|商务(?:方案|部分|标|分)?|详细评审|综合(?:方案|评价|评审|能力|实力|商务)?|(?:商务|技术)[及与和](?:商务|技术)|资信[及与和]?技术|技术资信|[0-9]+(?:\\.[0-9]+)*.*)$");
+        }
+        return true;
     }
 
     public static MacroCategory classifyText(String text) {
@@ -123,6 +155,17 @@ public final class CaseCategoryMatchPolicy {
             return 0;
         }
 
+        MacroCategory itemCat = classifyMacroCategory(dim, detail);
+        MacroCategory candCat = classifyMacroCategory(candidateCategory, null);
+
+        // 强门禁：若评分项为资质类，而案例为技术或商务（或相反），绝不享受任何类别一致加分
+        if (itemCat == MacroCategory.QUALIFICATION && candCat != MacroCategory.QUALIFICATION) {
+            return 0;
+        }
+        if (candCat == MacroCategory.QUALIFICATION && itemCat != MacroCategory.QUALIFICATION) {
+            return 0;
+        }
+
         if (hasText(dim)) {
             String trimmedDim = dim.trim();
             if (trimmedDim.equalsIgnoreCase(candidateCategory)
@@ -133,8 +176,6 @@ public final class CaseCategoryMatchPolicy {
         }
 
         // 大类一致直接得分
-        MacroCategory itemCat = classifyMacroCategory(dim, detail);
-        MacroCategory candCat = classifyMacroCategory(candidateCategory, null);
         if (itemCat != MacroCategory.OTHER && itemCat == candCat) {
             return CATEGORY_MATCH_SCORE;
         }

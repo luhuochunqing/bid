@@ -935,4 +935,26 @@ class ScoreItemCaseMatchPolicyTest {
         assertThat(result.score()).isGreaterThanOrEqualTo(60);
         assertThat(result.matchReasons()).anyMatch(r -> r.contains("同类业务子主题(应急预案与突发事件响应)") || r.contains("业务主题部分契合"));
     }
+
+    @Test
+    @DisplayName("大类穿透与一票否决：维度仅为'技术部分'但细则要求ISO认证证书时，必须归类为QUALIFICATION并一票否决技术方案")
+    void testGenericTechDimWithQualificationDetailVetoesTechnicalCase() {
+        StubCandidate technicalCase = new StubCandidate(
+                1010L, "服务方案与技术响应", "技术方案",
+                "技术方案与商城对接", "西域数智化商城对接方案与服务保障体系。",
+                "工业品", "地方国企", "WON", "OTHER", 85
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext qualContext = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                895L, "2.2.5", "技术部分",
+                "具有 ISO9001 质量管理体系认证、ISO14001环境管理体系认证，提供证书扫描件。",
+                "工业品", "地方国企", null, "招商积余2026年维修物资战略采购项目", "招商积余"
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(technicalCase, qualContext);
+
+        assertThat(result.score()).isEqualTo(0);
+        assertThat(result.matchLabel()).isEqualTo("一般");
+        assertThat(result.matchReasons()).contains("大类冲突一票否决");
+    }
 }
