@@ -116,4 +116,22 @@ class LegacyExtractionModeTest {
         assertThat(inputs).isNotEmpty().allMatch(text::equals);
         assertThat(result.facts()).hasSize(1);
     }
+
+    @Test void extractionFailureLogsAndReturnsStructureIncomplete() {
+        var failingModel = new MultimodalScoreFactExtractor() {
+            public boolean supportsTextOnly() { return true; }
+            public ExtractionResult extract(DocumentArtifact a, List<DocumentImage> images) { throw new AssertionError(); }
+            public ExtractionResult extractWithText(DocumentArtifact a, String text) {
+                throw new IllegalStateException("模拟 LLM API 故障连接失败 502");
+            }
+            public ExtractionResult recheckWithText(DocumentArtifact a, String text) {
+                throw new IllegalStateException("模拟 LLM API 复核连接失败 502");
+            }
+        };
+        var result = LegacyTextScoreExtraction.extract(
+                new TenderTextSource("test-tender.pdf", null, "第三章 评标办法"),
+                List.of(), List.of(), null, failingModel, () -> {});
+        assertThat(result.structureIncomplete()).isTrue();
+        assertThat(result.failureReason()).isEqualTo("MULTIMODAL_EXTRACTION_FAILED");
+    }
 }
