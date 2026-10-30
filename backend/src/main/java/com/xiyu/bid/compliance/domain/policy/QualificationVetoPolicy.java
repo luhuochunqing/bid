@@ -1,5 +1,5 @@
 // Input: 标书文档 + 招标文件 + TenderRequirements + 知识库证据
-// Output: Optional<QualityCheckItemResult>（第一阶段硬信号：占位符反假/违规分包/硬性资质缺失直接 FAIL，若均满足直接 PASS，否则 empty 移交 LLM）
+// Output: Optional<QualityCheckItemResult>（明确占位/违规分包 FAIL；证书名称与检索缺口仅供人工确认）
 // Pos: compliance/domain/policy/ - 标书一票否决与资格前置反假核验策略（纯核心，FP-Java 无外部依赖）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  * 1. 物理剔除目录点线页，杜绝目录欺骗；
  * 2. 占位符反假拦截：若资格声明或否决条款响应存在未填占位模板或空白留白，直接判定 FAIL；
  * 3. 严格区分正向合规承诺与实质性违规分包/转包，对实质性违规硬阻断 FAIL，对合规承诺放行；
- * 4. 专用行业资质证书物理核验（不满足则精简 FAIL，均满足则直接 PASS 并列出清单）；
+ * 4. 证书名称响应仅为定位参考，不能证明材料有效或完整资格满足；
  * 5. 其余无硬信号场景移交 LLM lane 深度语义裁决.
  */
 public final class QualificationVetoPolicy {
@@ -73,9 +73,9 @@ public final class QualificationVetoPolicy {
             return violationFail;
         }
 
-        // 3. 硬性资质证书物理核验（不满足则精简 FAIL，均满足则直接 PASS 并列出清单）
+        // 3. 证书定位参考，不以关键词命中或未命中判定完整资格结论
         if (requirements != null && !requirements.mandatoryQualifications().isEmpty()) {
-            Optional<QualityCheckItemResult> qualResult = checkMandatoryQualifications(
+            Optional<QualityCheckItemResult> qualResult = checkCertificateReferences(
                     bidDoc, validPages, tenderDoc, requirements, kbEvidences);
             if (qualResult.isPresent()) {
                 return qualResult;
@@ -126,7 +126,7 @@ public final class QualificationVetoPolicy {
         return Optional.empty();
     }
 
-    private static Optional<QualityCheckItemResult> checkMandatoryQualifications(
+    private static Optional<QualityCheckItemResult> checkCertificateReferences(
             final DocumentContent bidDoc,
             final List<DocumentContent.PageContent> validPages,
             final DocumentContent tenderDoc,
@@ -141,7 +141,7 @@ public final class QualificationVetoPolicy {
         String normalizedValidText = normalize(fullValidText.toString());
 
         List<String> validQualifications = new ArrayList<>();
-        for (String qualification : requirements.mandatoryQualifications()) {
+        for (String qualification : requirements.certificateRequirements()) {
             if (qualification == null
                     || qualification.isBlank()
                     || qualification.length() > DeterministicQualificationExtractor.MAX_QUALIFICATION_LENGTH
@@ -175,12 +175,12 @@ public final class QualificationVetoPolicy {
             if (kbEvidences != null) {
                 evidences.addAll(kbEvidences);
             }
-            String conclusion = "招标文件要求了一票否决资格项【" + String.join("、", validQualifications)
-                    + "】，标书中未满足【" + String.join("、", unsatisfied) + "】。";
-            return Optional.of(QualityCheckItemResult.fail(
+            String conclusion = "证书要求【" + String.join("、", validQualifications)
+                    + "】中尚未定位到【" + String.join("、", unsatisfied) + "】的充分证明，文本未命中不能证明原文件缺失。";
+            return Optional.of(QualityCheckItemResult.manualReview(
                     BidQualityCheckItem.QUALIFICATION_VETO,
                     conclusion,
-                    "请在投标文件中补充对应资格项的证明材料或在企业知识库中维护有效记录",
+                    "请核对条件作用对象、适用范围及扫描附件；资料库记录与本次投标证明材料分别核验",
                     evidences));
         }
 
@@ -191,10 +191,12 @@ public final class QualificationVetoPolicy {
         if (bidDoc != null) {
             evidences.add(EvidenceAssembler.locateBidSkippingCatalog(bidDoc, "标书资质响应证明", satisfied));
         }
-        String conclusion = "招标文件要求的一票否决资格项均已满足：【" + String.join("、", satisfied) + "】。";
-        return Optional.of(QualityCheckItemResult.pass(
+        String conclusion = "标书已检索到证书名称：【" + String.join("、", satisfied)
+                + "】；名称命中不能证明证书有效及全部资格条件满足，请逐项核验完整资格条件。";
+        return Optional.of(QualityCheckItemResult.manualReview(
                 BidQualityCheckItem.QUALIFICATION_VETO,
                 conclusion,
+                "请对照招标资格审查清单核验主体、财务、信用、业绩、纳税社保及相关证明；资质库命中不能替代本次投标证明材料核验",
                 evidences));
     }
 

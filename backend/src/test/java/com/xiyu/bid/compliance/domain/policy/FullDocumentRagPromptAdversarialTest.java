@@ -284,6 +284,9 @@ public class FullDocumentRagPromptAdversarialTest {
             if (r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode())) {
                 assertThat(r.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
                 assertThat(r.conclusion()).contains("尚需人工确认");
+            } else if (r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode())) {
+                assertThat(r.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+                assertThat(r.conclusion()).contains("完整资格条件");
             } else {
                 assertThat(r.status()).isEqualTo(QualityCheckStatus.PASS);
                 assertThat(r.conclusion()).contains("全标书分析通过");

@@ -280,7 +280,7 @@ class QualityEvidenceBoundaryTest {
             var pass = QualityCheckItemResult.pass(item, "已核验", List.of());
             var result = SemanticEvidenceBoundary.reconcile(pass, DocumentContent.empty());
             assertThat(result.status()).as(item.getCode()).isEqualTo(
-                    item == BidQualityCheckItem.QUALIFICATION_REVIEW
+                    item == BidQualityCheckItem.QUALIFICATION_REVIEW || item == BidQualityCheckItem.QUALIFICATION_VETO
                             ? QualityCheckStatus.MANUAL_REVIEW : QualityCheckStatus.PASS);
         }
     }

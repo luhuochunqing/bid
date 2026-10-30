@@ -27,7 +27,10 @@
 | `domain/policy/QualificationMatchPolicy.java` | Policy | 资质双向模糊匹配与三方比对清单纯核心算法（相关度打分优先、通用停用词防错配、国字头剥离与标书页码定位） |
 | `domain/policy/QualificationDetailReconciler.java` | Policy | 资质比对清单与总项裁决状态一致性校准纯核心策略（过期/未匹配一票否决降级 FAIL，需关注项降级 MANUAL_REVIEW） |
 | `domain/policy/DeterministicQualificationExtractor.java` | Policy | 招标文件硬性资格与专用资质确定性提取纯核心策略（通用主体资格与专用行业资质分流、导语过滤、序号标点清洗、Markdown 表格切分、长度门禁、评分与模板排除、双轨兜底） |
-| `domain/policy/QualificationVetoPolicy.java` | Policy | 标书一票否决与资格前置反假核验策略（占位符留白反假、实质性违规分包拦截、硬性资质满足直接PASS、缺失精简FAIL） |
+| `domain/policy/QualificationCondition.java` | Domain Model | 完整条件、来源及证书子项；作用对象、强制/可选/未知分开保存 |
+| `domain/policy/CertificateRequirementPolicy.java` | Policy | 证书候选沿用既有类型能力，子句作用域不明保留UNKNOWN与依据 |
+| `domain/policy/QualificationConditionExtractor.java` | Policy | 完整章节、表格单元格和连续段落组装，绑定实际原文来源 |
+| `domain/policy/QualificationVetoPolicy.java` | Policy | 占位与明确违规保留失败；证书名称命中与检索缺口转人工，不代表完整资格已通过 |
 | `domain/policy/DeterministicDepositExtractor.java` | Policy | 招标投标保证金/担保及政采响应担保确定性提取与免收识别纯核心策略 |
 | `domain/policy/RuleCitationContext.java` | Policy | 区分条件规则引用与投标人自身违规，按命中语境定位证据 |
 | `domain/policy/CommitmentSealCheckPolicy.java` | Policy | 承诺正文优先定位，目录/评分索引不作为签章事实 |
@@ -54,6 +57,10 @@
 - ISO标准码冲突禁止模糊匹配；查询与明细复用同标准最佳有效候选，保留过期/等级不足失败。
 - 财务须由同句明确义务建立要求，否定、目录和可选模板不得生成硬性审计要求。
 - 本次代码验证不替代部署后同文件hash强制重算；历史核查结果不会自动更新。
+
+- 结构化资格候选（2026-10-30，尚未交付）：旧JSON/构造兼容保留完整文本；UNKNOWN在引擎和明细中保持人工，已知过期事实不因其他未知条件被抹去。来源只有文件身份、页码及摘录在当前文档一致时进入报告。当前仍有阻断：已知强制证书的纯检索未命中会沿旧明细UNMATCHED分支判FAIL；三轮审查后已升级，不能据此宣称资格核查修复完成。
+
+- 人工确认后的R3材料事实映射：`QualificationDetail.Finding`区分LOOKUP_MISS、EVIDENCE_INCOMPLETE、MATCHED_REFERENCE、EXPIRED、GRADE_INSUFFICIENT、UNKNOWN；旧JSON不从备注猜测等级缺陷。校准使用事实原因，未命中及未证实的模型FAIL转人工，已证实过期、等级冲突及实际占位保持失败。证书独立level参与选证，原始名称仍用于定位；本地验证及审查见`.omc/*quality1030-material.md`，不代表生产报告已重算。
 
 - spec079 安全兜底：财务核查及复合资格性评审的自动 PASS 统一转 MANUAL_REVIEW，规则入口、LLM 入口和引擎输出共享边界；保留证据与明细，不代表财务条款解析已完成修复。
 

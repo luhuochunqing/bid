@@ -30,9 +30,9 @@ public final class DeterministicRequirementsFuser {
         TenderRequirements req = base;
         String text = tenderDoc.fullText();
 
-        List<String> detQuals = DeterministicQualificationExtractor.extract(text);
+        List<QualificationCondition> detQuals = QualificationConditionExtractor.extractStructured(tenderDoc);
         if (!detQuals.isEmpty()) {
-            req = req.withMergedQualifications(detQuals);
+            req = req.withMergedQualificationConditions(detQuals);
         }
         DepositRequirement detDeposit = DeterministicDepositExtractor.extract(text);
         if (detDeposit != null) {

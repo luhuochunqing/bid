@@ -131,7 +131,7 @@ public class BidQualityCheckAsyncExecutor {
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)
             progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING, 60, "正在对照企业知识库并执行25项质量核查...");
 
-            List<String> requiredCerts = requirements.mandatoryQualifications();
+            List<String> requiredCerts = requirements.certificateRequirements();
             String caPlatformKeyword = requirements.caCertificateRequirement() != null
                     ? requirements.caCertificateRequirement().platformName()
                     : null;
@@ -168,14 +168,15 @@ public class BidQualityCheckAsyncExecutor {
 
             // 组装资质比对结构化清单（招标要求 vs 我司证书 vs 标书页码）
             List<QualificationDetail> qualDetails = QualificationMatchPolicy.buildDetails(
-                    requirements.mandatoryQualifications(),
+                    requirements.certificateRequirements(),
                     kbLoader != null ? kbLoader.findAllQualifications() : List.of(),
                     bidDoc,
                     LocalDate.now());
             if (!qualDetails.isEmpty()) {
+                TenderRequirements finalRequirements = requirements;
                 itemResults = itemResults.stream()
                         .map(r -> BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(r.itemCode())
-                                ? QualificationDetailReconciler.reconcile(r, qualDetails)
+                                ? QualificationDetailReconciler.reconcile(r, qualDetails, finalRequirements, bidDoc)
                                 : r)
                         .toList();
             }

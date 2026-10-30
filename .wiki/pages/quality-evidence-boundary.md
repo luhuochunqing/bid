@@ -6,11 +6,13 @@ tags: [质量核查, 证据, FP-Java]
 sources:
   - docs/lessons/lessons-learned.md
   - specs/079-quality-evidence-context/spec.md
+  - specs/20261032-quality-evidence-semantics/data-model.md
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationCondition.java
 backlinks:
   - _index
 created: 2026-10-25
-updated: 2026-10-25
-health_checked: 2026-10-25
+updated: 2026-10-30
+health_checked: 2026-10-30
 ---
 
 # 标书质量核查证据边界
@@ -25,3 +27,16 @@ health_checked: 2026-10-25
 
 
 2026-10-25 人工升级安全范围：用户要求“不要假通过”。财务解析器仍有“无需审计报告但须资产负债表”的对象范围缺陷。暂禁财务与复合资格性评审自动PASS，规则/LLM/最终引擎共用转换为人工确认；不把待确认等同失败或通过。旧三轮NEEDS_FIXES保持有效，不宣称条款解析已修复或生产已上线。
+
+## 2026-10-30 资格结构化候选（未交付）
+
+- 完整资格条件、证书子项、来源与适用性分开；证书库只接收证书查询参考，不能替代本次投标证明。
+- UNKNOWN条件不因检索未匹配升级失败；已知过期事实不能被其他未知条件抹去。来源只有文件身份、实际页与摘录一致才进入报告，仍沿用逻辑页口径。
+- 当前阻断：已知强制条件的UNMATCHED仍可进入旧校准FAIL分支，无材料缺失证据；三轮后跨模型审查NEEDS_FIXES。906项检查绿、1冻结回放跳过均不代表修复闭环或生产验收。
+- 后续需区分材料检索状态与已证实缺陷事实，见教训479及当前规格；保留源码候选，未提交/部署/生产重核查。
+
+## 人工确认后的R3材料事实映射
+
+- 检索未命中与已证实缺陷分字段；LOOKUP_MISS、EVIDENCE_INCOMPLETE、UNKNOWN只支持人工，不能从备注或模型FAIL推断材料缺失。已证实过期、实际等级冲突及真实占位独立保留失败。
+- 独立level必须参与等级比较，但不能替代原始证书名称的定位词，否则名称与等级分行的证明会丢失页码。新验证和审查单独记录于`.omc/*quality1030-material.md`，不覆盖前周期失败结论。
+- 仍需后续完成独立N/A状态、偏离表适用性与页码口径；本次没有生产重算或上线验收。

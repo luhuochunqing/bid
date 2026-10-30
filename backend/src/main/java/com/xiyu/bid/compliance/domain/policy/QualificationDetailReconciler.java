@@ -19,14 +19,50 @@ import java.util.List;
  * <p>解决双轨脱节问题：
  * <ul>
  *   <li>任何资质过期（EXPIRED）或等级不足：一票否决，强制判定 FAIL（不通过）；</li>
- *   <li>存在未匹配项（UNMATCHED）：在资质库与标书均未检索到有效证明，存在废标风险，绝不得放行 PASS，强制降级为 FAIL；</li>
+ *   <li>检索未命中或证明事实不完整：只能转为 MANUAL_REVIEW，不能据此认定材料缺失；</li>
  *   <li>存在需关注项（ATTENTION）：资质库未维护但标书有疑似证明，或即将过期，若原状态为 PASS，降级为 MANUAL_REVIEW（待确认）；</li>
  *   <li>全量满足（MATCHED）：保持原状态（通常为 PASS）。</li>
  * </ul>
  */
 public final class QualificationDetailReconciler {
 
+    public static QualityCheckItemResult reconcile(final QualityCheckItemResult raw,
+            final List<QualificationDetail> details, final TenderRequirements requirements) {
+        return reconcile(raw, details, requirements, null);
+    }
+
+    public static QualityCheckItemResult reconcile(final QualityCheckItemResult raw,
+            final List<QualificationDetail> details, final TenderRequirements requirements,
+            final com.xiyu.bid.compliance.domain.DocumentContent bidDoc) {
+        if (raw == null) return null;
+        if (!BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(raw.itemCode())) return raw.withDetails(details);
+        List<QualificationDetail> entries = (details == null ? List.<QualificationDetail>of() : details).stream()
+                .filter(d -> d != null).map(QualificationDetailReconciler::validateFinding).toList();
+        var hardDefect = QualificationMatchPolicy.checkFirstStage(bidDoc, requirements);
+        if (hardDefect.isPresent()) return hardDefect.orElseThrow().withDetails(entries);
+        if (requirements == null || !requirements.hasUnresolvedCertificateRequirements()
+                && entries.stream().noneMatch(d -> requirements.isUnresolvedCertificateRequirement(d.requirement()))) return reconcile(raw, entries);
+        List<QualificationDetail> references = entries.stream()
+                .map(d -> !requirements.isUnresolvedCertificateRequirement(d.requirement()) ? d : new QualificationDetail(d.requirement(), d.matchedCertName(),
+                        "ATTENTION", d.bidPageNumber(), d.bidQuote(), d.remainingDays(),
+                        "[UNKNOWN] 条件强制性或作用对象待确认；原检索状态=" + d.status() + "；" + d.remark(), d.finding())).toList();
+        var pending = QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
+                "证书条件适用范围尚未确认，资料检索不能证明资格满足或缺失", "请按原文逐项确认", raw.evidences());
+        List<QualificationDetail> known = entries.stream().filter(d -> !requirements.isUnresolvedCertificateRequirement(d.requirement())).toList();
+        return reconcile(pending, known).withDetails(references);
+    }
+
     private QualificationDetailReconciler() {
+    }
+
+    private static QualificationDetail validateFinding(final QualificationDetail detail) {
+        if (detail.finding() == QualificationDetail.Finding.GRADE_INSUFFICIENT
+                && (detail.matchedCertName().isBlank()
+                    || QualificationGradePolicy.isGradeCompatible(detail.requirement(), detail.matchedCertName()))) {
+            return new QualificationDetail(detail.requirement(), detail.matchedCertName(), "ATTENTION", detail.bidPageNumber(),
+                    detail.bidQuote(), detail.remainingDays(), "等级冲突尚未得到实际比较证明；" + detail.remark(), QualificationDetail.Finding.UNKNOWN);
+        }
+        return detail;
     }
 
     /**
@@ -48,21 +84,20 @@ public final class QualificationDetailReconciler {
         if (!BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(rawResult.itemCode())) {
             return rawResult.withDetails(details);
         }
+        List<QualificationDetail> checked = details.stream().filter(d -> d != null)
+                .map(QualificationDetailReconciler::validateFinding).toList();
 
         List<QualificationDetail> expiredList = new ArrayList<>();
-        List<QualificationDetail> unmatchedList = new ArrayList<>();
+        List<QualificationDetail> gradeDefects = new ArrayList<>();
+        List<QualificationDetail> unproven = new ArrayList<>();
         List<QualificationDetail> attentionList = new ArrayList<>();
 
-        for (QualificationDetail d : details) {
-            if (d == null) {
-                continue;
-            }
-            String status = d.status() != null ? d.status().toUpperCase() : "UNMATCHED";
-            switch (status) {
-                case "EXPIRED" -> expiredList.add(d);
-                case "UNMATCHED" -> unmatchedList.add(d);
-                case "ATTENTION" -> attentionList.add(d);
-                default -> { }
+        for (QualificationDetail d : checked) {
+            switch (d.finding()) {
+                case EXPIRED -> expiredList.add(d);
+                case GRADE_INSUFFICIENT -> gradeDefects.add(d);
+                case LOOKUP_MISS, EVIDENCE_INCOMPLETE, UNKNOWN -> unproven.add(d);
+                case MATCHED_REFERENCE -> { if ("ATTENTION".equals(d.status())) attentionList.add(d); }
             }
         }
 
@@ -77,38 +112,40 @@ public final class QualificationDetailReconciler {
             return new QualityCheckItemResult(
                     rawResult.itemCode(), rawResult.category(), rawResult.title(), rawResult.description(),
                     QualityCheckStatus.FAIL, rawResult.severity(), rawResult.order(),
-                    conclusion, suggestion, rawResult.evidences(), details);
+                    conclusion, suggestion, rawResult.evidences(), checked);
         }
 
-        // 2. 存在未匹配硬性资质：资质库与标书均缺失，存在废标风险，强制为 FAIL
-        if (!unmatchedList.isEmpty()) {
-            List<String> missingReqs = unmatchedList.stream()
+        // 2. 等级比较已形成明确事实；与纯检索未命中分开
+        if (!gradeDefects.isEmpty()) {
+            List<String> missingReqs = gradeDefects.stream()
                     .map(QualificationDetail::requirement)
                     .filter(r -> r != null && !r.isBlank())
                     .toList();
-            String conclusion = "【资质未匹配】招标文件要求的硬性资质（" + String.join("；", missingReqs)
-                    + "）在企业资质库及投标文件中均未检索到对应证明材料，存在实质性偏离或废标风险；"
+            String conclusion = "【资质等级不足】招标证书要求（" + String.join("；", missingReqs)
+                    + "）与已匹配企业证书的等级不符；"
                     + cleansePassPhrasesForFail(rawResult.conclusion());
             String suggestion = "请在投标文件中完整补充对应资质证明材料或更新企业资质库";
             return new QualityCheckItemResult(
                     rawResult.itemCode(), rawResult.category(), rawResult.title(), rawResult.description(),
                     QualityCheckStatus.FAIL, rawResult.severity(), rawResult.order(),
-                    conclusion, suggestion, rawResult.evidences(), details);
+                    conclusion, suggestion, rawResult.evidences(), checked);
         }
 
-        // 缺证断言与全量已匹配事实冲突时转人工；不覆盖占位、主体不符等其他真实失败。
-        if (rawResult.status() == QualityCheckStatus.FAIL
-                && details.stream().allMatch(d -> d != null && d.matchedCertName() != null && !d.matchedCertName().isBlank())
-                && rawResult.conclusion().matches("(?s).*(?:未.*匹配|未.*录入|缺少.*证书|没有.*证书).*")
-                && !rawResult.conclusion().matches("(?s).*(?:占位|留白|伪造|主体.*不一|等级不足).*")) {
-            return new QualityCheckItemResult(rawResult.itemCode(), rawResult.category(), rawResult.title(), rawResult.description(),
-                    QualityCheckStatus.MANUAL_REVIEW, rawResult.severity(), rawResult.order(),
-                    "[" + ManualReasons.MANUAL_REVIEW_REQUIRED + "] 原资质缺失结论与企业资质库匹配明细不一致，请人工核对证书正文及有效期",
-                    "请对照逐项匹配明细核对证书，不得仅依据冲突的缺失结论判定不合格", rawResult.evidences(), details);
+        if (!unproven.isEmpty() || rawResult.status() == QualityCheckStatus.FAIL) {
+            List<QualificationDetail> references = checked.stream()
+                    .map(d -> unproven.contains(d) ? d.pendingReview() : d).toList();
+            return QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
+                    "[" + ManualReasons.EVIDENCE_INSUFFICIENT + "] 证明材料事实尚未确认，检索未命中或模型失败结论不能证明材料缺失",
+                    "请核验原始证明及扫描附件，检索状态只作参考", rawResult.evidences()).withDetails(references);
         }
 
         // 3. 存在需关注项（ATTENTION）：区分仅临期 vs 资质库未维护
         if (!attentionList.isEmpty() && rawResult.status() == QualityCheckStatus.PASS) {
+            if (attentionList.stream().anyMatch(d -> d.bidPageNumber() == null && !d.matchedCertName().isBlank())) {
+                return QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
+                        "资质库已检索到证书，但本次投标文件证明尚未可靠定位，不能据此判定已提供",
+                        "请核对实际证明页及扫描附件；资料库记录与投标材料分别核验", rawResult.evidences()).withDetails(checked);
+            }
             List<QualificationDetail> expiringList = attentionList.stream()
                     .filter(d -> d.matchedCertName() != null && !d.matchedCertName().isBlank())
                     .toList();
@@ -140,11 +177,11 @@ public final class QualificationDetailReconciler {
             return new QualityCheckItemResult(
                     rawResult.itemCode(), rawResult.category(), rawResult.title(), rawResult.description(),
                     QualityCheckStatus.MANUAL_REVIEW, rawResult.severity(), rawResult.order(),
-                    conclusion, suggestion, rawResult.evidences(), details);
+                    conclusion, suggestion, rawResult.evidences(), checked);
         }
 
         // 4. 全量 MATCHED 或非 PASS 原始状态保持
-        return rawResult.withDetails(details);
+        return rawResult.withDetails(checked);
     }
 
     /**

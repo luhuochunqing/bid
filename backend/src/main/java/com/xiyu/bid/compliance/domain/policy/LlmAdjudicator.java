@@ -165,7 +165,8 @@ public final class LlmAdjudicator {
             return "（招标要求不可用）";
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("硬性资格要求: ").append(String.join("；", requirements.mandatoryQualifications())).append('\n');
+        sb.append("资格条件结构化依据（UNKNOWN必须人工复核，产品/人员证书不得当作企业资质）: ")
+                .append(requirements.qualificationConditions()).append('\n');
         sb.append("评分项: ").append(requirements.scoringItems().stream()
                 .map(TenderRequirements.ScoringItem::name).collect(Collectors.joining("；"))).append('\n');
         sb.append("否决条款: ").append(requirements.vetoClauses().stream()

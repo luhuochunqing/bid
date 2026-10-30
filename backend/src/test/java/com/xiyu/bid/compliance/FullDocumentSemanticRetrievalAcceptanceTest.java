@@ -339,6 +339,9 @@ public class FullDocumentSemanticRetrievalAcceptanceTest {
                 if (result.itemCode().equals(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode())) {
                     assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
                     assertThat(result.conclusion()).contains("尚需人工确认");
+                } else if (result.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode())) {
+                    assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+                    assertThat(result.conclusion()).contains("完整资格条件");
                 } else {
                     assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
                     assertThat(result.conclusion()).contains("全标书语义裁决通过");

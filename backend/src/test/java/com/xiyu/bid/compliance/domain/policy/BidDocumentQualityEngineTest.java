@@ -16,6 +16,43 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class BidDocumentQualityEngineTest {
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "不得要求投标人具有ISO9001认证", "投标人须具备ISO9001认证或ITSS二级资质"})
+    void unresolvedNegationOrAlternativeCannotBecomeModelPass(String condition) {
+        var req = TenderRequirements.empty().withMergedQualifications(List.of(condition));
+        var bid = DocumentContent.fromText("bid.pdf", "qualification-input", condition);
+        var llm = new LlmAdjudicator(prompt -> LlmVerdict.success(new LlmVerdict("PASS", "", "比对通过", "")));
+        var result = BidDocumentQualityEngine.evaluateAll(bid, DocumentContent.empty(), List.of(), req,
+                Set.of(), llm, (p, s) -> { }).stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_MATCH.getCode())).findFirst().orElseThrow();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"PASS", "FAIL"})
+    void unknownCertificateObligationCannotBeDecidedByModel(String decision) {
+        var req = TenderRequirements.empty().withMergedQualifications(List.of("ISO9001认证"));
+        var bid = DocumentContent.fromText("bid.pdf", "qualification-input", "资质材料\nISO9001认证");
+        var llm = new LlmAdjudicator(prompt -> LlmVerdict.success(new LlmVerdict(decision, "", "模型给出的资质结论", "")));
+        var result = BidDocumentQualityEngine.evaluateAll(bid, DocumentContent.empty(), List.of(), req,
+                Set.of(), llm, (p, s) -> { }).stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_MATCH.getCode())).findFirst().orElseThrow();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @Test
+    void modelPassCannotCertifyUnprovenCompleteQualificationConditions() {
+        var req = TenderRequirements.empty().withMergedQualifications(List.of("独立法人", "近三年类似项目业绩"));
+        var bid = DocumentContent.fromText("bid.pdf", "qualification-input", "投标函\n我方承诺响应招标要求。");
+        var llm = new LlmAdjudicator(prompt -> LlmVerdict.success(
+                new LlmVerdict("PASS", "", "资格全部满足", "")));
+        var results = BidDocumentQualityEngine.evaluateAll(bid, DocumentContent.empty(), List.of(), req,
+                Set.of(), llm, (p, s) -> { });
+        assertThat(results.stream().filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))
+                .findFirst().orElseThrow().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
     @Test
     void evaluateAll_caRepositoryFailure_preservesIndependentPlaceholderFailure() {
         TenderRequirements req = TenderRequirements.empty().withCaCertificateRequirement(
@@ -56,7 +93,7 @@ class BidDocumentQualityEngineTest {
 
     @Test
     @DisplayName("一票否决项测试：提取的招标硬性要求 ISO27001 且标书缺失时断言 FAIL")
-    void testQualificationVeto_WhenMissingRequiredCertificate_Fails() {
+    void testQualificationVeto_WhenRequiredCertificateNotLocated_RequiresReview() {
         String tenderText = "一票否决条款：投标人必须具备 ISO27001 信息安全认证证书。";
         DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "hash_t", tenderText);
         String bidContent = "项目名称：测试\n投标人：西域\n2026年\n具备 ISO9001 认证";
@@ -75,7 +112,7 @@ class BidDocumentQualityEngineTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(vetoResult.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(vetoResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(vetoResult.conclusion()).contains("ISO27001");
         assertThat(vetoResult.evidences()).isNotEmpty();
     }

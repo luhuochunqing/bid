@@ -1,0 +1,16 @@
+# Data model decisions
+## Qualification
+### 人工裁决后的结构化模型（当前有效）
+用户同意调整后开启新周期。TenderRequirements新增qualificationConditions，旧mandatoryQualifications继续兼容并保留完整文本投影。QualificationCondition包含text、Source（fileName/fileHash/pageNumber/quote）、CertificateRequirement列表；证书子项包含requirementText、target（BIDDER/PRODUCT/PERSON/UNKNOWN）、applicability（MANDATORY/OPTIONAL/UNKNOWN）、basis原文、cellIndex（原表格单元格索引，未知为空）。来源缺失必须UNKNOWN，不能从AI页号推定。条件解析未知仍保留，证书UNKNOWN允许检索参考但不能自动FAIL/PASS；OPTIONAL不作为强制资格。条件作用域按子句或单元格判定，不以全文“如有”排除证书。结构化行依据表头单元格角色识别，不能因数据含“资格要求”丢弃。merge/所有with方法均保留来源与证书作用域；最终资格结论仍人工确认。页码沿用当前文档逻辑页，不宣称已完成US4物理页体系修复。
+
+当前候选未完成：已知适用条件下，旧材料明细仍把检索状态UNMATCHED直接映射FAIL。材料事实是否已证实是独立维度，不能由MANDATORY/BIDDER推定；须在人工裁决后的后续周期补原因/事实状态。LLM外部解析器仍只接收完整条件文本，不接受模型自报可信来源；内部对象JSON往返保留结构化来源。
+
+以下为上一周期的兼容字段约定；证书子集整句过滤已废止，由上述结构化投影替代。
+保留mandatoryQualifications名称但语义改为完整资格条件；增加certificateRequirements()访问器显式过滤证书子集。旧JSON沿用旧字段，历史证书子集不具有完整性证明；全部资格审查默认人工确认，直至每项具有实证。withMergedQualifications和merge不能丢弃非证书条件。证书查询/明细/资质匹配仅消费certificateRequirements；资格否决和资格审查消费完整列表。提示词明确资格与附件独立。复用extractGeneralCapacities但不宣称其覆盖完整资格文法；未分类条款保留而非删除。
+## Applicability
+QualityCheckStatus新增NOT_APPLICABLE。totalCount保留全部矩阵项目；passedCount仅PASS，failedCount仅FAIL，manualCount仅MANUAL_REVIEW，notApplicableCount单独表示。若展示通过率，其分母为totalCount-notApplicableCount，分母零时不显示百分比。明确免收/不要求的确定性结果可生成N/A；无要求证据不能生成N/A。引擎所有确定性豁免保护与保证金退款联动接受N/A；LLM不得仅凭文本“未要求”独立生成N/A。历史PASS+明确不涉及前缀可兼容展示，但不覆写历史持久化结果或伪称其有新状态。
+## Position
+PageContent保留pageNumber作为引擎内部逻辑索引，新增sourceFileName、sourcePageNumber、paginationSource。来源为PHYSICAL、VIRTUAL、UNKNOWN。旧三参构造来源UNKNOWN；结构化转换器显式有效页号才标PHYSICAL，无页号/重复页号保留独立逻辑索引但来源UNKNOWN。保留空白页；物理页跨度用于跨册图片偏移，不能按非空页数。图片原页映射到与文本相同逻辑索引；无法映射时不得捏造定位。
+QualityEvidence新增上述位置字段，旧构造兼容UNKNOWN。最终引擎统一按实际命中逻辑页补来源，外壳JSON自动保留；前端旧字段无来源时显示“报告定位页（口径未知）”。虚拟页显示“文本分段”，不作为PDF跳页依据。印刷页仅有可靠解析证据时提供，不猜测。
+## Deviation applicability
+新增DeviationRequirement(required:Boolean,description,sourcePage)，通过TenderRequirements保留。确定性提取招标明确的偏离表要求和豁免，冲突为未知；parser、extractor prompt、merge/with方法均保留。SemanticRulesLane传给ResponsivenessReviewPolicy。缺表仅required=true时作缺失候选且证据不足转人工；未知待确认；明确不要求N/A。实际存在的负偏离必须在适用性判断前检查。最终引擎阻止模型在未知适用性下硬判缺表。

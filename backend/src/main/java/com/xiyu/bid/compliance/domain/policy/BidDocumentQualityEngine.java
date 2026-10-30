@@ -272,7 +272,8 @@ public final class BidDocumentQualityEngine {
         List<QualityCheckItemResult> sorted = new ArrayList<>();
         for (QualityCheckItemResult result : resultMap.values()) {
             sorted.add(SemanticEvidenceBoundary.reconcile(AuthorizationLetterCheckPolicy.enforcePositiveContract(
-                    result, bidDoc, effective.authorizationRequirement()), bidDoc));
+                    SemanticEvidenceBoundary.reconcileQualificationApplicability(result, bidDoc, effective),
+                    bidDoc, effective.authorizationRequirement()), bidDoc));
         }
         sorted.sort(Comparator.comparingInt(QualityCheckItemResult::order));
         return sorted;

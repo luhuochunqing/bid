@@ -76,7 +76,7 @@ public final class EvidenceAssembler {
         switch (item) {
             case QUALIFICATION_MATCH -> {
                 if (requirements != null && requirements.mandatoryQualifications() != null) {
-                    for (String qual : QualificationMatchPolicy.expandCombinedIsoRequirements(requirements.mandatoryQualifications())) {
+                    for (String qual : QualificationMatchPolicy.expandCombinedIsoRequirements(requirements.certificateRequirements())) {
                         if (qual != null && !qual.isBlank() && DeterministicQualificationExtractor.isSpecificCertificate(qual)) {
                             evidences.add(locateTender(tenderDoc, "招标文件资质要求", List.of(qual)));
                             evidences.add(locateBidSkippingCatalog(bidDoc, "资质证明材料正文", List.of(qual)));
@@ -87,11 +87,9 @@ public final class EvidenceAssembler {
                 appendKnowledgeEvidences(evidences, kbEvidences, Set.of(KnowledgeMatch.SOURCE_QUALIFICATION));
             }
             case QUALIFICATION_VETO -> {
-                if (requirements != null && requirements.mandatoryQualifications() != null) {
-                    for (String qualification : QualificationMatchPolicy.expandCombinedIsoRequirements(requirements.mandatoryQualifications())) {
-                        if (qualification != null && !qualification.isBlank()) {
-                            evidences.add(locateTender(tenderDoc, "招标文件资质要求", List.of(qualification)));
-                        }
+                if (requirements != null) {
+                    for (QualificationCondition condition : requirements.qualificationConditions()) {
+                        evidences.add(qualificationSource(tenderDoc, condition));
                     }
                 }
                 if (requirements != null && requirements.vetoClauses() != null) {
@@ -163,6 +161,16 @@ public final class EvidenceAssembler {
             }
         }
         return evidences;
+    }
+
+    private static QualityEvidence qualificationSource(final DocumentContent document, final QualificationCondition condition) {
+        var source = condition.source();
+        if (document != null && source.pageNumber() != null && !source.quote().isBlank()
+                && source.fileHash().equals(document.fileHash()) && source.fileName().equals(document.fileName())
+                && document.pages().stream().anyMatch(p -> p.pageNumber() == source.pageNumber() && p.text().contains(source.quote()))) {
+            return QualityEvidence.tender("招标文件完整资格条件", source.pageNumber(), source.quote());
+        }
+        return locateTender(document, "招标文件资格条件（来源待定位）", List.of(condition.text()));
     }
 
     /** 附加知识库证据（上限 {@link #MAX_KB_EVIDENCES}，按白名单源过滤）并返回合并后的证据列表. */
