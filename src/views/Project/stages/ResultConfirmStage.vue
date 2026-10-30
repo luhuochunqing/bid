@@ -172,6 +172,15 @@
     </el-card>
 
 
+    <el-alert
+      v-if="precipitationTask?.status === 'FAILED'"
+      :title="precipitationStatusText"
+      type="error"
+      :closable="false"
+      show-icon
+      role="alert"
+    />
+
     <!-- 操作按钮 -->
     <div v-if="hasOperableRole" class="btn-container">
       <template v-if="resultDone">
@@ -394,7 +403,7 @@ async function load() {
   } catch (e) { if (e?.response?.status !== 404) console.warn(e) }
 }
 
-const { precipitating, statusText: precipitationStatusText, trigger: triggerTask } =
+const { task: precipitationTask, precipitating, statusText: precipitationStatusText, trigger: triggerTask } =
   useCasePrecipitationTask(computed(() => props.projectId))
 const precipitateReady = ref(false)
 const precipitateTooltip = ref('')

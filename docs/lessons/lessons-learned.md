@@ -7877,3 +7877,10 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   2. 后端：`TenderExcelParser` 增加空文件守卫，当总数据行数为 0 且无错误时，明确返回文件错误「Excel 文件中未包含任何有效数据行，请填写数据后再上传」，防止空文件静默通过或错乱。
   3. 前端：`BulkImportDialog.vue` 将错误表格展示条件调整为 `v-if="Boolean(result.errors?.length)"`，确保只要有错误明细即展示；对 `totalRows` 和 `failureCount` 增加自动兜底计算；补全 `FIELD_LABELS` 常见字段中文标签；模板提示中突出显示客户类型、优先级、项目类型必填说明。
   4. 自动化测试：补充 `TenderImportTaskStateServiceTest`、`TenderImportAppServiceTest` 行去重统计与 `BulkImportDialog.spec.js` 0 计数兜底单测。
+
+## 478. 案例生成失败原因必须贯通任务状态、通知与页面（2026-10-30）
+
+- **根因**：Listener 给通知传递异常消息，但任务统一保存“请稍后重试”；前端只在按钮忙碌时显示任务状态，FAILED 后提示消失。
+- **业务边界**：结果登记后立即触发是正确流程；无评分项应失败并提示先解析评分项。文件处理配额保持不变，超限应说明实际大小与上限。
+- **修复**：纯转换规则生成用户可读原因和下一步；同一原因写入任务和通知；两个阶段页面持续显示失败原因，刷新恢复。原始异常只保留日志，不将存储路径、上游响应暴露给用户。
+- **回归**：真实 MySQL 保存后重新查询失败原因、监听器验证任务/通知一致、真实 HTTP 下载配额拒绝，以及两个页面刷新后的错误提示。

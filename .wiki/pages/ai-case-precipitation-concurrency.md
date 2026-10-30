@@ -11,8 +11,8 @@ backlinks:
   - docs/lessons/lessons-learned.md
   - .wiki/pages/case-precipitation-streaming.md
 created: 2026-10-23
-updated: 2026-10-23
-health_checked: 2026-10-23
+updated: 2026-10-30
+health_checked: 2026-10-30
 archive: false
 ---
 
@@ -49,3 +49,11 @@ archive: false
 - 新增 `case_precipitation_task` 持久化审计表与 V/U 迁移。
 - 手动触发与结果登记自动触发共用同一 projectId 门禁。
 - 状态接口必须执行项目访问范围校验，不能暴露其他项目任务信息。
+
+## 失败原因展示（2026-10-30）
+
+- 结果登记后立即自动触发是业务契约；缺少评分项应 FAILED，不延迟触发、不静默跳过。
+- `CasePrecipitationFailureMessages` 是纯转换规则：前置条件、下载、转换、AI 服务、配额等异常转为原因和下一步；不向用户透传原始响应/路径。
+- `ProjectClosedEventListener` 将同一 reason 保存到任务并发送通知；前端通过最新任务 GET 恢复，结果登记与结项页面持续显示失败提示。
+- 单文件配额拒绝携带实际字节数和本次配置上限，条件保持不变；不要建议用户对不可恢复的配额错误反复重试。
+- 副作用：改变的是后续任务的错误文案；不回填历史通知/任务，不调整触发时机或文件配额。

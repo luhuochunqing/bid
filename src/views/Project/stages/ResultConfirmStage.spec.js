@@ -45,11 +45,12 @@ vi.mock('@/api/modules/competitionIntel.js', () => ({
 
 const checkPrecipitationReadinessMock = vi.fn()
 const precipitateCasesMock = vi.fn()
+const getPrecipitationTaskMock = vi.fn().mockResolvedValue(null)
 vi.mock('@/api/modules/knowledge.js', () => ({
   casesApi: {
     checkPrecipitationReadiness: (...args) => checkPrecipitationReadinessMock(...args),
     precipitateCases: (...args) => precipitateCasesMock(...args),
-    getPrecipitationTask: vi.fn().mockResolvedValue(null),
+    getPrecipitationTask: (...args) => getPrecipitationTaskMock(...args),
   },
 }))
 
@@ -70,6 +71,17 @@ describe('ResultConfirmStage CO-408 回填凭证文件名', () => {
     vi.clearAllMocks()
     getDocumentsMock.mockReset()
     getResultMock.mockReset()
+  })
+
+  it('刷新页面后直接展示案例失败原因，按钮恢复后仍保留说明', async () => {
+    getResultMock.mockResolvedValue({ data: { resultType: 'WON', evidenceFileIds: [], competitors: [] } })
+    getPrecipitationTaskMock.mockResolvedValueOnce({ status: 'FAILED', message: '案例生成失败：该项目缺少评分项。请先完成评分项解析，再重新生成。' })
+    const { default: ResultConfirmStage } = await import('./ResultConfirmStage.vue')
+    const wrapper = mount(ResultConfirmStage, { props: { projectId: 1 }, global: { plugins: [ElementPlus] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('该项目缺少评分项')
+    expect(wrapper.text()).toContain('请先完成评分项解析')
+    wrapper.unmount()
   })
 
   it('load 时根据 evidenceFileIds 拉取项目文档并回填 evidenceFiles', async () => {

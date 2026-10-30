@@ -53,3 +53,11 @@ new PENDING task -> AFTER_COMMIT dispatcher -> scoreParseExecutor
 - 后端：领取并发、文件隔离、陈旧恢复、fencing、控制器契约、现有案例沉淀回归。
 - 前端：刷新恢复、轮询终态、可见性、卸载清理、两个页面复用。
 - 治理：迁移校验、ArchitectureTest、定向 Maven/Vitest、构建与代码审查。
+
+## 失败说明修复计划（2026-10-30）
+
+1. RED：监听器原因丢失与页面失败提示缺失。
+2. application 纯映射器统一用户提示；监听器保存/通知复用同一 reason；下载器仅给已有异常补实际值/上限。
+3. 两阶段页面复用任务状态持续显示 ElAlert；新任务清除旧原因。
+4. 定向 JUnit/Vitest、MySQL 持久化、真实 HTTP 配额与构建/架构检查；独立审查。
+5. 不改变事件、配额、数据库结构，不写生产、不追补历史数据。

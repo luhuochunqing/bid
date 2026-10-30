@@ -80,6 +80,7 @@ class ProjectClosedEventListenerStreamingTest {
     private TransactionTemplate transactionTemplate;
     private PlatformTransactionManager txManager;
     private ProjectClosedEventListener listener;
+    private CasePrecipitationTaskStateService taskStateService;
 
     @TempDir
     Path tempDir;
@@ -108,7 +109,7 @@ class ProjectClosedEventListenerStreamingTest {
         transactionTemplate = new TransactionTemplate(txManager);
         BidDocumentLoader bidDocumentLoader = new BidDocumentLoader(archiveRepository, fileRepository,
                 docTextExtractor, obsShareUrlSigner, streamingFetcher, streamTextExtractor, tempBidFileStore);
-        CasePrecipitationTaskStateService taskStateService = mock(CasePrecipitationTaskStateService.class);
+        taskStateService = mock(CasePrecipitationTaskStateService.class);
         var taskView = new CasePrecipitationTaskStateService.TaskView(
                 "task-test", 1L, "PENDING", "等待执行", null, null, null, null, null);
         when(taskStateService.claim(anyLong(), any()))
@@ -143,6 +144,29 @@ class ProjectClosedEventListenerStreamingTest {
         when(tenderRepository.findById(any())).thenReturn(Optional.empty());
         when(bidResultRepository.findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(
                 anyLong(), any())).thenReturn(Optional.empty());
+    }
+
+    @Test
+    void quotaFailurePersistsExactlyTheNotificationReason() throws Exception {
+        when(streamingFetcher.fetch(any(), any(), any(), any())).thenThrow(
+                new com.xiyu.bid.scoreparse.application.BidFileQuotaException(1603796578L, 1073741824L));
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "大文件项目"));
+        ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
+        verify(notifier).notifyFailure(anyLong(), any(), reason.capture(), any(), any());
+        assertThat(reason.getValue()).contains("1603796578", "1073741824").doesNotContain("稍后重试");
+        verify(taskStateService).fail("task-test", reason.getValue());
+        verify(knowledgeCaseRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void automaticMissingScoringItemsPersistsExactlyTheNotificationReason() {
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of());
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "无评分项项目"));
+        ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
+        verify(notifier).notifyFailure(anyLong(), any(), reason.capture(), any(), any());
+        assertThat(reason.getValue()).contains("缺少评分项", "完成评分项解析", "重新生成");
+        verify(taskStateService).fail("task-test", reason.getValue());
+        verify(knowledgeCaseRepository, never()).saveAll(any());
     }
 
     private CaseAiMatcher.AiMatchedSlice slice(Long draftId, String text) {
@@ -208,7 +232,8 @@ class ProjectClosedEventListenerStreamingTest {
 
             ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
             verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
-            assertThat(reasonCaptor.getValue()).contains("流式下载 OBS 标书失败");
+            assertThat(reasonCaptor.getValue()).contains("标书下载失败").doesNotContain("obs-direct:");
+            verify(taskStateService).fail("task-test", reasonCaptor.getValue());
             assertThat(Thread.currentThread().isInterrupted()).isFalse();
             verify(knowledgeCaseRepository, never()).saveAll(any());
             verify(tempBidFileStore, times(1)).release("task-test");
@@ -218,7 +243,7 @@ class ProjectClosedEventListenerStreamingTest {
     }
 
     @Test
-    @DisplayName("OBS OnDisk 流式提取失败(Runtime 透传) -> notifyFailure 原样透出原因 + 不入库 + finally release")
+    @DisplayName("OBS OnDisk 流式提取失败(Runtime 透传) -> notifyFailure 使用用户可读原因 + 不入库 + finally release")
     void onDiskExtractFailure_notifiesFailureAndReleases() throws Exception {
         when(streamingFetcher.fetch(any(), any(), any(), any()))
                 .thenReturn(new LoadedBidFile.OnDisk(tempDir.resolve("task-test.part"), "bid.pdf", "application/octet-stream"));
@@ -227,7 +252,7 @@ class ProjectClosedEventListenerStreamingTest {
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
-        // RuntimeException（如 422 解析失败）原样透传，失败原因不丢失
+        // 保留业务失败原因，不向用户暴露转换服务原始响应。
         ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
         verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
         assertThat(reasonCaptor.getValue()).contains("文档无法解析");
@@ -247,14 +272,14 @@ class ProjectClosedEventListenerStreamingTest {
         ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
         verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
         assertThat(reasonCaptor.getValue())
-                .contains("流式提取 OBS 标书文本失败")
-                .contains("连接中断");
+                .contains("文档转换服务连接中断");
+        verify(taskStateService).fail("task-test", reasonCaptor.getValue());
         verify(knowledgeCaseRepository, never()).saveAll(any());
         verify(tempBidFileStore, times(1)).release("task-test");
     }
 
     @Test
-    @DisplayName("OBS 文本量超限(Runtime 透传) -> notifyFailure 原样透出原因 + 不入库")
+    @DisplayName("OBS 文本量超限(Runtime 透传) -> notifyFailure 使用用户可读原因 + 不入库")
     void oversizedText_notifiesFailure() throws Exception {
         when(streamingFetcher.fetch(any(), any(), any(), any()))
                 .thenReturn(new LoadedBidFile.OnDisk(tempDir.resolve("task-test.part"), "bid.pdf", "application/octet-stream"));
@@ -266,7 +291,7 @@ class ProjectClosedEventListenerStreamingTest {
 
         ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
         verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
-        assertThat(reasonCaptor.getValue()).contains("500 万字符");
+        assertThat(reasonCaptor.getValue()).contains("文本量超过处理上限");
         verify(knowledgeCaseRepository, never()).saveAll(any());
         verify(tempBidFileStore, times(1)).release("task-test");
     }
