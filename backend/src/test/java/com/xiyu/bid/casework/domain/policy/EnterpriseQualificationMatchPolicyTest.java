@@ -42,7 +42,7 @@ class EnterpriseQualificationMatchPolicyTest {
         );
 
         List<EnterpriseQualificationMatchPolicy.MatchResult> results =
-                EnterpriseQualificationMatchPolicy.match(dim, detail, null, candidates, today);
+                EnterpriseQualificationMatchPolicy.matchCertificates(dim, detail, null, candidates, today);
 
         // 仅三张 ISO 证书命中，建筑施工不命中
         assertThat(results).hasSize(3);
@@ -68,7 +68,7 @@ class EnterpriseQualificationMatchPolicyTest {
         );
 
         List<EnterpriseQualificationMatchPolicy.MatchResult> results =
-                EnterpriseQualificationMatchPolicy.match(dim, detail, null, candidates, today);
+                EnterpriseQualificationMatchPolicy.matchCertificates(dim, detail, null, candidates, today);
 
         // 2026-01-01 已经早于 today(2026-10-30)，已过期
         assertThat(results).hasSize(1);
@@ -93,7 +93,7 @@ class EnterpriseQualificationMatchPolicyTest {
         );
 
         List<EnterpriseQualificationMatchPolicy.MatchResult> results =
-                EnterpriseQualificationMatchPolicy.match(dim, detail, null, candidates, today);
+                EnterpriseQualificationMatchPolicy.matchCertificates(dim, detail, null, candidates, today);
 
         assertThat(results).isEmpty();
     }

@@ -70,7 +70,7 @@ public class EnterpriseQualificationQueryAdapter implements EnterpriseQualificat
                 .toList();
 
         List<EnterpriseQualificationMatchPolicy.MatchResult> matched =
-                EnterpriseQualificationMatchPolicy.match(dim, detail, keyword, candidates, LocalDate.now());
+                EnterpriseQualificationMatchPolicy.matchCertificates(dim, detail, keyword, candidates, LocalDate.now());
 
         log.info("企业资质证书匹配：总候选 {} 条，针对 [{}] 命中 {} 项证书",
                 candidates.size(), dim, matched.size());
