@@ -5,9 +5,11 @@
 
 package com.xiyu.bid.casework.application.service;
 
+import com.xiyu.bid.casework.application.port.EnterpriseQualificationQueryPort;
 import com.xiyu.bid.casework.application.port.KnowledgeCaseQueryPort;
 import com.xiyu.bid.casework.application.port.TenderQualificationQueryPort;
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
+import com.xiyu.bid.casework.domain.policy.CaseCategoryMatchPolicy;
 import com.xiyu.bid.casework.domain.policy.PerformanceCaseAdmissionPolicy;
 import com.xiyu.bid.casework.domain.policy.QualificationPerformanceRetriever;
 import com.xiyu.bid.casework.domain.policy.ScoreItemCaseMatchPolicy;
@@ -58,9 +60,28 @@ public class ScoreItemCaseRecommendAppService {
     private final ProjectAccessScopeService projectAccessScopeService;
     private final ScoreItemCaseSourceMetaLoader sourceMetaLoader;
     private final TenderQualificationQueryPort tenderQualificationQueryPort;
+    private final EnterpriseQualificationQueryPort enterpriseQualificationQueryPort;
 
     private final ScoreItemCaseMatchPolicy matchPolicy = new ScoreItemCaseMatchPolicy();
     private final QualificationPerformanceRetriever performanceRetriever = new QualificationPerformanceRetriever();
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ScoreItemCaseRecommendAppService(
+            KnowledgeCaseQueryPort knowledgeCaseQueryPort,
+            ScoreItemRepository scoreItemRepository,
+            ProjectRepository projectRepository,
+            ProjectAccessScopeService projectAccessScopeService,
+            ScoreItemCaseSourceMetaLoader sourceMetaLoader,
+            TenderQualificationQueryPort tenderQualificationQueryPort,
+            EnterpriseQualificationQueryPort enterpriseQualificationQueryPort) {
+        this.knowledgeCaseQueryPort = knowledgeCaseQueryPort;
+        this.scoreItemRepository = scoreItemRepository;
+        this.projectRepository = projectRepository;
+        this.projectAccessScopeService = projectAccessScopeService;
+        this.sourceMetaLoader = sourceMetaLoader;
+        this.tenderQualificationQueryPort = tenderQualificationQueryPort;
+        this.enterpriseQualificationQueryPort = enterpriseQualificationQueryPort;
+    }
 
     public ScoreItemCaseRecommendAppService(
             KnowledgeCaseQueryPort knowledgeCaseQueryPort,
@@ -69,12 +90,8 @@ public class ScoreItemCaseRecommendAppService {
             ProjectAccessScopeService projectAccessScopeService,
             ScoreItemCaseSourceMetaLoader sourceMetaLoader,
             TenderQualificationQueryPort tenderQualificationQueryPort) {
-        this.knowledgeCaseQueryPort = knowledgeCaseQueryPort;
-        this.scoreItemRepository = scoreItemRepository;
-        this.projectRepository = projectRepository;
-        this.projectAccessScopeService = projectAccessScopeService;
-        this.sourceMetaLoader = sourceMetaLoader;
-        this.tenderQualificationQueryPort = tenderQualificationQueryPort;
+        this(knowledgeCaseQueryPort, scoreItemRepository, projectRepository, projectAccessScopeService,
+                sourceMetaLoader, tenderQualificationQueryPort, null);
     }
 
     /**
@@ -161,9 +178,28 @@ public class ScoreItemCaseRecommendAppService {
 
         List<ScoreItemCaseRecommendResponse.Item> pageItems = evaluatedItems.subList(fromIndex, toIndex);
 
+        // 关键判定：该评分项是否为资质证书类（若是，则直连企业资质库返回证书原件图片及信息）
+        CaseCategoryMatchPolicy.MacroCategory macroCategory =
+                CaseCategoryMatchPolicy.classifyMacroCategory(context.dim(), context.detail());
+        boolean isQualificationItem = macroCategory == CaseCategoryMatchPolicy.MacroCategory.QUALIFICATION;
+
+        List<ScoreItemCaseRecommendResponse.CertificateItem> matchedCertificates = List.of();
+        if (isQualificationItem && enterpriseQualificationQueryPort != null) {
+            try {
+                matchedCertificates = enterpriseQualificationQueryPort.findMatchingCertificates(
+                        context.dim(), context.detail(), request.getKeyword());
+            } catch (RuntimeException e) {
+                log.warn("查询企业资质证书失败，优雅降级：{}", e.getMessage());
+                matchedCertificates = List.of();
+            }
+        }
+
+        long totalCount = isQualificationItem ? matchedCertificates.size() : evaluatedItems.size();
+
         return ScoreItemCaseRecommendResponse.builder()
-                .total(evaluatedItems.size())
+                .total(totalCount)
                 .items(pageItems)
+                .matchedCertificates(matchedCertificates)
                 .build();
     }
 
@@ -174,18 +210,9 @@ public class ScoreItemCaseRecommendAppService {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         return scoreItemRepository.findByProjectIdOrderByItemIndexAsc(projectId).stream()
                 .map(item -> new ScoreItemDTO(
-                        item.getId(),
-                        item.getCode(),
-                        item.getDim(),
-                        item.getDetail(),
-                        item.getWeight(),
-                        item.getScoreType(),
-                        item.getStatusStage1(),
-                        item.getEstScore(),
-                        item.getEstBasis(),
-                        item.getKbHit(),
-                        item.getLocation()
-                ))
+                        item.getId(), item.getCode(), item.getDim(), item.getDetail(),
+                        item.getWeight(), item.getScoreType(), item.getStatusStage1(),
+                        item.getEstScore(), item.getEstBasis(), item.getKbHit(), item.getLocation()))
                 .toList();
     }
 

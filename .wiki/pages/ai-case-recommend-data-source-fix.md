@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [案例推荐, score_item, spec041, 裸响应, 二次解包, caseRecommendationApi]
 created: 2026-08-21
-updated: 2026-10-24
-health_checked: 2026-10-24
+updated: 2026-10-30
+health_checked: 2026-10-30
 sources:
   - src/api/modules/caseRecommendation.js
   - src/views/Project/stages/components/AiRecommendDrawer.vue
@@ -297,3 +297,28 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 - `AiRecommendDrawer.spec.js` 固化两个复发场景：32/37 分案例仍展示且显示服务端 `total=165`；“质量管控 + 强制认证产品质量管理”不出现资质提示。
 - 既有 ISO 管理体系证书用例继续验证真正证书项仍显示提示。
 
+---
+
+## CO-652 优化：资质证书大类穿透与企业资质库原件图片直连推荐（2026-10-30）
+
+### 1. 业务痛点与现场证据
+招商积余等项目（1358/1360/1361）中：
+1. 招标文件要求资质证书，抽屉却推荐技术方案/服务方案且匹配度高达 65%~69%（虚标为良好）；
+2. 历史项目应急方案丰富但召回单一；
+3. 用户明确诉求：证书属于客观证明文件，应当精准匹配，并且要求**直连匹配资质证书图片扫描件**，方便查阅与复制。
+
+### 2. 根因剖析
+- **泛章节名遮蔽细则大类**：标书常把证书要求置于“技术部分/详细评审/综合能力”章节，原 `CaseCategoryMatchPolicy` 因维度非 OTHER 直接跳过 detail 中的证书识别，一票否决门禁失效。
+- **双字切词高频噪声与中标虚假叠加**：双字机械切词使得非相关长文方案仅凭高频通用词与虚假的大类一致加成轻松越过 60% 门槛。
+- **资质库数据孤立**：系统内已有完整的 `business_qualifications`（主表）与 `qualification_attachments`（附件图片表），但之前推荐抽屉未打通。
+
+### 3. 架构与契约升级
+1. **六边形架构端口与适配器**：
+   - 端口：`EnterpriseQualificationQueryPort`（入参 `dim, detail, keyword`）；
+   - 适配器：`EnterpriseQualificationQueryAdapter` 直连企业资质库与附件表，装配证书扫描件图片 URL；
+2. **FP-Java 资质匹配策略**：
+   - `EnterpriseQualificationMatchPolicy`：精准匹配 ISO 三体系、AAA 信用、安全许可等标准，按当前日期校验有效期（有效/临期/过期降级），过滤报废证书；
+3. **响应体契约扩充**：
+   - `ScoreItemCaseRecommendResponse` 扩展 `matchedCertificates: List<CertificateItem>`，包含 `id, name, certificateNo, issuer, expiryDate, status, certScope, fileUrl, fileName, matchScore, matchReasons`；
+4. **前端组件化交互**：
+   - 抽离 `EnterpriseCertRecommendList.vue`，渲染证书卡片网格、原件图片缩略图、点击放大预览、有效期标签、一键复制证书信息与一键复制图片链接。

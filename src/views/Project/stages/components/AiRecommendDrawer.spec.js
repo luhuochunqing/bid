@@ -106,6 +106,7 @@ describe('AiRecommendDrawer.vue', () => {
     'el-empty': { template: `<div class="el-empty-mock" />` },
     'el-alert': { template: `<div class="el-alert-mock"><slot name="title" /></div>` },
     'el-card': { template: `<div class="el-card-mock"><slot /></div>` },
+    'el-image': { props: ['src'], template: `<img :src="src" class="el-image-mock" />` },
     'el-icon': { template: `<i><slot /></i>` },
     CaseDetailDialog: {
       props: ['modelValue', 'caseData', 'loading'],
@@ -372,6 +373,58 @@ describe('AiRecommendDrawer.vue', () => {
 
     expect(wrapper.find('.qualification-notice').exists()).toBe(false)
     expect(wrapper.find('.recommend-grid .case-card').exists()).toBe(true)
+  })
+
+  it('renders enterprise matched certificates with scanned images and enables info/url copy', async () => {
+    const mockCert = {
+      id: 88,
+      name: '质量管理体系认证证书（ISO 9001）',
+      certificateNo: '00121Q31234R0M',
+      issuer: '中国质量认证中心',
+      expiryDate: '2028-12-31',
+      status: 'VALID',
+      certScope: '工业品供应链集成管理服务',
+      fileUrl: 'https://oss.ehsy.com/certs/iso9001.jpg',
+      matchScore: 95,
+      matchReasons: ['资质证书名称精准匹配', '证书在有效期内'],
+    }
+
+    caseRecommendationApi.getScoreItems.mockResolvedValue([
+      {
+        id: 501,
+        code: 'Q_1',
+        dim: '企业资质',
+        detail: '具有 ISO 9001 质量管理体系认证证书，并在有效期内',
+      },
+    ])
+    caseRecommendationApi.recommendCases.mockResolvedValue({
+      total: 1,
+      items: [],
+      matchedCertificates: [mockCert],
+    })
+
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(wrapper.find('.cert-recommend-section').exists()).toBe(true)
+    expect(wrapper.text()).toContain('质量管理体系认证证书（ISO 9001）')
+    expect(wrapper.text()).toContain('00121Q31234R0M')
+    expect(wrapper.text()).toContain('中国质量认证中心')
+    expect(wrapper.find('.cert-thumbnail').exists()).toBe(true)
+
+    // 测试复制证书信息
+    const copyInfoBtn = wrapper.findAll('button').find(b => b.text().includes('复制证书信息'))
+    expect(copyInfoBtn).toBeDefined()
+    await copyInfoBtn.trigger('click')
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining('质量管理体系认证证书（ISO 9001）')
+    )
+
+    // 测试复制图片链接
+    const copyUrlBtn = wrapper.findAll('button').find(b => b.text().includes('复制图片链接'))
+    expect(copyUrlBtn).toBeDefined()
+    await copyUrlBtn.trigger('click')
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://oss.ehsy.com/certs/iso9001.jpg')
   })
 })
 
