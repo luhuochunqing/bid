@@ -1,0 +1,9 @@
+{
+  "synthetic": true,
+  "desensitization": "全文合成，仅保留无评分方案标题、无明确分值的价格排序形态",
+  "focus": "未知方案不崩溃，价格排序不得自动发明100分",
+  "declaredTotal": null,
+  "expectedItems": 0,
+  "expectedSchemeId": null,
+  "quote": "供应商报价作为评审参考。"
+}

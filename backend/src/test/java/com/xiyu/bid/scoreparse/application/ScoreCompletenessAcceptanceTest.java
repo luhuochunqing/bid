@@ -107,6 +107,24 @@ class ScoreCompletenessAcceptanceTest {
         ReflectionTestUtils.setField(appService, "self", appService);
     }
 
+    @Test void failedModelRequestEndsTaskAsFailedWithoutPublishingItems() {
+        var task = ScoreParseTask.builder().id(900L).taskId(TASK_ID).projectId(PROJECT_ID).build();
+        when(taskRepository.findByTaskId(TASK_ID)).thenReturn(Optional.of(task));
+        var source = new TenderTextSource("synthetic.pdf", "memory:synthetic", "采购要求");
+        when(initiationTenderTextResolver.resolveExecutionSource(PROJECT_ID))
+                .thenReturn(TenderExecutionSource.found(source, null));
+        var model = org.mockito.Mockito.mock(MultimodalScoreFactExtractor.class);
+        when(model.supportsTextOnly()).thenReturn(true);
+        when(model.extractTextAndProgress(anyString(), any())).thenThrow(
+                new ScoreModelRequestException(new IllegalStateException("private gateway body",
+                        new java.net.SocketTimeoutException())));
+        ReflectionTestUtils.setField(appService, "multimodalScoreFactExtractor", model);
+        appService.executeParseAsync(TASK_ID);
+        verify(stateService).failTask(eq(TASK_ID), org.mockito.ArgumentMatchers.contains("评分模型请求超时"));
+        org.mockito.Mockito.verifyNoInteractions(itemPersistenceService);
+        org.mockito.Mockito.verify(model, org.mockito.Mockito.never()).recheckTextAndProgress(anyString(), any());
+    }
+
     private ScoreFact createFact(String factId, String parentId, String dim, double weight) {
         ScoreEvidence ev = new ScoreEvidence(
                 ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, "得" + weight + "分", "c1", 0, 5, "明确分值");

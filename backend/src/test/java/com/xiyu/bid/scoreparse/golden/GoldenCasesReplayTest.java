@@ -469,6 +469,7 @@ class GoldenCasesReplayTest {
 
     static Stream<Arguments> cases() {
         return Stream.of(
+                Arguments.of("case-unscoped-price-only"),
                 Arguments.of("case-1359-maximum-column"),
                 Arguments.of("case-project-1387-grouped-source"),
                 Arguments.of("case-dual-section-renumber"),
@@ -517,6 +518,28 @@ class GoldenCasesReplayTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
     void replayGoldenCase(String caseName) throws Exception {
+        if (caseName.equals("case-unscoped-price-only")) {
+            String text = GoldenCasesReplaySupport.readFixture(caseName + ".md");
+            JsonNode expected = GoldenCasesReplaySupport.parseExpected(
+                    GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
+            var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("synthetic", "scope", "pdf", "2.2"),
+                    List.of(), List.of());
+            var context = OriginalScoringContext.resolve(artifact, text);
+            assertTrue(expected.path("declaredTotal").isNull());
+            assertEquals(null, context.total().value());
+            assertEquals(expected.path("expectedItems").asInt(),
+                    GoldenCasesReplaySupport.collectCandidates(text).allCandidates().size());
+            assertEquals(null, OriginalScoringContext.textScopeAt(text, 2).schemeId());
+            var replay = com.xiyu.bid.scoreparse.application.UnscopedPriceGoldenReplay.replay(text);
+            assertEquals(false, replay.structureIncomplete());
+            assertEquals(com.xiyu.bid.scoreparse.domain.ScoreParseDecision.REVIEW_REQUIRED,
+                    replay.decision());
+            assertEquals(null, replay.declaredTotal());
+            assertEquals(0, replay.candidateCount());
+            assertEquals(1, replay.factCount());
+            return;
+        }
+
         if (caseName.equals("case-project-1387-grouped-source")) {
             var source = new com.xiyu.bid.scoreparse.domain.Project1387SourceRegressionTest();
             source.verifyGoldenSource();

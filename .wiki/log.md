@@ -1,3 +1,15 @@
+## [2026-10-30] compound | 项目1135模型透传日志确认请求预算冲突
+
+- 更新 [[scoreparse-multimodal-primary]]：自行定位网关令牌只读日志，关联8条调用、90秒客户端预算、SDK重试及任务先结束网关后完成的时间线；保留原始异常未获取的证据边界。
+
+## [2026-10-30] compound | AI模型页面OCR开关与版本化开关区分
+
+- 更新 [[scoreparse-multimodal-primary]]：测试环境有真实百度OCR识别日志；生产仅GET无PUT，页面拨动需保存，动态OCR配置不要求重启。纠正把两个开关混同的判定。
+
+## [2026-10-30] compound | 项目1136评分解析空指针与价格排序边界
+
+- 回填 [[scoreparse-multimodal-primary]]：真实文件及冻结新模型响应复现 assignScope 空 schemeId，局部判断实验 RED→GREEN→RED；记录旧类同型缺陷、缺少原文分值及生产未修复的边界。
+
 # Wiki 操作日志 / Operation Log
 
 ## [2026-10-29] fix | 项目 1392 (project1130.pdf) 百度 OCR 评分项 100 分全闭环与名称/单表恢复

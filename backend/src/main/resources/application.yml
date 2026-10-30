@@ -125,6 +125,8 @@ app:
     memory-threshold: ${APP_TENDER_MEMORY_THRESHOLD:0.92}
     worker-fixed-delay-ms: ${APP_TENDER_WORKER_DELAY_MS:5000}
   score-parse:
+    model:
+      timeout: ${APP_SCORE_PARSE_MODEL_TIMEOUT:PT300S}
     extraction-version:
       enabled: ${APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED:false}
     # 打分侧投标文件解析配额

@@ -62,7 +62,7 @@ final class MultimodalStructuredExtractionHandler {
         try {
             return StructuredSourceDiagnostics.attach(runTextFirst(source.fileName(), source.text(), acquired.artifact(),
                     extractor, chunkCompleted), acquired.diagnostics());
-        } catch (RuntimeException exception) {
+        } catch (ScoreModelRequestException failure) { throw failure; } catch (RuntimeException exception) {
             log.error("文字评分事实提取失败: file={}, type={}, msg={}", source.fileName(),
                     exception.getClass().getName(), exception.getMessage(), exception);
             return StructuredSourceDiagnostics.attach(StructuredTableResult.structureIncomplete("MULTIMODAL_EXTRACTION_FAILED"),
@@ -78,7 +78,7 @@ final class MultimodalStructuredExtractionHandler {
         try {
             extracted = artifact == null ? extractor.extractTextAndProgress(text, chunkCompleted)
                     : extractor.extractWithTextAndProgress(artifact, text, chunkCompleted);
-        } catch (RuntimeException firstFailure) {
+        } catch (ScoreModelRequestException failure) { throw failure; } catch (RuntimeException firstFailure) {
             log.warn("文字证据首次提取失败，尝试一次独立模型复核: file={}, type={}, msg={}", fileName,
                     firstFailure.getClass().getName(), firstFailure.getMessage(), firstFailure);
             if (artifact == null) {
@@ -124,7 +124,7 @@ final class MultimodalStructuredExtractionHandler {
             boolean rechecked = false;
             try {
                 extracted = extractor.extractWithTextAndProgress(artifact, source.text(), chunkCompleted);
-            } catch (RuntimeException firstFailure) {
+            } catch (ScoreModelRequestException failure) { throw failure; } catch (RuntimeException firstFailure) {
                 log.warn("多模态模型首次提取失败，尝试复核: file={}, type={}, msg={}", source.fileName(),
                         firstFailure.getClass().getName(), firstFailure.getMessage(), firstFailure);
                 try {

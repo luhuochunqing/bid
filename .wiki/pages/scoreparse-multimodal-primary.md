@@ -4,6 +4,11 @@ space: engineering
 category: reference
 tags: [scoreparse, text-extraction, chunking, validation, review]
 sources:
+  - backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/OpenAiSdkStructuredOutputTransport.java
+  - backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/OpenAiBidAgentConfigurationResolver.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/OriginalScoringTextScopePolicy.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalExtractionReviewPolicy.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/LegacyTextScoreExtraction.java
   - specs/066-scoreparse-multimodal-primary/spec.md
   - specs/066-scoreparse-multimodal-primary/contracts/multimodal-score-facts.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/MultimodalStructuredExtractionHandler.java
@@ -50,8 +55,8 @@ backlinks:
   - .wiki/pages/_index.md
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
 created: 2026-09-20
-updated: 2026-09-25
-health_checked: 2026-10-25
+updated: 2026-10-30
+health_checked: 2026-10-30
 archive: false
 ---
 
@@ -220,3 +225,55 @@ archive: false
 
 
 
+
+## 2026-10-30 无评分方案标题时的空指针与价格排序边界（项目 1136）
+
+- **线上事实**：版本 `9f468fedbd5dfc46fd26fb0847719047021bb74c`；任务 158 于 07:07:11—07:07:27 执行，`COMPLETED / STRUCTURE_INCOMPLETE / MULTIMODAL_EXTRACTION_FAILED`，正式评分项与中间事实均为 0。PDF 转换成功，正文 11,889 字符，`/extract-tables` 返回 200。
+- **可复现根因**：`OriginalScoringTextScopePolicy.textScopes()` 在没有识别到方案标题时返回 `schemeId=null` 的范围。候选绑定到 `text:line[...]` 后，`MultimodalExtractionReviewPolicy.assignScope()` 第 99 行只判断 scope 非空就调用 `scope.schemeId().isBlank()`，触发 `NullPointerException`。
+- **症状掩盖**：默认关闭版本化提取时，`LegacyTextScoreExtraction` 将覆盖模型、原文绑定和校验阶段的运行时异常统一转为 `MULTIMODAL_EXTRACTION_FAILED`，不记录堆栈；之后任务完成但决策失败，页面显示“结构异常”。该文案不能证明 PDF 结构损坏或模型调用失败。
+- **因果证据**：相同 PDF SHA256 `9141e73a205325c51afdf04947ec2fbdb71399e5369ac0e05348964dec510a8d`；重放真实模型网关（生产服务器出口，模型 `gemini-3.5-flash`）得到 1 个候选。冻结此新响应后原实现连续复现同一空指针；仅临时增加 schemeId 非空判断则完成校验为 `REVIEW_REQUIRED / ORIGINAL_TOTAL_UNKNOWN`；撤回判断则同点失败。合成最小用例同样 RED→GREEN→RED。原任务 158 的模型响应未保存，不能把新响应当成当时的原始响应。
+- **历史边界**：前一发布目录对应 `045ee5948`；取其归属判断类编译后跑相同最小用例，也在对应第 94 行失败。这是旧类在当前依赖上的局部实验，并非完整旧版本业务回放；足以证实该空指针逻辑此前已存在，不能据此断言本次升级新引入。
+- **业务边界**：原 PDF 第 16 条按实质性要求合格后，以经评审投标价升序确定中标。Sidecar 与独立 `pdftotext` 提取一致，未找到明确评分分值声明。重放模型给出的“价格 100 分”没有原文分值依据，消除空指针后仍不得自动发布为正式评分项。后续产品行为应区分价格排序评审、未识别到量化评分和技术失败。
+- **交付边界**：本轮仅隔离诊断，生产未重解析、未改数据或配置、未部署。实验补丁只在私有 `.runtime/1136` 中编译为覆盖类，没有修改生产源码。客户 PDF、真实响应和配置不入 Git；本地凭证副本在取证后移除。
+
+### 同日生产分流核验
+
+- 运行进程 PID 14935，发布 `9f468fedb`，激活时间 2026-10-30 06:57:33（北京时间）。进程环境未设置 `APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED`，运行 JAR 中默认值为 `false`；项目1136任务158的 `score_extraction_snapshot` 行数为0，与 `LEGACY_FALLBACK` 任务记录及 `/extraction/latest` 的409响应互相印证。
+- 实际主路由：正文转换 → `LegacyTextScoreExtraction` 纯文字模型抽取 → Sidecar结构化来源绑定 → 原文及分值校验。新版版本化提取流程没有为任务158启用。新版开关是流程选择，不应直接称为性能“快通道”。
+- OCR 独立核验：进程未设置 `APP_SCORE_PARSE_BAIDU_OCR_ENABLED`，系统设置 `$.baiduOcrConfig.enabled` 为NULL，默认归一化为关闭；不能将新版百度OCR代码已随包部署等同于生产已开启。若“快速通道”另指其他方案，必须按明确类/开关继续比对，不凭名称推断。
+
+- **用户反馈已开启后的再核验**：生产 PID 仍为14935，06:57:33启动；进程和backend.env均未设置新版提取/OCR开关，系统设置OCR enabled仍为NULL；07:28项目1136新任务160仍为LEGACY_FALLBACK、无版本快照。结论仅为改动未进入当前生产后端，开启入口/环境待用户提供，不推断为忘记重启或其他环境误改。
+
+### AI模型设置页面开关：测试真实启用与生产未保存的区别
+
+- 页面 `/settings/ai-models` 中百度表格识别开关绑定 `baiduOcrConfig.enabled`；拨动仅修改Vue表单，不自动请求后端。顶部“保存配置”调用 `PUT /api/settings`，payload包含该enabled；“测试连通性”只提交apiKey/secretKey，不保存enabled。
+- `DatabaseBaiduOcrCredentialsProvider` 在解析时通过 `SettingsService.getEffectiveBaiduCredentials()` 读取数据库。这是动态配置，不需要重启，与环境变量控制的版本化提取开关独立；`LEGACY_FALLBACK` 或无版本快照不能单独证明OCR未调用。
+- 测试环境 `172.16.38.78` 当前发布 `0b3854b45-api8080`，数据库enabled=true（updated_at=2026-10-28 09:35:57.330547）；2026-10-30 06:51日志有扫描评分页[42,43,45,46,47]及第42、43页百度OCR识别表格成功，07:08也有多页识别成功。因此测试环境OCR真实使用，并非仅UI状态。
+- 生产 `172.16.10.149` 在本轮检查时数据库enabled=NULL、updated_at=2026-10-01 05:23:55.844484；自06:57升级后只有3次GET /api/settings（07:06:49、07:53:55、08:06:04），无PUT保存请求。结论为生产尚未收到页面的配置保存，不能归因于需要重启或凭据网络失败。
+- 此次纠正此前将页面开关与版本化开关混同的表述；若用户保存后仍异常，应先核对PUT状态、刷新GET与数据库enabled，再按任务trace验证OCR实际扫描，不以“连接正常”代替解析调用证据。
+
+### 项目1135保存OCR开关后任务162仍失败：OCR尚未进入
+
+- 生产08:08:03保存OCR enabled=true后，项目1135任务162于08:08:17—08:19:03执行，最终 `COMPLETED / STRUCTURE_INCOMPLETE / MULTIMODAL_EXTRACTION_FAILED / LEGACY_FALLBACK`，正式项0。不得把它解释为开关未保存。
+- 08:08:20 Sidecar正文转换成功，558,138字节/41页PDF得到45,061字符；整个任务窗口Sidecar仅有POST /convert，无POST /extract-tables，后端无BaiduTableArtifactEnricher扫描/识别日志。
+- 入口 `LegacyTextScoreExtraction` 第17—19行是严格先模型初提/失败复核，再SourceArtifactAcquisition；后者才调用SidecarDocumentArtifactExtractor，并在其内部进入百度OCR增强。因此本次已定位为来源获取/OCR之前的文字模型提取或响应处理异常，OCR开关不会绕过这一前置依赖。
+- 精确异常仍未知：catch吞掉堆栈，任务档案模型名为空不构成“未调用模型”的证据；10分46秒耗时也不构成超时证明。不可直接套用项目1136在来源绑定之后的assignScope空指针。
+- 旧任务159完成于07:20:56，为REVIEW_REQUIRED/ORIGINAL_TOTAL_UNKNOWN，并无正式项发布；这与任务162技术失败是不同状态。后续需独立捕获任务162原始模型异常或隔离复现；若要求OCR优先，需调整编排并验证，不是只开OCR开关。
+
+### 项目1135任务162透传日志补证：90秒超时与模型完成耗时冲突
+
+- **入口已自行找到**：模型网关 `ai-tech.ehsy.com` 为西域AI平台（New API）。普通 `/api/log/self/` 要求用户控制台凭证，业务模型令牌不能用于此入口；`GET /api/log/token` 使用现有业务令牌的Authorization头可只读查询当前令牌日志。不得把令牌放进URL或输出到终端。查询无新建凭证、无权限修改，明文只在内存中使用。
+- **运行配置**：生产进程OPENAI_TIMEOUT未设置，JAR默认PT30S；`effectiveChatCompletionTimeout()` 将小于90秒的值提升到90秒，SDK transport把它传给`.timeout(config.timeout())`。本地对实际4.32.0 SDK构造同配置（不发网络请求），读取ClientOptions确认 `request=PT1M30S`、`maxRetries=2`。
+- **网关8条实际完成记录**：同模型gemini-3.5-flash、非流式、UA OpenAIClientImpl/Java 4.32.0；该生产任务表时间窗口只与任务162重叠。首次分片08:08:20发出，38秒后完成；后续相同输入长度11738 token的三次请求于08:08:58、08:10:29、08:12:00发出，实际分别耗132、112、119秒。约90秒的重发间隔符合客户端超时后SDK默认两次重试。
+- **外层复核重复**：08:13:30复核首片61秒完成；相同输入长度11792 token的后三次请求于08:14:31、08:16:01、08:17:32发出，分别耗173、190、189秒。最后请求约90秒后，任务于08:19:03结束；网关仍在08:20:41记录该请求完成（任务结束98秒之后）。网关完成生成不代表客户端仍在等待或已收到结果。
+- **结论更新**：此前仅靠应用日志不能确定精确失败原因的结论，已由网关补证收敛为“90秒客户端请求预算小于模型实际耗时，SDK及外层复核重试耗尽，未进入来源获取/OCR”。`LegacyTextScoreExtraction`捕获后把它伪装为结构异常。不能继续笼统归为PDF结构坏或OCR开关无效。
+- **证据限度**：令牌列表没有完整输入输出及Java原始异常堆栈；上面关联依赖时间、模型、SDK与输入token分组，非应用traceId到网关requestId的直接绑定。不得声称已取得某个具体异常类或HTTP错误码；若后续修复，需用真实socket超时回归和真实文档验收，不只把timeout无限调大。
+- **权限/隐私边界**：原始令牌接口返回最近1000条，已在私有.runtime中仅保留任务窗口8条并记录原始响应SHA256，移除其余本地副本；生产未改超时、重试、模型、开关或业务数据。
+
+### 2026-10-30 请求预算修复与真实回放边界
+
+隔离候选将评分模型请求预算设为独立默认300秒、SDK自动重试0，文字片段最多6000字符并保留重叠；其他AI场景兼容原预算。技术请求失败保留cause并传播任务FAILED，避免外层再复核和误报结构异常。未知schemeId增加null防护，不改变总分/来源采纳门。JSON schema不兼容时的协议协商仍可能产生第二次HTTP请求，不能把SDK重试0说成所有情况下仅一次HTTP。
+
+1135同一558138字节原件SHA256为`1668d6d29aa4a550b09782058c4be58c9f4acfc87e39e5197051dad1b2675f5e`。本地候选真实服务回放：9个初提响应经逐字prompt一致性验证后冻结复用，真实OCR后新发9个语义复核请求；百度OCR第9—12页各识别1张表。最终65条事实、0候选，`structureIncomplete=false`、`failureReason=null`，完整性仍`REVIEW_REQUIRED / DECLARED_TOTAL_UNKNOWN`。部分权重/方案归属来源未通过校验，**不是可生效评分项验收成功**。回放修复过一次诊断脚本的OCR默认值导出错误，该错误不属于生产根因。临时解密配置已删除，诊断转发已停止。
+
+真实MySQL8.0容器及Spring启动5项测试通过（0失败/错误/跳过）。生产风险审查仍要求测试服务器真实请求预算、产物SHA、业务验收及回滚证据；共享评分线程池原有core1/max2/queue20/CallerRuns饱和风险未修改，仅验证低并发任务在worker执行。此记录不代表已部署测试或生产。
