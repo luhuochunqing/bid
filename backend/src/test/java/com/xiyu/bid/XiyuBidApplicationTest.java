@@ -16,6 +16,9 @@ class XiyuBidApplicationTest {
         assertThat(XiyuBidApplication.previewSafetyDefaults())
                 .containsEntry("spring.flyway.enabled", "false")
                 .containsEntry("spring.datasource.hikari.read-only", "true")
-                .containsEntry("spring.main.web-application-type", "none");
+                .containsEntry("spring.main.web-application-type", "none")
+                .containsEntry("xiyu.integrations.organization.event-sdk.enabled", "false")
+                .containsEntry("xiyu.integrations.tender-event.sdk.enabled", "false")
+                .containsEntry("xiyu.opportunity-history-replay.enabled", "false");
     }
 }

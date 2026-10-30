@@ -179,7 +179,7 @@ backlinks:
 - 新入口只开放 `--case-provenance-backfill=preview`，且必须提供绝对审计目录和显式批次 ID。preview 对每条 ACTIVE 案例输出 `FILLABLE / SKIP_EXISTING / UNRESOLVED / PROJECT_UNAVAILABLE / ORPHAN`，不调用任何持久化端口。
 - **只补不清**：仅五个来源字段全空白且唯一命中原始标书章节的案例可进入 `FILLABLE`；任一字段已有值、零命中、多命中或文档不可用均保持原值。
 - **双层并发守卫**：apply 先核对候选数与清单 SHA-256，再按项目独立事务执行；UPDATE 同时要求 ACTIVE、正文/评分项/来源项目快照未变、五来源字段仍全空。preview 后若人工或业务已补入任一来源字段，更新返回 0 并回滚该项目批次。
-- **进程级只读**：显式 preview 由 `CaseProvenancePreviewApplication` 启动，关闭 Web、Flyway、Hibernate schema action 与调度，排除其他 runner，启用 lazy initialization 和 Hikari read-only。只检查 preview 方法零写入不能替代这些启动隔离。
+- **进程级只读**：显式 preview 由 `CaseProvenancePreviewApplication` 启动，关闭 Web、Flyway、Hibernate schema action、调度和所有 `ApplicationReadyEvent` 外部集成，排除其他 runner，启用 lazy initialization 和 Hikari read-only。只检查 preview 方法零写入不能替代这些启动隔离；lazy initialization 本身也不能阻止事件 SDK 在就绪阶段扫描全容器。
 - **审计工件**：批次目录使用 CREATE_NEW，包含脱敏 JSONL/CSV、稳定清单 SHA-256、以及只还原本批精确写入值且默认以 `ROLLBACK` 结束的回滚 SQL；业务标识工件不得提交 Git。
 
 ## 回归锁定

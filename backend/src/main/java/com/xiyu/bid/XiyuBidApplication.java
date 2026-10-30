@@ -40,15 +40,18 @@ public class XiyuBidApplication {
     }
 
     static Map<String, Object> previewSafetyDefaults() {
-        return Map.of(
-                "spring.main.web-application-type", "none",
-                "spring.main.lazy-initialization", "true",
-                "spring.flyway.enabled", "false",
-                "spring.jpa.hibernate.ddl-auto", "none",
-                "spring.jpa.generate-ddl", "false",
-                "spring.jpa.properties.jakarta.persistence.schema-generation.database.action", "none",
-                "spring.jpa.properties.hibernate.hbm2ddl.auto", "none",
-                "spring.datasource.hikari.read-only", "true",
-                "spring.task.scheduling.enabled", "false");
+        return Map.ofEntries(
+                Map.entry("spring.main.web-application-type", "none"),
+                Map.entry("spring.main.lazy-initialization", "true"),
+                Map.entry("spring.flyway.enabled", "false"),
+                Map.entry("spring.jpa.hibernate.ddl-auto", "none"),
+                Map.entry("spring.jpa.generate-ddl", "false"),
+                Map.entry("spring.jpa.properties.jakarta.persistence.schema-generation.database.action", "none"),
+                Map.entry("spring.jpa.properties.hibernate.hbm2ddl.auto", "none"),
+                Map.entry("spring.datasource.hikari.read-only", "true"),
+                Map.entry("spring.task.scheduling.enabled", "false"),
+                Map.entry("xiyu.integrations.organization.event-sdk.enabled", "false"),
+                Map.entry("xiyu.integrations.tender-event.sdk.enabled", "false"),
+                Map.entry("xiyu.opportunity-history-replay.enabled", "false"));
     }
 }
