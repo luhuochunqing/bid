@@ -7766,6 +7766,14 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
      - **备用通道（Fallback Track）**：原 2.9 万行老几何引擎完全保留作为安全气囊。当主通道候选为空、权重未闭合或核验率不足时，无缝平滑降级执行老引擎通道，实现零线上回归。
   3. **自动化测试与双向验证**：新增 `TextInclusionVerifierTest` 与 `DualTrackScoreExtractorTest`，在 `ScoreCandidatePostProcessorTest` 中验证主通道直接放行且跳过全局归并，全量金标夹具回放 100% 保持通过。
 
+### 2026-10-30 入口修正：PDF OCR / Word 结构代码优先
+
+- 项目1135任务159有61条候选、180分、正式项0。前五大项重复多计60，两套平台父子并计各多计10。
+- !2923 的双轨判定仅在候选后处理，证据管线提前返回时不会运行，不能认定统一入口已切换。
+- !2930 初版误加全文模型主通道，违反 PDF 走百度 OCR、Word 走结构代码的用户要求。本次删除新增模型请求、端口、模型事实发布完成器和专用快照。
+- 统一入口先执行结构化确定性提取，正常证据结果直接使用原完成与版本激活契约；仅无结果或结构失败才运行旧流程。待复核证据不能被模型重新覆盖。
+- 路由测试不等于1135真实OCR修复验收；需单独记录真实提取结果、发布状态和生产重解析。
+
 ## 470. 评分项编号正则缺陷与人工采纳死锁闭环（2026-10-29）
 
 - **现场证据**：
@@ -7812,5 +7820,3 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   3. **自动化测试与金标固化**：
      - 新增 `DualTrackScoreExtractorTest` 树形父子层级、不自洽降级、前缀推导与 `PARENT_SINGLE` 测试；
      - 固化 `case-1392-tree-aware` 金标夹具，全量 58 个金标用例（`GoldenCasesReplayTest`）100% 绿灯。
-
-

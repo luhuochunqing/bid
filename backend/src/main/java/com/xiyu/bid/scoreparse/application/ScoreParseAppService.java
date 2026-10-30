@@ -32,9 +32,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * 评分标准解析应用服务（spec 041 US1 编排层）。
- */
+/** 评分标准解析应用服务：主通道优先，证据管线兜底。 */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -155,21 +153,21 @@ public class ScoreParseAppService {
                 return;
             }
             TenderTextSource source = intake.source();
-            task.setFileName(source.fileName());
-            task.setFileUrl(source.fileUrl());
+            task.setFileName(source.fileName()); task.setFileUrl(source.fileUrl());
             if (versioned && !versionedCompletion.source(task, source)) return;
             if (!versioned) taskRepository.save(task);
             updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
-
             SidecarDocumentArtifactExtractor artifactExtractor = artifactExtractorProvider == null
                     ? null : artifactExtractorProvider.getIfAvailable();
-            var structuredCandidates = multimodalScoreFactExtractor == null
-                    ? StructuredTableExtractionHandler.extract(source, intake.loaded(), artifactExtractor, sidecarTableExtractor)
+            var structuredCandidates = ScoreParseEntryRouter.extract(
+                    () -> StructuredTableExtractionHandler.extract(source, intake.loadedFiles(), intake.sources(), artifactExtractor, sidecarTableExtractor),
+                    () -> multimodalScoreFactExtractor == null
+                    ? StructuredTableResult.ok(java.util.List.of())
                     : !versioned ? LegacyTextScoreExtraction.extract(source, intake.loadedFiles(), intake.sources(), artifactExtractor, multimodalScoreFactExtractor,
                             () -> updateProgress(taskId, 5, "READ_DOCUMENT", "正在识别招标文件评分内容"))
                     : StructuredTableExtractionHandler.extractWithTextModelHeartbeat(source, intake.loadedFiles(), intake.sources(), artifactExtractor,
                             multimodalScoreFactExtractor,
-                            () -> updateProgress(taskId, 5, "READ_DOCUMENT", "正在识别招标文件评分内容"));
+                            () -> updateProgress(taskId, 5, "READ_DOCUMENT", "正在识别招标文件评分内容")));
             if (versioned && (structuredCandidates.structureIncomplete() || structuredCandidates.evidencePipeline())) {
                 versionedCompletion.structured(task, structuredCandidates);
                 return;
@@ -204,8 +202,7 @@ public class ScoreParseAppService {
                     (progress, stageKey) -> updateProgress(taskId, progress, stageKey,
                             "GAP_RECHECK".equals(stageKey) ? "分值或编号连续性异常，触发完整性回补" : stageKey));
             task.setRunSummary(processed.runSummaryJson());
-            task.setNormalizationWarning(processed.normalizationWarning());
-            task.setPipelineVersion(processed.pipelineVersion());
+            task.setNormalizationWarning(processed.normalizationWarning()); task.setPipelineVersion(processed.pipelineVersion());
             task.setDecisionStatus(processed.decisionStatus() == null ? null : processed.decisionStatus().name());
             task.setFallbackReason(processed.fallbackReason());
             if (versioned) {
@@ -241,7 +238,6 @@ public class ScoreParseAppService {
             if (intake != null) intake.loadedFiles().forEach(initiationTenderTextResolver::releaseTenderFile);
         }
     }
-
     private TenderExecutionSource resolveExecutionSource(Long projectId) {
         TenderExecutionSource exec = initiationTenderTextResolver.resolveExecutionSource(projectId);
         if (exec != null) return exec;
@@ -250,7 +246,6 @@ public class ScoreParseAppService {
         TenderTextSource s = legacy.source().get();
         return TenderExecutionSource.found(s, s.fileUrl() != null ? initiationTenderTextResolver.loadTenderFile(s.fileUrl(), s.fileName(), null) : null);
     }
-
     public ScoreParseProgressDTO getStatus(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         ScoreParseTask task = latestTask(projectId, TASK_TYPE_PARSE);
@@ -262,7 +257,6 @@ public class ScoreParseAppService {
         return new ScoreParseItemsReadSupport(itemRepository,taskRepository,resultRepository,initiationTenderTextResolver,
                 snapshotRepository,projectDocumentRepository,estimateFreshness).read(projectId,latestTaskOrNull(projectId,TASK_TYPE_PARSE),latestTaskOrNull(projectId,"SCORING"));
     }
-
     private ScoreParseTask latestTaskOrNull(Long projectId, String taskType) {
         return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, taskType, ANY_STATUS)
                 .stream().max(java.util.Comparator.comparing(ScoreParseTask::getId)).orElse(null);

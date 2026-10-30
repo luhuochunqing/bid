@@ -497,6 +497,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-1392-single-digit-ordinal"),
                 Arguments.of("case-1392-token-boundary"),
                 Arguments.of("case-1392-tree-aware"),
+                Arguments.of("case-code-primary-completeness"),
                 Arguments.of("case-page-split-parent-child"),
                 Arguments.of("case-long-text-scoring-table"),
                 Arguments.of("case-text-primary-multi-document"),
@@ -565,6 +566,29 @@ class GoldenCasesReplayTest {
             assertEquals(expected.path("declaredTotal").decimalValue(), context.total().value());
             assertTrue(context.scheme().contains(expected.path("schemeTitle").asText()), context.scheme());
             return; // Source-contract case; no extraction PRF claim.
+        }
+        if (caseName.equals("case-code-primary-completeness")) {
+            var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
+            var text = GoldenCasesReplaySupport.readFixture(caseName + ".md");
+            var candidates = StreamSupport.stream(expected.path("items").spliterator(), false)
+                    .map(item -> new ScoreCandidate(item.path("code").asText(), item.path("dimension").asText(),
+                            item.path("rule").asText(), item.path("weight").decimalValue(), "OBJECTIVE",
+                            "", item.path("rule").asText(), "", "STRUCTURED_CODE")).toList();
+            var total = expected.path("declaredTotal").decimalValue();
+            var valid = com.xiyu.bid.scoreparse.domain.DualTrackScoreExtractor.dispatch(candidates, text, total, List::of);
+            assertEquals(com.xiyu.bid.scoreparse.domain.DualTrackScoreExtractor.Track.PRIMARY, valid.track());
+            var missingRule = candidates.stream().map(c -> c.code().equals(expected.path("blankRuleCode").asText())
+                    ? new ScoreCandidate(c.code(), c.dim(), "", c.weight(), c.scoreTypeGuess(), "", "", "", "STRUCTURED_CODE")
+                    : c).toList();
+            var rejected = com.xiyu.bid.scoreparse.domain.DualTrackScoreExtractor.dispatch(missingRule, text, total, List::of);
+            assertEquals(com.xiyu.bid.scoreparse.domain.DualTrackScoreExtractor.Track.FALLBACK, rejected.track());
+            var duplicated = new ArrayList<>(candidates);
+            duplicated.add(candidates.stream().filter(c -> c.code().equals(expected.path("duplicateCode").asText())).findFirst().orElseThrow());
+            assertEquals(0, duplicated.stream().map(ScoreCandidate::weight).reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .compareTo(expected.path("duplicateTotal").decimalValue()));
+            var overflow = com.xiyu.bid.scoreparse.domain.DualTrackScoreExtractor.dispatch(duplicated, text, total, List::of);
+            assertEquals(com.xiyu.bid.scoreparse.domain.DualTrackScoreExtractor.Track.FALLBACK, overflow.track());
+            return; // Candidate contract replay; does not claim PDF/OCR extraction coverage.
         }
         if (caseName.equals("case-1392-tree-aware")) {
             var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
