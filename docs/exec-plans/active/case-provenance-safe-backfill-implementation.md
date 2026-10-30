@@ -172,10 +172,22 @@ mvn test -Dtest=ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitect
 
 Expected: both commands pass with zero failures and zero errors.
 
-- [ ] **Step 5: Execute production read-only preview**
+- [x] **Step 5: Execute production read-only preview**
 
 Use the deployed production configuration or an approved production execution host. Capture before/after read-only counts of ACTIVE cases and non-null provenance fields. Run preview with an absolute protected artifact directory. Verify no update SQL is emitted, before/after counts are identical, and audit decision counts close to the scanned total. If production credentials or original document access are unavailable, stop and report the exact missing prerequisite; do not substitute test data.
 
-- [ ] **Step 6: Commit Task 4 and preview evidence**
+- [x] **Step 6: Commit Task 4 and preview evidence**
 
 Commit implementation/docs only. Keep production audit artifacts outside Git because they contain business identifiers; record only aggregate counts and SHA-256 in the plan evidence section.
+
+## Production preview evidence (2026-10-30)
+
+- Environment: `ENV=prod`, host `winbid-01` / `172.16.10.149`; no deployment, service restart or apply.
+- Source commit: `efd8e5389`; final preview batch: `prod-preview-20261030-c435d33f5-r3`.
+- Before/after database aggregates were identical: ACTIVE `344`, all five provenance fields empty `320`, any provenance present `24`.
+- Decision closure: `PROJECT_UNAVAILABLE=300`, `UNRESOLVED=20`, `SKIP_EXISTING=24`, `FILLABLE=0`; total `344`.
+- Manifest SHA-256: `adbd0252066b1c8b4f79d51fe251afb9af045542c4db05ae240b15e35ea04c5d`.
+- Artifact SHA-256: JSONL `e5310a01d8fa4bc652ebc442b4592585974b26431b2eb5ed949884eb7454a509`; CSV `a3e433465cad288ba8203b7a96e57c8518fd374f1e3e6e0a5bebae62f2a4fe4d`; rollback SQL `ee0644e3f27e8a625011033d3aebe01e69d888db813e648accaac27d4ee6c461`.
+- Rollback SQL contains zero UPDATE statements and ends in `ROLLBACK`, matching zero fillable candidates.
+- Final preview log contains no organization event SDK, tender event SDK or history replay startup; process exited normally. Production backend remained `active` and health was `UP`.
+- An earlier preview attempt generated the same decision manifest but exposed an unrelated `ApplicationReadyEvent` SDK side effect after artifact creation. The maintenance safety properties now force-disable those integrations; only the corrected `r3` batch is acceptance evidence.
