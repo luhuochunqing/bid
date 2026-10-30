@@ -3,7 +3,7 @@
 ### 人工裁决后的结构化模型（当前有效）
 用户同意调整后开启新周期。TenderRequirements新增qualificationConditions，旧mandatoryQualifications继续兼容并保留完整文本投影。QualificationCondition包含text、Source（fileName/fileHash/pageNumber/quote）、CertificateRequirement列表；证书子项包含requirementText、target（BIDDER/PRODUCT/PERSON/UNKNOWN）、applicability（MANDATORY/OPTIONAL/UNKNOWN）、basis原文、cellIndex（原表格单元格索引，未知为空）。来源缺失必须UNKNOWN，不能从AI页号推定。条件解析未知仍保留，证书UNKNOWN允许检索参考但不能自动FAIL/PASS；OPTIONAL不作为强制资格。条件作用域按子句或单元格判定，不以全文“如有”排除证书。结构化行依据表头单元格角色识别，不能因数据含“资格要求”丢弃。merge/所有with方法均保留来源与证书作用域；最终资格结论仍人工确认。页码沿用当前文档逻辑页，不宣称已完成US4物理页体系修复。
 
-当前候选未完成：已知适用条件下，旧材料明细仍把检索状态UNMATCHED直接映射FAIL。材料事实是否已证实是独立维度，不能由MANDATORY/BIDDER推定；须在人工裁决后的后续周期补原因/事实状态。LLM外部解析器仍只接收完整条件文本，不接受模型自报可信来源；内部对象JSON往返保留结构化来源。
+R2历史阻断：已知适用条件下，旧材料明细曾将UNMATCHED直接映射FAIL。人工确认后的R3新增独立Finding，区分检索缺口与已证实缺陷；未命中及证据不足转人工，过期/等级冲突需实际事实支持。旧JSON不从备注推断等级不足。LLM外部解析器仍只接收完整条件文本，不接受模型自报可信来源；内部对象JSON往返保留结构化来源。
 
 以下为上一周期的兼容字段约定；证书子集整句过滤已废止，由上述结构化投影替代。
 保留mandatoryQualifications名称但语义改为完整资格条件；增加certificateRequirements()访问器显式过滤证书子集。旧JSON沿用旧字段，历史证书子集不具有完整性证明；全部资格审查默认人工确认，直至每项具有实证。withMergedQualifications和merge不能丢弃非证书条件。证书查询/明细/资质匹配仅消费certificateRequirements；资格否决和资格审查消费完整列表。提示词明确资格与附件独立。复用extractGeneralCapacities但不宣称其覆盖完整资格文法；未分类条款保留而非删除。

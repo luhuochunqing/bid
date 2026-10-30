@@ -25,7 +25,7 @@
 | `domain/policy/CaCertificateEvidencePort.java` | Domain Port | 电子标 CA 证书证据查询端口（依赖倒置，resources 模块提供实现适配器） |
 | `domain/policy/CaCertificateCheckPolicy.java` | Policy | 电子标 CA 证书质量核查策略（原文页码与真实台账比对；未确认平台或查询失败转人工，正文确定缺陷保留） |
 | `domain/policy/QualificationMatchPolicy.java` | Policy | 资质双向模糊匹配与三方比对清单纯核心算法（相关度打分优先、通用停用词防错配、国字头剥离与标书页码定位） |
-| `domain/policy/QualificationDetailReconciler.java` | Policy | 资质比对清单与总项裁决状态一致性校准纯核心策略（过期/未匹配一票否决降级 FAIL，需关注项降级 MANUAL_REVIEW） |
+| `domain/policy/QualificationDetailReconciler.java` | Policy | 材料事实校准：已证实过期/等级不足为FAIL，检索未命中或证据不足为MANUAL_REVIEW |
 | `domain/policy/DeterministicQualificationExtractor.java` | Policy | 招标文件硬性资格与专用资质确定性提取纯核心策略（通用主体资格与专用行业资质分流、导语过滤、序号标点清洗、Markdown 表格切分、长度门禁、评分与模板排除、双轨兜底） |
 | `domain/policy/QualificationCondition.java` | Domain Model | 完整条件、来源及证书子项；作用对象、强制/可选/未知分开保存 |
 | `domain/policy/CertificateRequirementPolicy.java` | Policy | 证书候选沿用既有类型能力，子句作用域不明保留UNKNOWN与依据 |
@@ -58,7 +58,7 @@
 - 财务须由同句明确义务建立要求，否定、目录和可选模板不得生成硬性审计要求。
 - 本次代码验证不替代部署后同文件hash强制重算；历史核查结果不会自动更新。
 
-- 结构化资格候选（2026-10-30，尚未交付）：旧JSON/构造兼容保留完整文本；UNKNOWN在引擎和明细中保持人工，已知过期事实不因其他未知条件被抹去。来源只有文件身份、页码及摘录在当前文档一致时进入报告。当前仍有阻断：已知强制证书的纯检索未命中会沿旧明细UNMATCHED分支判FAIL；三轮审查后已升级，不能据此宣称资格核查修复完成。
+- R2历史检查点（2026-10-30）：结构化模型保留完整资格与来源，但当时已知强制证书的纯检索未命中仍沿旧UNMATCHED分支判FAIL，三轮后升级人工。该阻断由下述R3处理；历史检查点不作为当前实现结论。
 
 - 人工确认后的R3材料事实映射：`QualificationDetail.Finding`区分LOOKUP_MISS、EVIDENCE_INCOMPLETE、MATCHED_REFERENCE、EXPIRED、GRADE_INSUFFICIENT、UNKNOWN；旧JSON不从备注猜测等级缺陷。校准使用事实原因，未命中及未证实的模型FAIL转人工，已证实过期、等级冲突及实际占位保持失败。证书独立level参与选证，原始名称仍用于定位；本地验证及审查见`.omc/*quality1030-material.md`，不代表生产报告已重算。
 
