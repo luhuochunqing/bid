@@ -99,8 +99,9 @@ public class ScoreCandidatePostProcessor {
 
         ScoreGlobalMergeOrchestrator.MergeStats stats;
         if (isPrimaryTrack) {
-            log.info("DualTrack: 主通道命中并闭合，直接采纳: taskId={}, items={}, verifiedRatio={}",
-                    taskId, valid.size(), dualTrack.verifiedRatio());
+            log.info("DualTrack: 主通道命中并闭合，直接采纳末级叶子项: taskId={}, items={}, verifiedRatio={}",
+                    taskId, dualTrack.candidates().size(), dualTrack.verifiedRatio());
+            valid = dualTrack.candidates();
             stats = ScoreGlobalMergeOrchestrator.MergeStats.notInvoked("DUAL_TRACK_PRIMARY");
         } else {
             stats = globalMergeOrchestrator.applyGlobalMergeDetailed(valid, fullText,
