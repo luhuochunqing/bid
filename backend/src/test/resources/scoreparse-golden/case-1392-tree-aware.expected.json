@@ -1,0 +1,7 @@
+{
+  "synthetic": true,
+  "desensitization": "标题与评分项全部合成，验证双轨 DualTrack 提取器的树形感知与父子分离防双计",
+  "focus": "DualTrackScoreExtractor 树形感知重构，自动分离父容器与末级叶子，杜绝 200 分双计并实现 100 分闭合放行",
+  "declaredTotal": 100,
+  "schemeTitle": "第四章 评审办法"
+}

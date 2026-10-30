@@ -44,6 +44,8 @@ sources:
   - src/views/Project/stages/components/ScoreCandidateReviewCard.vue
   - document-converter-sidecar/converter.py
   - document-converter-sidecar/table_extractor.py
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/DualTrackScoreExtractor.java
+  - backend/src/test/resources/scoreparse-golden/case-1392-tree-aware.md
 backlinks:
   - .wiki/pages/_index.md
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
@@ -199,4 +201,13 @@ archive: false
 
 - **增量补漏（Missing-Only Enrichment）**：当 Sidecar 已经成功抽取部分评分表格（如第 13、15 页）而仅在特定复杂续表页（如第 14 页）发生跳页时，`BaiduTableArtifactEnricher` 仅针对评分表区间内缺失的候选页精准调用百度 OCR。绝不全量无差别覆盖已有健康表格，防止耗时过长触发前端/网关网络超时（Network Error）以及表格被破碎化切割。
 - **章节名称动态继承**：百度 OCR 补齐的表格其 `sourceSection` 绝不得硬编码特定章节（如“第三章”），而必须优先继承自邻近已识别表格，或通过 PDFBox 实时提取当前页所在的真实章节大标题（如“第四章 评审办法”）。避免因章节名失配导致表格被 `OriginalScoringSchemePolicy.owns` 拒绝，防止残余孤立数字被误判为方案声明总分。
+
+## 2026-10-30 双轨架构树形感知与父子防双计
+
+- **树形感知分离（separateTree）**：在双轨双保险分流器（`DualTrackScoreExtractor`）中引入树形结构感知，结合 `isParentOnlyDim` 标识、子项 `parentDim` 引用及 `HierarchicalCodeTokenizer` 编号层级前缀推导，将平铺候选集精确拆分为“父级大类容器（parentCandidates）”与“末级细则（leafCandidates）”。
+- **父子自洽与防双计**：
+  - 若父大类声明了总分（如技术标 70 分），其直接子项细则分值之和必须精确自洽等于父项分值（容差 ±0.01），不自洽时立即触发降级老通道；
+  - 计算主通道总分与放行时仅累加末级叶子项，彻底根除 30+70+10+20+40+30=200 分的双计假阳性；
+  - `ScoreCandidatePostProcessor` 在主通道命中后将有效候选集纯化为清洗后的叶子项，使后续权重校验、大模型全局归并跳过与人工复核展示全链路畅通。
+
 
