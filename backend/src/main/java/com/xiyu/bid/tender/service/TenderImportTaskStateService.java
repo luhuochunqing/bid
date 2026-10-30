@@ -1,3 +1,8 @@
+// Input: taskId, totalRows, failureCount, errors
+// Output: TenderImportTask 持久化实体与状态转移
+// Pos: service/标讯批量导入任务状态机服务
+// 维护声明: 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.tender.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -85,14 +90,33 @@ public class TenderImportTaskStateService {
         });
     }
 
-    /** 任何状态 → FAILED */
+    /** 任何状态 → FAILED（带总行数与失败数更新） */
     @Transactional
-    public void markFailed(String taskId, List<TenderImportTaskError> errors) {
+    public void markFailed(String taskId, int totalRows, int failureCount, List<TenderImportTaskError> errors) {
         taskRepository.findByTaskId(taskId).ifPresent(task -> {
             task.setStatus("FAILED");
+            task.setTotalRows(totalRows);
+            task.setProcessedRows(totalRows);
+            task.setSuccessCount(0);
+            task.setFailureCount(failureCount);
             task.setErrorDetails(serializeErrors(errors));
             task.setCompletedAt(LocalDateTime.now());
             taskRepository.save(task);
+        });
+    }
+
+    /** 任何状态 → FAILED（兼容旧重载/未知总行数时兜底） */
+    @Transactional
+    public void markFailed(String taskId, List<TenderImportTaskError> errors) {
+        int fallbackCount = errors != null ? errors.size() : 0;
+        taskRepository.findByTaskId(taskId).ifPresent(task -> {
+            int total = (task.getTotalRows() != null && task.getTotalRows() > 0)
+                    ? task.getTotalRows()
+                    : fallbackCount;
+            int failure = (task.getFailureCount() != null && task.getFailureCount() > 0)
+                    ? task.getFailureCount()
+                    : fallbackCount;
+            markFailed(taskId, total, failure, errors);
         });
     }
 
@@ -116,6 +140,14 @@ public class TenderImportTaskStateService {
         try {
             taskRepository.findByTaskId(taskId).ifPresent(task -> {
                 task.setStatus("FAILED");
+                int fallbackCount = errors != null ? errors.size() : 0;
+                if (task.getFailureCount() == null || task.getFailureCount() == 0) {
+                    task.setFailureCount(fallbackCount);
+                }
+                if (task.getTotalRows() == null || task.getTotalRows() == 0) {
+                    task.setTotalRows(fallbackCount);
+                    task.setProcessedRows(fallbackCount);
+                }
                 task.setCompletedAt(LocalDateTime.now());
                 taskRepository.save(task);
             });

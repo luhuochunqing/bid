@@ -31,17 +31,8 @@ import java.util.Set;
 
 /**
  * 标讯批量导入 Excel 解析器（纯解析 + 行级校验，不入库）。
- *
  * <p>从 {@link TenderImportService} 拆分（CO-508 line-budget 治理），职责单一：
- * <ol>
- *   <li>解析 Excel 字节流为 {@link TenderRequest} 行</li>
- *   <li>执行行级校验（必填 + 字典 + Bean Validation）</li>
- *   <li>返回 {@link ParsedExcel}（rows + errors + totalRows）</li>
- * </ol>
- *
- * <p>本类不访问数据库、不开启事务、不抛业务异常，仅抛 IllegalArgumentException（解析失败）。
- * 调用方（{@link TenderImportService#importFromExcel} 同步路径 / {@link TenderImportAppService#executeImportAsync} 异步路径）
- * 根据返回的 errors 决定是否继续入库。
+ * 解析 Excel 字节流为 {@link TenderRequest} 行，执行行级校验并返回 {@link ParsedExcel}。
  */
 @Component
 @RequiredArgsConstructor
@@ -56,11 +47,9 @@ public class TenderExcelParser {
     };
 
     static final List<String> CONTACT_NATURES = List.of("客户", "代理", "标前");
-
     static final List<String> CUSTOMER_TYPES = List.of("政府机关/事业单位/高校", "央企", "地方国企", "民企", "港澳台及外企");
     static final List<String> PRIORITIES = List.of("S", "A", "B", "C");
     static final List<String> REGIONS = TenderRegionCatalog.REGIONS;
-
     static final List<String> PROJECT_TYPES = List.of("工业品", "办公", "综合", "集采", "其他");
 
     /** HEADERS 归一化名称 -> 列索引，parseRow 按名称取列，避免硬编码索引漂移。 */
@@ -102,6 +91,9 @@ public class TenderExcelParser {
             Sheet sheet = workbook.getSheetAt(0);
             validateHeader(sheet);
             totalRows = collectRows(sheet, rows, errors);
+            if (totalRows == 0 && errors.isEmpty()) {
+                errors.add(new RowError(0, "file", "Excel 文件中未包含任何有效数据行，请填写数据后再上传"));
+            }
         } catch (IOException e) {
             throw new IllegalArgumentException("Excel 解析失败：" + e.getMessage(), e);
         }
