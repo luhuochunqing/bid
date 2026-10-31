@@ -1,0 +1,56 @@
+{
+  "id": "RESPONSIVE-EVIDENCE-1031-PR-BASELINE",
+  "status": "AUTHORIZED",
+  "approved_by": "user",
+  "approval_source": "当前会话：同意只处理4项隔离和90项失败正式门禁豁免，不扩大业务范围",
+  "scope": "this-branch-pr-readiness-only",
+  "branch": "agent/gemini/responsive-evidence-1031",
+  "base_head": "387815c48e0fa9545b2c677d1f3ff970333be7dd",
+  "expires_at": "2026-11-07T23:59:59+08:00",
+  "invalidated_by": [
+    "base/head changes",
+    "production/test fingerprint changes",
+    "new or changed failure identities",
+    "missing or newly skipped acceptance checks",
+    "PR merged or abandoned"
+  ],
+  "permits_merge": false,
+  "permits_deployment": false,
+  "baseline_failure_count": 90,
+  "baseline_failure_identities": "baseline-failure-identities.json",
+  "baseline_failure_identities_sha256": "ccfc0e2a598e212e369f4eeec16bbde405c8fdcd319927376bb70bc8000dbaa1",
+  "production_fingerprints": {
+    "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ResponsivenessReviewPolicy.java": "8f5d52dc34de6c141897d1ba5a90f6fcc08f2d90cdf27c12e339af52cebad003",
+    "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/SemanticRulesLane.java": "6ee97bf915212754040525a64d0c60b7351a80bd3a5d3efab72d2d53fc66f89c",
+    "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ResponsivenessRuleCitation.java": "efd7246af54ae330563262d64ad5d553a70d228f52f279a212e276ac60c15cd4"
+  },
+  "acceptance_test": "backend/src/test/java/com/xiyu/bid/compliance/domain/policy/Report147ResponsivenessRegressionTest.java",
+  "acceptance_test_sha256": "efe5fbc93451ea9f4c1c783c074bdd9cab045410725cd54283ea51d41f70dfee",
+  "known_defect_methods": [
+    "missingTenderCannotTurnAnUnattributedRuleIntoAFailure",
+    "bidderAcknowledgingAProhibitionIsNotADeviation",
+    "bidderSuppliedRequirementMustNotReplaceTenderRequirement",
+    "bidderValueIsNotMatchedBySubstringOfDifferentTenderValue"
+  ],
+  "known_defect_opt_in_property": "xiyu.responsiveness.known-defects=true",
+  "raw_full_suite": {
+    "tests": 11444,
+    "failures": 90,
+    "errors": 0,
+    "skipped": 18,
+    "exit_code": 1
+  },
+  "head_replay": {
+    "tests": 205,
+    "failures": 90,
+    "errors": 0,
+    "skipped": 4,
+    "exit_code": 1,
+    "failure_identities_equal": true
+  },
+  "evidence_sha256": {
+    "/tmp/xiyu-responsive-backend-all.log": "2037ca61e57cf964f4da4eb4316cc61778186a8ded4bb8c890e0372ec92292e0",
+    "/tmp/xiyu-responsive-head-baseline.log": "421ec92a08fcf5435d7177f22b81369a06953a53a665623d730dbe86985d6b8c",
+    "/tmp/xiyu-responsive-baseline-comparison.json": "2d46bc96f295197064141440fed1b249670472d62bf6966afbd3fc69ced3a55d"
+  }
+}

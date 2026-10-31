@@ -1,5 +1,5 @@
-// Input: 投标文件 DocumentContent
-// Output: QualityCheckItemResult（PASS / FAIL）或 null（存疑移交 LLM lane）
+// Input: 投标文件 DocumentContent；双参入口另接当前招标文档
+// Output: QualityCheckItemResult（三态）；来源引用不足以证明通过，旧单参入口保持兼容
 // Pos: compliance/domain/policy/ - 响应性评审条款与偏离表核验策略（纯核心）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -61,8 +61,7 @@ public final class ResponsivenessReviewPolicy {
             String detail = (!neg.clause().isBlank())
                     ? "条款 " + neg.clause() + "（" + neg.description() + "）"
                     : neg.description();
-            QualityEvidence evidence = EvidenceAssembler.locateBid(
-                    bidDoc, "偏离表负偏离条款", List.of("负偏离", "不满足", "负偏差", neg.clause()));
+            QualityEvidence evidence = ResponsivenessRuleCitation.negativeRowEvidence(bidDoc, extraction, neg);
             return QualityCheckItemResult.fail(
                     BidQualityCheckItem.RESPONSIVENESS_REVIEW,
                     "商务或技术条款中存在实质性负偏离：" + detail,
@@ -195,6 +194,10 @@ public final class ResponsivenessReviewPolicy {
             }
         }
         return null;
+    }
+
+    public static QualityCheckItemResult check(final DocumentContent bidDoc, final DocumentContent tenderDoc) {
+        return ResponsivenessRuleCitation.check(bidDoc, tenderDoc);
     }
 
     private static List<DocumentContent.PageContent> findCandidatePages(final DocumentContent bidDoc) {

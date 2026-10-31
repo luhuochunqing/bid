@@ -1,0 +1,362 @@
+[
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "addingHeaderKeywordsOnlyToContinuationProseCannotChangeStructuralRolesOrQualification(boolean)[1]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "addingHeaderKeywordsOnlyToContinuationProseCannotChangeStructuralRolesOrQualification(boolean)[2]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "adjacentDocxNullPagesQualifyInEitherMixedOrderAndKeepStableItemIdentity"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[10]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[11]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[12]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[13]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[14]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[15]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[16]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[17]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[18]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[19]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[1]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[20]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[21]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[22]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[23]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[24]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[25]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[26]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[27]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[28]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[29]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[2]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[30]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[31]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[32]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[33]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[34]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[35]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[36]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[3]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[4]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[5]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[6]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[7]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[8]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "brokenContinuationCannotQualifyOrTruncateWithChangedModelPunctuation(String, String, boolean)[9]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "completeLastRowBeforeIndependentNewChapterTableStillRebuildsFullRule"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.CrossFormatDocumentSourceReplayTest",
+    "missingDocxXmlCannotProveContinuation"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "missingLogicalMetadataCannotPromoteShortQuoteToCompleteSource(String, String)[1]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "missingLogicalMetadataCannotPromoteShortQuoteToCompleteSource(String, String)[2]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "missingLogicalMetadataCannotPromoteShortQuoteToCompleteSource(String, String)[3]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "missingLogicalMetadataCannotPromoteShortQuoteToCompleteSource(String, String)[4]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "missingXmlNeverCertifiesLogicalRuleEvenWhenQuoteMatches(String)[1]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "missingXmlNeverCertifiesLogicalRuleEvenWhenQuoteMatches(String)[2]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[10]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[11]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[12]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[13]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[14]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[15]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[16]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[17]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[18]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[19]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[1]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[20]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[21]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[22]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[23]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[24]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[25]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[26]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[27]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[28]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[29]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[2]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[30]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[31]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[32]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[3]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[4]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[5]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[6]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[7]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[8]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.FullRuleSourceReplayTest",
+    "ruleCompletenessComesFromSourceUnitAcrossEveryEntry(String, String)[9]"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.LegacyScoringVersionMysqlTest",
+    "legacyReviewEstimatesAfterActualCallerCommit"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.MultimodalStructuredExtractionHandlerTest",
+    "deterministicFallbackWithConflictingItemWeightCannotPublish"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.PdfEvidencePipelineTest",
+    "project1381LikePdfWithoutStructuredSummary_keepsLossyMarkdownFallbackBehavior"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.ScoreExtractionPersistenceMysqlTest",
+    "actualDisconnectedDocxCannotAutoReplaceCompleteRuleOrPriorScore"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.ScoreExtractionPersistenceMysqlTest",
+    "actualDocxFirstActivationAndScorerRetainEveryRuleClause"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.ScoreExtractionPersistenceMysqlTest",
+    "actualUnresolvedDocxFirstActivationKeepsFullModelWithWarning"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.ScoreExtractionPersistenceMysqlTest",
+    "legacyPublicMappingNeverAdoptsTruncatedSourceRule"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.ScoreFactShadowPipelineTest",
+    "completeness_uses_declared_total_from_tender_text"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.application.ScoreScoringVersionMysqlTest",
+    "estimatorCannotResurrectItemDeletedDuringMatching"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.domain.OriginalScoreEvidenceRoleAndHeadingTest",
+    "textFactUnderChildHeadingRemainsWithinParentScoringScheme"
+  ],
+  [
+    "com.xiyu.bid.scoreparse.domain.WeightScopeConsistencyTest",
+    "numberedTextAloneCannotProveChildRelationship"
+  ]
+]
