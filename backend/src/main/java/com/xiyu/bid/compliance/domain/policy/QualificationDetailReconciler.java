@@ -35,9 +35,10 @@ public final class QualificationDetailReconciler {
             final List<QualificationDetail> details, final TenderRequirements requirements,
             final com.xiyu.bid.compliance.domain.DocumentContent bidDoc) {
         if (raw == null) return null;
-        if (!BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(raw.itemCode())) return raw.withDetails(details);
-        List<QualificationDetail> entries = (details == null ? List.<QualificationDetail>of() : details).stream()
-                .filter(d -> d != null).map(QualificationDetailReconciler::validateFinding).toList();
+        if (!BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(raw.itemCode())) {
+            return details == null || details.isEmpty() ? raw : raw.withDetails(details);
+        }
+        List<QualificationDetail> entries = checkedDetails(raw, details);
         var hardDefect = QualificationMatchPolicy.checkFirstStage(bidDoc, requirements);
         if (hardDefect.isPresent()) return hardDefect.orElseThrow().withDetails(entries);
         return reconcileRequirements(raw, entries, requirements);
@@ -51,7 +52,7 @@ public final class QualificationDetailReconciler {
                     .withDetails(entries);
         }
         if (requirements == null || !requirements.hasUnresolvedCertificateRequirements()
-                && entries.stream().noneMatch(d -> requirements.isUnresolvedCertificateRequirement(d.requirement()))) return reconcile(raw, entries);
+                && entries.stream().noneMatch(d -> requirements.isUnresolvedCertificateRequirement(d.requirement()))) return reconcileMaterialFacts(raw, entries);
         List<QualificationDetail> references = entries.stream()
                 .map(d -> !requirements.isUnresolvedCertificateRequirement(d.requirement()) ? d : new QualificationDetail(d.requirement(), d.matchedCertName(),
                         "ATTENTION", d.bidPageNumber(), d.bidQuote(), d.remainingDays(),
@@ -59,10 +60,19 @@ public final class QualificationDetailReconciler {
         var pending = QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
                 "证书条件适用范围尚未确认，资料检索不能证明资格满足或缺失", "请按原文逐项确认", raw.evidences());
         List<QualificationDetail> known = entries.stream().filter(d -> !requirements.isUnresolvedCertificateRequirement(d.requirement())).toList();
-        return reconcile(pending, known).withDetails(references);
+        return reconcileMaterialFacts(pending, known).withDetails(references);
     }
 
     private QualificationDetailReconciler() {
+    }
+
+    /** 空参数不抹掉原有事实；所有事实仍经过有效性与适用范围校准。 */
+    private static List<QualificationDetail> checkedDetails(final QualityCheckItemResult raw,
+            final List<QualificationDetail> supplied) {
+        List<QualificationDetail> entries = (supplied == null ? List.<QualificationDetail>of() : supplied).stream()
+                .filter(d -> d != null).toList();
+        return (entries.isEmpty() ? raw.details() : entries).stream()
+                .filter(d -> d != null).map(QualificationDetailReconciler::validateFinding).toList();
     }
 
     private static QualificationDetail validateFinding(final QualificationDetail detail) {
@@ -88,15 +98,10 @@ public final class QualificationDetailReconciler {
         if (rawResult == null) {
             return null;
         }
-        if (details == null || details.isEmpty()) {
-            return rawResult;
-        }
         if (!BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(rawResult.itemCode())) {
-            return rawResult.withDetails(details);
+            return details == null || details.isEmpty() ? rawResult : rawResult.withDetails(details);
         }
-        List<QualificationDetail> checked = details.stream().filter(d -> d != null)
-                .map(QualificationDetailReconciler::validateFinding).toList();
-        return reconcileMaterialFacts(rawResult, checked);
+        return reconcileMaterialFacts(rawResult, checkedDetails(rawResult, details));
     }
 
     private static QualityCheckItemResult reconcileMaterialFacts(final QualityCheckItemResult rawResult,
@@ -157,7 +162,7 @@ public final class QualificationDetailReconciler {
         if (!attentionList.isEmpty() && rawResult.status() == QualityCheckStatus.PASS) {
             return reviewAttention(rawResult, checked, attentionList);
         }
-        return rawResult.withDetails(checked);
+        return checked.isEmpty() ? rawResult : rawResult.withDetails(checked);
     }
 
     /** 显式Finding的兼容调用也可能缺少定位，保留防御性的人工复核分支。 */

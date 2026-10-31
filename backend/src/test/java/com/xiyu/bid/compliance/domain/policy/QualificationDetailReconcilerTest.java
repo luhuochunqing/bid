@@ -18,6 +18,79 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class QualificationDetailReconcilerTest {
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {0, 1, 2})
+    void emptyArgumentsStillUseExistingProvenMandatoryFacts(int mode) {
+        String clause = "投标人须具有ISO9001认证";
+        var fact = new QualificationDetail(clause, "ISO9001认证", "EXPIRED", 1, "证书正文", -1, "已过期");
+        var raw = createRawPassResult().withDetails(List.of(fact));
+        var req = TenderRequirements.empty().withMergedQualifications(List.of(clause));
+        List<QualificationDetail> supplied = mode == 0 ? null : mode == 1 ? List.of() : Collections.singletonList(null);
+        var result = QualificationDetailReconciler.reconcile(raw, supplied, req,
+                com.xiyu.bid.compliance.domain.DocumentContent.fromText("b.pdf", "b", "证书正文"));
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.details()).containsExactly(fact);
+    }
+
+    @Test
+    void existingExpiredReferenceStillNeedsApplicableMandatoryRequirement() {
+        var fact = new QualificationDetail("ISO9001认证", "ISO9001认证", "EXPIRED", 1, "证书正文", -1, "已过期");
+        var raw = QualityCheckItemResult.fail(BidQualityCheckItem.QUALIFICATION_MATCH, "证书过期", "补充", List.of()).withDetails(List.of(fact));
+        var req = TenderRequirements.empty().withMergedQualifications(List.of("ISO9001认证（如有则提供）"));
+        assertThat(QualificationDetailReconciler.reconcile(raw, List.of(), req,
+                com.xiyu.bid.compliance.domain.DocumentContent.fromText("b.pdf", "b", "证书正文")).status())
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"", "ISO9001认证（如有则提供）", "ISO9001认证", "投标人须具有ISO9001认证"})
+    void modelFailureWithoutMaterialFactsRemainsManualAcrossApplicability(String clause) {
+        var req = TenderRequirements.empty().withMergedQualifications(clause.isEmpty() ? List.of() : List.of(clause));
+        var bid = com.xiyu.bid.compliance.domain.DocumentContent.fromText("b.pdf", "b", "投标正文");
+        var tender = com.xiyu.bid.compliance.domain.DocumentContent.fromText("t.pdf", "t", "资格要求：" + clause);
+        var llm = new LlmAdjudicator(p -> LlmVerdict.success(new LlmVerdict("FAIL", "", "未提供ISO9001认证证书", "补充")));
+        var raw = BidDocumentQualityEngine.evaluateAll(bid, tender, List.of(), req, java.util.Set.of(), llm, (p, s) -> { })
+                .stream().filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_MATCH.getCode())).findFirst().orElseThrow();
+        assertThat(QualificationDetailReconciler.reconcile(raw, List.of(), req, bid).status())
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {0, 1, 2})
+    void legacyEmptyOrNullDetailsCannotProveModelFailure(int mode) {
+        var raw = QualityCheckItemResult.fail(BidQualityCheckItem.QUALIFICATION_MATCH, "未提供证书", "补充", List.of());
+        List<QualificationDetail> supplied = mode == 0 ? null : mode == 1 ? List.of() : Collections.singletonList(null);
+        assertThat(QualificationDetailReconciler.reconcile(raw, supplied).status())
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"2,true", "2,false", "3,true", "3,false", "4,true", "4,false"})
+    void emptyDetailsForAnotherItemKeepOriginalFailureAndMetadata(int arity, boolean nullDetails) {
+        var detail = new QualificationDetail("ISO9001", "", "UNMATCHED", null, "", null, "原始明细");
+        var other = QualityCheckItemResult.fail(BidQualityCheckItem.COVER_INFO, "封面日期缺失", "补充", List.of()).withDetails(List.of(detail));
+        List<QualificationDetail> supplied = nullDetails ? null : List.of();
+        var result = switch (arity) {
+            case 2 -> QualificationDetailReconciler.reconcile(other, supplied);
+            case 3 -> QualificationDetailReconciler.reconcile(other, supplied, TenderRequirements.empty());
+            default -> QualificationDetailReconciler.reconcile(other, supplied, TenderRequirements.empty(),
+                    com.xiyu.bid.compliance.domain.DocumentContent.empty());
+        };
+        assertThat(result).isEqualTo(other);
+    }
+
+    @Test
+    void emptyDetailsDoNotEraseActualPlaceholderEvidence() {
+        var bid = com.xiyu.bid.compliance.domain.DocumentContent.fromText("b.pdf", "b", "资质证书证明材料\n【此处上传ISO9001认证证书】");
+        var req = TenderRequirements.empty().withMergedQualifications(List.of("投标人须具有ISO9001认证"));
+        var result = QualificationDetailReconciler.reconcile(createRawPassResult(), List.of(), req, bid);
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.evidences()).anySatisfy(e -> {
+            assertThat(e.pageNumber()).isEqualTo(1);
+            assertThat(e.quote()).contains("【此处上传ISO9001认证证书】");
+        });
+    }
+
     @Test
     void ambiguousDuplicateCannotEraseSeparatelyProvenMandatoryExpiry() {
         String clause = "投标人须具有ISO9001认证";
