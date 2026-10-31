@@ -63,7 +63,7 @@ scope 分布：`casework` 21、`scoreparse` 13、`compliance` 7、`release` 5、
 | `specs` | 29 | +883 / -0 |
 | `.wiki` | 14 | +324 / -25 |
 | `document-converter-sidecar` | 3 | +102 / -3 |
-| `scripts` | 0 | 0 / 0 |
+| `.specify` | 1 | +1 / -1 |
 | **合计** | **230** | **+10278 / -772** |
 
 ### 数据库迁移（本次 0 个）
