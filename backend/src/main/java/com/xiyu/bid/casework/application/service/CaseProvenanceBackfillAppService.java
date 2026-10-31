@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 /**
  * 存量案例来源章节重算服务。
@@ -50,6 +52,58 @@ public class CaseProvenanceBackfillAppService {
     private final CaseProvenanceBackfillPort caseRepository;
     private final ProjectRepository projectRepository;
     private final BidDocumentLoader bidDocumentLoader;
+
+    public CaseProvenanceBackfillPlan preview() {
+        return new CaseProvenancePreviewPlanner(projectRepository, bidDocumentLoader)
+                .plan(caseRepository.findActiveCandidates());
+    }
+
+    public record PreviewReceipt(String batchId, int candidateCount, String manifestSha256) { }
+
+    public record ApplyResult(int updated) { }
+
+    /**
+     * 使用人工确认过的 preview 回执执行只补不清写入。回执任一字段不匹配即在持久化前失败；
+     * 实际写入仍由数据库的 ACTIVE、业务快照与五来源字段全空条件做第二道原子守卫。
+     */
+    public ApplyResult apply(CaseProvenanceBackfillPlan plan, PreviewReceipt receipt) {
+        if (plan == null || receipt == null || receipt.batchId() == null || receipt.batchId().isBlank()) {
+            throw new IllegalStateException("missing provenance preview receipt");
+        }
+        List<CaseProvenanceBackfillPlan.Decision> fillable = plan.decisions().stream()
+                .filter(decision -> decision.type() == CaseProvenanceBackfillPlan.DecisionType.FILLABLE)
+                .toList();
+        String actualDigest = new CaseProvenanceBackfillArtifactWriter()
+                .manifestSha256(receipt.batchId(), plan);
+        if (receipt.candidateCount() != fillable.size()
+                || !constantTimeEquals(receipt.manifestSha256(), actualDigest)) {
+            throw new IllegalStateException("provenance preview receipt does not match current plan");
+        }
+
+        List<Update> updates = new ArrayList<>();
+        for (CaseProvenanceBackfillPlan.Decision decision : fillable) {
+            Candidate candidate = decision.candidate();
+            CaseProvenanceBackfillPlan.Proposed proposed = decision.proposed();
+            if (candidate.sourceProjectId() == null || proposed == null) {
+                throw new IllegalStateException("fillable provenance decision is incomplete: " + decision.caseId());
+            }
+            updates.add(new Update(candidate.id(), proposed.title(), proposed.path(), proposed.index(),
+                    proposed.documentName(), proposed.pageNumber(), candidate.responseText(),
+                    candidate.scoringPointTitle(), candidate.sourceProjectId()));
+        }
+        if (!updates.isEmpty()) {
+            caseRepository.saveAllIfProvenanceEmpty(updates);
+        }
+        return new ApplyResult(fillable.size());
+    }
+
+    private static boolean constantTimeEquals(String supplied, String actual) {
+        if (supplied == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(supplied.getBytes(StandardCharsets.US_ASCII),
+                actual.getBytes(StandardCharsets.US_ASCII));
+    }
 
     public record BackfillResult(
             int projectsScanned,

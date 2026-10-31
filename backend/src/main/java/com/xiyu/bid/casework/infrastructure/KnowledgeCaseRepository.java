@@ -44,6 +44,34 @@ public interface KnowledgeCaseRepository extends JpaRepository<KnowledgeCase, Lo
             @org.springframework.data.repository.query.Param("expectedResponseText") String expectedResponseText,
             @org.springframework.data.repository.query.Param("expectedScoringPointTitle") String expectedScoringPointTitle,
             @org.springframework.data.repository.query.Param("expectedSourceProjectId") Long expectedSourceProjectId);
+
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
+    @org.springframework.data.jpa.repository.Query(value = "UPDATE knowledge_case SET "
+            + "source_section_title = :sourceSectionTitle, "
+            + "source_section_path = :sourceSectionPath, "
+            + "source_section_index = :sourceSectionIndex, "
+            + "source_document_name = :sourceDocumentName, "
+            + "source_page_number = :sourcePageNumber "
+            + "WHERE id = :id AND status = 'ACTIVE' "
+            + "AND BINARY response_text = BINARY :expectedResponseText "
+            + "AND BINARY scoring_point_title = BINARY :expectedScoringPointTitle "
+            + "AND source_project_id = :expectedSourceProjectId "
+            + "AND (source_section_title IS NULL OR TRIM(source_section_title) = '') "
+            + "AND (source_section_path IS NULL OR TRIM(source_section_path) = '') "
+            + "AND source_section_index IS NULL "
+            + "AND (source_document_name IS NULL OR TRIM(source_document_name) = '') "
+            + "AND source_page_number IS NULL",
+            nativeQuery = true)
+    int updateProvenanceIfActiveAndEmpty(
+            @org.springframework.data.repository.query.Param("id") Long id,
+            @org.springframework.data.repository.query.Param("sourceSectionTitle") String sourceSectionTitle,
+            @org.springframework.data.repository.query.Param("sourceSectionPath") String sourceSectionPath,
+            @org.springframework.data.repository.query.Param("sourceSectionIndex") Integer sourceSectionIndex,
+            @org.springframework.data.repository.query.Param("sourceDocumentName") String sourceDocumentName,
+            @org.springframework.data.repository.query.Param("sourcePageNumber") Integer sourcePageNumber,
+            @org.springframework.data.repository.query.Param("expectedResponseText") String expectedResponseText,
+            @org.springframework.data.repository.query.Param("expectedScoringPointTitle") String expectedScoringPointTitle,
+            @org.springframework.data.repository.query.Param("expectedSourceProjectId") Long expectedSourceProjectId);
 }
 
 

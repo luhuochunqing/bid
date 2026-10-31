@@ -1,9 +1,15 @@
 package com.xiyu.bid;
 
+import com.xiyu.maintenance.CaseProvenancePreviewApplication;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.core.env.MapPropertySource;
+
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 @SpringBootApplication
 @EnableScheduling
@@ -14,6 +20,42 @@ public class XiyuBidApplication {
         // CO-438: 无显示器 Linux 服务器上 AWT 字体系统初始化需要 headless 模式，
         // 否则 POI autoSizeColumn 会报 "Fontconfig head is null"（systemd 默认不设此参数）
         System.setProperty("java.awt.headless", "true");
-        SpringApplication.run(XiyuBidApplication.class, args);
+        Class<?> applicationClass = applicationClassFor(args);
+        SpringApplication application = new SpringApplication(applicationClass);
+        if (applicationClass == CaseProvenancePreviewApplication.class) {
+            application.setWebApplicationType(WebApplicationType.NONE);
+            application.setLazyInitialization(true);
+            application.addInitializers(context -> context.getEnvironment().getPropertySources().addFirst(
+                    new MapPropertySource("caseProvenanceMaintenanceSafety", maintenanceSafetyDefaults(args))));
+        }
+        application.run(args);
+    }
+
+    static Class<?> applicationClassFor(String[] args) {
+        for (String arg : args) {
+            if ("--case-provenance-backfill=preview".equals(arg)
+                    || "--case-provenance-backfill=apply".equals(arg)) {
+                return CaseProvenancePreviewApplication.class;
+            }
+        }
+        return XiyuBidApplication.class;
+    }
+
+    static Map<String, Object> maintenanceSafetyDefaults(String[] args) {
+        Map<String, Object> defaults = new LinkedHashMap<>(Map.ofEntries(
+                Map.entry("spring.main.web-application-type", "none"),
+                Map.entry("spring.main.lazy-initialization", "true"),
+                Map.entry("spring.flyway.enabled", "false"),
+                Map.entry("spring.jpa.hibernate.ddl-auto", "none"),
+                Map.entry("spring.jpa.generate-ddl", "false"),
+                Map.entry("spring.jpa.properties.jakarta.persistence.schema-generation.database.action", "none"),
+                Map.entry("spring.jpa.properties.hibernate.hbm2ddl.auto", "none"),
+                Map.entry("spring.task.scheduling.enabled", "false"),
+                Map.entry("xiyu.integrations.organization.event-sdk.enabled", "false"),
+                Map.entry("xiyu.integrations.tender-event.sdk.enabled", "false"),
+                Map.entry("xiyu.opportunity-history-replay.enabled", "false")));
+        boolean preview = java.util.Arrays.asList(args).contains("--case-provenance-backfill=preview");
+        defaults.put("spring.datasource.hikari.read-only", Boolean.toString(preview));
+        return Map.copyOf(defaults);
     }
 }
