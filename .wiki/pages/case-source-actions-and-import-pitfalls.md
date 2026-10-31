@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [案例库, knowledge_case, 源项目, 标书原文, blob下载, 枚举混用, 章节溯源, 伪标题, 打平文本, 章节号契约, 页码清洗, 存量回填]
 created: 2026-08-31
-updated: 2026-10-30
-health_checked: 2026-10-30
+updated: 2026-10-31
+health_checked: 2026-10-31
 sources:
   - backend/src/main/java/com/xiyu/bid/casework/application/port/CaseProvenanceBackfillPort.java
   - backend/src/main/java/com/xiyu/bid/casework/infrastructure/CaseProvenanceBackfillAdapter.java
@@ -18,7 +18,9 @@ sources:
   - backend/src/main/java/com/xiyu/bid/casework/application/MarkdownHeadingParser.java
   - backend/src/main/java/com/xiyu/bid/casework/application/MarkdownTitleRules.java
   - backend/src/main/java/com/xiyu/bid/casework/application/service/CaseProvenanceBackfillAppService.java
+  - backend/src/main/java/com/xiyu/bid/casework/application/service/CaseProvenanceBackfillArtifactWriter.java
   - backend/src/main/java/com/xiyu/bid/bootstrap/CaseProvenanceBackfillCommandLineRunner.java
+  - backend/src/main/java/com/xiyu/maintenance/CaseProvenancePreviewApplication.java
   - src/views/Knowledge/views/components/caseDetailFormatter.js
   - backend/src/test/resources/casework/sentence-like-title-cases.json
   - backend/src/main/resources/db/migration-mysql/V1224__clean_case_page_numbers_and_backfill_provenance.sql
@@ -171,6 +173,16 @@ backlinks:
   调 `ProjectAccessScopeService` 会因缺少认证用户失败；只重算共享案例库溯源字段，不读写项目私有数据）。
   **新增 `*AppService` 会进入该扫描面。**
 
+### 生产安全回填契约（2026-10-31，取代旧 CLI）
+
+- 旧 `--recompute-case-provenance=true` 已禁用：历史 `recomputeAll()` 会在定位失败时清空来源字段，不能作为生产补齐入口。
+- Preview 入口为 `--case-provenance-backfill=preview`，必须提供绝对审计目录和显式批次 ID。它对每条 ACTIVE 案例输出 `FILLABLE / SKIP_EXISTING / UNRESOLVED / PROJECT_UNAVAILABLE / ORPHAN`，不调用任何持久化端口。
+- Apply 入口为 `--case-provenance-backfill=apply`，除同一绝对目录与批次 ID 外，还必须提供候选数和 64 位小写 SHA-256；批次目录内 `audit.jsonl` / `audit.csv` / `rollback.sql` 不齐全则在扫描前失败。Apply 不反序列化工件中的写入值，而是重新 preview 并校验新计划。
+- **只补不清**：仅五个来源字段全空白且唯一命中原始标书章节的案例可进入 `FILLABLE`；任一字段已有值、零命中、多命中或文档不可用均保持原值。
+- **批次绑定与整批事务**：清单摘要是字段顺序确定的 canonical JSON，显式包含 batch ID、decision 字段与 null，不再用可碰撞的分隔符拼接。不同 batch ID 即使计划相同也不能复用摘要。全部 `FILLABLE` 更新只向持久化端口提交一次；任一 UPDATE 因 ACTIVE、业务快照或五来源空值守卫失败，跨项目全批回滚。
+- **隔离维护上下文**：preview/apply 都由 `CaseProvenancePreviewApplication` 启动，关闭 Web、Flyway、Hibernate schema action、调度和所有 `ApplicationReadyEvent` 外部集成，排除其他 runner 并启用 lazy initialization。preview 强制 Hikari read-only；apply 仅开放受守卫更新所需写入能力。
+- **审计工件**：批次目录使用 CREATE_NEW，包含脱敏 JSONL/CSV、批次绑定清单 SHA-256、以及只还原本批精确写入值且默认以 `ROLLBACK` 结束的回滚 SQL；业务标识工件不得提交 Git。生产 Apply、部署与重启必须另行授权。
+
 ## 回归锁定
 - `useBidCaseSourceActions.spec.js`：6 用例（路由 / 无 id / 未归档 / 错误体 / 正常下载）
 - `AiRecommendDrawer.spec.js`：res.data 构造 + 未归档中止 2 用例
@@ -185,4 +197,4 @@ backlinks:
 
 ## 回填持久化边界（2026-10-09）
 
-`CaseProvenanceBackfillAppService` 通过 `CaseProvenanceBackfillPort` 读取不可变候选并发出五字段更新；`CaseProvenanceBackfillAdapter` 严格查询ACTIVE，按项目独立事务批量保存。通用案例查询包含空状态，不能替代回填筛选契约。缺失案例或保存失败整批回滚；适配器只修改来源五字段，章节定位与不可用标书跳过仍由应用编排负责。原架构测试不增加豁免。
+`CaseProvenanceBackfillAppService` 通过 `CaseProvenanceBackfillPort` 读取不可变候选并发出五字段更新；`CaseProvenanceBackfillAdapter` 严格查询 ACTIVE，Apply 将所有项目更新收敛为一个事务批次。通用案例查询包含空状态，不能替代回填筛选契约。缺失案例或保存失败整批回滚；适配器只修改来源五字段，章节定位与不可用标书跳过仍由应用编排负责。原架构测试不增加豁免。

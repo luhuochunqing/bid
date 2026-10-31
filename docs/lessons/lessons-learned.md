@@ -7885,7 +7885,6 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **修复**：纯转换规则生成用户可读原因和下一步；同一原因写入任务和通知；两个阶段页面持续显示失败原因，刷新恢复。原始异常只保留日志，不将存储路径、上游响应暴露给用户。
 - **回归**：真实 MySQL 保存后重新查询失败原因、监听器验证任务/通知一致、真实 HTTP 下载配额拒绝，以及两个页面刷新后的错误提示。
 
-
 ## 479. AI 案例推荐评分项与案例类别互斥穿透及企业资质原件直连推荐（2026-10-30）
 
 - **现场证据（CO-652）**：
@@ -7911,9 +7910,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
      - `EnterpriseQualificationMatchPolicyTest` 验证 ISO 三体系招商积余对标、有效期降级与报废过滤；
      - `ScoreItemCaseMatchPolicyTest` 验证穿透大类否决与兼容性；
      - `ScoreItemCaseRecommendAppServiceTest` 验证资质项直连返回图片；
-     - `AiRecommendDrawer.spec.js` 验证证书卡片图片渲染及复制交互。
+    - `AiRecommendDrawer.spec.js` 验证证书卡片图片渲染及复制交互。
 
-## 480. 完整资格、证书适用性与材料事实不能共用一个判定（2026-10-30）
+## 480. 生产回填的“只读预演”必须约束整个进程而非单个方法（2026-10-30）
+
+- **陷阱**：`CommandLineRunner` 自身不调用更新方法，不代表启动完整 Spring Boot 应用是只读。正常启动还会触发 Flyway、其他 `ApplicationRunner`、`@PostConstruct` 初始化器与 `@Scheduled` 任务；因此“preview 方法零写入”不足以证明生产预演安全。
+- **进程级护栏**：案例来源预演路由到独立 `CaseProvenancePreviewApplication`，强制 `WebApplicationType.NONE`、lazy initialization、Flyway 关闭、Hibernate schema action 关闭及 Hikari read-only，并排除其他 `ApplicationRunner` / `CommandLineRunner`。还必须显式关闭所有 `ApplicationReadyEvent` 外部集成（组织事件 SDK、标讯事件 SDK、历史补发）；lazy initialization 不能阻止事件 SDK 在就绪阶段扫描并实例化全容器。旧 `--recompute-case-provenance=true` 入口明确失败，不能再触发定位失败后清空来源的历史逻辑。
+- **数据级护栏**：preview 扫描全部 ACTIVE 案例并分类，但不持久化；apply 仅接受 `FILLABLE`，校验候选数与稳定清单 SHA-256，并在数据库 UPDATE 中同时校验 ACTIVE、正文/评分项/项目快照及五个来源字段仍全空。任一来源字段已有值都保持原样。
+- **审计与回滚**：每批输出脱敏 JSONL/CSV、稳定摘要和默认 `ROLLBACK` 的守卫式回滚 SQL。生产工件保存在 Git 外，只记录批次 ID、聚合计数和摘要。
+- **验证证据**：真实 MySQL 集成测试证明并发补入任一来源字段后条件更新返回 0；整包本地演练证明只读上下文不执行 DDL，生成工件后自动退出。生产 preview、apply、部署和业务 UAT仍是独立授权与证据阶段。
+
+## 481. 完整资格、证书适用性与材料事实不能共用一个判定（2026-10-30）
 
 - **根因证据**：资格列表按证书词表清洗会删除法人、财务、业绩等条件；整条出现“如有”会误删本来强制的ISO证书；表格数据行含“专用资格要求”会被误当表头；未知要求的检索UNMATCHED还会在异步明细汇总中覆盖人工状态。
 - **候选约束**：保留完整条件、证书子项、原文来源、作用对象及强制/可选/未知状态；来源需验证文件身份、实际页与原文摘录一致。保留既有CMMI/ITSS/CCRC候选能力；未知不能静默丢弃，也不能靠结论文字决定通过或失败。
