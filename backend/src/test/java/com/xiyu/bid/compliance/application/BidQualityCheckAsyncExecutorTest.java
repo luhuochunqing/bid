@@ -430,4 +430,34 @@ class BidQualityCheckAsyncExecutorTest {
         assertThat(qualification.path("details").get(0).path("status").asText()).isEqualTo("ATTENTION");
         assertThat(qualification.path("details").get(0).path("finding").asText()).isEqualTo("LOOKUP_MISS");
     }
+    @Test
+    @DisplayName("偏离表冲突经异步编排保存为人工核验并保留原行证据")
+    void testExecuteAsync_ConflictingDeviation_SerializesManualEvidence() throws Exception {
+        Long resultId = 77L;
+        Long projectId = 1388L;
+        String bidText = "商务偏离表\n| 序号 | 条款号 | 招标参数要求 | 投标响应参数 | 偏离情况 | 说明 |\n"
+                + "| 1 | 2.1 | 收入不得低于4亿元 | 响应 | 无偏离 | 我方实际收入未达到4亿元 |";
+        var bid = DocumentContent.fromText("bid.pdf", "r7-bid", bidText);
+        var tender = DocumentContent.fromText("tender.pdf", "r7-tender", "采购要求");
+        when(targetLoader.loadBidDocument(projectId)).thenReturn(bid);
+        when(tenderDocumentLoader.loadTenderDocument(projectId)).thenReturn(tender);
+        when(resultRepository.findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
+                eq("r7-bid"), eq("r7-tender"), eq(ComplianceCheckResult.TaskStatus.COMPLETED)))
+                .thenReturn(Optional.empty());
+        when(requirementsExtractor.extract(tender)).thenReturn(TenderRequirements.empty());
+        when(kbLoader.queryKnowledgeBases(any(), any())).thenReturn(KnowledgeQueryOutcome.empty());
+        when(kbLoader.findAllQualifications()).thenReturn(List.of());
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
+                .thenReturn("{\"status\":\"PASS\",\"conclusion\":\"全部满足\"}");
+        asyncExecutor.executeAsync(resultId, projectId, "r7-conflict", false);
+        var captor = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(progressUpdater).completeTask(eq(resultId), any(ComplianceCheckResult.Status.class), anyInt(),
+                captor.capture(), anyInt(), anyInt(), anyInt(), anyInt());
+        var items = new com.fasterxml.jackson.databind.ObjectMapper().readTree(captor.getValue());
+        var item = java.util.stream.StreamSupport.stream(items.spliterator(), false)
+                .filter(n -> n.path("itemCode").asText().equals("RESPONSIVENESS_REVIEW")).findFirst().orElseThrow();
+        assertThat(item.path("status").asText()).isEqualTo("MANUAL_REVIEW");
+        assertThat(item.path("evidences").get(0).path("pageNumber").asInt()).isEqualTo(1);
+        assertThat(item.path("evidences").get(0).path("quote").asText()).contains("我方实际收入未达到4亿元");
+    }
 }

@@ -156,7 +156,7 @@ public final class DeviationTableExtractor {
             placeholders.addAll(extractPlaceholders(rawLine));
             String clause = getCell(cells, clauseCol), req = getCell(cells, reqCol);
             String resp = getCell(cells, respCol), typeStr = getCell(cells, typeCol), desc = getCell(cells, descCol);
-            rows.add(new DeviationRow(count, clause, req, resp, resolveDeviationType(typeStr, desc), desc, rawLine));
+            rows.add(new DeviationRow(count, clause, req, resp, resolveDeviationType(typeStr, req, resp, desc), desc, rawLine));
         }
         if (rows.isEmpty()) return null;
 
@@ -174,46 +174,25 @@ public final class DeviationTableExtractor {
             "完全符合", "执行招标要求", "出具检验合格报告", "提供检测报告", "已获原厂授权"
     );
 
-    private static DeviationType resolveDeviationType(final String typeText, final String descText) {
-        String combined = (typeText + " " + descText).trim();
-        if (combined.isBlank()) return DeviationType.UNKNOWN;
-        if (containsNonNegatedKeyword(combined, NEGATIVES)) return DeviationType.NEGATIVE;
-        if (containsNonNegatedKeyword(combined, POSITIVES)) return DeviationType.POSITIVE;
-        if (NONE_KEYWORDS.stream().anyMatch(combined::contains)
-                || combined.equals("/") || combined.equals("-") || combined.equals("无")) {
-            return DeviationType.NONE;
-        }
+    private static DeviationType resolveDeviationType(final String typeText, final String requirement, final String response, final String description) {
+        var status = DeviationEvidencePolicy.assess(DeviationEvidencePolicy.Origin.STATUS_COLUMN, typeText);
+        var bid = DeviationEvidencePolicy.assess(DeviationEvidencePolicy.Origin.RESPONSE_COLUMN, response);
+        var note = DeviationEvidencePolicy.assess(DeviationEvidencePolicy.Origin.DESCRIPTION_COLUMN, description);
+        if (status.polarity() == DeviationEvidencePolicy.Polarity.NEGATIVE) return DeviationType.NEGATIVE;
+        boolean negative = bid.polarity() == DeviationEvidencePolicy.Polarity.NEGATIVE
+                || note.polarity() == DeviationEvidencePolicy.Polarity.NEGATIVE;
+        if (negative && status.polarity() == DeviationEvidencePolicy.Polarity.NONE) return DeviationType.UNKNOWN;
+        if (negative) return DeviationType.NEGATIVE;
+        boolean sameResponse = !requirement.isBlank() && requirement.trim().equals(response.trim());
+        if (bid.polarity() == DeviationEvidencePolicy.Polarity.UNKNOWN && !sameResponse
+                || note.polarity() == DeviationEvidencePolicy.Polarity.UNKNOWN
+                || status.polarity() == DeviationEvidencePolicy.Polarity.UNKNOWN) return DeviationType.UNKNOWN;
+        if (status.polarity() == DeviationEvidencePolicy.Polarity.POSITIVE
+                || bid.polarity() == DeviationEvidencePolicy.Polarity.POSITIVE
+                || note.polarity() == DeviationEvidencePolicy.Polarity.POSITIVE) return DeviationType.POSITIVE;
+        if (status.polarity() == DeviationEvidencePolicy.Polarity.NONE
+                || note.polarity() == DeviationEvidencePolicy.Polarity.NONE) return DeviationType.NONE;
         return DeviationType.UNKNOWN;
-    }
-
-    private static boolean containsNonNegatedKeyword(final String text, final List<String> keywords) {
-        for (String kw : keywords) {
-            int from = 0, idx;
-            while ((idx = text.indexOf(kw, from)) >= 0) {
-                if (!hasNegationPrefix(text, idx)) return true;
-                from = idx + kw.length();
-            }
-        }
-        return false;
-    }
-
-    private static boolean hasNegationPrefix(final String text, final int idx) {
-        int start = Math.max(0, idx - 18);
-        for (int i = idx - 1; i >= start; i--) {
-            char c = text.charAt(i);
-            if (c == '，' || c == '。' || c == '；' || c == '、' || c == '\n' || c == '|' || c == ',' || c == ';' || c == '.') {
-                start = i + 1;
-                break;
-            }
-        }
-        String prefix = text.substring(start, idx).trim();
-        for (String negation : COMPOSITE_NEGATIONS) {
-            if (prefix.contains(negation)) return true;
-        }
-        for (String negation : SHORT_NEGATIONS) {
-            if (prefix.endsWith(negation)) return true;
-        }
-        return false;
     }
 
     private static List<String> extractPlaceholders(final String text) {

@@ -34,7 +34,8 @@ final class SemanticEvidenceBoundary {
             final DocumentContent bidDoc, final TenderRequirements requirements) {
         if (!BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(result.itemCode())
                 || !requirements.hasUnresolvedCertificateRequirements()
-                || QualificationMatchPolicy.checkFirstStage(bidDoc, requirements).isPresent()) return result;
+                || QualificationMatchPolicy.checkFirstStage(bidDoc, requirements)
+                    .filter(v -> v.status() == QualityCheckStatus.FAIL).isPresent()) return result;
         return QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
                 "证书条件的强制性或作用对象尚未确认，资料检索结果不能直接证明招标资格满足或缺失",
                 "请按结构化条件的原文依据确认适用范围，再核对企业资质与本次投标材料", result.evidences());

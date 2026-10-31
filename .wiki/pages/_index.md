@@ -199,7 +199,7 @@ backlinks:
 
 - [[scoreparse-langextract-ab-pilot-20261004]] — 两文件两轮真实提取AB，LangExtract名称更直接但粒度与完整原文定位未通过。
 
-- [标书质量核查证据边界](quality-evidence-boundary.md)：规则引用、抽样页码、证书消费契约、材料事实及编号边界（spec079、quality1030）。
+- [标书质量核查证据边界](quality-evidence-boundary.md)：规则引用、抽样页码、证书身份、占位适用性、材料事实及编号边界（spec079、quality1030）。
 - [[scoreparse-single-digit-code-and-manual-adopt-rca]] — 单数字评分项识别缺陷与人工复核采纳死锁根因分析。
 
 - [[scoreparse-multimodal-primary]] — 1135 跨页评分表、OCR合行与来源校验回放边界。

@@ -40,8 +40,12 @@ public final class QualificationDetailReconciler {
         }
         List<QualificationDetail> entries = checkedDetails(raw, details);
         var hardDefect = QualificationMatchPolicy.checkFirstStage(bidDoc, requirements);
-        if (hardDefect.isPresent()) return hardDefect.orElseThrow().withDetails(entries);
-        return reconcileRequirements(raw, entries, requirements);
+        if (hardDefect.isPresent() && hardDefect.orElseThrow().status() == QualityCheckStatus.FAIL)
+            return hardDefect.orElseThrow().withDetails(entries);
+        var result = reconcileRequirements(raw, entries, requirements);
+        if (hardDefect.isPresent() && result.status() != QualityCheckStatus.FAIL)
+            return hardDefect.orElseThrow().withDetails(result.details());
+        return result;
     }
 
     private static QualityCheckItemResult reconcileRequirements(final QualityCheckItemResult raw,

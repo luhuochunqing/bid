@@ -44,6 +44,25 @@ final class RuleCitationContext {
                 && !OWN_FACT.matcher(context).find();
     }
 
+    /** 门槛中的否定义务与投标人自述“低于要求”不是同一事实。 */
+    static boolean isMinimumThreshold(final String text, final int start, final String keyword) {
+        if (!"低于".equals(keyword)) return false;
+        String prefix = text.substring(Math.max(0, start - 32), start).replaceAll("[\\s\\p{Z}\\p{Cf}]+", "");
+        return prefix.matches("(?s).*(?:不得|不应|不应当|不能|不允许|不可以|不可|须不|应不|不)$");
+    }
+
+    static boolean isActualLow(final String text, final int start) {
+        return DeviationEvidencePolicy.isOwnLow(text, start);
+    }
+
+    static boolean isConditionalLow(final String text, final int start) {
+        if (isActualLow(text, start)) return false;
+        String prefix = text.substring(Math.max(0, start - 30), start).replaceAll("[\\s\\p{Z}\\p{Cf}]+", "");
+        String suffix = text.substring(start, Math.min(text.length(), start + 80)).replaceAll("[\\s\\p{Z}\\p{Cf}]+", "");
+        return prefix.matches("(?s).*(?:如|若|如果|一旦)$")
+                || suffix.matches("(?s).*(?:不得分|不予计分|视为不合格|予以否决|不得通过).*");
+    }
+
     private static boolean isSentenceEnd(final char c) {
         return c == '。' || c == '！' || c == '？' || c == '!' || c == '?';
     }
