@@ -72,7 +72,7 @@ public final class SemanticRulesLane {
                     : ScoringResponsePolicy.checkFirstStage(bidDoc, requirements);
             case FRONT_TABLE_RESPONSE -> Optional.ofNullable(
                     FrontTableResponsePolicy.check(bidDoc, requirements != null ? requirements.frontTableRequirement() : null));
-            case RESPONSIVENESS_REVIEW -> Optional.ofNullable(ResponsivenessReviewPolicy.check(bidDoc));
+            case RESPONSIVENESS_REVIEW -> Optional.ofNullable(ResponsivenessReviewPolicy.check(bidDoc, tenderDoc));
             case CLARIFICATION_RESPONSE -> ClarificationResponsePolicy.checkFirstStage(bidDoc, tenderDoc, requirements);
             default -> Optional.empty();
         };

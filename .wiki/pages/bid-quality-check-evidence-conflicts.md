@@ -17,8 +17,8 @@ backlinks:
   - .wiki/pages/_index.md
   - .wiki/log.md
 created: 2026-10-23
-updated: 2026-10-26
-health_checked: 2026-10-26
+updated: 2026-10-31
+health_checked: 2026-10-31
 archive: false
 ---
 
@@ -106,3 +106,7 @@ mvn -Dtest=BasicInfoAndAttachmentRulesTest,DeterministicCaCertificateExtractorTe
 - 三态文法按实测真实样本扩充：授权范围「全权代表本公司参加投标」、授权期限「长期有效」、法人证明「法定代表人：姓名 + 18位/8位掩码身份证」。掩码要求恰 8 位，16/17 位截断与下划线留白仍拒绝；姓名可取自「姓名」或「法定代表人」字段，依旧不验证真实身份与签章。
 - 证据：`AuthorizationLetterCheckPolicyTest` 17 项（新增 5 个回归用例，修复前先红 3+2 项）、compliance 全包 834 项、三架构 43 项全绿；S6 独立审查 round 1 NEEDS_FIXES（跨行漏判、掩码位数过宽）→ round 2 MERGE_READY。
 - 分支 `agent/trae/auth-grammar-fix`。生产未部署，报告58须在部署后另验真实模型、页面与持久化结果。
+
+## 报告147规则引用边界（2026-10-31）
+
+当前招标全文直接匹配的独立禁止/定义规则片段不作为投标人负偏离；只排除该片段，继续查实际响应。引用排除后证据不足转人工，不新增自动通过路径。判断用遮蔽内容不能进入证据摘录，负偏离表行定位须返回所属页原文（含TAB）。源码：`ResponsivenessRuleCitation`、`ResponsivenessReviewPolicy`；验收与用户授权的已知缺陷隔离/90项基线豁免见 `specs/20261031-responsive-evidence/`。11项定向验收和原始DOCX相关摘录重放通过，不替代部署后整文件E2E；OCR/换行变体不在补丁支持范围。
