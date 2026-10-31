@@ -99,7 +99,7 @@ public final class QualificationMatchPolicy {
         LocalDate refDate = today == null ? LocalDate.now() : today;
         List<QualificationDetail> details = new ArrayList<>();
         for (String req : expandCombinedIsoRequirements(requirements)) {
-            if (req == null || req.isBlank() || !DeterministicQualificationExtractor.isSpecificCertificate(req.trim())) {
+            if (!CertificateRequirementPolicy.isCertificateReference(req)) {
                 continue;
             }
             details.add(buildSingleDetail(req.trim(), certs, bidDoc, refDate));

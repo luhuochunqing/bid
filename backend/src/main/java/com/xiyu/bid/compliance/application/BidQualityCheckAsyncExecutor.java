@@ -172,14 +172,12 @@ public class BidQualityCheckAsyncExecutor {
                     kbLoader != null ? kbLoader.findAllQualifications() : List.of(),
                     bidDoc,
                     LocalDate.now());
-            if (!qualDetails.isEmpty()) {
-                TenderRequirements finalRequirements = requirements;
-                itemResults = itemResults.stream()
-                        .map(r -> BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(r.itemCode())
-                                ? QualificationDetailReconciler.reconcile(r, qualDetails, finalRequirements, bidDoc)
-                                : r)
-                        .toList();
-            }
+            TenderRequirements finalRequirements = requirements;
+            itemResults = itemResults.stream()
+                    .map(r -> BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(r.itemCode())
+                            ? QualificationDetailReconciler.reconcile(r, qualDetails, finalRequirements, bidDoc)
+                            : r)
+                    .toList();
 
             int passed = 0, failed = 0, manual = 0;
             for (QualityCheckItemResult r : itemResults) {

@@ -225,7 +225,12 @@ public final class DeterministicQualificationExtractor {
      * 判定条款是否为专用行业资质证书要求（增值电信、安全生产、等保、ISO 认证、总承包等）.
      */
     public static boolean isSpecificCertificate(final String clean) {
-        if (!isValidText(clean) || isIntroductoryHeading(clean)) {
+        return isValidText(clean) && hasSpecificCertificateKeyword(clean);
+    }
+
+    /** 完整资格条件使用此语义识别；旧证书名称提取仍由外层保留长度约束。 */
+    static boolean hasSpecificCertificateKeyword(final String clean) {
+        if (clean == null || clean.isBlank() || isIntroductoryHeading(clean)) {
             return false;
         }
         if (PENALTY_AND_DISCREDIT_KEYWORDS.stream().anyMatch(clean::contains)) {

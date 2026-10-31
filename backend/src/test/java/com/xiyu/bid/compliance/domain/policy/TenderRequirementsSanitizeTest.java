@@ -12,6 +12,83 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TenderRequirementsSanitizeTest {
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"1. 成立满3年\n2. 投标人须具备ISO9001认证", "3.1.1 成立满3年\n3.1.2 投标人须具备ISO9001认证",
+            "3.1.1成立满3年\n3.1.2投标人须具备ISO9001认证", "03.1.1成立满3年\n03.1.2投标人须具备ISO9001认证"})
+    void numberedConditionsAreNotMistakenForSiblingSections(String conditions) {
+        var text = "3.1 投标人资格要求\n" + conditions + "\n3.2 服务期限\n交付时间为30日";
+        assertThat(QualificationConditionExtractor.extract(text)).containsExactly("成立满3年", "投标人须具备ISO9001认证");
+    }
+
+    @Test
+    void singleLevelSiblingSectionsCannotTurnScoringCertificateIntoQualification() {
+        var text = "3. 投标人资格要求\n（1）具有独立法人资格\n4. 服务期限\n服务为三年\n5. 评分标准\n\n投标人须具备ISO9001认证可得10分";
+        var req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(),
+                com.xiyu.bid.compliance.domain.DocumentContent.fromText("t.pdf", "h", text));
+        assertThat(req.mandatoryQualifications()).containsExactly("具有独立法人资格");
+        assertThat(req.certificateRequirements()).isEmpty();
+    }
+
+    @Test
+    void ambiguousListAndChapterNumberingRetainsConditionsWithUnknownCertificateScope() {
+        var text = "1. 投标人资格要求\n1. 成立满3年\n2. 投标人须具备ISO9001认证\n3. 服务期限\n服务为三年";
+        var req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(),
+                com.xiyu.bid.compliance.domain.DocumentContent.fromText("t.pdf", "h", text));
+        assertThat(req.mandatoryQualifications()).anyMatch(c -> c.contains("成立满3年"));
+        assertThat(req.certificateRequirements()).anyMatch(c -> c.contains("ISO9001"));
+        assertThat(req.hasUnresolvedCertificateRequirements()).isTrue();
+    }
+
+    @Test
+    void dateAtStartOfConditionIsNeitherChapterNorDisposableBullet() {
+        var text = "3.1 投标人资格要求\n2025.01.01起成立的企业须提供营业执照\n3.2 服务期限";
+        assertThat(QualificationConditionExtractor.extract(text)).containsExactly("2025.01.01起成立的企业须提供营业执照");
+    }
+
+    @Test
+    void chineseListWithoutReliableChapterRolesKeepsTextAndUnknownScope() {
+        var req = fused("投标人资格要求\n一、成立满3年\n二、投标人须具备ISO9001认证");
+        assertThat(req.mandatoryQualifications()).containsExactly("成立满3年", "投标人须具备ISO9001认证");
+        assertThat(req.hasUnresolvedCertificateRequirements()).isTrue();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"1.5亿元以上", "3.2 亿元以上"})
+    void numericAmountIsNotAChapterOrDisposableIndex(String amount) {
+        var req = fused("3.1 投标人资格要求\n" + amount + "的营业收入。\n投标人须具有ISO9001认证\n3.2 服务期限");
+        assertThat(req.mandatoryQualifications()).containsExactly(amount + "的营业收入", "投标人须具有ISO9001认证");
+        assertThat(req.hasUnresolvedCertificateRequirements()).isFalse();
+    }
+
+    @Test
+    void markdownChildNumberKeepsItsOriginalEvidenceAndSeparateCondition() {
+        String row = "#### 3.1.1成立满3年";
+        var req = fused("### 3.1 投标人资格要求\n" + row + "\n#### 3.1.2投标人须具有ISO9001认证\n### 3.2 服务期限");
+        assertThat(req.mandatoryQualifications()).containsExactly("成立满3年", "投标人须具有ISO9001认证");
+        assertThat(req.qualificationConditions().get(0).source().quote()).isEqualTo(row);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"3.1成立满3年\n3.2投标人须具备ISO9001认证", "3.1.成立满3年\n3.2.投标人须具备ISO9001认证"})
+    void compactChildNumbersUnderSingleLevelHeadingAreCleanedWithoutLosingText(String conditions) {
+        assertThat(QualificationConditionExtractor.extract("3. 投标人资格要求\n" + conditions + "\n4. 服务期限"))
+                .containsExactly("成立满3年", "投标人须具备ISO9001认证");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"3.1 投标人资格要求", "3.1.2投标人资格要求", "### 3.1 投标人资格要求",
+            "3.1 投标人资格要求\n3.1.1 资质要求："})
+    void numberedQualificationSectionRetainsFullConditionsAndStopsAtNextSection(String heading) {
+        String text = heading + "\n（1）具有独立法人资格。\n（2）投标人须具备ISO9001认证。\n3.2 服务期限\n交付时间为30日";
+        var doc = com.xiyu.bid.compliance.domain.DocumentContent.fromText("招标.pdf", "hash", text);
+        var req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), doc);
+        assertThat(req.mandatoryQualifications()).containsExactly("具有独立法人资格", "投标人须具备ISO9001认证");
+        assertThat(req.qualificationConditions()).allSatisfy(c -> {
+            assertThat(c.source().fileHash()).isEqualTo("hash");
+            assertThat(c.source().pageNumber()).isEqualTo(1);
+        });
+    }
+
     @Test
     void declaredSourcePageMustContainItsActualQuote() {
         String row = "| 1 | 专用资格要求 | 须具有ISO9001认证 |";

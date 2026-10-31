@@ -376,7 +376,8 @@ class BidQualityCheckAsyncExecutorTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {"①具有电力工程施工总承包特级资质。", "①投标人须具有ISO9001认证。"})
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"①具有电力工程施工总承包特级资质。", "①投标人须具有ISO9001认证。",
+            "投标人须具备ISO9001认证并应在投标文件中提供该认证证书的有效扫描证明并应在投标文件中提供该认证证书的有效扫描证明并应在投标文件中提供该认证证书的有效扫描证明并应在投标文件中提供该认证证书的有效扫描证明并应在投标文件中提供该认证证书的有效扫描证明并应在投标文件中提供该认证证书的有效扫描证明"})
     @DisplayName("已知强制及未知要求的纯检索未命中均保持人工确认")
     void testExecuteAsync_QualificationLookupMiss_RequiresReview(String requirement) throws Exception {
         Long resultId = 3L;
@@ -398,7 +399,7 @@ class BidQualityCheckAsyncExecutorTest {
                 eq("hash_bid_1359"), eq("hash_tender_1359"), eq(ComplianceCheckResult.TaskStatus.COMPLETED)))
                 .thenReturn(Optional.empty());
 
-        when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.missingSentinel());
+        when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.empty());
         when(kbLoader.queryKnowledgeBases(any(), any())).thenReturn(KnowledgeQueryOutcome.empty());
         when(kbLoader.findAllQualifications()).thenReturn(List.of()); // 资质库空，标书无证明 -> UNMATCHED
         // 模拟 LLM 误判 PASS
@@ -425,6 +426,7 @@ class BidQualityCheckAsyncExecutorTest {
         var qualification = java.util.stream.StreamSupport.stream(items.spliterator(), false)
                 .filter(n -> n.path("itemCode").asText().equals("QUALIFICATION_MATCH")).findFirst().orElseThrow();
         assertThat(qualification.path("status").asText()).isEqualTo("MANUAL_REVIEW");
+        assertThat(qualification.path("details").size()).isGreaterThan(0);
         assertThat(qualification.path("details").get(0).path("status").asText()).isEqualTo("ATTENTION");
         assertThat(qualification.path("details").get(0).path("finding").asText()).isEqualTo("LOOKUP_MISS");
     }

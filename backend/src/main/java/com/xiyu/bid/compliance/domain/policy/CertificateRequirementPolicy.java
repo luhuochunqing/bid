@@ -1,5 +1,5 @@
 // Input: 单条完整资格条件及原文行/单元格
-// Output: 子句级证书要求、作用对象、适用性及判断依据
+// Output: 子句级证书要求及分类、匹配、证据共用的识别结果
 // Pos: compliance/domain/policy/ - 资格条件内的证书子项纯核心
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -17,11 +17,17 @@ public final class CertificateRequirementPolicy {
 
     private CertificateRequirementPolicy() { }
 
+    /** 分类及消费共用识别；完整证书子句不受旧证书名称长度上限裁剪。 */
+    static boolean isCertificateReference(final String text) {
+        return text != null && !text.isBlank()
+                && (CERTIFICATE.matcher(text).find() || DeterministicQualificationExtractor.hasSpecificCertificateKeyword(text));
+    }
+
     static List<QualificationCondition.CertificateRequirement> classify(final String text, final String sourceQuote) {
         List<QualificationCondition.CertificateRequirement> result = new ArrayList<>();
         for (String part : text.split("[，,；;。\\r\\n]+")) {
             String clause = part.trim();
-            if (!CERTIFICATE.matcher(clause).find() && !DeterministicQualificationExtractor.isSpecificCertificate(clause)) continue;
+            if (!isCertificateReference(clause)) continue;
             Applicability applicability = OPTIONAL.matcher(clause).find() ? Applicability.OPTIONAL
                     : text.matches("(?s).*(?:或|任选|二选一|至少一项).*?")
                         || clause.matches(".*(?:如|若|不|无|除非|仅限).*?") ? Applicability.UNKNOWN

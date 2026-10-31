@@ -62,6 +62,10 @@
 
 - 人工确认后的R3材料事实映射：`QualificationDetail.Finding`区分LOOKUP_MISS、EVIDENCE_INCOMPLETE、MATCHED_REFERENCE、EXPIRED、GRADE_INSUFFICIENT、UNKNOWN；旧JSON不从备注猜测等级缺陷。校准使用事实原因，未命中及未证实的模型FAIL转人工，已证实过期、等级冲突及实际占位保持失败。证书独立level参与选证，原始名称仍用于定位；本地验证及审查见`.omc/*quality1030-material.md`，不代表生产报告已重算。
 
+- R4审查修复：证书分类、匹配、证据和引用共用`CertificateRequirementPolicy.isCertificateReference`，完整子句不再被旧名称长度上限裁剪；有证书要求而无比对明细时转人工，Async始终进入校准。多级编号标题与章节结束边界共用编号语法，表格行解析独立保留原文来源。原有通用主体资格不进入证书清单的兼容性仍由回归保护。
+
+- 编号使用`NumberPath`比较层级，`SourceLine`分别保留清洗文本、原文及条目开始标记；日期/金额保留数值，歧义范围的证书保持UNKNOWN且随来源绑定透传。已明确的强制证书依据不能被另一处未知重复条款掩盖。旧证书名称提取API继续保留长度约束，新完整条件入口复用同一语义关键词能力。
+
 - spec079 安全兜底：财务核查及复合资格性评审的自动 PASS 统一转 MANUAL_REVIEW，规则入口、LLM 入口和引擎输出共享边界；保留证据与明细，不代表财务条款解析已完成修复。
 
 ## 报告58程序证据链修复

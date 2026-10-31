@@ -30,3 +30,11 @@ JUnit覆盖每片正反例；关联compliance与三架构测试；Vitest、前�
 2. QualificationDetail增加Finding（LOOKUP_MISS/EVIDENCE_INCOMPLETE/MATCHED_REFERENCE/EXPIRED/GRADE_INSUFFICIENT/UNKNOWN），旧构造/JSON不从备注猜缺陷。生成器在取得相应日期/等级事实时显式赋值。
 3. Reconciler按事实原因映射，未命中及证据不足人工；过期、等级不足与四参入口验证出的实际占位仍FAIL。去掉按结论文字猜材料事实的重复分支。
 4. 验证真实Async JSON、旧格式、已知/未知混合、模型PASS/FAIL不得升级纯检索缺口；Mode B后重跑合规/架构/构建及新周期审查。working_tree交付，不推送。
+
+## R4 PR2940审查修复（2026-10-31用户立刻修复）
+1. RED：3.1及多级/Markdown资格标题保留法人等条件，停止于下一编号章节；长证书经实际Async落库JSON不假通过；空明细有证书要求时人工。
+2. 分类及匹配/证据/资格引用共用CertificateRequirementPolicy识别入口，不再各自使用旧长度门禁。保留通用主体资格不进入证书匹配的已有契约。
+3. 数字多级标题与边界协同识别；表格行单元格解析提取为纯函数，外层只负责段落/表格切换。保留原始行来源与序号语义。
+4. Mode B去重复识别/深层嵌套，合规回归、三架构及必要门禁后独立全diff审查，提交更新既有PR，不合并。全量91项基线失败保留归因证据，不改无关模块或自动豁免。
+
+第1/2轮独立审查NEEDS_FIXES后，编号边界改为NumberPath与SourceLine：用完整编号路径、分隔符和观察到的列表序列判定；歧义保留并标UNKNOWN，来源绑定保持语义状态。日期/带单位金额不作为编号，条目分隔不因去掉编号丢失；独立明确的强制依据优先于未知重复上下文。Mode B将材料事实和关注说明分离，各方法出口不超过5；最终940项关联验证通过后进行第3轮独立审查。

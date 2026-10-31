@@ -40,6 +40,16 @@ public final class QualificationDetailReconciler {
                 .filter(d -> d != null).map(QualificationDetailReconciler::validateFinding).toList();
         var hardDefect = QualificationMatchPolicy.checkFirstStage(bidDoc, requirements);
         if (hardDefect.isPresent()) return hardDefect.orElseThrow().withDetails(entries);
+        return reconcileRequirements(raw, entries, requirements);
+    }
+
+    private static QualityCheckItemResult reconcileRequirements(final QualityCheckItemResult raw,
+            final List<QualificationDetail> entries, final TenderRequirements requirements) {
+        if (entries.isEmpty() && requirements != null && !requirements.certificateRequirements().isEmpty()) {
+            return QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
+                    "证书要求存在但未形成比对明细，不能据此判定材料齐全", "请逐项核验原始证书及投标证明", raw.evidences())
+                    .withDetails(entries);
+        }
         if (requirements == null || !requirements.hasUnresolvedCertificateRequirements()
                 && entries.stream().noneMatch(d -> requirements.isUnresolvedCertificateRequirement(d.requirement()))) return reconcile(raw, entries);
         List<QualificationDetail> references = entries.stream()
@@ -86,7 +96,11 @@ public final class QualificationDetailReconciler {
         }
         List<QualificationDetail> checked = details.stream().filter(d -> d != null)
                 .map(QualificationDetailReconciler::validateFinding).toList();
+        return reconcileMaterialFacts(rawResult, checked);
+    }
 
+    private static QualityCheckItemResult reconcileMaterialFacts(final QualityCheckItemResult rawResult,
+            final List<QualificationDetail> checked) {
         List<QualificationDetail> expiredList = new ArrayList<>();
         List<QualificationDetail> gradeDefects = new ArrayList<>();
         List<QualificationDetail> unproven = new ArrayList<>();
@@ -139,49 +153,48 @@ public final class QualificationDetailReconciler {
                     "请核验原始证明及扫描附件，检索状态只作参考", rawResult.evidences()).withDetails(references);
         }
 
-        // 3. 存在需关注项（ATTENTION）：区分仅临期 vs 资质库未维护
+        // 3. 材料事实已确认后，单独生成需关注项的复核说明。
         if (!attentionList.isEmpty() && rawResult.status() == QualityCheckStatus.PASS) {
-            if (attentionList.stream().anyMatch(d -> d.bidPageNumber() == null && !d.matchedCertName().isBlank())) {
-                return QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
-                        "资质库已检索到证书，但本次投标文件证明尚未可靠定位，不能据此判定已提供",
-                        "请核对实际证明页及扫描附件；资料库记录与投标材料分别核验", rawResult.evidences()).withDetails(checked);
-            }
-            List<QualificationDetail> expiringList = attentionList.stream()
-                    .filter(d -> d.matchedCertName() != null && !d.matchedCertName().isBlank())
-                    .toList();
-            List<QualificationDetail> unmaintainedList = attentionList.stream()
-                    .filter(d -> d.matchedCertName() == null || d.matchedCertName().isBlank())
-                    .toList();
-
-            String conclusionPrefix;
-            String suggestion;
-            if (unmaintainedList.isEmpty()) {
-                // 纯证书临期预警，标书材料本身齐全
-                List<String> expiringNotices = expiringList.stream()
-                        .map(d -> "证书「" + d.matchedCertName() + "」即将到期"
-                                + (d.remainingDays() != null ? "（剩余 " + d.remainingDays() + " 天）" : ""))
-                        .toList();
-                conclusionPrefix = "[" + ManualReasons.MANUAL_REVIEW_REQUIRED + "] 资质比对提示证书临期（"
-                        + String.join("；", expiringNotices) + "），请人工复核资质有效期与换证进度；";
-                suggestion = "请复核即将到期的资质证书有效期并及时推进换证续期";
-            } else {
-                List<String> attentionReqs = attentionList.stream()
-                        .map(d -> d.requirement() + (d.bidPageNumber() != null ? "（标书第" + d.bidPageNumber() + "页）" : ""))
-                        .toList();
-                conclusionPrefix = "[" + ManualReasons.MANUAL_REVIEW_REQUIRED + "] 资质比对存在待人工核实项（"
-                        + String.join("；", attentionReqs) + "），请人工复核标书中资质证明材料的有效性；";
-                suggestion = "请人工复核标书中资质证明材料与资质有效期后确认";
-            }
-
-            String conclusion = conclusionPrefix + cleansePassPhrasesForManual(rawResult.conclusion());
-            return new QualityCheckItemResult(
-                    rawResult.itemCode(), rawResult.category(), rawResult.title(), rawResult.description(),
-                    QualityCheckStatus.MANUAL_REVIEW, rawResult.severity(), rawResult.order(),
-                    conclusion, suggestion, rawResult.evidences(), checked);
+            return reviewAttention(rawResult, checked, attentionList);
         }
-
-        // 4. 全量 MATCHED 或非 PASS 原始状态保持
         return rawResult.withDetails(checked);
+    }
+
+    /** 显式Finding的兼容调用也可能缺少定位，保留防御性的人工复核分支。 */
+    private static QualityCheckItemResult reviewAttention(final QualityCheckItemResult rawResult,
+            final List<QualificationDetail> checked, final List<QualificationDetail> attentionList) {
+        if (attentionList.stream().anyMatch(d -> d.bidPageNumber() == null && !d.matchedCertName().isBlank())) {
+            return QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
+                    "资质库已检索到证书，但本次投标文件证明尚未可靠定位，不能据此判定已提供",
+                    "请核对实际证明页及扫描附件；资料库记录与投标材料分别核验", rawResult.evidences()).withDetails(checked);
+        }
+        List<QualificationDetail> expiringList = attentionList.stream()
+                .filter(d -> d.matchedCertName() != null && !d.matchedCertName().isBlank()).toList();
+        List<QualificationDetail> unmaintainedList = attentionList.stream()
+                .filter(d -> d.matchedCertName() == null || d.matchedCertName().isBlank()).toList();
+        String conclusionPrefix;
+        String suggestion;
+        if (unmaintainedList.isEmpty()) {
+            List<String> expiringNotices = expiringList.stream()
+                    .map(d -> "证书「" + d.matchedCertName() + "」即将到期"
+                            + (d.remainingDays() != null ? "（剩余 " + d.remainingDays() + " 天）" : ""))
+                    .toList();
+            conclusionPrefix = "[" + ManualReasons.MANUAL_REVIEW_REQUIRED + "] 资质比对提示证书临期（"
+                    + String.join("；", expiringNotices) + "），请人工复核资质有效期与换证进度；";
+            suggestion = "请复核即将到期的资质证书有效期并及时推进换证续期";
+        } else {
+            List<String> attentionReqs = attentionList.stream()
+                    .map(d -> d.requirement() + (d.bidPageNumber() != null ? "（标书第" + d.bidPageNumber() + "页）" : ""))
+                    .toList();
+            conclusionPrefix = "[" + ManualReasons.MANUAL_REVIEW_REQUIRED + "] 资质比对存在待人工核实项（"
+                    + String.join("；", attentionReqs) + "），请人工复核标书中资质证明材料的有效性；";
+            suggestion = "请人工复核标书中资质证明材料与资质有效期后确认";
+        }
+        String conclusion = conclusionPrefix + cleansePassPhrasesForManual(rawResult.conclusion());
+        return new QualityCheckItemResult(
+                rawResult.itemCode(), rawResult.category(), rawResult.title(), rawResult.description(),
+                QualityCheckStatus.MANUAL_REVIEW, rawResult.severity(), rawResult.order(),
+                conclusion, suggestion, rawResult.evidences(), checked);
     }
 
     /**

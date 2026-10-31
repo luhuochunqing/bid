@@ -142,10 +142,7 @@ public final class QualificationVetoPolicy {
 
         List<String> validQualifications = new ArrayList<>();
         for (String qualification : requirements.certificateRequirements()) {
-            if (qualification == null
-                    || qualification.isBlank()
-                    || qualification.length() > DeterministicQualificationExtractor.MAX_QUALIFICATION_LENGTH
-                    || !DeterministicQualificationExtractor.isSpecificCertificate(qualification)) {
+            if (!CertificateRequirementPolicy.isCertificateReference(qualification)) {
                 continue;
             }
             if (!validQualifications.contains(qualification)) {

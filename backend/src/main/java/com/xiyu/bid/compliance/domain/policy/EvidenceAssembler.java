@@ -77,7 +77,7 @@ public final class EvidenceAssembler {
             case QUALIFICATION_MATCH -> {
                 if (requirements != null && requirements.mandatoryQualifications() != null) {
                     for (String qual : QualificationMatchPolicy.expandCombinedIsoRequirements(requirements.certificateRequirements())) {
-                        if (qual != null && !qual.isBlank() && DeterministicQualificationExtractor.isSpecificCertificate(qual)) {
+                        if (CertificateRequirementPolicy.isCertificateReference(qual)) {
                             evidences.add(locateTender(tenderDoc, "招标文件资质要求", List.of(qual)));
                             evidences.add(locateBidSkippingCatalog(bidDoc, "资质证明材料正文", List.of(qual)));
                         }

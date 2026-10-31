@@ -130,8 +130,8 @@ public record TenderRequirements(
     public boolean isUnresolvedCertificateRequirement(final String requirement) {
         var candidates = qualificationConditions.stream().flatMap(c -> c.certificates().stream())
                 .filter(c -> QualificationMatchPolicy.expandCombinedIsoRequirements(List.of(c.requirementText())).contains(requirement)).toList();
-        return candidates.isEmpty() || candidates.stream().anyMatch(c ->
-                c.applicability() != QualificationCondition.Applicability.MANDATORY || c.target() != QualificationCondition.Target.BIDDER);
+        return candidates.stream().noneMatch(c ->
+                c.applicability() == QualificationCondition.Applicability.MANDATORY && c.target() == QualificationCondition.Target.BIDDER);
     }
 
     public static TenderRequirements empty() {
