@@ -12,6 +12,41 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ResponsivenessReviewPolicyTest {
 
     @Test
+    void scoringConditionWithNumberedRequirementsIsNotBidderDeviation() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "scoring-rule",
+                "评审索引\n不满足任意1项或未提供证明文件者，不得分。");
+        QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+        assertThat(result == null || result.status() != QualityCheckStatus.FAIL).isTrue();
+    }
+
+    @Test
+    void actualAdmissionAfterNumberedScoringRuleStillFails() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "actual-admission",
+                "评分标准：不满足任意1项或未提供证明文件者，不得分。\n我方实际不满足交货期要求。");
+        QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+        assertThat(result).isNotNull();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+    }
+
+    @Test
+    void sameSentenceActualAdmissionCannotUseScoringRuleAsExemption() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "same-sentence-admission",
+                "评分标准：不满足任意1项或未提供证明文件者，不得分，我方存在负偏离。");
+        QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+        assertThat(result).isNotNull();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.conclusion()).contains("（负偏离）");
+    }
+
+    @Test
+    void normalCommitmentAfterScoringConditionDoesNotCancelRuleExemption() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "normal-commitment",
+                "评分标准：不满足任意1项或未提供证明文件者，不得分；我方不存在负偏离。");
+        QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+        assertThat(result == null || result.status() != QualityCheckStatus.FAIL).isTrue();
+    }
+
+    @Test
     @DisplayName("偏离表核查：标书声明无负偏离且填写规范时直通 PASS")
     void testCheck_WhenNoDeviationDeclared_Passes() {
         String text = """

@@ -375,9 +375,11 @@ class BidQualityCheckAsyncExecutorTest {
         verify(progressUpdater).completeTask(eq(resultId), any(), anyInt(), anyString(), anyInt(), anyInt(), anyInt(), anyInt());
     }
 
-    @Test
-    @DisplayName("端到端一致性校验：当资质明细存在 UNMATCHED 时，即使 LLM 给出 PASS 也强制降级为 FAIL")
-    void testExecuteAsync_QualificationUnmatched_ForcesFailAndNonCompliant() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"①具有电力工程施工总承包特级资质。", "①投标人须具有ISO9001认证。",
+            "投标人须具备ISO9001认证并应在投标文件中提供该认证证书的有效扫描证明并应在投标文件中提供该认证证书的有效扫描证明并应在投标文件中提供该认证证书的有效扫描证明并应在投标文件中提供该认证证书的有效扫描证明并应在投标文件中提供该认证证书的有效扫描证明并应在投标文件中提供该认证证书的有效扫描证明"})
+    @DisplayName("已知强制及未知要求的纯检索未命中均保持人工确认")
+    void testExecuteAsync_QualificationLookupMiss_RequiresReview(String requirement) throws Exception {
         Long resultId = 3L;
         Long projectId = 1359L;
         String taskId = "task-1359";
@@ -385,8 +387,8 @@ class BidQualityCheckAsyncExecutorTest {
         String tenderText = """
                 3.2 专用资格条件
                 3.2.1 资质要求：
-                ①具有电力工程施工总承包特级资质。
-                """;
+                %s
+                """.formatted(requirement);
 
         DocumentContent bidDoc = DocumentContent.fromText("bid-1359.pdf", "hash_bid_1359", "正文仅包含普通说明，无任何电力特级资质");
         DocumentContent tenderDoc = DocumentContent.fromText("tender-1359.pdf", "hash_tender_1359", tenderText);
@@ -397,7 +399,7 @@ class BidQualityCheckAsyncExecutorTest {
                 eq("hash_bid_1359"), eq("hash_tender_1359"), eq(ComplianceCheckResult.TaskStatus.COMPLETED)))
                 .thenReturn(Optional.empty());
 
-        when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.missingSentinel());
+        when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.empty());
         when(kbLoader.queryKnowledgeBases(any(), any())).thenReturn(KnowledgeQueryOutcome.empty());
         when(kbLoader.findAllQualifications()).thenReturn(List.of()); // 资质库空，标书无证明 -> UNMATCHED
         // 模拟 LLM 误判 PASS
@@ -406,13 +408,11 @@ class BidQualityCheckAsyncExecutorTest {
 
         asyncExecutor.executeAsync(resultId, projectId, taskId, false);
 
-        org.mockito.ArgumentCaptor<ComplianceCheckResult.Status> statusCaptor =
-                org.mockito.ArgumentCaptor.forClass(ComplianceCheckResult.Status.class);
         org.mockito.ArgumentCaptor<String> detailsJsonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
 
         verify(progressUpdater).completeTask(
                 eq(resultId),
-                statusCaptor.capture(),
+                any(ComplianceCheckResult.Status.class),
                 anyInt(),
                 detailsJsonCaptor.capture(),
                 anyInt(),
@@ -420,13 +420,14 @@ class BidQualityCheckAsyncExecutorTest {
                 anyInt(),
                 anyInt());
 
-        // 验证整体状态被判定为 NON_COMPLIANT（因为存在未匹配硬性资质）
-        assertThat(statusCaptor.getValue()).isEqualTo(ComplianceCheckResult.Status.NON_COMPLIANT);
-
-        // 验证 QUALIFICATION_MATCH 在 JSON 详情中被硬核降级为 FAIL
+        // 解析实际落库JSON中的资质单项，不以其他检查项的FAIL字符串替代断言。
         String json = detailsJsonCaptor.getValue();
-        assertThat(json).contains("\"itemCode\":\"QUALIFICATION_MATCH\"");
-        assertThat(json).contains("\"status\":\"FAIL\"");
-        assertThat(json).contains("【资质未匹配】");
+        var items = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json);
+        var qualification = java.util.stream.StreamSupport.stream(items.spliterator(), false)
+                .filter(n -> n.path("itemCode").asText().equals("QUALIFICATION_MATCH")).findFirst().orElseThrow();
+        assertThat(qualification.path("status").asText()).isEqualTo("MANUAL_REVIEW");
+        assertThat(qualification.path("details").size()).isGreaterThan(0);
+        assertThat(qualification.path("details").get(0).path("status").asText()).isEqualTo("ATTENTION");
+        assertThat(qualification.path("details").get(0).path("finding").asText()).isEqualTo("LOOKUP_MISS");
     }
 }

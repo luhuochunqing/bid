@@ -124,7 +124,7 @@ public class TenderRequirementsExtractor {
                 输出必须是严格 JSON（不要包含 Markdown 代码块或解释文字），结构如下：
                 {
                   "scoringItems": [ { "name": "评分项名称", "maxScore": 数值或null, "criteria": "评分标准描述" } ],
-                  "mandatoryQualifications": [ "硬性资格要求/资质要求原文表述" ],
+                  "mandatoryQualifications": [ "完整资格审查条件原文：分别保留法人、财务、信用、业绩、人员、纳税社保及证书条件，不得只提取证书，不得用附件清单替代资格条件" ],
                   "vetoClauses": [ { "clause": "否决条款原文", "keywords": ["否决关键词"] } ],
                   "compositionRequirements": [ "投标文件组成要求条目" ],
                   "formatRequirements": [ "格式要求条目" ],

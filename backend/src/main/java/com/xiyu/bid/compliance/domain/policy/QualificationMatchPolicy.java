@@ -6,6 +6,7 @@ package com.xiyu.bid.compliance.domain.policy;
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualificationDetail;
+import com.xiyu.bid.compliance.domain.QualificationDetail.Finding;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
 import com.xiyu.bid.entity.Qualification;
@@ -98,7 +99,7 @@ public final class QualificationMatchPolicy {
         LocalDate refDate = today == null ? LocalDate.now() : today;
         List<QualificationDetail> details = new ArrayList<>();
         for (String req : expandCombinedIsoRequirements(requirements)) {
-            if (req == null || req.isBlank() || !DeterministicQualificationExtractor.isSpecificCertificate(req.trim())) {
+            if (!CertificateRequirementPolicy.isCertificateReference(req)) {
                 continue;
             }
             details.add(buildSingleDetail(req.trim(), certs, bidDoc, refDate));
@@ -125,11 +126,13 @@ public final class QualificationMatchPolicy {
         Qualification bestCert = findBestMatchingCert(req, validCerts);
         if (bestCert == null) bestCert = findBestMatchingCert(req, certs);
         if (bestCert != null) {
-            String certName = bestCert.getName() != null ? bestCert.getName() : "";
+            String certName = certificateWithLevel(bestCert);
             Integer remainingDays = computeRemainingDays(bestCert.getExpiryDate(), today);
             String status = "MATCHED", remark;
+            Finding finding = Finding.MATCHED_REFERENCE;
             if (bestCert.getExpiryDate() != null && bestCert.getExpiryDate().isBefore(today)) {
                 status = "EXPIRED";
+                finding = Finding.EXPIRED;
                 remark = "证书已过期（" + bestCert.getExpiryDate() + "），存在废标风险";
             } else if (remainingDays != null && remainingDays <= EXPIRY_WARN_DAYS) {
                 status = "ATTENTION";
@@ -141,30 +144,33 @@ public final class QualificationMatchPolicy {
                 remark = "已匹配企业资质库有效证书「" + certName + "」"
                         + (bestCert.getExpiryDate() != null ? "（有效期至 " + bestCert.getExpiryDate() + "）" : "") + gradeNote;
             }
-            Optional<EvidenceHit> hit = locateInBid(bidDoc, List.of(certName, stripGovPrefix(normalize(certName)), normalize(certName), req));
-            if (hit.isEmpty()) remark += "；但在投标文件中未检索到明确证明页码";
+            Optional<EvidenceHit> hit = locateInBid(bidDoc, List.of(bestCert.getName(), certName, stripGovPrefix(normalize(certName)), normalize(certName), req));
+            if (hit.isEmpty()) {
+                remark += "；但在投标文件中未检索到明确证明页码，资料库命中不能替代本次投标证明";
+                if ("MATCHED".equals(status)) status = "ATTENTION";
+                if (finding == Finding.MATCHED_REFERENCE) finding = Finding.EVIDENCE_INCOMPLETE;
+            }
             return new QualificationDetail(req, certName, status, hit.map(EvidenceHit::pageNumber).orElse(null),
-                    hit.map(EvidenceHit::quote).orElse(""), remainingDays, remark);
+                    hit.map(EvidenceHit::quote).orElse(""), remainingDays, remark, finding);
         }
         Qualification underGraded = findUnderGradedCert(req, certs);
         if (underGraded != null) {
-            String certName = underGraded.getName() != null ? underGraded.getName() : "";
+            String certName = certificateWithLevel(underGraded);
             QualificationGradePolicy.GradeAssessment ga =
                     QualificationGradePolicy.assessGrade(req, certName, underGraded.getLevel());
             String note = !ga.remark().isBlank() ? ga.remark() : "资质等级不足";
-            Optional<EvidenceHit> hit = locateInBid(bidDoc, List.of(certName, req));
+            Optional<EvidenceHit> hit = locateInBid(bidDoc, List.of(underGraded.getName(), certName, req));
             return new QualificationDetail(req, certName, "UNMATCHED", hit.map(EvidenceHit::pageNumber).orElse(null),
                     hit.map(EvidenceHit::quote).orElse(""), null,
-                    "企业资质库中证书「" + certName + "」" + note + "，存在实质性偏离或废标风险");
+                    "企业资质库中证书「" + certName + "」" + note + "，存在实质性偏离或废标风险", Finding.GRADE_INSUFFICIENT);
         }
         return locateInBid(bidDoc, QualificationDetailReconciler.buildBidSearchCues(req)).map(h -> new QualificationDetail(
                 req, "", "ATTENTION", h.pageNumber(), h.quote(), null,
-                "资质库未维护该证书，但在标书第 " + h.pageNumber() + " 页检索到证明材料，请人工核查有效性"))
+                "资质库未维护该证书，但在标书第 " + h.pageNumber() + " 页检索到证明材料，请人工核查有效性", Finding.EVIDENCE_INCOMPLETE))
                 .orElseGet(() -> new QualificationDetail(
                         req, "", "UNMATCHED", null, "", null,
-                        "企业资质库及投标文件中均未检索到对应资质证明材料，存在偏离或废标风险"));
+                        "企业资质库及投标文本未检索到对应证明，需核验原始材料；未命中不证明缺失", Finding.LOOKUP_MISS));
     }
-
     // REUSE-OK: * — 资质匹配专职资质章节占位反假核验，业务域独立
     public static Optional<QualityCheckItemResult> checkFirstStage(
             final DocumentContent bidDoc, final TenderRequirements requirements) {
@@ -191,7 +197,8 @@ public final class QualificationMatchPolicy {
         LocalDate latestExpiry = null;
         for (Qualification q : certs) {
             if (q == null || q.getName() == null) continue;
-            int score = calculateMatchScore(req, q.getName());
+            int score = QualificationGradePolicy.assessGrade(req, q.getName(), q.getLevel()).compatible()
+                    ? calculateBaseMatchScore(req, q.getName()) : 0;
             if (score <= 0) continue;
             LocalDate expiry = q.getExpiryDate() == null ? LocalDate.MAX : q.getExpiryDate();
             if (best == null || score > maxScore || (score == maxScore && expiry.isAfter(latestExpiry))) {
@@ -202,12 +209,16 @@ public final class QualificationMatchPolicy {
         }
         return best;
     }
+    private static String certificateWithLevel(final Qualification certificate) {
+        String level = certificate.getLevel();
+        return level == null || certificate.getName().contains(level) ? certificate.getName() : (certificate.getName() + " " + level).trim();
+    }
     private static Qualification findUnderGradedCert(final String req, final List<Qualification> certs) {
         if (certs == null) return null;
         for (Qualification q : certs) {
             if (q == null || q.getName() == null) continue;
             if (calculateBaseMatchScore(req, q.getName()) > 0
-                    && !QualificationGradePolicy.isGradeCompatible(req, q.getName())) {
+                    && !QualificationGradePolicy.assessGrade(req, q.getName(), q.getLevel()).compatible()) {
                 return q;
             }
         }

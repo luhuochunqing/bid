@@ -30,6 +30,16 @@ final class SemanticEvidenceBoundary {
 
     private SemanticEvidenceBoundary() { }
 
+    static QualityCheckItemResult reconcileQualificationApplicability(final QualityCheckItemResult result,
+            final DocumentContent bidDoc, final TenderRequirements requirements) {
+        if (!BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(result.itemCode())
+                || !requirements.hasUnresolvedCertificateRequirements()
+                || QualificationMatchPolicy.checkFirstStage(bidDoc, requirements).isPresent()) return result;
+        return QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
+                "证书条件的强制性或作用对象尚未确认，资料检索结果不能直接证明招标资格满足或缺失",
+                "请按结构化条件的原文依据确认适用范围，再核对企业资质与本次投标材料", result.evidences());
+    }
+
     static QualityCheckItemResult reconcile(final QualityCheckItemResult input, final DocumentContent bidDoc) {
         if (input != null && input.status() == QualityCheckStatus.PASS
                 && BidQualityCheckItem.ID_AUTH_LETTER.getCode().equals(input.itemCode())
@@ -60,11 +70,15 @@ final class SemanticEvidenceBoundary {
     /** 财务条款解析尚未完成适用条件证明，复合资格项不得由规则或AI自动放行。 */
     static QualityCheckItemResult requireQualificationConfirmation(final QualityCheckItemResult result) {
         if (result == null || result.status() != QualityCheckStatus.PASS
-                || !BidQualityCheckItem.QUALIFICATION_REVIEW.getCode().equals(result.itemCode())) return result;
+                || !(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode().equals(result.itemCode())
+                    || BidQualityCheckItem.QUALIFICATION_VETO.getCode().equals(result.itemCode()))) return result;
+        boolean veto = BidQualityCheckItem.QUALIFICATION_VETO.getCode().equals(result.itemCode());
         return new QualityCheckItemResult(result.itemCode(), result.category(), result.title(), result.description(),
                 QualityCheckStatus.MANUAL_REVIEW, result.severity(), result.order(),
-                "财务要求适用性及资格材料尚需人工确认，系统暂不自动判定资格性评审通过",
-                "请对照招标原文逐项确认财务条款、豁免条件及原始报表；已有定位证据仅供复核",
+                veto ? "完整资格条件及证明材料尚需逐项核验，证书名称或资料库匹配不能证明资格全部满足"
+                        : "财务要求适用性及资格材料尚需人工确认，系统暂不自动判定资格性评审通过",
+                veto ? "请对照招标资格审查清单逐项复核主体、财务、信用、业绩、纳税社保及本次投标证明材料"
+                        : "请对照招标原文逐项确认财务条款、豁免条件及原始报表；已有定位证据仅供复核",
                 result.evidences(), result.details());
     }
 

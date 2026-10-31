@@ -212,7 +212,7 @@ public final class DeterministicQualificationExtractor {
         }
         String clean = text.trim();
         if (clean.matches(".*(?:应具有|须具备|应具备|具备|具有|满足|符合)?(?:以下|下列)\\s*(?:证书|资质|条件|要求|证明材料|证明).*")) {
-            return true;
+            return clean.replaceFirst(".*(?:以下|下列)\\s*(?:证书|资质|条件|要求|证明材料|证明)[：:]?", "").isBlank();
         }
         if (clean.matches("^(?:[\\d一二三四五六七八九十.、\\s（\\)]*)"
                 + "(?:供应商|投标人|申请人)?(?:资格要求|资质要求|通用资格条件|专用资格条件|资格条件|资质条件|资质及能力要求)[：:]?$")) {
@@ -225,7 +225,12 @@ public final class DeterministicQualificationExtractor {
      * 判定条款是否为专用行业资质证书要求（增值电信、安全生产、等保、ISO 认证、总承包等）.
      */
     public static boolean isSpecificCertificate(final String clean) {
-        if (!isValidText(clean) || isIntroductoryHeading(clean)) {
+        return isValidText(clean) && hasSpecificCertificateKeyword(clean);
+    }
+
+    /** 完整资格条件使用此语义识别；旧证书名称提取仍由外层保留长度约束。 */
+    static boolean hasSpecificCertificateKeyword(final String clean) {
+        if (clean == null || clean.isBlank() || isIntroductoryHeading(clean)) {
             return false;
         }
         if (PENALTY_AND_DISCREDIT_KEYWORDS.stream().anyMatch(clean::contains)) {
@@ -243,10 +248,6 @@ public final class DeterministicQualificationExtractor {
         }
         boolean hasGeneral = GENERAL_CAPACITY_KEYWORDS.stream().anyMatch(clean::contains);
         return hasGeneral && SPECIFIC_CERTIFICATE_KEYWORDS.stream().noneMatch(clean::contains);
-    }
-
-    static boolean isValidQualification(final String clean) {
-        return isSpecificCertificate(clean);
     }
 
     private static boolean isValidText(final String clean) {

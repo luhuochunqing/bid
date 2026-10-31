@@ -21,6 +21,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class QualificationVetoPolicyTest {
 
     @Test
+    void unlocatedCertificateTextDoesNotProveQualificationFailure() {
+        var req = TenderRequirements.empty().withMergedQualifications(List.of("须具有有效ISO9001认证，如有变更须提供变更证明"));
+        var bid = DocumentContent.fromText("bid.pdf", "scan-input", "投标函\n企业资料见扫描附件。");
+        var result = QualificationVetoPolicy.checkFirstStage(bid, null, req, List.of());
+        assertThat(result).isPresent();
+        assertThat(result.orElseThrow().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @Test
     @DisplayName("反假拦截：标书在一票否决或资格承诺中包含占位符未填，直接 FAIL")
     void checkFirstStage_placeholderUnfilled_returnsFail() {
         String p1 = "一票否决条款合规声明\n我单位郑重承诺：无行贿犯罪记录，失信被执行人核查结果为【请填写核查情况】。";
@@ -62,8 +71,8 @@ class QualificationVetoPolicyTest {
     }
 
     @Test
-    @DisplayName("目录欺骗防穿透：硬性资质仅在目录点线页出现，正文无真实材料且知识库无，直接 FAIL 并精简说明要求项与未满足项")
-    void checkFirstStage_catalogDeceptionOnly_returnsFail() {
+    @DisplayName("资质仅命中目录不证明材料缺失，保留人工核验")
+    void checkFirstStage_catalogDeceptionOnly_requiresReview() {
         String p1 = "目录 TABLE OF CONTENTS\n1. 投标函......1\n2. 增值电信业务经营许可证......15\n3. 报价表......20";
         String p2 = "投标函正文\n我方响应本次招标，愿意按合同约定履约。具备 ISO9001质量管理体系认证。";
         DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash4", p1 + "\f" + p2);
@@ -73,14 +82,13 @@ class QualificationVetoPolicyTest {
         Optional<QualityCheckItemResult> result = QualificationVetoPolicy.checkFirstStage(bidDoc, null, req, List.of());
 
         assertThat(result).isPresent();
-        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.FAIL);
-        assertThat(result.get().conclusion()).isEqualTo(
-                "招标文件要求了一票否决资格项【增值电信业务经营许可证、ISO9001质量管理体系认证】，标书中未满足【增值电信业务经营许可证】。");
+        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.get().conclusion()).contains("尚未定位到【增值电信业务经营许可证】", "不能证明原文件缺失");
     }
 
     @Test
-    @DisplayName("正文满足全部硬性资质且无违规：直接判定 PASS 并列出所有满足项")
-    void checkFirstStage_allMandatoryQualificationsSatisfied_returnsPass() {
+    @DisplayName("正文命中全部证书名称仍不能替代完整资格核验")
+    void checkFirstStage_allCertificateNamesFound_requiresReview() {
         String p1 = "资质证明文件\n我方依法取得增值电信业务经营许可证，证书编号为 B2-20230001，业务范围包含信息服务业务。";
         String p2 = "承诺无转包，无违法分包。我方已通过 ISO9001质量管理体系认证。";
         DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash5", p1 + "\f" + p2);
@@ -91,9 +99,9 @@ class QualificationVetoPolicyTest {
         Optional<QualityCheckItemResult> result = QualificationVetoPolicy.checkFirstStage(bidDoc, tenderDoc, req, List.of());
 
         assertThat(result).isPresent();
-        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(result.get().conclusion()).isEqualTo(
-                "招标文件要求的一票否决资格项均已满足：【增值电信业务经营许可证、ISO9001质量管理体系认证】。");
+        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.get().conclusion()).contains("增值电信业务经营许可证", "ISO9001质量管理体系认证")
+                .doesNotContain("资格项均已满足");
         assertThat(result.get().evidences()).isNotEmpty();
     }
 
@@ -108,8 +116,8 @@ class QualificationVetoPolicyTest {
         Optional<QualityCheckItemResult> result = QualificationVetoPolicy.checkFirstStage(bidDoc, null, req, List.of());
 
         assertThat(result).isPresent();
-        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(result.get().conclusion()).isEqualTo("招标文件要求的一票否决资格项均已满足：【增值电信业务经营许可证】。");
+        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.get().conclusion()).containsOnlyOnce("增值电信业务经营许可证");
     }
 
     @Test
