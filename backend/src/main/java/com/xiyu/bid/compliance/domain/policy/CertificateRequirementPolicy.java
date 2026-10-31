@@ -25,10 +25,15 @@ public final class CertificateRequirementPolicy {
 
     static List<QualificationCondition.CertificateRequirement> classify(final String text, final String sourceQuote) {
         List<QualificationCondition.CertificateRequirement> result = new ArrayList<>();
-        for (String part : text.split("[，,；;。\\r\\n]+")) {
+        for (String part : text.split("[，,；;。\\r\\n]+|(?:且|并|同时)(?=(?:投标人|供应商)?(?:必须|应当|应|须|需)?(?:具有|具备|持有|取得|通过|提供))")) {
             String clause = part.trim();
             if (!isCertificateReference(clause)) continue;
-            Applicability applicability = OPTIONAL.matcher(clause).find() ? Applicability.OPTIONAL
+            var role = QualificationClauseRolePolicy.assess(clause);
+            if (role.role() == QualificationClauseRolePolicy.Role.PENALTY_FACT
+                    || role.role() == QualificationClauseRolePolicy.Role.PENALTY_PROOF) continue;
+            clause = role.certificateClause();
+            Applicability applicability = role.role() == QualificationClauseRolePolicy.Role.UNKNOWN ? Applicability.UNKNOWN
+                    : OPTIONAL.matcher(clause).find() ? Applicability.OPTIONAL
                     : text.matches("(?s).*(?:或|任选|二选一|至少一项).*?")
                         || clause.matches(".*(?:如|若|不|无|除非|仅限).*?") ? Applicability.UNKNOWN
                     : OBLIGATION.matcher(clause).find() ? Applicability.MANDATORY : Applicability.UNKNOWN;

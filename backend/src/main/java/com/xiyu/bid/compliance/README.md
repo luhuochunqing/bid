@@ -85,3 +85,9 @@
 - `domain/policy/AuthorizationLetterCheckPolicy.java`：不同内容授权页一律人工并保留原页证据，第二份无冒号写法不再被静默忽略；法定代表人证明标题或任意图片不直接豁免。
 - `domain/policy/BidDocumentQualityEngine.java`：最终输出强制重用授权三态门禁，AI不能覆盖未知/占位人工。
 - `domain/policy/RefundAccountEvidencePolicy.java`：唯一企业户名、银行名称及数字账号的文字完整性；元标签和掩码不构成实值，不验证账户归属/机构真实性。
+
+## 资质与响应语境回归
+
+- `CertificateRequirementPolicy`：单纯处罚/撤销条款不生成证书查询；包含明确持有义务的证书条件保留完整条款，适用性不明确时交人工核验。
+- `QualificationPlaceholderPolicy`：逐个保留占位符及页内位置，结合证书身份、招标要求的作用对象和适用性核验。明确属于投标人强制证书的留白可判失败；多候选、可选或无法绑定时转人工。同一 ISO 编号的普通空格、大小写和连字符按完整编号比较；其他空格写法可能转人工。
+- `ResponsivenessReviewPolicy`：保留“不得/不应/不可低于”等门槛规则的引用语境，不将门槛本身当成投标人负偏离；明确自身事实仍独立核查。

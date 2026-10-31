@@ -100,9 +100,11 @@ class QualificationMatchPenetrationTest {
                 new DocumentContent.PageContent(55, "第四部分 企业资质证明\n安全生产许可证复印件：【此处粘贴安全生产许可证扫描件】", List.of())
         );
         DocumentContent bidDoc = new DocumentContent("bid.pdf", "h", "企业资质证明", pages);
+        TenderRequirements requirements = TenderRequirements.empty().withMergedQualificationConditions(List.of(
+                new QualificationCondition("投标人须具有安全生产许可证", null, null)));
 
         Optional<QualityCheckItemResult> result = QualificationMatchPolicy.checkFirstStage(
-                bidDoc, TenderRequirements.empty());
+                bidDoc, requirements);
 
         assertThat(result).isPresent();
         QualityCheckItemResult r = result.get();
@@ -110,6 +112,8 @@ class QualificationMatchPenetrationTest {
         assertThat(r.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(r.conclusion()).contains("占位模板或空白留白");
         assertThat(r.evidences()).isNotEmpty();
+        assertThat(QualificationMatchPolicy.checkFirstStage(bidDoc, TenderRequirements.empty()).orElseThrow().status())
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 
     @Test

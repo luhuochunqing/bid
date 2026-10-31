@@ -94,11 +94,11 @@ class DeviationTableExtractorTest {
         var result = DeviationTableExtractor.extract(doc);
 
         assertThat(result.tables()).hasSize(1);
-        assertThat(result.positiveRows()).hasSize(1);
+        assertThat(result.positiveRows()).isEmpty();
         assertThat(result.negativeRows()).isEmpty();
-        var pos = result.positiveRows().get(0);
-        assertThat(pos.type()).isEqualTo(DeviationTableExtractor.DeviationType.POSITIVE);
-        assertThat(pos.description()).contains("双机热备");
+        var row = result.tables().get(0).rows().get(0);
+        assertThat(row.type()).isEqualTo(DeviationTableExtractor.DeviationType.UNKNOWN);
+        assertThat(row.description()).contains("双机热备");
     }
 
     @Test

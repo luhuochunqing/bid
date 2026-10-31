@@ -31,8 +31,6 @@ public final class QualificationMatchPolicy {
             "(?i)(?:iso|gb(?:\\s*/\\s*t)?|iec|cmmi|itss|ccrc|cissp|cisp)\\s*[-：:]?\\s*\\d+");
     private static final Pattern ISO_STANDARD_RE = Pattern.compile("(?i)ISO\\s*[-：:]?\\s*(9001|14001|45001)");
     private static final Pattern GOV_PREFIX_RE = Pattern.compile("^(?:中华人民共和国|全国|中国|国家)+");
-    private static final Pattern UNDERLINE_BLANK_PATTERN = Pattern.compile("_{3,}");
-    private static final Pattern BRACKET_PLACEHOLDER_PATTERN = Pattern.compile("【(?:请|此处)?[^】]*(?:填写|上传|粘贴|提供|插入|替换)[^】]*】");
     private static final List<String> STOP_WORDS = List.of(
             "中华人民共和国", "全国", "中国", "国家", "经营许可证", "许可证", "业务经营许可证", "生产许可证",
             "资质证书", "资格证书", "资格证明", "资质证明", "认证证书", "备案证明", "登记证书",
@@ -45,8 +43,6 @@ public final class QualificationMatchPolicy {
             "安全生产许可", "营业执照", "一般纳税人", "高新技术企业", "专精特新", "重合同守信用",
             "一级建造师", "二级建造师", "造价工程师", "监理工程师", "特种作业", "增值电信", "电信业务",
             "互联网信息服务", "在线数据处理与交易", "信息安全等级保护", "等保", "等保三级");
-    private static final List<String> QUAL_SECTION_KEYWORDS = List.of(
-            "资质证书", "资格证书", "企业资质", "体系认证", "许可证", "资质证明", "资格证明");
     private QualificationMatchPolicy() {
     }
     public static boolean isQualificationMatch(final String req, final String certName) {
@@ -175,21 +171,36 @@ public final class QualificationMatchPolicy {
     public static Optional<QualityCheckItemResult> checkFirstStage(
             final DocumentContent bidDoc, final TenderRequirements requirements) {
         if (bidDoc == null || bidDoc.pages() == null || bidDoc.pages().isEmpty()) return Optional.empty();
+        QualityCheckItemResult pending = null;
+        boolean inQualificationSection = false;
+        String certificateContext = "";
         for (DocumentContent.PageContent page : bidDoc.pages()) {
             String text = page.text();
-            if (text == null || BidLetterCheckPolicy.isCatalogOrOutlinePage(text) || !hasAnyKeyword(text, QUAL_SECTION_KEYWORDS)) {
+            if (text == null || BidLetterCheckPolicy.isCatalogOrOutlinePage(text)) {
+                inQualificationSection = false;
+                certificateContext = "";
                 continue;
             }
-            String placeholder = findPlaceholder(text);
-            if (placeholder != null) {
-                QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "资质证书证明材料占位留白", List.of(placeholder));
+            var scan = QualificationPlaceholderPolicy.scan(text, inQualificationSection, certificateContext);
+            inQualificationSection = scan.inQualificationSection();
+            certificateContext = scan.certificateContext();
+            for (var hit : scan.hits()) {
+                String placeholder = hit.value();
+                int index = hit.offset();
+                QualityEvidence evidence = QualityEvidence.bid("资质证书证明材料占位留白", page.pageNumber(),
+                        BasicInfoCheckPolicy.snippetAt(text, index, index + placeholder.length(), 200));
+                if (QualificationPlaceholderPolicy.requiresManual(requirements, hit)) {
+                    if (pending == null) pending = QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
+                            "资质章节存在归属不明的空白，需人工确认", "请核对原文及证书材料", List.of(evidence));
+                    continue;
+                }
                 return Optional.of(QualityCheckItemResult.fail(
                         BidQualityCheckItem.QUALIFICATION_MATCH,
                         "投标文件资质证书证明章节存在未填写的占位模板或空白留白（" + placeholder + "）",
                         "请在标书中完整上传对应资质证书扫描件并核验有效信息", List.of(evidence)));
             }
         }
-        return Optional.empty();
+        return Optional.ofNullable(pending);
     }
     public static Qualification findBestMatchingCert(final String req, final List<Qualification> certs) {
         Qualification best = null;
@@ -276,12 +287,6 @@ public final class QualificationMatchPolicy {
         }
         return maxLen == 0 ? "" : s1.substring(endIndex - maxLen, endIndex);
     }
-    private static boolean hasAnyKeyword(final String text, final List<String> keywords) {
-        for (String kw : keywords) {
-            if (text.contains(kw)) return true;
-        }
-        return false;
-    }
     private static boolean hasConflictingDomainTerms(final String normReq, final String normCert) {
         String reqDomain = null, certDomain = null;
         for (String term : DOMAIN_TERMS) {
@@ -290,11 +295,5 @@ public final class QualificationMatchPolicy {
             if (certDomain == null && normCert.contains(normTerm)) certDomain = normTerm;
         }
         return reqDomain != null && certDomain != null && !reqDomain.equals(certDomain);
-    }
-    private static String findPlaceholder(final String text) {
-        Matcher m1 = UNDERLINE_BLANK_PATTERN.matcher(text);
-        if (m1.find()) return m1.group();
-        Matcher m2 = BRACKET_PLACEHOLDER_PATTERN.matcher(text);
-        return m2.find() ? m2.group() : null;
     }
 }

@@ -85,9 +85,17 @@ public final class ResponsivenessReviewPolicy {
             }
         }
 
+        for (var page : bidDoc.pages()) {
+            if (page.text() == null) continue;
+            int index = DeviationEvidencePolicy.ambiguousOwnFactIndex(page.text());
+            if (index >= 0) return QualityCheckItemResult.manualReview(BidQualityCheckItem.RESPONSIVENESS_REVIEW,
+                    "存在需核实的自身响应或规则引用", "请核对投标人的实际响应及适用要求", List.of(
+                            QualityEvidence.bid("响应事实待核实", page.pageNumber(),
+                                    BasicInfoCheckPolicy.snippetAt(page.text(), index, index + 2, 200))));
+        }
         List<DocumentContent.PageContent> candidatePages = findCandidatePages(bidDoc);
         if (candidatePages.isEmpty() && extraction.tables().isEmpty()) {
-            return null;
+            return ruleOnlyReview(bidDoc);
         }
 
         // 5. 目录页过滤：若候选页全为目录点线且无真实提取表格，判定 FAIL
@@ -127,7 +135,17 @@ public final class ResponsivenessReviewPolicy {
                         "商务与技术条款全面响应，偏离表声明无实质性负偏离",
                         List.of(evidence));
             }
-            // 包含投标人自述正偏离（防假阳性免审漏洞）或 UNKNOWN 行，存疑移交 LLM/专家复核
+            // 未知/冲突不能由模型单独升级为通过；正偏离仍交后续核验。
+            for (var table : extraction.tables()) {
+                for (var row : table.rows()) {
+                    if (row.type() == DeviationTableExtractor.DeviationType.UNKNOWN) {
+                        return QualityCheckItemResult.manualReview(BidQualityCheckItem.RESPONSIVENESS_REVIEW,
+                                "偏离状态与响应说明存在不确定或冲突，需人工核验",
+                                "请对照招标要求和投标响应逐项确认", List.of(
+                                        QualityEvidence.bid("偏离表待确认行", table.pageNumber(), row.rawLine())));
+                    }
+                }
+            }
             return null;
         }
 
@@ -149,6 +167,33 @@ public final class ResponsivenessReviewPolicy {
             }
         }
 
+        return null;
+    }
+
+    private static QualityCheckItemResult ruleOnlyReview(final DocumentContent bidDoc) {
+        for (var page : bidDoc.pages()) {
+            String text = page.text();
+            if (text == null) continue;
+            int from = 0;
+            int index;
+            while ((index = text.indexOf("低于", from)) >= 0) {
+                int left = index;
+                while (left > 0 && text.charAt(left - 1) != '。' && text.charAt(left - 1) != '；') left--;
+                int right = index + 2;
+                while (right < text.length() && text.charAt(right) != '。' && text.charAt(right) != '；') right++;
+                String context = text.substring(left, right);
+                var fact = DeviationEvidencePolicy.assess(DeviationEvidencePolicy.Origin.BIDDER_TEXT, context);
+                if (fact.polarity() == DeviationEvidencePolicy.Polarity.RULE_ONLY
+                        || fact.polarity() == DeviationEvidencePolicy.Polarity.UNKNOWN
+                        || RuleCitationContext.isMinimumThreshold(text, index, "低于")) {
+                    var evidence = QualityEvidence.bid("规则引用待核验", page.pageNumber(),
+                            BasicInfoCheckPolicy.snippetAt(text, index, index + 2, 200));
+                    return QualityCheckItemResult.manualReview(BidQualityCheckItem.RESPONSIVENESS_REVIEW,
+                            "仅识别到门槛或评审规则引用，尚不能证明投标人实际响应", "请核对投标人实际响应", List.of(evidence));
+                }
+                from = index + 2;
+            }
+        }
         return null;
     }
 
@@ -201,7 +246,9 @@ public final class ResponsivenessReviewPolicy {
         int from = 0;
         int idx;
         while ((idx = text.indexOf(keyword, from)) >= 0) {
-            if (!hasNegationPrefix(text, idx) && !isHeaderChoiceOption(text, idx, keyword)
+            if (!RuleCitationContext.isMinimumThreshold(text, idx, keyword)
+                    && !(keyword.equals("低于") && !RuleCitationContext.isActualLow(text, idx))
+                    && !hasNegationPrefix(text, idx) && !isHeaderChoiceOption(text, idx, keyword)
                     && !RuleCitationContext.isRuleCitation(text, idx, idx + keyword.length())) {
                 return idx;
             }

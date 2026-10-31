@@ -146,8 +146,8 @@ class ResponsivenessReviewPolicyTest {
     }
 
     @Test
-    @DisplayName("表头包含偏离选项防护：表头标注'偏离情况(正偏离/负偏离/无偏离)'但数据行全满足时不误报 FAIL")
-    void testCheck_WhenTableHeaderContainsNegativeKeyword_Passes() {
+    @DisplayName("表头选项不误报；实际响应无法确定匹配时转人工")
+    void testCheck_WhenTableHeaderContainsNegativeKeyword_RequiresReview() {
         String text = """
                 ### 技术偏离表
                 | 序号 | 技术指标条款 | 招标参数要求 | 投标响应参数 | 偏离情况(正偏离/负偏离/无偏离) | 偏离说明 |
@@ -159,8 +159,8 @@ class ResponsivenessReviewPolicyTest {
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
 
         assertThat(result).isNotNull();
-        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(result.conclusion()).contains("无实质性负偏离");
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).contains("人工核验");
     }
 
     @Test
@@ -175,8 +175,8 @@ class ResponsivenessReviewPolicyTest {
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
 
-        // 真正的正偏离需经指标对比核验，不能单凭投标人自称免审放行，应移交 LLM/专家
-        assertThat(result).isNull();
+        // 对无法确定的响应先人工确认，避免模型单凭正偏离声明放行。
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 
     @Test
@@ -196,8 +196,8 @@ class ResponsivenessReviewPolicyTest {
     }
 
     @Test
-    @DisplayName("双偏离表齐备核查：商务与技术偏离表双表齐备且无偏离直通 PASS")
-    void testCheck_WhenDualTablesCompliant_Passes() {
+    @DisplayName("双偏离表缺少技术原始要求时需人工核验")
+    void testCheck_WhenDualTablesHaveUnverifiableResponse_RequiresReview() {
         String text = """
                 第一节 商务偏离表
                 | 序号 | 条款 | 响应 | 偏离情况 | 说明 |
@@ -212,12 +212,12 @@ class ResponsivenessReviewPolicyTest {
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
 
         assertThat(result).isNotNull();
-        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 
     @Test
     @DisplayName("Major 1 回归：偏离表中存在 UNKNOWN 存疑行时，绝不能被文末自述无偏离绕过误 PASS")
-    void testCheck_WhenUnknownRowWithDeclaration_ReturnsNull() {
+    void testCheck_WhenUnknownRowWithDeclaration_RequiresManual() {
         String text = """
                 ### 商务偏离表
                 | 序号 | 条款 | 招标要求 | 投标响应 | 偏离情况 | 说明 |
@@ -229,8 +229,8 @@ class ResponsivenessReviewPolicyTest {
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
 
-        // 存疑行不应直接 PASS，应交由 LLM 语义核验
-        assertThat(result).isNull();
+        // 存疑行不能由后续模型单独升级为 PASS。
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 
     @Test
