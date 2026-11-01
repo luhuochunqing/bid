@@ -12,7 +12,7 @@
 ---
 
 ## 变更核心内容
-1. **评分表 OCR 链路修复（!2948 及前序 4 个 commit）**
+1. **评分表 OCR 链路修复（!2948 及同链路前序修复，共 6 个 fix commit）**
    - `BaiduScanPageSelector`、`BaiduTableArtifactEnricher`、`ScoreParseEntryRouter` 调整：修复跨页评分表百度 OCR 前序页硬截断、多评分区间单簇漏扫、入口路由假成功短路、超长大表静默截断、fallback 倒退覆盖、方案总分冲突覆盖等问题。
    - 回归测试：`Project1382FullPipelineIntegrationTest`、`ScoreParseEntryRouterTest`、`BaiduTableArtifactEnricherTest`。
 2. **合规响应性判定回归（!2947）**
@@ -21,7 +21,7 @@
 3. **规格与知识沉淀**
    - `.wiki/pages/` 10 个文件回填（百度 OCR 双向连通、路由欠分仲裁、响应性设计方案与复盘）、`docs/lessons/` 追加。
 4. **数据库迁移**: 本次**无新增迁移文件**，DB 保持 V1225（`score estimate freshness`）。
-5. **前端**: 本次无前端源码改动（改动仅在后端 14 个文件 + docs/.wiki 15 个文件），构建产物 hash 与上一版本一致（`assets/index-xSKpZ2Mv.js`，193 个 assets）。
+5. **前端**: 本次无前端源码改动（改动在后端 14 个文件（含 2 个 README）+ docs/.wiki 15 个文件），构建产物 hash 与上一版本一致（`assets/index-xSKpZ2Mv.js`，193 个 assets）。
 
 ---
 
@@ -34,7 +34,7 @@
 - 早操三连：`sync-env.sh`（init 分支 ff-only 同步 origin/main）、`check-git-wrapper.sh`（7/7 通过）
 - 本地打包：前端同源构建 + `mvn clean -DskipTests package`（BUILD SUCCESS，43.1s）
 - 产物校验：jar 内 284 个 `V*.sql` 无重复；`apiBaseUrl=""`、`obsEnabled=true`、`sentryEnabled=false`；Detail chunk `.upload(` 调用数 = 2；sidecar SHA-256 `e5fc03f3…`（schemaVersion 2.2，与服务器一致）
-- 上传：`scp` 归档（156 MB）+ `remote-deploy.sh` → `/opt/xiyu-bid/incoming/`
+- 上传：`scp` 归档（156 MB）+ `remote-deploy.sh` → `/opt/xiyu-bid/incoming/`；归档 MD5 本地与远端一致（`0ae7c5c38f8056199739d103b4c40c97`）
 - 远程部署：数据库备份 `db-backups/winbid-38c34354b-20261101193239.sql.gz`（15.7 MB）→ Flyway validate 通过 → 原子切换 jar → 重启服务 → 健康检查连续 3/3 通过 → 前端入口一致性校验通过
 - 旧版本 assets 保留：`cp -rn 09ccb7a84/frontend/assets → /srv/www/xiyu-bid/assets`（新旧 hash 完全一致，幂等 no-op）
 - `._*` 元数据残留：0 个
