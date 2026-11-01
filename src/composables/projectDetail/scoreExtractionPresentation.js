@@ -20,7 +20,8 @@ const reasons = {
   SOURCE_SPAN_UNRESOLVED: '原文位置尚未核验', SOURCE_UNAVAILABLE: '原文来源暂不可用',
 }
 export function extractionReason(code) {
-  return reasons[String(code || '').split(':')[0]] || '该项来源或规则仍有待核对的问题，请结合原文检查'
+  const key = String(code || '').split(':')[0]
+  return Object.hasOwn(reasons, key) ? reasons[key] : '该项来源或规则仍有待核对的问题，请结合原文检查'
 }
 export function extractionTaskLabel(status) {
   return ({ COMPLETED: '提取完成', PROCESSING: '解析中', PENDING: '等待解析', FAILED: '解析失败' })[status] || '状态待确认'
