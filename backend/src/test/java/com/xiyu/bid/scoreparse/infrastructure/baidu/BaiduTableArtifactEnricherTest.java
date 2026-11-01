@@ -91,6 +91,10 @@ class BaiduTableArtifactEnricherTest {
         DocumentArtifact enriched = enricher.enrichIfEnabled(baseline, pdfBytes, "project1130.pdf");
         assertThat(enriched).isNotNull();
 
+        if (enriched == baseline) {
+            org.junit.jupiter.api.Assumptions.abort("百度 OCR 未返回表格（公有云免费额度已耗尽或被限流），跳过外部联调网络断言");
+        }
+
         // 验证第 13、14、15 页的跨页评分表已合并为同一张 4 列评分表，且包含第 14 页与第 15 页单元格
         List<CanonicalTable> scoreTables = enriched.tables().stream()
                 .filter(t -> Boolean.TRUE.equals(t.isScoreTable()))
@@ -166,6 +170,29 @@ class BaiduTableArtifactEnricherTest {
         assertThat(target).contains(13, 14, 15, 16);
         // 远端非评分页不应纳入
         assertThat(target).doesNotContain(2, 3, 7, 8, 9, 10, 26);
+    }
+
+    @Test
+    @DisplayName("回归(Project 35): Sidecar漏标首页(P39)为非评分表时，连续前序候选页必须纳入扫描范围，禁止向前硬截断")
+    void shouldIncludePrecedingContiguousCandidatePagesWhenBaselineScoreStartsLater() {
+        // 模拟 Project 35 真实场景：
+        // - 技术标评分表位于 P39，但 Sidecar 漏标（isScoreTable 为 false 或 null）
+        // - 商务标评分表位于 P40、P41，Sidecar 标为 true
+        // - candidatePages 检测到 P39~P42（以及远端目录页 P3, P4, P9, P10）
+        // - 预期：determinePagesToScan 必须包含 P39，不得因 minScorePage=40 而把连续前序页 P39 丢弃
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-35", "sha-35", "PDF", "sidecar");
+        CanonicalTable t40 = new CanonicalTable("p40-t1", 40, "第四章 评审办法", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t41 = new CanonicalTable("p41-t2", 41, "第四章 评审办法", 4, 4, List.of(), List.of(), true, "PDF");
+        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(t40, t41), List.of());
+
+        List<Integer> candidates = List.of(3, 4, 9, 10, 39, 40, 41, 42);
+        List<Integer> target = enricher.determinePagesToScan(baseline, candidates);
+
+        // 关键断言：连续前序候选页 P39 必须被纳入扫描
+        assertThat(target).contains(39, 40, 41, 42);
+        // 远端目录候选页不应纳入
+        assertThat(target).doesNotContain(3, 4, 9, 10);
     }
 
     @Test

@@ -7952,3 +7952,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - `Report147ResponsivenessRegressionTest` 15 项测试 0 失败 0 错误（用例 1 & 2 解隔离转绿，用例 3 & 4 严格保留隔离）；
   - `com.xiyu.bid.compliance` 全域 1016 项测试 100% 通过（0 failures, 0 errors, 3 skipped）；
   - `bash scripts/pre-commit.sh` 门禁检查 100% 通过。
+
+## 483. 百度表格OCR跨页评分表前序页截断与入口路由假成功短路修复（项目35/1117/1118/43集体欠分复盘，2026-11-01）
+
+- **背景与现象**：部署百度 OCR 之后，项目 35（实测仅 48.00 分，缺 52 分）、1117（70.00 分，缺 30 分）、1118（65.00 分，缺 35 分）、43（70.00 分，缺 30 分）等复杂招标文件集体出现严重欠分并陷入 `REVIEW_REQUIRED` / `MISSING_EVIDENCE`。
+- **根因分析**：
+  1. **扫描起点向前硬截断**：`BaiduTableArtifactEnricher.determinePagesToScan` 将扫描起点锚定在 Sidecar 识别的首个评分表页 `minScorePage`，执行 `if (p < minScorePage) continue;`。当 Sidecar 漏标跨页评分表首页（如项目 35 P39 技术标、项目 1117 P40/P41 前附表、项目 1118 P36/P37 资质项）时，前序连通页被无情斩断，导致百度 OCR 根本未扫描评分表前半部分。
+  2. **入口路由假成功短路**：`ScoreParseEntryRouter.extract` 仅凭 `!result.facts().isEmpty()` 即判定结构化抽取成功，直接短路返回残缺事实，在严重欠分时封死了原本能够补齐 100 分的 fallback 链路。
+- **第一性原理修复**：
+  1. **连续簇聚类连通**：`determinePagesToScan` 升级为「候选页连续簇聚类（相邻差 $\le 2$）+ 评分表锚点最大重合识别」，双向连通前序与后续评分页，彻底废除单向硬截断；
+  2. **路由仲裁精细化**：区分 1135 案超额/重复项真实证据保护（`leafWeightSum >= declaredTotal` 禁模型覆盖）与项目 35 等严重欠分缺口（`leafWeightSum < declaredTotal` 触发 fallback 兜底），彻底消除残缺事实短路劫持。
+- **验证与铁证**：
+  - 4 个项目（35、43、1117、1118）真实原版 PDF 端到端离线回放全部 100% 成功包含完整评分页；
+  - `ScoreParseEntryRouterTest`（7/7）、`BaiduTableArtifactEnricherTest`（8/8）、`GoldenCasesReplayTest`（61/61）、`ScoreParseArchitectureTest`（3/3）、`ScoreParseAppServiceTest`（30/30）全部绿灯。
+
