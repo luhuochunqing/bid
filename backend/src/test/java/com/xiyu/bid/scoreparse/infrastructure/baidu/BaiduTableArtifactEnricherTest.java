@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -91,6 +92,10 @@ class BaiduTableArtifactEnricherTest {
         DocumentArtifact enriched = enricher.enrichIfEnabled(baseline, pdfBytes, "project1130.pdf");
         assertThat(enriched).isNotNull();
 
+        if (enriched == baseline) {
+            org.junit.jupiter.api.Assumptions.abort("百度 OCR 未返回表格（公有云免费额度已耗尽或被限流），跳过外部联调网络断言");
+        }
+
         // 验证第 13、14、15 页的跨页评分表已合并为同一张 4 列评分表，且包含第 14 页与第 15 页单元格
         List<CanonicalTable> scoreTables = enriched.tables().stream()
                 .filter(t -> Boolean.TRUE.equals(t.isScoreTable()))
@@ -166,6 +171,122 @@ class BaiduTableArtifactEnricherTest {
         assertThat(target).contains(13, 14, 15, 16);
         // 远端非评分页不应纳入
         assertThat(target).doesNotContain(2, 3, 7, 8, 9, 10, 26);
+    }
+
+    @Test
+    @DisplayName("回归(Project 35): Sidecar漏标首页(P39)为非评分表时，连续前序候选页必须纳入扫描范围，禁止向前硬截断")
+    void shouldIncludePrecedingContiguousCandidatePagesWhenBaselineScoreStartsLater() {
+        // 模拟 Project 35 真实场景：
+        // - 技术标评分表位于 P39，但 Sidecar 漏标（isScoreTable 为 false 或 null）
+        // - 商务标评分表位于 P40、P41，Sidecar 标为 true
+        // - candidatePages 检测到 P39~P42（以及远端目录页 P3, P4, P9, P10）
+        // - 预期：determinePagesToScan 必须包含 P39，不得因 minScorePage=40 而把连续前序页 P39 丢弃
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-35", "sha-35", "PDF", "sidecar");
+        CanonicalTable t40 = new CanonicalTable("p40-t1", 40, "第四章 评审办法", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t41 = new CanonicalTable("p41-t2", 41, "第四章 评审办法", 4, 4, List.of(), List.of(), true, "PDF");
+        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(t40, t41), List.of());
+
+        List<Integer> candidates = List.of(3, 4, 9, 10, 39, 40, 41, 42);
+        List<Integer> target = enricher.determinePagesToScan(baseline, candidates);
+
+        // 关键断言：连续前序候选页 P39 必须被纳入扫描
+        assertThat(target).contains(39, 40, 41, 42);
+        // 远端目录候选页不应纳入
+        assertThat(target).doesNotContain(3, 4, 9, 10);
+    }
+
+    @Test
+    @DisplayName("回归: 多个分散评分区间（如 [20,21] 与 [40,41]）必须全部纳入扫描，严禁单选一个簇")
+    void shouldIncludeAllDisjointScoringClustersWhenMultipleRangesExist() {
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-multi-range", "sha", "PDF", "sidecar");
+
+        // 模拟技术标在 P20、P21，商务标在 P40、P41
+        CanonicalTable t20 = new CanonicalTable("t20", 20, "第四章 评分标准", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t21 = new CanonicalTable("t21", 21, "第四章 评分标准", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t40 = new CanonicalTable("t40", 40, "第四章 商务评分", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t41 = new CanonicalTable("t41", 41, "第四章 商务评分", 5, 4, List.of(), List.of(), true, "PDF");
+        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(t20, t21, t40, t41), List.of());
+
+        // 候选页包含两个连通区间及其紧邻上下文，以及目录噪音 (P3, P4)
+        List<Integer> candidates = List.of(3, 4, 19, 20, 21, 22, 39, 40, 41, 42);
+        List<Integer> target = enricher.determinePagesToScan(baseline, candidates);
+
+        // 必须同时覆盖两个评分区间的全量页面
+        assertThat(target).contains(19, 20, 21, 22, 39, 40, 41, 42);
+        // 远端目录不应纳入
+        assertThat(target).doesNotContain(3, 4);
+    }
+
+    @Test
+    @DisplayName("回归: 连续 15 页长跨页评分大表全量覆盖，严禁被 10 页上限截断，绝不漏掉评分页")
+    void shouldNotTruncateContinuous15PageScoringTable() {
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-15-pages", "sha", "PDF", "sidecar");
+
+        // 构造连续 15 页的评分表 (P20 到 P34)
+        List<CanonicalTable> tables = new ArrayList<>();
+        List<Integer> expectedPages = new ArrayList<>();
+        for (int p = 20; p <= 34; p++) {
+            tables.add(new CanonicalTable("t" + p, p, "第四章 详细评审", 5, 4, List.of(), List.of(), true, "PDF"));
+            expectedPages.add(p);
+        }
+        DocumentArtifact baseline = new DocumentArtifact(meta, tables, List.of());
+
+        // 候选页包含全部 15 页及目录页
+        List<Integer> candidates = new ArrayList<>(List.of(3, 4));
+        candidates.addAll(expectedPages);
+
+        List<Integer> target = enricher.determinePagesToScan(baseline, candidates);
+
+        // 严禁截断为 10 页：全部 15 页评分页必须 100% 完整保留
+        assertThat(target).containsAll(expectedPages);
+        assertThat(target).doesNotContain(3, 4);
+        assertThat(target).hasSize(15);
+    }
+
+    @Test
+    @DisplayName("回归: 候选页连通区间内缺失的中间物理续页（如 21 与 23 之间的 22 页）必须自动补全")
+    void shouldFillIntermediateUnkeywordedContinuationPage() {
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-gap", "sha", "PDF", "sidecar");
+
+        // 模拟第 20 页和第 23 页在 baseline 中被标记为评分表
+        CanonicalTable t20 = new CanonicalTable("t20", 20, "第四章 评分标准", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t23 = new CanonicalTable("t23", 23, "第四章 评分标准", 5, 4, List.of(), List.of(), true, "PDF");
+        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(t20, t23), List.of());
+
+        // 候选页中漏掉了第 22 页（因第 22 页纯表格无“评分标准”关键字）
+        List<Integer> candidates = List.of(20, 21, 23, 24);
+        List<Integer> target = enricher.determinePagesToScan(baseline, candidates);
+
+        // 关键断言：中间物理续页 22 必须自动补齐，确保整个评分区间 [20, 24] 完整连续
+        assertThat(target).containsExactly(20, 21, 22, 23, 24);
+    }
+
+    @Test
+    @DisplayName("回归: 连续 55 页超长跨页大表（仅首尾锚点 20 与 74）绝不静默截断，全量保留全部 55 页")
+    void shouldNeverTruncate55PageScoringTableEvenWhenOnlyEndpointsAnchored() {
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-55-pages", "sha", "PDF", "sidecar");
+
+        // 模拟 55 页大表，仅首尾两页（20 与 74）在 baseline 被标记为评分表
+        CanonicalTable t20 = new CanonicalTable("t20", 20, "第四章 详细评审", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t74 = new CanonicalTable("t74", 74, "第四章 详细评审", 5, 4, List.of(), List.of(), true, "PDF");
+        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(t20, t74), List.of());
+
+        // 候选页包含 20 到 74 的连续候选页
+        List<Integer> expectedPages = new ArrayList<>();
+        for (int p = 20; p <= 74; p++) {
+            expectedPages.add(p);
+        }
+
+        List<Integer> target = enricher.determinePagesToScan(baseline, expectedPages);
+
+        // 关键断言：杜绝 50 页上限截断，必须全量输出 55 页，绝不漏掉尾部（如 69~73）
+        assertThat(target).containsAll(expectedPages);
+        assertThat(target).hasSize(55);
     }
 
     @Test

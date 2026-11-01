@@ -7952,3 +7952,18 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - `Report147ResponsivenessRegressionTest` 15 项测试 0 失败 0 错误（用例 1 & 2 解隔离转绿，用例 3 & 4 严格保留隔离）；
   - `com.xiyu.bid.compliance` 全域 1016 项测试 100% 通过（0 failures, 0 errors, 3 skipped）；
   - `bash scripts/pre-commit.sh` 门禁检查 100% 通过。
+
+## 483. 百度表格OCR跨页评分表前序页截断与入口路由假成功短路修复（项目35/1117/1118/43集体欠分复盘，2026-11-01）
+
+- **背景与现象**：部署百度 OCR 之后，项目 35（实测仅 48.00 分，缺 52 分）、1117（70.00 分，缺 30 分）、1118（65.00 分，缺 35 分）、43（70.00 分，缺 30 分）等复杂招标文件集体出现严重欠分并陷入 `REVIEW_REQUIRED` / `MISSING_EVIDENCE`。
+- **根因分析**：
+  1. **扫描起点向前硬截断**：`BaiduTableArtifactEnricher.determinePagesToScan` 将扫描起点锚定在 Sidecar 识别的首个评分表页 `minScorePage`，执行 `if (p < minScorePage) continue;`。当 Sidecar 漏标跨页评分表首页（如项目 35 P39 技术标、项目 1117 P40/P41 前附表、项目 1118 P36/P37 资质项）时，前序连通页被无情斩断，导致百度 OCR 根本未扫描评分表前半部分。
+  2. **入口路由假成功短路**：`ScoreParseEntryRouter.extract` 仅凭 `!result.facts().isEmpty()` 即判定结构化抽取成功，直接短路返回残缺事实，在严重欠分时封死了原本能够补齐 100 分的 fallback 链路。
+- **第一性原理修复与严密边界**：
+  1. **全区间多簇连通、中间续页补齐与长表零截断**：`BaiduScanPageSelector` 全量收集所有与 baseline `scoreTablePages` 相交的连通候选簇（相邻差 $\le 2$），彻底消除 [20,21] 与 [40,41] 多分散区间单选一簇漏扫的缺陷；自动补齐相邻候选页间隙中的物理续页（如 [20,21,23,24] 补全 22），杜绝无关键词中间页漏扫；凡属于确证评分区间的页面全量保留，支持 55 页以上超长跨页大表完整扫描，严禁任何静默截断；
+  2. **方案总分双向核验、来源完整性证据与冲突诊断保全**：`ScoreParseEntryRouter.selectBest` 增加全案目标总分双向核验（既挡小于如 20/20 也挡大于如 80/120），在任何采纳前统一拦截方案冲突并记录 `FALLBACK_SCHEME_CONFLICT`；完整性必须有来源证据证明，超额候选（如 110 分）坚决不得冒充“完整”绕过距离防倒退比较；采纳更优 fallback 时完整合并保留原主结果的 `sourceDiagnostics`。
+- **验证与铁证**：
+  - 4 个项目（35、43、1117、1118）真实原版 PDF 端到端离线回放全部 100% 成功包含完整评分页；
+  - `ScoreParseEntryRouterTest`（13/13 绿灯，覆盖方案总分冲突双向拦截、超额候选防倒退、诊断合并与超额保护）；
+  - `BaiduTableArtifactEnricherTest`（12/12 绿灯，覆盖多分散区间 [20,21]+[40,41] 全选、中间续页 22 自动补齐、55 页超长大表零截断）；
+  - `GoldenCasesReplayTest`（61/61）、`ScoreParseArchitectureTest`（3/3）、`ScoreParseAppServiceTest`（30/30）全部绿灯。

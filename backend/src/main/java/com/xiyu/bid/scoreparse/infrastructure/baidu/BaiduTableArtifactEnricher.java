@@ -36,7 +36,7 @@ public class BaiduTableArtifactEnricher {
             "(第[一二三四五六七八九十0-9]+章\\s*[^\\r\\n]+)"
     );
 
-    private static final int MAX_PAGES_TO_SCAN = 10;
+    private static final int MAX_PAGES_TO_SCAN = 50;
 
     private final BaiduTableOcrClient baiduTableOcrClient;
 
@@ -160,52 +160,10 @@ public class BaiduTableArtifactEnricher {
     /**
      * 确定需要百度 OCR 扫描的页面列表。
      * <p>在 Primary Authority 模式下，覆盖整个评分区间的所有关键页，进行高精度主干抽取并替换原表。
-     * <p>策略：从 baseline 找到最小评分页 minScorePage，然后从 candidatePages 中取从 minScorePage
-     * 起始的所有连续候选页（相邻差 ≤ 2 以允许非关键词中间页），直至候选页断裂或达到上限。
-     * 这确保了如第 15 页这种 Sidecar 误标 isScoreTable=false 的续表页也会被 Baidu OCR 覆盖。
+     * <p>委托 {@link BaiduScanPageSelector} 基于连续簇聚类与评分表锚点重合识别，实现双向连通。
      */
     List<Integer> determinePagesToScan(DocumentArtifact baseline, List<Integer> candidatePages) {
-        if (candidatePages == null || candidatePages.isEmpty()) {
-            return List.of();
-        }
-        if (baseline == null || baseline.tables() == null || baseline.tables().isEmpty()) {
-            return candidatePages.stream().limit(MAX_PAGES_TO_SCAN).toList();
-        }
-
-        List<Integer> scoreTablePages = new ArrayList<>();
-        for (CanonicalTable t : baseline.tables()) {
-            if (t != null && t.sourcePage() != null && Boolean.TRUE.equals(t.isScoreTable())) {
-                scoreTablePages.add(t.sourcePage());
-            }
-        }
-        if (scoreTablePages.isEmpty()) {
-            return candidatePages.stream().limit(MAX_PAGES_TO_SCAN).toList();
-        }
-
-        scoreTablePages.sort(Integer::compareTo);
-        int minScorePage = scoreTablePages.get(0);
-
-        // 从 candidatePages 中提取从 minScorePage 起始的所有连续候选页。
-        // "连续"定义：相邻候选页之间差值 ≤ 2（允许中间存在不含评分关键词但属于评分续表的页）。
-        // 当候选页断裂（差值 > 2）时停止，以避免将不相关的章节纳入扫描范围。
-        List<Integer> sorted = candidatePages.stream().sorted().toList();
-        List<Integer> pagesToScan = new ArrayList<>();
-        int lastAdded = -1;
-        for (int p : sorted) {
-            if (p < minScorePage) continue;
-            if (pagesToScan.isEmpty()) {
-                pagesToScan.add(p);
-                lastAdded = p;
-            } else if (p - lastAdded <= 2) {
-                pagesToScan.add(p);
-                lastAdded = p;
-            } else {
-                // 候选页出现跳跃，评分区间到此结束
-                break;
-            }
-            if (pagesToScan.size() >= MAX_PAGES_TO_SCAN) break;
-        }
-        return List.copyOf(pagesToScan);
+        return BaiduScanPageSelector.determinePagesToScan(baseline, candidatePages, MAX_PAGES_TO_SCAN);
     }
 
     private String inferSectionForPage(DocumentArtifact baseline, byte[] pdfBytes, int pageNum) {
