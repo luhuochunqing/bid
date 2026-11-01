@@ -133,3 +133,10 @@ backlinks:
    - 增加全案目标总分（如 100 分）一致性核验：杜绝局部子方案（如 20/20 分）以自身 complete=true 绕过防倒退去覆盖 48/100 分全案主结果；
    - 单调更优与防倒退门禁：仅当 fallback 证明分值严格更优且更接近目标总分时才允许采纳，坚决拦截如 20 分 fallback 覆盖 48 分原事实倒退；
    - 诊断与冲突保全：采纳更优 fallback 时完整合并保留原主结果的 `sourceDiagnostics`；若存在方案总分冲突，记录 `FALLBACK_SCHEME_CONFLICT` 证据。
+
+## 评分结果展示的首批独立提取（基线38c34354b，2026-11-01）
+
+- 从旧OCR工作树中仅提取展示语义，原有OCR、表格转换、后端DTO与迁移均未带入。
+- `ScoreCandidateReviewCard`：本次提取记录数=`candidateFacts.length`；当前方案候选数=`eligibleFacts.length`；有效合计仍由原父子去重逻辑提供。方案外记录继续在核对区展示，不因候选为0而隐藏。
+- `ScoreExtractionPanel`：读取版本化接口已存在的`sourceDiagnostics`，零items仍显示中文原因及原始详情；诊断按文本插值渲染。旧接口不存在的新证据字段不假造，活动版本历史来源口径保持主线不变。
+- 关联：[[pr2948-scoreparse-scope-and-fallback-risk]]。本批不改2948路由或扫描页选择，不改变评分/采纳资格，不代表整文件准确性验收。

@@ -181,7 +181,7 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.find('.audit-facts').text()).toContain('履约考核')
     expect(wrapper.find('.audit-facts').text()).toContain('方案外')
     expect(wrapper.text()).toContain('来源未核验')
-    expect(wrapper.text()).toContain('本方案内 2 项，合计 6 分')
+    expect(wrapper.text()).toContain('当前方案候选 2 项，有效合计 6 分')
     expect(wrapper.find('.audit-facts').text()).toContain('不计当前候选、不计当前总分')
   })
 
@@ -417,4 +417,17 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(mutableFacts[1].candidateEligible).toBe(true)
     expect(mutableFacts[1].schemeId).toBe('scheme-main')
   })
+})
+
+it('distinguishes extracted records from zero candidates in the selected scheme', () => {
+  const facts = Array.from({ length: 4 }, (_, index) => ({ factId: `outside-${index}`, code: String(index + 1),
+    dimension: `原文记录${index + 1}`, weight: 10, sourceText: '完整原文', schemeId: 'other',
+    candidateEligible: false, scopeStatus: 'OUT_OF_SCHEME' }))
+  const wrapper = mount(ScoreCandidateReviewCard, { props: { candidateFacts: facts, selectedSchemeId: 'current',
+    candidateTotalWeight: 0 }, global: { stubs: { 'el-alert': true, 'el-button': true } } })
+  expect(wrapper.find('.candidate-review-title').text()).toContain('本次提取 4 条记录')
+  expect(wrapper.find('.candidate-review-title').text()).toContain('当前方案候选 0 项，有效合计 0 分')
+  expect(wrapper.findAll('.candidate-table tbody tr')).toHaveLength(0)
+  expect(wrapper.findAll('.audit-fact-row')).toHaveLength(4)
+  expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
 })

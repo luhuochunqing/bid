@@ -86,3 +86,20 @@ it('allows selecting a verified zero-point deduction without adding points', asy
   await w.get('[data-test="activate-extraction"]').trigger('click')
   expect(w.emitted('activate')[0][0].selectedItemIds).toEqual(['扣分项'])
 })
+
+it('shows task source diagnostics even when the latest extraction has no items and older items remain active', () => {
+  const data = snapshot()
+  Object.assign(data, { items: [], schemes: [], sourceDiagnostics: ['SOURCE_SCORE_ROW_UNCOVERED:table-r4'] })
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data, activeItems: [{ id: 9, dim: '旧正式项', weight: 100 }], activeTotal: 100 } })
+  expect(w.get('[data-test="extraction-source-diagnostics"]').text()).toContain('原文评分表仍有未完整覆盖的评分行')
+  expect(w.text()).toContain('SOURCE_SCORE_ROW_UNCOVERED:table-r4')
+  expect(w.text()).toContain('当前用于评分：1 项 / 100 分')
+  expect(w.text()).toContain('本次尚无候选项')
+})
+
+it('keeps unknown source diagnostic details readable as text', () => {
+  const data = { ...snapshot(), sourceDiagnostics: ['UNFAMILIAR:<img src=x onerror=alert(1)>'] }
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+  expect(w.get('[data-test="extraction-source-diagnostics"]').text()).toContain('UNFAMILIAR:<img src=x onerror=alert(1)>')
+  expect(w.find('img').exists()).toBe(false)
+})
