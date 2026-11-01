@@ -36,7 +36,7 @@ public class BaiduTableArtifactEnricher {
             "(第[一二三四五六七八九十0-9]+章\\s*[^\\r\\n]+)"
     );
 
-    private static final int MAX_PAGES_TO_SCAN = 10;
+    private static final int MAX_PAGES_TO_SCAN = 50;
 
     private final BaiduTableOcrClient baiduTableOcrClient;
 

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -193,6 +194,56 @@ class BaiduTableArtifactEnricherTest {
         assertThat(target).contains(39, 40, 41, 42);
         // 远端目录候选页不应纳入
         assertThat(target).doesNotContain(3, 4, 9, 10);
+    }
+
+    @Test
+    @DisplayName("回归: 多个分散评分区间（如 [20,21] 与 [40,41]）必须全部纳入扫描，严禁单选一个簇")
+    void shouldIncludeAllDisjointScoringClustersWhenMultipleRangesExist() {
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-multi-range", "sha", "PDF", "sidecar");
+
+        // 模拟技术标在 P20、P21，商务标在 P40、P41
+        CanonicalTable t20 = new CanonicalTable("t20", 20, "第四章 评分标准", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t21 = new CanonicalTable("t21", 21, "第四章 评分标准", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t40 = new CanonicalTable("t40", 40, "第四章 商务评分", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t41 = new CanonicalTable("t41", 41, "第四章 商务评分", 5, 4, List.of(), List.of(), true, "PDF");
+        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(t20, t21, t40, t41), List.of());
+
+        // 候选页包含两个连通区间及其紧邻上下文，以及目录噪音 (P3, P4)
+        List<Integer> candidates = List.of(3, 4, 19, 20, 21, 22, 39, 40, 41, 42);
+        List<Integer> target = enricher.determinePagesToScan(baseline, candidates);
+
+        // 必须同时覆盖两个评分区间的全量页面
+        assertThat(target).contains(19, 20, 21, 22, 39, 40, 41, 42);
+        // 远端目录不应纳入
+        assertThat(target).doesNotContain(3, 4);
+    }
+
+    @Test
+    @DisplayName("回归: 连续 15 页长跨页评分大表全量覆盖，严禁被 10 页上限截断，绝不漏掉评分页")
+    void shouldNotTruncateContinuous15PageScoringTable() {
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-15-pages", "sha", "PDF", "sidecar");
+
+        // 构造连续 15 页的评分表 (P20 到 P34)
+        List<CanonicalTable> tables = new ArrayList<>();
+        List<Integer> expectedPages = new ArrayList<>();
+        for (int p = 20; p <= 34; p++) {
+            tables.add(new CanonicalTable("t" + p, p, "第四章 详细评审", 5, 4, List.of(), List.of(), true, "PDF"));
+            expectedPages.add(p);
+        }
+        DocumentArtifact baseline = new DocumentArtifact(meta, tables, List.of());
+
+        // 候选页包含全部 15 页及目录页
+        List<Integer> candidates = new ArrayList<>(List.of(3, 4));
+        candidates.addAll(expectedPages);
+
+        List<Integer> target = enricher.determinePagesToScan(baseline, candidates);
+
+        // 严禁截断为 10 页：全部 15 页评分页必须 100% 完整保留
+        assertThat(target).containsAll(expectedPages);
+        assertThat(target).doesNotContain(3, 4);
+        assertThat(target).hasSize(15);
     }
 
     @Test

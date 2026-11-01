@@ -7959,10 +7959,12 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **根因分析**：
   1. **扫描起点向前硬截断**：`BaiduTableArtifactEnricher.determinePagesToScan` 将扫描起点锚定在 Sidecar 识别的首个评分表页 `minScorePage`，执行 `if (p < minScorePage) continue;`。当 Sidecar 漏标跨页评分表首页（如项目 35 P39 技术标、项目 1117 P40/P41 前附表、项目 1118 P36/P37 资质项）时，前序连通页被无情斩断，导致百度 OCR 根本未扫描评分表前半部分。
   2. **入口路由假成功短路**：`ScoreParseEntryRouter.extract` 仅凭 `!result.facts().isEmpty()` 即判定结构化抽取成功，直接短路返回残缺事实，在严重欠分时封死了原本能够补齐 100 分的 fallback 链路。
-- **第一性原理修复**：
-  1. **连续簇聚类连通**：`determinePagesToScan` 升级为「候选页连续簇聚类（相邻差 $\le 2$）+ 评分表锚点最大重合识别」，双向连通前序与后续评分页，彻底废除单向硬截断；
-  2. **路由仲裁精细化**：区分 1135 案超额/重复项真实证据保护（`leafWeightSum >= declaredTotal` 禁模型覆盖）与项目 35 等严重欠分缺口（`leafWeightSum < declaredTotal` 触发 fallback 兜底），彻底消除残缺事实短路劫持。
+- **第一性原理修复与严密边界**：
+  1. **全区间多簇连通与长跨页大表保护**：`BaiduScanPageSelector` 全量收集所有与 baseline `scoreTablePages` 相交的连通候选簇（相邻差 $\le 2$），彻底消除 [20,21] 与 [40,41] 多分散区间单选一簇漏扫的缺陷；`MAX_PAGES_TO_SCAN` 提升至 50 确保 15 页以上跨页大表全覆盖，且建立铁律契约：任何情况下 baseline 中已标记的评分页绝不在预算裁剪中被截断；
+  2. **路由单调更优仲裁与诊断保全**：`ScoreParseEntryRouter.selectBest` 增加完整性证明与防倒退门禁：仅当 fallback 证明分值严格更优且距离目标总分更近时才允许采纳（坚决拦截 20 分 fallback 覆盖 48 分原事实倒退）；且采纳时完整继承并合并原主结果的 `sourceDiagnostics`（漏项诊断），绝不丢失审计依据。
 - **验证与铁证**：
   - 4 个项目（35、43、1117、1118）真实原版 PDF 端到端离线回放全部 100% 成功包含完整评分页；
-  - `ScoreParseEntryRouterTest`（7/7）、`BaiduTableArtifactEnricherTest`（8/8）、`GoldenCasesReplayTest`（61/61）、`ScoreParseArchitectureTest`（3/3）、`ScoreParseAppServiceTest`（30/30）全部绿灯。
+  - `ScoreParseEntryRouterTest`（10/10 绿灯，覆盖多候选兜底、防倒退、诊断合并与超额保护）；
+  - `BaiduTableArtifactEnricherTest`（10/10 绿灯，覆盖多分散区间 [20,21]+[40,41] 全选与 15 页大表不截断）；
+  - `GoldenCasesReplayTest`（61/61）、`ScoreParseArchitectureTest`（3/3）、`ScoreParseAppServiceTest`（30/30）全部绿灯。
 

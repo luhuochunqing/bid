@@ -95,6 +95,67 @@ class ScoreParseEntryRouterTest {
         assertThat(outcome).isSameAs(resultWithDeficit);
     }
 
+    @Test
+    void inferiorFallbackCannotOverrideStructuredEvidenceAndPreservesDiagnostics() {
+        // 主结果有 48 分事实与漏项诊断；fallback 仅提取出 20 分
+        // 契约：严禁由 20 分覆盖 48 分导致倒退，必须坚决保留 48 分原结果与原始诊断
+        var fact = createFact("f1", new BigDecimal("48"));
+        var completeness = ScoreCompletenessPolicy.evaluateCompleteness(List.of(fact), "评分总分100分。");
+        var resultWithDeficit = new StructuredTableResult(
+                List.of(), false, null, true, List.of(fact), completeness, List.of(), List.of(), null, List.of(),
+                List.of("SOURCE_SCORE_ROW_UNCOVERED:p39-t1"));
+
+        var inferiorCandidate = new ScoreCandidate("1", "商务", "部分细则", new BigDecimal("20"), "OBJECTIVE", "", "", "", "RECOVERED");
+        var inferiorFallback = StructuredTableResult.ok(List.of(inferiorCandidate));
+
+        var outcome = ScoreParseEntryRouter.extract(() -> resultWithDeficit, () -> inferiorFallback);
+
+        // 断言：保持主结果，不被 20 分 fallback 覆盖
+        assertThat(outcome).isSameAs(resultWithDeficit);
+        assertThat(outcome.facts()).hasSize(1);
+        assertThat(outcome.facts().getFirst().weight()).isEqualByComparingTo("48");
+        assertThat(outcome.sourceDiagnostics()).containsExactly("SOURCE_SCORE_ROW_UNCOVERED:p39-t1");
+    }
+
+    @Test
+    void superiorFallbackAdoptsHigherScoreAndMergesOriginalDiagnostics() {
+        // 主结果有 48 分事实与诊断；fallback 成功提取出完整 100 分
+        // 契约：采纳 100 分 fallback，同时完整保留合并原有的漏项诊断
+        var fact = createFact("f1", new BigDecimal("48"));
+        var completeness = ScoreCompletenessPolicy.evaluateCompleteness(List.of(fact), "评分总分100分。");
+        var resultWithDeficit = new StructuredTableResult(
+                List.of(), false, null, true, List.of(fact), completeness, List.of(), List.of(), null, List.of(),
+                List.of("SOURCE_SCORE_ROW_UNCOVERED:p39-t1"));
+
+        var superiorCandidate = new ScoreCandidate("1", "商务", "全量细则", new BigDecimal("100"), "OBJECTIVE", "", "", "", "RECOVERED");
+        var superiorFallback = new StructuredTableResult(
+                List.of(superiorCandidate), false, null, false, List.of(), null, List.of(), List.of(), null, List.of(),
+                List.of("MODEL_FALLBACK_APPLIED"));
+
+        var outcome = ScoreParseEntryRouter.extract(() -> resultWithDeficit, () -> superiorFallback);
+
+        // 断言：采纳 100 分，且诊断包含原漏项诊断与 fallback 诊断
+        assertThat(outcome.candidates()).hasSize(1);
+        assertThat(outcome.candidates().getFirst().weight()).isEqualByComparingTo("100");
+        assertThat(outcome.sourceDiagnostics()).contains("SOURCE_SCORE_ROW_UNCOVERED:p39-t1", "MODEL_FALLBACK_APPLIED");
+    }
+
+    @Test
+    void equalScoreFallbackPreservesPrimaryStructuredEvidence() {
+        // 主结果 48 分；fallback 也只有 48 分
+        // 契约：分值未证明更优时，权威结构化表格事实优先，不被覆盖
+        var fact = createFact("f1", new BigDecimal("48"));
+        var completeness = ScoreCompletenessPolicy.evaluateCompleteness(List.of(fact), "评分总分100分。");
+        var resultWithDeficit = StructuredTableResult.evidencePipeline(
+                List.of(fact), List.of(), completeness, List.of());
+
+        var equalCandidate = new ScoreCandidate("1", "商务", "相同分值细则", new BigDecimal("48"), "OBJECTIVE", "", "", "", "RECOVERED");
+        var equalFallback = StructuredTableResult.ok(List.of(equalCandidate));
+
+        var outcome = ScoreParseEntryRouter.extract(() -> resultWithDeficit, () -> equalFallback);
+        assertThat(outcome).isSameAs(resultWithDeficit);
+    }
+
     private static ScoreFact createFact(String id, BigDecimal weight) {
         return new ScoreFact(
                 id, "tbl1", List.of("cell1"), "rule", "1", "商务", weight,
