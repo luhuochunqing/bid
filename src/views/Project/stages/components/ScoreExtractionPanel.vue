@@ -4,6 +4,13 @@
     <h3>评分标准提取 · {{ extractionTaskLabel(snapshot.taskStatus) }}</h3>
     <p>系统会保留识别到的全部评分项；未确认的项目不会自动计入总分。</p>
     <p v-if="snapshot.payloadVersion === 0">这是历史提取结果，来源尚未完整核验，请点击“重新解析”。</p>
+    <section v-if="snapshot.sourceDiagnostics?.length" data-test="extraction-source-diagnostics" aria-label="本次提取需核对的原因">
+      <h4>本次提取需核对的原因</h4>
+      <details v-for="diagnostic in snapshot.sourceDiagnostics" :key="diagnostic">
+        <summary class="diagnostic">{{ extractionReason(diagnostic) }}</summary>
+        <p class="full-text">{{ diagnostic }}</p>
+      </details>
+    </section>
     <label v-if="snapshot.schemes?.length" class="scheme-select">评分方案
       <select v-model="schemeId" aria-label="评分方案">
         <option value="" disabled>请选择一个评分方案</option>
@@ -70,7 +77,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { categoryLabel } from '@/composables/projectDetail/scoreParseTask.js'
-import { scoreNumber, extractionTaskLabel } from '@/composables/projectDetail/scoreExtractionPresentation.js'
+import { scoreNumber, extractionTaskLabel, extractionReason } from '@/composables/projectDetail/scoreExtractionPresentation.js'
 const props = defineProps({ snapshot: { type: Object, required: true }, activeItems: { type: Array, default: () => [] }, activeTotal: { type: Number, default: null }, blocked: Boolean, busy: Boolean })
 defineEmits(['activate'])
 const schemeId = ref(''), selectedIds = ref([]), reason = ref('')

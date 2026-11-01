@@ -9,7 +9,7 @@
     <div class="candidate-review-header">
       <div class="candidate-review-title">
         <span class="candidate-icon">💡</span>
-        <span>检测到待人工复核的候选评分标准{{ selectedSchemeTitle ? `（${selectedSchemeTitle}）` : '' }}（本方案内 {{ eligibleFacts.length }} 项，合计 {{ candidateTotalWeight }} 分）</span>
+        <span>检测到待人工复核的候选评分标准{{ selectedSchemeTitle ? `（${selectedSchemeTitle}）` : '' }}（本次提取 {{ candidateFacts.length }} 条记录；当前方案候选 {{ eligibleFacts.length }} 项，有效合计 {{ candidateTotalWeight }} 分）</span>
       </div>
       <div class="candidate-review-desc">
         已识别的评分项如下。请对照原文核对名称、分值和完整规则；未确认的项目不会自动生效。

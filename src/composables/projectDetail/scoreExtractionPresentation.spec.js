@@ -7,6 +7,14 @@ describe('score extraction presentation', () => {
     expect(scoreNumber(28)).toBe('28')
   })
 
+  it.each(['constructor', 'toString', '__proto__', 'constructor:detail', 'toString:detail', '__proto__:detail'])('keeps unknown diagnostic %s as a safe fallback label', code => {
+    expect(extractionReason(code)).toBe('该项来源或规则仍有待核对的问题，请结合原文检查')
+  })
+
+  it('preserves known diagnostic labels with evidence suffixes', () => {
+    expect(extractionReason('SOURCE_SCORE_ROW_UNCOVERED:page=3')).toBe('原文评分表仍有未完整覆盖的评分行，请对照招标文件复核。')
+  })
+
   it('maps known and unknown extraction states to safe labels', () => {
     expect(extractionTaskLabel('COMPLETED')).toBe('提取完成')
     expect(extractionTaskLabel('UNKNOWN')).toBe('状态待确认')

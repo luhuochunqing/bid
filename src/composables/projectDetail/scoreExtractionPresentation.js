@@ -2,6 +2,9 @@
 // Pos: projectDetail presentation helpers; no computed business eligibility
 export const scoreNumber = value => value == null || value === '' ? '待确认' : String(value)
 const reasons = {
+  SOURCE_SCORE_ROW_UNCOVERED: '原文评分表仍有未完整覆盖的评分行，请对照招标文件复核。',
+  FALLBACK_SCHEME_CONFLICT: '不同提取结果的方案总分存在冲突，请对照原文确认。',
+  SOURCE_RECHECK_LIMIT_REMAINING: '部分原文评分内容尚未完成复核，请对照招标文件检查。',
   OUT_OF_SCHEME: '方案外内容，不计分', SCHEME_UNRESOLVED: '所属评分方案待确认',
   NOT_EFFECTIVE_SCORING_UNIT: '结构汇总或其他非计分单元，不重复计分',
   FULL_RULE_UNIT_UNRESOLVED: '本项完整原文边界待核对', WEIGHT_UNKNOWN: '最大分未知',
@@ -17,7 +20,8 @@ const reasons = {
   SOURCE_SPAN_UNRESOLVED: '原文位置尚未核验', SOURCE_UNAVAILABLE: '原文来源暂不可用',
 }
 export function extractionReason(code) {
-  return reasons[code] || '该项来源或规则仍有待核对的问题，请结合原文检查'
+  const key = String(code || '').split(':')[0]
+  return Object.hasOwn(reasons, key) ? reasons[key] : '该项来源或规则仍有待核对的问题，请结合原文检查'
 }
 export function extractionTaskLabel(status) {
   return ({ COMPLETED: '提取完成', PROCESSING: '解析中', PENDING: '等待解析', FAILED: '解析失败' })[status] || '状态待确认'
