@@ -18,8 +18,9 @@ final class ResponsivenessRuleCitation {
     private ResponsivenessRuleCitation() { }
 
     static QualityCheckItemResult check(DocumentContent bid, DocumentContent tender) {
-        if (bid == null || tender == null || tender.fullText().isBlank())
+        if (bid == null || tender == null || tender.fullText().isBlank()) {
             return ResponsivenessReviewPolicy.check(bid);
+        }
         var pages = new ArrayList<DocumentContent.PageContent>();
         var evidence = new ArrayList<QualityEvidence>();
         String source = tender.fullText();
@@ -63,6 +64,9 @@ final class ResponsivenessRuleCitation {
                     result.description(), result.status(), result.severity(), result.order(),
                     result.conclusion(), result.suggestion(), restored, result.details());
         }
+        if (result != null && result.status() == QualityCheckStatus.PASS) {
+            return result;
+        }
         // 原始页摘录保留投标声明供核对，不能以声明证明满足全部要求。
         for (var page : bid.pages()) {
             if (page.text().contains("完全响应")) {
@@ -78,8 +82,9 @@ final class ResponsivenessRuleCitation {
 
     private static String tableLine(String raw) {
         String line = raw.trim();
-        if (!line.contains("|") && line.contains("\t") && line.split("\t+").length >= 2)
+        if (!line.contains("|") && line.contains("\t") && line.split("\t+").length >= 2) {
             return "| " + String.join(" | ", line.split("\t+")) + " |";
+        }
         return line;
     }
 
@@ -100,8 +105,9 @@ final class ResponsivenessRuleCitation {
                 for (String line : page.text().split("\\R")) {
                     // rawLine 可能已将制表符转换为管道；只返回原文中的实际行。
                     if (line.trim().equals(row.rawLine().trim())
-                            || tableLine(line).equals(row.rawLine().trim()))
+                            || tableLine(line).equals(row.rawLine().trim())) {
                         return QualityEvidence.bid("偏离表负偏离条款", page.pageNumber(), line);
+                    }
                 }
             }
         }

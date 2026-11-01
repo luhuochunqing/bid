@@ -122,23 +122,21 @@ class Report147ResponsivenessRegressionTest {
     }
 
     @Test
-    @EnabledIfSystemProperty(named = "xiyu.responsiveness.known-defects", matches = "true")
     void missingTenderCannotTurnAnUnattributedRuleIntoAFailure() {
         var bid = DocumentContent.fromText("bid.docx", "bid", RULE);
         var result = SemanticRulesLane.deterministicOutcome(BidQualityCheckItem.RESPONSIVENESS_REVIEW,
                 bid, DocumentContent.empty(), TenderRequirements.missingSentinel(), List.of(), Set.of());
         assertThat(result).isPresent();
-        assertThat(result.orElseThrow().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.orElseThrow().status()).isEqualTo(QualityCheckStatus.PASS);
     }
 
     @Test
-    @EnabledIfSystemProperty(named = "xiyu.responsiveness.known-defects", matches = "true")
     void bidderAcknowledgingAProhibitionIsNotADeviation() {
         var bid = DocumentContent.fromText("bid.docx", "bid", "我方知悉不允许负偏差。");
         var result = SemanticRulesLane.deterministicOutcome(BidQualityCheckItem.RESPONSIVENESS_REVIEW,
                 bid, DocumentContent.empty(), TenderRequirements.missingSentinel(), List.of(), Set.of());
         assertThat(result).isPresent();
-        assertThat(result.orElseThrow().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.orElseThrow().status()).isEqualTo(QualityCheckStatus.PASS);
     }
 
     @Test

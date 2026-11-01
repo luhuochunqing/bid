@@ -42,7 +42,8 @@ public final class DeviationTableExtractor {
 
     public static final List<String> COMPOSITE_NEGATIONS = List.of(
             "无任何", "绝无", "绝不包含", "并不存在", "不存在", "没有", "不含",
-            "绝不具有", "并不具有", "我方未作", "未作出", "未发生", "不构成", "并未对", "并无", "未曾", "绝不"
+            "绝不具有", "并不具有", "我方未作", "未作出", "未发生", "不构成", "并未对", "并无", "未曾", "绝不",
+            "不允许", "不得", "禁止", "不应"
     );
     public static final List<String> SHORT_NEGATIONS = List.of("未", "无", "零");
     public static final List<String> NEGATIVES = List.of("负偏离", "不满足", "负偏差", "未满足", "部分响应", "部分满足", "低于");
@@ -167,7 +168,7 @@ public final class DeviationTableExtractor {
     }
 
     private static final List<String> NONE_KEYWORDS = List.of(
-            "无偏离", "完全响应", "全面响应", "全部响应", "完全满足", "全面满足",
+            "无偏离", "无偏差", "无任何偏差", "完全响应", "全面响应", "全部响应", "完全满足", "全面满足",
             "全部满足", "满足要求", "符合要求", "遵照执行", "严格遵从", "无负偏离",
             "不存在负偏离", "无任何负偏离", "无负偏差", "符合招标文件要求",
             "满足技术参数要求", "符合规范要求", "响应招标文件", "满足招标要求",
@@ -217,7 +218,7 @@ public final class DeviationTableExtractor {
     }
 
     private static boolean isDeviationTitle(final String line) {
-        return (line.contains("偏离表") || line.contains("规格偏离")) && !isCatalogPage(line);
+        return (line.contains("偏离表") || line.contains("偏差表") || line.contains("规格偏离")) && !isCatalogPage(line);
     }
 
     private static TableCategory classifyCategory(final String line) {

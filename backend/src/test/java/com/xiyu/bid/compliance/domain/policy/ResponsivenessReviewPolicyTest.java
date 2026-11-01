@@ -4,6 +4,8 @@ import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
+import com.xiyu.bid.compliance.domain.QualityEvidence;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -61,6 +63,12 @@ class ResponsivenessReviewPolicyTest {
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
 
+        System.out.println("DEBUG_RESULT_STATUS: " + (result == null ? "null" : result.status()));
+        System.out.println("DEBUG_RESULT_CONCLUSION: " + (result == null ? "null" : result.conclusion()));
+        if (result != null && result.evidences() != null) {
+            result.evidences().forEach(e -> System.out.println("DEBUG_EVIDENCE: " + e.sourceTitle() + " | " + e.pageNumber() + " | " + e.quote()));
+        }
+
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
         assertThat(result.conclusion()).contains("无实质性负偏离");
@@ -77,6 +85,12 @@ class ResponsivenessReviewPolicyTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash2", text);
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
+        System.out.println("DEBUG_RESULT_STATUS: " + (result == null ? "null" : result.status()));
+        System.out.println("DEBUG_RESULT_CONCLUSION: " + (result == null ? "null" : result.conclusion()));
+        if (result != null && result.evidences() != null) {
+            result.evidences().forEach(e -> System.out.println("DEBUG_EVIDENCE: " + e.sourceTitle() + " | " + e.pageNumber() + " | " + e.quote()));
+        }
 
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
@@ -96,6 +110,12 @@ class ResponsivenessReviewPolicyTest {
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
 
+        System.out.println("DEBUG_RESULT_STATUS: " + (result == null ? "null" : result.status()));
+        System.out.println("DEBUG_RESULT_CONCLUSION: " + (result == null ? "null" : result.conclusion()));
+        if (result != null && result.evidences() != null) {
+            result.evidences().forEach(e -> System.out.println("DEBUG_EVIDENCE: " + e.sourceTitle() + " | " + e.pageNumber() + " | " + e.quote()));
+        }
+
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(result.conclusion()).contains("占位模板或空白留白");
@@ -108,6 +128,12 @@ class ResponsivenessReviewPolicyTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash4", text);
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
+        System.out.println("DEBUG_RESULT_STATUS: " + (result == null ? "null" : result.status()));
+        System.out.println("DEBUG_RESULT_CONCLUSION: " + (result == null ? "null" : result.conclusion()));
+        if (result != null && result.evidences() != null) {
+            result.evidences().forEach(e -> System.out.println("DEBUG_EVIDENCE: " + e.sourceTitle() + " | " + e.pageNumber() + " | " + e.quote()));
+        }
 
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
@@ -138,6 +164,12 @@ class ResponsivenessReviewPolicyTest {
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
 
+        System.out.println("DEBUG_RESULT_STATUS: " + (result == null ? "null" : result.status()));
+        System.out.println("DEBUG_RESULT_CONCLUSION: " + (result == null ? "null" : result.conclusion()));
+        if (result != null && result.evidences() != null) {
+            result.evidences().forEach(e -> System.out.println("DEBUG_EVIDENCE: " + e.sourceTitle() + " | " + e.pageNumber() + " | " + e.quote()));
+        }
+
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(result.conclusion()).contains("实质性负偏离");
@@ -157,6 +189,12 @@ class ResponsivenessReviewPolicyTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash7", text);
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
+        System.out.println("DEBUG_RESULT_STATUS: " + (result == null ? "null" : result.status()));
+        System.out.println("DEBUG_RESULT_CONCLUSION: " + (result == null ? "null" : result.conclusion()));
+        if (result != null && result.evidences() != null) {
+            result.evidences().forEach(e -> System.out.println("DEBUG_EVIDENCE: " + e.sourceTitle() + " | " + e.pageNumber() + " | " + e.quote()));
+        }
 
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
@@ -191,6 +229,12 @@ class ResponsivenessReviewPolicyTest {
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
 
+        System.out.println("DEBUG_RESULT_STATUS: " + (result == null ? "null" : result.status()));
+        System.out.println("DEBUG_RESULT_CONCLUSION: " + (result == null ? "null" : result.conclusion()));
+        if (result != null && result.evidences() != null) {
+            result.evidences().forEach(e -> System.out.println("DEBUG_EVIDENCE: " + e.sourceTitle() + " | " + e.pageNumber() + " | " + e.quote()));
+        }
+
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
     }
@@ -210,6 +254,12 @@ class ResponsivenessReviewPolicyTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash9", text);
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
+        System.out.println("DEBUG_RESULT_STATUS: " + (result == null ? "null" : result.status()));
+        System.out.println("DEBUG_RESULT_CONCLUSION: " + (result == null ? "null" : result.conclusion()));
+        if (result != null && result.evidences() != null) {
+            result.evidences().forEach(e -> System.out.println("DEBUG_EVIDENCE: " + e.sourceTitle() + " | " + e.pageNumber() + " | " + e.quote()));
+        }
 
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
@@ -261,6 +311,12 @@ class ResponsivenessReviewPolicyTest {
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
 
+        System.out.println("DEBUG_RESULT_STATUS: " + (result == null ? "null" : result.status()));
+        System.out.println("DEBUG_RESULT_CONCLUSION: " + (result == null ? "null" : result.conclusion()));
+        if (result != null && result.evidences() != null) {
+            result.evidences().forEach(e -> System.out.println("DEBUG_EVIDENCE: " + e.sourceTitle() + " | " + e.pageNumber() + " | " + e.quote()));
+        }
+
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(result.conclusion()).contains("实质性负偏离");
@@ -277,6 +333,12 @@ class ResponsivenessReviewPolicyTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash13", text);
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
+        System.out.println("DEBUG_RESULT_STATUS: " + (result == null ? "null" : result.status()));
+        System.out.println("DEBUG_RESULT_CONCLUSION: " + (result == null ? "null" : result.conclusion()));
+        if (result != null && result.evidences() != null) {
+            result.evidences().forEach(e -> System.out.println("DEBUG_EVIDENCE: " + e.sourceTitle() + " | " + e.pageNumber() + " | " + e.quote()));
+        }
 
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
@@ -308,5 +370,85 @@ class ResponsivenessReviewPolicyTest {
             var doc = DocumentContent.fromText("bid.pdf", "hash", "商务偏离表：全部响应，无偏离\n" + fact);
             assertThat(ResponsivenessReviewPolicy.check(doc).status()).isEqualTo(QualityCheckStatus.FAIL);
         }
+    }
+
+    @Test
+    @DisplayName("第一阶段 TDD RED 基准：正文合同解除条件（含'不满足'）不应导致合规标书被误判为 FAIL")
+    void testCheck_WhenContractTerminationConditionsPresentInGeneralText_Passes() {
+        String page1Text = "第一章 投标总则\n本项目为某集团数智化系统采购项目。";
+        String page2Text = """
+                第二章 商务及技术偏离表
+                | 序号 | 条款名称 | 招标文件要求 | 投标文件响应 | 偏离类型 | 说明 |
+                | 1 | 交付周期 | 30个日历天 | 30个日历天 | 无偏离 | 完全响应 |
+                | 2 | 售后服务 | 7x24小时响应 | 7x24小时响应 | 无偏离 | 完全响应 |
+                
+                投标人承诺：我司完全响应招标文件全部商务与技术要求，无任何实质性负偏离。
+                """;
+        String page108Text = """
+                第十章 合同专用条款
+                在合同执行过程中出现包括但不限于以下情形时，招标人有权单方面解除合同且不构成违约：
+                1. 未按要求送货，货物出现质量问题且无法协商解决；
+                2. 出现假冒伪劣或不满足甲方要求的产品；
+                3. 投标人提供的服务不满足甲方需求且整改无效的。
+                
+                应答说明：投标人完全知悉并承诺严格遵守上述合同履约与解除条款。
+                """;
+
+        List<DocumentContent.PageContent> pages = List.of(
+                new DocumentContent.PageContent(1, page1Text, List.of()),
+                new DocumentContent.PageContent(2, page2Text, List.of()),
+                new DocumentContent.PageContent(108, page108Text, List.of())
+        );
+        String fullText = String.join("\n\n", page1Text, page2Text, page108Text);
+        DocumentContent doc = new DocumentContent("bid_1388.docx", "hash1388", fullText, pages);
+
+        QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
+        assertThat(result).isNotNull();
+        assertThat(result.status())
+                .as("合规偏离表且合同条款中包含'不满足'的标书应直接亮绿灯通过")
+                .isEqualTo(QualityCheckStatus.PASS);
+    }
+
+    @Test
+    @DisplayName("第二阶段 TDD 伴随校验：合同解除条件与真实负偏离行共存时，必须精准拦截 FAIL 且证据定位偏离表")
+    void testCheck_WhenContractConditionsAndRealTableNegativeDeviationCoexist_FailsWithTableEvidence() {
+        String page1Text = "第一章 投标总则\n本项目为某集团数智化系统采购项目。";
+        String page2Text = """
+                第二章 商务及技术偏离表
+                | 序号 | 条款名称 | 招标文件要求 | 投标文件响应 | 偏离类型 | 说明 |
+                | 1 | 交付周期 | 30个日历天 | 45个日历天 | 负偏离 | 产能受限无法按期交付 |
+                | 2 | 售后服务 | 7x24小时响应 | 7x24小时响应 | 无偏离 | 完全响应 |
+                """;
+        String page108Text = """
+                第十章 合同专用条款
+                在合同执行过程中出现包括但不限于以下情形时，招标人有权单方面解除合同且不构成违约：
+                1. 未按要求送货，货物出现质量问题且无法协商解决；
+                2. 出现假冒伪劣或不满足甲方要求的产品；
+                3. 投标人提供的服务不满足甲方需求且整改无效的。
+                
+                应答说明：投标人完全知悉并承诺严格遵守上述合同履约与解除条款。
+                """;
+
+        List<DocumentContent.PageContent> pages = List.of(
+                new DocumentContent.PageContent(1, page1Text, List.of()),
+                new DocumentContent.PageContent(2, page2Text, List.of()),
+                new DocumentContent.PageContent(108, page108Text, List.of())
+        );
+        String fullText = String.join("\n\n", page1Text, page2Text, page108Text);
+        DocumentContent doc = new DocumentContent("bid_1388_negative.docx", "hash1388neg", fullText, pages);
+
+        QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
+        assertThat(result).isNotNull();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.conclusion()).contains("实质性负偏离");
+        assertThat(result.conclusion()).contains("交付周期");
+        // 核心证据断言：必须精准定位在偏离表所在的第 2 页，绝不能引用第 108 页的合同条款！
+        assertThat(result.evidences()).isNotEmpty();
+        QualityEvidence evidence = result.evidences().get(0);
+        assertThat(evidence.pageNumber()).isEqualTo(2);
+        assertThat(evidence.quote()).contains("负偏离");
+        assertThat(evidence.quote()).doesNotContain("假冒伪劣");
     }
 }
