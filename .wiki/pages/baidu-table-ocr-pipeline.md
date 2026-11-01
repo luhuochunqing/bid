@@ -4,8 +4,8 @@ space: engineering
 category: architecture
 tags: [scoreparse, baidu-ocr, table-extraction, shadow-pipeline, settings]
 created: 2026-10-28
-updated: 2026-10-30
-health_checked: 2026-10-30
+updated: 2026-11-01
+health_checked: 2026-11-01
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/baidu/
   - backend/src/main/java/com/xiyu/bid/settings/service/BaiduOcrSettingsService.java
@@ -47,6 +47,7 @@ backlinks:
 - **传输模型**：`BaiduTableModels.java`
 - **适配转换器**：`BaiduTableArtifactAdapter.java`
 - **网格拓扑构建**：`BaiduTableGridBuilder.java`
+- **评分扫描区间选择器**：`BaiduScanPageSelector.java`
 - **跨页逻辑行链接**：`BaiduCrossPageTableLinker.java`
 - **网络客户端**：`BaiduTableOcrClient.java`（带内存 Token 缓存及提前 10 分钟自动刷新）
 - **文档增强器**：`BaiduTableArtifactEnricher.java`（基于关键词与续表探测按需增强 DocumentArtifact）
@@ -118,3 +119,13 @@ backlinks:
 2. **评分编号领域分词器 (`HierarchicalCodeTokenizer`)**：
    - 彻底重构粗暴正则 `^(?:\d+).*`，建立专用的层级分词与编号校验器，支持单数字、层级数字（`1.1`、`3.2.1`）、数字接标点（`1、`、`1.`）、括号（`（1）`、`1-1(1)`）、中文序号（`一、`）、罗马数字（`I`、`II.`）、带圈数字（`①`）与业务编码（`TECH_01`）；
    - 严格拦截“2024年度”、“3年期”、“5家”、“500万元”等普通正文，从源头杜绝过拟合误判为评分编号。
+
+## 11. 跨页评分表前序页双向连通与入口路由欠分仲裁 (2026-11-01)
+
+针对项目 35、43、1117、1118 在部署百度 OCR 后出现的集体欠分缺陷，进行了两项核心演进：
+1. **连续候选簇聚类与双向连通 (`BaiduScanPageSelector`)**：
+   - 彻底废除旧版基于 `minScorePage` 的单向硬截断 (`if (p < minScorePage) continue;`)；
+   - 采用相邻页差值 $\le 2$ 聚类，并将基线中标记为评分表的锚点页面与聚类簇取最大重合，实现前序技术标/前附表与后续评分表双向连通扫描。
+2. **入口路由欠分仲裁精细化 (`ScoreParseEntryRouter`)**：
+   - 区分超额/重复项真实证据保护（`leafWeightSum >= declaredTotal` 严禁 fallback 覆盖）与严重欠分缺口（`leafWeightSum < declaredTotal` 允许 fallback 尝试补救）；
+   - 避免因残缺事实短路直接返回严重欠分结果。

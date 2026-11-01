@@ -1,3 +1,10 @@
+## [2026-11-01] fix | 跨页评分表百度OCR前序页硬截断与入口路由假成功短路修复
+
+- 触发：项目 35、43、1117、1118 在开启百度 OCR 后集体出现严重欠分缺口（48~70分）并被假成功短路返回。
+- 根因：(1) `BaiduTableArtifactEnricher.determinePagesToScan` 将扫描起点锚定在 Sidecar 识别的首个评分表页 `minScorePage`，执行 `if (p < minScorePage) continue;`，导致 Sidecar 漏标跨页评分表首页时前序连通页被硬截断；(2) `ScoreParseEntryRouter.extract` 仅凭 `!result.facts().isEmpty()` 即判定结构化抽取成功，在严重欠分时封死了原本能够补齐 100 分的 fallback 链路。
+- 修复：(1) 抽取 `BaiduScanPageSelector` 实现候选页连续簇聚类（相邻差 $\le 2$）与评分表锚点重合识别，双向连通前序与后续评分页；(2) 细化路由仲裁，保护 1135 真实超额证据的同时，对严重欠分缺口触发 fallback 补救。
+- 回填：更新 [[baidu-table-ocr-pipeline]]、`docs/lessons/lessons-learned.md` §483。
+
 ## [2026-10-30] fix | 案例来源生产安全回填与只读预演进程隔离
 
 - 根因边界：旧重算入口会在定位失败时清空来源；单个 preview 方法零写入也不能排除 Flyway、其他 runner、初始化器与调度器的启动副作用。
