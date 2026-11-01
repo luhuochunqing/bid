@@ -123,11 +123,13 @@ backlinks:
 ## 11. 跨页评分表多区间双向连通与入口路由防倒退仲裁 (2026-11-01)
 
 针对项目 35、43、1117、1118 在部署百度 OCR 后出现的集体欠分缺陷，进行了两项核心演进：
-1. **全区间多簇连通与长跨页大表保护 (`BaiduScanPageSelector`)**：
+1. **全区间多簇连通、中间续页补齐与长表零截断 (`BaiduScanPageSelector`)**：
    - 彻底废除旧版基于 `minScorePage` 的单向硬截断 (`if (p < minScorePage) continue;`)；
    - 全量收集所有与 baseline `scoreTablePages` 相交的连通候选簇（相邻差 $\le 2$），同时纳入分散区间（如 [20,21] 技术标与 [40,41] 商务标），严禁单选；
-   - `MAX_PAGES_TO_SCAN` 提升至 50 确保 15 页以上跨页评分大表全覆盖，且建立铁律契约：任何预算裁剪绝不丢弃 baseline 中已标记的评分页。
-2. **入口路由单调更优仲裁与诊断保全 (`ScoreParseEntryRouter`)**：
+   - 候选页聚类时自动补齐相邻候选页间隙（如 [20,21,23,24] 中补全 22），杜绝无关键词中间续页漏扫；
+   - 确证评分大表全量保护：凡属于包含评分锚点的连通区间，全量保留（支持 55 页以上超长评分大表），严禁任何静默截断。
+2. **方案总分核验、防倒退与冲突诊断保全 (`ScoreParseEntryRouter`)**：
    - 区分超额/重复项真实证据保护（`leafWeightSum >= declaredTotal` 严禁 fallback 覆盖）与严重欠分缺口（`leafWeightSum < declaredTotal` 允许 fallback 尝试补救）；
-   - 增加单调更优与防倒退门禁：仅当 fallback 证明分值严格更优且更接近目标总分时才允许采纳，坚决拦截如 20 分 fallback 覆盖 48 分原事实倒退；
-   - 诊断保全：采纳更优 fallback 时完整合并保留原主结果的 `sourceDiagnostics`（漏项诊断），绝不丢失审计依据。
+   - 增加全案目标总分（如 100 分）一致性核验：杜绝局部子方案（如 20/20 分）以自身 complete=true 绕过防倒退去覆盖 48/100 分全案主结果；
+   - 单调更优与防倒退门禁：仅当 fallback 证明分值严格更优且更接近目标总分时才允许采纳，坚决拦截如 20 分 fallback 覆盖 48 分原事实倒退；
+   - 诊断与冲突保全：采纳更优 fallback 时完整合并保留原主结果的 `sourceDiagnostics`；若存在方案总分冲突，记录 `FALLBACK_SCHEME_CONFLICT` 证据。

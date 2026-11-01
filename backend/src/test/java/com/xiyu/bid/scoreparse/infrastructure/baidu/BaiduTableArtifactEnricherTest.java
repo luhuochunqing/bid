@@ -247,6 +247,49 @@ class BaiduTableArtifactEnricherTest {
     }
 
     @Test
+    @DisplayName("回归: 候选页连通区间内缺失的中间物理续页（如 21 与 23 之间的 22 页）必须自动补全")
+    void shouldFillIntermediateUnkeywordedContinuationPage() {
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-gap", "sha", "PDF", "sidecar");
+
+        // 模拟第 20 页和第 23 页在 baseline 中被标记为评分表
+        CanonicalTable t20 = new CanonicalTable("t20", 20, "第四章 评分标准", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t23 = new CanonicalTable("t23", 23, "第四章 评分标准", 5, 4, List.of(), List.of(), true, "PDF");
+        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(t20, t23), List.of());
+
+        // 候选页中漏掉了第 22 页（因第 22 页纯表格无“评分标准”关键字）
+        List<Integer> candidates = List.of(20, 21, 23, 24);
+        List<Integer> target = enricher.determinePagesToScan(baseline, candidates);
+
+        // 关键断言：中间物理续页 22 必须自动补齐，确保整个评分区间 [20, 24] 完整连续
+        assertThat(target).containsExactly(20, 21, 22, 23, 24);
+    }
+
+    @Test
+    @DisplayName("回归: 连续 55 页超长跨页大表（仅首尾锚点 20 与 74）绝不静默截断，全量保留全部 55 页")
+    void shouldNeverTruncate55PageScoringTableEvenWhenOnlyEndpointsAnchored() {
+        BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(null);
+        ArtifactMeta meta = new ArtifactMeta("doc-55-pages", "sha", "PDF", "sidecar");
+
+        // 模拟 55 页大表，仅首尾两页（20 与 74）在 baseline 被标记为评分表
+        CanonicalTable t20 = new CanonicalTable("t20", 20, "第四章 详细评审", 5, 4, List.of(), List.of(), true, "PDF");
+        CanonicalTable t74 = new CanonicalTable("t74", 74, "第四章 详细评审", 5, 4, List.of(), List.of(), true, "PDF");
+        DocumentArtifact baseline = new DocumentArtifact(meta, List.of(t20, t74), List.of());
+
+        // 候选页包含 20 到 74 的连续候选页
+        List<Integer> expectedPages = new ArrayList<>();
+        for (int p = 20; p <= 74; p++) {
+            expectedPages.add(p);
+        }
+
+        List<Integer> target = enricher.determinePagesToScan(baseline, expectedPages);
+
+        // 关键断言：杜绝 50 页上限截断，必须全量输出 55 页，绝不漏掉尾部（如 69~73）
+        assertThat(target).containsAll(expectedPages);
+        assertThat(target).hasSize(55);
+    }
+
+    @Test
     @DisplayName("跨页续行测试: 自动将下一页首行续行的logicalRowId衔接到前一页最后一行")
     void shouldLinkCrossPageContinuationLogicalRow() {
         // Table 1 on page 14: row 0 (header), row 1 (9.1 item)

@@ -14,8 +14,9 @@ import java.util.TreeSet;
  * 标记为 isScoreTable=true 的评分表页面求交集。
  * <p>核心契约：
  * 1. 覆盖所有已标记评分区间的全部连通簇（如 [20,21] 与 [40,41] 双区间同时纳入，严禁单选）；
- * 2. 强保护已标记评分页：无论何种裁剪策略，baseline 中的评分页（scoreTablePages）绝对不被截断；
- * 3. 跨页大表完整连通：支持 15 页以上的长跨页评分大表全量覆盖。
+ * 2. 补全连通区间中间物理续页：当相邻候选页存在间隙（如 [20,21,23,24] 缺 22）时，自动补入中间页，彻底杜绝无关键词续页漏扫；
+ * 3. 确证评分大表全量保护：凡属于包含评分锚点的连通区间，全量保留（支持 55 页以上超长评分大表），严禁任何静默截断；
+ * 4. 仅在无 baseline 评分锚点（纯猜测模式）时，才遵循安全扫描页数上限。
  */
 final class BaiduScanPageSelector {
 
@@ -36,7 +37,7 @@ final class BaiduScanPageSelector {
         List<Integer> sortedCandidates = candidatePages.stream().distinct().sorted().toList();
         List<List<Integer>> clusters = clusterContiguousPages(sortedCandidates);
 
-        // 收集所有与 scoreTablePages 有交集的候选簇，确保多个分散评分区间（如 [20,21] 和 [40,41]）全覆盖
+        // 收集所有与 scoreTablePages 有交集的连通簇（确证评分区间）
         Set<Integer> selectedPages = new TreeSet<>(scoreTablePages);
         boolean anyClusterMatched = false;
         for (List<Integer> cluster : clusters) {
@@ -47,7 +48,7 @@ final class BaiduScanPageSelector {
             }
         }
 
-        // 若无候选簇直接命中，将距离评分页最近的一个候选簇作为上下文纳入
+        // 若无候选簇直接命中（如 Sidecar 锚点页未被关键词检测命中），将距离评分页最近的一个候选簇作为上下文纳入
         if (!anyClusterMatched && !clusters.isEmpty()) {
             int minScorePage = scoreTablePages.stream().min(Integer::compareTo).orElse(1);
             clusters.stream()
@@ -59,13 +60,8 @@ final class BaiduScanPageSelector {
                     .ifPresent(selectedPages::addAll);
         }
 
-        // 预算守卫：预算下限必须至少容纳所有已标记评分页
-        int effectiveLimit = Math.max(maxPagesToScan, scoreTablePages.size());
-        if (selectedPages.size() <= effectiveLimit) {
-            return new ArrayList<>(selectedPages);
-        }
-
-        return pruneNonAnchorCandidates(selectedPages, scoreTablePages, effectiveLimit);
+        // 凡属于确证评分锚点及其连通区间的页面，全量保留，绝不静默截断（支持 55 页以上超长评分大表完整扫描）
+        return new ArrayList<>(selectedPages);
     }
 
     private static Set<Integer> extractScoreTablePages(DocumentArtifact baseline) {
@@ -87,7 +83,11 @@ final class BaiduScanPageSelector {
             if (currentCluster.isEmpty()) {
                 currentCluster.add(p);
             } else if (p - currentCluster.get(currentCluster.size() - 1) <= 2) {
-                currentCluster.add(p);
+                int last = currentCluster.get(currentCluster.size() - 1);
+                // 补全中间缺失的物理续页（如 21 与 23 之间的第 22 页），确保续表不中断
+                for (int fill = last + 1; fill <= p; fill++) {
+                    currentCluster.add(fill);
+                }
             } else {
                 clusters.add(currentCluster);
                 currentCluster = new ArrayList<>();
@@ -98,30 +98,5 @@ final class BaiduScanPageSelector {
             clusters.add(currentCluster);
         }
         return clusters;
-    }
-
-    private static List<Integer> pruneNonAnchorCandidates(Set<Integer> selectedPages,
-                                                          Set<Integer> scoreTablePages,
-                                                          int limit) {
-        int minAnchor = scoreTablePages.stream().min(Integer::compareTo).orElse(selectedPages.iterator().next());
-        int maxAnchor = scoreTablePages.stream().max(Integer::compareTo).orElse(minAnchor);
-
-        // 仅对非已标记评分页的候选页进行裁剪，优先保留紧邻评分表的页
-        List<Integer> nonAnchorCandidates = selectedPages.stream()
-                .filter(p -> !scoreTablePages.contains(p))
-                .sorted((p1, p2) -> {
-                    int dist1 = p1 < minAnchor ? (minAnchor - p1) : (p1 > maxAnchor ? (p1 - maxAnchor) : 0);
-                    int dist2 = p2 < minAnchor ? (minAnchor - p2) : (p2 > maxAnchor ? (p2 - maxAnchor) : 0);
-                    if (dist1 != dist2) {
-                        return Integer.compare(dist1, dist2);
-                    }
-                    return Integer.compare(p1, p2);
-                })
-                .toList();
-
-        int allowedCandidateCount = Math.max(0, limit - scoreTablePages.size());
-        Set<Integer> result = new TreeSet<>(scoreTablePages);
-        result.addAll(nonAnchorCandidates.stream().limit(allowedCandidateCount).toList());
-        return new ArrayList<>(result);
     }
 }

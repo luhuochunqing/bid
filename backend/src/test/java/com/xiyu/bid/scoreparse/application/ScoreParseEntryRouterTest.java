@@ -156,6 +156,31 @@ class ScoreParseEntryRouterTest {
         assertThat(outcome).isSameAs(resultWithDeficit);
     }
 
+    @Test
+    void partialDeclaredTotalFallbackCannotOverrideTenderDeclaredTotal() {
+        // 主结果是 48/100 分；fallback 抽取出 20/20 分（且在其局部总分下 complete=true）
+        // 契约：fallback 的局部方案与全案目标总分（100分）冲突，绝不允许以 20 分覆盖 48 分导致倒退；
+        // 且必须在诊断中记录总分冲突证据以保留双方事实。
+        var fact48 = createFact("f1", new BigDecimal("48"));
+        var completeness100 = ScoreCompletenessPolicy.evaluateCompleteness(List.of(fact48), "评分总分100分。");
+        var resultWithDeficit = StructuredTableResult.evidencePipeline(
+                List.of(fact48), List.of(), completeness100, List.of());
+
+        var fact20 = createFact("f2", new BigDecimal("20"));
+        var completeness20 = ScoreCompletenessPolicy.evaluateCompleteness(List.of(fact20), "评分总分20分。");
+        assertThat(completeness20.complete()).isTrue();
+        var partialFallback = StructuredTableResult.evidencePipeline(
+                List.of(fact20), List.of(), completeness20, List.of());
+
+        var outcome = ScoreParseEntryRouter.extract(() -> resultWithDeficit, () -> partialFallback);
+
+        // 断言：严禁采纳 20 分局部 fallback，坚决保留 48/100 分主结果
+        assertThat(outcome.facts()).hasSize(1);
+        assertThat(outcome.facts().getFirst().weight()).isEqualByComparingTo("48");
+        assertThat(outcome.completeness().declaredTotalScore()).isEqualByComparingTo("100");
+        assertThat(outcome.sourceDiagnostics()).anyMatch(d -> d.contains("FALLBACK_SCHEME_CONFLICT"));
+    }
+
     private static ScoreFact createFact(String id, BigDecimal weight) {
         return new ScoreFact(
                 id, "tbl1", List.of("cell1"), "rule", "1", "商务", weight,

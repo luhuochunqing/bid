@@ -14,9 +14,11 @@ import java.util.function.Supplier;
  * <p>契约：
  * 1. 结构化抽取优先；模型抽取作为懒加载 fallback；
  * 2. 满分闭合与真实超额证据保护：已核验完整或超额的证据（如 1135 案 180 分待审事实）严禁被 fallback 覆盖；
- * 3. 严格防倒退（Monotonicity & Non-Regression）：若 fallback 提取结果分值更低或距离目标总分更远，
+ * 3. 方案与总分一致性核验：fallback 声明的局部总分（如 20/20）绝不能伪充全案完整覆盖目标总分（如 48/100）；
+ * 4. 严格防倒退（Monotonicity & Non-Regression）：若 fallback 提取有效分值更低或距离目标总分更远，
  *    严禁覆盖已有结构化事实，必须保留原事实及其诊断；
- * 4. 诊断保全：当 fallback 确实证明更完整更优时，原结构化抽取的 sourceDiagnostics（如漏项诊断）必须完整合并保留。
+ * 5. 诊断保全：当 fallback 证明更优被采纳时，原结构化抽取的 sourceDiagnostics（如漏项诊断）必须完整合并保留；
+ *    若存在方案总分冲突，记录冲突诊断。
  */
 final class ScoreParseEntryRouter {
 
@@ -86,6 +88,13 @@ final class ScoreParseEntryRouter {
         }
 
         // fallback 未能证明更优或存在倒退风险，坚决保留原结构化事实与漏项诊断
+        // 若 fallback 声明了冲突总分，记录冲突诊断以保留双方证据
+        if (recovered.completeness() != null && recovered.completeness().declaredTotalScore() != null) {
+            BigDecimal recDeclared = recovered.completeness().declaredTotalScore();
+            if (recDeclared.compareTo(declared) != 0) {
+                result = mergeDiagnostics(result, List.of("FALLBACK_SCHEME_CONFLICT:declared=" + recDeclared + ",target=" + declared));
+            }
+        }
         return result;
     }
 
@@ -99,27 +108,42 @@ final class ScoreParseEntryRouter {
 
     private static boolean isSuperior(BigDecimal scoreResult, StructuredTableResult result,
                                       BigDecimal scoreRecovered, StructuredTableResult recovered,
-                                      BigDecimal declared) {
+                                      BigDecimal targetDeclared) {
         if (recovered.structureIncomplete()) {
             return false;
         }
         if (recovered.candidates().isEmpty() && recovered.facts().isEmpty()) {
             return false;
         }
-        if (isComplete(result)) {
-            return false;
-        }
-        if (isComplete(recovered)) {
-            return true;
-        }
-        // 当两者均未完全闭合时：
-        // 1. fallback 提取的有效分值必须严格大于主结果（杜绝 48 分被 20 分覆盖导致倒退）
+
+        // 1. 防倒退硬约束：无论 fallback 在其自身局部声明总分下是否判定为“完整”，
+        // 只要有效分值不大于主结果，绝对不允许覆盖主结果（杜绝 20/20 覆盖 48/100）
         if (scoreRecovered.compareTo(scoreResult) <= 0) {
             return false;
         }
-        // 2. fallback 到目标总分的距离必须严格小于主结果
-        BigDecimal distResult = declared.subtract(scoreResult).abs();
-        BigDecimal distRecovered = declared.subtract(scoreRecovered).abs();
+
+        // 2. 方案与总分一致性核验：若主结果已确立目标总分（如 100），而 fallback 声明了一个更小的冲突总分（如 20），
+        // 说明 fallback 仅抽取了局部子方案，绝不能覆盖主结果
+        BigDecimal recoveredDeclared = recovered.completeness() != null
+                ? recovered.completeness().declaredTotalScore() : null;
+        if (recoveredDeclared != null && recoveredDeclared.compareTo(targetDeclared) < 0) {
+            return false;
+        }
+
+        // 3. 目标总分下的完整性判定：必须在目标总分下完整闭合
+        boolean resultComplete = isCompleteForTarget(result, targetDeclared);
+        boolean recoveredComplete = isCompleteForTarget(recovered, targetDeclared);
+
+        if (resultComplete) {
+            return false;
+        }
+        if (recoveredComplete) {
+            return true;
+        }
+
+        // 4. 两者均未在目标总分下闭合时，fallback 必须更接近目标总分
+        BigDecimal distResult = targetDeclared.subtract(scoreResult).abs();
+        BigDecimal distRecovered = targetDeclared.subtract(scoreRecovered).abs();
         return distRecovered.compareTo(distResult) < 0;
     }
 
@@ -147,14 +171,23 @@ final class ScoreParseEntryRouter {
         return BigDecimal.ZERO;
     }
 
-    private static boolean isComplete(StructuredTableResult r) {
+    private static boolean isCompleteForTarget(StructuredTableResult r, BigDecimal targetTotal) {
         if (r == null || r.structureIncomplete()) {
             return false;
         }
         if (r.evidencePipeline() && r.completeness() != null) {
-            return r.completeness().complete();
+            if (!r.completeness().complete()) {
+                return false;
+            }
+            BigDecimal declared = r.completeness().declaredTotalScore();
+            if (declared != null && declared.compareTo(targetTotal) != 0) {
+                return false;
+            }
+            BigDecimal leafSum = r.completeness().leafWeightSum();
+            return leafSum != null && leafSum.compareTo(targetTotal) >= 0;
         }
-        return false;
+        BigDecimal weight = effectiveWeight(r);
+        return weight.compareTo(targetTotal) >= 0;
     }
 
     private static BigDecimal resolveDeclaredTotal(StructuredTableResult result, StructuredTableResult recovered) {
