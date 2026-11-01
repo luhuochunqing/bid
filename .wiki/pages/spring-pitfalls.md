@@ -5,7 +5,7 @@ category: guide
 tags: [Spring Boot, 事务, @Transactional, @Async, @ConditionalOnBean, 配置优先级, SPRING_CONFIG_IMPORT, 代理失效, 构造函数注入, @Autowired, JJWT, ServiceLoader, 并发安全, RateLimitFilter]
 created: 2026-07-10
 updated: 2026-10-24
-health_checked: 2026-10-24
+health_checked: 2026-11-01
 sources:
   - backend/src/main/java/com/xiyu/bid/
   - backend/src/main/resources/application.yml

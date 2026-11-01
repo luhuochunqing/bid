@@ -14,7 +14,7 @@ final class DeviationEvidencePolicy {
     private static final Pattern SELF = Pattern.compile("我方|我司|本企业|本公司|本单位|我单位|本投标人");
     private static final Pattern RULE_FRAME = Pattern.compile("评审标准|评分标准|评分规则|评审规则|招标文件要求|采购文件要求");
     private static final Pattern NEGATIVE_FACT = Pattern.compile("负偏离|负偏差|部分满足|部分响应|达不到|低于|不足|(?:未能|无法|不能|未|不)[^，,。；;]{0,20}(?:满足|符合|达到|履约)");
-    private static final Pattern ACKNOWLEDGEMENT = Pattern.compile("(?:无偏离|无负偏离|不存在负偏离|完全响应|全面响应|全部响应|符合要求|满足要求|满足招标要求|符合招标文件要求|遵照执行|严格遵从|响应|满足|符合|无|/|-)(?:[，,。；;].*)?");
+    private static final Pattern ACKNOWLEDGEMENT = Pattern.compile("(?:无偏离|无偏差|无负偏离|无负偏差|不存在负偏离|不存在负偏差|完全响应|全面响应|全部响应|符合要求|满足要求|满足招标要求|符合招标文件要求|遵照执行|严格遵从|响应|满足|符合|无|/|-)(?:[，,。；;].*)?");
 
     private DeviationEvidencePolicy() { }
 
@@ -100,7 +100,7 @@ final class DeviationEvidencePolicy {
         var matcher = NEGATIVE_FACT.matcher(text);
         while (matcher.find()) {
             String prefix = text.substring(Math.max(0, matcher.start() - 20), matcher.start());
-            if (prefix.matches("(?s).*(?:不得|不应|不|无(?:任何|实质性)?|不存在(?:任何)?|没有|并非|绝不)$")) continue;
+            if (prefix.matches("(?s).*(?:不得|不应|不|无(?:任何|实质性)?|不存在(?:任何)?|没有|并非|绝不|不允许|禁止)$")) continue;
             if (matcher.group().startsWith("负偏")
                     && prefix.matches("(?s).*(?:并未对[^，,。；;]{0,12}作出|绝不具有(?:任何)?)$")) continue;
             if (prefix.matches("(?s).*(?:如果|假如|若|如|一旦).{0,15}")) continue;
