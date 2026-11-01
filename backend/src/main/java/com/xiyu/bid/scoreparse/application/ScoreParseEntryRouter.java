@@ -38,10 +38,10 @@ final class ScoreParseEntryRouter {
         if (result == null || result.structureIncomplete()) {
             return false;
         }
-        if (!result.candidates().isEmpty() && !result.evidencePipeline()) {
+        if (result.candidates() != null && !result.candidates().isEmpty() && !result.evidencePipeline()) {
             return true;
         }
-        if (result.evidencePipeline() && !result.facts().isEmpty()) {
+        if (result.evidencePipeline() && result.facts() != null && !result.facts().isEmpty()) {
             var completeness = result.completeness();
             if (completeness == null || completeness.complete()) {
                 return true;
@@ -116,10 +116,7 @@ final class ScoreParseEntryRouter {
     private static boolean isSuperior(BigDecimal scoreResult, StructuredTableResult result,
                                       BigDecimal scoreRecovered, StructuredTableResult recovered,
                                       BigDecimal targetDeclared) {
-        if (recovered.structureIncomplete()) {
-            return false;
-        }
-        if (recovered.candidates().isEmpty() && recovered.facts().isEmpty()) {
+        if (!hasContent(recovered)) {
             return false;
         }
 

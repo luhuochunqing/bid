@@ -5,6 +5,7 @@ import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -31,10 +32,10 @@ final class BaiduScanPageSelector {
             return new ArrayList<>(scoreTablePages);
         }
         if (scoreTablePages.isEmpty()) {
-            return candidatePages.stream().distinct().sorted().limit(maxPagesToScan).toList();
+            return candidatePages.stream().filter(Objects::nonNull).distinct().sorted().limit(maxPagesToScan).toList();
         }
 
-        List<Integer> sortedCandidates = candidatePages.stream().distinct().sorted().toList();
+        List<Integer> sortedCandidates = candidatePages.stream().filter(Objects::nonNull).distinct().sorted().toList();
         List<List<Integer>> clusters = clusterContiguousPages(sortedCandidates);
 
         // 收集所有与 scoreTablePages 有交集的连通簇（确证评分区间）

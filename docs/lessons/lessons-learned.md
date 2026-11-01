@@ -7967,4 +7967,3 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - `ScoreParseEntryRouterTest`（13/13 绿灯，覆盖方案总分冲突双向拦截、超额候选防倒退、诊断合并与超额保护）；
   - `BaiduTableArtifactEnricherTest`（12/12 绿灯，覆盖多分散区间 [20,21]+[40,41] 全选、中间续页 22 自动补齐、55 页超长大表零截断）；
   - `GoldenCasesReplayTest`（61/61）、`ScoreParseArchitectureTest`（3/3）、`ScoreParseAppServiceTest`（30/30）全部绿灯。
-

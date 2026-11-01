@@ -155,5 +155,3 @@ archive: false
   - 共 13 项测试全部通过（13/13 绿灯）。
 - `BaiduTableArtifactEnricherTest`：
   - 共 12 项测试全部通过（12/12 绿灯，1 项外部 API 额度 abort 保护）。
-
-
