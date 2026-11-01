@@ -181,6 +181,51 @@ class ScoreParseEntryRouterTest {
         assertThat(outcome.sourceDiagnostics()).anyMatch(d -> d.contains("FALLBACK_SCHEME_CONFLICT"));
     }
 
+    @Test
+    void higherDeclaredTotalFallbackCannotOverrideTenderDeclaredTotalAndRecordsConflict() {
+        // 主结果是 48/100 分；fallback 抽取出 80/120 分（declared=120 大于目标 100）
+        // 契约：总分冲突双向严守（既挡小于也挡大于），严禁采纳 120 分方案结果覆盖 100 分主结果，
+        // 且必须在诊断中记录总分冲突证据 FALLBACK_SCHEME_CONFLICT:declared=120,target=100
+        var fact48 = createFact("f1", new BigDecimal("48"));
+        var completeness100 = ScoreCompletenessPolicy.evaluateCompleteness(List.of(fact48), "评分总分100分。");
+        var resultWithDeficit = StructuredTableResult.evidencePipeline(
+                List.of(fact48), List.of(), completeness100, List.of());
+
+        var fact80 = createFact("f80", new BigDecimal("80"));
+        var completeness120 = ScoreCompletenessPolicy.evaluateCompleteness(List.of(fact80), "评分总分120分。");
+        var higherFallback = StructuredTableResult.evidencePipeline(
+                List.of(fact80), List.of(), completeness120, List.of());
+
+        var outcome = ScoreParseEntryRouter.extract(() -> resultWithDeficit, () -> higherFallback);
+
+        // 断言：严禁采纳 80/120 分 fallback，坚决保留 48/100 分主结果并记录总分冲突
+        assertThat(outcome.facts()).hasSize(1);
+        assertThat(outcome.facts().getFirst().weight()).isEqualByComparingTo("48");
+        assertThat(outcome.completeness().declaredTotalScore()).isEqualByComparingTo("100");
+        assertThat(outcome.sourceDiagnostics()).contains("FALLBACK_SCHEME_CONFLICT:declared=120,target=100");
+    }
+
+    @Test
+    void excessiveCandidatesCannotOverrideCloserFactsWithoutCompletenessProof() {
+        // 主结果是 96/100 分事实（距离目标 100 仅差 4 分）；
+        // fallback 仅有 110 分候选（超额，无来源完整性证明，距离目标 100 为 10 分）
+        // 契约：超额候选绝不能被误判为“完整”，不能绕过距离防倒退比较；坚决保留更接近目标的 96 分事实
+        var fact96 = createFact("f96", new BigDecimal("96"));
+        var completeness100 = ScoreCompletenessPolicy.evaluateCompleteness(List.of(fact96), "评分总分100分。");
+        var result96 = StructuredTableResult.evidencePipeline(
+                List.of(fact96), List.of(), completeness100, List.of());
+
+        var candidate110 = new ScoreCandidate("c1", "技术+商务", "超额候选", new BigDecimal("110"), "OBJECTIVE", "", "", "", "RECOVERED");
+        var excessiveFallback = StructuredTableResult.ok(List.of(candidate110));
+
+        var outcome = ScoreParseEntryRouter.extract(() -> result96, () -> excessiveFallback);
+
+        // 断言：坚决保留 96 分事实，拒绝距离更远的 110 分超额候选
+        assertThat(outcome).isSameAs(result96);
+        assertThat(outcome.facts()).hasSize(1);
+        assertThat(outcome.facts().getFirst().weight()).isEqualByComparingTo("96");
+    }
+
     private static ScoreFact createFact(String id, BigDecimal weight) {
         return new ScoreFact(
                 id, "tbl1", List.of("cell1"), "rule", "1", "商务", weight,

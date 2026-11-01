@@ -83,17 +83,24 @@ final class ScoreParseEntryRouter {
         BigDecimal scoreResult = effectiveWeight(result);
         BigDecimal scoreRecovered = effectiveWeight(recovered);
 
+        // 统一方案与声明总分一致性核验：若双方均声明了总分且不一致（无论是大于还是小于），
+        // 说明属于不同方案/分册，在任何采纳分支前统一记录冲突诊断，并保留原主结果
+        BigDecimal resultDeclared = (result.completeness() != null)
+                ? result.completeness().declaredTotalScore() : null;
+        BigDecimal recDeclared = (recovered.completeness() != null)
+                ? recovered.completeness().declaredTotalScore() : null;
+        if (resultDeclared != null && recDeclared != null && recDeclared.compareTo(resultDeclared) != 0) {
+            return mergeDiagnostics(result, List.of("FALLBACK_SCHEME_CONFLICT:declared=" + recDeclared + ",target=" + resultDeclared));
+        }
+
         if (isSuperior(scoreResult, result, scoreRecovered, recovered, declared)) {
             return mergeDiagnostics(recovered, result.sourceDiagnostics());
         }
 
         // fallback 未能证明更优或存在倒退风险，坚决保留原结构化事实与漏项诊断
-        // 若 fallback 声明了冲突总分，记录冲突诊断以保留双方证据
-        if (recovered.completeness() != null && recovered.completeness().declaredTotalScore() != null) {
-            BigDecimal recDeclared = recovered.completeness().declaredTotalScore();
-            if (recDeclared.compareTo(declared) != 0) {
-                result = mergeDiagnostics(result, List.of("FALLBACK_SCHEME_CONFLICT:declared=" + recDeclared + ",target=" + declared));
-            }
+        // 若 fallback 单方声明了与目标总分冲突的总分，记录冲突诊断以保留双方证据
+        if (recDeclared != null && recDeclared.compareTo(declared) != 0) {
+            result = mergeDiagnostics(result, List.of("FALLBACK_SCHEME_CONFLICT:declared=" + recDeclared + ",target=" + declared));
         }
         return result;
     }
@@ -122,11 +129,11 @@ final class ScoreParseEntryRouter {
             return false;
         }
 
-        // 2. 方案与总分一致性核验：若主结果已确立目标总分（如 100），而 fallback 声明了一个更小的冲突总分（如 20），
-        // 说明 fallback 仅抽取了局部子方案，绝不能覆盖主结果
+        // 2. 方案与总分一致性核验：若 fallback 声明了与目标总分不一致的冲突总分（无论是更大还是更小），
+        // 说明 fallback 属于不同方案或局部子方案，绝不能覆盖主结果
         BigDecimal recoveredDeclared = recovered.completeness() != null
                 ? recovered.completeness().declaredTotalScore() : null;
-        if (recoveredDeclared != null && recoveredDeclared.compareTo(targetDeclared) < 0) {
+        if (recoveredDeclared != null && recoveredDeclared.compareTo(targetDeclared) != 0) {
             return false;
         }
 
@@ -175,6 +182,9 @@ final class ScoreParseEntryRouter {
         if (r == null || r.structureIncomplete()) {
             return false;
         }
+        // 完整性必须有来源证据证明（通过 Evidence Pipeline 且评估为 complete），
+        // 且声明总分与末级叶子项权重和必须严格精准闭合于目标总分。
+        // 候选合计达到或超过目标总分绝不能冒充“完整”，超额必须进入待审，不能绕过防倒退距离比较。
         if (r.evidencePipeline() && r.completeness() != null) {
             if (!r.completeness().complete()) {
                 return false;
@@ -184,10 +194,9 @@ final class ScoreParseEntryRouter {
                 return false;
             }
             BigDecimal leafSum = r.completeness().leafWeightSum();
-            return leafSum != null && leafSum.compareTo(targetTotal) >= 0;
+            return leafSum != null && leafSum.compareTo(targetTotal) == 0;
         }
-        BigDecimal weight = effectiveWeight(r);
-        return weight.compareTo(targetTotal) >= 0;
+        return false;
     }
 
     private static BigDecimal resolveDeclaredTotal(StructuredTableResult result, StructuredTableResult recovered) {

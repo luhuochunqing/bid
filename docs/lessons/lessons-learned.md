@@ -7961,10 +7961,10 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   2. **入口路由假成功短路**：`ScoreParseEntryRouter.extract` 仅凭 `!result.facts().isEmpty()` 即判定结构化抽取成功，直接短路返回残缺事实，在严重欠分时封死了原本能够补齐 100 分的 fallback 链路。
 - **第一性原理修复与严密边界**：
   1. **全区间多簇连通、中间续页补齐与长表零截断**：`BaiduScanPageSelector` 全量收集所有与 baseline `scoreTablePages` 相交的连通候选簇（相邻差 $\le 2$），彻底消除 [20,21] 与 [40,41] 多分散区间单选一簇漏扫的缺陷；自动补齐相邻候选页间隙中的物理续页（如 [20,21,23,24] 补全 22），杜绝无关键词中间页漏扫；凡属于确证评分区间的页面全量保留，支持 55 页以上超长跨页大表完整扫描，严禁任何静默截断；
-  2. **方案总分核验、防倒退与冲突诊断保全**：`ScoreParseEntryRouter.selectBest` 增加全案目标总分（如 100 分）一致性核验，杜绝局部子方案（如 20/20 分）以自身 complete=true 绕过防倒退去覆盖 48/100 分全案主结果；若存在总分冲突，在诊断中写入 `FALLBACK_SCHEME_CONFLICT` 保留双方证据；采纳更优 fallback 时完整合并保留原主结果的 `sourceDiagnostics`。
+  2. **方案总分双向核验、来源完整性证据与冲突诊断保全**：`ScoreParseEntryRouter.selectBest` 增加全案目标总分双向核验（既挡小于如 20/20 也挡大于如 80/120），在任何采纳前统一拦截方案冲突并记录 `FALLBACK_SCHEME_CONFLICT`；完整性必须有来源证据证明，超额候选（如 110 分）坚决不得冒充“完整”绕过距离防倒退比较；采纳更优 fallback 时完整合并保留原主结果的 `sourceDiagnostics`。
 - **验证与铁证**：
   - 4 个项目（35、43、1117、1118）真实原版 PDF 端到端离线回放全部 100% 成功包含完整评分页；
-  - `ScoreParseEntryRouterTest`（11/11 绿灯，覆盖方案总分冲突拦截、防倒退、诊断合并与超额保护）；
+  - `ScoreParseEntryRouterTest`（13/13 绿灯，覆盖方案总分冲突双向拦截、超额候选防倒退、诊断合并与超额保护）；
   - `BaiduTableArtifactEnricherTest`（12/12 绿灯，覆盖多分散区间 [20,21]+[40,41] 全选、中间续页 22 自动补齐、55 页超长大表零截断）；
   - `GoldenCasesReplayTest`（61/61）、`ScoreParseArchitectureTest`（3/3）、`ScoreParseAppServiceTest`（30/30）全部绿灯。
 
