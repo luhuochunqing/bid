@@ -5,7 +5,7 @@ category: feature
 tags: [标讯, 提醒, 企微, 定时任务, 报名截止, 开标]
 created: 2026-10-23
 updated: 2026-10-23
-health_checked: 2026-10-23
+health_checked: 2026-11-01
 sources:
   - specs/075-tender-deadline-auto-reminder/spec.md
   - backend/src/main/java/com/xiyu/bid/tenderreminder/job/TenderAutoReminderScanner.java

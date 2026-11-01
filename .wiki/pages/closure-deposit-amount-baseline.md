@@ -5,7 +5,7 @@ category: guide
 tags: [结项, 保证金, 转服务费, need_deposit, bid-Team, CO-573]
 created: 2026-10-22
 updated: 2026-10-23
-health_checked: 2026-10-23
+health_checked: 2026-11-01
 sources:
   - backend/src/main/java/com/xiyu/bid/project/service/ProjectClosureDepositAssembler.java
   - backend/src/main/java/com/xiyu/bid/project/controller/ProjectClosureController.java
