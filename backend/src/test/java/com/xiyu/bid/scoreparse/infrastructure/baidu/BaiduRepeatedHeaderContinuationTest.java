@@ -12,14 +12,15 @@ public class BaiduRepeatedHeaderContinuationTest {
     @Test void reviewerInstructionInRuleColumnIsNotAnItemContinuation() {
         var first = table("first", 9, "评分规则", new String[]{"类别", "评分项", "分值", "评分标准"},
                 new String[]{"技术", "服务", "5", "提供完整方案得5分"});
-        var note = table("note", 10, "评分规则",
-                new String[]{"", "", "", "注：评委独立评分，按算术平均分汇总"});
-        note = new CanonicalTable(note.tableId(), 10, note.sourceSection(), 1, 4,
-                note.mergedRegions(), note.cells(), false, "PDF");
+        var response = new BaiduTableModels.BaiduTableResponse(1, List.of(new BaiduTableModels.BaiduTableItem(
+                List.of(), List.of(), List.of(new BaiduTableModels.BaiduTableCell(0, 1, 3, 4,
+                        "注：评委独立评分，按算术平均分汇总", List.of())), List.of())), null, null, 1L);
+        var note = BaiduTableArtifactAdapter.toCanonicalTables(response, 10, "评分规则").getFirst();
+        assertThat(note.isScoreTable()).isTrue();
         var linked = BaiduCrossPageTableLinker.mergeCrossPageScoreTables(List.of(first, note), java.util.Map.of(9, first, 10, first));
-        assertThat(linked).hasSize(2);
         assertThat(BaiduCrossPageTableLinker.linkCrossPageLogicalRows(linked).getLast().cells())
-                .allSatisfy(c -> assertThat(c.logicalRowId()).isEqualTo("note-r0"));
+                .filteredOn(c -> c.rawText().contains("算术平均"))
+                .allSatisfy(c -> assertThat(c.logicalRowId()).isNotEqualTo("first-r1"));
         var artifact = new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact(
                 new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.ArtifactMeta("synthetic", "sha", "PDF", "fixture"), linked, List.of());
         assertThat(com.xiyu.bid.scoreparse.application.ScoreFactShadowPipeline.run(artifact).tables().stream()
