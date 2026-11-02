@@ -17,6 +17,11 @@ public final class OriginalRuleRestoration {
     }
 
     public static Result restore(MultimodalScoreFact fact, DocumentArtifact artifact, java.util.List<MultimodalScoreFact> facts) {
+        return restore(fact, artifact, facts, null);
+    }
+
+    private static Result restore(MultimodalScoreFact fact, DocumentArtifact artifact,
+            List<MultimodalScoreFact> facts, java.util.function.Function<MultimodalScoreFact, MultimodalScoreFact> parentOf) {
         var fallbackSpans = extractSpans(facts);
         var structural = LogicalRuleSourceUnit.resolve(artifact, fact);
         var cited = SourceSpanResolver.resolve(artifact, fact.sourceCellIds(), fallbackSpans);
@@ -37,7 +42,8 @@ public final class OriginalRuleRestoration {
         var target = unit(fact);
         var peers = facts.stream().filter(other -> OriginalScoreEvidencePolicy.modelFactId(other)
                 .equals(OriginalScoreEvidencePolicy.modelFactId(fact)) ||
-                java.util.Objects.equals(other.parentCode(), fact.parentCode())
+                (parentOf == null ? java.util.Objects.equals(other.parentCode(), fact.parentCode())
+                        : parentOf.apply(other) == parentOf.apply(fact))
                 && java.util.Objects.equals(other.schemeId(), fact.schemeId())
                 && java.util.Objects.equals(other.scopeStatus(), fact.scopeStatus())
                 && (other.sourceCellIds().stream().anyMatch(fact.sourceCellIds()::contains)
@@ -68,8 +74,8 @@ public final class OriginalRuleRestoration {
         String raw = spans.stream().map(SourceSpan::rawText).collect(Collectors.joining("\n"));
         String rule = OriginalRuleUnitText.restore(raw, target, validPeers.stream()
                 .map(OriginalRuleRestoration::unit).toList());
-        boolean hasChildren = facts.stream().anyMatch(other -> !fact.code().isBlank()
-                && fact.code().equals(other.parentCode()) && fact.schemeId().equals(other.schemeId()));
+        boolean hasChildren = facts.stream().anyMatch(other -> parentOf != null ? parentOf.apply(other) == fact
+                : !fact.code().isBlank() && fact.code().equals(other.parentCode()) && fact.schemeId().equals(other.schemeId()));
         if (rule.isBlank() && structural.applicable() && structural.closed() && validPeers.size() == 1
                 && !hasChildren && LogicalRuleSourceUnit.isExactNamedRowAnchor(artifact, fact)) {
             rule = raw.strip();
@@ -84,16 +90,21 @@ public final class OriginalRuleRestoration {
 
     /** A unary descendant retains a source boundary already established for its ancestor. */
     static Result restoreForWeight(MultimodalScoreFact fact, DocumentArtifact artifact, List<MultimodalScoreFact> facts) {
-        Result current = restore(fact, artifact, facts);
+        return restoreForWeight(fact, artifact, facts, node -> MultimodalFactParentCodeNormalizer.resolveParent(node, facts));
+    }
+
+    private static Result restoreForWeight(MultimodalScoreFact fact, DocumentArtifact artifact,
+            List<MultimodalScoreFact> facts, java.util.function.Function<MultimodalScoreFact, MultimodalScoreFact> parentOf) {
+        Result current = restore(fact, artifact, facts, parentOf);
         String quote = unit(fact).quote();
-        var visited = new java.util.HashSet<String>();
+        var visited = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<MultimodalScoreFact, Boolean>());
         var node = fact;
         while (current.closed() && !current.text().isBlank() && quote != null && !quote.isBlank()
-                && visited.add(OriginalScoreEvidencePolicy.modelFactId(node))) {
-            var parent = MultimodalFactParentCodeNormalizer.resolveParent(node, facts);
+                && visited.add(node)) {
+            var parent = parentOf.apply(node);
             if (parent == null) break;
             if (parent.sourceCellIds().stream().anyMatch(fact.sourceCellIds()::contains)) {
-                var bound = restore(parent, artifact, facts);
+                var bound = restore(parent, artifact, facts, parentOf);
                 if (bound.closed() && !bound.text().isBlank() && !bound.text().equals(current.text())
                         && EvidenceText.normalize(current.text()).uniqueSpan(bound.text()).isPresent()
                         && EvidenceText.normalize(bound.text()).uniqueSpan(quote).isPresent()) {
@@ -115,7 +126,16 @@ public final class OriginalRuleRestoration {
                     f.sourceText().isBlank() ? f.dimension() : f.sourceText(), f.confidence(), f.childAggregation(), "", "", f.sourceMetadata());
         }).toList();
         var result = new java.util.LinkedHashMap<ScoreFact, Result>();
-        for (int i=0; i<facts.size(); i++) result.put(facts.get(i), restoreForWeight(projected.get(i), artifact, projected));
+        var parents = new java.util.IdentityHashMap<MultimodalScoreFact, MultimodalScoreFact>();
+        var projectedById = new java.util.HashMap<String, MultimodalScoreFact>();
+        for (int i = 0; i < facts.size(); i++) projectedById.put(facts.get(i).factId(), projected.get(i));
+        for (int i = 0; i < facts.size(); i++) {
+            var parent = projectedById.get(facts.get(i).parentFactId());
+            if (parent != null) parents.put(projected.get(i), parent);
+        }
+        for (int i = 0; i < facts.size(); i++) {
+            result.put(facts.get(i), restoreForWeight(projected.get(i), artifact, projected, parents::get));
+        }
         return java.util.Map.copyOf(result);
     }
 
