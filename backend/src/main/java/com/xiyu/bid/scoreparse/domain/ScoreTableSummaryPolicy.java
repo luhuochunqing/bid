@@ -35,6 +35,12 @@ public final class ScoreTableSummaryPolicy {
     private ScoreTableSummaryPolicy() {
     }
 
+    /** Table-level reviewer procedure, conservatively retaining any explicit scoring condition. */
+    public static boolean isReviewerInstruction(String text) {
+        return text != null && text.strip().matches("(?s)^(?:注|说明)[：:].*(?:评委|评标委员会).*(?:平均|独立评分|汇总).*")
+                && !text.matches("(?s).*(?:[0-9０-９一二三四五六七八九十]+(?:[.．][0-9０-９]+)?\\s*分|不得分|不计分|扣分|否决|无效|废标).*");
+    }
+
     public static List<DeclaredTotalEvidence> extractDeclaredTotals(
             CanonicalTableGrid grid, TableColumnMapping mapping) {
         if (grid == null || mapping == null || !grid.isStructurallyValid()) {

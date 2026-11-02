@@ -17,7 +17,7 @@ final class ShadowLogicalRowRestoration {
     }
 
     private static ScoreFact restoreOne(DocumentArtifact artifact, List<ScoreFact> facts, ScoreFact fact) {
-        if (fact.code().isBlank() || !LogicalRuleSourceUnit.closed(artifact, fact.sourceCellIds())) return fact;
+        if (!LogicalRuleSourceUnit.closed(artifact, fact.sourceCellIds())) return fact;
         var model = new MultimodalScoreFact("", fact.code(), "", fact.dimension(), fact.weight(), "", "",
                 null, fact.sourceTableId(), fact.sourceCellIds(), "", fact.confidence());
         var unit = LogicalRuleSourceUnit.resolve(artifact, model);
@@ -27,12 +27,17 @@ final class ShadowLogicalRowRestoration {
         if (facts.stream().filter(other -> !other.factId().equals(fact.factId()))
                 .anyMatch(other -> unit.spans().stream().anyMatch(span -> other.sourceCellIds().contains(span.sourceId())))) return fact;
         var present = unit.spans().stream().filter(span -> fact.sourceCellIds().contains(span.sourceId())).toList();
-        if (present.size() != 1) return fact;
-        String first = present.getFirst().rawText();
-        int pos = fact.sourceText().indexOf(first);
-        if (first.isBlank() || pos < 0 || fact.sourceText().indexOf(first, pos + first.length()) >= 0) return fact;
         String rule = unit.spans().stream().map(SourceSpan::rawText).collect(java.util.stream.Collectors.joining("\n"));
-        String text = fact.sourceText().substring(0, pos) + rule + fact.sourceText().substring(pos + first.length());
+        String text;
+        if (fact.code().isBlank()) {
+            text = rule;
+        } else {
+            if (present.size() != 1) return fact;
+            String first = present.getFirst().rawText();
+            int pos = fact.sourceText().indexOf(first);
+            if (first.isBlank() || pos < 0 || fact.sourceText().indexOf(first, pos + first.length()) >= 0) return fact;
+            text = fact.sourceText().substring(0, pos) + rule + fact.sourceText().substring(pos + first.length());
+        }
         var ids = new LinkedHashSet<>(fact.sourceCellIds());
         unit.spans().forEach(span -> ids.add(span.sourceId()));
         return new ScoreFact(fact.factId(), fact.sourceTableId(), List.copyOf(ids), text, fact.code(), fact.dimension(),

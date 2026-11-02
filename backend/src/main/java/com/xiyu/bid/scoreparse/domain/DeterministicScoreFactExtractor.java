@@ -62,6 +62,9 @@ public final class DeterministicScoreFactExtractor {
             if (sourceText.isBlank()) {
                 continue;
             }
+            if (rowCells.stream().anyMatch(cell -> cell.isUsableOrigin()
+                    && cell.column() == 0 && cell.colspan() == grid.columns())
+                    && ScoreTableSummaryPolicy.isReviewerInstruction(sourceText)) continue;
             if (ScoreTableSummaryPolicy.isSummaryRow(code, dimension)
                     || ScoreTableSummaryPolicy.isSummaryRow(rowCells)) {
                 continue;

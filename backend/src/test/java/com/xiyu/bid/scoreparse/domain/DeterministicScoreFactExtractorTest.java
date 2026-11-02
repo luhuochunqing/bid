@@ -23,6 +23,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DeterministicScoreFactExtractorTest {
 
+    @Test void fullWidthReviewerInstructionsAreNotItemsButScoringConditionsRemain() {
+        for (String text : List.of("注：评委独立评分，按算术平均分汇总。", "注：评委独立评分，提供证书得5分。")) {
+            var cells = List.of(cell("h0", 0, 0, "序号"), cell("h1", 0, 1, "评分因素"),
+                    cell("h2", 0, 2, "评分细则"), cell("h3", 0, 3, "分值"),
+                    cellWithMerge("note", 1, 0, text, 1, 4, false),
+                    cellWithMerge("n1", 1, 1, "", 1, 1, true), cellWithMerge("n2", 1, 2, "", 1, 1, true),
+                    cellWithMerge("n3", 1, 3, "", 1, 1, true));
+            var table = gridWithMergedRegions(cells, List.of(new MergedRegionDto("note", 1, 4)), 2, 4);
+            assertTrue(table.isStructurallyValid());
+            var facts = DeterministicScoreFactExtractor.extract(table, mapping());
+            assertEquals(text.contains("得5分") ? 1 : 0, facts.size());
+        }
+    }
+
     private static CanonicalCellDto cell(String id, int row, int column, String text) {
         return new CanonicalCellDto(
                 id, row, column, text, text, 1, 1, false,

@@ -71,6 +71,8 @@ final class BaiduScanPageSelector {
             for (CanonicalTable t : baseline.tables()) {
                 if (t != null && t.sourcePage() != null && Boolean.TRUE.equals(t.isScoreTable())) {
                     pages.add(t.sourcePage());
+                    t.cells().stream().map(CanonicalTable.CanonicalCellDto::sourcePage)
+                            .filter(Objects::nonNull).filter(page -> page > 0).forEach(pages::add);
                 }
             }
         }

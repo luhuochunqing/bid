@@ -139,6 +139,7 @@ public final class LogicalRuleSourceUnit {
     private static boolean isContinuationRow(CanonicalTable table, int rowIdx) {
         List<CanonicalCellDto> rowCells = table.cells().stream().filter(c -> Integer.valueOf(rowIdx).equals(c.row())).toList();
         if (rowCells.isEmpty()) return false;
+        if (rowCells.stream().anyMatch(c -> ScoreTableSummaryPolicy.isReviewerInstruction(c.rawText()))) return false;
         boolean hasAnyText = rowCells.stream().anyMatch(c -> !text(c.rawText()).isBlank());
         if (!hasAnyText) return false;
 
