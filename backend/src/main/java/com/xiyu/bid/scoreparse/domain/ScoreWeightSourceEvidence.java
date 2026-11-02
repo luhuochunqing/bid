@@ -1,0 +1,100 @@
+package com.xiyu.bid.scoreparse.domain;
+
+// Input: source rule text, maximum-expression position, and canonical table cells.
+// Output: scoped whole-item/tier maxima and explicit score-column evidence.
+// Pos: scoreparse pure source syntax shared by anchor selection and rule verification.
+import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable;
+import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.CanonicalCellDto;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Pattern;
+
+final class ScoreWeightSourceEvidence {
+    private static final Pattern MAXIMUM = Pattern.compile("(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
+    private static final Pattern TIER_LABEL = Pattern.compile("(?:^|[：:，,；;。\\s])(?:优秀|优|良好|良|中等|中|一般|合格|较差|差|第?[一二三四五六七八九十1-9]+档)(?:档|等级)?[：:、\\s]*(?:(?:本项|该项|此项|本评分项|该评分项)\\s*)?$");
+    private ScoreWeightSourceEvidence() {}
+
+    static boolean scoreColumn(CanonicalCellDto cell, CanonicalTable table) {
+        return cell.column() != null && table.cells().stream().anyMatch(header -> Integer.valueOf(0).equals(header.row())
+                && cell.column().equals(header.column()) && header.rawText() != null
+                && header.rawText().replaceAll("\\s+", "").matches("(?s).*(?:最高分|分值|权重|得分).*"));
+    }
+
+    record UnitEvidence(List<BigDecimal> values, List<BigDecimal> titles, List<BigDecimal> maxima,
+                        BigDecimal maximum, boolean partitioned) {}
+
+    static String ruleText(OriginalRuleRestoration.Result unit, String fallback) {
+        return unit.closed() && !unit.spans().isEmpty() && !unit.text().isBlank() ? unit.text() : fallback;
+    }
+
+    static UnitEvidence forUnit(OriginalRuleRestoration.Result unit, List<CanonicalCellDto> row,
+                                List<BigDecimal> values, List<BigDecimal> titles) {
+        String text = ruleText(unit, "");
+        String raw = unit.spans().stream().map(s -> s.rawText() == null ? "" : s.rawText())
+                .collect(java.util.stream.Collectors.joining("\n"));
+        boolean partitioned = !text.isBlank() && !EvidenceText.normalize(raw).text().equals(EvidenceText.normalize(text).text());
+        if (partitioned) {
+            values = new ArrayList<>(); titles = new ArrayList<>();
+            var matcher = ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(text);
+            while (matcher.find()) titles.add(new BigDecimal(matcher.group(1)));
+            String heading = text.lines().findFirst().orElse("").split("[：:]", 2)[0];
+            matcher = ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(heading);
+            if (matcher.find()) {
+                BigDecimal value = new BigDecimal(matcher.group(1));
+                if (!matcher.find()) values.add(value);
+            }
+        }
+        BigDecimal maximum = unique(values.isEmpty() ? titles : values);
+        List<BigDecimal> maxima = text.isBlank() ? maxima(row, maximum != null)
+                : maximaInTexts(List.of(text), maximum != null);
+        return new UnitEvidence(List.copyOf(values), List.copyOf(titles), List.copyOf(maxima), maximum, partitioned);
+    }
+
+    private static BigDecimal unique(List<BigDecimal> values) {
+        return !values.isEmpty() && values.stream().allMatch(v -> v.compareTo(values.getFirst()) == 0)
+                ? values.getFirst() : null;
+    }
+
+    static List<BigDecimal> maxima(List<CanonicalCellDto> cells, boolean scoreColumnProven) {
+        return maximaInTexts(cells.stream().map(c -> c.rawText() == null ? "" : c.rawText()).toList(), scoreColumnProven);
+    }
+
+    private static List<BigDecimal> maximaInTexts(List<String> texts, boolean scoreColumnProven) {
+        List<BigDecimal> whole = new ArrayList<>(), tiers = new ArrayList<>();
+        boolean exclusive = ChildAggregation.MUTUALLY_EXCLUSIVE.supportedByOriginalText(String.join(" ", texts));
+        for (String text : texts) {
+            var matcher = MAXIMUM.matcher(text);
+            while (matcher.find()) {
+                if (scoreColumnProven && (conditionalMaximum(text, matcher.start()) || localMaximum(text, matcher.start()))) continue;
+                var value = new BigDecimal(matcher.group(1));
+                if (exclusive && tierLabel(text, matcher.start())) tiers.add(value);
+                else whole.add(value);
+            }
+        }
+        if (!tiers.isEmpty()) whole.add(tiers.stream().max(BigDecimal::compareTo).orElseThrow());
+        return whole;
+    }
+
+    private static boolean localMaximum(String text, int start) {
+        int boundary = Math.max(Math.max(text.lastIndexOf('。', start), text.lastIndexOf('；', start)),
+                Math.max(Math.max(text.lastIndexOf(';', start), text.lastIndexOf('，', start)), text.lastIndexOf(',', start)));
+        String prefix = text.substring(boundary + 1, start);
+        int local = prefix.lastIndexOf("局部");
+        return local >= 0 && MAXIMUM.matcher(prefix.substring(local + 2)).replaceAll("").matches("[\\s和及与、]*");
+    }
+
+    static boolean exclusiveTierMaximum(String text, int start) {
+        return ChildAggregation.MUTUALLY_EXCLUSIVE.supportedByOriginalText(text) && tierLabel(text, start);
+    }
+
+    private static boolean tierLabel(String text, int start) {
+        return TIER_LABEL.matcher(text.substring(0, start)).find();
+    }
+
+    static boolean conditionalMaximum(String text, int start) {
+        int boundary = Math.max(text.lastIndexOf('。', start),
+                Math.max(text.lastIndexOf('；', start), text.lastIndexOf(';', start)));
+        return text.substring(boundary + 1, start).matches("(?s).*(?:仅提供|仅具备|仅有).{0,80}(?:的|时|情况下)[，,\\s]*(?:(?:本项|该项|此项|本评分项|该评分项)\\s*)?$");
+    }
+}

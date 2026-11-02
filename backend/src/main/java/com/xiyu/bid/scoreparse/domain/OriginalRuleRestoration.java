@@ -82,6 +82,43 @@ public final class OriginalRuleRestoration {
         return new Result(rule, spans, closed);
     }
 
+    /** A unary descendant retains a source boundary already established for its ancestor. */
+    static Result restoreForWeight(MultimodalScoreFact fact, DocumentArtifact artifact, List<MultimodalScoreFact> facts) {
+        Result current = restore(fact, artifact, facts);
+        String quote = unit(fact).quote();
+        var visited = new java.util.HashSet<String>();
+        var node = fact;
+        while (current.closed() && !current.text().isBlank() && quote != null && !quote.isBlank()
+                && visited.add(OriginalScoreEvidencePolicy.modelFactId(node))) {
+            var parent = MultimodalFactParentCodeNormalizer.resolveParent(node, facts);
+            if (parent == null) break;
+            if (parent.sourceCellIds().stream().anyMatch(fact.sourceCellIds()::contains)) {
+                var bound = restore(parent, artifact, facts);
+                if (bound.closed() && !bound.text().isBlank() && !bound.text().equals(current.text())
+                        && EvidenceText.normalize(current.text()).uniqueSpan(bound.text()).isPresent()
+                        && EvidenceText.normalize(bound.text()).uniqueSpan(quote).isPresent()) {
+                    current = new Result(bound.text(), current.spans(), true);
+                }
+            }
+            node = parent;
+        }
+        return current;
+    }
+
+    /** Reuse the same located-unit restoration for deterministic facts without model inference. */
+    static java.util.Map<ScoreFact, Result> restoreFacts(DocumentArtifact artifact, List<ScoreFact> facts) {
+        var byId = facts.stream().collect(Collectors.toMap(ScoreFact::factId, f -> f, (first, ignored) -> first));
+        List<MultimodalScoreFact> projected = facts.stream().map(f -> {
+            var parent = byId.get(f.parentFactId());
+            return new MultimodalScoreFact("", f.code(), parent == null ? "" : parent.code(), f.dimension(),
+                    f.weight(), f.sourceText(), "", null, f.sourceTableId(), f.sourceCellIds(),
+                    f.sourceText().isBlank() ? f.dimension() : f.sourceText(), f.confidence(), f.childAggregation(), "", "", f.sourceMetadata());
+        }).toList();
+        var result = new java.util.LinkedHashMap<ScoreFact, Result>();
+        for (int i=0; i<facts.size(); i++) result.put(facts.get(i), restoreForWeight(projected.get(i), artifact, projected));
+        return java.util.Map.copyOf(result);
+    }
+
     private static String fallbackRuleText(String citedRaw, String modelRule, String quotedText) {
         if (citedRaw != null && !citedRaw.isBlank()) return citedRaw.strip();
         if (modelRule != null && !modelRule.isBlank()) return modelRule.strip();

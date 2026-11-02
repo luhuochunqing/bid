@@ -4,8 +4,8 @@ space: engineering
 category: architecture
 tags: [scoreparse, baidu-ocr, table-extraction, shadow-pipeline, settings]
 created: 2026-10-28
-updated: 2026-11-01
-health_checked: 2026-11-01
+updated: 2026-11-02
+health_checked: 2026-11-02
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/baidu/
   - backend/src/main/java/com/xiyu/bid/settings/service/BaiduOcrSettingsService.java
@@ -146,3 +146,11 @@ backlinks:
 - 诊断码提取冒号前缀后，以`Object.hasOwn`检查字典自有属性，防止`constructor`、`toString`、`__proto__`及带后缀输入显示函数或对象；六个边界用例修复前失败、修复后通过，已知诊断后缀映射保持。
 - 评分前端20文件233项、独立审查44项及构建通过。此前后端全量11,466项中91失败、22跳过；独立基线d6d6fa454复跑11个失败套件：209项中91失败、4跳过，逐用例失败集合完全一致，无PR独有失败。后端树也与基线一致，不能把主线失败表述为本PR引入。
 - 结论仅覆盖展示修复及失败归属，不表示后端全量通过、真实文件准确性通过或已部署。详细本地报告：`.omc/evidence/xiyu-code-review-2950.md`。
+
+## 评分单元边界透传与分值核验（2026-11-02）
+
+同一原文格可能包含父项40及子项28/12。已有闭合规则Result经内部ScoreEvidenceClaim完整传到模型与确定性核验入口，列值/标题/上限/奖励/档次统一在当前评分单元取证；真实同源父链仅按唯一包含关系缩小边界。不能按候选分值选边界，也不能把单列相等作为忽略规则冲突的理由。
+
+合成金标case-score-unit-authority同时核验正确28/12与错误40应指向原文28的诊断；负例阻断不代表OCR提取成功，正向资格和真实离线整链路另验。五项独立测试基线修正、Python脚本及真实百度配置不在本次提取PR范围，验证记录必须将已知基线失败与新增回归分开。
+
+确定性ScoreFact投影须保留sourceText的具体引文，不能以共享dimension替代锚点；verifyFacts与verifyModel必须分别跑正反例。前者三个回归曾RED，不能只凭模型入口金标通过宣称双入口已覆盖。

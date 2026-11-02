@@ -469,6 +469,7 @@ class GoldenCasesReplayTest {
 
     static Stream<Arguments> cases() {
         return Stream.of(
+                Arguments.of("case-score-unit-authority"),
                 Arguments.of("case-repeated-header-crosspage"),
                 Arguments.of("case-unscoped-price-only"),
                 Arguments.of("case-1359-maximum-column"),
@@ -519,6 +520,11 @@ class GoldenCasesReplayTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
     void replayGoldenCase(String caseName) throws Exception {
+        if (caseName.equals("case-score-unit-authority")) {
+            ScoreUnitAuthorityGoldenReplay.verify(GoldenCasesReplaySupport.readFixture(caseName + ".md"),
+                    GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json")));
+            return; // Evidence contract replay; not an OCR recognition-accuracy claim.
+        }
         if (caseName.equals("case-unscoped-price-only")) {
             String text = GoldenCasesReplaySupport.readFixture(caseName + ".md");
             JsonNode expected = GoldenCasesReplaySupport.parseExpected(

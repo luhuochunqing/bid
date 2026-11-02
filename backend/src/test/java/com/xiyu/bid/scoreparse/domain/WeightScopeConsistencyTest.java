@@ -42,7 +42,7 @@ class WeightScopeConsistencyTest {
         var table = new DocumentArtifact.CanonicalTable("t",13,"第四章 评审办法",2,4,List.of(),cells,true,"PDF");
         var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc","hash","PDF","2.2"),List.of(table),List.of());
         var claim = new ScoreEvidenceClaim("f","f","t","商品保障能力",List.of("t-r1-c1", "t-r1-c2", "t-r1-c3"),
-                List.of("t-r1-c3"),new BigDecimal("15"),parent,true,"商品保障能力",null,"","",ChildAggregation.SUM);
+                List.of("t-r1-c3"),new BigDecimal("15"),parent,true,"商品保障能力",null,"","",ChildAggregation.SUM, null);
         var errors = new ArrayList<OriginalScoreEvidencePolicy.Problem>();
         OriginalScoreWeightEvidencePolicy.verifyWeight(artifact,claim,errors);
         return errors;

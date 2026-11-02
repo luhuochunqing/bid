@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "focus": "当前子项原文边界：正确28/12保留，错误40不能借父项列值",
+  "declaredTotal": 100,
+  "facts": [
+    {"code":"p","parent":"","dimension":"配送服务","weight":40,"quote":"配送服务（40分）","row":1,"column":1},
+    {"code":"p.1","parent":"p","dimension":"配送服务","weight":28,"quote":"1、城市配送（28分）","row":1,"column":2},
+    {"code":"p.2","parent":"p","dimension":"配送服务","weight":12,"quote":"2、郊区配送（12分）","row":1,"column":2},
+    {"code":"price","parent":"","dimension":"报价评分","weight":60,"quote":"报价满足评审要求得60分。","row":2,"column":2}
+  ],
+  "expectedEligibleFacts": 4,
+  "wrongChildCode": "p.1",
+  "wrongChildWeight": 40,
+  "expectedProblem": "ITEM_WEIGHT_SOURCE_MISMATCH",
+  "expectedSourceWeight": 28
+}

@@ -29,7 +29,7 @@ backlinks:
 - [[_index]] — 西域投标管理平台知识库
 - [[agent-sop-quickref]] — Agent 开发 SOP 快速参考
 - [[ai-capabilities]] — AI 能力
-- [[baidu-table-ocr-pipeline]] — 百度表格文字识别 (Table OCR) 旁路对照管线
+- [[baidu-table-ocr-pipeline]] — 百度表格文字识别 (Table OCR) 旁路对照管线与闭合评分单元核验
 - [[pr2948-scoreparse-scope-and-fallback-risk]] — PR2948评分前序漏扫修复范围与fallback证据退化复审记录
 - [[ai-case-recommend-data-source-fix]] — AI 智能案例推荐契约与陷阱（数据源、裸响应、前端分数门禁、资质提示边界）
 - [[ai-case-precipitation-concurrency]] — AI 案例沉淀并发任务与大文件隔离契约（projectId 门禁 + UUID 临时文件 + 前端状态）

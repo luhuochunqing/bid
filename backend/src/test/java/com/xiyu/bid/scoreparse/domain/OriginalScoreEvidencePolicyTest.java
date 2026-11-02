@@ -14,7 +14,7 @@ class OriginalScoreEvidencePolicyTest {
                 List.of(table), List.of());
         var claim = new ScoreEvidenceClaim("fact", "fact", "t-category", "商务", List.of("category"),
                 List.of("category"), new BigDecimal("15"), false, true,
-                "（1）商务部分：15分", "", "", "", ChildAggregation.SUM);
+                "（1）商务部分：15分", "", "", "", ChildAggregation.SUM, null);
         var problems = new java.util.ArrayList<OriginalScoreEvidencePolicy.Problem>();
 
         OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems);
@@ -541,7 +541,7 @@ class OriginalScoreEvidencePolicyTest {
                 List.of(table), List.of());
         var claim = new ScoreEvidenceClaim("fact", "fact", "t-square", "商务", List.of("square"),
                 List.of("square"), new BigDecimal("20"), false, true,
-                "（1）商务部分[20分]", "", "", "", ChildAggregation.SUM);
+                "（1）商务部分[20分]", "", "", "", ChildAggregation.SUM, null);
         var problems = new java.util.ArrayList<OriginalScoreEvidencePolicy.Problem>();
 
         OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems);
@@ -562,7 +562,7 @@ class OriginalScoreEvidencePolicyTest {
         String fullQuote = "1.能够支持采购人历史交易数据导入，能够通过系统建立采购模型，按照品牌或品类等多维度进行价格、成本分析的，得5分。（投标人需提供满足招标要求的证明材料，以及系统操作及结果显示视频。）";
         var claim = new ScoreEvidenceClaim("fact-p14", "fact-p14", "t-p14", "历史交易数据导入及分析",
                 List.of("c-rule"), List.of("c-rule"), new BigDecimal("5"), false, true,
-                fullQuote, "", "", "", ChildAggregation.UNKNOWN);
+                fullQuote, "", "", "", ChildAggregation.UNKNOWN, null);
         var problems = new java.util.ArrayList<OriginalScoreEvidencePolicy.Problem>();
 
         OriginalScoreWeightEvidencePolicy.verifyWeight(artifact, claim, problems);
