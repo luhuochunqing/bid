@@ -205,3 +205,5 @@ backlinks:
 - [[scoreparse-single-digit-code-and-manual-adopt-rca]] — 单数字评分项识别缺陷与人工复核采纳死锁根因分析。
 
 - [[scoreparse-multimodal-primary]] — 1135 跨页评分表、OCR合行与来源校验回放边界。
+
+- [[scoreparse-1117-candidate-active-boundary]] — 项目1117候选零分与旧正式评分项并存（2026-11-01历史取证，非当前生产状态）。
