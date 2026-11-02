@@ -49,6 +49,18 @@ class GoldenCasesReplayTest {
             Collections.synchronizedList(new ArrayList<>());
 
     @Test
+    void boundaryReplayCannotPassWithoutExecutingItsScenarios() throws Exception {
+        String markdown = GoldenCasesReplaySupport.readFixture("case-score-weight-source-boundaries.md");
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () ->
+                ScoreWeightBoundaryGoldenReplay.verify(markdown, GoldenCasesReplaySupport.parseExpected("{}")));
+        var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(
+                "case-score-weight-source-boundaries.expected.json"));
+        expected.path("scenarios").forEach(s -> ((com.fasterxml.jackson.databind.node.ObjectNode) s).remove("modes"));
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () ->
+                ScoreWeightBoundaryGoldenReplay.verify(markdown, expected));
+    }
+
+    @Test
     void wrappedItemMaximumFixtureDoesNotDeclareSchemeTotal() throws Exception {
         String text = GoldenCasesReplaySupport.readFixture("case-wrapped-item-maximum.md");
         var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("synthetic", "score", "pdf", "2.0"),
@@ -470,6 +482,7 @@ class GoldenCasesReplayTest {
     static Stream<Arguments> cases() {
         return Stream.of(
                 Arguments.of("case-score-unit-authority"),
+                Arguments.of("case-score-weight-source-boundaries"),
                 Arguments.of("case-repeated-header-crosspage"),
                 Arguments.of("case-unscoped-price-only"),
                 Arguments.of("case-1359-maximum-column"),
@@ -520,6 +533,11 @@ class GoldenCasesReplayTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
     void replayGoldenCase(String caseName) throws Exception {
+        if (caseName.equals("case-score-weight-source-boundaries")) {
+            ScoreWeightBoundaryGoldenReplay.verify(GoldenCasesReplaySupport.readFixture(caseName + ".md"),
+                    GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json")));
+            return; // Conversion behavior only; not an OCR accuracy claim.
+        }
         if (caseName.equals("case-score-unit-authority")) {
             ScoreUnitAuthorityGoldenReplay.verify(GoldenCasesReplaySupport.readFixture(caseName + ".md"),
                     GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json")));
