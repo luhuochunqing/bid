@@ -7,7 +7,64 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
-class BaiduRepeatedHeaderContinuationTest {
+public class BaiduRepeatedHeaderContinuationTest {
+
+    @Test void reviewerInstructionInRuleColumnIsNotAnItemContinuation() {
+        var first = table("first", 9, "评分规则", new String[]{"类别", "评分项", "分值", "评分标准"},
+                new String[]{"技术", "服务", "5", "提供完整方案得5分"});
+        var note = table("note", 10, "评分规则",
+                new String[]{"", "", "", "注：评委独立评分，按算术平均分汇总"});
+        note = new CanonicalTable(note.tableId(), 10, note.sourceSection(), 1, 4,
+                note.mergedRegions(), note.cells(), false, "PDF");
+        var linked = BaiduCrossPageTableLinker.mergeCrossPageScoreTables(List.of(first, note), java.util.Map.of(9, first, 10, first));
+        assertThat(linked).hasSize(2);
+        assertThat(BaiduCrossPageTableLinker.linkCrossPageLogicalRows(linked).getLast().cells())
+                .allSatisfy(c -> assertThat(c.logicalRowId()).isEqualTo("note-r0"));
+        var artifact = new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact(
+                new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.ArtifactMeta("synthetic", "sha", "PDF", "fixture"), linked, List.of());
+        assertThat(com.xiyu.bid.scoreparse.application.ScoreFactShadowPipeline.run(artifact).tables().stream()
+                .flatMap(t -> t.facts().stream())).allSatisfy(f -> assertThat(f.sourceText()).doesNotContain("算术平均"));
+    }
+
+    public static void replayGoldenFixture(String markdown, com.fasterxml.jackson.databind.JsonNode expected) {
+        var tables = new ArrayList<CanonicalTable>();
+        for (String block : markdown.split("(?m)^## ")) {
+            if (!block.matches("(?s)^\\d+\\s.*")) continue;
+            int page = Integer.parseInt(block.lines().findFirst().orElseThrow().strip());
+            var rows = block.lines().filter(s -> s.startsWith("|") && !s.matches("[| :\\-]+"))
+                    .map(s -> java.util.Arrays.stream(s.split("\\|", -1)).skip(1).limit(4).map(String::strip).toArray(String[]::new))
+                    .toArray(String[][]::new);
+            var source = table("p" + page, page, "评分规则", rows);
+            tables.add(new CanonicalTable(source.tableId(), page, source.sourceSection(), source.rows(), source.columns(),
+                    source.mergedRegions(), source.cells(), page != expected.path("unclassifiedPage").asInt(), "PDF"));
+        }
+        assertThat(tables).hasSize(2);
+        var first = tables.getFirst(); var next = tables.getLast();
+        assertThat(BaiduCrossPageTableLinker.mergeCrossPageScoreTables(tables)).hasSize(2);
+        var linked = BaiduCrossPageTableLinker.mergeCrossPageScoreTables(tables,
+                java.util.Map.of(first.sourcePage(), first, next.sourcePage(), first));
+        assertThat(linked).hasSize(1);
+        assertThat(linked.getFirst().cells()).filteredOn(c -> expected.path("tail").asText().equals(c.rawText()))
+                .singleElement().satisfies(c -> assertThat(c.logicalRowId()).isEqualTo(expected.path("logicalRow").asText()));
+        var artifact = new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact(
+                new com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.ArtifactMeta("synthetic", "sha", "PDF", "fixture"), linked, List.of());
+        var facts = com.xiyu.bid.scoreparse.application.ScoreFactShadowPipeline.run(artifact).tables().stream()
+                .flatMap(t -> t.facts().stream()).toList();
+        assertThat(facts).filteredOn(f -> "服务".equals(f.dimension())).singleElement()
+                .satisfies(f -> assertThat(f.sourceText()).contains(expected.path("tail").asText()));
+        assertThat(BaiduScanPageSelector.determinePagesToScan(artifact, List.of(first.sourcePage()), 50))
+                .containsExactlyElementsOf(java.util.stream.StreamSupport.stream(expected.path("pages").spliterator(), false)
+                        .map(com.fasterxml.jackson.databind.JsonNode::asInt).toList());
+    }
+
+    @Test void headerlessNonScoreClassificationDoesNotEraseKnownSourceSection() {
+        var response = new BaiduTableModels.BaiduTableResponse(1, List.of(new BaiduTableModels.BaiduTableItem(
+                List.of(), List.of(), List.of(new BaiduTableModels.BaiduTableCell(0, 1, 3, 4, "未提供得0分", List.of())), List.of())),
+                null, null, 1L);
+        var table = BaiduTableArtifactAdapter.toCanonicalTables(response, 10, "第七章 评分规则").getFirst();
+        assertThat(table.isScoreTable()).isFalse();
+        assertThat(table.sourceSection()).isEqualTo("第七章 评分规则");
+    }
     private static final String[] HEADER = {"序号", "评价维度", "评分细则", "分值"};
 
     @Test void sameTableWithRepeatedHeaderKeepsSourcePagesAndRemovesDuplicateHeader() {
@@ -45,7 +102,28 @@ class BaiduRepeatedHeaderContinuationTest {
         var next = table("next", 10, "评审办法/详细评审标准", HEADER, new String[]{"", "", "续页描述", ""}, new String[]{"3", "能力", "得10分", "10"});
         assertThat(BaiduCrossPageTableLinker.mergeCrossPageScoreTables(List.of(first, next))).hasSize(2);
     }
-    private CanonicalTable table(String id, int page, String section, String[]... rows) {
+    @Test void unclassifiedTailUsesPriorColumnRolesOnlyWithTrustedOwnership() {
+        var first = table("first", 9, "评分规则", new String[]{"分项", "评分因素", "分值", "说明"},
+                new String[]{"技术", "服务", "5", "首段规则"});
+        var tail = table("tail", 10, "评分规则", new String[]{"", "", "", "未提供得0分"},
+                new String[]{"技术", "配送", "5", "下一项规则"});
+        tail = new CanonicalTable(tail.tableId(), tail.sourcePage(), tail.sourceSection(), tail.rows(), tail.columns(),
+                tail.mergedRegions(), tail.cells(), false, "PDF");
+        assertThat(BaiduCrossPageTableLinker.mergeCrossPageScoreTables(List.of(first, tail))).hasSize(2);
+        var linked = BaiduCrossPageTableLinker.mergeCrossPageScoreTables(List.of(first, tail), java.util.Map.of(9, first, 10, first));
+        assertThat(linked).hasSize(1);
+        assertThat(linked.getFirst().cells()).filteredOn(c -> "未提供得0分".equals(c.rawText()))
+                .singleElement().satisfies(c -> {
+                    assertThat(c.logicalRowId()).isEqualTo("first-r1");
+                    assertThat(c.sourcePage()).isEqualTo(10);
+                });
+        var independent = table("independent", 10, "评分规则", new String[]{"技术", "新项", "5", "新规则"});
+        independent = new CanonicalTable(independent.tableId(), 10, independent.sourceSection(), independent.rows(), 4,
+                independent.mergedRegions(), independent.cells(), false, "PDF");
+        assertThat(BaiduCrossPageTableLinker.mergeCrossPageScoreTables(List.of(first, independent), java.util.Map.of(9, first, 10, first))).hasSize(2);
+    }
+
+    private static CanonicalTable table(String id, int page, String section, String[]... rows) {
         var cells = new ArrayList<CanonicalCellDto>();
         for (int row = 0; row < rows.length; row++) for (int col = 0; col < rows[row].length; col++) {
             String value = rows[row][col];

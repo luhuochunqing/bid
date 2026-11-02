@@ -91,9 +91,8 @@ public final class BaiduTableArtifactAdapter {
             var gridResult = BaiduTableGridBuilder.buildCanonicalGrid(item.body(), tableId, pageNum);
 
             boolean isScore = isLikelyScoreTable(item);
-            String effectiveSection = !isScore
-                    ? "招标文件正文"
-                    : (sourceSection != null && !sourceSection.isBlank() ? sourceSection : "评审办法/详细评审标准");
+            String effectiveSection = sourceSection != null && !sourceSection.isBlank()
+                    ? sourceSection : (isScore ? "评审办法/详细评审标准" : "招标文件正文");
             canonicalTables.add(new CanonicalTable(
                     tableId,
                     pageNum,

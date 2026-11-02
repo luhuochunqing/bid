@@ -3,6 +3,8 @@ package com.xiyu.bid.scoreparse.infrastructure.baidu;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.CanonicalCellDto;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.MergedRegionDto;
+import com.xiyu.bid.scoreparse.domain.grid.HeuristicTableColumnMapper;
+import com.xiyu.bid.scoreparse.domain.grid.TableGrid;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +37,7 @@ final class BaiduCrossPageTableLinker {
             String lastLogicalRowId = findLastNonBlankLogicalRowId(prev);
             if (lastLogicalRowId.isBlank()) continue;
 
-            if (isFirstRowContinuation(curr)) {
+            if (isFirstRowContinuation(prev, curr)) {
                 String targetLogicalRowId = curr.tableId() + "-r0";
                 List<CanonicalCellDto> updatedCells = new ArrayList<>();
                 for (CanonicalCellDto c : curr.cells()) {
@@ -86,7 +88,7 @@ final class BaiduCrossPageTableLinker {
 
     private static int findMergeablePreviousScoreTable(List<CanonicalTable> merged, CanonicalTable curr,
             java.util.Map<Integer, CanonicalTable> originalOwners) {
-        if (!Boolean.TRUE.equals(curr.isScoreTable()) || curr.sourcePage() == null) {
+        if (curr.sourcePage() == null) {
             return -1;
         }
         for (int i = merged.size() - 1; i >= 0; i--) {
@@ -96,6 +98,11 @@ final class BaiduCrossPageTableLinker {
             var owner = originalOwners.get(curr.sourcePage());
             boolean trusted = owner != null && owner == originalOwners.get(maxPage(candidate))
                     && owner.sourceSection().equals(curr.sourceSection());
+            if (!Boolean.TRUE.equals(curr.isScoreTable())
+                    && (i != merged.size() - 1 || !trusted || repeatedHeader
+                    || !candidate.sourceSection().equals(curr.sourceSection())
+                    || BaiduRepeatedHeaderPolicy.hasDeclaredTotal(candidate)
+                    || !isFirstRowContinuation(candidate, curr))) return -1;
             if (curr.sourcePage() - maxPage(candidate) == 1 && candidate.columns() == curr.columns()
                     && (!repeatedHeader || (trusted && BaiduRepeatedHeaderPolicy.isContinuation(candidate, curr)))) {
                 return i;
@@ -109,7 +116,7 @@ final class BaiduCrossPageTableLinker {
         int skippedRows = repeatedHeader ? 1 : 0;
         int rowOffset = prev.rows() - skippedRows;
         String lastLogicalRowId = findLastNonBlankLogicalRowId(prev);
-        boolean firstRowCont = !lastLogicalRowId.isBlank() && (repeatedHeader || isFirstRowContinuation(curr));
+        boolean firstRowCont = !lastLogicalRowId.isBlank() && (repeatedHeader || isFirstRowContinuation(prev, curr));
         String currRow0LogicalId = curr.tableId() + "-r" + skippedRows;
         String currLogicalPrefix = curr.tableId() + "-r";
 
@@ -194,15 +201,24 @@ final class BaiduCrossPageTableLinker {
         return headerCells >= 2;
     }
 
-    private static boolean isFirstRowContinuation(CanonicalTable table) {
+    private static boolean isFirstRowContinuation(CanonicalTable previous, CanonicalTable table) {
         if (table.rows() == 0 || table.columns() <= 1) return false;
         List<CanonicalCellDto> row0Cells = table.cells().stream().filter(c -> c.row() == 0).toList();
         if (row0Cells.isEmpty()) return false;
+        if (row0Cells.stream().anyMatch(c -> com.xiyu.bid.scoreparse.domain.ScoreTableSummaryPolicy.isReviewerInstruction(c.rawText()))) return false;
 
-        int colCount = table.columns();
-        int ruleCol = colCount <= 2 ? colCount - 1 : colCount - 2;
+        var rows = new ArrayList<List<String>>();
+        for (int row = 0; row < previous.rows(); row++) rows.add(new ArrayList<>(java.util.Collections.nCopies(previous.columns(), "")));
+        for (var cell : previous.cells()) {
+            if (cell.row() != null && cell.column() != null && cell.row() >= 0 && cell.row() < previous.rows()
+                    && cell.column() >= 0 && cell.column() < previous.columns() && !Boolean.TRUE.equals(cell.isMergedContinue()))
+                rows.get(cell.row()).set(cell.column(), cell.rawText() == null ? "" : cell.rawText());
+        }
+        int ruleCol = HeuristicTableColumnMapper.infer(new TableGrid(rows)).detailCol();
+        if (ruleCol < 0 || ruleCol >= table.columns()) return false;
 
-        for (int c = 0; c < ruleCol; c++) {
+        for (int c = 0; c < table.columns(); c++) {
+            if (c == ruleCol) continue;
             final int colIdx = c;
             var cell = row0Cells.stream().filter(cellDto -> cellDto.column() == colIdx).findFirst();
             if (cell.isPresent() && !cell.get().normalizedText().isBlank() && !Boolean.TRUE.equals(cell.get().isMergedContinue())) {

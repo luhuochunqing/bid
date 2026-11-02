@@ -290,6 +290,22 @@ class BaiduTableArtifactEnricherTest {
     }
 
     @Test
+    @DisplayName("选页必须保留评分表单元格已记录的续页，不纳入无关表格")
+    void shouldScanRecordedCellPagesBeyondKeywordClusterWithoutScanningUnrelatedTable() {
+        var cells = List.of(
+                new CanonicalCellDto("head", 0, 0, "评分规则", "评分规则", 1, 1, false, "", 38, "row"),
+                new CanonicalCellDto("tail", 1, 0, "未提供不得分", "未提供不得分", 1, 1, false, "", 49, "row"));
+        var score = new CanonicalTable("score", 38, "评分标准", 2, 1, List.of(), cells, true, "PDF");
+        var unrelated = new CanonicalTable("other", 70, "合同", 1, 1, List.of(),
+                List.of(new CanonicalCellDto("other-cell", 0, 0, "合同", "合同", 1, 1, false, "", 71, "other")), false, "PDF");
+        var artifact = new DocumentArtifact(new ArtifactMeta("doc", "sha", "PDF", "sidecar"), List.of(score, unrelated), List.of());
+        var enricher = new BaiduTableArtifactEnricher(null);
+        assertThat(enricher.determinePagesToScan(artifact, List.of(38, 39, 40)))
+                .containsExactly(38, 39, 40, 49);
+        assertThat(enricher.determinePagesToScan(artifact, List.of())).containsExactly(38, 49);
+    }
+
+    @Test
     @DisplayName("跨页续行测试: 自动将下一页首行续行的logicalRowId衔接到前一页最后一行")
     void shouldLinkCrossPageContinuationLogicalRow() {
         // Table 1 on page 14: row 0 (header), row 1 (9.1 item)

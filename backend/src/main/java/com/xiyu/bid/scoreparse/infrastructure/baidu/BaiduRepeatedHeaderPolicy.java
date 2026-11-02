@@ -20,10 +20,7 @@ final class BaiduRepeatedHeaderPolicy {
         for (int col = 0; col < previous.columns(); col++) {
             if (!text(previous, 0, col).equals(text(current, 0, col))) return false;
         }
-        for (var c : previous.cells()) {
-            String text = c.normalizedText() == null ? "" : c.normalizedText().replaceAll("\\s+", "");
-            if (text.matches("(?:合计|总计)(?:得分)?|总分|总得分|总评分")) return false;
-        }
+        if (hasDeclaredTotal(previous)) return false;
         for (int col = 0; col < current.columns() - 2; col++)
             if (!text(current, 1, col).isBlank()) return false;
         if (text(current, 1, current.columns() - 2).isBlank()) return false;
@@ -48,6 +45,11 @@ final class BaiduRepeatedHeaderPolicy {
         }
         ambiguous.forEach(owners::remove);
         return java.util.Map.copyOf(owners);
+    }
+
+    static boolean hasDeclaredTotal(CanonicalTable table) {
+        return table.cells().stream().anyMatch(c -> c.normalizedText() != null
+                && c.normalizedText().replaceAll("\\s+", "").matches("(?:合计|总计)(?:得分)?|总分|总得分|总评分"));
     }
 
     private static String text(CanonicalTable table, int row, int column) {
