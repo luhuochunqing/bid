@@ -12,13 +12,45 @@ import java.util.regex.Pattern;
 
 final class ScoreWeightSourceEvidence {
     private static final Pattern MAXIMUM = Pattern.compile("(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
-    private static final Pattern TIER_LABEL = Pattern.compile("(?:^|[：:，,；;。\\s])(?:优秀|优|良好|良|中等|中|一般|合格|较差|差|第?[一二三四五六七八九十1-9]+档)(?:档|等级)?[：:、\\s]*(?:(?:本项|该项|此项|本评分项|该评分项)\\s*)?$");
+    private static final Pattern TIER_LABEL = Pattern.compile("(?:^|[：:，,；;。\\s])(?:优秀|优|良好|良|中等|中|一般|合格|较差|差|第?(?:[一二三四五六七八九十百千]+|[1-9][0-9]*)档)(?:档|等级)?[：:、\\s]*(?:(?:本项|该项|此项|本评分项|该评分项)\\s*)?$");
     private ScoreWeightSourceEvidence() {}
 
     static boolean scoreColumn(CanonicalCellDto cell, CanonicalTable table) {
         return cell.column() != null && table.cells().stream().anyMatch(header -> Integer.valueOf(0).equals(header.row())
                 && cell.column().equals(header.column()) && header.rawText() != null
                 && header.rawText().replaceAll("\\s+", "").matches("(?s).*(?:最高分|分值|权重|得分).*"));
+    }
+
+    /** The quote owns the row; a numeric citation from a different row cannot override it. */
+    static CanonicalCellDto anchor(List<CanonicalCellDto> cited, List<String> sourceIds, String quote, CanonicalTable table) {
+        String normalized = EvidenceText.normalize(quote == null ? "" : quote).text();
+        var sources = table.cells().stream().filter(c -> sourceIds.contains(c.cellId())).toList();
+        var owners = sources.stream().filter(c -> !numericScore(c, table))
+                .filter(c -> !normalized.isBlank() && EvidenceText.normalize(table.cells().stream()
+                        .filter(other -> sameRow(other, c))
+                        .map(other -> other.rawText() == null ? "" : other.rawText())
+                        .collect(java.util.stream.Collectors.joining(" "))).text().contains(normalized)).toList();
+        var sourceAnchor = sources.isEmpty() ? null : sources.getFirst();
+        if (owners.isEmpty() && sourceAnchor != null
+                && sources.stream().allMatch(c -> sameRow(c, sourceAnchor))) owners = List.of(sourceAnchor);
+        var owner = owners.isEmpty() ? null : owners.getFirst();
+        if (owner != null && owners.stream().anyMatch(c -> !sameRow(c, owner))) return null;
+        if (owner == null && !cited.isEmpty()
+                && cited.stream().anyMatch(c -> !sameRow(c, cited.getFirst()))) return null;
+        var candidates = owner == null ? cited : cited.stream().filter(c -> sameRow(c, owner)).toList();
+        return candidates.stream().filter(c -> numericScore(c, table)).findFirst()
+                .orElse(owner != null ? owner : cited.isEmpty() ? null : cited.getFirst());
+    }
+
+    private static boolean numericScore(CanonicalCellDto cell, CanonicalTable table) {
+        return cell.rawText() != null && cell.rawText().matches("^[~≈]?\\s*\\d+(?:\\.\\d+)?\\s*分?\\s*$")
+                && scoreColumn(cell, table);
+    }
+
+    private static boolean sameRow(CanonicalCellDto cell, CanonicalCellDto owner) {
+        return owner.row() != null && owner.row().equals(cell.row())
+                || owner.logicalRowId() != null && !owner.logicalRowId().isBlank()
+                && owner.logicalRowId().equals(cell.logicalRowId());
     }
 
     record UnitEvidence(List<BigDecimal> values, List<BigDecimal> titles, List<BigDecimal> maxima,

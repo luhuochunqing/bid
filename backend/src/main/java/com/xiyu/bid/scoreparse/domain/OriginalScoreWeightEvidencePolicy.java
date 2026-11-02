@@ -53,9 +53,7 @@ final class OriginalScoreWeightEvidencePolicy {
         for (var table : artifact.tables()) {
             if (!table.tableId().equals(claim.tableId())) continue;
             var cited = table.cells().stream().filter(c -> claim.weightCellIds().contains(c.cellId())).toList();
-            var anchor = cited.stream().filter(c -> c.rawText() != null && SCORE_CELL.matcher(c.rawText()).matches()
-                    && ScoreWeightSourceEvidence.scoreColumn(c, table)).findFirst()
-                    .orElse(cited.isEmpty() ? null : cited.getFirst());
+            var anchor = ScoreWeightSourceEvidence.anchor(cited, claim.sourceCellIds(), claim.quotedText(), table);
             if (anchor == null || anchor.row() == null) {
                 problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
                         "original item max score", claim.weight(), claim.tableId()));

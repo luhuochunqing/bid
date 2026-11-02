@@ -1,0 +1,418 @@
+{
+  "synthetic": true,
+  "focus": "原文行归属、稳定父标识、多位数字档位；正反对照只证明转换行为",
+  "scenarios": [
+    {
+      "name": "row-ownership",
+      "tables": [
+        "row"
+      ],
+      "modes": [
+        "model",
+        "facts"
+      ],
+      "total": 100,
+      "variants": [
+        {
+          "name": "correct-short-quote",
+          "facts": [
+            {
+              "id": "city",
+              "table": "row",
+              "code": "1",
+              "dimension": "配送服务",
+              "weight": 28,
+              "quote": "配送服务",
+              "cells": [
+                "row-r1-c1",
+                "row-r1-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r1-c3"
+            },
+            {
+              "id": "rural",
+              "table": "row",
+              "code": "2",
+              "dimension": "配送服务",
+              "weight": 12,
+              "quote": "配送服务",
+              "cells": [
+                "row-r2-c1",
+                "row-r2-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r2-c3"
+            },
+            {
+              "id": "price",
+              "table": "row",
+              "code": "3",
+              "dimension": "报价评分",
+              "weight": 60,
+              "quote": "报价评分最高得60分。",
+              "cells": [
+                "row-r3-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r3-c3"
+            }
+          ],
+          "accepted": true
+        },
+        {
+          "name": "swapped-short-quote",
+          "facts": [
+            {
+              "id": "city",
+              "table": "row",
+              "code": "1",
+              "dimension": "配送服务",
+              "weight": 12,
+              "quote": "配送服务",
+              "cells": [
+                "row-r1-c1",
+                "row-r1-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r2-c3"
+            },
+            {
+              "id": "rural",
+              "table": "row",
+              "code": "2",
+              "dimension": "配送服务",
+              "weight": 28,
+              "quote": "配送服务",
+              "cells": [
+                "row-r2-c1",
+                "row-r2-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r1-c3"
+            },
+            {
+              "id": "price",
+              "table": "row",
+              "code": "3",
+              "dimension": "报价评分",
+              "weight": 60,
+              "quote": "报价评分最高得60分。",
+              "cells": [
+                "row-r3-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r3-c3"
+            }
+          ],
+          "accepted": false,
+          "problem": "ITEM_WEIGHT_SOURCE_MISMATCH"
+        },
+        {
+          "name": "correct-cross-cell-quote",
+          "facts": [
+            {
+              "id": "city",
+              "table": "row",
+              "code": "1",
+              "dimension": "配送服务",
+              "weight": 28,
+              "quote": "配送服务 配送服务城市配送方案。",
+              "cells": [
+                "row-r1-c1",
+                "row-r1-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r1-c3"
+            },
+            {
+              "id": "rural",
+              "table": "row",
+              "code": "2",
+              "dimension": "配送服务",
+              "weight": 12,
+              "quote": "配送服务 配送服务郊区配送方案。",
+              "cells": [
+                "row-r2-c1",
+                "row-r2-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r2-c3"
+            },
+            {
+              "id": "price",
+              "table": "row",
+              "code": "3",
+              "dimension": "报价评分",
+              "weight": 60,
+              "quote": "报价评分最高得60分。",
+              "cells": [
+                "row-r3-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r3-c3"
+            }
+          ],
+          "accepted": true
+        },
+        {
+          "name": "swapped-cross-cell-quote",
+          "facts": [
+            {
+              "id": "city",
+              "table": "row",
+              "code": "1",
+              "dimension": "配送服务",
+              "weight": 12,
+              "quote": "配送服务 配送服务城市配送方案。",
+              "cells": [
+                "row-r1-c1",
+                "row-r1-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r2-c3"
+            },
+            {
+              "id": "rural",
+              "table": "row",
+              "code": "2",
+              "dimension": "配送服务",
+              "weight": 28,
+              "quote": "配送服务 配送服务郊区配送方案。",
+              "cells": [
+                "row-r2-c1",
+                "row-r2-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r1-c3"
+            },
+            {
+              "id": "price",
+              "table": "row",
+              "code": "3",
+              "dimension": "报价评分",
+              "weight": 60,
+              "quote": "报价评分最高得60分。",
+              "cells": [
+                "row-r3-c2"
+              ],
+              "parentId": "",
+              "weightCell": "row-r3-c3"
+            }
+          ],
+          "accepted": false,
+          "problem": "ITEM_WEIGHT_SOURCE_MISMATCH"
+        }
+      ]
+    },
+    {
+      "name": "stable-parent-id",
+      "tables": [
+        "stable-a",
+        "stable-b"
+      ],
+      "modes": [
+        "facts"
+      ],
+      "total": 80,
+      "variants": [
+        {
+          "name": "duplicate-code",
+          "facts": [
+            {
+              "id": "parent-A",
+              "table": "stable-a",
+              "code": "1",
+              "dimension": "配送服务",
+              "weight": 40,
+              "quote": "配送服务（40分）",
+              "cells": [
+                "stable-a-r1-c1"
+              ],
+              "parentId": ""
+            },
+            {
+              "id": "city-A",
+              "table": "stable-a",
+              "code": "1.1",
+              "dimension": "配送服务",
+              "weight": 28,
+              "quote": "1、城市配送（28分）",
+              "cells": [
+                "stable-a-r1-c2"
+              ],
+              "parentId": "parent-A"
+            },
+            {
+              "id": "sub-A",
+              "table": "stable-a",
+              "code": "1.2",
+              "dimension": "配送服务",
+              "weight": 12,
+              "quote": "2、郊区配送（12分）",
+              "cells": [
+                "stable-a-r1-c2"
+              ],
+              "parentId": "parent-A"
+            },
+            {
+              "id": "detail-A",
+              "table": "stable-a",
+              "code": "1.2.1",
+              "dimension": "配送服务",
+              "weight": 12,
+              "quote": "郊区配送最高得12分。",
+              "cells": [
+                "stable-a-r1-c2"
+              ],
+              "parentId": "sub-A"
+            },
+            {
+              "id": "other-B",
+              "table": "stable-b",
+              "code": "1.2",
+              "dimension": "仓储服务",
+              "weight": 40,
+              "quote": "仓储服务（40分）",
+              "cells": [
+                "stable-b-r1-c1",
+                "stable-b-r1-c2",
+                "stable-b-r1-c3"
+              ],
+              "parentId": ""
+            }
+          ],
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "name": "stable-parent-control",
+      "tables": [
+        "stable-a",
+        "stable-control"
+      ],
+      "modes": [
+        "facts"
+      ],
+      "total": 80,
+      "variants": [
+        {
+          "name": "unrelated-code",
+          "facts": [
+            {
+              "id": "parent-A",
+              "table": "stable-a",
+              "code": "1",
+              "dimension": "配送服务",
+              "weight": 40,
+              "quote": "配送服务（40分）",
+              "cells": [
+                "stable-a-r1-c1"
+              ],
+              "parentId": ""
+            },
+            {
+              "id": "city-A",
+              "table": "stable-a",
+              "code": "1.1",
+              "dimension": "配送服务",
+              "weight": 28,
+              "quote": "1、城市配送（28分）",
+              "cells": [
+                "stable-a-r1-c2"
+              ],
+              "parentId": "parent-A"
+            },
+            {
+              "id": "sub-A",
+              "table": "stable-a",
+              "code": "1.2",
+              "dimension": "配送服务",
+              "weight": 12,
+              "quote": "2、郊区配送（12分）",
+              "cells": [
+                "stable-a-r1-c2"
+              ],
+              "parentId": "parent-A"
+            },
+            {
+              "id": "detail-A",
+              "table": "stable-a",
+              "code": "1.2.1",
+              "dimension": "配送服务",
+              "weight": 12,
+              "quote": "郊区配送最高得12分。",
+              "cells": [
+                "stable-a-r1-c2"
+              ],
+              "parentId": "sub-A"
+            },
+            {
+              "id": "other-B",
+              "table": "stable-control",
+              "code": "9.2",
+              "dimension": "仓储服务",
+              "weight": 40,
+              "quote": "仓储服务（40分）",
+              "cells": [
+                "stable-control-r1-c1",
+                "stable-control-r1-c2",
+                "stable-control-r1-c3"
+              ],
+              "parentId": ""
+            }
+          ],
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "name": "multi-digit-exclusive-tier",
+      "tables": [
+        "tiers"
+      ],
+      "modes": [
+        "model"
+      ],
+      "total": 100,
+      "variants": [
+        {
+          "name": "10-and-11",
+          "facts": [
+            {
+              "id": "plan",
+              "table": "tiers",
+              "code": "1",
+              "dimension": "方案",
+              "weight": 5,
+              "quote": "方案择一评分：第10档最高得5分，第11档最高得3分。",
+              "cells": [
+                "tiers-r1-c1",
+                "tiers-r1-c2",
+                "tiers-r1-c3"
+              ],
+              "parentId": ""
+            },
+            {
+              "id": "price",
+              "table": "tiers",
+              "code": "2",
+              "dimension": "报价评分",
+              "weight": 95,
+              "quote": "报价评分最高得95分。",
+              "cells": [
+                "tiers-r2-c1",
+                "tiers-r2-c2",
+                "tiers-r2-c3"
+              ],
+              "parentId": ""
+            }
+          ],
+          "accepted": true
+        }
+      ]
+    }
+  ],
+  "expectedChecks": 11
+}
