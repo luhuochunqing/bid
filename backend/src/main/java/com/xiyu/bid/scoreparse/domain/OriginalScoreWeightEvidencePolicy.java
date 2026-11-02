@@ -14,7 +14,6 @@ final class OriginalScoreWeightEvidencePolicy {
     private static final Pattern ITEM_SCOPED_MAX = Pattern.compile(
             "(?:本项(?!目)|该项|此项|本评分项|该评分项)\\s*(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern SCORE_CELL = Pattern.compile("^[~≈]?\\s*(\\d+(?:\\.\\d+)?)\\s*分?\\s*$");
-    private static final Pattern MAX_SCORE = Pattern.compile("(?:最高(?:可)?(?:得分?|分值|分)?|满分|上限|不超过)\\s*[：:为]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern TITLE_SCORE = Pattern.compile("[（(\\[【]\\s*(\\d+(?:\\.\\d+)?)\\s*分\\s*[）)\\]】]");
     private static final Pattern AWARD_SCORE = Pattern.compile("(?:得|奖励|加)\\s*(\\d+(?:\\.\\d+)?)\\s*分");
     private static final Pattern TIER_SCORE = Pattern.compile("(?:[:：为得]|档)\\s*(\\d+(?:\\.\\d+)?)\\s*分");
@@ -53,8 +52,10 @@ final class OriginalScoreWeightEvidencePolicy {
         }
         for (var table : artifact.tables()) {
             if (!table.tableId().equals(claim.tableId())) continue;
-            var anchor = table.cells().stream().filter(c -> claim.weightCellIds().contains(c.cellId()))
-                    .findFirst().orElse(null);
+            var cited = table.cells().stream().filter(c -> claim.weightCellIds().contains(c.cellId())).toList();
+            var anchor = cited.stream().filter(c -> c.rawText() != null && SCORE_CELL.matcher(c.rawText()).matches()
+                    && ScoreWeightSourceEvidence.scoreColumn(c, table)).findFirst()
+                    .orElse(cited.isEmpty() ? null : cited.getFirst());
             if (anchor == null || anchor.row() == null) {
                 problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
                         "original item max score", claim.weight(), claim.tableId()));
@@ -69,45 +70,16 @@ final class OriginalScoreWeightEvidencePolicy {
             String directRowText = row.stream().map(c -> c.rawText() == null ? "" : c.rawText())
                     .reduce((a, b) -> a + " " + b).orElse("");
             String rowText = directRowText + " " + inheritedCategoryText(table, anchor.row());
-            boolean anchoredScoreColumn = anchor.column() != null && anchor.rawText() != null
-                    && SCORE_CELL.matcher(anchor.rawText()).matches() && table.cells().stream()
-                    .anyMatch(header -> Integer.valueOf(0).equals(header.row())
-                            && anchor.column().equals(header.column()) && header.rawText() != null
-                            && header.rawText().replaceAll("\\s+", "").matches("(?s).*(?:最高分|分值|权重|得分).*"));
-            Matcher itemMax = ITEM_SCOPED_MAX.matcher(directRowText);
-            while (itemMax.find()) {
-                int sentenceStart = Math.max(directRowText.lastIndexOf('。', itemMax.start()),
-                        Math.max(directRowText.lastIndexOf('；', itemMax.start()), directRowText.lastIndexOf(';', itemMax.start())));
-                String preceding = directRowText.substring(sentenceStart + 1, itemMax.start());
-                if (anchoredScoreColumn && preceding.matches("(?s).*(?:仅提供|仅具备|仅有).{0,80}(?:的|时|情况下)[，,\\s]*$")) continue;
-                BigDecimal maximum = new BigDecimal(itemMax.group(1));
-                if (claim.weight() != null && claim.weight().compareTo(maximum) != 0) {
-                    problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
-                            maximum, claim.weight(), locator));
-                    return;
-                }
-            }
-            if (!claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
-                    && declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight())) return;
-            if (claim.parent()) {
-                if (declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight())
-                        || declaredDimensionSubtotal(claim.dimension(), rowText, claim.weight())
-                        || (claim.tenderText() != null && declaredDimensionSubtotal(claim.dimension(), claim.tenderText(), claim.weight()))) {
-                    return;
-                }
-                for (var anyTable : artifact.tables()) {
-                    for (var anyCell : anyTable.cells()) {
-                        if (anyCell.rawText() != null && declaredDimensionSubtotal(claim.dimension(), anyCell.rawText(), claim.weight())) {
-                            return;
-                        }
-                    }
-                }
-            }
+            boolean anchoredScoreColumn = anchor.rawText() != null && SCORE_CELL.matcher(anchor.rawText()).matches()
+                    && ScoreWeightSourceEvidence.scoreColumn(anchor, table);
+            String ruleText = ScoreWeightSourceEvidence.ruleText(claim.ruleUnit(), directRowText);
+            boolean quotedSubtotal = !claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
+                    && declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight());
+            boolean parentSubtotal = claim.parent() && parentSubtotal(artifact, claim, rowText);
             boolean itemMatched = (!claim.dimension().isBlank() && containsDimension(rowText, claim.dimension()))
                     || (!claim.quotedText().isBlank() && containsQuote(rowText, claim.quotedText())
                     && (claim.dimension().isBlank() || containsDimension(claim.quotedText(), claim.dimension())));
             List<BigDecimal> explicit = new ArrayList<>();
-            List<BigDecimal> capped = new ArrayList<>();
             List<BigDecimal> title = new ArrayList<>();
             List<BigDecimal> awarded = new ArrayList<>();
             for (var cell : row) {
@@ -117,40 +89,69 @@ final class OriginalScoreWeightEvidencePolicy {
                 }
                 String raw = cell.rawText() == null ? "" : cell.rawText();
                 Matcher numeric = SCORE_CELL.matcher(raw);
-                boolean scoreColumn = cell.column() != null && table.cells().stream()
-                        .anyMatch(header -> header.row() != null && header.row() == 0
-                                && cell.column().equals(header.column()) && header.rawText() != null
-                                && header.rawText().replaceAll("\\s+", "").matches("(?s).*(?:最高分|分值|权重|得分).*"));
+                boolean scoreColumn = ScoreWeightSourceEvidence.scoreColumn(cell, table);
                 if (cell.column() != null && cell.column() > 0 && numeric.matches()
                         && (raw.contains("分") || scoreColumn)) {
                     explicit.add(new BigDecimal(numeric.group(1)));
                 }
-                collect(MAX_SCORE, raw, capped);
                 collect(TITLE_SCORE, raw, title);
                 if (!raw.matches("(?s).*(?:每份|每个|每项|每有|每增加).*")) {
                     collect(AWARD_SCORE, raw, awarded);
                 }
+            }
+            var source = ScoreWeightSourceEvidence.forUnit(claim.ruleUnit(), row, explicit, title);
+            explicit = source.values(); title = source.titles();
+            List<BigDecimal> capped = source.maxima();
+            if (source.partitioned()) {
+                awarded = new ArrayList<>();
+                if (!ruleText.matches("(?s).*(?:每份|每个|每项|每有|每增加).*")) collect(AWARD_SCORE, ruleText, awarded);
             }
             List<BigDecimal> authoritative = claim.parent() && !title.isEmpty() ? title
                     : !explicit.isEmpty() ? explicit : !capped.isEmpty() ? capped
                     : !title.isEmpty() ? title : awarded;
             if (!claim.parent() && !capped.isEmpty()) authoritative = concat(authoritative, capped);
             if (!claim.parent() && !awarded.isEmpty()) authoritative = concat(authoritative, awarded);
-            List<BigDecimal> tierValues = tierScores(rowText);
-            if (explicit.isEmpty() && tierSet(rowText, tierValues)
+            List<BigDecimal> tierValues = tierScores(source.partitioned() ? ruleText : rowText);
+            if (explicit.isEmpty() && tierSet(source.partitioned() ? ruleText : rowText, tierValues)
                     && (!claim.parent() || claim.childAggregation() == ChildAggregation.MUTUALLY_EXCLUSIVE)) {
                 authoritative = List.of(tierValues.stream().max(BigDecimal::compareTo).orElseThrow());
             }
             boolean subscoresMatched = quoteSubscoresSumToWeight(rowText, claim);
-            // 父类词写在 dimension、项名写在行标题时，行内分值已经证明就是这一行。
-            // 具体项名对到另一行（分值碰巧相同）仍然拒绝。
             boolean categoryRowProven = OriginalScoreEvidencePolicy.sectionCategory(claim.dimension())
                     && (rowProvesWeight(claim, authoritative, title) || subscoresMatched);
-            if (!itemMatched && !categoryRowProven) {
+            if (!itemMatched && !categoryRowProven && !parentSubtotal) {
                 problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "dimension", "ITEM_SOURCE_SCOPE_MISMATCH",
                         claim.dimension(), "not in cited item row", locator));
+                return;
             }
-            if (anchoredScoreColumn && itemMatched && claim.weight() != null
+            Matcher itemMax = ITEM_SCOPED_MAX.matcher(ruleText);
+            while (itemMax.find()) {
+                if (((anchoredScoreColumn || source.maximum() != null)
+                        && ScoreWeightSourceEvidence.conditionalMaximum(ruleText, itemMax.start()))
+                        || ScoreWeightSourceEvidence.exclusiveTierMaximum(ruleText, itemMax.start())) continue;
+                BigDecimal maximum = new BigDecimal(itemMax.group(1));
+                if (claim.weight() != null && claim.weight().compareTo(maximum) != 0) {
+                    String code = source.maximum() != null && source.maximum().compareTo(maximum) == 0
+                            ? "ITEM_WEIGHT_SOURCE_MISMATCH" : "ITEM_WEIGHT_SOURCE_UNKNOWN";
+                    problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "weight", code,
+                            maximum, claim.weight(), locator));
+                    return;
+                }
+            }
+            if (parentSubtotal) return;
+            if (!claim.parent() && !subscoresMatched && source.maximum() != null && claim.weight() != null) {
+                boolean conflict = capped.stream().anyMatch(maximum -> maximum.compareTo(source.maximum()) != 0);
+                String code = conflict ? "ITEM_WEIGHT_SOURCE_UNKNOWN"
+                        : (source.partitioned() || !explicit.isEmpty()) && source.maximum().compareTo(claim.weight()) != 0
+                        ? "ITEM_WEIGHT_SOURCE_MISMATCH" : null;
+                if (code != null) {
+                    problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "weight", code,
+                            conflict ? capped : source.maximum(), claim.weight(), locator));
+                    return;
+                }
+            }
+            if (quotedSubtotal) return;
+            if (anchoredScoreColumn && !source.partitioned() && itemMatched && claim.weight() != null
                     && new BigDecimal(SCORE_CELL.matcher(anchor.rawText()).replaceFirst("$1")).compareTo(claim.weight()) == 0
                     && (claim.quotedText().isBlank() || containsQuote(rowText, claim.quotedText()))) return;
             Pattern claimWeightPattern = claim.weight() == null ? null
@@ -177,7 +178,15 @@ final class OriginalScoreWeightEvidencePolicy {
         problems.add(new OriginalScoreEvidencePolicy.Problem(claim.id(), "weight", "ITEM_WEIGHT_SOURCE_UNKNOWN",
                 "original item max score", claim.weight(), claim.tableId()));
     }
-
+    private static boolean parentSubtotal(DocumentArtifact artifact, ScoreEvidenceClaim claim, String rowText) {
+        if (declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight())
+                || declaredDimensionSubtotal(claim.dimension(), rowText, claim.weight())
+                || (claim.tenderText() != null && declaredDimensionSubtotal(claim.dimension(), claim.tenderText(), claim.weight())))
+            return true;
+        return artifact.tables().stream().flatMap(table -> table.cells().stream())
+                .anyMatch(cell -> cell.rawText() != null
+                        && declaredDimensionSubtotal(claim.dimension(), cell.rawText(), claim.weight()));
+    }
 
     private static boolean rowProvesWeight(ScoreEvidenceClaim claim, List<BigDecimal> authoritative,
                                            List<BigDecimal> title) {
@@ -187,7 +196,6 @@ final class OriginalScoreWeightEvidencePolicy {
         return !claim.parent() && distinct(title).size() == 1
                 && distinct(title).iterator().next().compareTo(claim.weight()) == 0;
     }
-
     private static boolean quoteSubscoresSumToWeight(String rowText, ScoreEvidenceClaim claim) {
         if (claim.parent() || claim.weight() == null || claim.quotedText() == null
                 || claim.quotedText().isBlank() || !containsQuote(rowText, claim.quotedText())) return false;

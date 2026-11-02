@@ -49,7 +49,7 @@ public final class OriginalScoreEvidencePolicy {
             return new ScoreEvidenceClaim(id, id,
                     f.tableId(), f.dimension(), f.sourceCellIds(), f.sourceCellIds(), f.weight(),
                     parentKeys.contains(id), units.contains(id), f.quotedText(), tenderText,
-                    f.schemeId(), f.scopeStatus(), f.childAggregation());
+                    f.schemeId(), f.scopeStatus(), f.childAggregation(), OriginalRuleRestoration.restoreForWeight(f, artifact, facts));
         }).toList();
         return rejectAmbiguousIdentity(verify(context, artifact, claims, modelTotal, true), facts);
     }
@@ -93,6 +93,7 @@ public final class OriginalScoreEvidencePolicy {
     public static Verification verifyFacts(OriginalScoringContext context, DocumentArtifact artifact,
                                            List<ScoreFact> facts) {
         Set<String> parentIds = ScoreFact.parentIds(facts);
+        var ruleUnits = OriginalRuleRestoration.restoreFacts(artifact, facts);
         Map<String, ScoreFact> factsById = facts.stream().collect(java.util.stream.Collectors.toMap(
                 ScoreFact::factId, fact -> fact, (first, ignored) -> first));
         List<ScoreUnitPolicy.Node> nodes = facts.stream().map(f -> new ScoreUnitPolicy.Node(
@@ -101,7 +102,7 @@ public final class OriginalScoreEvidencePolicy {
         List<ScoreEvidenceClaim> claims = facts.stream().map(f -> new ScoreEvidenceClaim(f.factId(), f.factId(), f.sourceTableId(),
                 f.dimension(), qualificationSourceCells(f, factsById), f.weightEvidence() == null ? f.sourceCellIds()
                 : List.of(f.weightEvidence().cellId()), f.weight(), parentIds.contains(f.factId()),
-                units.contains(f.factId()), f.dimension(), null, "", "", f.childAggregation())).toList();
+                units.contains(f.factId()), f.dimension(), null, "", "", f.childAggregation(), ruleUnits.get(f))).toList();
         return verify(context, artifact, claims, null, false);
     }
 
