@@ -40,7 +40,7 @@ export const scoreParseApi = {
 
   /** 提交人工复核审计记录；不覆盖正式 score_item */
   async submitReview(projectId, body = {}) {
-    return httpClient.post(`/api/projects/${projectId}/score-parse/review`, body)
+    return httpClient.post(`/api/projects/${projectId}/score-parse/review`, body, { skipGlobalErrorMessage: true })
   },
 
   /** 触发评分标准解析（异步任务，返回 { taskId, status }；FR-021 覆盖旧解析结果） */

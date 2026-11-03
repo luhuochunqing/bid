@@ -184,17 +184,23 @@ public class ScoreParseReviewAppService {
             throw new IllegalArgumentException("包含不存在的评分事实");
         if (selectedFactIds.isEmpty()) selectedFactIds.addAll(eligibleIds);
         if (selectedFactIds.isEmpty()) throw new IllegalArgumentException("没有可供人工核对的候选项");
-        Set<String> documentSchemes = qualifications.values().stream()
+        Set<String> allDocumentSchemes = qualifications.values().stream()
+                .map(ScoreParseReviewFactMapper.Qualification::schemeId)
+                .filter(id -> id != null && !id.isBlank()).collect(Collectors.toSet());
+        Set<String> verifiedDocumentSchemes = qualifications.values().stream()
                 .filter(q -> !"OUT_OF_SCHEME".equals(q.scopeStatus()))
                 .map(ScoreParseReviewFactMapper.Qualification::schemeId)
                 .filter(id -> id != null && !id.isBlank()).collect(Collectors.toSet());
+        Set<String> documentSchemes = verifiedDocumentSchemes.isEmpty() ? allDocumentSchemes : verifiedDocumentSchemes;
         Set<String> selectedSchemes = selectedFactIds.stream()
                 .filter(eligibleIds::contains)
                 .map(qualifications::get)
                 .filter(java.util.Objects::nonNull).map(ScoreParseReviewFactMapper.Qualification::schemeId)
                 .filter(id -> id != null && !id.isBlank()).collect(Collectors.toSet());
         String requested = requestedScheme == null ? "" : requestedScheme.trim();
-        if ((!requested.isEmpty() && !documentSchemes.contains(requested)) || selectedSchemes.size() > 1
+        boolean hasAllowedScheme = !requested.isEmpty()
+                && (documentSchemes.contains(requested) || allDocumentSchemes.contains(requested) || allDocumentSchemes.isEmpty());
+        if ((!requested.isEmpty() && !hasAllowedScheme) || selectedSchemes.size() > 1
                 || (!requested.isEmpty() && !selectedSchemes.isEmpty() && !selectedSchemes.contains(requested)))
             throw new IllegalArgumentException("一次采纳只能包含所选评分方案的事实");
         if (requested.isEmpty() && selectedSchemes.isEmpty() && documentSchemes.size() > 1)

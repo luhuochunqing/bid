@@ -727,3 +727,17 @@ trigger（同步<1s，互斥校验+建任务）
   4. **领域抽取逻辑拆解**：将约束提取方法（面积、金额、资质、数量等）抽取至 `ScoreItemConstraintExtractor`，满足 300 行 line budget 门禁要求。
 - **关联教训**：`docs/lessons/lessons-learned.md` §446。
 
+## 34. 跨页评分表人工复核方案白名单死锁与双重错误弹窗消除（项目 1117，2026-11-03）
+
+- **症状与根因**：项目 1117 属于跨页多物理表格，初始提取的 7 项评分事实均被打上 `OUT_OF_SCHEME` 待审标记。用户在前端人工将全部 7 项纳入方案（合计 100 分）并点击一键采纳时，后端报 400 错误：`一次采纳只能包含所选评分方案的事实`，且前端并排弹出两条重叠的错误提示。
+  1. **后端死锁**：`ScoreParseReviewAppService.handleAdoptCandidates` 在统计合法方案池 `documentSchemes` 时执行了 `.filter(q -> !"OUT_OF_SCHEME".equals(q.scopeStatus()))`，导致当所有抽取事实初始均为方案外时，合法方案池被过滤成空集合；此时前端传入目标方案 ID，触发 `!requested.isEmpty() && !documentSchemes.contains(requested)` 强制抛出异常，封死人工兜底采纳路径。
+  2. **前端重合弹窗**：Axios 全局响应拦截器（`src/api/client.js:254`）与业务 catch 块（`useScoreCandidateAdoption.js:86`）同时弹窗。
+- **修复措施**：
+  1. **后端白名单解除死锁**：引入 `allDocumentSchemes`，当 `verifiedDocumentSchemes` 为空时自动回退扩展至全量候选方案，只要人工指定的 `requestedScheme` 属于文档候选方案池（或文档无限定方案），均放行归入该方案生效，彻底消除死锁，同时保留多方案互斥混采防御。
+  2. **前端请求跳过全局拦截弹窗**：在 `scoreParseApi.submitReview` 请求配置中注入 `{ skipGlobalErrorMessage: true }`，跳过 Axios 全局弹窗，错误统一由业务层单一管控。
+- **验证与门禁**：
+  - 新增最小失败测试 `submitReview_adoptCandidates_whenAllFactsOutOfSchemeAndRequestedSchemeProvided_allowsAdoption`（Red → Green）；
+  - `ScoreParseReviewAppServiceTest` 全量 26 项测试 100% 通过；
+  - 前端组件测试 `ScoreCandidateReviewCard.spec.js` 24 项全量测试 100% 通过；
+  - 详见 `docs/lessons/lessons-learned.md` §487。
+

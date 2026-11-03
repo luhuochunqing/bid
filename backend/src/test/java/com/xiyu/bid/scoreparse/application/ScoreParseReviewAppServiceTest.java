@@ -215,6 +215,31 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
+    void submitReview_adoptCandidates_whenAllFactsOutOfSchemeAndRequestedSchemeProvided_allowsAdoption() {
+        mockLatestTask();
+        ScoreParseFact fact1 = fact("fact-1", "30");
+        fact1.setDimension("公司业绩");
+        ScoreParseFact fact2 = fact("fact-2", "70");
+        fact2.setDimension("技术方案");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact1, fact2));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                qualification("fact-1", "scheme-third-chapter", "OUT_OF_SCHEME", false, "ITEM_SCHEME_SCOPE_MISMATCH"),
+                qualification("fact-2", "scheme-third-chapter", "OUT_OF_SCHEME", false, "ITEM_SCHEME_SCOPE_MISMATCH")));
+
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("fact-1", "ADOPT_CANDIDATES", new BigDecimal("30"), "纳入业绩"),
+                new ScoreParseReviewCommand.Action("fact-2", "ADOPT_CANDIDATES", new BigDecimal("70"), "纳入技术方案")
+        ), "人工确认采纳100分", 9L, "scheme-third-chapter"), "admin");
+
+        ArgumentCaptor<List<com.xiyu.bid.scoreparse.domain.ScoreCandidate>> captor =
+                ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), captor.capture());
+        assertThat(captor.getValue()).hasSize(2)
+                .extracting(com.xiyu.bid.scoreparse.domain.ScoreCandidate::dim)
+                .containsExactly("公司业绩", "技术方案");
+    }
+
+    @Test
     void submitReview_adoptCandidates_rejectsNonExistentFact() {
         mockLatestTask();
         ScoreParseFact inScheme = fact("in-scheme", "100");
