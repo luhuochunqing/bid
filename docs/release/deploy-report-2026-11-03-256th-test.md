@@ -7,7 +7,7 @@
 - **提交 Commit**: `3a0ed6dc6`（!2955）
 - **上一版本**: `38c34354b`（2026-11-01 19:32 CST 激活，第 255 次）
 - **部署方式**: 按 `xiyu-server-deploy` SOP 手工执行 `package-release.sh` + `remote-deploy.sh`（固化 `VITE_API_BASE_URL=""`、`VITE_OBS_ENABLED=true`、`COPYFILE_DISABLE=1`）
-- **增量规模**: 18 个 commit（!2949 报告、!2950、!2951 报告、!2952、!2953、!2954、!2955；含 12 个代码 commit）
+- **增量规模**: 18 个 commit（含 7 个 PR 合并；非合并提交 11 个 = 7 个代码/测试 + 4 个文档类，覆盖 !2949、!2950、!2951、!2952、!2953、!2954、!2955）
 - **部署前探测**: VPN 数据面一度异常（ping 100% 丢包 / SSH kex 被服务端关闭 / 8080 空响应），用户重连后恢复；服务器确认 `deployed-release.json` releaseId=`38c34354b`，与部署报告推算一致
 
 ---
