@@ -7996,3 +7996,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - 无编号不代表没有可证明的逻辑评分单元；沿用闭合与独占约束补齐续文，同时保留有分值条件的说明。满宽评委汇总操作说明可不单独计项，但原artifact仍保留。
 - 固定样本prod-1133恢复4项、合计100后仍有OCR字符差异；其他样本仍失败。准确性必须按项、分值、原文、来源分别验收，自动通过和总分100都不是整文件准确的证明。
 - 负例必须经过真实适配器分类，不能手设isScoreTable规避关键分支；仅禁止表连接器赋予同一logicalRowId还不够，LogicalRuleSourceUnit按空白列扩展物理行时也必须保留公共说明边界。
+
+## 487. 跨页评分表人工复核方案白名单死锁与双重错误弹窗消除（项目1117采纳拦截复盘，2026-11-03）
+
+- **背景与现象**：项目 1117（招商积余项目，跨第 42–44 页深层表头表格）经结构化抽取识别出 7 项完整评分事实（管理体系 10分、公司业绩 30分、仓储能力 25分、线上业务能力 5分、企业荣誉 5分、服务方案 15分、应急方案 10分，合计 100 分）。因多物理表格跨页，初始状态均被打上 `OUT_OF_SCHEME` 待人工确认。用户在前端人工复核卡片中将 7 项全部点击 `+ 纳入本方案`，满分 100 分激活绿色采纳按钮，点击「⚡ 一键采纳为正式评分标准（100分）」时，系统报 400 错误：`一次采纳只能包含所选评分方案的事实`，且前端并排重叠弹出两条完全相同的错误提示。
+- **根因分析**：
+  1. **后端方案白名单过滤死锁**：`ScoreParseReviewAppService.handleAdoptCandidates` 在统计当前文档合法方案池 `documentSchemes` 时执行了 `.filter(q -> !"OUT_OF_SCHEME".equals(q.scopeStatus()))`。当某文档的所有抽取事实初始均为方案外时，合法方案池被直接过滤成空集 `[]`；而前端提交人工采纳时传入了当前用户聚焦的方案 ID（`requestedScheme`，如第三章综合评估法方案 ID），导致 `!requested.isEmpty() && !documentSchemes.contains(requested)` 判定恒为真，后端误判为“用户提交了不存在于文档的非法方案”，强制抛出 `IllegalArgumentException("一次采纳只能包含所选评分方案的事实")`，使得人工兜底纠偏闭环被硬性死锁拦截。
+  2. **前端双重弹窗重叠**：底层 Axios 全局响应拦截器（`src/api/client.js:254`）在捕获 400 状态码时自动根据 `serverMsg` 触发了一次 `ElMessage.error`；而组件业务 catch 块（`useScoreCandidateAdoption.js:86`）又调用了 `notifyErrorUnlessRateLimit` 再次触发了一次 `ElMessage.error`，导致两条相同的错误提示重叠展示。
+- **修复与防护**：
+  1. **后端方案白名单解除死锁**：引入 `allDocumentSchemes`，涵盖文档中全部事实声明的方案候选（与 `ScoreParseReviewFactMapper.schemes` 的前端展示口径完全对齐）；当 `verifiedDocumentSchemes` 为空时，合法方案候选集合自动回退扩展至 `allDocumentSchemes`。只要人工指定的 `requestedScheme` 属于文档候选方案池（或文档无限定方案），均视为合法目标方案放行并统一归入该方案生效，彻底消除死锁；同时严格保留 `selectedSchemes.size() > 1` 防跨标包/多方案互斥混采的既有安全防线。
+  2. **前端错误通知收拢**：在 `scoreParseApi.submitReview` 请求配置中注入 `{ skipGlobalErrorMessage: true }`，跳过底层 Axios 的通用报错，由组件业务 catch 块统一管控报错，彻底杜绝双弹窗重叠。
+- **验证与铁证**：
+  - 新增最小失败测试 `submitReview_adoptCandidates_whenAllFactsOutOfSchemeAndRequestedSchemeProvided_allowsAdoption`，真实复现 Red 状态（精确捕获 `一次采纳只能包含所选评分方案的事实` 异常），修复后转 Green；
+  - `ScoreParseReviewAppServiceTest` 全量 26 项测试 100% 绿灯（0 failures, 0 errors）；
+  - 前端组件测试 `ScoreCandidateReviewCard.spec.js`（24/24 绿灯）、`scoreParse.spec.js`（1/1 绿灯）全量通过。
