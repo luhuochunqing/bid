@@ -93,7 +93,7 @@ python3 scripts/review-workflow.py run \
 
 四个入口共用检查器，缺失即阻断；`UNIFIED_DEV_FLOW_SKIP_REVIEW` 和 `PRE_PUSH_GATE=0` 不能跳过 pre-push 中独立的三技能检查。run 不自动提交、push、建 PR、合并或部署。本地记录属于可信开发流程，不能防御主动修改脚本或绕过本地 hook；Gitee 服务端保护需单独配置。
 
-**纯文档免审**：变更文件全部落在 `docs/`、`.wiki/` 目录或为 `*.md`/`*.mdx` 时，`review-workflow.py check` 直接放行（不生成凭证、不调用三技能），工作区仍须干净。只要混入任何代码或配置改动，即恢复完整门禁。
+**纯文档免审**：变更文件全部为 `*.md`/`*.mdx`，或为 `docs/`、`.wiki/` 内的文档工件（`.txt`、`.rst`、`.pdf`、`.png`、`.jpg`、`.jpeg`、`.gif`、`.webp`、`.docx`、`.pptx`）时，`review-workflow.py check` 直接放行（不生成凭证、不调用三技能），工作区仍须干净。目录前缀本身不构成免审条件；代码、配置及未知类型均恢复完整门禁。
 
 ## 协作暗号
 

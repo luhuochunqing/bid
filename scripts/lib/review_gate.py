@@ -9,6 +9,8 @@ import subprocess
 STAGES = ('ai-slop-cleaner', 'verify', 'google-code-review', 'xiyu-code-review')
 DOC_EXTENSIONS = ('.md', '.mdx')
 DOC_DIRECTORIES = ('docs/', '.wiki/')
+DOC_ARTIFACT_EXTENSIONS = ('.txt', '.rst', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp',
+                           '.docx', '.pptx')
 
 class GateError(Exception):
     pass
@@ -44,13 +46,15 @@ def changed_files(root, base):
 
 
 def documentation_only(root, base_ref='origin/main'):
-    """只有 docs/、.wiki/ 目录或 Markdown 文件变更时为纯文档交付，免三技能审查。"""
+    """仅 Markdown 或文档目录内明确的文档工件免审；未知类型默认走完整门禁。"""
     base_tip = git(root, 'rev-parse', '--verify', base_ref + '^{commit}').decode().strip()
     base = git(root, 'merge-base', base_tip, 'HEAD').decode().strip()
     files = changed_files(root, base)
     if not files:
         return False, files
-    return all(name.startswith(DOC_DIRECTORIES) or name.lower().endswith(DOC_EXTENSIONS)
+    return all(name.lower().endswith(DOC_EXTENSIONS)
+               or (name.startswith(DOC_DIRECTORIES)
+                   and name.lower().endswith(DOC_ARTIFACT_EXTENSIONS))
                for name in files), files
 
 
