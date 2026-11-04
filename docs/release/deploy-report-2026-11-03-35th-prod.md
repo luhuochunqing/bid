@@ -30,7 +30,7 @@
 
 ## 变更范围与 PR
 
-`git diff d6d6fa454..HEAD`：**51 files changed, +2301 / -92**。
+`git diff d6d6fa454..9baae6bbc`：**51 files changed, +2301 / -92**。
 
 | 目录 | 文件数 |
 |---|---|
