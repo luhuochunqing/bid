@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-10-26
-health_checked: 2026-10-26
+updated: 2026-11-04
+health_checked: 2026-11-04
 sources:
   - specs/065-tender-large-file-parse/spec.md
   - specs/041-ai-score-parse-backend/spec.md
@@ -740,4 +740,16 @@ trigger（同步<1s，互斥校验+建任务）
   - `ScoreParseReviewAppServiceTest` 全量 26 项测试 100% 通过；
   - 前端组件测试 `ScoreCandidateReviewCard.spec.js` 24 项全量测试 100% 通过；
   - 详见 `docs/lessons/lessons-learned.md` §487。
+
+## 35. 评分模型 Fallback 异常击穿与入口路由器严格防倒退降级保护（项目 35，2026-11-04）
+
+- **症状与根因**：生产环境项目 35（郑州市轨道交通2026年甄云平台办公类物资电商引入项目）评分表跨第 38–51 页，结构化提取获得了 4 项评分事实（欠分 `WEIGHT_SUM_MISMATCH`），`ScoreParseEntryRouter.isSatisfactory(result)` 返回 `false` 并触发懒加载调用大模型 fallback（`LegacyTextScoreExtraction`）。大模型对全文长文本进行 15 个分片提取，持续 6 分钟后在第 15 个分片因返回长 JSON 截断抛出 `ScoreModelRequestException`。由于 `ScoreParseEntryRouter.extract` 中调用 `fallback.get()` 缺乏异常捕获保护，异常一路穿透至应用层将任务强制标记为 `FAILED`，原本已提取出的结构化事实全部被废弃，违背了入口路由契约中的“严格防倒退（Monotonicity & Non-Regression）”原则。
+- **修复措施**：
+  1. **入口路由异常保全降级**：在 `ScoreParseEntryRouter.extract` 中增加对 `fallback.get()` 的 `try-catch` 保护。当 fallback 发生任何 `RuntimeException` 时，检查主结果是否已有内容（`hasContent(result) == true`）。若已有结构化提取事实，捕获异常、记录 warning 日志，并将异常信息作为诊断写入 `result.sourceDiagnostics`（前缀 `FALLBACK_MODEL_FAILED:`），平稳降级返回原结构化结果，确保任务顺利流转至 `REVIEW_REQUIRED`（人工复核），人工复核面板可正常呈现候选项供用户采纳；若主结果无有效内容，则原样抛出异常由任务失败边界收口。
+- **验证与门禁**：
+  - 新增单测 `fallbackExceptionDegradesToStructuredResultWhenContentExists`（Red → Green）与 `fallbackExceptionEscapesWhenNoStructuredContent`；
+  - `ScoreParseEntryRouterTest`（15项）、`ScoreModelFailurePropagationTest`（3项）、`ScoreParseAppServiceTest` 及 `ScoreParseReviewAppServiceTest` 全量 74 项单测 100% 绿灯；
+  - 本次改动属“非版式逻辑变更”（不触碰版式定位与抽取器逻辑），按门禁规范使用 `SCOREPARSE_GATE_SKIP=1`；
+  - 详见 `docs/lessons/lessons-learned.md` §488。
+
 

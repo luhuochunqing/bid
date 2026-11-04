@@ -2,6 +2,8 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -22,6 +24,8 @@ import java.util.function.Supplier;
  */
 final class ScoreParseEntryRouter {
 
+    private static final Logger log = LoggerFactory.getLogger(ScoreParseEntryRouter.class);
+
     private ScoreParseEntryRouter() {}
 
     static StructuredTableResult extract(Supplier<StructuredTableResult> structured,
@@ -30,7 +34,20 @@ final class ScoreParseEntryRouter {
         if (isSatisfactory(result)) {
             return result;
         }
-        var recovered = fallback.get();
+        StructuredTableResult recovered;
+        try {
+            recovered = fallback.get();
+        } catch (RuntimeException ex) {
+            log.warn("评分模型 fallback 提取异常，评估降级保全: hasContent={}, error={}",
+                    hasContent(result), ex.getMessage(), ex);
+            if (hasContent(result)) {
+                String errorMsg = ex.getMessage() != null && !ex.getMessage().isBlank()
+                        ? ex.getMessage()
+                        : ex.getClass().getSimpleName();
+                return mergeDiagnostics(result, List.of("FALLBACK_MODEL_FAILED:" + errorMsg));
+            }
+            throw ex;
+        }
         return selectBest(result, recovered);
     }
 
