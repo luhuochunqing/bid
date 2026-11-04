@@ -122,7 +122,7 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
             groupScopes.putIfAbsent(key, scope);
         }
         java.util.Map<String, ExtractionResult> merged = grouped.entrySet().stream().collect(
-                java.util.stream.Collectors.toMap(Map.Entry::getKey, entry -> ScoreFactChunkMerger.merge(entry.getValue()),
+                java.util.stream.Collectors.toMap(Map.Entry::getKey, entry -> ScoreFactChunkMerger.merge(entry.getValue(), artifact),
                         (first, ignored) -> first, java.util.LinkedHashMap::new));
         List<MultimodalScoreFact> facts = merged.values().stream().flatMap(result -> result.facts().stream()).toList();
         long schemeCount = scopes.stream().filter(scope -> "IN_SCHEME".equals(scope.scopeStatus()))
@@ -173,7 +173,7 @@ public class OpenAiMultimodalScoreFactExtractor implements MultimodalScoreFactEx
             results.add(new ExtractionResult(response == null ? null : response.declaredTotal,
                     facts, config.model(), 0));
         }
-        return ScoreFactChunkMerger.merge(results);
+        return ScoreFactChunkMerger.merge(results, artifact);
     }
 
     private String buildRecheckPrompt(DocumentArtifact artifact, String sourceText) {

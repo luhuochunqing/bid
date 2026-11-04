@@ -6,6 +6,7 @@ import java.util.Optional;
 
 /** Layout-only normalization with reversible UTF-16 source offsets. No spelling correction. */
 public record EvidenceText(String text, List<Integer> offsets) {
+    private static final java.util.regex.Pattern HTML_BREAK = java.util.regex.Pattern.compile("(?i)<br\\s*/?>");
     public EvidenceText { offsets = List.copyOf(offsets); }
     public record Span(int start, int end) {}
 
@@ -16,6 +17,14 @@ public record EvidenceText(String text, List<Integer> offsets) {
         int pending = -1;
         for (int i = 0; i < raw.length(); i++) {
             char c = raw.charAt(i);
+            if (c == '<') {
+                var lineBreak = HTML_BREAK.matcher(raw).region(i, raw.length());
+                if (lineBreak.lookingAt()) {
+                    if (pending < 0) pending = i;
+                    i = lineBreak.end() - 1;
+                    continue;
+                }
+            }
             if (i + 1 < raw.length() && (c == '*' || c == '_') && raw.charAt(i + 1) == c) {
                 i++;
                 continue;

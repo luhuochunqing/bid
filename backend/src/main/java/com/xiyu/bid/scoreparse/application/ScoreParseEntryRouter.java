@@ -90,7 +90,7 @@ final class ScoreParseEntryRouter {
             return mergeDiagnostics(recovered, result.sourceDiagnostics());
         }
         if (!hasContent(result)) {
-            return recovered;
+            return mergeDiagnostics(recovered, result.sourceDiagnostics());
         }
         if (!hasContent(recovered)) {
             return result;

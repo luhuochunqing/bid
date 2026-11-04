@@ -4,6 +4,19 @@ import { lookupScoreResult } from './scoreParseTask.js'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { ElMessage } from 'element-plus'
 
+it('reads OCR diagnostic metadata for legacy candidates and clears stale messages', async () => {
+  scoreParseApi.getItems.mockResolvedValue({ data: { items: [], meta: {
+    lastParseStatus: 'COMPLETED', runSummary: JSON.stringify({ sourceDiagnostics: ['BAIDU_OCR_PAGE_FAILED:24:HTTP_401'] }),
+  } } })
+  scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
+  const state = useScoreParseDrawer({ projectId: 43 }, vi.fn())
+  await state.open()
+  expect(state.sourceDiagnostics.value).toEqual(['BAIDU_OCR_PAGE_FAILED:24:HTTP_401'])
+  scoreParseApi.getItems.mockResolvedValue({ data: { items: [], meta: { runSummary: '{broken' } } })
+  await state.open()
+  expect(state.sourceDiagnostics.value).toEqual([])
+})
+
 vi.mock('element-plus', async (importOriginal) => {
   const actual = await importOriginal()
   return {

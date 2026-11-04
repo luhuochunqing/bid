@@ -481,6 +481,7 @@ class GoldenCasesReplayTest {
 
     static Stream<Arguments> cases() {
         return Stream.of(
+                Arguments.of("case-source-alias-double-count"),
                 Arguments.of("case-owned-headerless-continuation"),
                 Arguments.of("case-score-unit-authority"),
                 Arguments.of("case-score-weight-source-boundaries"),
@@ -534,6 +535,12 @@ class GoldenCasesReplayTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
     void replayGoldenCase(String caseName) throws Exception {
+        if (caseName.equals("case-source-alias-double-count")) {
+            com.xiyu.bid.scoreparse.application.Project43SourceIdentityRegressionTest.verifyGolden(
+                    GoldenCasesReplaySupport.readFixture(caseName + ".md"),
+                    GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json")));
+            return;
+        }
         if (caseName.equals("case-owned-headerless-continuation")) {
             com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduRepeatedHeaderContinuationTest.replayGoldenFixture(
                     GoldenCasesReplaySupport.readFixture(caseName + ".md"),

@@ -7,6 +7,38 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SourceRecheckPlanTest {
+    @Test void recheckCannotReplaceAParentAliasWithAnExistingUnaryChild() {
+        var alias = fact("A", "a", "a-cell", "完整规则5分", 5);
+        var parent = fact("B", "a", "a-cell", "完整规则5分", 5);
+        var child = fact("C", "a", "a-cell", "完整规则5分", 5).withParentCode("B");
+        var plan = new SourceRecheckPlan(null, "", List.of(), List.of(
+                new SourceRecheckPlan.RetryTarget(OriginalScoreEvidencePolicy.modelFactId(alias), alias.sourceCellIds())));
+        assertThat(plan.merge(List.of(alias, parent, child), List.of(child),
+                List.of(OriginalScoreEvidencePolicy.modelFactId(child)))).containsExactly(alias, parent, child);
+    }
+    @Test void selectedSourceWithNewCodeDoesNotAppendAnotherScoringUnit() {
+        var first = fact("service", "a", "a-cell", "服务方案优秀得5分", 5).withParentCode("business");
+        var retry = fact("5", "a", "a-cell", "服务方案优秀得5分", 5);
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "v2"),
+                List.of(table("a", "服务方案优秀得5分")), List.of());
+        var plan = new SourceRecheckPlan(artifact, "服务方案优秀得5分", List.of(),
+                List.of(new SourceRecheckPlan.RetryTarget(OriginalScoreEvidencePolicy.modelFactId(first), first.sourceCellIds())));
+
+        var merged = plan.merge(List.of(first), List.of(retry), List.of(OriginalScoreEvidencePolicy.modelFactId(retry)));
+
+        assertThat(merged).hasSize(1);
+        assertThat(merged.getFirst().parentCode()).isEqualTo("business");
+        assertThat(merged.getFirst().sourceMetadata().diagnostics()).anyMatch(s -> s.startsWith("SOURCE_RECHECK_REPLACED:"));
+    }
+
+    @Test void renamedUnverifiedRetryCannotIncreaseTheScore() {
+        var first = fact("service", "a", "a-cell", "服务方案优秀得5分", 5);
+        var retry = fact("5", "a", "a-cell", "服务方案优秀得5分", 5);
+        var plan = new SourceRecheckPlan(null, "", List.of(), List.of(
+                new SourceRecheckPlan.RetryTarget(OriginalScoreEvidencePolicy.modelFactId(first), first.sourceCellIds())));
+        assertThat(plan.merge(List.of(first), List.of(retry), List.of())).hasSize(1);
+    }
+
     @Test void retriesOnlyUnresolvedAnchorAndRetainsSuccessfulCandidate() {
         var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "v2"),
                 List.of(table("a", "服务甲（2分）最高2分"), table("b", "服务乙（3分）最高3分")), List.of());

@@ -60,7 +60,7 @@ public class BaiduTableArtifactEnricher {
         if (!isEnabled()) {
             return baseline;
         }
-        if (fileName == null || !fileName.toLowerCase().endsWith(".pdf") || pdfBytes == null || pdfBytes.length == 0) {
+        if (fileName == null || !fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf") || pdfBytes == null || pdfBytes.length == 0) {
             return baseline;
         }
 
@@ -90,20 +90,23 @@ public class BaiduTableArtifactEnricher {
                         List<CanonicalTable> tables = BaiduTableArtifactAdapter.toCanonicalTables(response, pageNum, section);
                         ocrTables.addAll(tables);
                         log.info("BaiduTableArtifactEnricher: Page {} recognized {} tables via Baidu OCR", pageNum, tables.size());
+                    } else if (response == null || !response.isSuccess()) {
+                        warnings.add("BAIDU_OCR_PAGE_FAILED:" + pageNum + ":"
+                                + (response == null ? "EMPTY_RESPONSE" : "PROVIDER_ERROR_" + response.errorCode()));
                     }
                 } catch (IOException | RuntimeException e) {
                     log.warn("BaiduTableArtifactEnricher: Failed to recognize page {} via Baidu OCR: {}", pageNum, e.getMessage());
-                    warnings.add("Baidu OCR page " + pageNum + " failed: " + e.getMessage());
+                    warnings.add("BAIDU_OCR_PAGE_FAILED:" + pageNum + ":" + failureCode(e));
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     log.warn("BaiduTableArtifactEnricher: Interrupted while recognizing page {} via Baidu OCR", pageNum);
-                    warnings.add("Baidu OCR page " + pageNum + " interrupted");
+                    warnings.add("BAIDU_OCR_PAGE_FAILED:" + pageNum + ":INTERRUPTED");
                     break;
                 }
             }
 
             if (ocrTables.isEmpty()) {
-                return baseline;
+                return warnings.isEmpty() ? baseline : withWarnings(baseline, warnings);
             }
 
             List<CanonicalTable> linkedOcrTables = BaiduCrossPageTableLinker.mergeCrossPageScoreTables(ocrTables,
@@ -111,8 +114,23 @@ public class BaiduTableArtifactEnricher {
             return mergeArtifact(baseline, linkedOcrTables, warnings, fileName);
         } catch (IOException | RuntimeException e) {
             log.error("BaiduTableArtifactEnricher: Unexpected error while enriching artifact for {}: {}", fileName, e.getMessage(), e);
-            return baseline;
+            return withWarnings(baseline, List.of("BAIDU_OCR_ENRICHMENT_FAILED:" + failureCode(e)));
         }
+    }
+
+    private static String failureCode(Exception failure) {
+        // Provider exceptions may include URLs or request details; persist only stable safe codes.
+        String message = String.valueOf(failure.getMessage());
+        var status = java.util.regex.Pattern.compile("(?i)HTTP(?: error:)?\\s+(\\d{3})").matcher(message);
+        return status.find() ? "HTTP_" + status.group(1) : failure.getClass().getSimpleName();
+    }
+
+    private static DocumentArtifact withWarnings(DocumentArtifact baseline, List<String> warnings) {
+        if (baseline == null) return new DocumentArtifact(new ArtifactMeta("baidu-ocr-unavailable", "", "PDF", "baidu-ocr"),
+                List.of(), warnings);
+        return new DocumentArtifact(baseline.artifact(), baseline.tables(),
+                java.util.stream.Stream.concat(baseline.warnings().stream(), warnings.stream()).distinct().toList(),
+                baseline.textBlocks(), baseline.schemaVersion(), baseline.documents());
     }
 
     /**

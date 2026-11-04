@@ -1,0 +1,5 @@
+# Data Model
+
+沿用MultimodalScoreFact与ScoreSourceMetadata；来源范围为schemeId/scopeStatus/tableId/sourceCellIds，引用规则经布局归一化对比，保留modelQuotedText以区分同一anchor下子项。合并保持canonical code与父子边；冲突保持候选供现有验证器拒绝自动通过。无持久化schema变化。
+
+沿用DocumentArtifact.warnings和StructuredTableResult.sourceDiagnostics。OCR失败诊断采用稳定BAIDU_OCR_*前缀与页号，原文/密钥不进入消息。候选即使合计100，来源获取失败仍REVIEW_REQUIRED。

@@ -148,6 +148,25 @@ class ScoreParseAppServiceTest {
     }
 
     @Test
+    void pdfWithoutTablesRetainsOcrPermissionFailureThroughLegacySummary() throws Exception {
+        var task = mockParseFlowReturning(defaultCandidates());
+        String diagnostic = "BAIDU_OCR_PAGE_FAILED:24:PROVIDER_ERROR_6";
+        when(initiationTenderTextResolver.loadTenderFile("doc-insight://t/1", "tender.pdf", null))
+                .thenReturn(new LoadedBidFile.InMemory(new byte[]{1}, "tender.pdf", "application/pdf"));
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "sidecar"),
+                List.of(), List.of(diagnostic));
+        var extractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractorProvider.getIfAvailable()).thenReturn(extractor);
+        when(extractor.extract(any(byte[].class), eq("tender.pdf"))).thenReturn(artifact);
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(stateService).markCompleted(TASK_ID);
+        assertThat(capturedPersistedCandidates().getValue()).hasSize(2);
+        assertThat(task.getRunSummary()).contains("\"lanes\"", "\"sourceDiagnostics\"", diagnostic);
+    }
+
+    @Test
     void parse_zeroItemsFailedPath_stillPersistsRunSummary() {
         // spec 057 xcode-review A-4：0 项失败终态同样落 runSummary——事故复盘需要失败时的 lane/对齐档案
         ScoreParseTask task = mockParseFlowReturning(List.of(), 3);

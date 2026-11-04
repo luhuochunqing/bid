@@ -74,13 +74,13 @@ describe('useAiModelSettings', () => {
     baiduOcrConfig.value.secretKey = 'test-secret'
 
     await testBaiduOcr()
+    expect(elMessage.success).toHaveBeenCalledWith(expect.stringContaining('尚未验证'))
 
     expect(testBaiduOcrConnection).toHaveBeenCalledWith({
       apiKey: 'test-key',
       secretKey: 'test-secret',
     })
     expect(baiduOcrConfig.value.lastTestStatus).toBe('success')
-    expect(elMessage.success).toHaveBeenCalledWith('百度智能云表格识别连接测试成功')
   })
 
   it('compiles and mounts AiModelSettingsPanel with defineModel bindings', () => {

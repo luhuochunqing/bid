@@ -234,7 +234,7 @@ export function useAiModelSettings() {
       baiduOcrConfig.value.lastTestMessage = result.data?.message || ''
       baiduOcrConfig.value.lastTestAt = result.data?.testedAt || new Date().toISOString()
       if (baiduOcrConfig.value.lastTestStatus === 'success') {
-        ElMessage.success('百度智能云表格识别连接测试成功')
+        ElMessage.success('百度 OCR 凭证鉴权成功；尚未验证表格文字识别 V2 权限，请完成一次实际解析确认。')
       } else {
         ElMessage.error(baiduOcrConfig.value.lastTestMessage || '百度智能云表格识别连接测试失败')
       }

@@ -173,7 +173,7 @@ public class ScoreParseAppService {
                 return;
             }
             if (structuredCandidates.structureIncomplete()) {
-                StructuredTableExtractionHandler.markIncomplete(task, taskId, structuredCandidates.failureReason(),
+                StructuredTableExtractionHandler.markIncomplete(task, taskId, structuredCandidates,
                         taskRepository, stateService, progressService);
                 return;
             }
@@ -188,20 +188,22 @@ public class ScoreParseAppService {
                     (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
             task.setSkippedChunks(outcome.skippedChunks());
             List<ScoreCandidate> tableCandidates = structuredCandidates.candidates();
-            if (tableCandidates.size() >= STRUCTURED_TABLE_MIN_CANDIDATES) {
+            boolean usesStructuredCandidates = tableCandidates.size() >= STRUCTURED_TABLE_MIN_CANDIDATES;
+            if (usesStructuredCandidates) {
                 log.info("结构化表格提取命中候选: count={}", tableCandidates.size());
             } else {
                 tableCandidates = recallTableCandidates(source.text());
             }
             var rawCandidates = new java.util.ArrayList<>(outcome.candidates());
             rawCandidates.addAll(tableCandidates);
-            if (tableCandidates != structuredCandidates.candidates()) rawCandidates.addAll(structuredCandidates.candidates());
+            if (!usesStructuredCandidates) rawCandidates.addAll(structuredCandidates.candidates());
             var draft = versioned ? versionedCompletion.legacyDraft(task, rawCandidates, outcome.skippedChunks()) : null;
             updateProgress(taskId, 70, "GOVERN", "候选治理、归并裁决与权重收敛");
             var processed = postProcessor.process(taskId, source.text(), outcome, tableCandidates,
                     (progress, stageKey) -> updateProgress(taskId, progress, stageKey,
                             "GAP_RECHECK".equals(stageKey) ? "分值或编号连续性异常，触发完整性回补" : stageKey));
-            task.setRunSummary(processed.runSummaryJson());
+            task.setRunSummary(RunSummaryAssembler.withSourceDiagnostics(
+                    processed.runSummaryJson(), structuredCandidates.sourceDiagnostics()));
             task.setNormalizationWarning(processed.normalizationWarning()); task.setPipelineVersion(processed.pipelineVersion());
             task.setDecisionStatus(processed.decisionStatus() == null ? null : processed.decisionStatus().name());
             task.setFallbackReason(processed.fallbackReason());

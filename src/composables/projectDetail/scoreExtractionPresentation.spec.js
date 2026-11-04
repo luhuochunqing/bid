@@ -21,4 +21,11 @@ describe('score extraction presentation', () => {
     expect(extractionReason('FULL_RULE_UNIT_UNRESOLVED')).toBe('本项完整原文边界待核对')
     expect(extractionReason('UNKNOWN')).toContain('待核对')
   })
+
+  it('distinguishes OCR credentials, table permission, and temporary failures', () => {
+    expect(extractionReason('BAIDU_OCR_PAGE_FAILED:24:HTTP_401')).toContain('凭证')
+    expect(extractionReason('BAIDU_OCR_PAGE_FAILED:24:PROVIDER_ERROR_6')).toContain('表格文字识别 V2')
+    expect(extractionReason('BAIDU_OCR_PAGE_FAILED:24:PROVIDER_ERROR_6')).toContain('权限')
+    expect(extractionReason('BAIDU_OCR_PAGE_FAILED:24:IOException')).toContain('第 24 页')
+  })
 })

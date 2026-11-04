@@ -1,0 +1,19 @@
+{
+  "synthetic": true,
+  "focus": "完整来源11单元100分，服务5/整体方案10/团队4在首次模型结果与重试中改名时不能重复计分",
+  "expectedLeafTotal": 100,
+  "expectedCount": 11,
+  "items": [
+    {"code":"1","dimension":"响应报价","weight":30},
+    {"code":"2","dimension":"业绩","weight":5},
+    {"code":"3","dimension":"仓储能力","weight":10},
+    {"code":"4","dimension":"配送能力","weight":10},
+    {"code":"5","dimension":"产品能力","weight":10},
+    {"code":"6","dimension":"服务","weight":5},
+    {"code":"7","dimension":"整体方案","weight":10},
+    {"code":"8","dimension":"项目团队","weight":4},
+    {"code":"9","dimension":"接口对接","weight":4},
+    {"code":"10","dimension":"价格管控","weight":6},
+    {"code":"11","dimension":"质量管控","weight":6}
+  ]
+}

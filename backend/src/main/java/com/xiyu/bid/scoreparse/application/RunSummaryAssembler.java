@@ -45,6 +45,36 @@ final class RunSummaryAssembler {
     private RunSummaryAssembler() {
     }
 
+    static List<String> sourceDiagnostics(String summary) {
+        if (summary == null || summary.isBlank()) return List.of();
+        try {
+            var values = MAPPER.readTree(summary).path("sourceDiagnostics");
+            var result = new java.util.ArrayList<String>();
+            if (values.isArray()) values.forEach(value -> {
+                if (value.isTextual() && !value.asText().isBlank()) result.add(value.asText());
+            });
+            return List.copyOf(result);
+        } catch (JsonProcessingException failure) {
+            throw new IllegalStateException("run_summary 来源诊断读取失败", failure);
+        }
+    }
+
+    static String withSourceDiagnostics(String summary, List<String> diagnostics) {
+        if (diagnostics == null || diagnostics.isEmpty()) return summary;
+        try {
+            var root = (com.fasterxml.jackson.databind.node.ObjectNode) MAPPER.readTree(summary);
+            var values = root.withArray("sourceDiagnostics");
+            var unique = new java.util.LinkedHashSet<String>();
+            values.forEach(value -> unique.add(value.asText()));
+            unique.addAll(diagnostics);
+            values.removeAll();
+            unique.forEach(values::add);
+            return MAPPER.writeValueAsString(root);
+        } catch (JsonProcessingException failure) {
+            throw new IllegalStateException("run_summary 来源诊断装配失败", failure);
+        }
+    }
+
     /**
      * 旧调用入口：保留以维持 spec 057 既有测试与调用方；pipeline 维度键输出为空串，
      * 表示未记录（与历史任务 NULL 行为一致）。新调用方请使用下方 9 参重载。

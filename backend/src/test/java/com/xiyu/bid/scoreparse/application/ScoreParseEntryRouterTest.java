@@ -13,6 +13,14 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ScoreParseEntryRouterTest {
+    @Test void emptyStructuredResultRetainsOcrFailureWhenFallbackFindsCandidates() {
+        String diagnostic = "BAIDU_OCR_PAGE_FAILED:24:PROVIDER_ERROR_6";
+        var empty = StructuredSourceDiagnostics.attach(StructuredTableResult.ok(List.of()), List.of(diagnostic));
+        var candidate = new ScoreCandidate("1", "技术", "方案", new BigDecimal("10"), "SUBJECTIVE", "", "", "", "MODEL");
+        var result = ScoreParseEntryRouter.extract(() -> empty, () -> StructuredTableResult.ok(List.of(candidate)));
+        assertThat(result.candidates()).containsExactly(candidate);
+        assertThat(result.sourceDiagnostics()).containsExactly(diagnostic);
+    }
     @Test void emptyEvidenceAlsoFallsBack() {
         var evidence = StructuredTableResult.evidencePipeline(List.of(), List.of(), null, List.of());
         var recovered = StructuredTableResult.structureIncomplete("NO_SCORE_TABLE");

@@ -104,9 +104,10 @@ final class StructuredTableExtractionHandler {
                 acquired.artifact(), source.fileName(), source.text()), acquired.diagnostics());
     }
 
-    static void markIncomplete(ScoreParseTask task, String taskId, String failureReason,
+    static void markIncomplete(ScoreParseTask task, String taskId, StructuredTableResult structured,
                                ScoreParseTaskRepository taskRepository,
                                ScoreParseTaskStateService stateService, ScoreParseProgressService progressService) {
+        String failureReason = structured.failureReason();
         String reason = (failureReason == null || failureReason.isBlank()) ? "STRUCTURE_DEFECT" : failureReason;
         log.warn("结构化提取不完整，任务标记为 STRUCTURE_INCOMPLETE: taskId={}, projectId={}, file={}, failureReason={}",
                 taskId, task.getProjectId(), task.getFileName(), reason);
@@ -119,7 +120,7 @@ final class StructuredTableExtractionHandler {
                 "",
                 ScoreParsePipeline.LEGACY_FALLBACK,
                 ScoreParseDecision.STRUCTURE_INCOMPLETE.name(),
-                reason).json());
+                reason, List.of(), structured.sourceDiagnostics(), null).json());
         task.setPipelineVersion(ScoreParsePipeline.LEGACY_FALLBACK);
         task.setDecisionStatus(ScoreParseDecision.STRUCTURE_INCOMPLETE.name());
         task.setFallbackReason(reason);

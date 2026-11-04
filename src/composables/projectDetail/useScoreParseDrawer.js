@@ -11,6 +11,7 @@ import { parseTriggerSource, scoringBody, scoringSkipHint, hasMeaningfulResults,
 import { normalizeEstimatedItem, useScoreEstimateRefresh } from './useScoreEstimateRefresh.js'
 import { useScoreExtraction } from './useScoreExtraction.js'
 import { useScoreCandidateAdoption } from './useScoreCandidateAdoption.js'
+import { sourceDiagnosticsFromSummary } from './scoreExtractionPresentation.js'
 
 export function useScoreParseDrawer(props, emit) {
   const visible = ref(false)
@@ -23,6 +24,7 @@ export function useScoreParseDrawer(props, emit) {
   const sourceFileName = ref('—'), parseTime = ref('—'), bidFileName = ref('—'), scoreTime = ref('—')
   const scoringHint = ref(''), circuitHint = ref(''), normalizationWarning = ref('')
   const decisionStatus = ref(''), reviewReason = ref(''), fallbackReason = ref(''), pipelineVersion = ref(''), artifactSha256 = ref('')
+  const sourceDiagnostics = ref([])
   const reviewSnapshot = ref(null), reviewLoading = ref(false), reviewSubmitting = ref(false), reviewError = ref(''), reviewSubmitted = ref(false)
   const decisionBadgeType = computed(() => getDecisionBadgeType(decisionStatus.value, reviewSubmitted.value))
   const decisionBadgeText = computed(() => getDecisionBadgeText(decisionStatus.value, reviewSubmitted.value))
@@ -93,6 +95,7 @@ export function useScoreParseDrawer(props, emit) {
       scoreItems.value = Array.isArray(apiItems) && apiItems.length > 0 ? apiItems.map(normalizeEstimatedItem) : []
       normalizationWarning.value = data?.summary?.normalizationWarning || ''
       const meta = res?.data?.meta || {}
+      sourceDiagnostics.value = sourceDiagnosticsFromSummary(meta.runSummary)
       if (meta.sourceFileName) sourceFileName.value = meta.sourceFileName
       if (meta.parseTime) parseTime.value = formatTime(meta.parseTime)
       if (meta.bidFileName) bidFileName.value = meta.bidFileName
@@ -284,7 +287,7 @@ export function useScoreParseDrawer(props, emit) {
     scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult,
     totalWeight, objectiveWeight, subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount,
     estTotalScore, actualTotalScore, openDetail, open, runScoring, reparse,
-    decisionStatus, decisionBadgeType, decisionBadgeText, decisionBadgeVisible, reviewReason, fallbackReason, pipelineVersion, artifactSha256,
+    decisionStatus, decisionBadgeType, decisionBadgeText, decisionBadgeVisible, reviewReason, fallbackReason, pipelineVersion, artifactSha256, sourceDiagnostics,
     reviewRequired, reviewSnapshot, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewSubmitted, reviewError,
     loadReviewSnapshotIfNeeded, submitReviewRetention,
     candidateFacts, schemes, selectedSchemeId, schemeSelectionRequired, candidateTotalWeight, declaredTotalWeight, adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,

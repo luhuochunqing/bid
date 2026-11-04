@@ -65,32 +65,44 @@ public record SourceRecheckPlan(DocumentArtifact artifact, String text, List<Str
 
     public static List<MultimodalScoreFact> merge(List<MultimodalScoreFact> first, List<MultimodalScoreFact> retry,
                                                  List<String> verifiedFactIds, List<String> diagnostics) {
-        return merge(first, retry, verifiedFactIds, diagnostics, List.of());
+        return merge(first, retry, verifiedFactIds, diagnostics, List.of(), null);
     }
 
     public List<MultimodalScoreFact> merge(List<MultimodalScoreFact> first, List<MultimodalScoreFact> retry,
                                           List<String> verifiedFactIds) {
-        return merge(first, retry, verifiedFactIds, diagnostics, targets);
+        return merge(first, retry, verifiedFactIds, diagnostics, targets, artifact);
     }
 
     private static List<MultimodalScoreFact> merge(List<MultimodalScoreFact> first, List<MultimodalScoreFact> retry,
                                                   List<String> verifiedFactIds, List<String> diagnostics,
-                                                  List<RetryTarget> targets) {
+                                                  List<RetryTarget> targets, DocumentArtifact artifact) {
         List<MultimodalScoreFact> merged = new ArrayList<>(first);
+        var graph = MultimodalFactParentCodeNormalizer.normalize(java.util.stream.Stream.concat(first.stream(), retry.stream()).toList());
+        var hierarchyUnits = SourceFactIdentity.ambiguousHierarchyUnits(graph, artifact);
         for (var candidate : retry) {
-            List<MultimodalScoreFact> previous = first.stream().filter(f -> key(f).equals(key(candidate)))
+            List<MultimodalScoreFact> previous = first.stream()
+                    .filter(f -> !SourceFactIdentity.related(f, candidate, graph))
+                    .filter(f -> key(f).equals(key(candidate)) || (SourceFactIdentity.sameUnit(f, candidate, artifact)
+                            && hierarchyUnits.stream().noneMatch(unit ->
+                                    SourceFactIdentity.sameUnit(unit, f.withParentCode(""), artifact))))
                     .filter(f -> targets.stream().anyMatch(target -> target.factId().equals(OriginalScoreEvidencePolicy.modelFactId(f))
                             && !candidate.sourceCellIds().isEmpty()
                             && target.sourceCellIds().containsAll(candidate.sourceCellIds())))
                     .toList();
             boolean verified = verifiedFactIds.contains(OriginalScoreEvidencePolicy.modelFactId(candidate))
-                    && retry.stream().filter(f -> key(f).equals(key(candidate))).count() == 1;
+                    && retry.stream().filter(f -> key(f).equals(key(candidate)) || SourceFactIdentity.sameUnit(f, candidate, artifact)).count() == 1;
             if (previous.size() == 1 && verified) {
                 var old = previous.getFirst();
                 var notes = new ArrayList<>(old.sourceMetadata().diagnostics());
                 notes.addAll(candidate.sourceMetadata().diagnostics());
                 notes.add("SOURCE_RECHECK_REPLACED:" + old.quotedText());
-                merged.set(merged.indexOf(old), annotate(candidate, notes));
+                var replacement = candidate.parentCode().isBlank() ? candidate.withParentCode(old.parentCode()) : candidate;
+                for (int i = 0; i < merged.size(); i++) {
+                    if (old.equals(MultimodalFactParentCodeNormalizer.resolveParent(merged.get(i), first)))
+                        merged.set(i, merged.get(i).withParentCode(replacement.code()));
+                }
+                int index = merged.indexOf(old);
+                if (index >= 0) merged.set(index, annotate(replacement, notes));
             } else if (previous.isEmpty() && first.stream().noneMatch(f -> f.equals(candidate))) {
                 merged.add(verified ? candidate : annotate(candidate, List.of("SOURCE_RECHECK_UNVERIFIED")));
             } else if (previous.size() == 1) {
@@ -101,7 +113,7 @@ public record SourceRecheckPlan(DocumentArtifact artifact, String text, List<Str
         }
         List<MultimodalScoreFact> combined = diagnostics.isEmpty() ? List.copyOf(merged)
                 : merged.stream().map(fact -> annotate(fact, diagnostics)).toList();
-        return MultimodalFactParentCodeNormalizer.normalize(combined);
+        return MultimodalFactParentCodeNormalizer.normalize(SourceFactDeduplication.merge(combined, artifact));
     }
 
     private static String key(MultimodalScoreFact fact) {

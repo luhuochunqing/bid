@@ -20,8 +20,22 @@ const reasons = {
   SOURCE_SPAN_UNRESOLVED: '原文位置尚未核验', SOURCE_UNAVAILABLE: '原文来源暂不可用',
 }
 export function extractionReason(code) {
-  const key = String(code || '').split(':')[0]
+  const [key, page, cause] = String(code || '').split(':')
+  if (key === 'BAIDU_OCR_PAGE_FAILED') {
+    const location = /^\d+$/.test(page) ? `第 ${page} 页` : '部分页面'
+    if (cause === 'PROVIDER_ERROR_6') return `${location}表格识别失败：百度应用未开通表格文字识别 V2 权限，请联系管理员开启后重新解析。`
+    if (['HTTP_401', 'HTTP_403', 'PROVIDER_ERROR_110', 'PROVIDER_ERROR_111'].includes(cause)) return `${location}表格识别鉴权失败，请联系管理员检查百度 OCR 凭证和权限后重新解析。`
+    return `${location}表格识别未完成，请检查 OCR 服务后重新解析，并对照原文复核候选。`
+  }
+  if (key === 'BAIDU_OCR_ENRICHMENT_FAILED') return '招标文件表格识别未完成，请检查文件及 OCR 服务后重新解析。'
   return Object.hasOwn(reasons, key) ? reasons[key] : '该项来源或规则仍有待核对的问题，请结合原文检查'
+}
+
+export function sourceDiagnosticsFromSummary(summary) {
+  try {
+    const value = typeof summary === 'string' ? JSON.parse(summary) : summary
+    return Array.isArray(value?.sourceDiagnostics) ? value.sourceDiagnostics.filter(note => typeof note === 'string') : []
+  } catch { return [] }
 }
 export function extractionTaskLabel(status) {
   return ({ COMPLETED: '提取完成', PROCESSING: '解析中', PENDING: '等待解析', FAILED: '解析失败' })[status] || '状态待确认'

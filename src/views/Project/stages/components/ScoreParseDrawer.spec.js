@@ -43,6 +43,18 @@ const resultsFixture = {
 }
 
 describe('ScoreParseDrawer.vue', () => {
+  it('shows the OCR cause even when structure failure leaves no candidates', async () => {
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: [], meta: {
+      lastParseStatus: 'COMPLETED', decisionStatus: 'STRUCTURE_INCOMPLETE',
+      runSummary: JSON.stringify({ sourceDiagnostics: ['BAIDU_OCR_PAGE_FAILED:24:PROVIDER_ERROR_6'] }),
+    } } })
+    const wrapper = mount(ScoreParseDrawer, { props: { projectId: 43 }, global: { stubs: {
+      'el-drawer': { template: '<div><slot /></div>' },
+    } } })
+    await wrapper.vm.open()
+    expect(wrapper.text()).toContain('表格文字识别 V2')
+    expect(wrapper.text()).toContain('权限')
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     scoreParseApi.getLatestExtraction.mockRejectedValue({ response: { status: 409, data: { msg: 'EXTRACTION_FEATURE_DISABLED' } } })
