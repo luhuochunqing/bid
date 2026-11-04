@@ -95,10 +95,9 @@
 
 ## 经验与风险提示
 
-1. **DB 备份长期失效（需修复）**：`DB_BACKUP_COMMAND` 使用 mysqldump 默认 `LOCK TABLES`，`ea_bid_pro` 无该权限，`mysqldump | gzip` 管道使失败退出码被 gzip 吞掉，仍打印 `DB backup done`，产生"假成功"备份。建议改为 `mysqldump --single-transaction --skip-lock-tables --no-tablespaces`，并对产物做大小/可解压校验。本次因零迁移，回滚不依赖 DB 备份，风险可控。
+1. **DB 备份长期失效（需修复）**：`DB_BACKUP_COMMAND` 使用 mysqldump 默认 `LOCK TABLES`，`ea_bid_pro` 无该权限，`mysqldump | gzip` 管道使失败退出码被 gzip 吞掉，仍打印 `DB backup done`，产生"假成功"备份。建议改为 `mysqldump --single-transaction --skip-lock-tables --no-tablespaces`，并在实际执行 `mysqldump | gzip` 的 bash 子进程内启用 `set -o pipefail`（不能仅在父脚本中设置），检查该子进程退出码，失败时禁止打印 `DB backup done`。同时对产物做大小/可解压校验；这些产物检查不能替代管道退出码检查，部分 SQL 输出也可能通过校验。本次因零迁移，回滚不依赖 DB 备份，风险可控。
 2. **锚点分支部署标记**：`deploy-prod.sh` 内部 `source dev-env.sh`，在锚点分支会触发 session-gate 拦截（规则 1 需 `XIYU_DEV_CONFIRMED=1`，规则 5 仅认 `XYYU_SYNC_ENV_ACTIVE=1`）。两标记需同时提供。
 3. **部署报告编号冲突**：已存在两份 35th-prod，建议后续统一编号来源，避免手工续编。
-4. 本次生产部署用户体验无中断，无 readiness/Kafka 延迟。
 
 ---
 
