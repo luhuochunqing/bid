@@ -8010,3 +8010,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   - 新增最小失败测试 `submitReview_adoptCandidates_whenAllFactsOutOfSchemeAndRequestedSchemeProvided_allowsAdoption`，真实复现 Red 状态（精确捕获 `一次采纳只能包含所选评分方案的事实` 异常），修复后转 Green；
   - `ScoreParseReviewAppServiceTest` 全量 26 项测试 100% 绿灯（0 failures, 0 errors）；
   - 前端组件测试 `ScoreCandidateReviewCard.spec.js`（24/24 绿灯）、`scoreParse.spec.js`（1/1 绿灯）全量通过。
+
+## 488. 评分模型 Fallback 异常击穿与入口路由器严格防倒退降级保护（项目35评分解析失败复盘，2026-11-04）
+
+- **背景与现象**：在生产环境项目 35（郑州市轨道交通2026年甄云平台办公类物资电商引入项目）触发 AI 评分解析时，任务耗时 6 分钟后直接以红字报错终止：`解析失败: 评分模型调用失败，请稍后重试`，人工复核界面完全无法打开。
+- **根因分析**：
+  1. **跨页多表触发大模型 Fallback**：项目 35 评分表跨第 38–51 页，MarkItDown/Sidecar 结构化提取获得了 4 项评分事实，但由于权重和未满足声明总分（`WEIGHT_SUM_MISMATCH`），`ScoreParseEntryRouter.isSatisfactory(result)` 返回 `false`，路由触发懒加载调用大模型 fallback（`LegacyTextScoreExtraction`）。
+  2. **分片生成异常击穿应用层**：大模型对长文本进行了 15 个分片提取。在持续执行第 15 个分片时，因模型返回长 JSON 被截断，OpenAI Java SDK 抛出 `OpenAIInvalidDataException: Error parsing JSON`，被包装为 `ScoreModelRequestException`。
+  3. **入口路由未作防倒退降级保护**：`ScoreParseEntryRouter.extract` 在执行 `fallback.get()` 时没有任何异常保护。模型请求异常一路穿透至 `ScoreParseAppService.executeParseAsync`，不仅丢弃了原本已提取出的结构化事实，更将整个任务强制置为 `FAILED`，违背了入口路由契约中的“严格防倒退（Monotonicity & Non-Regression）”铁律。
+- **修复与防护**：
+  1. **入口路由异常保全降级**：在 `ScoreParseEntryRouter.extract` 中，用 `try-catch` 包裹 `fallback.get()`。当 fallback 发生任何 `RuntimeException` 时，检查主结果是否已有内容（`hasContent(result) == true`）。若已有结构化提取事实，捕获异常、记录 warning 日志，并将异常信息作为诊断写入 `result.sourceDiagnostics`（前缀 `FALLBACK_MODEL_FAILED:`），平稳降级返回原结构化结果，确保任务顺利流转至 `REVIEW_REQUIRED`（人工复核），人工复核面板可正常呈现候选项供用户采纳；若主结果无有效内容，则原样抛出异常由任务失败边界收口。
+- **验证与铁证**：
+  - 新增单测 `fallbackExceptionDegradesToStructuredResultWhenContentExists`，在 Red 阶段精准捕获穿透异常并重现崩溃；
+  - 修复后实现优雅降级转为 Green，且单测 `fallbackExceptionEscapesWhenNoStructuredContent` 验证主结果空时异常仍安全向外透传；
+  - `ScoreParseEntryRouterTest`（15项）、`ScoreModelFailurePropagationTest`（3项）、`ScoreParseAppServiceTest` 及 `ScoreParseReviewAppServiceTest` 全量 74 项单测 100% 绿灯。

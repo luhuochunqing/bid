@@ -226,6 +226,35 @@ class ScoreParseEntryRouterTest {
         assertThat(outcome.facts().getFirst().weight()).isEqualByComparingTo("96");
     }
 
+    @Test
+    void fallbackExceptionDegradesToStructuredResultWhenContentExists() {
+        var fact48 = createFact("f1", new BigDecimal("48"));
+        var completeness100 = ScoreCompletenessPolicy.evaluateCompleteness(List.of(fact48), "评分总分100分。");
+        var resultWithDeficit = StructuredTableResult.evidencePipeline(
+                List.of(fact48), List.of(), completeness100, List.of());
+
+        var outcome = ScoreParseEntryRouter.extract(
+                () -> resultWithDeficit,
+                () -> {
+                    throw new ScoreModelRequestException(new RuntimeException("评分模型超时"));
+                });
+
+        assertThat(outcome).isNotNull();
+        assertThat(outcome.facts()).hasSize(1);
+        assertThat(outcome.facts().getFirst().weight()).isEqualByComparingTo("48");
+        assertThat(outcome.sourceDiagnostics()).anyMatch(d -> d.contains("FALLBACK_MODEL_FAILED") && d.contains("评分模型调用失败"));
+    }
+
+    @Test
+    void fallbackExceptionEscapesWhenNoStructuredContent() {
+        var failed = StructuredTableResult.structureIncomplete("NO_SCORE_TABLE");
+        var exception = new ScoreModelRequestException(new RuntimeException("评分模型超时"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                ScoreParseEntryRouter.extract(() -> failed, () -> { throw exception; })
+        ).isSameAs(exception);
+    }
+
     private static ScoreFact createFact(String id, BigDecimal weight) {
         return new ScoreFact(
                 id, "tbl1", List.of("cell1"), "rule", "1", "商务", weight,
