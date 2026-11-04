@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Input: subcommand + branch name + optional GITEE_TOKEN
-# Output: PR info or merge result
+# Output: three-skill receipt guard for create;  PR info or merge result
 # Pos: scripts/ — Gitee PR 操作辅助工具
 # 维护声明: 依赖 curl + GITEE_TOKEN 环境变量。Gitee API v5。
 #           契约测试: scripts/test/gitee-pr-helper-contract.sh（mock API，无需真实 token）
@@ -187,20 +187,8 @@ create_pr() {
   local repo_root
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
-  # ── Unified Dev Flow S6 Code Review 物理硬卡点 ─────────────────────
-  if [[ "$branch" =~ ^(agent/|feat/|fix/) ]]; then
-    local checker="${HOME}/.claude/scripts/entry-gate-check.py"
-    if [[ -f "$checker" ]]; then
-      echo "[gitee-pr] 🔍 检查 S5 验证与 S6 Code Review 交付凭证..."
-      if ! python3 "$checker" --project-dir "$repo_root" --guard-pr; then
-        echo "[gitee-pr] ❌ 阻断：未执行 S6 Code Review 或审查结论未达 MERGE_READY，严禁创建 PR！" >&2
-        echo "[gitee-pr]    必须先运行 xiyu-code-review 或 google-code-review，并产出合格的 .omc/review-*.md 工件。" >&2
-        echo "[gitee-pr]    逃生阀: UNIFIED_DEV_FLOW_SKIP_REVIEW=1" >&2
-        exit 1
-      fi
-      echo "[gitee-pr] ✅ S6 Code Review 交付凭证合规 (MERGE_READY)"
-    fi
-  fi
+  # 三技能必须全部通过；检查器缺失失败关闭，不接受用户级脚本降级。
+  python3 "$repo_root/scripts/review-workflow.py" --project-dir "$repo_root" check --pr --branch "$branch"
 
   # 逃生阀：DUPLICATE_IMPL_SKIP=1
   local dup_checker="$repo_root/scripts/check-duplicate-implementations.mjs"

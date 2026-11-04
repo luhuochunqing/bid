@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Input: GitHub/Gitee remote, current branch
-# Output: authenticated PR creation via gh or gitee API, prints PR URL
+# Output: checks three-skill receipt and remote head, then creates PR and prints URL
 # Pos: scripts/ - GitHub/Gitee PR creation entry point
 # 维护声明:
 #   - 维护人: [your-name]
@@ -124,9 +124,12 @@ if [[ "$body" != *"## Wiki 更新"* ]]; then
 > 详见 .wiki/WIKI.md §2 触发点 2"
 fi
 
+# 三技能门禁：先验证最终内容凭证与远端 head，缺失检查器同样阻断。
+_PR_ROOT="$(git rev-parse --show-toplevel)"
+python3 "$_PR_ROOT/scripts/review-workflow.py" --project-dir "$_PR_ROOT" check --pr --branch "$branch"
+
 # ── 重复实现门禁（提交 PR 自动执行）──────────────────────────────────────
 # 逃生阀：DUPLICATE_IMPL_SKIP=1
-_PR_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 echo "── 重复实现检查（提交 PR 自动执行）──"
 if [ "${DUPLICATE_IMPL_SKIP:-0}" = "1" ]; then
   echo "⚠  DUPLICATE_IMPL_SKIP=1 — 跳过重复实现检查"

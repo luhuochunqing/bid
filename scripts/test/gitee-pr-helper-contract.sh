@@ -158,14 +158,37 @@ run_merge() {
     bash "$TARGET_SCRIPT" merge "$pr" 2>&1)" || code=$?
 }
 
-# create 子命令要求分支已推送到远端。用临时本地裸仓库离线满足该前置，
-# 避免契约测试依赖真实 origin/网络；分支名取 main 以跳过 S6 审查门禁分支。
+# create 使用真实本地 Git、三技能进程协议凭证和裸远端；不绕过门禁。
 CREATE_REPO="$(mktemp -d)"
 git init -q --bare "$CREATE_REPO/origin.git"
-git init -q "$CREATE_REPO/work"
+git init -q -b main "$CREATE_REPO/work"
+git -C "$CREATE_REPO/work" config user.email t@t
+git -C "$CREATE_REPO/work" config user.name t
 git -C "$CREATE_REPO/work" remote add origin "$CREATE_REPO/origin.git"
-git -C "$CREATE_REPO/work" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
-git -C "$CREATE_REPO/work" push -q origin HEAD:refs/heads/main
+mkdir -p "$CREATE_REPO/work/scripts/lib"
+cp "$REPO_ROOT/scripts/review-workflow.py" "$CREATE_REPO/work/scripts/"
+cp "$REPO_ROOT/scripts/lib/review_gate.py" "$REPO_ROOT/scripts/lib/review_agent.py" "$CREATE_REPO/work/scripts/lib/"
+git -C "$CREATE_REPO/work" add .
+git -C "$CREATE_REPO/work" commit -q -m init
+git -C "$CREATE_REPO/work" update-ref refs/remotes/origin/main HEAD
+git -C "$CREATE_REPO/work" checkout -q -b agent/contract/pr-create
+printf 'API contract fixture\n' > "$CREATE_REPO/work/fixture.txt"
+git -C "$CREATE_REPO/work" add .
+git -C "$CREATE_REPO/work" commit -q -m fixture
+git -C "$CREATE_REPO/work" push -q origin HEAD:refs/heads/agent/contract/pr-create
+for skill in ai-slop-cleaner google-code-review xiyu-code-review; do
+  mkdir -p "$CREATE_REPO/skills/$skill"
+  printf '# Offline protocol fixture\n' > "$CREATE_REPO/skills/$skill/SKILL.md"
+done
+cat > "$CREATE_REPO/adapter.py" <<'PY_ADAPTER'
+import json, pathlib, sys
+pathlib.Path(sys.argv[2]).write_text(json.dumps({
+    "verdict": "PASS", "summary": "Offline API boundary protocol fixture", "findings": []}))
+PY_ADAPTER
+_adapter="$(python3 -c 'import json,sys; print(json.dumps(["python3",sys.argv[1]]))' "$CREATE_REPO/adapter.py")"
+python3 "$REPO_ROOT/scripts/review-workflow.py" --project-dir "$CREATE_REPO/work" run \
+  --agent-command "$_adapter" --skills-dir "$CREATE_REPO/skills" \
+  --verify '["git","diff","--check"]' >/dev/null
 
 run_create() {
   # $1=scenario; 输出全局 out / code
@@ -173,7 +196,7 @@ run_create() {
   out="$(cd "$CREATE_REPO/work" && GITEE_TOKEN="contract-test-token" \
     GITEE_API_BASE="http://127.0.0.1:${MOCK_PORT}/${scenario}/v5" \
     GITEE_OWNER="allinai888" GITEE_REPO="bid" \
-    bash "$TARGET_SCRIPT" create main 2>&1)" || code=$?
+    bash "$TARGET_SCRIPT" create agent/contract/pr-create 2>&1)" || code=$?
 }
 
 echo "== 契约场景 =="

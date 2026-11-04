@@ -4,9 +4,12 @@ space: engineering
 category: guide
 tags: [SOP, 多Agent协作, lease协议, worktree, 开发流程]
 created: 2026-04-26
-updated: 2026-09-26
-health_checked: 2026-10-25
+updated: 2026-11-04
+health_checked: 2026-11-04
 sources:
+  - scripts/review-workflow.py
+  - scripts/lib/review_gate.py
+  - scripts/lib/review_agent.py
   - CLAUDE.md
   - scripts/who-touches.sh
   - conductor/tracks/refactor_safety_governance_20260426/spec.md
@@ -192,3 +195,15 @@ scripts/agent-finish-task.sh       # 先 --dry-run 预览
 - 实操细则：`docs/agent-workflow.md` §1（任务启动协议）/ §2（push 纪律）/ §3（分支策略）；完成门禁仍在根 `CLAUDE.md`
 - 协议设计动机 / 历史轨迹：`conductor/tracks/refactor_safety_governance_20260426/spec.md`
 - 工具自检：`./scripts/who-touches.sh --self-test` 应见 4 个 `[PASS]`
+
+## 三技能提交门禁（2026-11-04）
+
+- 入口：`python3 scripts/review-workflow.py run --verify '<JSON argv>'`；按任务补足真实验证命令。
+- 顺序：ai-slop-cleaner 写入 → 测试 → google-code-review 独立只读 → xiyu-code-review 独立只读。
+- 自动修复：问题交回写入阶段；完整重跑，最多三轮；ESCALATE/越界/执行故障立即停止。
+- 最终交付：提交相同已审查内容后 push/PR；修改内容/分支/origin/main 则凭证过期。
+- 工件：worktree 私有 `git rev-parse --git-path review-gate`，记录请求/报告/日志及哈希；新失败不复用旧成功。
+- Cross-Module Impact：pr-create、gitee-pr-helper create、pre-push、pre-push-gate 共用检查器，缺失失败关闭；不再依赖用户级 entry-gate-check.py。旧的跳审环境变量不能绕过新检查。
+- 边界：run 不提交/发布；本地程序执行记录不等于 LLM 结论必然正确，Gitee 服务端保护另行配置。详情见 [[engineering-discipline]] 和 AGENTS.md。
+
+- 验证证据：`verify-report.json` 在每条命令启动前记录 argv，完成后立即保存退出码；后续命令超时/启动失败仍保留前序结果，当前命令退出码为 null 并记录 error；失败事件绑定已有报告及日志哈希。
