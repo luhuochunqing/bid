@@ -3,6 +3,7 @@ package com.xiyu.bid.scoreparse.infrastructure.openai;
 import com.xiyu.bid.scoreparse.application.MultimodalScoreFactExtractor;
 import com.xiyu.bid.scoreparse.domain.ChildAggregation;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
+import com.xiyu.bid.scoreparse.domain.SourceFactDeduplication;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,6 +15,12 @@ final class ScoreFactChunkMerger {
 
     static MultimodalScoreFactExtractor.ExtractionResult merge(
             List<MultimodalScoreFactExtractor.ExtractionResult> results) {
+        return merge(results, null);
+    }
+
+    static MultimodalScoreFactExtractor.ExtractionResult merge(
+            List<MultimodalScoreFactExtractor.ExtractionResult> results,
+            com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact artifact) {
         Map<FactKey, MultimodalScoreFact> facts = new LinkedHashMap<>();
         BigDecimal declaredTotal = null;
         boolean conflictingDeclaredTotal = false;
@@ -36,18 +43,21 @@ final class ScoreFactChunkMerger {
             }
         }
         return new MultimodalScoreFactExtractor.ExtractionResult(
-                conflictingDeclaredTotal ? null : declaredTotal, List.copyOf(facts.values()), model, 0);
+                conflictingDeclaredTotal ? null : declaredTotal, SourceFactDeduplication.merge(List.copyOf(facts.values()), artifact), model, 0);
     }
 
     private record FactKey(String sectionTitle, String code, String parentCode, String dimension,
                            BigDecimal weight, String ruleText, String scoreType, Integer pageNumber,
                            String tableId, List<String> sourceCellIds, String quotedText,
-                           ChildAggregation childAggregation, String schemeId, String scopeStatus) {
+                           ChildAggregation childAggregation, String schemeId, String scopeStatus,
+                           java.util.Set<com.xiyu.bid.scoreparse.domain.SourceSpan> sourceSpans,
+                           String modelQuotedText) {
         static FactKey of(MultimodalScoreFact fact) {
             BigDecimal weight = fact.weight() == null ? null : fact.weight().stripTrailingZeros();
             return new FactKey(fact.sectionTitle(), fact.code(), fact.parentCode(), fact.dimension(), weight,
                     fact.ruleText(), fact.scoreType(), fact.pageNumber(), fact.tableId(), fact.sourceCellIds(),
-                    fact.quotedText(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus());
+                    fact.quotedText(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus(),
+                    java.util.Set.copyOf(fact.sourceMetadata().sourceSpans()), fact.sourceMetadata().modelQuotedText());
         }
     }
 }

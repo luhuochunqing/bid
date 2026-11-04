@@ -138,7 +138,9 @@ public class VersionedScoreParseCompletion {
         writer.stage(task.getProjectId(),task.getId(),snapshot);return snapshot;
     }
     public void legacyFinish(ScoreParseTask task,ScoreExtractionSnapshot draft,String failure) {
-        var snapshot=new ScoreExtractionSnapshot(1,draft.items(),draft.schemes(),draft.sourceDiagnostics(),Map.of("legacyRunSummary",task.getRunSummary()==null?"":task.getRunSummary()));
+        var diagnostics=java.util.stream.Stream.concat(draft.sourceDiagnostics().stream(),
+                RunSummaryAssembler.sourceDiagnostics(task.getRunSummary()).stream()).distinct().toList();
+        var snapshot=new ScoreExtractionSnapshot(1,draft.items(),draft.schemes(),diagnostics,Map.of("legacyRunSummary",task.getRunSummary()==null?"":task.getRunSummary()));
         writer.freeze(task.getProjectId(),task.getId(),snapshot);
         if(finalizer.finish(task,failure)) activation.tryAutoActivate(task.getProjectId(),task.getTaskId());
         progress.clearProgress(task.getTaskId());

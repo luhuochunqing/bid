@@ -35,8 +35,8 @@ final class MultimodalExtractionReviewPolicy {
             declaredTotal = context.total().value();
         }
         List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact, tenderText);
-        List<MultimodalScoreFact> scopedFacts = extraction.facts().stream()
-                .map(fact -> assignScope(fact, context, artifact, tenderText, schemes)).toList();
+        List<MultimodalScoreFact> scopedFacts = com.xiyu.bid.scoreparse.domain.SourceFactDeduplication.merge(extraction.facts().stream()
+                .map(fact -> assignScope(fact, context, artifact, tenderText, schemes)).toList(), artifact);
         var baseFacts = ZeroDeductionUnitEvidence.resolve(SingletonScoreUnitEvidence.resolve(
                 MultimodalFactParentCodeNormalizer.normalize(scopedFacts), artifact), artifact);
         var recoveredFacts = MultimodalFactParentCodeNormalizer.normalize(

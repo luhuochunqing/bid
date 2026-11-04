@@ -12,6 +12,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class OriginalRuleRestorationTest {
 
+    @Test void restoresCompletePdfRuleWhenModelQuotationKeepsMarkdownLineBreaks() {
+        String rule = "根据接口方案评定，方案优得4\n分，良好得2分，差得0分。须提供完整材料。";
+        var cells = new java.util.ArrayList<DocumentArtifact.CanonicalTable.CanonicalCellDto>();
+        String[][] rows = {{"序号", "评分项", "评分标准", "分值"}, {"1", "接口方案", rule, "4"}};
+        for (int row = 0; row < rows.length; row++) for (int col = 0; col < 4; col++) {
+            cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r" + row + "-c" + col,
+                    row, col, rows[row][col], rows[row][col], 1, 1, false, "pdf:page=26", 26, "t-r" + row));
+        }
+        var artifact = new DocumentArtifact(new ArtifactMeta("doc", "sha", "PDF", "sidecar"), List.of(
+                new DocumentArtifact.CanonicalTable("t", 26, "评审标准", 2, 4, List.of(), cells, true, "PDF")), List.of());
+        var fact = new MultimodalScoreFact("评审标准", "1", "", "接口方案", new BigDecimal("4"),
+                rule.replace("\n", ""), "SUBJECTIVE", 26, "t", List.of("t-r1-c1", "t-r1-c2"),
+                rule.replace("\n", "<br>"), .9, ChildAggregation.SUM);
+        var restored = OriginalRuleRestoration.restore(fact, artifact, List.of(fact));
+        assertThat(restored.closed()).isTrue();
+        assertThat(restored.text()).isEqualTo(rule);
+        assertThat(restored.spans()).extracting(SourceSpan::sourceId).contains("t-r1-c2");
+    }
+
     @Test
     @DisplayName("非表格正文段落事实（text:line）带有 sourceSpans 时，应穿透还原规则文本")
     void shouldRestoreRuleTextFromTextParagraphSourceSpans() {

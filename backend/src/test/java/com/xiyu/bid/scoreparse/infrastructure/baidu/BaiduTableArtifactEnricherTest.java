@@ -92,8 +92,9 @@ class BaiduTableArtifactEnricherTest {
         DocumentArtifact enriched = enricher.enrichIfEnabled(baseline, pdfBytes, "project1130.pdf");
         assertThat(enriched).isNotNull();
 
-        if (enriched == baseline) {
-            org.junit.jupiter.api.Assumptions.abort("百度 OCR 未返回表格（公有云免费额度已耗尽或被限流），跳过外部联调网络断言");
+        if (enriched.tables().stream().noneMatch(table -> table.tableId().startsWith("baidu_tbl_"))
+                && enriched.warnings().stream().anyMatch(warning -> warning.startsWith("BAIDU_OCR_"))) {
+            org.junit.jupiter.api.Assumptions.abort("真实百度 OCR 不可用，保留失败诊断：" + enriched.warnings());
         }
 
         // 验证第 13、14、15 页的跨页评分表已合并为同一张 4 列评分表，且包含第 14 页与第 15 页单元格

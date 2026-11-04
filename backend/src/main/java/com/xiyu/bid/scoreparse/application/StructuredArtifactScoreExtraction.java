@@ -14,6 +14,11 @@ import lombok.extern.slf4j.Slf4j;
 final class StructuredArtifactScoreExtraction {
     private StructuredArtifactScoreExtraction() {}
     static StructuredTableResult extract(DocumentArtifact artifact, String fileName, String tenderSectionText) {
+        return StructuredSourceDiagnostics.attach(extractFacts(artifact, fileName, tenderSectionText),
+                artifact.warnings().stream().filter(note -> note.startsWith("BAIDU_OCR_")).toList());
+    }
+
+    private static StructuredTableResult extractFacts(DocumentArtifact artifact, String fileName, String tenderSectionText) {
         var originalContext = OriginalScoringContext.resolve(artifact, tenderSectionText);
         if (StructuredTableSourceSupport.shouldFallbackPdfToLegacy(fileName, artifact)) {
             log.warn("PDF 未抽取到结构化评分表，回落 legacy markdown 召回: file={}", fileName);

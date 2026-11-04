@@ -4,6 +4,20 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class EvidenceTextTest {
+    @Test void markdownHtmlLineBreaksMatchPdfNewlinesWithOriginalOffsets() {
+        String pdf = "前缀：方案优得4\n分，差得0分。";
+        for (String tag : new String[]{"<br>", "<br/>", "<BR />"}) {
+            var span = EvidenceText.normalize(pdf).uniqueSpan("优得4" + tag + "分").orElseThrow();
+            assertThat(pdf.substring(span.start(), span.end())).isEqualTo("优得4\n分");
+            String markdown = "前缀：优得4" + tag + "分。";
+            var original = EvidenceText.normalize(markdown).uniqueSpan("优得4\n分").orElseThrow();
+            assertThat(markdown.substring(original.start(), original.end())).isEqualTo("优得4" + tag + "分");
+        }
+        assertThat(EvidenceText.normalize("A<br>B").text()).isEqualTo("A B");
+        assertThat(EvidenceText.normalize("质量<br>保证").uniqueSpan("质里保证")).isEmpty();
+        assertThat(EvidenceText.normalize("x<bravo>y").text()).isEqualTo("x<bravo>y");
+        assertThat(EvidenceText.normalize("得4<br>分得4分").uniqueSpan("得4分")).isEmpty();
+    }
     @Test void chineseSentenceStopVariantPreservesSourceOffsetsWithoutChangingDecimals() {
         String source = "每项2.5分，满分5分。提供承诺书。";
         var found = EvidenceText.normalize(source).uniqueSpan("满分5分.提供承诺书。");

@@ -129,7 +129,7 @@ backlinks:
 - [[scoreparse-cross-format-strategy]] — 跨格式识别日志证据、图文结构联合方案与陌生模板验收边界
 - [[spec059-score-parse-evidence-pipeline]] — spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构
 - [[scoreparse-pdf-page-border-pseudo-table]] — PDF 全页装饰边框伪表格过滤与跨页续表合并契约
-- [[scoreparse-text-paragraph-and-continuation-fix]] — 纯文本段落评分事实穿透还原与表格跨行续行识别契约
+- [[scoreparse-text-paragraph-and-continuation-fix]] — 段落/续行还原契约；2026-11-04项目43任务182重复19分、OCR鉴权失败及告警丢失诊断
 - [[score-parse-split-completeness-and-partial-overwrite-fix]] — 评分解析分表完整性范围误判 + 部分通过覆盖正式结果双修复
 - [[spring-pitfalls]] — Spring Boot 陷阱集
 - [[team-and-timeline]] — 团队与排期

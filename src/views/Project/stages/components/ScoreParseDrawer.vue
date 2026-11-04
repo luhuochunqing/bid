@@ -65,6 +65,10 @@
             </div>
           </div>
           <div v-show="isSection1Expanded" class="collapse-body">
+            <section v-if="sourceDiagnostics.length && (!latestExtraction || latestExtraction.payloadVersion === 0)"
+              aria-label="本次提取需核对的原因" data-test="parse-source-diagnostics">
+              <p v-for="diagnostic in sourceDiagnostics" :key="diagnostic">{{ extractionReason(diagnostic) }}</p>
+            </section>
             <!-- 最新任务的候选与既有正式结果可以并存；新解析待复核时必须仍可见。 -->
             <ScoreExtractionPanel
               v-if="latestExtraction && showExtractionReview"
@@ -216,6 +220,7 @@
 </template>
 
 <script setup>
+import { extractionReason } from '@/composables/projectDetail/scoreExtractionPresentation.js'
 import { useScoreParseDrawer } from '@/composables/projectDetail/useScoreParseDrawer.js'
 import ScoreExtractionPanel from './ScoreExtractionPanel.vue'
 import ScoreCandidateReviewCard from './ScoreCandidateReviewCard.vue'
@@ -238,7 +243,7 @@ const {
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
   estimatesRefreshing, estimateRefreshError, staleEstimateCount, estimateCheckedAt, refreshEstimates,
-  decisionBadgeType, decisionBadgeText, decisionBadgeVisible, reviewReason,
+  decisionBadgeType, decisionBadgeText, decisionBadgeVisible, reviewReason, sourceDiagnostics,
   candidateFacts, schemes, selectedSchemeId, schemeSelectionRequired, candidateTotalWeight, declaredTotalWeight,
   adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,
 } = useScoreParseDrawer(props, emit)

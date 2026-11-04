@@ -28,6 +28,8 @@ final class SourceArtifactAcquisition {
                         case LoadedBidFile.OnDisk disk -> extractor.extract(disk.tempFile(), name);
                     };
                     if (artifact == null || artifact.artifact() == null) failure = "MissingArtifact";
+                    if (artifact != null) artifact.warnings().stream().filter(note -> note.startsWith("BAIDU_OCR_"))
+                            .forEach(diagnostics::add);
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
                     interrupted = true;
