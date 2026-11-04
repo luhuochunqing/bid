@@ -304,6 +304,16 @@ class ReviewWorkflowTest(unittest.TestCase):
 
     def test_missing_receipt_blocks(self):
         r=self.cli('check'); self.assertNotEqual(r.returncode,0); self.assertIn('review-gate',r.stderr)
+    def test_docs_only_change_skips_review(self):
+        self.git('checkout','-q','refs/remotes/origin/main','-b','agent/test/docs')
+        (self.repo/'docs').mkdir(exist_ok=True); (self.repo/'docs'/'note.md').write_text('# note\n')
+        self.commit()
+        r=self.cli('check'); self.assert_ok(r); self.assertIn('纯文档变更免审',r.stdout)
+    def test_docs_plus_code_still_requires_review(self):
+        self.git('checkout','-q','refs/remotes/origin/main','-b','agent/test/docs-code')
+        (self.repo/'docs').mkdir(exist_ok=True); (self.repo/'docs'/'note.md').write_text('# note\n')
+        (self.repo/'code.txt').write_text('feature\n'); self.commit()
+        r=self.cli('check'); self.assertNotEqual(r.returncode,0); self.assertIn('review-gate',r.stderr)
     def test_success_requires_exact_sequence(self):
         self.assert_ok(self.run_flow())
         self.assertEqual(self.stages(),['ai-slop-cleaner','google-code-review','xiyu-code-review'])
