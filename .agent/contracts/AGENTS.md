@@ -72,6 +72,27 @@
 | 维护 Wiki | `.wiki/WIKI.md` | Agent Wiki 运行规范（摄入/Lint/回填触发器、AI-First 编写标准） |
 | 开新 AI Coding 项目/复盘经验 | `docs/ai-coding-playbook/` | 从 2059 个 PR 提炼的经验手册：bug 根因模式、多Agent协作、透传范式、门禁、回退纪律、行动清单 |
 
+
+## 提交 PR 前三技能门禁（强制）
+
+任务完成后，Agent 必须先运行仓库自动审查流程，不能先 push 或先建 PR：
+
+```bash
+python3 scripts/review-workflow.py run \
+  --verify '["git","diff","--check"]' \
+  --verify '["python3","-m","unittest","discover","-s","scripts/test","-p","test_review_workflow.py"]'
+```
+
+上例验证命令只适用于门禁脚本本身的修改；业务任务必须替换/补齐该任务的真实测试、构建命令。每个 `--verify` 是 JSON argv 数组，顺序执行，不经 shell 展开。
+
+执行顺序：`ai-slop-cleaner` 标准写入 → 验证命令 → 独立只读 `google-code-review` → 独立只读 `xiyu-code-review`。发现问题自动交给写入 Agent 修复，再从清理开始完整重跑，最多三轮；第三轮仍失败、ESCALATE、越界或进程故障立即停止，报告问题，不创建 PR。Minor/Info 也必须记录接受/延期理由，不能静默忽略。
+
+默认调用已登录的 Codex CLI，每阶段新进程；三个精确技能必须安装在项目或用户 `.agents/skills` / `.codex/skills`。其他宿主可用 `--agent-command '<JSON argv>'` 指定受信任适配器，见 `scripts/README.md`。
+
+通过后提交最终代码，再正常 push、运行 `scripts/pr-create.sh`。凭证放在 worktree 私有 Git 元数据目录，可用 `git rev-parse --git-path review-gate` 定位。相同文件内容的提交可复用凭证，修改内容、分支或基线必须重新运行。PR 远端 head 必须与当前本地 HEAD 相同。
+
+四个入口共用检查器，缺失即阻断；`UNIFIED_DEV_FLOW_SKIP_REVIEW` 和 `PRE_PUSH_GATE=0` 不能跳过 pre-push 中独立的三技能检查。run 不自动提交、push、建 PR、合并或部署。本地记录属于可信开发流程，不能防御主动修改脚本或绕过本地 hook；Gitee 服务端保护需单独配置。
+
 ## 协作暗号
 
 - **"早操SOP"** → `git fetch origin && git rebase origin/main && bash scripts/sync-env.sh .`

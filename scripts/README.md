@@ -35,6 +35,8 @@
 | `check-java-coding-standards.sh` | 门禁脚本 | 检查暂存区 Java 代码规范（如 `catch(Exception)`、`Optional.get()`、原始泛型），并执行 changed-code 质量门禁：Checkstyle 默认全启；PMD 支持 `off|report|on` 分阶段只检查目标服务包；SpotBugs 支持 `auto|off|report|on`，并通过 `quality.includes` / `quality.onlyAnalyze` 缩圈到目标改动类 |
 | `install-java-standards-hook.sh` | 安装脚本 | 将仓库 `.githooks/pre-commit` 安装到当前 Git hooksPath 或 common hooks 目录，支持多 worktree 共用门禁 |
 | `local-ci.sh` | 门禁脚本 | GitHub Actions 账单受限期间的本地验收入口；提供 `quick`、`full`、`release` 三档真实 API 模式门禁，后端门禁前会清理构建输出，H2 集成测试显式固定 `ddl-auto=create-drop` 以避免本机环境变量污染，不替代、不修改远端 Actions 定义；其中 quick/full/release 共用前端快速门禁，已纳入 `npm run test:agent-start-task-contract` 守护任务启动脚本 dry-run 契约 |
+| `review-workflow.py` | 三技能审查门禁 | 清理→测试→Google→西域独立审查，三轮以内自动修复；run 生成内容凭证，check 拦截不合规交付 |
+| `lib/review_gate.py` / `lib/review_agent.py` | 门禁内核 / Agent 适配 | 内容指纹、工件哈希、技能解析、Codex 或显式进程协议 |
 | `ci-pre-pr.sh` | 提交前门禁脚本 | PR 提交前一站式本地门禁；默认覆盖前端治理检查、`test:agent-start-task-contract`、前端单元测试、API 构建、lint、路由/E2E 联动检查、pre-push-gate 与后端轻量质量门禁，可选追加 E2E 与 Flyway dry-run |
 | `performance/` | 压测脚本目录 | 存放真实 API 性能压测脚本（200 销售并发 k6 主链路），以及压测执行与原始证据归档工具链（`run-stress-test.sh` / `capture-monitoring.sh` / `monitor-spec.sh` / `scrub-secrets.mjs` / `write-run-manifest.mjs`，产出物见 `docs/testing/stress-test-artifacts/`） |
 | `clean-local-artifacts.sh` | 清理脚本 | 删除本地产生的测试、报告和演练产物 |
@@ -55,3 +57,36 @@
 `check-scoreparse-root-cause.sh` 包含 `FullRuleSourceReplayTest` / `TextPrimaryScoreFactMapperTest`：actual DOCX 四入口、文本后置材料、PDF 首页/续页短引文与页码反例；完整规则恢复与数值可计算性分别验证。
 
 `check-scoreparse-root-cause.sh` 同时运行 MarkdownRowQuotationRegressionTest、MarkdownRowQuotationGoldenReplayTest 和 Project1387PublicationRegressionTest：覆盖可选外侧管道、公式内部管道、ASCII规则边界、篡改回退和保留父子结构的全链路。
+
+## 三技能自动审查与修复
+
+参见 `AGENTS.md §提交 PR 前三技能门禁`。先在任务 worktree 执行 `run`，再提交、push、创建 PR。验证命令必须由任务作者提供，脚本不能判断测试选择是否充分。默认 Codex 的写入进程使用 workspace-write，审查进程使用 read-only；遵循调用者既有模型配置，不指定模型。
+
+```bash
+python3 scripts/review-workflow.py run --verify '["git","diff","--check"]'
+python3 scripts/review-workflow.py check
+```
+
+仅 `git diff --check` 不能代替业务测试；上面是最小命令格式示例。可重复 `--verify`，单个进程默认超时 1800 秒，可用 `--timeout` 调整。所有 stdout/stderr 留在工件日志，控制台显示阶段。超时、无效报告或进程非零退出阻断，代码不会自动回滚。验证命令启动前即在 `verify-report.json` 写入 argv，每条完成后立即写入退出码；后续命令超时或无法启动时保留前序结果及当前命令的错误信息。阶段异常同样记录轮次、失败原因和已有工件哈希；已返回的进程保留退出码，超时或启动失败未取得退出码时记为 null。
+
+### 其他宿主适配协议
+
+`--agent-command '["/absolute/path/to/adapter"]'` 指定**受信任的本地程序**；执行器追加两个绝对路径：`request.json report.json`。request 包含 stage、round、原任务 scope、base、精确技能全文和 prompt；仅 fix 阶段收到上阶段失败报告。适配器必须启动独立审查会话并遵守只读要求，退出 0 后将以下 JSON 写到 report 路径。默认 Codex 使用相同契约并通过 JSON Schema 约束最终输出。
+
+```json
+{"verdict":"PASS","summary":"具体判断与验证边界","findings":[]}
+```
+
+verdict 为 PASS / NEEDS_FIXES / ESCALATE。finding 必须包含 severity（Critical/Major/Minor/Info）、file、line、message、disposition（open/accepted/deferred）、reason；Critical/Major 永远阻断，Minor/Info 的 accepted/deferred 须有具体理由。最终一轮全部通过后才生成 MERGE_READY；fix 自报 PASS 不算审查通过。
+
+每次 run 清除上一轮放行状态，保留历史运行目录。凭证记录分支、origin/main tip、merge-base、完整改动文件内容/模式（含新增与删除）、每阶段请求/报告/日志哈希。路径收集显式禁用 Git 重命名检测，将移动绑定为旧路径删除与新路径新增，保证暂存/提交不改变同内容指纹，恢复旧路径会使凭证失效。最终交付要求工作区干净，允许同内容提交；PR 还读取 origin 上实际分支 SHA，与本地 HEAD 核对。执行器不会自动创建 PR 或向他人发消息。
+
+纯删除 ref 的推送通过 hook 的远端认证、历史保护及 ref 检查后，不再运行当前分支凭证复检或代码质量门禁；混合推送仍校验非删除 ref 并执行质量门禁，空输入不按纯删除放行。直接运行 `pre-push-gate.sh` 仍须检查当前任务分支凭证。
+
+本地凭证不等于密码学身份认证，也不能证明 LLM 判断必然正确；自定义适配器、测试命令以及有本地写权限的人属于信任边界。线下协议测试仅证明执行与阻断行为，不能代替真实 LLM 审查。
+
+分支推送按**目标分支和实际提交 SHA**校验，支持 `git push origin HEAD:<当前分支>`；标签发布保留既有行为，不作为 PR 分支审查目标。
+
+受保护基准允许现有镜像脚本的 `origin/main:main` 等表达式，但其 SHA 必须等于已知本地/跟踪基准；任务新提交改目标为 main 仍阻断。历史/force-push 保护仍由原 hook 执行。
+
+`agent/<name>-init` 仅允许同步已知 origin/main SHA，不作为任务交付，也不能凭此跳过创建 PR 的检查。分流单测只截取参数/分支策略；三技能门禁由真实 Git 回归独立覆盖。

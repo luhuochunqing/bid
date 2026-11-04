@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Input: git status, staged diff
-# Output: colored pass/fail report to stdout, exit 0 or 1
+# Output: three-skill delivery receipt plus  colored pass/fail report to stdout, exit 0 or 1
 # Pos: scripts/ - pre-push quality gate
 # 维护声明: 若门禁检查项或依赖路径变化，同步更新本脚本。
 
 # pre-push-gate.sh — 推送前质量门禁
 # 用法: bash scripts/pre-push-gate.sh [--skip-tests] [--skip-e2e-check]
 # 环境变量:
-#   PRE_PUSH_GATE=0   完全跳过门禁（不运行任何检查）
+#   PRE_PUSH_GATE=0   跳过传统质量检查，三技能门禁仍执行
 #   CI_MODE=true       自动化模式（不依赖交互式前端构建）
 #   WIKI_CHECK_MODE=warning|error  Wiki 健康检查模式（默认：2 周过渡期 warning，之后 error）
 #   WIKI_CHECK_SKIP=1  完全跳过 Wiki 健康检查（仅限紧急修复）
@@ -28,7 +28,7 @@ for arg in "$@"; do
       echo "用法: $0 [--skip-tests] [--skip-e2e-check]"
       echo "  --skip-tests      显式跳过前端测试/构建及新增根因/token 回归"
       echo "  --skip-e2e-check  跳过 E2E-UI 联动检查"
-      echo "  PRE_PUSH_GATE=0    完全跳过门禁（等同于 --skip-tests --skip-e2e-check）"
+      echo "  PRE_PUSH_GATE=0    跳过传统质量检查，三技能门禁仍执行"
       exit 0
       ;;
   esac
@@ -43,13 +43,18 @@ if [[ "$branch" == agent/* ]]; then
   SKIP_E2E_CHECK=true
 fi
 
+# 三技能门禁独立于传统质量检查开关，缺凭证时在任何降级之前停止。
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ "$branch" != "main" && "$branch" != "master" && "$branch" != release/* ]]; then
+  python3 "$ROOT_DIR/scripts/review-workflow.py" --project-dir "$ROOT_DIR" check
+fi
+
 # ── 完全绕过 ────────────────────────────────────────────────
 if [ "${PRE_PUSH_GATE:-1}" = "0" ]; then
-  echo "⚠  PRE_PUSH_GATE=0 — 跳过全部推送前门禁检查"
+  echo "⚠  PRE_PUSH_GATE=0 — 跳过传统质量检查（三技能门禁已检查）"
   exit 0
 fi
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
 # 推送前变更检测基准：merge-base(origin/main, HEAD)，等价 origin/main...HEAD 的三 dot 语义。
@@ -887,26 +892,6 @@ else
   else
     pass "Wiki 健康检查（无代码/wiki 变更）"
   fi
-fi
-
-# ── §32: Unified Dev Flow S5/S6 物理硬门禁 ───────────────────────
-# 针对任务开发分支（agent/*, feat/*, fix/* 等非主干分支），强制核验 S5 验证与 S6 Code Review 工件
-GATE_BRANCH="$(git branch --show-current 2>/dev/null || true)"
-if [[ "$GATE_BRANCH" =~ ^(agent/|feat/|fix/) ]]; then
-  CHECKER="${HOME}/.claude/scripts/entry-gate-check.py"
-  if [[ -f "$CHECKER" ]]; then
-    echo "🔍 检查 S5 验证与 S6 Code Review 工件..."
-    if ! python3 "$CHECKER" --project-dir "$ROOT_DIR" --guard-pr; then
-      fail "Unified Dev Flow 门禁未通过：缺少合规的 S5 验证工件 (.omc/verify-*.md) 或 S6 审查工件 (.omc/review-*.md 且 verdict 须为 MERGE_READY)"
-    else
-      pass "Unified Dev Flow 门禁（S5 验证与 S6 Code Review: MERGE_READY）"
-    fi
-  else
-    echo "⚠️  entry-gate-check.py 未找到，跳过 S5/S6 门禁"
-    SKIPD=$((SKIPD + 1))
-  fi
-else
-  pass "Unified Dev Flow 门禁（非任务分支，跳过 S5/S6 检查）"
 fi
 
 # ── 汇总 ────────────────────────────────────────────────

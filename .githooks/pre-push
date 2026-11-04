@@ -12,7 +12,7 @@
 #   3. Gitee 远端 push 时未设置 GITEE_TOKEN（阻止 push）
 #   4. 所有 agent/* 分支 push 时检查是否通过 pr-create.sh 创建 PR（温和提醒）
 #   5. agent/* 分支已合入 main 后禁止推送新提交（delete 操作放行）
-#   6. unified-dev-flow S6 Code Review 门禁：任务分支 push 必须 MERGE_READY
+#   6. 三技能门禁：清理→测试→Google→西域审查，最终内容必须 MERGE_READY
 #
 # Context: ericforai/bidding#224 documents the root-commit issue. This hook is
 # the developer-local mirror of the CI workflow — same check, earlier signal.
@@ -93,7 +93,14 @@ esac
 # ==============================================================================
 ZERO_SHA="0000000000000000000000000000000000000000"
 
+HAS_DELETIONS=false
+HAS_UPDATES=false
 while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "${local_sha}" == "${ZERO_SHA}" ]]; then
+    HAS_DELETIONS=true
+  elif [[ -n "${local_sha}" ]]; then
+    HAS_UPDATES=true
+  fi
   branch="${local_ref#refs/heads/}"
 
   # --- agent/* 分支检查 ---
@@ -206,16 +213,14 @@ while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
   fi
 done <<< "$STDIN_DATA"
 
-# 3) S6 Code Review gate — unified-dev-flow 物理门禁（任务分支必须 MERGE_READY）
-#    逃生阀: UNIFIED_DEV_FLOW_SKIP_REVIEW=1（由 entry-gate-check.py 记录逃生事件）
-CHECKER="${HOME}/.claude/scripts/entry-gate-check.py"
-if [[ ! -f "$CHECKER" ]]; then
-  CHECKER="$(dirname "$0")/../categories/workflow/unified-dev-flow/scripts/entry-gate-check.py"
-fi
-if [[ -f "$CHECKER" ]]; then
-  printf '%s\n' "$STDIN_DATA" | python3 "$CHECKER" --guard-push "$@"
-else
-  echo "⚠️ [unified-dev-flow] 找不到 entry-gate-check.py，pre-push 审查门禁降级放行。" >&2
+# 3) 三技能门禁：检查实际待推送 ref/SHA。无检查器/凭证时失败关闭。
+REVIEW_ROOT="$(git rev-parse --show-toplevel)"
+printf '%s\n' "$STDIN_DATA" | python3 "$REVIEW_ROOT/scripts/review-workflow.py" --project-dir "$REVIEW_ROOT" check --push
+
+# 纯删除没有待交付代码；ref 检查通过后不再复检当前分支凭证或运行代码质量门禁。
+# 混合推送仍走完整门禁；空输入不能作为删除推送放行。
+if [[ "$HAS_DELETIONS" == true && "$HAS_UPDATES" == false ]]; then
+  exit 0
 fi
 
 # 4) Quality gate — runs before every push (skip with PRE_PUSH_GATE=0)

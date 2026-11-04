@@ -1,4 +1,4 @@
-// Input: actual pre-push argument/branch policy and regression dispatch blocks.
+// Input: pre-push argument/branch policy before the review gate, and regression dispatch blocks.
 // Output: bounded routing regression; command recorders do not run a push or business tests.
 // Pos: scripts pre-push dispatch tests.
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -13,7 +13,7 @@ function slice(start,end) {
  return source.slice(from,to);
 }
 function dispatch(args=[],skip='0',changed='1',branch='agent/codex/task') {
- const policy=slice('# ── 参数解析','# ── 完全绕过');
+ const policy=slice('# ── 参数解析','# 三技能门禁独立于传统质量检查开关');
  const regression=slice('# Bounded executable source regressions','# ── 12. 前端单元测试');
  const script=`set -euo pipefail
  git(){ printf '%s' "$TEST_BRANCH"; }
