@@ -8066,3 +8066,12 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
   3. 新增 `singleScoringTable_surroundedByAuditTablesWithoutWeightOrEvidence_evaluatedCleanlyWithoutAuditDefects` 回归测试。
 
 
+
+## 492. OCR 中转迁移必须对齐前端配置、连接测试和实际调用（2026-11-05）
+
+- **触发与根因**：将百度直连接口改为 APIHub 登录与 `/search` 后，若连接测试只读取环境中的中转账号，旧页面仍提交 API Key/Secret Key，用户输入无效 Key 也可能看到成功；旧 Key 配置标志也不能代表中转账号可用。
+- **处理契约**：前端保留可配置的 OCR 卡片，字段改为用户名/密码；在现有设置 JSON 中分别加密保存，不将旧百度 Key 自动当作中转账号。连接测试使用当前输入优先、已保存值其次、环境变量兜底；实际 OCR 使用已保存值优先、环境变量兜底。返回仅提供配置标志和掩码；密码不做 trim，更新凭据清除旧测试结论。
+- **协议与验证**：原 PDF 单页切片不变，`params` 必须是 JSON 字符串，token 放 `satoken` 请求头；登录成功只证明鉴权，不证明额度或识别质量。前端配置交互、服务加密/掩码与 HTTP 契约分别由 `useAiModelSettings.spec.js`、`BaiduOcrSettingsServiceTest`、`BaiduTableOcrGatewayTest` 验证。
+- **环境边界**：用户确认中转只可在测试环境使用；本地契约通过不能替代测试环境真实 OCR 验收。
+
+- **本次 PR 验证边界（2026-11-05 用户确认）**：用户对真实页面 Playwright 验证明确回复“不需要验证”，因此本 PR 不将其作为前置门禁；记录为用户要求延期，不能写成通过。组件测试、真实设置服务/数据库测试、HTTP 协议测试与构建分别记录，均不能替代真实 OCR 识别验收。

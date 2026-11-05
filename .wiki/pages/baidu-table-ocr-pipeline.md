@@ -4,8 +4,8 @@ space: engineering
 category: architecture
 tags: [scoreparse, baidu-ocr, table-extraction, shadow-pipeline, settings]
 created: 2026-10-28
-updated: 2026-11-02
-health_checked: 2026-11-02
+updated: 2026-11-05
+health_checked: 2026-11-05
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/baidu/
   - backend/src/main/java/com/xiyu/bid/settings/service/BaiduOcrSettingsService.java
@@ -15,6 +15,14 @@ backlinks:
 ---
 
 # 百度表格文字识别 (Table OCR) 旁路对照管线
+
+## 2026-11-05 APIHub 中转
+
+- `BaiduTableOcrClient` 改为 APIHub `/user/login` → `/search`，`satoken` 请求头鉴权；`params` 为原参数 JSON 字符串，`noCache=1`。
+- `data.result` 支持字符串/对象；外层失败与 `isSuccess!=1` 报错，不能当作零表格成功。
+- 前端 OCR 卡片配置用户名/密码并加密保存，未配置时回退 `APP_SCORE_PARSE_BAIDU_OCR_USERNAME/PASSWORD`；旧百度 Key 不作为中转登录凭据；原动态开关保留。
+- 副作用：前端或环境配置必须改为中转账号；保持 PDF 单页切片、结果适配器及评分提取不变。
+- 用户确认只能在测试环境访问；本地契约验证与测试环境真实 OCR 验收分开。
 
 ## 2026-11-02 固定真实文件对照与局部修复
 
@@ -169,3 +177,12 @@ backlinks:
 - 确定性事实保留factId/parentFactId父链；展示编号保留用于原文分段，不能重新作为全局父节点唯一标识。跨表重号不应改变已证实的子项边界。
 - 第10/11、20/21、100/101档与中文序数采用相同互斥最大值语义；独立整项上限冲突仍保留拒绝。
 - 入口行为回归见`OriginalScoreWeightBoundaryRegressionTest`。这些是系统转换核验测试，不等同于百度OCR原始文字或生产整文件准确率验收。
+
+- 部署边界：`APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED` 默认 false；仅测试部署显式设为 true。已有数据库 OCR 启用状态不能绕过该开关，生产原直连路径不再自动使用，不会静默回落直连。
+- 真实 OCR 诊断另需 `XIYU_OCR_GATEWAY_LIVE_TEST=true` 及外部中转账号；普通本地测试不访问真实 OCR。真实诊断保留原断言，不将跳过记作验收通过。
+
+- 双开关能力判断：`BaiduTableOcrClient.isEnabled()` 先检查部署开关，再读取数据库动态开关（无提供者时读属性开关）。部署关闭时保留 Sidecar 原成功结果和失败异常，不进入扫描或 OCR fallback。
+
+- **本次 PR 验证边界（2026-11-05 用户确认）**：用户对真实页面 Playwright 验证明确回复“不需要验证”，因此本 PR 不将其作为前置门禁；记录为用户要求延期，不能写成通过。组件测试、真实设置服务/数据库测试、HTTP 协议测试与构建分别记录，均不能替代真实 OCR 识别验收。
+
+- APIHub 结果完整性：仅明确非零整数 `error_code` 可直接作为业务失败返回；成功结果要求非负整数计数和一致的表格数组，合法零表格可省略数组。不完整结果抛 IOException，不能被模型默认空列表掩盖。

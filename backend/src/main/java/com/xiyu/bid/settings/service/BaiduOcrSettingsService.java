@@ -1,13 +1,13 @@
 // Input: Baidu OCR configuration updates and test requests
-// Output: encrypted persistence payload, masked response and connection test results
+// Output: encrypted OCR gateway settings, masked credentials and protocol-scoped login test results
 // Pos: settings/service - Baidu OCR settings management
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.settings.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduOcrProperties;
+import com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableOcrClient;
 import com.xiyu.bid.settings.dto.BaiduOcrTestRequest;
 import com.xiyu.bid.settings.dto.BaiduOcrTestResponse;
 import com.xiyu.bid.settings.dto.SettingsResponse;
@@ -17,23 +17,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.time.Instant;
 
 @Service
 public class BaiduOcrSettingsService {
 
+    private static final String TEST_PROTOCOL = "apihub-login-v1";
+
     private static final Logger log = LoggerFactory.getLogger(BaiduOcrSettingsService.class);
-    private static final String DEFAULT_TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token";
 
     private final PasswordEncryptionUtil passwordEncryptionUtil;
     private final BaiduOcrProperties baiduOcrProperties;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient;
 
     @Autowired
     public BaiduOcrSettingsService(
@@ -44,13 +39,14 @@ public class BaiduOcrSettingsService {
         this.passwordEncryptionUtil = passwordEncryptionUtil;
         this.baiduOcrProperties = baiduOcrProperties;
         this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .build();
     }
 
     public SettingsResponse.BaiduOcrConfig defaultBaiduOcrConfig() {
         return SettingsResponse.BaiduOcrConfig.builder()
+                .usernameConfigured(false)
+                .passwordConfigured(false)
+                .usernameMasked("")
+                .passwordMasked("")
                 .enabled(false)
                 .apiKeyConfigured(false)
                 .secretKeyConfigured(false)
@@ -63,17 +59,23 @@ public class BaiduOcrSettingsService {
         if (source == null) {
             return defaultBaiduOcrConfig();
         }
+        boolean currentProtocol = TEST_PROTOCOL.equals(source.getLastTestProtocol());
         return SettingsResponse.BaiduOcrConfig.builder()
                 .enabled(source.getEnabled() != null && source.getEnabled())
+                .encryptedUsername(source.getEncryptedUsername())
+                .encryptedPassword(source.getEncryptedPassword())
+                .usernameConfigured(isNotBlank(source.getEncryptedUsername()))
+                .passwordConfigured(isNotBlank(source.getEncryptedPassword()))
                 .encryptedApiKey(source.getEncryptedApiKey())
                 .encryptedSecretKey(source.getEncryptedSecretKey())
                 .apiKeyMasked(source.getApiKeyMasked())
                 .secretKeyMasked(source.getSecretKeyMasked())
                 .apiKeyConfigured(isNotBlank(source.getEncryptedApiKey()))
                 .secretKeyConfigured(isNotBlank(source.getEncryptedSecretKey()))
-                .lastTestStatus(source.getLastTestStatus())
-                .lastTestMessage(source.getLastTestMessage())
-                .lastTestAt(source.getLastTestAt())
+                .lastTestProtocol(currentProtocol ? TEST_PROTOCOL : null)
+                .lastTestStatus(currentProtocol ? source.getLastTestStatus() : null)
+                .lastTestMessage(currentProtocol ? source.getLastTestMessage() : null)
+                .lastTestAt(currentProtocol ? source.getLastTestAt() : null)
                 .build();
     }
 
@@ -97,46 +99,50 @@ public class BaiduOcrSettingsService {
             encryptedSecretKey = passwordEncryptionUtil.encrypt(update.getSecretKey().trim());
         }
 
+        String encryptedUsername = isNotBlank(update.getUsername())
+                ? passwordEncryptionUtil.encrypt(update.getUsername().trim()) : normalized.getEncryptedUsername();
+        String encryptedPassword = isNotBlank(update.getPassword())
+                ? passwordEncryptionUtil.encrypt(update.getPassword()) : normalized.getEncryptedPassword();
+        boolean changed = isNotBlank(update.getUsername()) || isNotBlank(update.getPassword());
         return SettingsResponse.BaiduOcrConfig.builder()
+                .encryptedUsername(encryptedUsername)
+                .encryptedPassword(encryptedPassword)
+                .usernameConfigured(isNotBlank(encryptedUsername))
+                .passwordConfigured(isNotBlank(encryptedPassword))
                 .enabled(enabled)
                 .encryptedApiKey(encryptedApiKey)
                 .encryptedSecretKey(encryptedSecretKey)
                 .apiKeyConfigured(isNotBlank(encryptedApiKey))
                 .secretKeyConfigured(isNotBlank(encryptedSecretKey))
-                .lastTestStatus(normalized.getLastTestStatus())
-                .lastTestMessage(normalized.getLastTestMessage())
-                .lastTestAt(normalized.getLastTestAt())
+                .lastTestProtocol(changed ? null : normalized.getLastTestProtocol())
+                .lastTestStatus(changed ? null : normalized.getLastTestStatus())
+                .lastTestMessage(changed ? null : normalized.getLastTestMessage())
+                .lastTestAt(changed ? null : normalized.getLastTestAt())
                 .build();
     }
 
     public SettingsResponse.BaiduOcrConfig copyForResponse(SettingsResponse.BaiduOcrConfig source) {
         SettingsResponse.BaiduOcrConfig normalized = normalizeBaiduOcrConfig(source);
-        String decryptedApiKey = decryptSafely(normalized.getEncryptedApiKey());
-        String decryptedSecretKey = decryptSafely(normalized.getEncryptedSecretKey());
-
-        // 如果数据库没有配置，但 application.yml 注入了，则提示已配置并展示环境变量掩码
-        boolean envHasKey = baiduOcrProperties != null && isNotBlank(baiduOcrProperties.getApiKey());
-        boolean envHasSecret = baiduOcrProperties != null && isNotBlank(baiduOcrProperties.getSecretKey());
-
-        String displayApiKey = isNotBlank(decryptedApiKey) ? decryptedApiKey : (envHasKey ? baiduOcrProperties.getApiKey() : "");
-        String displaySecretKey = isNotBlank(decryptedSecretKey) ? decryptedSecretKey : (envHasSecret ? baiduOcrProperties.getSecretKey() : "");
-
-        boolean hasKey = isNotBlank(displayApiKey);
-        boolean hasSecret = isNotBlank(displaySecretKey);
+        var gateway = resolveEffectiveCredentials(source);
 
         return SettingsResponse.BaiduOcrConfig.builder()
                 .enabled(normalized.getEnabled())
-                .apiKeyConfigured(hasKey)
-                .secretKeyConfigured(hasSecret)
-                .apiKeyMasked(maskKey(displayApiKey))
-                .secretKeyMasked(maskKey(displaySecretKey))
+                .usernameConfigured(isNotBlank(gateway.username()))
+                .passwordConfigured(isNotBlank(gateway.password()))
+                .usernameMasked(maskKey(gateway.username()))
+                .passwordMasked(isNotBlank(gateway.password()) ? "******" : "")
+                .apiKeyConfigured(isNotBlank(gateway.apiKey()))
+                .secretKeyConfigured(isNotBlank(gateway.secretKey()))
+                .apiKeyMasked(maskKey(gateway.apiKey()))
+                .secretKeyMasked(maskKey(gateway.secretKey()))
+                .lastTestProtocol(normalized.getLastTestProtocol())
                 .lastTestStatus(normalized.getLastTestStatus())
                 .lastTestMessage(normalized.getLastTestMessage())
                 .lastTestAt(normalized.getLastTestAt())
                 .build();
     }
 
-    public record EffectiveBaiduCredentials(boolean enabled, String apiKey, String secretKey) {}
+    public record EffectiveBaiduCredentials(boolean enabled, String apiKey, String secretKey, String username, String password) {}
 
     public EffectiveBaiduCredentials resolveEffectiveCredentials(SettingsResponse.BaiduOcrConfig config) {
         SettingsResponse.BaiduOcrConfig normalized = normalizeBaiduOcrConfig(config);
@@ -150,79 +156,49 @@ public class BaiduOcrSettingsService {
             secretKey = baiduOcrProperties.getSecretKey();
         }
 
-        boolean enabled = normalized.getEnabled() != null ? normalized.getEnabled() :
-                (baiduOcrProperties != null && baiduOcrProperties.isEnabled());
+        boolean enabled = normalized.getEnabled();
 
-        return new EffectiveBaiduCredentials(enabled, apiKey, secretKey);
+        String username = decryptSafely(normalized.getEncryptedUsername());
+        String password = decryptSafely(normalized.getEncryptedPassword());
+        if (isBlank(username) && baiduOcrProperties != null) username = baiduOcrProperties.getUsername();
+        if (isBlank(password) && baiduOcrProperties != null) password = baiduOcrProperties.getPassword();
+        return new EffectiveBaiduCredentials(enabled, apiKey, secretKey, username, password);
     }
 
     public BaiduOcrTestResponse testConnection(BaiduOcrTestRequest request, SettingsResponse.BaiduOcrConfig currentConfig) {
-        String testApiKey = null;
-        String testSecretKey = null;
-
-        if (request != null && isFreshSecret(request.getApiKey())) {
-            testApiKey = request.getApiKey().trim();
+        // SettingsService persists this same config together with the returned status/message/time.
+        // Stamp only when a new gateway test runs, never while loading historical settings.
+        if (currentConfig != null) currentConfig.setLastTestProtocol(TEST_PROTOCOL);
+        var effective = resolveEffectiveCredentials(currentConfig);
+        var testProperties = new BaiduOcrProperties();
+        if (baiduOcrProperties != null) org.springframework.beans.BeanUtils.copyProperties(baiduOcrProperties, testProperties);
+        testProperties.setUsername(request != null && isNotBlank(request.getUsername())
+                ? request.getUsername().trim() : effective.username());
+        testProperties.setPassword(request != null && isNotBlank(request.getPassword())
+                ? request.getPassword() : effective.password());
+        if (isBlank(testProperties.getUsername()) || isBlank(testProperties.getPassword())) {
+            return BaiduOcrTestResponse.builder().status("failed")
+                    .message("OCR 用户名或密码不能为空，请填写并保存配置")
+                    .testedAt(Instant.now()).build();
         }
-        if (request != null && isFreshSecret(request.getSecretKey())) {
-            testSecretKey = request.getSecretKey().trim();
+        if (!testProperties.isGatewayEnabled()) {
+            return BaiduOcrTestResponse.builder().status("failed")
+                    .message("当前部署未启用 OCR 中转，仅测试环境可用")
+                    .testedAt(Instant.now()).build();
         }
-
-        // 若请求中未指定或为掩码，从已持久化配置或配置属性回退
-        EffectiveBaiduCredentials effective = resolveEffectiveCredentials(currentConfig);
-        if (isBlank(testApiKey)) {
-            testApiKey = effective.apiKey();
-        }
-        if (isBlank(testSecretKey)) {
-            testSecretKey = effective.secretKey();
-        }
-
-        if (isBlank(testApiKey) || isBlank(testSecretKey)) {
-            return BaiduOcrTestResponse.builder()
-                    .status("failed")
-                    .message("API Key 或 Secret Key 不能为空")
-                    .testedAt(Instant.now())
-                    .build();
-        }
-
-        String tokenUrl = baiduOcrProperties != null && isNotBlank(baiduOcrProperties.getTokenUrl())
-                ? baiduOcrProperties.getTokenUrl() : DEFAULT_TOKEN_URL;
-
-        String fullUrl = String.format("%s?grant_type=client_credentials&client_id=%s&client_secret=%s",
-                tokenUrl, testApiKey, testSecretKey);
-
         try {
-            HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(fullUrl))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.noBody())
-                    .timeout(Duration.ofSeconds(10))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-            JsonNode root = objectMapper.readTree(response.body());
-
-            if (root.has("access_token")) {
-                return BaiduOcrTestResponse.builder()
-                        .status("success")
-                        .message("百度智能云鉴权连接成功")
-                        .testedAt(Instant.now())
-                        .build();
-            } else {
-                String error = root.has("error_description") ? root.get("error_description").asText()
-                        : (root.has("error") ? root.get("error").asText() : "未知鉴权错误");
-                return BaiduOcrTestResponse.builder()
-                        .status("failed")
-                        .message("连接失败: " + error)
-                        .testedAt(Instant.now())
-                        .build();
-            }
-        } catch (java.io.IOException | InterruptedException | RuntimeException e) {
-            log.warn("Baidu OCR connection test error: {}", e.getMessage());
-            return BaiduOcrTestResponse.builder()
-                    .status("failed")
-                    .message("网络通信异常: " + e.getMessage())
-                    .testedAt(Instant.now())
-                    .build();
+            new BaiduTableOcrClient(testProperties, objectMapper).getAccessToken();
+            return BaiduOcrTestResponse.builder().status("success")
+                    .message("APIHub 登录鉴权成功（未验证 OCR 额度和识别结果）")
+                    .testedAt(Instant.now()).build();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return BaiduOcrTestResponse.builder().status("failed")
+                    .message("APIHub 连接测试被中断").testedAt(Instant.now()).build();
+        } catch (java.io.IOException | RuntimeException e) {
+            return BaiduOcrTestResponse.builder().status("failed")
+                    .message("APIHub 登录失败，请检查测试环境网络和中转账号配置")
+                    .testedAt(Instant.now()).build();
         }
     }
 

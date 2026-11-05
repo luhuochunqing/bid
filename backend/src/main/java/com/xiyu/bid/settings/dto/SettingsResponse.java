@@ -162,12 +162,20 @@ public class SettingsResponse {
     @AllArgsConstructor
     public static class BaiduOcrConfig {
         private Boolean enabled;
+        private String encryptedUsername;
+        private String encryptedPassword;
+        private String usernameMasked;
+        private String passwordMasked;
+        private Boolean usernameConfigured;
+        private Boolean passwordConfigured;
         private String encryptedApiKey;
         private String encryptedSecretKey;
         private String apiKeyMasked;
         private String secretKeyMasked;
         private Boolean apiKeyConfigured;
         private Boolean secretKeyConfigured;
+        /** 测试所属鉴权协议；缺失表示旧百度直连结论，不可作为 APIHub 登录结论。 */
+        private String lastTestProtocol;
         private String lastTestStatus;
         private String lastTestMessage;
         private Instant lastTestAt;

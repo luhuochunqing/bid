@@ -25,6 +25,35 @@ class BaiduOcrConfigurationTest {
         assertThat("dedicated-secret".equals(environment.getProperty("app.score-parse.baidu-ocr.secret-key"))).isTrue();
     }
 
+    @Test void gatewayIsDisabledByDefaultIncludingProductionProfile() throws Exception {
+        var environment = environment(Map.of());
+        for (var source : new YamlPropertySourceLoader().load("prod", new ClassPathResource("application-prod.yml")))
+            environment.getPropertySources().addFirst(source);
+        assertThat(environment.getProperty("app.score-parse.baidu-ocr.gateway-enabled", Boolean.class)).isFalse();
+        var optedIn = environment(Map.of("APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED", "true"));
+        assertThat(optedIn.getProperty("app.score-parse.baidu-ocr.gateway-enabled", Boolean.class)).isTrue();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void capabilityRequiresDeploymentAndConfigurationOptIn(boolean gatewayEnabled, boolean enabled) {
+        var properties = new BaiduOcrProperties();
+        properties.setGatewayEnabled(gatewayEnabled);
+        properties.setEnabled(enabled);
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        assertThat(new BaiduTableOcrClient(properties, mapper).isEnabled())
+                .isEqualTo(gatewayEnabled && enabled);
+        // Database state overrides the legacy property, but never the deployment gate.
+        properties.setEnabled(!enabled);
+        var provider = new BaiduOcrCredentialsProvider() {
+            public boolean isEnabled() { return enabled; }
+            public String getApiKey() { return null; }
+            public String getSecretKey() { return null; }
+        };
+        assertThat(new BaiduTableOcrClient(properties, mapper, provider).isEnabled())
+                .isEqualTo(gatewayEnabled && enabled);
+    }
+
     private static StandardEnvironment environment(Map<String, Object> overrides) throws Exception {
         var environment = new StandardEnvironment();
         environment.getPropertySources().remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME);

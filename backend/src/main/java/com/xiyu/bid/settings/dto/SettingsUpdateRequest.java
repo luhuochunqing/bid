@@ -158,6 +158,8 @@ public class SettingsUpdateRequest {
     @AllArgsConstructor
     public static class BaiduOcrConfigUpdate {
         private Boolean enabled;
+        private String username;
+        private String password;
         private String apiKey;
         private String secretKey;
     }

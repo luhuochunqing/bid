@@ -23,11 +23,20 @@ public class BaiduOcrProperties {
     /** 百度智能云 Secret Key。 */
     private String secretKey = "";
 
-    /** OAuth2 Token 获取 URL。 */
-    private String tokenUrl = "https://aip.baidubce.com/oauth/2.0/token";
+    /** APIHub 登录 URL。 */
+    private String tokenUrl = "http://apihub-test.ehsy.com/user/login";
 
-    /** 表格文字识别 API URL。 */
-    private String tableUrl = "https://aip.baidubce.com/rest/2.0/ocr/v1/table";
+    /** APIHub 统一查询 URL。 */
+    private String tableUrl = "http://apihub-test.ehsy.com/search";
+
+    /** 部署级中转开关；仅测试环境显式开启，数据库旧 enabled 不可绕过。 */
+    private boolean gatewayEnabled = false;
+
+    /** APIHub 账号，由数据库或环境配置提供，不复用百度 API Key。 */
+    private String username = "";
+    private String password = "";
+    /** 文档允许 username 或 userName，按测试环境实际契约配置。 */
+    private String loginUsernameField = "username";
 
     /** 连接超时时间（秒）。 */
     private int connectTimeoutSeconds = 10;
