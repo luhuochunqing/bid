@@ -35,7 +35,7 @@
 | `check-java-coding-standards.sh` | 门禁脚本 | 检查暂存区 Java 代码规范（如 `catch(Exception)`、`Optional.get()`、原始泛型），并执行 changed-code 质量门禁：Checkstyle 默认全启；PMD 支持 `off|report|on` 分阶段只检查目标服务包；SpotBugs 支持 `auto|off|report|on`，并通过 `quality.includes` / `quality.onlyAnalyze` 缩圈到目标改动类 |
 | `install-java-standards-hook.sh` | 安装脚本 | 将仓库 `.githooks/pre-commit` 安装到当前 Git hooksPath 或 common hooks 目录，支持多 worktree 共用门禁 |
 | `local-ci.sh` | 门禁脚本 | GitHub Actions 账单受限期间的本地验收入口；提供 `quick`、`full`、`release` 三档真实 API 模式门禁，后端门禁前会清理构建输出，H2 集成测试显式固定 `ddl-auto=create-drop` 以避免本机环境变量污染，不替代、不修改远端 Actions 定义；其中 quick/full/release 共用前端快速门禁，已纳入 `npm run test:agent-start-task-contract` 守护任务启动脚本 dry-run 契约 |
-| `review-workflow.py` | 三技能审查门禁 | 清理→测试→Google→西域独立审查，三轮以内自动修复；run 生成内容凭证，check 拦截不合规交付 |
+| `review-workflow.py` | 三技能审查门禁 | 清理→测试→Google→西域独立审查，三轮以内自动修复；run 生成内容凭证，check 拦截不合规交付；纯文档变更（仅 `*.md`/`*.mdx` 或 `docs/`、`.wiki/` 内的 `.txt/.rst/.pdf/.png/.jpg/.jpeg/.gif/.webp/.docx/.pptx` 文档工件；代码、配置及未知类型不免审）check 直接放行 |
 | `lib/review_gate.py` / `lib/review_agent.py` | 门禁内核 / Agent 适配 | 内容指纹、工件哈希、技能解析、Codex 或显式进程协议 |
 | `ci-pre-pr.sh` | 提交前门禁脚本 | PR 提交前一站式本地门禁；默认覆盖前端治理检查、`test:agent-start-task-contract`、前端单元测试、API 构建、lint、路由/E2E 联动检查、pre-push-gate 与后端轻量质量门禁，可选追加 E2E 与 Flyway dry-run |
 | `performance/` | 压测脚本目录 | 存放真实 API 性能压测脚本（200 销售并发 k6 主链路），以及压测执行与原始证据归档工具链（`run-stress-test.sh` / `capture-monitoring.sh` / `monitor-spec.sh` / `scrub-secrets.mjs` / `write-run-manifest.mjs`，产出物见 `docs/testing/stress-test-artifacts/`） |

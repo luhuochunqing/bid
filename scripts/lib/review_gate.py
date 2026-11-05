@@ -7,6 +7,10 @@ import os
 import subprocess
 
 STAGES = ('ai-slop-cleaner', 'verify', 'google-code-review', 'xiyu-code-review')
+DOC_EXTENSIONS = ('.md', '.mdx')
+DOC_DIRECTORIES = ('docs/', '.wiki/')
+DOC_ARTIFACT_EXTENSIONS = ('.txt', '.rst', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp',
+                           '.docx', '.pptx')
 
 class GateError(Exception):
     pass
@@ -39,6 +43,19 @@ def changed_files(root, base):
     tracked = git(root, 'diff', '--no-renames', '--name-only', '-z', base, '--').split(b'\0')
     untracked = git(root, 'ls-files', '--others', '--exclude-standard', '-z').split(b'\0')
     return sorted({os.fsdecode(name) for name in tracked + untracked if name})
+
+
+def documentation_only(root, base_ref='origin/main'):
+    """仅 Markdown 或文档目录内明确的文档工件免审；未知类型默认走完整门禁。"""
+    base_tip = git(root, 'rev-parse', '--verify', base_ref + '^{commit}').decode().strip()
+    base = git(root, 'merge-base', base_tip, 'HEAD').decode().strip()
+    files = changed_files(root, base)
+    if not files:
+        return False, files
+    return all(name.lower().endswith(DOC_EXTENSIONS)
+               or (name.startswith(DOC_DIRECTORIES)
+                   and name.lower().endswith(DOC_ARTIFACT_EXTENSIONS))
+               for name in files), files
 
 
 def snapshot(root, base_ref='origin/main'):
@@ -162,6 +179,12 @@ def validate_final_reports(directory, final, current):
 
 def validate_receipt(root, clean=True):
     directory = state_dir(root)
+    only_docs, files = documentation_only(root)
+    if only_docs:
+        if clean and git(root, 'status', '--porcelain', '--untracked-files=all').strip():
+            raise GateError('交付前必须提交所有已审查改动，工作区须干净')
+        return {'status': 'DOCS_ONLY', 'version': 1, 'base_ref': 'origin/main',
+                'fingerprint': 'docs-only', 'files': files}
     state = read_json(directory / 'state.json')
     current = validate_receipt_identity(root, state, clean)
     events = state.get('events', [])

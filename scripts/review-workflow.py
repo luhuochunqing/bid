@@ -208,6 +208,10 @@ def check(args, root):
     state = validate_receipt(root)
     if args.pr:
         validate_pr_head(root, args.branch)
+    if state.get('status') == 'DOCS_ONLY':
+        print('[review-gate] 纯文档变更免审（%d 个文件，仅 Markdown 或文档目录内白名单工件）'
+              % len(state['files']))
+        return
     print('[review-gate] 三技能最终内容凭证通过: ' + state['fingerprint'][:12])
 
 

@@ -304,6 +304,48 @@ class ReviewWorkflowTest(unittest.TestCase):
 
     def test_missing_receipt_blocks(self):
         r=self.cli('check'); self.assertNotEqual(r.returncode,0); self.assertIn('review-gate',r.stderr)
+    def test_docs_only_change_skips_review(self):
+        self.git('checkout','-q','refs/remotes/origin/main','-b','agent/test/docs')
+        (self.repo/'docs').mkdir(exist_ok=True); (self.repo/'docs'/'note.md').write_text('# note\n')
+        self.commit()
+        r=self.cli('check'); self.assert_ok(r); self.assertIn('纯文档变更免审',r.stdout)
+    def test_docs_plus_code_still_requires_review(self):
+        self.git('checkout','-q','refs/remotes/origin/main','-b','agent/test/docs-code')
+        (self.repo/'docs').mkdir(exist_ok=True); (self.repo/'docs'/'note.md').write_text('# note\n')
+        (self.repo/'code.txt').write_text('feature\n'); self.commit()
+        r=self.cli('check'); self.assertNotEqual(r.returncode,0); self.assertIn('review-gate',r.stderr)
+    def test_document_directories_do_not_exempt_code_or_configuration(self):
+        self.git('checkout','-q','refs/remotes/origin/main','-b','agent/test/docs-config')
+        for name in ('docs/deployment/docker-compose.yml',
+                     'docs/operations/cleanup-test-org-deprecated-source-app.sql',
+                     '.wiki/config.json', 'docs/tool.py', 'docs/unknown.custom'):
+            with self.subTest(name=name):
+                path = self.repo / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('changed\n')
+                self.assertFalse(review_gate.documentation_only(self.repo)[0])
+                self.commit()
+                with self.assertRaises(review_gate.GateError):
+                    review_gate.validate_receipt(self.repo)
+                # Also protect modifications to files already present on the baseline.
+                self.git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+                path.write_text('modified existing file\n')
+                self.assertFalse(review_gate.documentation_only(self.repo)[0])
+                self.commit()
+                with self.assertRaises(review_gate.GateError):
+                    review_gate.validate_receipt(self.repo)
+                self.git('reset', '--hard', 'refs/remotes/origin/main')
+
+    def test_document_artifacts_and_markdown_remain_exempt(self):
+        self.git('checkout','-q','refs/remotes/origin/main','-b','agent/test/doc-artifacts')
+        for name in ('docs/guide.pdf', '.wiki/diagram.png', 'README.MD', 'notes/page.mdx'):
+            path = self.repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('document\n')
+        self.assertTrue(review_gate.documentation_only(self.repo)[0])
+        self.commit()
+        self.assertEqual(review_gate.validate_receipt(self.repo)['status'], 'DOCS_ONLY')
+
     def test_success_requires_exact_sequence(self):
         self.assert_ok(self.run_flow())
         self.assertEqual(self.stages(),['ai-slop-cleaner','google-code-review','xiyu-code-review'])
