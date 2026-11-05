@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AiModelSettingsPanel from './AiModelSettingsPanel.vue'
+import BaiduOcrSettingsCard from './BaiduOcrSettingsCard.vue'
 
 const getSystemSettings = vi.fn()
 const updateSystemSettings = vi.fn()
@@ -40,10 +41,10 @@ describe('useAiModelSettings', () => {
         aiModelConfig: { activeProvider: 'deepseek', providers: [] },
         baiduOcrConfig: {
           enabled: true,
-          apiKeyConfigured: true,
-          secretKeyConfigured: true,
-          apiKeyMasked: 'VJ8Z****WlY',
-          secretKeyMasked: 'QE4w****7bKC',
+          usernameConfigured: true,
+          passwordConfigured: true,
+          usernameMasked: 'VJ8Z****WlY',
+          passwordMasked: 'QE4w****7bKC',
           lastTestStatus: 'success',
           lastTestMessage: '鉴权成功',
         },
@@ -54,8 +55,8 @@ describe('useAiModelSettings', () => {
     await load()
 
     expect(baiduOcrConfig.value.enabled).toBe(true)
-    expect(baiduOcrConfig.value.apiKeyConfigured).toBe(true)
-    expect(baiduOcrConfig.value.apiKeyMasked).toBe('VJ8Z****WlY')
+    expect(baiduOcrConfig.value.usernameConfigured).toBe(true)
+    expect(baiduOcrConfig.value.usernameMasked).toBe('VJ8Z****WlY')
     expect(baiduOcrConfig.value.lastTestStatus).toBe('success')
   })
 
@@ -70,15 +71,15 @@ describe('useAiModelSettings', () => {
     })
 
     const { testBaiduOcr, baiduOcrConfig } = useAiModelSettings()
-    baiduOcrConfig.value.apiKey = 'test-key'
-    baiduOcrConfig.value.secretKey = 'test-secret'
+    baiduOcrConfig.value.username = 'test-key'
+    baiduOcrConfig.value.password = 'test-secret'
 
     await testBaiduOcr()
     expect(elMessage.success).toHaveBeenCalledWith(expect.stringContaining('尚未验证'))
 
     expect(testBaiduOcrConnection).toHaveBeenCalledWith({
-      apiKey: 'test-key',
-      secretKey: 'test-secret',
+      username: 'test-key',
+      password: 'test-secret',
     })
     expect(baiduOcrConfig.value.lastTestStatus).toBe('success')
   })
@@ -88,7 +89,7 @@ describe('useAiModelSettings', () => {
       props: {
         systemConfig: { enableAI: true },
         aiModelConfig: { activeProvider: 'deepseek', providers: [] },
-        baiduOcrConfig: { enabled: false, apiKey: '', secretKey: '' },
+        baiduOcrConfig: { enabled: false, username: '', password: '' },
         loading: false,
         saving: false,
         testingProvider: '',
@@ -112,4 +113,42 @@ describe('useAiModelSettings', () => {
     })
     expect(wrapper.exists()).toBe(true)
   })
+  it('saves gateway credentials and clears plaintext after reloading the masked response', async () => {
+    updateSystemSettings.mockResolvedValueOnce({ success: true, data: {
+      baiduOcrConfig: { enabled: true, usernameConfigured: true, passwordConfigured: true },
+    } })
+    const { save, baiduOcrConfig } = useAiModelSettings()
+    baiduOcrConfig.value.enabled = true
+    baiduOcrConfig.value.username = ' gateway-user '
+    baiduOcrConfig.value.password = ' padded-password '
+    await save()
+    expect(updateSystemSettings).toHaveBeenCalledWith(expect.objectContaining({
+      baiduOcrConfig: { enabled: true, username: 'gateway-user', password: ' padded-password ' },
+    }))
+    expect(baiduOcrConfig.value.username).toBe('')
+    expect(baiduOcrConfig.value.password).toBe('')
+    expect(baiduOcrConfig.value.passwordConfigured).toBe(true)
+  })
+
+  it('renders editable OCR account fields and configuration state without Baidu key labels', () => {
+    const wrapper = mount(BaiduOcrSettingsCard, {
+      props: { modelValue: { enabled: true, usernameConfigured: true, passwordConfigured: true } },
+      global: { stubs: {
+        ElForm: { template: '<form><slot /></form>' },
+        ElRow: { template: '<div><slot /></div>' },
+        ElCol: { template: '<div><slot /></div>' },
+        ElFormItem: { props: ['label'], template: '<label>{{ label }}<slot /></label>' },
+        ElInput: true, ElSwitch: true, ElTag: { template: '<span><slot /></span>' },
+        ElButton: { emits: ['click'], template: '<button @click="$emit(\'click\')"><slot /></button>' }, ElIcon: true,
+      } },
+    })
+    expect(wrapper.text()).toContain('表格文字识别（OCR）')
+    expect(wrapper.text()).toContain('用户名')
+    expect(wrapper.text()).toContain('密码')
+    expect(wrapper.text()).toContain('凭据已配置')
+    expect(wrapper.text()).not.toMatch(/百度|API Key|Secret Key/)
+    wrapper.find('button').trigger('click')
+    expect(wrapper.emitted('test')).toHaveLength(1)
+  })
+
 })

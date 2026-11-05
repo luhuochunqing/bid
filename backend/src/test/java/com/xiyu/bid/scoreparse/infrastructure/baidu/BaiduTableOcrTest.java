@@ -74,11 +74,16 @@ class BaiduTableOcrTest {
 
     @Test
     @DisplayName("端到端集成测试: 使用真实凭据对全页边框 PDF 样本进行表格提取")
+    @org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable(named = "XIYU_OCR_GATEWAY_LIVE_TEST", matches = "true")
     void client_shouldExtractTablesFromRealPdfFixture() throws Exception {
         BaiduOcrProperties props = new BaiduOcrProperties();
         props.setEnabled(true);
-        props.setApiKey("VJ8ZnT3WTnUR433O7QX6sWlY");
-        props.setSecretKey("QE4wXv7U774mb5IceRRY3XpI7FsY7bKC");
+        props.setGatewayEnabled(true);
+        props.setUsername(System.getenv("APP_SCORE_PARSE_BAIDU_OCR_USERNAME"));
+        props.setPassword(System.getenv("APP_SCORE_PARSE_BAIDU_OCR_PASSWORD"));
+        props.setLoginUsernameField(System.getenv().getOrDefault("APP_SCORE_PARSE_BAIDU_OCR_LOGIN_USERNAME_FIELD", "username"));
+        org.junit.jupiter.api.Assumptions.assumeTrue(props.getUsername() != null && props.getPassword() != null,
+                "Live OCR requires test-environment credentials");
 
         BaiduTableOcrClient client = new BaiduTableOcrClient(props, objectMapper);
 
@@ -111,6 +116,7 @@ class BaiduTableOcrTest {
 
     @Test
     @DisplayName("诊断测试: 使用真实百度OCR识别project1130.pdf中的评分表格，检查缺失的第10/11/12项")
+    @org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable(named = "XIYU_OCR_GATEWAY_LIVE_TEST", matches = "true")
     void client_shouldDiagnoseProject1130ScoringTables() throws Exception {
         File pdfFile = new File("src/test/resources/project1130.pdf");
         if (!pdfFile.exists()) {
@@ -137,8 +143,12 @@ class BaiduTableOcrTest {
 
         BaiduOcrProperties props = new BaiduOcrProperties();
         props.setEnabled(true);
-        props.setApiKey("VJ8ZnT3WTnUR433O7QX6sWlY");
-        props.setSecretKey("QE4wXv7U774mb5IceRRY3XpI7FsY7bKC");
+        props.setGatewayEnabled(true);
+        props.setUsername(System.getenv("APP_SCORE_PARSE_BAIDU_OCR_USERNAME"));
+        props.setPassword(System.getenv("APP_SCORE_PARSE_BAIDU_OCR_PASSWORD"));
+        props.setLoginUsernameField(System.getenv().getOrDefault("APP_SCORE_PARSE_BAIDU_OCR_LOGIN_USERNAME_FIELD", "username"));
+        org.junit.jupiter.api.Assumptions.assumeTrue(props.getUsername() != null && props.getPassword() != null,
+                "Live OCR requires test-environment credentials");
 
         BaiduTableOcrClient client = new BaiduTableOcrClient(props, objectMapper);
 

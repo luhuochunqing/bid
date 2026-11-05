@@ -1,5 +1,5 @@
 // Input: configuration state request
-// Output: Baidu OCR credentials and enabled status
+// Output: OCR gateway credentials, legacy Baidu keys and enabled status
 // Pos: scoreparse/infrastructure/baidu - credentials provider SPI contract
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.scoreparse.infrastructure.baidu;
@@ -24,4 +24,9 @@ public interface BaiduOcrCredentialsProvider {
      * 获取有效的 Secret Key（若未配置返回 null）。
      */
     String getSecretKey();
+    /** APIHub 用户名，旧百度 Key 不作为回退。 */
+    default String getUsername() { return null; }
+
+    /** APIHub 密码，允许与百度凭据独立配置。 */
+    default String getPassword() { return null; }
 }

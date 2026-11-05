@@ -1,13 +1,13 @@
 // Input: PDF file bytes and page numbers
-// Output: SidecarTableExtraction and raw Baidu OCR table response (with in-memory single-page slicing optimization)
+// Output: Validated APIHub OCR results with deployment gating, cached login and single-page PDF slicing
 // Pos: scoreparse/infrastructure/baidu - Baidu Table OCR client
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.scoreparse.infrastructure.baidu;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.scoreparse.domain.SidecarTableExtraction;
 import com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableModels.BaiduTableResponse;
-import com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableModels.BaiduTokenResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +17,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -26,11 +25,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Objects;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 百度智能云表格识别（Table OCR）客户端组件。
- * <p>支持自动维护 OAuth2 access_token 缓存生命周期，执行 PDF 表格识别。
+ * <p>通过 APIHub 登录和 satoken 鉴权执行 PDF 表格识别。
  */
 @Slf4j
 @Component
@@ -43,11 +44,11 @@ public class BaiduTableOcrClient {
 
     private final AtomicReference<CachedToken> tokenCache = new AtomicReference<>();
 
-    private record CachedToken(String token, String apiKey, Instant expireAt) {
-        boolean isValid(String currentApiKey) {
-            return token != null
-                    && Objects.equals(apiKey, currentApiKey)
-                    && Instant.now().isBefore(expireAt.minusSeconds(600)); // 提前10分钟刷新
+    private record CachedToken(String token, String username, String password, Instant expireAt) {
+        boolean isValid(String currentUsername, String currentPassword) {
+            return Objects.equals(username, currentUsername)
+                    && Objects.equals(password, currentPassword)
+                    && Instant.now().isBefore(expireAt);
         }
     }
 
@@ -70,10 +71,13 @@ public class BaiduTableOcrClient {
     }
 
     public boolean isEnabled() {
+        if (properties == null || !properties.isGatewayEnabled()) {
+            return false;
+        }
         if (credentialsProvider != null) {
             return credentialsProvider.isEnabled();
         }
-        return properties != null && properties.isEnabled();
+        return properties.isEnabled();
     }
 
     /**
@@ -108,78 +112,136 @@ public class BaiduTableOcrClient {
         }
 
         String pdfBase64 = Base64.getEncoder().encodeToString(uploadBytes);
-        StringBuilder formBody = new StringBuilder();
-        formBody.append("pdf_file=").append(URLEncoder.encode(pdfBase64, StandardCharsets.UTF_8));
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("pdf_file", pdfBase64);
         if (uploadPageNum != null && uploadPageNum > 0) {
-            formBody.append("&pdf_file_num=").append(uploadPageNum);
+            params.put("pdf_file_num", uploadPageNum.toString());
         }
-
-        String requestUrl = properties.getTableUrl() + "?access_token=" + accessToken;
+        String body = objectMapper.writeValueAsString(Map.of(
+                "code", "BAIDU_OCR_DOC_API", "noCache", 1,
+                "params", objectMapper.writeValueAsString(params)));
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(requestUrl))
+                .uri(URI.create(properties.getTableUrl()))
                 .timeout(Duration.ofSeconds(properties.getReadTimeoutSeconds()))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString(formBody.toString()))
+                .header("Content-Type", "application/json")
+                .header("satoken", accessToken)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (response.statusCode() != 200) {
-            log.error("Baidu Table OCR HTTP failed: status={}, body={}", response.statusCode(), response.body());
-            throw new IOException("Baidu OCR HTTP error: " + response.statusCode());
+            if (response.statusCode() == 401 || response.statusCode() == 403) tokenCache.set(null);
+            throw new IOException("APIHub OCR HTTP error: " + response.statusCode());
         }
 
-        BaiduTableResponse tableResponse = objectMapper.readValue(response.body(), BaiduTableResponse.class);
+        return parseTableResponse(response.body());
+    }
+
+    BaiduTableResponse parseTableResponse(String body) throws IOException {
+        JsonNode envelope = readEnvelope(body, "search");
+        if (envelope.path("data").path("isSuccess").asInt() != 1) {
+            throw new IOException("APIHub OCR upstream call failed");
+        }
+        JsonNode result = envelope.path("data").path("result");
+        if (result.isTextual()) result = objectMapper.readTree(result.asText());
+        validateTableResult(result);
+        BaiduTableResponse tableResponse = objectMapper.treeToValue(result, BaiduTableResponse.class);
         if (!tableResponse.isSuccess()) {
             log.warn("Baidu Table OCR returned business error: code={}, msg={}", tableResponse.errorCode(), tableResponse.errorMsg());
         }
         return tableResponse;
     }
 
-    /**
-     * 获取有效的 AccessToken，优先读内存缓存，失效时自动刷新。
-     */
+    private static void validateTableResult(JsonNode result) throws IOException {
+        if (result == null || !result.isObject()) {
+            throw new IOException("APIHub OCR result is missing or invalid");
+        }
+        JsonNode error = result.get("error_code");
+        if (error != null && (!error.isIntegralNumber() || !error.canConvertToInt())) {
+            throw new IOException("APIHub OCR error code is invalid");
+        }
+        if (error != null && error.intValue() != 0) return;
+        validateTableCount(result);
+    }
+
+    private static void validateTableCount(JsonNode result) throws IOException {
+        JsonNode count = result.path("table_num");
+        if (!count.isIntegralNumber() || !count.canConvertToInt() || count.intValue() < 0) {
+            throw new IOException("APIHub OCR table count is missing or invalid");
+        }
+        JsonNode tables = result.get("tables_result");
+        if (tables == null && count.intValue() == 0) return;
+        if (tables == null || !tables.isArray() || tables.size() != count.intValue()) {
+            throw new IOException("APIHub OCR table results do not match table count");
+        }
+        for (JsonNode table : tables) {
+            if (!table.isObject()) throw new IOException("APIHub OCR table item is invalid");
+        }
+    }
+
+    /** 获取有效 token；同步协调凭据变更、缓存读取与刷新。 */
     public synchronized String getAccessToken() throws IOException, InterruptedException {
-        String apiKey = (credentialsProvider != null && credentialsProvider.getApiKey() != null && !credentialsProvider.getApiKey().isBlank())
-                ? credentialsProvider.getApiKey() : properties.getApiKey();
-        String secretKey = (credentialsProvider != null && credentialsProvider.getSecretKey() != null && !credentialsProvider.getSecretKey().isBlank())
-                ? credentialsProvider.getSecretKey() : properties.getSecretKey();
-        if (apiKey == null || apiKey.isBlank() || secretKey == null || secretKey.isBlank()) {
-            throw new IllegalStateException("Baidu OCR API Key or Secret Key is not configured.");
+        if (!properties.isGatewayEnabled()) {
+            throw new IllegalStateException("OCR gateway is not enabled for this deployment; test environments only.");
         }
-
+        var credentials = resolveLoginCredentials();
         CachedToken current = tokenCache.get();
-        if (current != null && current.isValid(apiKey)) {
-            return current.token();
+        if (current != null && current.isValid(credentials.username(), credentials.password())) return current.token();
+        CachedToken refreshed = requestLogin(credentials);
+        tokenCache.set(refreshed);
+        return refreshed.token();
+    }
+
+    private record LoginCredentials(String username, String password) {}
+
+    private LoginCredentials resolveLoginCredentials() {
+        String username = configuredOrFallback(credentialsProvider == null ? null : credentialsProvider.getUsername(), properties.getUsername());
+        String password = configuredOrFallback(credentialsProvider == null ? null : credentialsProvider.getPassword(), properties.getPassword());
+        if (username == null || password == null) {
+            throw new IllegalStateException("APIHub OCR username or password is not configured.");
         }
+        return new LoginCredentials(username, password);
+    }
 
-        String tokenUrl = String.format("%s?grant_type=client_credentials&client_id=%s&client_secret=%s",
-                properties.getTokenUrl(),
-                URLEncoder.encode(apiKey, StandardCharsets.UTF_8),
-                URLEncoder.encode(secretKey, StandardCharsets.UTF_8));
+    private static String configuredOrFallback(String configured, String fallback) {
+        String value = configured == null || configured.isBlank() ? fallback : configured;
+        return value == null || value.isBlank() ? null : value;
+    }
 
+    private CachedToken requestLogin(LoginCredentials credentials) throws IOException, InterruptedException {
+        String body = objectMapper.writeValueAsString(Map.of(
+                properties.getLoginUsernameField(), credentials.username(), "password", credentials.password()));
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(tokenUrl))
+                .uri(URI.create(properties.getTokenUrl()))
                 .timeout(Duration.ofSeconds(properties.getConnectTimeoutSeconds()))
-                .POST(HttpRequest.BodyPublishers.noBody())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
-
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (response.statusCode() != 200) {
-            log.error("Failed to fetch Baidu access token: status={}, body={}", response.statusCode(), response.body());
-            throw new IOException("Failed to fetch Baidu access token: HTTP " + response.statusCode());
+            throw new IOException("APIHub OCR login HTTP error: " + response.statusCode());
         }
+        return parseLoginResponse(response.body(), credentials);
+    }
 
-        BaiduTokenResponse tokenResponse = objectMapper.readValue(response.body(), BaiduTokenResponse.class);
-        if (tokenResponse.accessToken() == null || tokenResponse.accessToken().isBlank()) {
-            log.error("Baidu token error: error={}, desc={}", tokenResponse.error(), tokenResponse.errorDescription());
-            throw new IOException("Baidu token error: " + tokenResponse.errorDescription());
+    private CachedToken parseLoginResponse(String body, LoginCredentials credentials) throws IOException {
+        JsonNode data = readEnvelope(body, "login").path("data");
+        String token = data.path("token").asText("");
+        if (token.isBlank()) throw new IOException("APIHub OCR login returned no token");
+        long remaining = data.path("tokenRemainTime").asLong(0);
+        long cacheSeconds = Math.max(0, remaining - Math.min(60, remaining / 10));
+        return new CachedToken(token, credentials.username(), credentials.password(), Instant.now().plusSeconds(cacheSeconds));
+    }
+
+    private JsonNode readEnvelope(String body, String operation) throws IOException {
+        JsonNode response = objectMapper.readTree(body);
+        if (response == null || !response.path("success").asBoolean(false)
+                || !"000000".equals(response.path("code").asText())) {
+            if ("search".equals(operation)) tokenCache.set(null);
+            throw new IOException("APIHub OCR " + operation + " failed (code="
+                    + (response == null ? "missing" : response.path("code").asText("missing")) + ")");
         }
-
-        long expiresIn = tokenResponse.expiresIn() != null ? tokenResponse.expiresIn() : 2592000L;
-        Instant expireAt = Instant.now().plusSeconds(expiresIn);
-        tokenCache.set(new CachedToken(tokenResponse.accessToken(), apiKey, expireAt));
-        log.info("Baidu OCR access token refreshed successfully, expires in {}s", expiresIn);
-        return tokenResponse.accessToken();
+        return response;
     }
 
     /**

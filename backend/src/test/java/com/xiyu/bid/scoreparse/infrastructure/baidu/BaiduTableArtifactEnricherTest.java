@@ -37,6 +37,22 @@ class BaiduTableArtifactEnricherTest {
     }
 
     @Test
+    void disabledDeploymentPreservesSidecarBaselineWithoutScanning() {
+        var props = new BaiduOcrProperties();
+        props.setEnabled(true);
+        var client = new BaiduTableOcrClient(props, objectMapper);
+        var enricher = new BaiduTableArtifactEnricher(client) {
+            @Override
+            public List<Integer> detectScoringPages(byte[] bytes) {
+                throw new AssertionError("Disabled deployment must not scan PDF pages");
+            }
+        };
+        var baseline = new DocumentArtifact(new ArtifactMeta("doc", "sha", "PDF", "sidecar"),
+                List.of(), List.of("SIDECAR_WARNING"));
+        assertThat(enricher.enrichIfEnabled(baseline, new byte[]{1}, "test.pdf")).isSameAs(baseline);
+    }
+
+    @Test
     @DisplayName("当输入文件不是PDF时，enrichIfEnabled直接返回baseline")
     void shouldReturnBaselineWhenNotPdf() {
         BaiduOcrProperties props = new BaiduOcrProperties();
@@ -68,6 +84,7 @@ class BaiduTableArtifactEnricherTest {
 
     @Test
     @DisplayName("端到端验证: 百度OCR作为Primary Authority主管评分区间，提取完整评分表并替换baseline")
+    @org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable(named = "XIYU_OCR_GATEWAY_LIVE_TEST", matches = "true")
     void shouldEnrichMissingPage14WithRealBaiduOcr() throws Exception {
         File pdfFile = new File("src/test/resources/project1130.pdf");
         if (!pdfFile.exists()) {
@@ -78,8 +95,12 @@ class BaiduTableArtifactEnricherTest {
 
         BaiduOcrProperties props = new BaiduOcrProperties();
         props.setEnabled(true);
-        props.setApiKey("VJ8ZnT3WTnUR433O7QX6sWlY");
-        props.setSecretKey("QE4wXv7U774mb5IceRRY3XpI7FsY7bKC");
+        props.setGatewayEnabled(true);
+        props.setUsername(System.getenv("APP_SCORE_PARSE_BAIDU_OCR_USERNAME"));
+        props.setPassword(System.getenv("APP_SCORE_PARSE_BAIDU_OCR_PASSWORD"));
+        props.setLoginUsernameField(System.getenv().getOrDefault("APP_SCORE_PARSE_BAIDU_OCR_LOGIN_USERNAME_FIELD", "username"));
+        org.junit.jupiter.api.Assumptions.assumeTrue(props.getUsername() != null && props.getPassword() != null,
+                "Live OCR requires test-environment credentials");
         BaiduTableOcrClient client = new BaiduTableOcrClient(props, objectMapper);
         BaiduTableArtifactEnricher enricher = new BaiduTableArtifactEnricher(client);
 

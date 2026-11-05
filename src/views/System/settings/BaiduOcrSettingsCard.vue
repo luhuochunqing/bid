@@ -4,7 +4,7 @@
       <div class="provider-head">
         <div>
           <p class="provider-code">TABLE OCR ENGINE</p>
-          <h3>百度智能云表格识别 (Baidu Table OCR)</h3>
+          <h3>表格文字识别（OCR）</h3>
           <p class="ocr-subdesc">用于招标文件跨页长表、带全页边框等复杂版面的高精度结构化抽取与旁路对照。</p>
         </div>
         <el-switch
@@ -17,22 +17,22 @@
       <el-form label-position="top" class="provider-form">
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="API Key (Client ID)">
+            <el-form-item label="用户名">
               <el-input
-                v-model="modelValue.apiKey"
+                v-model="modelValue.username"
                 type="password"
                 show-password
-                :placeholder="modelValue.apiKeyConfigured ? `已配置：${modelValue.apiKeyMasked}` : '请输入百度智能云 API Key'"
+                :placeholder="modelValue.usernameConfigured ? `已配置：${modelValue.usernameMasked}` : '请输入 OCR 服务用户名'"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Secret Key (Client Secret)">
+            <el-form-item label="密码">
               <el-input
-                v-model="modelValue.secretKey"
+                v-model="modelValue.password"
                 type="password"
                 show-password
-                :placeholder="modelValue.secretKeyConfigured ? `已配置：${modelValue.secretKeyMasked}` : '请输入百度智能云 Secret Key'"
+                :placeholder="modelValue.passwordConfigured ? `已配置：${modelValue.passwordMasked}` : '请输入 OCR 服务密码'"
               />
             </el-form-item>
           </el-col>
@@ -40,15 +40,15 @@
       </el-form>
 
       <div class="provider-status">
-        <el-tag :type="modelValue.apiKeyConfigured && modelValue.secretKeyConfigured ? 'success' : 'info'" effect="plain">
-          {{ modelValue.apiKeyConfigured && modelValue.secretKeyConfigured ? '凭据已配置' : '未完整配置凭据' }}
+        <el-tag :type="modelValue.usernameConfigured && modelValue.passwordConfigured ? 'success' : 'info'" effect="plain">
+          {{ modelValue.usernameConfigured && modelValue.passwordConfigured ? '凭据已配置' : '未完整配置凭据' }}
         </el-tag>
         <el-tag
           v-if="modelValue.lastTestStatus"
           :type="modelValue.lastTestStatus === 'success' ? 'success' : 'danger'"
           effect="plain"
         >
-          {{ modelValue.lastTestStatus === 'success' ? '连接正常' : '连接失败' }}
+          {{ modelValue.lastTestStatus === 'success' ? '登录鉴权成功' : '登录鉴权失败' }}
         </el-tag>
       </div>
 

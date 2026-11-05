@@ -1,5 +1,5 @@
 // Input: SettingsService persistent settings
-// Output: BaiduOcrCredentialsProvider effective credentials SPI implementation
+// Output: Effective OCR gateway credentials from encrypted system settings
 // Pos: settings/service - Baidu OCR credentials provider adapter
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.settings.service;
@@ -33,5 +33,14 @@ public class DatabaseBaiduOcrCredentialsProvider implements BaiduOcrCredentialsP
     @Override
     public String getSecretKey() {
         return settingsService.getEffectiveBaiduCredentials().secretKey();
+    }
+    @Override
+    public String getUsername() {
+        return settingsService.getEffectiveBaiduCredentials().username();
+    }
+
+    @Override
+    public String getPassword() {
+        return settingsService.getEffectiveBaiduCredentials().password();
     }
 }

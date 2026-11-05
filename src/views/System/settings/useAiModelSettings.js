@@ -21,19 +21,6 @@ const DEFAULT_SYSTEM_CONFIG = {
   enableAI: true,
 }
 
-const DEFAULT_BAIDU_OCR_CONFIG = {
-  enabled: false,
-  apiKey: '',
-  secretKey: '',
-  apiKeyMasked: '',
-  secretKeyMasked: '',
-  apiKeyConfigured: false,
-  secretKeyConfigured: false,
-  lastTestStatus: '',
-  lastTestMessage: '',
-  lastTestAt: '',
-}
-
 const DEFAULT_PROVIDER_CONFIG = {
   openai: {
     providerCode: 'openai',
@@ -109,15 +96,14 @@ const normalizeAiModelConfig = (config = {}) => {
 }
 
 const normalizeBaiduOcrConfig = (config = {}) => ({
-  ...DEFAULT_BAIDU_OCR_CONFIG,
   ...config,
   enabled: Boolean(config.enabled),
-  apiKey: '',
-  secretKey: '',
-  apiKeyMasked: config.apiKeyMasked || '',
-  secretKeyMasked: config.secretKeyMasked || '',
-  apiKeyConfigured: Boolean(config.apiKeyConfigured),
-  secretKeyConfigured: Boolean(config.secretKeyConfigured),
+  username: '',
+  password: '',
+  usernameMasked: config.usernameMasked || '',
+  passwordMasked: config.passwordMasked || '',
+  usernameConfigured: Boolean(config.usernameConfigured),
+  passwordConfigured: Boolean(config.passwordConfigured),
   lastTestStatus: config.lastTestStatus || '',
   lastTestMessage: config.lastTestMessage || '',
   lastTestAt: config.lastTestAt || '',
@@ -173,8 +159,8 @@ export function useAiModelSettings() {
     },
     baiduOcrConfig: {
       enabled: Boolean(baiduOcrConfig.value.enabled),
-      apiKey: baiduOcrConfig.value.apiKey ? baiduOcrConfig.value.apiKey.trim() : undefined,
-      secretKey: baiduOcrConfig.value.secretKey ? baiduOcrConfig.value.secretKey.trim() : undefined,
+      username: baiduOcrConfig.value.username ? baiduOcrConfig.value.username.trim() : undefined,
+      password: baiduOcrConfig.value.password || undefined,
     },
   })
 
@@ -226,17 +212,17 @@ export function useAiModelSettings() {
     testingBaiduOcr.value = true
     try {
       const result = await settingsApi.testBaiduOcrConnection({
-        apiKey: baiduOcrConfig.value.apiKey,
-        secretKey: baiduOcrConfig.value.secretKey,
+        username: baiduOcrConfig.value.username?.trim() || undefined,
+        password: baiduOcrConfig.value.password || undefined,
       })
-      if (!result?.success) throw new Error(result?.msg || '百度表格识别连接测试失败')
+      if (!result?.success) throw new Error(result?.msg || 'OCR 连接测试失败')
       baiduOcrConfig.value.lastTestStatus = result.data?.status || ''
       baiduOcrConfig.value.lastTestMessage = result.data?.message || ''
       baiduOcrConfig.value.lastTestAt = result.data?.testedAt || new Date().toISOString()
       if (baiduOcrConfig.value.lastTestStatus === 'success') {
-        ElMessage.success('百度 OCR 凭证鉴权成功；尚未验证表格文字识别 V2 权限，请完成一次实际解析确认。')
+        ElMessage.success('OCR 登录鉴权成功；尚未验证识别额度和结果，请在测试环境完成一次实际解析确认。')
       } else {
-        ElMessage.error(baiduOcrConfig.value.lastTestMessage || '百度智能云表格识别连接测试失败')
+        ElMessage.error(baiduOcrConfig.value.lastTestMessage || 'OCR 连接测试失败')
       }
     } catch (error) {
       ElMessage.error(error?.message || '测试连接异常')

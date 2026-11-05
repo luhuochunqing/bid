@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-10-28
-health_checked: 2026-10-28
+updated: 2026-11-05
+health_checked: 2026-11-05
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -29,7 +29,7 @@ backlinks:
 - [[_index]] — 西域投标管理平台知识库
 - [[agent-sop-quickref]] — Agent 开发 SOP 快速参考
 - [[ai-capabilities]] — AI 能力
-- [[baidu-table-ocr-pipeline]] — 百度表格文字识别 (Table OCR) 旁路对照管线、闭合评分单元与原文行归属核验
+- [[baidu-table-ocr-pipeline]] — 百度表格文字识别 (Table OCR) APIHub 中转契约、旁路对照管线与原文行归属核验
   - 2026-11-02：固定真实文件对照，记录来源页、非评分续表和无编号续文的局部改善及剩余验收差异。
 - [[pr2948-scoreparse-scope-and-fallback-risk]] — PR2948评分前序漏扫修复范围与fallback证据退化复审记录
 - [[ai-case-recommend-data-source-fix]] — AI 智能案例推荐契约与陷阱（数据源、裸响应、前端分数门禁、资质提示边界）

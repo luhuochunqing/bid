@@ -1089,6 +1089,7 @@ class Project1382FullPipelineIntegrationTest {
 
     @Test
     @DisplayName("项目1392 (project1130.pdf) 真实百度OCR + Task345线上24项事实全链路验证：跨3页评分表合并为单表、非评分表隔离、OCR异形标点对齐、恢复原文评审因素名称、100分全数归入本方案")
+    @org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable(named = "XIYU_OCR_GATEWAY_LIVE_TEST", matches = "true")
     void verifyProject1392Task345RealBaiduOcrFullPipeline() throws Exception {
         File pdfFile = new File("src/test/resources/project1130.pdf");
         if (!pdfFile.exists()) {
@@ -1099,8 +1100,12 @@ class Project1382FullPipelineIntegrationTest {
 
         var props = new com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduOcrProperties();
         props.setEnabled(true);
-        props.setApiKey("VJ8ZnT3WTnUR433O7QX6sWlY");
-        props.setSecretKey("QE4wXv7U774mb5IceRRY3XpI7FsY7bKC");
+        props.setGatewayEnabled(true);
+        props.setUsername(System.getenv("APP_SCORE_PARSE_BAIDU_OCR_USERNAME"));
+        props.setPassword(System.getenv("APP_SCORE_PARSE_BAIDU_OCR_PASSWORD"));
+        props.setLoginUsernameField(System.getenv().getOrDefault("APP_SCORE_PARSE_BAIDU_OCR_LOGIN_USERNAME_FIELD", "username"));
+        org.junit.jupiter.api.Assumptions.assumeTrue(props.getUsername() != null && props.getPassword() != null,
+                "Live OCR requires test-environment credentials");
         var client = new com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableOcrClient(props, objectMapper);
         var enricher = new com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableArtifactEnricher(client);
 

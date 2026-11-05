@@ -140,11 +140,15 @@ app:
       ram-buffer-bytes: ${APP_SCORE_PARSE_TENDER_RAM_BUFFER_BYTES:31457280}  # 30MB 内存快路径（对齐 Sidecar 上传限制），超即 spill 落盘
       max-text-chars: ${APP_SCORE_PARSE_TENDER_MAX_TEXT_CHARS:5000000}  # 约 500 万字文本量上限
     baidu-ocr:
+      gateway-enabled: ${APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED:false}
       enabled: ${APP_SCORE_PARSE_BAIDU_OCR_ENABLED:false}
       api-key: ${APP_SCORE_PARSE_BAIDU_OCR_API_KEY:${app.baidu-ocr.api-key:}}
       secret-key: ${APP_SCORE_PARSE_BAIDU_OCR_SECRET_KEY:${app.baidu-ocr.secret-key:}}
-      table-url: ${APP_SCORE_PARSE_BAIDU_OCR_TABLE_URL:https://aip.baidubce.com/rest/2.0/ocr/v1/table}
-      token-url: ${APP_SCORE_PARSE_BAIDU_OCR_TOKEN_URL:https://aip.baidubce.com/oauth/2.0/token}
+      table-url: ${APP_SCORE_PARSE_BAIDU_OCR_TABLE_URL:http://apihub-test.ehsy.com/search}
+      token-url: ${APP_SCORE_PARSE_BAIDU_OCR_TOKEN_URL:http://apihub-test.ehsy.com/user/login}
+      username: ${APP_SCORE_PARSE_BAIDU_OCR_USERNAME:}
+      password: ${APP_SCORE_PARSE_BAIDU_OCR_PASSWORD:}
+      login-username-field: ${APP_SCORE_PARSE_BAIDU_OCR_LOGIN_USERNAME_FIELD:username}
       connect-timeout-seconds: ${APP_SCORE_PARSE_BAIDU_OCR_CONNECT_TIMEOUT_SECONDS:10}
       read-timeout-seconds: ${APP_SCORE_PARSE_BAIDU_OCR_READ_TIMEOUT_SECONDS:30}
   baidu-ocr:
