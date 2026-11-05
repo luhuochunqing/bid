@@ -239,4 +239,20 @@ final class OriginalScoringTextScopePolicy {
         return value == null ? "" : value.replaceAll("\\*{1,2}([^*]+)\\*{1,2}", "$1")
                 .replaceAll("_{1,2}([^_]+)_{1,2}", "$1").trim();
     }
+
+    /**
+     * 在已预计算的有序 scopes 列表中定位行号所属的作用域（O(log N) 二分搜索）。
+     * 要求 scopes 按 startLine 升序排列（{@link #textScopes} 保证此顺序）。
+     */
+    static OriginalScoringContext.TextScope findScopeAt(List<OriginalScoringContext.TextScope> sortedScopes, int line) {
+        int lo = 0, hi = sortedScopes.size() - 1;
+        while (lo <= hi) {
+            int mid = (lo + hi) >>> 1;
+            OriginalScoringContext.TextScope scope = sortedScopes.get(mid);
+            if (line < scope.startLine()) { hi = mid - 1; }
+            else if (line >= scope.endLine()) { lo = mid + 1; }
+            else { return scope; }
+        }
+        return null;
+    }
 }

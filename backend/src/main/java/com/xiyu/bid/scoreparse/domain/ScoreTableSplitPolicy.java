@@ -15,6 +15,10 @@ import java.math.BigDecimal;
  * 独立调 {@link ScoreCompletenessPolicy} 校验；单表无证据时走正文/默认 100 兜底，多表无证据时逐表保留未知口径；
  * 结构破损表按 {@code STRUCTURE_INCOMPLETE} 单独标记。文档级聚合取最差决策，
  * 但不阻塞按表落库（调用方按表聚合候选）。
+ *
+ * <p><b>评分表判定规则</b>：仅统计包含至少一个 weight > 0 的末级评分项的表格作为独立评分表（
+ * {@code scoringLeafBearingTablesCount}）。weight 全为 0 的资格/形式审查表不计入多表判定，
+ * 避免非评分表格污染多表边界检测导致有效评分表被误判为 {@code MULTI_TABLE_DECLARED_TOTAL_UNKNOWN}。
  */
 public final class ScoreTableSplitPolicy {
 
@@ -46,9 +50,20 @@ public final class ScoreTableSplitPolicy {
                 .map(ScoreFact::parentFactId)
                 .filter(pid -> pid != null && !pid.isBlank())
                 .collect(java.util.stream.Collectors.toSet());
-        long leafBearingTablesCount = tablesById.values().stream()
-                .filter(t -> t.facts().stream().anyMatch(f -> !allParentIds.contains(f.factId())))
+        // 仅统计包含 weight > 0 末级评分项的表格作为有效评分表。
+        // 资格审查表、形式审查表等 weight 全为 0 的合规性校验表不纳入多表计数，
+        // 避免误将单张评分表判断成多表场景（MULTI_TABLE_DECLARED_TOTAL_UNKNOWN）。
+        long scoringLeafBearingTablesCount = tablesById.values().stream()
+                .filter(t -> t.facts().stream().anyMatch(f ->
+                        !allParentIds.contains(f.factId())
+                        && f.weight() != null
+                        && f.weight().compareTo(BigDecimal.ZERO) > 0))
                 .count();
+        // 兼容旧逻辑：若没有任何正权重末级项（全为 0 分表），回退到原始叶子计数防止空判。
+        long leafBearingTablesCount = scoringLeafBearingTablesCount > 0 ? scoringLeafBearingTablesCount
+                : tablesById.values().stream()
+                        .filter(t -> t.facts().stream().anyMatch(f -> !allParentIds.contains(f.factId())))
+                        .count();
         boolean multipleTables = (leafBearingTablesCount > 1) || (tablesById.size() > 1 && leafBearingTablesCount == 0);
         for (ScoreTableInput table : tablesById.values()) {
             if (!table.structurallyValid()) {
