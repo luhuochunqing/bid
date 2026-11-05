@@ -752,4 +752,19 @@ trigger（同步<1s，互斥校验+建任务）
   - 本次改动属“非版式逻辑变更”（不触碰版式定位与抽取器逻辑），按门禁规范使用 `SCOREPARSE_GATE_SKIP=1`；
   - 详见 `docs/lessons/lessons-learned.md` §488。
 
+## 36. 0分审查表污染多表判定与 parseText 作用域重扫 O(N²) 假死（全项目系统性根因，2026-11-05）
+
+- **症状与根因**：生产环境（如项目 1120 中国雅江集团采购文件、项目 35 等），标书内仅有一张真正的 100 分综合评分表（商务+报价+技术闭合），解析完成后状态被误判为 `REVIEW_REQUIRED / DECLARED_TOTAL_UNKNOWN`，无法单表 100 分自动通过。同时长文本解析出现 CPU 假死超过 67 分钟。
+  1. **0分审查表污染多表判定**：`ScoreTableSplitPolicy` 在计算 `leafBearingTablesCount` 时，未排除 weight 全为 0 的资格审查/形式审查/合规性表格，导致实际只有 1 张有效评分表的文档被误判为多表场景（`multipleTables == true`），逐表要求声明总分未果后转入 `MULTI_TABLE_DECLARED_TOTAL_UNKNOWN` 阻断自动采纳。
+  2. **parseText 兜底全文重扫 O(N²)**：`OriginalScoringContext.parseText` 兜底窗口遍历中，内层循环每行调用 `textScopeAt(text, i)`，逐行触发 `textScopes(text)` 全文扫描，12 万字文档引发数十万次全文正规化与章节匹配，导致线程高 CPU 假死 67 分钟。
+  3. **生产环境版本化开关未开启**：`/etc/xiyu-bid/backend.env` 缺少 `APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED=true`，导致版本化快照不写入，前端返回 409。
+- **修复措施**：
+  1. **过滤 0 分审查表**：`ScoreTableSplitPolicy` 新增 `scoringLeafBearingTablesCount`，仅统计包含至少一个 `weight > 0` 末级评分项的表格，无正分表时安全回退原有逻辑，彻底隔离审查表干扰。
+  2. **有序二分作用域定位**：`OriginalScoringContext.parseText` 提升 `textScopes(text)` 至外层单次预计算（O(N)），内层调用 `OriginalScoringTextScopePolicy.findScopeAt` 二分搜索（O(log N)），将整体耗时从小时级降至毫秒级。
+- **验证与门禁**：
+  - 新增 2 个回归测试用例覆盖 0 分审查表场景；
+  - `ScoreTableSplitPolicyTest`（9/9）、`OriginalScoreFactIdentityTest`（13/13）等 26 项单元测试 100% 绿灯；
+  - 详见 `docs/lessons/lessons-learned.md` §490。
+
+
 
