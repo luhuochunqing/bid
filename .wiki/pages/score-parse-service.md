@@ -766,5 +766,17 @@ trigger（同步<1s，互斥校验+建任务）
   - `ScoreTableSplitPolicyTest`（9/9）、`OriginalScoreFactIdentityTest`（13/13）等 26 项单元测试 100% 绿灯；
   - 详见 `docs/lessons/lessons-learned.md` §490。
 
+## 37. 0分审查表事实进入 noEvidenceFacts 导致 MISSING_EVIDENCE 阻断（2026-11-05 补充根因）
+
+- **症状与根因**：
+  1. 尽管在 `ScoreTableSplitPolicy` 中新增了 `scoringLeafBearingTablesCount` 判定单表，但在单表无单独总分证据分支（`ownTotals.isEmpty()` && `!multipleTables`）中，循环遍历所有表格时，仍然把所有表格（包含 t-0005/0006/0008/0028 等 0 分审查表）的抽取事实全部无条件 `noEvidenceFacts.addAll(table.facts())` 加入评分事实池。
+  2. 审查表的事实缺失分值定位证据（`weight=null` 且 `weightEvidence=null`），导致进入 `ScoreCompletenessPolicy` 后被判定为 `missingEvidenceCount > 0`（出现 73 个缺失证据事实），触发 `MISSING_EVIDENCE` 阻断，使得任务最终降级为 `REVIEW_REQUIRED`，未能执行 `AUTO_APPROVED` 写入 `score_item` 表，页面呈现历史脏数据。
+  3. 前端交互变更原因：生产环境此前误开启了实验性的多方案版本化特性开关 `APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED`，导致渲染了多方案激活卡片替代了一键采纳卡片；已将其关闭并恢复稳定版本。
+- **修复措施**：
+  1. `ScoreTableSplitPolicy` 中增加 `isScoringTable` 判断，在 `ownTotals.isEmpty()` 分支仅将实质评分表加入 `noEvidenceFacts`，彻底排除无分/0分审查表对完整性证据池的污染；
+  2. 保持 `OriginalScoringTextScopePolicy.findScopeAt` 首匹配语义，避免二分搜索在重叠作用域下跳过父章节；
+  3. 新增回归测试 `singleScoringTable_surroundedByAuditTablesWithoutWeightOrEvidence_evaluatedCleanlyWithoutAuditDefects`，保证审查表不污染单表 AUTO_APPROVED。
+
+
 
 

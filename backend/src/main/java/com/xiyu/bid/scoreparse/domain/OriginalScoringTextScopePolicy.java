@@ -241,17 +241,15 @@ final class OriginalScoringTextScopePolicy {
     }
 
     /**
-     * 在已预计算的有序 scopes 列表中定位行号所属的作用域（O(log N) 二分搜索）。
-     * 要求 scopes 按 startLine 升序排列（{@link #textScopes} 保证此顺序）。
+     * 在已预计算的 scopes 列表中按原序定位行号所属的首个作用域。
+     * 保持与 {@link #textScopeAt} 完全一致的 findFirst() 语义，避免重叠作用域二分失准。
      */
-    static OriginalScoringContext.TextScope findScopeAt(List<OriginalScoringContext.TextScope> sortedScopes, int line) {
-        int lo = 0, hi = sortedScopes.size() - 1;
-        while (lo <= hi) {
-            int mid = (lo + hi) >>> 1;
-            OriginalScoringContext.TextScope scope = sortedScopes.get(mid);
-            if (line < scope.startLine()) { hi = mid - 1; }
-            else if (line >= scope.endLine()) { lo = mid + 1; }
-            else { return scope; }
+    static OriginalScoringContext.TextScope findScopeAt(List<OriginalScoringContext.TextScope> scopes, int line) {
+        if (scopes == null) return null;
+        for (OriginalScoringContext.TextScope scope : scopes) {
+            if (line >= scope.startLine() && line < scope.endLine()) {
+                return scope;
+            }
         }
         return null;
     }

@@ -54,10 +54,7 @@ public final class ScoreTableSplitPolicy {
         // 资格审查表、形式审查表等 weight 全为 0 的合规性校验表不纳入多表计数，
         // 避免误将单张评分表判断成多表场景（MULTI_TABLE_DECLARED_TOTAL_UNKNOWN）。
         long scoringLeafBearingTablesCount = tablesById.values().stream()
-                .filter(t -> t.facts().stream().anyMatch(f ->
-                        !allParentIds.contains(f.factId())
-                        && f.weight() != null
-                        && f.weight().compareTo(BigDecimal.ZERO) > 0))
+                .filter(t -> isScoringTable(t, allParentIds))
                 .count();
         // 兼容旧逻辑：若没有任何正权重末级项（全为 0 分表），回退到原始叶子计数防止空判。
         long leafBearingTablesCount = scoringLeafBearingTablesCount > 0 ? scoringLeafBearingTablesCount
@@ -73,26 +70,35 @@ public final class ScoreTableSplitPolicy {
             }
             List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> ownTotals =
                     totalsByTable.getOrDefault(table.tableId(), List.of());
+            boolean scoringTable = isScoringTable(table, allParentIds);
             if (ownTotals.isEmpty()) {
                 if (multipleTables) {
-                    results.add(new TableCompleteness(table.tableId(), false,
-                            UnknownDeclaredTotalReviewPolicy.evaluateUnknownDeclaredTotal(table.facts(),
-                                    "MULTI_TABLE_DECLARED_TOTAL_UNKNOWN"), List.of(table.tableId())));
+                    if (scoringTable || scoringLeafBearingTablesCount == 0) {
+                        results.add(new TableCompleteness(table.tableId(), false,
+                                UnknownDeclaredTotalReviewPolicy.evaluateUnknownDeclaredTotal(table.facts(),
+                                        "MULTI_TABLE_DECLARED_TOTAL_UNKNOWN"), List.of(table.tableId())));
+                    }
                     continue;
                 }
-                noEvidenceFacts.addAll(table.facts());
+                if (scoringTable || scoringLeafBearingTablesCount == 0) {
+                    noEvidenceFacts.addAll(table.facts());
+                }
                 continue;
             }
-            results.add(new TableCompleteness(table.tableId(), true,
-                    ScoreCompletenessPolicy.evaluateCompleteness(table.facts(), tenderSectionText, true, ownTotals)));
+            if (scoringTable || scoringLeafBearingTablesCount == 0) {
+                results.add(new TableCompleteness(table.tableId(), true,
+                        ScoreCompletenessPolicy.evaluateCompleteness(table.facts(), tenderSectionText, true, ownTotals)));
+            }
         }
         if (!noEvidenceFacts.isEmpty()) {
+            List<String> noEvidenceTableIds = tablesById.values().stream()
+                    .filter(table -> totalsByTable.getOrDefault(table.tableId(), List.of()).isEmpty()
+                            && (scoringLeafBearingTablesCount == 0 || isScoringTable(table, allParentIds)))
+                    .map(ScoreTableInput::tableId)
+                    .toList();
             results.add(new TableCompleteness(NO_DECLARED_TOTAL, false,
                     ScoreCompletenessPolicy.evaluateCompleteness(noEvidenceFacts, tenderSectionText, true, List.of()),
-                    tablesById.values().stream()
-                            .filter(table -> totalsByTable.getOrDefault(table.tableId(), List.of()).isEmpty())
-                            .map(ScoreTableInput::tableId)
-                            .toList()));
+                    noEvidenceTableIds));
         }
         if (multipleTables && results.stream().allMatch(result -> result.completeness() != null
                 && result.completeness().decision() == ScoreParseDecision.REVIEW_REQUIRED
@@ -137,6 +143,13 @@ public final class ScoreTableSplitPolicy {
             return ScoreCompletenessPolicy.evaluateCompleteness(List.of(), tenderSectionText, true, List.of());
         }
         return worst;
+    }
+
+    private static boolean isScoringTable(ScoreTableInput table, java.util.Set<String> allParentIds) {
+        return table != null && table.facts().stream().anyMatch(f ->
+                !allParentIds.contains(f.factId())
+                && f.weight() != null
+                && f.weight().compareTo(BigDecimal.ZERO) > 0);
     }
 
     private static int decisionRank(ScoreParseDecision decision) {
