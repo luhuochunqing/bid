@@ -8052,3 +8052,17 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
     2. `twoScoringTables_plusOneZeroWeightAuditTable_stillTreatedAsMultiTable`：验证存在多张真正评分表时仍能正确识别为多表场景。
   - `ScoreTableSplitPolicyTest`（9/9）、`OriginalScoreFactIdentityTest`（13/13）、`OriginalScoringNumberedHeadingTest`（2/2）、`OriginalScoringChapterSpacingTest`（2/2）共 26 个单元测试 100% 绿灯。
 
+## 491. 0分审查表事实进入 noEvidenceFacts 导致 MISSING_EVIDENCE 阻断（2026-11-05 补充）
+
+- **背景与现象**：在解决多表误判后，项目 1120 解析任务依然生成 `decisionStatus = REVIEW_REQUIRED`，且 `score_item` 表未能落库 11 项 100 分真实评分标准，前端页面展示 11 项历史脏数据且规则文本为“—”。
+- **根因分析**：
+  1. `ScoreTableSplitPolicy` 在 `ownTotals.isEmpty()` 且 `!multipleTables`（单表）分支中，无条件将所有表格的全部事实加入 `noEvidenceFacts`；
+  2. 资格审查/形式审查等表格的 73 项事实无分值、无定位证据（`weight=null`, `weightEvidence=null`），被 `ScoreCompletenessPolicy` 判定为缺失单元格证据（`missingEvidenceCount = 73`），导致决策降级为 `REVIEW_REQUIRED`；
+  3. `ScoreParseAppService` 遵循安全收敛纪律，仅当 `AUTO_APPROVED` 时才允许覆盖已有 `score_item`，因此旧脏数据无法被真实评分项替换；
+  4. 生产环境此前开启的 `APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED` 导致未成熟的多方案激活卡片替代了一键采纳卡片，现已将其关闭。
+- **修复与防护**：
+  1. `ScoreTableSplitPolicy` 增加 `isScoringTable` 过滤器，仅将实质评分表加入 `noEvidenceFacts`，彻底杜绝审查表对评分集完整性校验的污染；
+  2. `OriginalScoringTextScopePolicy.findScopeAt` 采用原序首匹配，防止重叠作用域二分查找失准；
+  3. 新增 `singleScoringTable_surroundedByAuditTablesWithoutWeightOrEvidence_evaluatedCleanlyWithoutAuditDefects` 回归测试。
+
+
