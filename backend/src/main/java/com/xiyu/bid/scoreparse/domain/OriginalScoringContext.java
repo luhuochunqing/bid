@@ -151,16 +151,14 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                                        List<OriginalScoreEvidencePolicy.Problem> problems,
                                        String tableId, BigDecimal value, String locator, String quote) {
         Subtotal previous = values.putIfAbsent(tableId, new Subtotal(value, locator, quote));
-        if (previous != null && previous.value().compareTo(value) != 0) {
+        if (previous != null && previous.value().compareTo(value) != 0)
             problems.add(new OriginalScoreEvidencePolicy.Problem("", "subtotal", "TABLE_SUBTOTAL_CONFLICT",
                     previous.value() + "@" + previous.locator(), value + "@" + locator, locator));
-        }
     }
 
     private static boolean explicitWholeTotal(String raw) {
         return raw.matches("(?s).*(?:本项目|本标包|评分方案|评审办法|评标办法|评分标准|评审标准)\\s*(?:评分|评标|方案)?\\s*总分.*")
-                || raw.matches("(?s).*(?:本项目|本标包)\\s*满分.*");
-    }
+                || raw.matches("(?s).*(?:本项目|本标包)\\s*满分.*"); }
 
     static void parseText(String text, String scheme, List<Evidence> totals) {
         if (text == null) return;
@@ -209,9 +207,11 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             }
         }
         if (totals.isEmpty()) {
+            // 性能修复：预计算 textScopes（O(N)），用二分搜索代替每次重扫（O(N²)→O(N log N)）。
             String[] sourceLines = text.split("\\R", -1);
+            List<TextScope> fallbackScopes = textScopes(text);
             for (int i = 0; i < sourceLines.length && totals.isEmpty(); i++) {
-                TextScope sourceScope = textScopeAt(text, i);
+                TextScope sourceScope = OriginalScoringTextScopePolicy.findScopeAt(fallbackScopes, i);
                 if (sourceScope != null && "OUT_OF_SCHEME".equals(sourceScope.scopeStatus())) continue;
                 if (sourceScope != null && "IN_SCHEME".equals(sourceScope.scopeStatus())
                         && !sourceScope.schemeId().equals(schemeId(scheme))) continue;

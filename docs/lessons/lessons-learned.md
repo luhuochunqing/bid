@@ -8034,3 +8034,21 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **验证与边界**：完整 handler 同一断言在生产旧类上为14项119分，在修复类上为11项100分；覆盖同格不同子项、跨文档、父链、父项别名六种输入顺序和复核替换反例。真实存量回放虽达100分，仍有1项模型改写引文无法证明完整规则，不能作为逐项业务验收。原件重新调用真实模型、人工审查和生产重算分别记录，不把单测或总分闭合冒充线上恢复。原件、凭证、日志保存在忽略的受限目录，不入Git。
 
 - **同原件新回放补充**：通过生产模型按任务182的实际非版本化入口获得16条初次模型事实，经绑定和身份治理为11个计分项100分；三条完整规则仍空，原因是模型保留Markdown的`<br>`而原PDF格为物理换行。`EvidenceText.normalize`仅将合法br标签视作排版空白并保留UTF-16原偏移，拒绝拼写改写与重复引文歧义。原件冻结响应回放修后11项100分且全部规则非空；三个新增恢复规则分别86/52/134字符。版本化legacy冻结也须将任务summary诊断提升到snapshot.sourceDiagnostics，不能只保存为嵌套字符串。
+
+## 490. 0分审查表污染多表判定与 parseText 作用域重扫 O(N²) 假死（全项目系统性根因复盘，2026-11-05）
+
+- **背景与现象**：在生产环境（如项目 1120 中国雅江集团采购文件、项目 35 等），标书内仅有一张真正的 100 分综合评分表（包含商务20% + 报价50% + 技术30%闭合结构），但解析任务完成后状态总是被判定为 `REVIEW_REQUIRED / DECLARED_TOTAL_UNKNOWN`，无法触发单表 100 分自动采纳。此外，长文档（如 12 万字采购文件）解析常出现线程占用 CPU 假死超过 67 分钟（`score-parse-1` 线程持续卡在 `OriginalScoringTextScopePolicy.addScope` / `String.join`）。
+- **根因分析**：
+  1. **0分审查表污染多表计数**：`ScoreTableSplitPolicy` 在计算 `leafBearingTablesCount` 时，未排除 weight 全为 0 的资格审查表、形式审查表或合规性校验表。只要这些表格包含叶子行，就被误算为一张独立评分表，导致 `multipleTables` 判定恒为 `true`。在多表判定下，各表格按独立表逻辑逐个检验，缺乏声明总分证据时强制进入 `MULTI_TABLE_DECLARED_TOTAL_UNKNOWN`，使得原本 100% 闭合的有效评分表无法享受单表默认 100 分兜底通过通道。
+  2. **parseText 兜底逐行全文重扫导致 O(N²)**：`OriginalScoringContext.parseText` 在兜底多行窗口遍历分支中，内层循环对每一行直接调用 `textScopeAt(text, i)`，而底层方法每次都重新调用 `textScopes(text)` 重新自顶向下扫描整篇文档的章节与正文，单任务达数十万次全文扫描，导致线程高 CPU 阻塞假死 67 分钟以上。
+  3. **生产环境版本化开关未开启**：生产环境 `/etc/xiyu-bid/backend.env` 缺少 `APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED=true`，导致 `ScoreExtractionSnapshotWriter` 静默跳过版本快照落库，前端访问最新抽取结果返回 409，用户无法直接查看最新解析版本。
+- **修复与防护**：
+  1. **过滤 0 分审查表**：`ScoreTableSplitPolicy` 新增 `scoringLeafBearingTablesCount`，仅统计包含至少一个 `weight > 0` 末级评分项的表格；若全文表格均无正权重项，安全回退至原有叶子统计逻辑。彻底消除非评分表格对单/多表判定边界的干扰。
+  2. **二分查找优化作用域定位**：`OriginalScoringContext.parseText` 将 `textScopes(text)` 提升至循环外部预计算一次（O(N)），在有序 scopes 列表上通过 `OriginalScoringTextScopePolicy.findScopeAt` 执行二分查找（O(log N)），将整体时间复杂度从 O(N²) 降至 O(N log N)，执行耗时从小时级降至毫秒级。
+  3. **生产环境配置补充**：在生产部署环境变量中配置 `APP_SCORE_PARSE_EXTRACTION_VERSION_ENABLED=true` 并重启后端生效。
+- **验证与铁证**：
+  - 新增 2 个回归测试用例：
+    1. `singleScoringTable_surroundedByZeroWeightAuditTables_notTreatedAsMultiTable`：精准复现 1 张有效评分表（100分）被 4 张 0 分资格/形式审查表包围的场景，断言 `multipleTables == false` 且决策为 `AUTO_APPROVED`；
+    2. `twoScoringTables_plusOneZeroWeightAuditTable_stillTreatedAsMultiTable`：验证存在多张真正评分表时仍能正确识别为多表场景。
+  - `ScoreTableSplitPolicyTest`（9/9）、`OriginalScoreFactIdentityTest`（13/13）、`OriginalScoringNumberedHeadingTest`（2/2）、`OriginalScoringChapterSpacingTest`（2/2）共 26 个单元测试 100% 绿灯。
+
