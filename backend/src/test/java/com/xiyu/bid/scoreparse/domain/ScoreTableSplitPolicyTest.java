@@ -235,4 +235,34 @@ class ScoreTableSplitPolicyTest {
                 .as("两张实质评分表（weight>0）应触发多表判定，无总分声明时 REVIEW_REQUIRED")
                 .isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
     }
+
+    /**
+     * 场景：一张真实评分表（weight 合计 = 100）+ 审查表（事实中 weight 为 null 且缺失 weightEvidence）。
+     * 生产真实情况：资格审查/形式审查表的抽取事实缺失分值定位证据（weight=null, weightEvidence=null）。
+     * 预期：0 分/无分审查表的事实不应被收集到 noEvidenceFacts 中，避免污染打分项导致 MISSING_EVIDENCE。
+     */
+    @Test
+    void singleScoringTable_surroundedByAuditTablesWithoutWeightOrEvidence_evaluatedCleanlyWithoutAuditDefects() {
+        ScoreFact audit1 = new ScoreFact("audit-f1", "t-audit1", List.of("t-audit1-c1"), "供应商名称", "1.1", "供应商名称",
+                null, null, null, "", "STRUCTURED_TABLE_DETERMINISTIC", 1.0, ScoreFact.ValidationStatus.AUTO_APPROVED);
+        ScoreFact audit2 = new ScoreFact("audit-f2", "t-audit2", List.of("t-audit2-c1"), "营业执照", "1.2", "营业执照",
+                null, null, null, "", "STRUCTURED_TABLE_DETERMINISTIC", 1.0, ScoreFact.ValidationStatus.AUTO_APPROVED);
+        ScoreFact score1 = fact("score-f1", "t-score", "商务部分", "20");
+        ScoreFact score2 = fact("score-f2", "t-score", "技术部分", "30");
+        ScoreFact score3 = fact("score-f3", "t-score", "报价部分", "50");
+
+        List<ScoreTableSplitPolicy.ScoreTableInput> tables = List.of(
+                new ScoreTableSplitPolicy.ScoreTableInput("t-audit1", true, List.of(audit1)),
+                new ScoreTableSplitPolicy.ScoreTableInput("t-audit2", true, List.of(audit2)),
+                new ScoreTableSplitPolicy.ScoreTableInput("t-score", true, List.of(score1, score2, score3)));
+
+        TableSplitResult result = ScoreTableSplitPolicy.split(tables, List.of(), null);
+
+        assertThat(result.documentLevel().decision())
+                .as("审查表无分值及定位证据时，不应污染评分集导致 MISSING_EVIDENCE，单评分表应 AUTO_APPROVED")
+                .isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.tables()).hasSize(1);
+        assertThat(result.tables().getFirst().sourceTableIds()).containsExactly("t-score");
+        assertThat(result.tables().getFirst().completeness().leafFacts()).containsExactly(score1, score2, score3);
+    }
 }
