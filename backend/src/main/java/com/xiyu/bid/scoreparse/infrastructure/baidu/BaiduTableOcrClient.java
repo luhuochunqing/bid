@@ -1,5 +1,5 @@
 // Input: PDF file bytes and page numbers
-// Output: Validated APIHub OCR results with deployment gating, cached login and single-page PDF slicing
+// Output: APIHub OCR tables with actual/documented envelope compatibility, cached login and PDF slicing
 // Pos: scoreparse/infrastructure/baidu - Baidu Table OCR client
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.scoreparse.infrastructure.baidu;
@@ -225,9 +225,11 @@ public class BaiduTableOcrClient {
     }
 
     private CachedToken parseLoginResponse(String body, LoginCredentials credentials) throws IOException {
-        JsonNode data = readEnvelope(body, "login").path("data");
-        String token = data.path("token").asText("");
-        if (token.isBlank()) throw new IOException("APIHub OCR login returned no token");
+        JsonNode envelope = readEnvelope(body, "login");
+        JsonNode data = envelope.path("data").isObject() ? envelope.path("data") : envelope;
+        JsonNode tokenValue = data.path("token");
+        String token = tokenValue.asText("");
+        if (!tokenValue.isTextual() || token.isBlank()) throw new IOException("APIHub OCR login returned no token");
         long remaining = data.path("tokenRemainTime").asLong(0);
         long cacheSeconds = Math.max(0, remaining - Math.min(60, remaining / 10));
         return new CachedToken(token, credentials.username(), credentials.password(), Instant.now().plusSeconds(cacheSeconds));
@@ -235,13 +237,21 @@ public class BaiduTableOcrClient {
 
     private JsonNode readEnvelope(String body, String operation) throws IOException {
         JsonNode response = objectMapper.readTree(body);
-        if (response == null || !response.path("success").asBoolean(false)
-                || !"000000".equals(response.path("code").asText())) {
+        if (!envelopeSucceeded(response)) {
             if ("search".equals(operation)) tokenCache.set(null);
             throw new IOException("APIHub OCR " + operation + " failed (code="
                     + (response == null ? "missing" : response.path("code").asText("missing")) + ")");
         }
         return response;
+    }
+
+    /** Actual APIHub uses code=0 without success; retain the documented wrapped contract. */
+    private static boolean envelopeSucceeded(JsonNode response) {
+        if (response == null || !response.isObject()) return false;
+        JsonNode success = response.get("success");
+        if (success != null && !success.asBoolean(false)) return false;
+        String code = response.path("code").asText("");
+        return "0".equals(code) || ("000000".equals(code) && success != null && success.asBoolean(false));
     }
 
     /**

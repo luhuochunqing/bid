@@ -8075,3 +8075,9 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - **环境边界**：用户确认中转只可在测试环境使用；本地契约通过不能替代测试环境真实 OCR 验收。
 
 - **本次 PR 验证边界（2026-11-05 用户确认）**：用户对真实页面 Playwright 验证明确回复“不需要验证”，因此本 PR 不将其作为前置门禁；记录为用户要求延期，不能写成通过。组件测试、真实设置服务/数据库测试、HTTP 协议测试与构建分别记录，均不能替代真实 OCR 识别验收。
+
+### 2026-11-06：文档成功响应与实际响应不同，严格照抄导致成功误报失败
+
+- 测试服务器直连证据：有效中转账号登录返回 `code="0"`、顶层 `token/tokenRemainTime`；`/search` 返回 `code="0"`、`data.isSuccess=1`，生成的单页 PDF 识别出 1 张表。未在仓库保存真实凭据、token 或业务文件。
+- 部署 JAR 字节码确认旧 `readEnvelope` 要求 `success=true/code="000000"`，`parseLoginResponse` 仅取 `data.token`；上游真实成功被确定性拒绝，随后被设置服务包装为通用登录失败。访问日志 HTTP 200 不能证明登录成功；原始异常未记录时也不能仅凭通用提示断言密码错误。
+- 修复边界：同时兼容实际及文档两种外层成功协议与 token 位置，保留明确失败、矛盾成功标志、缺失 token 和畸形结果的拒绝。HTTP 入口测试先复现 `APIHub OCR login failed (code=0)` 再验证修复；不放宽表格计数、数组一致性或部署门禁。

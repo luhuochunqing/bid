@@ -32,3 +32,10 @@
 - 能力入口 `isEnabled()` 同时要求部署中转开关和动态配置开关开启（无动态提供者时使用属性开关）。关闭部署时不扫描评分页、不追加 OCR 失败警告，Sidecar 不可用继续传播原异常；登录连接测试仍可独立验证账号。
 
 - 结果完整性：明确非零整数 `error_code` 保留业务失败；成功结果要求非负整数 `table_num`，非零时必须有等长 `tables_result` 数组且元素为对象。零表格允许省略数组，但显式 null 或不一致数组均抛 IOException。结果解析和登录请求/响应处理独立于同步缓存协调。
+
+## 2026-11-06 实测协议兼容修复
+
+- 实测登录：`code="0"`、`msg="success"`，`token/tokenRemainTime` 位于顶层；search 同样 `code="0"`，业务结果仍在 `data.isSuccess/result`。
+- 客户端同时支持实际格式和文档 `success=true/code="000000"/data.token` 格式。明确 `success=false`、非成功码、缺失/非字符串 token、失败业务状态及畸形表格继续拒绝。
+- 真实失败根因：旧 `readEnvelope` 把上游成功 code=0 判为 IOException，设置服务再包装为通用“登录失败”。HTTP 200 和通用提示均不能独立判断账号或网络。
+- 仅修改响应适配，不改用户名、密码、启用开关、PDF 参数或评分规则；不把单张测试表识别成功当作业务文档验收。
