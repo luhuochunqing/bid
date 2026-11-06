@@ -12,8 +12,11 @@ import static org.assertj.core.api.Assertions.*;
 
 class BaiduTableOcrGatewayTest {
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({"username,86400,1", "userName,86400,1", "username,0,3"})
-    void sendsOriginalParamsAsJsonStringAndUnwrapsBothResultTypes(String usernameField, long tokenLifetime, int expectedLogins) throws Exception {
+    @org.junit.jupiter.params.provider.CsvSource({
+        "username,86400,1,documented", "userName,86400,1,documented", "username,0,3,documented",
+        "username,86400,1,actual-string", "username,86400,1,actual-number"
+    })
+    void sendsOriginalParamsAsJsonStringAndUnwrapsBothResultTypes(String usernameField, long tokenLifetime, int expectedLogins, String contract) throws Exception {
         byte[] pdf;
         try (var document = new org.apache.pdfbox.pdmodel.PDDocument();
              var output = new java.io.ByteArrayOutputStream()) {
@@ -33,7 +36,11 @@ class BaiduTableOcrGatewayTest {
                 assertThat(login.path("password").asText()).isEqualTo("password");
                 assertThat(exchange.getRequestURI().getQuery()).isNull();
             } catch (Throwable t) { failure.set(t); }
-            byte[] body = ("{\"success\":true,\"code\":\"000000\",\"data\":{\"token\":\"test-token\",\"tokenRemainTime\":" + tokenLifetime + "}}").getBytes(StandardCharsets.UTF_8);
+            byte[] body = "documented".equals(contract)
+                    ? mapper.writeValueAsBytes(java.util.Map.of("success", true, "code", "000000",
+                            "data", java.util.Map.of("token", "test-token", "tokenRemainTime", tokenLifetime)))
+                    : mapper.writeValueAsBytes(java.util.Map.of("code", "actual-number".equals(contract) ? 0 : "0",
+                            "msg", "success", "token", "test-token", "tokenRemainTime", tokenLifetime));
             exchange.sendResponseHeaders(200, body.length);
             exchange.getResponseBody().write(body); exchange.close();
         });
@@ -52,7 +59,10 @@ class BaiduTableOcrGatewayTest {
             } catch (Throwable t) { failure.set(t); }
             int count = searches.incrementAndGet();
             Object result = count == 1 ? "{\"table_num\":0,\"log_id\":123}" : mapper.readTree("{\"table_num\":0,\"log_id\":123}");
-            byte[] body = mapper.writeValueAsBytes(java.util.Map.of("success", true,"code","000000","data",java.util.Map.of("isSuccess",count == 3 ? 0 : 1,"result",result)));
+            var data = java.util.Map.of("isSuccess", count == 3 ? 0 : 1, "result", result);
+            byte[] body = "documented".equals(contract)
+                    ? mapper.writeValueAsBytes(java.util.Map.of("success", true, "code", "000000", "data", data))
+                    : mapper.writeValueAsBytes(java.util.Map.of("code", "actual-number".equals(contract) ? 0 : "0", "data", data));
             exchange.sendResponseHeaders(200,body.length);
             exchange.getResponseBody().write(body); exchange.close();
         });
@@ -224,6 +234,18 @@ class BaiduTableOcrGatewayTest {
         var client = new BaiduTableOcrClient(props, new ObjectMapper());
         assertThatThrownBy(client::getAccessToken).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("not enabled");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+        "{\"success\":false,\"code\":\"0\",\"data\":{\"isSuccess\":1,\"result\":{\"table_num\":0}}}",
+        "{\"code\":\"50003\",\"data\":{\"isSuccess\":1,\"result\":{\"table_num\":0}}}",
+        "{\"success\":true,\"data\":{\"isSuccess\":1,\"result\":{\"table_num\":0}}}",
+        "{\"code\":0,\"data\":{\"isSuccess\":0,\"result\":{\"table_num\":0}}}"
+    })
+    void realEnvelopeMustStillRejectFailuresAndContradictorySuccess(String body) {
+        var client = new BaiduTableOcrClient(new BaiduOcrProperties(), new ObjectMapper());
+        assertThatThrownBy(() -> client.parseTableResponse(body)).isInstanceOf(java.io.IOException.class);
     }
 
 }

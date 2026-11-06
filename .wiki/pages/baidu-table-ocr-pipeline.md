@@ -4,8 +4,8 @@ space: engineering
 category: architecture
 tags: [scoreparse, baidu-ocr, table-extraction, shadow-pipeline, settings]
 created: 2026-10-28
-updated: 2026-11-05
-health_checked: 2026-11-05
+updated: 2026-11-06
+health_checked: 2026-11-06
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/baidu/
   - backend/src/main/java/com/xiyu/bid/settings/service/BaiduOcrSettingsService.java
@@ -15,6 +15,12 @@ backlinks:
 ---
 
 # 百度表格文字识别 (Table OCR) 旁路对照管线
+
+## 2026-11-06 实测成功格式
+
+- 实测 APIHub 成功码为 `"0"`，无 `success` 字段，登录 `token/tokenRemainTime` 在顶层；search 仍从 `data.isSuccess/result` 读取百度结果。
+- 原实现仅接受文档 `success=true/code="000000"/data.token`，导致成功响应被包装为“登录失败”。现同时兼容两种格式，明确失败和畸形结果不放行。
+- 副作用：同一客户端修复同时覆盖设置连接测试及实际 OCR；账号、开关、缓存与 PDF 参数不变。部署更新与业务文档验收仍需单独确认。
 
 ## 2026-11-05 APIHub 中转
 
