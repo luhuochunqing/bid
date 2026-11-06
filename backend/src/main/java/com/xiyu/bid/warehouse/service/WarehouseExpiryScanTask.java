@@ -1,3 +1,7 @@
+// Input: 仓库数据、接收人、通知服务及事务管理器
+// Output: 带跨实例互斥和单仓库失败隔离的租约到期提醒
+// Pos: warehouse/service - 每日仓库租约扫描
+// 维护声明: 修改时同步仓库并发回归测试和相关模块说明。
 // checkstyle:off
 package com.xiyu.bid.warehouse.service;
 
@@ -15,6 +19,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -30,6 +37,7 @@ public class WarehouseExpiryScanTask {
     private final UserRepository userRepo;
     private final NotificationApplicationService notificationService;
     private final NotificationRepository notificationRepo;
+    private final PlatformTransactionManager transactionManager;
 
     // 每天早上 9:00 执行一次
     @Scheduled(cron = "0 0 9 * * ?")
@@ -75,47 +83,48 @@ public class WarehouseExpiryScanTask {
             }
         }
 
-        LocalDate today = LocalDate.now();
-        LocalDateTime twentyFourHoursAgo = LocalDateTime.now().minusDays(1);
-
-        for (WarehouseEntity wh : warehouses) {
-            // 已关仓的仓库不再发送任何提醒
-            if (wh.getStatus() == WarehouseStatus.CLOSED) {
-                continue;
-            }
-
-            LocalDate endDate = wh.getEndDate();
-            if (endDate == null) {
-                continue;
-            }
-
-            WarehouseStatus recomputed = com.xiyu.bid.warehouse.domain.WarehouseStatusCalculator.recompute(endDate, today);
-            if (recomputed != wh.getStatus()) {
-                wh.setStatus(recomputed);
-                warehouseRepo.save(wh);
-            }
-
-            long remainingDays = ChronoUnit.DAYS.between(today, endDate);
-
-            if (recomputed == WarehouseStatus.EXPIRING) {
-                boolean alreadySent = notificationRepo.existsBySourceEntityTypeAndSourceEntityIdAndCreatedAtAfter(
-                        "WAREHOUSE_EXPIRY_WARNING", wh.getId(), twentyFourHoursAgo
-                );
-                if (!alreadySent) {
-                    sendExpiryWarningNotification(wh, remainingDays, recipientIds, contactDisplay);
-                    alertCount++;
-                }
-            } else if (recomputed == WarehouseStatus.EXPIRED) {
-                boolean alreadySent = notificationRepo.existsBySourceEntityTypeAndSourceEntityIdAndCreatedAtAfter(
-                        "WAREHOUSE_EXPIRED_WARNING", wh.getId(), twentyFourHoursAgo
-                );
-                if (!alreadySent) {
-                    sendExpiredNotification(wh, Math.abs(remainingDays), recipientIds);
-                    alertCount++;
-                }
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        transaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+        for (WarehouseEntity candidate : warehouses) {
+            try {
+                alertCount += transaction.execute(status -> processWarehouse(candidate.getId(), recipientIds, contactDisplay));
+            } catch (RuntimeException ex) {
+                // Catch outside execute so this warehouse has rolled back before continuing.
+                log.error("[WarehouseExpiryScanTask] Failed to process warehouse {}; continuing scan", candidate.getId(), ex);
             }
         }
         return alertCount;
+    }
+
+    private int processWarehouse(Long id, List<Long> recipientIds, java.util.Map<String, String> contactDisplay) {
+        // Lock before the deduplication read; both that read and notification creation use this transaction.
+        WarehouseEntity wh = warehouseRepo.findByIdForUpdate(id).orElse(null);
+        if (wh == null || wh.getStatus() == WarehouseStatus.CLOSED || wh.getEndDate() == null) {
+            return 0;
+        }
+        LocalDate today = LocalDate.now();
+        WarehouseStatus recomputed = com.xiyu.bid.warehouse.domain.WarehouseStatusCalculator.recompute(wh.getEndDate(), today);
+        if (recomputed != wh.getStatus()) {
+            wh.setStatus(recomputed);
+            warehouseRepo.save(wh);
+        }
+        String source = switch (recomputed) {
+            case EXPIRING -> "WAREHOUSE_EXPIRY_WARNING";
+            case EXPIRED -> "WAREHOUSE_EXPIRED_WARNING";
+            default -> null;
+        };
+        if (source == null || notificationRepo.existsBySourceEntityTypeAndSourceEntityIdAndCreatedAtAfter(
+                source, id, LocalDateTime.now().minusDays(1))) {
+            return 0;
+        }
+        long remainingDays = ChronoUnit.DAYS.between(today, wh.getEndDate());
+        if (recomputed == WarehouseStatus.EXPIRING) {
+            sendExpiryWarningNotification(wh, remainingDays, recipientIds, contactDisplay);
+        } else {
+            sendExpiredNotification(wh, Math.abs(remainingDays), recipientIds);
+        }
+        return 1;
     }
 
     private void sendExpiryWarningNotification(WarehouseEntity wh, long remainingDays, List<Long> recipientIds,
@@ -153,7 +162,9 @@ public class WarehouseExpiryScanTask {
                 null,
                 recipientIds
         );
-        notificationService.createNotification(request, null);
+        if (!notificationService.createNotification(request, null).isValid()) {
+            throw new IllegalStateException("Warehouse expiry notification was rejected");
+        }
     }
 
     private void sendExpiredNotification(WarehouseEntity wh, long expiredDays, List<Long> recipientIds) {
@@ -179,6 +190,8 @@ public class WarehouseExpiryScanTask {
                 null,
                 recipientIds
         );
-        notificationService.createNotification(request, null);
+        if (!notificationService.createNotification(request, null).isValid()) {
+            throw new IllegalStateException("Warehouse expiry notification was rejected");
+        }
     }
 }

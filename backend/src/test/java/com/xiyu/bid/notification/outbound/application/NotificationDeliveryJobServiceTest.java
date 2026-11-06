@@ -23,6 +23,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,6 +38,7 @@ import static org.mockito.Mockito.when;
 @DisplayName("NotificationDeliveryJobService — retry / dlq decisions")
 class NotificationDeliveryJobServiceTest {
 
+    @Mock private PlatformTransactionManager transactionManager;
     @Mock private NotificationDeliveryTaskRepository taskRepository;
     @Mock private NotificationDeliveryDlqRepository dlqRepository;
     @Mock private OutboundLogRepository outboundLogRepository;
@@ -43,12 +47,17 @@ class NotificationDeliveryJobServiceTest {
     @Mock private AsyncDecisionResolver decisionResolver;
     @Mock private AsyncObservabilityRecorder observabilityRecorder;
 
+    @BeforeEach
+    void transactions() {
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+    }
+
     @Test
     @DisplayName("successful result -> delivered and success metric")
     void successfulResult_Delivered() {
         NotificationDeliveryJobService jobService = jobService();
         NotificationDeliveryTask task = task();
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task));
         when(pushService.push(any())).thenReturn(NotificationDeliveryResult.success(0, "ok"));
 
         jobService.processTaskSafely(task);
@@ -64,7 +73,7 @@ class NotificationDeliveryJobServiceTest {
     void transientFailure_Retry() {
         NotificationDeliveryJobService jobService = jobService();
         NotificationDeliveryTask task = task();
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task));
         when(pushService.push(any())).thenThrow(new RuntimeException("timeout"));
         when(failureClassifier.classify(any())).thenReturn(AsyncFailureKind.TRANSIENT_DEPENDENCY);
         when(decisionResolver.resolve(any(), eq(1), eq(3), any(), eq(true)))
@@ -88,7 +97,7 @@ class NotificationDeliveryJobServiceTest {
     void contractFailure_Dlq() {
         NotificationDeliveryJobService jobService = jobService();
         NotificationDeliveryTask task = task();
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task));
         when(pushService.push(any())).thenThrow(new RuntimeException("invalid template"));
         when(failureClassifier.classify(any())).thenReturn(AsyncFailureKind.CONTRACT_INVALID);
         when(decisionResolver.resolve(any(), eq(1), eq(3), any(), eq(true)))
@@ -115,7 +124,7 @@ class NotificationDeliveryJobServiceTest {
     void dropDecision_SkippedDisabled() {
         NotificationDeliveryJobService jobService = jobService();
         NotificationDeliveryTask task = task();
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task));
         when(pushService.push(any())).thenThrow(new RuntimeException("non-retriable"));
         when(failureClassifier.classify(any())).thenReturn(AsyncFailureKind.SIDE_EFFECT_OPTIONAL);
         when(decisionResolver.resolve(any(), eq(1), eq(3), any(), eq(true)))
@@ -138,7 +147,7 @@ class NotificationDeliveryJobServiceTest {
     void succeedWithLog_SkippedDisabled() {
         NotificationDeliveryJobService jobService = jobService();
         NotificationDeliveryTask task = task();
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task));
         when(pushService.push(any())).thenThrow(new RuntimeException("idempotent duplicate"));
         when(failureClassifier.classify(any())).thenReturn(AsyncFailureKind.IDEMPOTENT_DUPLICATE);
         when(decisionResolver.resolve(any(), eq(1), eq(3), any(), eq(true)))
@@ -161,7 +170,8 @@ class NotificationDeliveryJobServiceTest {
                 failureClassifier,
                 decisionResolver,
                 observabilityRecorder,
-                new ObjectMapper()
+                new ObjectMapper(),
+                transactionManager
         );
     }
 

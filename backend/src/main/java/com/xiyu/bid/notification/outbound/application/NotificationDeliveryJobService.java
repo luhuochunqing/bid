@@ -26,7 +26,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -46,6 +48,7 @@ public class NotificationDeliveryJobService {
     private final AsyncDecisionResolver decisionResolver;
     private final AsyncObservabilityRecorder observabilityRecorder;
     private final ObjectMapper objectMapper;
+    private final PlatformTransactionManager transactionManager;
     private final ExponentialBackoffRetrySchedule retrySchedule = new ExponentialBackoffRetrySchedule(60, 300, 3);
 
     @Scheduled(fixedDelayString = "${notification.wecom.worker-fixed-delay-ms:5000}")
@@ -54,23 +57,46 @@ public class NotificationDeliveryJobService {
         tasks.forEach(this::processTaskSafely);
     }
 
-    @Transactional
     public void processTaskSafely(NotificationDeliveryTask task) {
-        NotificationDeliveryTask managedTask = taskRepository.findById(task.getId()).orElse(task);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        transaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+        try {
+            transaction.executeWithoutResult(status -> processLockedTask(task.getId()));
+        } catch (RuntimeException ex) {
+            log.error("Failed to process notification delivery task {}", task.getId(), ex);
+        }
+    }
+
+    private void processLockedTask(Long id) {
+        NotificationDeliveryTask managedTask = taskRepository.findByIdForUpdate(id).orElse(null);
+        if (managedTask == null || !isRunnable(managedTask, LocalDateTime.now())) {
+            return;
+        }
         managedTask.setStatus(NotificationDeliveryTaskStatus.PROCESSING);
         managedTask.setUpdatedAt(LocalDateTime.now());
         NotificationDeliveryCommand command = deserialize(managedTask.getPayload());
-
+        NotificationDeliveryResult result;
         try {
-            NotificationDeliveryResult result = pushService.push(command);
-            if (result.successful()) {
-                handleSuccess(managedTask, command, result);
-                return;
-            }
-            handleFailure(managedTask, command, result.message());
+            // Keep the task row locked, but isolate REQUIRED transactions in push dependencies.
+            TransactionTemplate pushTransaction = new TransactionTemplate(transactionManager);
+            pushTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
+            result = pushTransaction.execute(status -> pushService.push(command));
         } catch (RuntimeException ex) {
             handleFailure(managedTask, command, ex.getMessage());
+            return;
         }
+        if (result.successful()) {
+            handleSuccess(managedTask, command, result);
+        } else {
+            handleFailure(managedTask, command, result.message());
+        }
+    }
+
+    private boolean isRunnable(NotificationDeliveryTask task, LocalDateTime now) {
+        return task.getStatus() == NotificationDeliveryTaskStatus.PENDING
+                || (task.getStatus() == NotificationDeliveryTaskStatus.PENDING_RETRY
+                    && (task.getNextRetryAt() == null || !task.getNextRetryAt().isAfter(now)));
     }
 
     private void handleSuccess(
