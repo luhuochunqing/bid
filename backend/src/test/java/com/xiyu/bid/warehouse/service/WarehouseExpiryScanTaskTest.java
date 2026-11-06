@@ -21,6 +21,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -36,6 +38,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class WarehouseExpiryScanTaskTest {
 
+    @Mock private PlatformTransactionManager transactionManager;
     @Mock private WarehouseRepository warehouseRepo;
     @Mock private UserRepository userRepo;
     @Mock private NotificationApplicationService notificationService;
@@ -45,7 +48,10 @@ class WarehouseExpiryScanTaskTest {
 
     @BeforeEach
     void setUp() {
-        task = new WarehouseExpiryScanTask(warehouseRepo, userRepo, notificationService, notificationRepo);
+        task = new WarehouseExpiryScanTask(warehouseRepo, userRepo, notificationService, notificationRepo, transactionManager);
+        lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        lenient().when(warehouseRepo.findByIdForUpdate(any())).thenAnswer(call -> warehouseRepo.findAll().stream()
+                .filter(wh -> wh.getId().equals(call.getArgument(0))).findFirst());
         lenient().when(notificationService.createNotification(any(), any()))
                 .thenReturn(DispatchResult.validWithId(1L));
         // contactDisplay 构建在仓库遍历之前，对所有仓库的 contactPerson 都会调用 findByFullName
@@ -81,6 +87,32 @@ class WarehouseExpiryScanTaskTest {
                 .hasLeaseContract(true)
                 .status(status)
                 .build();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {-7, 15})
+    @DisplayName("首仓库标题被拒绝时回滚该事务，继续生成后续仓库提醒")
+    void shouldContinueAfterRejectedWarehouse(int daysUntilExpiry) {
+        when(userRepo.findEnabledByRoleProfileCodes(anyList())).thenReturn(List.of(user(1L, "管理员", "admin")));
+        WarehouseEntity rejected = warehouse(10L, "仓".repeat(200), LocalDate.now().plusDays(daysUntilExpiry), WarehouseStatus.IN_USE);
+        WarehouseEntity healthy = warehouse(11L, "正常仓库", LocalDate.now().plusDays(daysUntilExpiry), WarehouseStatus.IN_USE);
+        when(warehouseRepo.findAll()).thenReturn(List.of(rejected, healthy));
+        var failedTransaction = new SimpleTransactionStatus();
+        var successfulTransaction = new SimpleTransactionStatus();
+        when(transactionManager.getTransaction(any())).thenReturn(failedTransaction, successfulTransaction);
+        when(notificationService.createNotification(any(), any())).thenAnswer(call -> {
+            CreateNotificationRequest request = call.getArgument(0);
+            return com.xiyu.bid.notification.core.NotificationDispatchPolicy.validateDispatch(
+                    com.xiyu.bid.notification.core.NotificationType.SYSTEM, 1L, request.title(), request.body());
+        });
+
+        assertThat(task.processScan()).isEqualTo(1);
+
+        ArgumentCaptor<CreateNotificationRequest> requests = ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notificationService, org.mockito.Mockito.times(2)).createNotification(requests.capture(), any());
+        assertThat(requests.getAllValues()).extracting(CreateNotificationRequest::sourceEntityId).containsExactly(10L, 11L);
+        verify(transactionManager).rollback(failedTransaction);
+        verify(transactionManager).commit(successfulTransaction);
     }
 
     @Test
