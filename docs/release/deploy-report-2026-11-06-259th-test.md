@@ -95,6 +95,19 @@ rm: 无法删除"/tmp/flyway-repair-extract/BOOT-INF/lib/flyway-core-9.22.3.jar"
 
 ---
 
+## 部署后配置变更（2026-11-06 08:11 CST）
+
+- **变更项**：测试环境 `/etc/xiyu-bid/backend.env` 新增 `APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED=true`
+  - 原状态：未设置，代码默认 `false`（`application.yml` → `app.score-parse.baidu-ocr.gateway-enabled`）
+  - 作用：表格 OCR 走 APIHub 中转路径，仅测试环境显式开启，生产保持默认关闭
+- **备份**：`/etc/xiyu-bid/backend.env.bak-20261106`（文件权限仍为 `640 root`）
+- **执行**：`sudo systemctl restart xiyu-bid-backend` → 08:11:34 `Started XiyuBidApplication in 23.411 seconds`，ERROR 计数 = 0
+- **验证**：`/proc/<MainPID>/environ` 含 `APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED=true`；本地 `18080` health 200（78 次尝试，Kafka readiness 延迟属已知行为）；经 Nginx `8080` health 200，前端入口仍为 `assets/index-BoWUA8ZZ.js`
+- **不入库说明**：服务器 `backend.env` 含数据库密码、JWT 密钥、Sidecar 共享密钥等敏感值，禁止提交仓库；仓库模板 `.env.example` 保持 `APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED=false`
+- **回滚方式**：删除该行（或改回 `false`）后 `sudo systemctl restart xiyu-bid-backend`
+
+---
+
 ## 回滚信息
 - 回滚锚点：release id `adbb2facf-api8080`；上一已知良好版本 `82b9dbe75-api8080`
 - 后端旧 jar：`/opt/xiyu-bid/releases/82b9dbe75-api8080/backend/app.jar`
