@@ -150,4 +150,63 @@ class ScoreTypeClassificationPolicyTest {
         String detail = "供应商业绩 | 满足资格条件的业绩得基础分60分，在此基础上每增加一个满足资格条件的业绩（2023年1月1日至首次报价截止日，以合同签订时间为准）加20分，满分100分。 | 5%";
         assertThat(policy.classify(detail, "SUBJECTIVE")).isEqualTo("OBJECTIVE");
     }
+
+    @Test
+    void classify_project1119_subjectiveSchemesWithGradedReview_remainSubjective() {
+        // 项目 1119 现场用例：需要专家评审的方案性、设计性内容应为主观（即便包含认证、数量或提供字样）
+        String mallIntegration = "2.2.4(3) | 技术部分评分标准(30%) | 商城系统对接能力 | 对供应商商城系统对接能力进行综合评价。"
+                + "供应商应按照雅江商城定义的接口标准进行对接，依据接口标准向雅江商城提供接口服务，包括商品、商品组、订单、售后、消息等接口。"
+                + "供应商需提供平台对接方案，包括但不限于自有电子商城的技术架构、功能、系统安全、对接时间与人员安排、对接成功案例（需提供相关证明材料）等内容。"
+                + "评审标准按A、B、C、D分档打分。 | 5%";
+        assertThat(policy.classify(mallIntegration)).isEqualTo("SUBJECTIVE");
+
+        String goodsManagement = "商品管理能力 | 对供应商商品管理能力进行综合评价。"
+                + "供应商需提供价格管控措施、商品上架管理、强制认证商品质量管理、质保期管理、保质期管理、商品补货响应时效等方案；"
+                + "提供体现商品丰富度的相关材料。评审标准按A、B、C、D分档打分。 | 5%";
+        assertThat(policy.classify(goodsManagement)).isEqualTo("SUBJECTIVE");
+
+        String supplierManagement = "供应商管理能力 | 对平台供应商的供应商管理能力进行综合评价。"
+                + "平台供应商需提供对其供应商的具体管理措施，包括但不限于平台供应商准入管理方案及引入时效、供应商执行管理、评价与退出管理等方案。"
+                + "评审标准按A、B、C、D分档打分。 | 5%";
+        assertThat(policy.classify(supplierManagement)).isEqualTo("SUBJECTIVE");
+
+        String logisticsAndWarehouse = "物流配送及仓储能力 | 对平台供应商物流配送及仓储能力进行综合评价。"
+                + "平台供应商需提供物流配送方案，至少包括自有物流或者与第三方物流公司合作情况、配送网点数量及分布情况、配送范围、发货时效、配送时效及保障措施、"
+                + "物流信息同步时效以及偏远地区最后一公里物流配送方案等内容；提供自建或租赁仓库数量、仓库总面积、覆盖范围、前置仓（重点西藏区域）的位置和数量、"
+                + "库存管理方案等内容。评审标准按A、B、C、D分档打分。 | 5%";
+        assertThat(policy.classify(logisticsAndWarehouse)).isEqualTo("SUBJECTIVE");
+
+        String qualitySupervision = "质量监管能力 | 对平台供应商质量监管能力进行综合评价。"
+                + "平台供应商需提供质量监管方案，分别针对标包一此类重点工业品和标包二、三此类通用工业品分类施策，编制监管方案，"
+                + "强化源头管控、质量检验、物流跟踪、仓储管理、到货验收等，构建“来源可查、去向可追、责任到人、风险可控”的全生命周期管控体系，"
+                + "管控范围覆盖商城采购、产地质检、运输物流、前置仓入出库、现场收货、领用安装、报废处理等全过程、全环节，"
+                + "实现数据全程留痕、异常自动预警、问题精准追溯评审标准按A、B、C、D分档打分。 | 5%";
+        assertThat(policy.classify(qualitySupervision)).isEqualTo("SUBJECTIVE");
+    }
+
+    @Test
+    void classify_generalSchemeAndDesignWithExpertReview_subjective() {
+        // 通用方案性、设计性内容由专家评审打分，应为主观
+        assertThat(policy.classify("投标人提供系统总体设计方案和架构设计，由专家评审打分，满分10分"))
+                .isEqualTo("SUBJECTIVE");
+        assertThat(policy.classify("提供应急预案与处置措施方案，评审标准分A、B、C三档打分"))
+                .isEqualTo("SUBJECTIVE");
+        assertThat(policy.classify("提供售后服务方案，评标委员会根据方案的可行性进行综合评价打分"))
+                .isEqualTo("SUBJECTIVE");
+    }
+
+    @Test
+    void classify_project1119_creditAndFinancial_objective() {
+        // 项目 1119 客观项：可通过比对标书内容和招标要求验证是否满足
+        String credit = "信用评价 | 2023年1月1日至今，符合资格审查条件，并且：（1）在该网站无不良记录，得100分；"
+                + "（2）在该网站有处罚记录，无罚款，得90分；（3）在该网站有处罚记录，罚款金额20万元以内，得80分；"
+                + "（4）在该网站有处罚记录，罚款金额50万元以内，得70分；（5）在该网站有处罚记录，罚款金额50万元以上，得60分。本项满分100分。 | 5%";
+        assertThat(policy.classify(credit)).isEqualTo("OBJECTIVE");
+
+        String financial = "财务状况 | 速动比率=速动资产/流动负债。速动比≥1，得50分；0.8≤速动比﹤1，得40分；速动比﹤0.8，得30分。"
+                + "数据取值来源：①速动资产=<资产负债表>:（流动资产合计−存货）②流动负债=<资产负债表>:流动负债合计"
+                + "（2）营业收现比率=经营活动现金流入/营业总收入。营业收现比率≥1，得50分；0.8≤营业收现比率﹤1，得40分；营业收现比率﹤0.8，得30分。"
+                + "本项满分100分。 | 6%";
+        assertThat(policy.classify(financial)).isEqualTo("OBJECTIVE");
+    }
 }
