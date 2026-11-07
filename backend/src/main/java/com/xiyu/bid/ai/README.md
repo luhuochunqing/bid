@@ -42,4 +42,4 @@ AI 分析能力的后端入口，负责标讯分析、项目分析与 AI Provide
 ## 合规图像适配器
 
 - `compliance/OpenAiSealVisionDetector`：每批至多24图，提供图片序号与物理页码映射；程序确定覆盖集合，过滤未送检页观察，模型不能缩小核验范围。
-- `compliance/OpenAiDocumentPageVisionDetector`：复用既有配置与结构化多模态通道，对受限授权扫描页只转写可见文字；失败为空并保留人工，不构造身份或签章结论。
+- `compliance/OpenAiDocumentPageVisionDetector`：优先复用后台已配置的百度 OCR 通道（`BaiduTableOcrClient`），未启用或未命中时回退既有结构化多模态通道，对候选关键合规页转写可见文字；失败为空并保留人工，不构造身份或签章结论。

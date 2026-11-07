@@ -52,6 +52,12 @@ public class SidecarComplianceDocumentAdapter {
             Set<Integer> pages = DocumentEvidencePageSelector.select(content);
             if (pages.isEmpty()) return content;
             List<PageImage> images = imageExtractor.extract(physicalFile, fileName, pages);
+            if (isDocx(fileName) && images.stream().noneMatch(i -> i != null && i.pageHint() != null && i.pageHint() > 0)) {
+                List<PageImage> docxImages = DocxComplianceImageExtractor.extract(physicalFile, content, pages);
+                if (!docxImages.isEmpty()) {
+                    images = docxImages;
+                }
+            }
             if (images.isEmpty()) {
                 // 空图不是异常但必须可观测：签章视觉核验会因此降级人工复核（2026-09-21 项目 1382 假通过放大器）
                 log.warn("投标文件未抽取到页面图像，签章视觉通道不可用：{}（请求页数={}）", fileName, pages.size());
@@ -64,5 +70,9 @@ public class SidecarComplianceDocumentAdapter {
             log.warn("投标文件页面图像抽取失败，签章视觉通道降级为不可用：{}，原因={}", fileName, e.getMessage());
             return content;
         }
+    }
+
+    private static boolean isDocx(final String fileName) {
+        return fileName != null && fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".docx");
     }
 }

@@ -242,11 +242,21 @@ public final class QualificationDetailReconciler {
         List<String> cues = new ArrayList<>();
         String trimmed = req.trim();
         cues.add(trimmed);
+        String strippedPrefix = trimmed.replaceFirst(
+                "^(?:(?:且|并|同时)?(?:投标人|供应商|申请人|企业|公司|我方)?(?:[（(][^）)]*[）)])?(?:应当|必须|须|应|需)?(?:具有|具备|持有|取得|通过|提供)?(?:有效的|合法有效的)?)+",
+                "").trim();
+        if (!strippedPrefix.isBlank() && !cues.contains(strippedPrefix)) {
+            cues.add(strippedPrefix);
+        }
 
         // 剥离中文/英文括号及内部注释
         String strippedBrackets = trimmed.replaceAll("[（(][^）)]*[）)]", "").trim();
         if (!strippedBrackets.isBlank() && !strippedBrackets.equals(trimmed)) {
             cues.add(strippedBrackets);
+        }
+        String strippedCore = strippedPrefix.replaceAll("[（(][^）)]*[）)]", "").trim();
+        if (!strippedCore.isBlank() && !cues.contains(strippedCore)) {
+            cues.add(strippedCore);
         }
 
         // 按逗号/分号截取前导主体名称

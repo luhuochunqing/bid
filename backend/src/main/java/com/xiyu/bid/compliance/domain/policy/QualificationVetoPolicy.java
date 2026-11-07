@@ -40,7 +40,7 @@ public final class QualificationVetoPolicy {
             "(?:拟将|计划将|拟向|拟委托)[^。；\\n]{0,30}(?:主体|核心|关键|主要)[^。；\\n]{0,30}(?:分包|转包|外包)|(?:拟分包给|拟转包给|拟将本项目分包)");
 
     private static final Pattern CERT_PREFIX = Pattern.compile(
-            "^(?:(?:且|并|同时)?(?:投标人|供应商|申请人|企业|公司|我方)?(?:应当|必须|须|应|需)?(?:具有|具备|持有|取得|通过|提供)?(?:有效的|合法有效的)?)+");
+            "^(?:(?:且|并|同时)?(?:投标人|供应商|申请人|企业|公司|我方)?(?:[（(][^）)]*[）)])?(?:应当|必须|须|应|需)?(?:具有|具备|持有|取得|通过|提供)?(?:有效的|合法有效的)?)+");
 
     private QualificationVetoPolicy() {
     }
@@ -195,6 +195,12 @@ public final class QualificationVetoPolicy {
         }
         if (bidDoc != null) {
             evidences.add(EvidenceAssembler.locateBidSkippingCatalog(bidDoc, "标书资质响应证明", satisfied));
+        }
+        if (SemanticEvidenceBoundary.hasSubstantiveCertificateFacts(fullValidText.toString())) {
+            return Optional.of(QualityCheckItemResult.pass(
+                    BidQualityCheckItem.QUALIFICATION_VETO,
+                    "已核验标书正文中强制资格证书（" + String.join("、", satisfied) + "）的证书编号与有效期证明，无一票否决硬伤",
+                    evidences));
         }
         String conclusion = "标书已检索到证书名称：【" + String.join("、", satisfied)
                 + "】；名称命中不能证明证书有效及全部资格条件满足，请逐项核验完整资格条件。";

@@ -197,9 +197,9 @@ public final class SubItemAndAttachmentRules {
         if (DeterministicDepositExtractor.isDepositNotRequired(tenderText)) {
             return true;
         }
-        return tenderText != null && !tenderText.isBlank()
-                && !tenderText.contains("投标保证金") && !tenderText.contains("投标担保")
-                && !tenderText.contains("响应担保") && !tenderText.contains("投标保证");
+        return tenderText != null && tenderText.length() >= 100
+                && !tenderText.contains("保证金") && !tenderText.contains("投标担保")
+                && !tenderText.contains("响应担保") && !tenderText.contains("退款");
     }
 
     /**

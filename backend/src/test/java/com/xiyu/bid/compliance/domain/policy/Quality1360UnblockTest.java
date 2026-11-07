@@ -1,14 +1,17 @@
-// Input: 1360 原件真实场景与边界用例
-// Output: 验证图二资格提取、图三评分留白、响应性差异表、否决警示语、文件组成与保证金不涉及判定
+// Input: 1360 原件真实场景与边界用例（第一刀+第二刀）
+// Output: 验证图二资格提取与实证闭环、图三评分留白、响应性差异表、否决警示语、文件组成、保证金不涉及及图片OCR闭环
 // Pos: compliance/domain/policy/ - 1360 标书核查解除硬编码阻塞纯核心测试 (FP-Java)
 package com.xiyu.bid.compliance.domain.policy;
 
+import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
+import com.xiyu.bid.compliance.domain.QualificationDetail;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,31 +51,61 @@ class Quality1360UnblockTest {
     }
 
     @Test
-    @DisplayName("整句主语为投标人时，证书子句继承 BIDDER 主体与 MANDATORY 适用性")
-    void parentConditionSubjectIsInheritedBySubclauses() {
-        String clause = "1.4 投标人须具有成熟的电子商城平台，且具有有效的中华人民共和国增值电信业务经营许可证（EDI和ICP）。";
+    @DisplayName("主语含括号关联公司限定（或母子公司/集团公司）时，证书要求仍识别为 BIDDER + MANDATORY")
+    void parentConditionSubjectWithAffiliateParentheticalIsMandatoryBidder() {
+        String clause = "投标人（或与投标人为母子公司、或同属同一集团公司体系内的公司）须具有成熟的电子商城平台，且具有有效的中华人民共和国增值电信业务经营许可证（EDI和ICP）。";
         var certs = CertificateRequirementPolicy.classify(clause, clause);
-        assertThat(certs).isNotEmpty();
-        assertThat(certs).allSatisfy(c -> {
-            assertThat(c.target()).isEqualTo(QualificationCondition.Target.BIDDER);
-            assertThat(c.applicability()).isEqualTo(QualificationCondition.Applicability.MANDATORY);
-        });
+        assertThat(certs).hasSize(1);
+        assertThat(certs.getFirst().target()).isEqualTo(QualificationCondition.Target.BIDDER);
+        assertThat(certs.getFirst().applicability()).isEqualTo(QualificationCondition.Applicability.MANDATORY);
     }
 
     @Test
     @DisplayName("条件性补充文件（如授权文件、股权证明）不被误提取为独立证书要求")
     void authorizationLetterInConditionIsNotExtractedAsCertificateRequirement() {
         String text = "如证书及平台非投标人自身拥有，须补充提供：-具备前述平台和经营许可证的单位出具的针对本项目的“授权文件”，证明投标人被授权合法使用该主网站；-股权关系证明资料。";
-        var certs = CertificateRequirementPolicy.classify(text, text);
-        assertThat(certs).isEmpty();
+        assertThat(CertificateRequirementPolicy.classify(text, text)).isEmpty();
+        assertThat(CertificateRequirementPolicy.isCertificateReference(text)).isFalse();
     }
 
     @Test
-    @DisplayName("正文证书均已检索满足时，一票否决结论精准列出满足项，绝不虚报'未定位到'")
-    void allCertificatesSatisfiedDoesNotReportUnlocatedDefect() {
+    @DisplayName("标书正文已提供证书编号与有效期限实证时，资质匹配与一票否决直接闭环 PASS")
+    void substantiveCertificateFactsInBidAllowPassForQualificationMatchAndVeto() {
+        String bidPage = """
+                四、西域具有有效的中华人民共和国增值电信业务经营许可证（EDI和ICP）
+                | 经营许可证编号 | 合字B2-20200044 |
+                | 业务种类 | 在线数据处理与交易处理业务（仅限经营类电子商务）；信息服务业务（仅限互联网信息服务） |
+                | 有效期限 | 2025年7月4日至2030年3月28日 |
+                """;
+        DocumentContent bidDoc = new DocumentContent("bid.docx", "bid_hash", bidPage,
+                List.of(new DocumentContent.PageContent(8, bidPage, List.of())));
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "tender_hash",
+                "七、 投标人资格要求\n投标人（或与投标人为母子公司、或同属同一集团公司体系内的公司）须具有有效的中华人民共和国增值电信业务经营许可证（EDI和ICP）。");
+        TenderRequirements req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tenderDoc);
+
+        Optional<QualityCheckItemResult> vetoResult = QualificationVetoPolicy.checkFirstStage(bidDoc, tenderDoc, req, List.of());
+        assertThat(vetoResult).isPresent();
+        assertThat(vetoResult.orElseThrow().status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(SemanticEvidenceBoundary.reconcile(vetoResult.orElseThrow(), bidDoc).status())
+                .isEqualTo(QualityCheckStatus.PASS);
+
+        List<QualificationDetail> details = QualificationMatchPolicy.buildDetails(
+                req.certificateRequirements(), List.of(), bidDoc, LocalDate.of(2026, 11, 7));
+        assertThat(details).hasSize(1);
+        assertThat(details.getFirst().finding()).isEqualTo(QualificationDetail.Finding.MATCHED_REFERENCE);
+        var reconciled = QualificationDetailReconciler.reconcile(
+                QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_MATCH, "资质匹配通过", List.of()),
+                details, req, bidDoc);
+        assertThat(reconciled.status()).isEqualTo(QualityCheckStatus.PASS);
+    }
+
+    @Test
+    @DisplayName("仅出现证书名称而无编号与有效期实证时，一票否决仍保持待确认")
+    void bareCertificateNameWithoutFactsStaysManualReview() {
         String p1 = "资质证明文件\n依法取得中华人民共和国增值电信业务经营许可证（EDI和ICP）。";
         DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "bid_hash", p1);
-        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "tender_hash", "七、 投标人资格要求\n投标人须具有中华人民共和国增值电信业务经营许可证（EDI和ICP）。");
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "tender_hash",
+                "七、 投标人资格要求\n投标人须具有中华人民共和国增值电信业务经营许可证（EDI和ICP）。");
         TenderRequirements req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tenderDoc);
 
         Optional<QualityCheckItemResult> result = QualificationVetoPolicy.checkFirstStage(bidDoc, tenderDoc, req, List.of());
@@ -80,6 +113,24 @@ class Quality1360UnblockTest {
         assertThat(result.get().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(result.get().conclusion()).contains("标书已检索到证书名称：【")
                 .doesNotContain("尚未定位到");
+    }
+
+    @Test
+    @DisplayName("身份证正反面要素经OCR完整识别后，委托人身份证项可闭环 PASS")
+    void completeBothSidesIdFactsPassIdAuthLetterAndBoundary() {
+        String idPage = """
+                法定代表人身份证明及委托代理人身份证
+                姓名：张伟 性别：男 民族：汉 住址：上海市浦东新区某路100号
+                公民身份号码：310115198805121234
+                中华人民共和国居民身份证 签发机关：上海市公安局浦东分局 有效期限：2020.05.12-2040.05.12
+                """;
+        DocumentContent bidDoc = new DocumentContent("bid.docx", "bid_hash", idPage,
+                List.of(new DocumentContent.PageContent(3, idPage, List.of())),
+                List.of(new com.xiyu.bid.compliance.domain.PageImage(0, "image/png", "身份证", 3, 0, 0, "base64")));
+        QualityCheckItemResult result = IdAuthLetterCheckPolicy.check(bidDoc);
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(SemanticEvidenceBoundary.reconcile(result, bidDoc).status())
+                .isEqualTo(QualityCheckStatus.PASS);
     }
 
     @Test
@@ -157,9 +208,13 @@ class Quality1360UnblockTest {
     void tenderWithoutDepositRequirementPassesAsNotApplicable() {
         String tenderText = """
                 第一章 招标公告
-                新兴际华集团采购项目。
+                新兴际华集团电子商城外部合作电商引入公开招标项目，采购人为新兴际华集团有限公司。
                 第二章 投标人须知
-                请认真编制投标文件。
+                请各投标人按照招标文件第一卷商务标、第二卷技术标、第三卷经济标的格式要求认真编制并按时递交投标文件。
+                第三章 评标办法
+                本项目采用综合评估法，对商务、技术、价格三部分进行综合评审打分，择优确定中标合作电商。
+                第四章 合同主要条款及格式
+                双方按框架协议约定履行供货与结算义务。
                 """;
         DocumentContent bidDoc = DocumentContent.fromText("bid.docx", "bid_hash", "投标说明：我方按要求编制标书。");
 

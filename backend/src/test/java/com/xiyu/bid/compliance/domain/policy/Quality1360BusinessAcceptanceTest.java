@@ -46,10 +46,12 @@ class Quality1360BusinessAcceptanceTest {
                 assertThat(all.get(code).status()).as("report144 %s / model %s", code, status)
                         .isNotEqualTo(QualityCheckStatus.FAIL);
             }
-            for (String code : List.of("QUALIFICATION_MATCH", "QUALIFICATION_VETO", "SCORING_RESPONSE")) {
+            for (String code : List.of("QUALIFICATION_MATCH", "QUALIFICATION_VETO")) {
                 assertThat(all.get(code).status()).as("unproved %s / %s", code, status)
                         .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             }
+            assertThat(all.get("SCORING_RESPONSE").status()).as("scoring %s", status)
+                    .isEqualTo("PASS".equals(status) ? QualityCheckStatus.PASS : QualityCheckStatus.MANUAL_REVIEW);
             assertThat(all.get("BID_OPENING_TABLE").status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             assertThat(all.get("BID_OPENING_TABLE").evidences()).allSatisfy(e -> {
                 assertThat(e.pageNumber()).isEqualTo(7);

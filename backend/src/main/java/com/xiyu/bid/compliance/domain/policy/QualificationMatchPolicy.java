@@ -53,10 +53,7 @@ public final class QualificationMatchPolicy {
     }
 
     static int calculateMatchScore(final String req, final String certName) {
-        if (!QualificationGradePolicy.isGradeCompatible(req, certName)) {
-            return 0;
-        }
-        return calculateBaseMatchScore(req, certName);
+        return QualificationGradePolicy.isGradeCompatible(req, certName) ? calculateBaseMatchScore(req, certName) : 0;
     }
 
     static int calculateBaseMatchScore(final String req, final String certName) {
@@ -160,9 +157,12 @@ public final class QualificationMatchPolicy {
                     hit.map(EvidenceHit::quote).orElse(""), null,
                     "企业资质库中证书「" + certName + "」" + note + "，存在实质性偏离或废标风险", Finding.GRADE_INSUFFICIENT);
         }
-        return locateInBid(bidDoc, QualificationDetailReconciler.buildBidSearchCues(req)).map(h -> new QualificationDetail(
-                req, "", "ATTENTION", h.pageNumber(), h.quote(), null,
-                "资质库未维护该证书，但在标书第 " + h.pageNumber() + " 页检索到证明材料，请人工核查有效性", Finding.EVIDENCE_INCOMPLETE))
+        return locateInBid(bidDoc, QualificationDetailReconciler.buildBidSearchCues(req)).map(h ->
+                SemanticEvidenceBoundary.hasSubstantiveCertificateFacts(bidDoc, h.pageNumber())
+                        ? new QualificationDetail(req, req, "MATCHED", h.pageNumber(), h.quote(), null,
+                                "已在标书第 " + h.pageNumber() + " 页核验到证书编号及有效期限证明", Finding.MATCHED_REFERENCE)
+                        : new QualificationDetail(req, "", "ATTENTION", h.pageNumber(), h.quote(), null,
+                                "资质库未维护该证书，但在标书第 " + h.pageNumber() + " 页检索到证明材料，请人工核查有效性", Finding.EVIDENCE_INCOMPLETE))
                 .orElseGet(() -> new QualificationDetail(
                         req, "", "UNMATCHED", null, "", null,
                         "企业资质库及投标文本未检索到对应证明，需核验原始材料；未命中不证明缺失", Finding.LOOKUP_MISS));
