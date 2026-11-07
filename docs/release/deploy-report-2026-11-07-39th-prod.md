@@ -97,6 +97,21 @@
 
 ---
 
+## 部署后配置变更（2026-11-07 12:25 CST）
+
+- **变更项**：生产 `/etc/xiyu-bid/backend.env` 新增 `APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED=true`
+  - 原状态：未设置，代码默认 `false`（`app.score-parse.baidu-ocr.gateway-enabled`）
+  - 中转地址：沿用默认 `http://apihub-test.ehsy.com/{user/login,search}`（生产服务器实测可连通，HTTP 200）
+  - **账号状态：生产库 `system_settings.payload_json` 无 OCR 账号**（usernameConfigured/passwordConfigured 均为空）。用户确认「只开开关」，账号由设置页面后续配置
+  - 功能影响：`BaiduTableOcrClient.isEnabled()` 同时要求开关为真且账号可用，因此**当前 OCR 仍处于未启用状态**；设置页连接测试将由「当前部署未启用 OCR 中转」变为「用户名或密码不能为空」，配置账号后即可生效
+- **备份**：`/etc/xiyu-bid/backend.env.bak-20261107`（权限仍为 `640 root:jetty`）
+- **执行**：`sudo systemctl restart xiyu-bid-backend` → 12:25:30 `Started XiyuBidApplication in 22.079 seconds`
+- **验证**：`/proc/<MainPID>/environ` 含 `APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED=true`；本地 `18080` 与 Nginx `8080` health 均 200；近 5 分钟无 ERROR 级日志
+- **不入库说明**：服务器 `backend.env` 含数据库密码、JWT 密钥等敏感值，禁止提交仓库；仓库模板 `.env.example` 保持 `APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED=false`
+- **回滚方式**：删除该行（或改回 `false`）后 `sudo systemctl restart xiyu-bid-backend`；或恢复 `backend.env.bak-20261107`
+
+---
+
 ## 回滚信息
 
 - 代码回滚锚点：`/opt/xiyu-bid/releases/889ccb4c3`（前后端完整产物）；旧 jar 可从该目录取回。
@@ -128,4 +143,5 @@
 - [x] 前端入口与页面可达（含公网域名 200）
 - [x] 旧版 assets 保留
 - [x] DB 备份有效性（部署后补做，已验证完整）
+- [x] OCR 中转开关已开启（`GATEWAY_ENABLED=true`，账号待设置页面配置）
 - [ ] 部署报告 PR 合入（待提交）
