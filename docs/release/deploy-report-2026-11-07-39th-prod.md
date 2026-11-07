@@ -97,18 +97,31 @@
 
 ---
 
-## 部署后配置变更（2026-11-07 12:25 CST）
+## 部署后配置变更（2026-11-07 12:25 / 13:05 CST）
 
-- **变更项**：生产 `/etc/xiyu-bid/backend.env` 新增 `APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED=true`
-  - 原状态：未设置，代码默认 `false`（`app.score-parse.baidu-ocr.gateway-enabled`）
-  - 中转地址：沿用默认 `http://apihub-test.ehsy.com/{user/login,search}`（生产服务器实测可连通，HTTP 200）
-  - **账号状态：生产库 `system_settings.payload_json` 无 OCR 账号**（usernameConfigured/passwordConfigured 均为空）。用户确认「只开开关」，账号由设置页面后续配置
-  - 功能影响：`BaiduTableOcrClient.isEnabled()` 同时要求开关为真且账号可用，因此**当前 OCR 仍处于未启用状态**；设置页连接测试将由「当前部署未启用 OCR 中转」变为「用户名或密码不能为空」，配置账号后即可生效
-- **备份**：`/etc/xiyu-bid/backend.env.bak-20261107`（权限仍为 `640 root:jetty`）
-- **执行**：`sudo systemctl restart xiyu-bid-backend` → 12:25:30 `Started XiyuBidApplication in 22.079 seconds`
-- **验证**：`/proc/<MainPID>/environ` 含 `APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED=true`；本地 `18080` 与 Nginx `8080` health 均 200；近 5 分钟无 ERROR 级日志
-- **不入库说明**：服务器 `backend.env` 含数据库密码、JWT 密钥等敏感值，禁止提交仓库；仓库模板 `.env.example` 保持 `APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED=false`
-- **回滚方式**：删除该行（或改回 `false`）后 `sudo systemctl restart xiyu-bid-backend`；或恢复 `backend.env.bak-20261107`
+### 变更一：开启 OCR 中转开关（12:25）
+
+- 生产 `/etc/xiyu-bid/backend.env` 新增 `APP_SCORE_PARSE_BAIDU_OCR_GATEWAY_ENABLED=true`（原默认 `false`）
+- 备份：`/etc/xiyu-bid/backend.env.bak-20261107`；重启后健康检查通过（22.079s）
+
+### 变更二：修正中转地址并注入账号（13:05）
+
+- **根因**：`boran_pro` 账号属于**生产 APIHub**（`apihub.ehsy.com`），而默认地址是测试中转 `apihub-test.ehsy.com`
+  - `apihub-test.ehsy.com/user/login` → `{"code":"50003","msg":"用户名密码错误"}`（网络正常，0.044s）
+  - `apihub.ehsy.com/user/login` → `{"code":"0","msg":"success","token":"…","tokenRemainTime":86400}`
+  - 测试库 `lastTestMessage` 记录的「APIHub 登录失败，请检查测试环境网络和中转账号配置」（2026-11-06）即此原因，非网络故障
+- 变更项（生产 `backend.env`，权限 `640 root:jetty`）：
+  - `APP_SCORE_PARSE_BAIDU_OCR_TOKEN_URL=http://apihub.ehsy.com/user/login`
+  - `APP_SCORE_PARSE_BAIDU_OCR_TABLE_URL=http://apihub.ehsy.com/search`
+  - `APP_SCORE_PARSE_BAIDU_OCR_USERNAME=boran_pro`
+  - `APP_SCORE_PARSE_BAIDU_OCR_PASSWORD=<已注入，勿外泄>`
+- 备份：`/etc/xiyu-bid/backend.env.bak-20261107-ocr`
+- 执行：`sudo systemctl restart xiyu-bid-backend`，健康检查第 13 次（约 26s）通过
+- 验证：`/proc/<MainPID>/environ` 含全部 5 个 OCR 配置项；`18080` 与 `8080` health 均 200；近 3 分钟无 ERROR 日志；生产服务器实登 APIHub 返回 `code=0` 并取得 token
+- 结果：生产 OCR 中转**功能已真正启用**（开关 + 账号 + 地址三项齐备）
+- **测试环境**：按用户决定保持现状（仍指向 `apihub-test.ehsy.com`），待 APIHub 提供测试环境账号后再配
+- **不入库说明**：账号/密码仅存在于服务器 `backend.env`（`640 root:jetty`），不写入仓库、不写入数据库页面配置；仓库 `.env.example` 保持默认关闭
+- **回滚方式**：恢复 `backend.env.bak-20261107-ocr` 或删除上述 5 行中的账号/地址项后 `sudo systemctl restart xiyu-bid-backend`
 
 ---
 
