@@ -123,6 +123,21 @@
 - **不入库说明**：账号/密码仅存在于服务器 `backend.env`（`640 root:jetty`），不写入仓库、不写入数据库页面配置；仓库 `.env.example` 保持默认关闭
 - **回滚方式**：恢复 `backend.env.bak-20261107-ocr` 或删除上述 5 行中的账号/地址项后 `sudo systemctl restart xiyu-bid-backend`
 
+### 变更三：生产实际解析验证（12:38–12:40）
+
+在实际生产服务器上，用生产 env 同款账号按应用完全一致的请求契约（`code=BAIDU_OCR_DOC_API`、`noCache=1`、`params.pdf_file` + `pdf_file_num`）调用 `http://apihub.ehsy.com/search` 完成两次真实解析：
+
+| 用例 | 文件 | HTTP | 耗时 | 结果 |
+|---|---|---|---|---|
+| 1 | 纯文本 PDF（12,975 B） | 200 | 0.741s | `code=0`、`isSuccess=1`、`table_num=0`（无表格结构，符合预期） |
+| 2 | 含 3×3 表格 PDF（1,063 B） | 200 | 0.586s | `code=0`、`isSuccess=1`、`table_num=1`，9 个单元格全部正确 |
+
+用例 2 识别结果（逐字核对无误）：`Item / Score / Remark / Technical / 92 / pass / Commercial / 85 / pass`；APIHub `log_id=2118926068654162912`。
+
+- **额度状态**：两次响应均 `errorCode=null`，未出现限额/限流/鉴权错误，说明账号额度可用；APIHub 响应体不含剩余额度字段，月度余量需在 APIHub 控制台查看。
+- **结论**：生产 OCR 中转链路（网络 → 登录鉴权 → 文档解析）端到端可用。
+- **边界说明**：本次为 APIHub 层实测；应用内 scoreparse 触发还需业务账号登录与真实评分文件，未在本次执行。
+
 ---
 
 ## 回滚信息
@@ -156,5 +171,5 @@
 - [x] 前端入口与页面可达（含公网域名 200）
 - [x] 旧版 assets 保留
 - [x] DB 备份有效性（部署后补做，已验证完整）
-- [x] OCR 中转开关已开启（`GATEWAY_ENABLED=true`，账号待设置页面配置）
+- [x] OCR 中转已启用并完成一次生产实际解析验证（`table_num=1`，9 个单元格全对）
 - [ ] 部署报告 PR 合入（待提交）
