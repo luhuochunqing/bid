@@ -8082,6 +8082,12 @@ in table [score_active_version]; found [char (Types#CHAR)], but expecting [varch
 - 部署 JAR 字节码确认旧 `readEnvelope` 要求 `success=true/code="000000"`，`parseLoginResponse` 仅取 `data.token`；上游真实成功被确定性拒绝，随后被设置服务包装为通用登录失败。访问日志 HTTP 200 不能证明登录成功；原始异常未记录时也不能仅凭通用提示断言密码错误。
 - 修复边界：同时兼容实际及文档两种外层成功协议与 token 位置，保留明确失败、矛盾成功标志、缺失 token 和畸形结果的拒绝。HTTP 入口测试先复现 `APIHub OCR login failed (code=0)` 再验证修复；不放宽表格计数、数组一致性或部署门禁。
 
+### 2026-11-07：中转地址与账号所属环境不匹配，登录失败被误判为网络/密码问题
+
+- **直连证据**：同一账号 `boran_pro` 在 `apihub-test.ehsy.com/user/login` 返回 `code=50003 用户名密码错误`（0.044s，网络正常），在 `apihub.ehsy.com/user/login` 返回 `code=0` 并下发 token；存在性验证只用 `grep` 确认配置注入，不输出密码。
+- **结论**：登录 50003 不能先归因网络或密码；必须先核对账号所属 APIHub 环境与 `TOKEN_URL/TABLE_URL` 域名是否一致。生产不得依赖代码默认地址（默认是测试中转 `apihub-test.ehsy.com`），必须显式配置 `apihub.ehsy.com`。
+- **验证边界**：登录成功只证明鉴权；生产端到端验收按应用同款契约提交带表格 PDF，实测 `table_num=1`、9 个单元格全对、`errorCode=null`（log_id 留存），才算生产 OCR 中转可用。本次未触发应用内 scoreparse 流程，不能据此宣称业务解析已验收。
+
 ## 493. 评分类型（主客观分）判定中方案分档特征缺失导致专家评审项误判为客观分（2026-11-06）
 
 - **现场证据**：项目 1119（中国雅江集团电子商城工业用品平台供应商引入项目 标包2和3，`https://winbid.ehsy.com/project/1119`）中，商城系统对接能力、商品管理能力、供应商管理能力、物流配送及仓储能力、质量监管能力等项要求编制方案并“按A、B、C、D分档打分”，但在线上被误落库为 `OBJECTIVE`（客观分）。
