@@ -20,3 +20,8 @@ ts	phase	decision	why	evidence	result
 2026-10-28T15:20:00Z	recovery	实现 CellSubRuleRecovery 在 Java 领域层针对多细则漏抽建立对账防御闭环	根治大模型在单单元格多细则偶发性漏抽导致的95分问题，不依赖大模型概率运气	CellSubRuleRecovery.java	CellSubRuleRecoveryTest green (3/3), PR #2911
 2026-10-28T22:15:00Z	rca	定位跨页规则列在倒数第二列导致 _link_pdf_logical_rows 续行失效根因	确认 project1130 第14~15页列顺序为序号/名称/规则/分值，硬编码末列匹配导致跨页截断且9.1沦为方案外丢5分	document-converter-sidecar/converter.py:1073-1095	PDF 表格现场提取验证确认
 2026-10-28T22:45:00Z	sidecar-fix	在 Sidecar converter.py 实现动态规则列识别与跨页逻辑行缝合	根治规则列在分值列前方时的跨页断裂，确保跨页细则 9.1 完整关联 logicalRowId	converter.py, test_pdf_logical_rows.py	pytest passed (8/8 in test_pdf_logical_rows, 177/177 in sidecar)
+2026-11-07T10:20:00Z	diagnosis	定位 1360 标书核查 16 项待确认根因（图二资格提取/图三评分短路等）	消除 TOC 与跨章抽取污染、延保协议短路、差异表未识别等 6 类根因	Quality1360UnblockTest.java	tests red (8/9)
+2026-11-07T10:35:00Z	fix	修复资格提取过滤 TOC/跨章、评分留白排除合同协议模板、差异表与保证金规则	遵循 FP-Java 规范完成 7 个策略类修改，纯核心无框架依赖	Quality1360UnblockTest.java	tests green (9/9)
+2026-11-07T10:40:00Z	replay	运行 1360 真实招标文件与标书原件业务回放验证效果	图二资格一票否决与图三评分响应恢复正常，A类待确认项全部清零	verify-original-business.py	replay green (all 25 items verified)
+2026-11-07T13:35:00Z	unblock+ocr	落地第一刀（解封后置硬编码待确认枷锁）+ 第二刀（接通百度OCR与大体积DOCX流式抽图）	解除 SemanticEvidenceBoundary/QualificationMatchPolicy/QualificationVetoPolicy/IdAuthLetterCheckPolicy 对已证实事实的无条件待确认降级，复用 BaiduTableOcrClient 并实现 DocxComplianceImageExtractor 流式抽图	commit 8fba59069	1339 tests green
+2026-11-07T14:25:00Z	review-fix	修复三技能独立审查发现项（单图级OCR回退合并、同页证书实证防串页、移除测试/tmp依赖、提取公共辅助函数）	确保同页多图部分OCR失败可按单图回退多模态、消除跨页项目编号串页风险、保持单元测试自包含与零格式问题	OpenAiDocumentPageVisionDetectorTest.java, Quality1360UnblockTest.java	1322 compliance + 82 arch/targeted tests green, checkstyle & git diff --check 0 issues

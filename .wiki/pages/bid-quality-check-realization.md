@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出, 资质智能匹配, 三级穿透]
 created: 2026-08-20
-updated: 2026-10-25
-health_checked: 2026-10-25
+updated: 2026-11-07
+health_checked: 2026-11-07
 sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
@@ -404,6 +404,22 @@ drawer 结构：
     - **前端质检详情弹窗专属【CA 证书供需比对】看板（`QualityCheckDetailDialog.vue`）**：
       - 引入纯函数 `parseCaComparison` 解析三段式结论；
       - 弹窗为 CA 质检项渲染专属左右供需比对卡片：左侧清晰呈现招标文件要求平台与原文摘录，右侧清晰呈现企业 CA 台账现状（明确标注拥有状态、证书信息、到期日及台账直跳链接），一目了然。
+49. **项目 1360 标书核查待确认根因根治与纯核心领域规则收口（2026-11-07）**：
+    - **资格条件跨章抽取与目录污染根治（`QualificationConditionExtractor`）**：
+      - 目录点线行（`...... - 4 -`）与通用格式章节（“投标文件的语言|投标有效期|第二卷 技术标”）结构性过滤截断，防止目录与技术标附件清单被误抽为资格证书；
+      - 修复阿拉伯序号子项在父级为中文大写标题时角色推导为 UNKNOWN 的问题，消除 `uncertainScope` 全员连坐；
+    - **母子公司授权附注清洗与主语继承（`CertificateRequirementPolicy`）**：
+      - 过滤条件性补充证明材料（授权书/证明资料/股权关系），保持子句继承整句主语 `Target.BIDDER`；
+      - 清洗 `CERT_PREFIX` 解决标书命中证书但因前缀不一致假未命中缺陷；
+    - **评分项留白消除整页关键词连坐与协议模板短路（`ScoringResponsePolicy`）**：
+      - 移除整页包含服务方案关键词直接判全页占位留白的贪婪逻辑；识别《延保服务协议书》等合同样板留白并放行，解除对大模型满分标准核查的虚假短路拦截；
+    - **响应性差异表与否决警示语放行（`ResponsivenessReviewPolicy` / `RuleCitationContext`）**：
+      - 词表支持无表格差异表“无差异/无任何差异”正向识别；正向识别“否则将按弄虚作假进行处罚”为合法规则警示；
+      - 投标文件组成对具备商务与技术主章节放行；招标文件未提及保证金场景判定为【不涉及】免收通过；
+    - **后置硬编码待确认解封与百度 OCR + 大体积 DOCX 流式抽图闭环（`SemanticEvidenceBoundary` / `DocxComplianceImageExtractor` / `OpenAiDocumentPageVisionDetector`）**：
+      - 解封 `SemanticEvidenceBoundary`、`QualificationMatchPolicy`、`QualificationVetoPolicy`、`IdAuthLetterCheckPolicy` 对已具备同页证书编号+有效期限实证、多维资格实证、或身份证图像+正反面完整要素场景的硬编码 `MANUAL_REVIEW` 降级；支持《投标人承诺函》作为投标函变体核验；
+      - 新增 `DocxComplianceImageExtractor`（`ZipFile` + StAX 常数内存流式扫描），解决 600MB+ 大体积 `.docx` 超出 Sidecar 64MB 媒体限制跳过抽图及缺少 `pageHint` 问题；
+      - 在 `OpenAiDocumentPageVisionDetector` 接入已配置的 `BaiduTableOcrClient`（单图级回退多模态并按页合并），打通内嵌扫描图片页的文字转写与下游规则核验闭环。
 
 ## 6. 后续任务（Backlog）
 

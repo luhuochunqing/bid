@@ -13,6 +13,8 @@
 | `application/BidQualityCheckAsyncExecutor.java` | Async Executor | 标书质量核查后台异步执行器（aiTaskExecutor专用线程池） |
 | `application/BidQualityCheckProgressUpdater.java` | Progress Updater | 标书质量核查进度与状态独立事务更新器（REQUIRES_NEW） |
 | `service/ComplianceCheckService.java` | Service | 合规检查入口编排、结果持久化、DTO 组装 |
+| `service/SidecarComplianceDocumentAdapter.java` | Adapter | 组合文本解析、页面图像抽取（含大体积 .docx 本地流式抽图回退）及百度OCR/多模态文字补充 |
+| `service/DocxComplianceImageExtractor.java` | Service Helper | 大体积 .docx 标书关键合规页（承诺函、授权书、身份证、资质证书等）流式抽图与非目录页码绑定 |
 | `service/KnowledgeBaseOnDemandLoader.java` | Service | 真实检索（企业资质委托、品牌授权、人员资质、业绩库、CA证书库真实台账检索） |
 | `service/QualificationQueryDelegate.java` | Service Delegate | 企业资质库查询委托（封装新业务资质库与旧资质库的优先回退逻辑） |
 | `service/KnowledgeMatchFormatters.java` | Service Helper | 知识库匹配记录摘要描述与转换辅助工具（降低加载器行数） |
@@ -30,11 +32,11 @@
 | `domain/policy/QualificationCondition.java` | Domain Model | 完整条件、来源及证书子项；作用对象、强制/可选/未知分开保存 |
 | `domain/policy/CertificateRequirementPolicy.java` | Policy | 证书候选沿用既有类型能力，子句作用域不明保留UNKNOWN与依据 |
 | `domain/policy/QualificationConditionExtractor.java` | Policy | 完整章节、表格单元格和连续段落组装，绑定实际原文来源 |
-| `domain/policy/QualificationVetoPolicy.java` | Policy | 占位与明确违规保留失败；证书名称命中与检索缺口转人工，不代表完整资格已通过 |
+| `domain/policy/QualificationVetoPolicy.java` | Policy | 占位与明确违规保留失败；强制证书在命中页具备证书编号与有效期实证时 PASS，仅名称命中或检索缺口转人工 |
 | `domain/policy/DeterministicDepositExtractor.java` | Policy | 招标投标保证金/担保及政采响应担保确定性提取与免收识别纯核心策略 |
 | `domain/policy/RuleCitationContext.java` | Policy | 区分条件规则引用与投标人自身违规，按命中语境定位证据 |
 | `domain/policy/CommitmentSealCheckPolicy.java` | Policy | 承诺正文优先定位，目录/评分索引不作为签章事实 |
-| `domain/policy/SemanticEvidenceBoundary.java` | Policy | 无定位、抽样跳页或图片文本缺口不得升级确定缺失 |
+| `domain/policy/SemanticEvidenceBoundary.java` | Policy | 无定位、抽样跳页或图片文本缺口不得升级确定缺失；具备可验证证书编号+有效期、多维资格实证或身份证图像+正反面完整要素时保持正向 PASS |
 | `domain/policy/SemanticPageRetriever.java` | Domain Service | 60K 预算语义页面智能召回器（单页超预算硬截断） |
 | `domain/DocumentContent.java` | Domain Model | 文档结构化内容；分页优先级：Sidecar pages → \f 切分 → virtualPages 虚拟分页兜底（无分页符长文本按标题/段落切块） |
 | `domain/PageImage.java` | Domain Model | 质检任务内存中的页面图像及页码元数据，不落库 |
@@ -169,3 +171,16 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 2026-11-07经用户明确批准，报价纯结构收口：纸面义务原块提取为私有reconcileRequiredPaper，相邻同结果守卫合并；主方法5个return、私有方法2个return。匹配规则、文案、优先级、原文索引和测试预期不变；旧失败保留，最终以本轮新门禁及HEAD验收为准。
 
 2026-11-07用户继续执行响应性纯结构收口：合并两个返回原对象的相邻守卫，空值优先及短路顺序不变，6return降为5；无新方法、规则或测试变化。旧失败保留，新门禁通过后才交付。
+
+## 2026-11-07 第一刀 + 第二刀：解除后置硬编码待确认枷锁与接入百度OCR/大体积DOCX流式抽图
+
+- **第一刀（后置证据边界解封与资格/评分/响应性收敛）**：
+  - `QualificationConditionExtractor` / `CertificateRequirementPolicy`：过滤目录点线行与通用格式章节（投标文件的语言、第二卷技术标等），支持主语带关联公司括注（如“投标人（或与投标人为母子公司...）”）的强制属性推导，排除条件性补充授权/股权证明被误抽为独立证书。
+  - `QualificationMatchPolicy` / `QualificationVetoPolicy` / `QualificationDetailReconciler` / `SemanticEvidenceBoundary`：当标书正文中对应证书命中页同时具备可验证的证书编号（许可证编号/证书编号/证号/合字等）与有效期限实证时，直接闭环判定 `PASS`（`MATCHED_REFERENCE` + `PASS`），不再无论有无实证一律降级 `MANUAL_REVIEW`；仅出现证书名称而无编号/有效期实证时仍保留 `MANUAL_REVIEW`。
+  - `IdAuthLetterCheckPolicy` / `SemanticEvidenceBoundary`：当标书抽取到页面图像且正文中具备身份证正反面完整要素（18位号码、姓名、性别/民族/住址、签发机关、有效期限）时闭环判定 `PASS`；纯文本无图像或要素不全仍保留 `MANUAL_REVIEW`。
+  - `BidLetterCheckPolicy` / `DeterministicBidLetterExtractor`：支持《投标人承诺函》作为投标函变体的识别与核心要素核验。
+  - `ScoringResponsePolicy`：识别《延保服务协议书》等合同样板留白，避免样板下划线连坐阻断评分项响应。
+  - `ResponsivenessReviewPolicy` / `RuleCitationContext` / `SubItemAndAttachmentRules` / `DeterministicDepositExtractor`：支持无表格差异表“无差异”正向通过、处罚警示语豁免、具备目录与商务/技术主卷册时文件组成 `PASS`、以及实质性长招标文件全文未提及保证金时判定为 `【不涉及】` 免收通过。
+- **第二刀（百度OCR通道复用与大体积DOCX按需流式抽图）**：
+  - `DocxComplianceImageExtractor` / `SidecarComplianceDocumentAdapter`：针对超过 Sidecar 64MB 媒体限制跳过抽图或无物理页码的 `.docx` 投标文件，通过 `ZipFile` + StAX 流式扫描合规章节锚点后的内嵌图片，并绑定到 `DocumentContent` 对应非目录逻辑页码 `pageHint`。
+  - `OpenAiDocumentPageVisionDetector` / `ScanPageTextPolicy`：优先调用后台已配置的 `BaiduTableOcrClient`（APIHub `BAIDU_OCR_DOC_API`）识别合规页图片文字，按单图级追踪识别状态，单图未命中或异常时回退既有结构化多模态通道并按页合并转写结果，写回 `DocumentContent` 参与确定性与 LLM 核查。

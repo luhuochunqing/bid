@@ -1,5 +1,5 @@
 // Input: 标书文档 + 招标文件 + TenderRequirements + 知识库证据
-// Output: Optional<QualityCheckItemResult>（字段内明确占位/违规分包 FAIL及原位证据，全文兜底页号null；证书仅供人工确认）
+// Output: Optional<QualityCheckItemResult>（字段内明确占位/违规分包 FAIL及原位证据，证书同页具备编号与有效期实证时 PASS，仅名称命中转人工确认）
 // Pos: compliance/domain/policy/ - 标书一票否决与资格前置反假核验策略（纯核心，FP-Java 无外部依赖）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  * 1. 物理剔除目录点线页，杜绝目录欺骗；
  * 2. 占位符反假拦截：若资格声明或否决条款响应存在未填占位模板或空白留白，直接判定 FAIL；
  * 3. 严格区分正向合规承诺与实质性违规分包/转包，对实质性违规硬阻断 FAIL，对合规承诺放行；
- * 4. 证书名称响应仅为定位参考，不能证明材料有效或完整资格满足；
+ * 4. 强制证书在命中页同时具备可验证的证书编号与有效期限实证时判定 PASS，仅名称命中转人工确认；
  * 5. 其余无硬信号场景移交 LLM lane 深度语义裁决.
  */
 public final class QualificationVetoPolicy {
@@ -38,6 +38,9 @@ public final class QualificationVetoPolicy {
     /** 实质性违规分包/转包特征正则（区别于正向合规承诺）. */
     private static final Pattern SUBCONTRACT_VIOLATION_PATTERN = Pattern.compile(
             "(?:拟将|计划将|拟向|拟委托)[^。；\\n]{0,30}(?:主体|核心|关键|主要)[^。；\\n]{0,30}(?:分包|转包|外包)|(?:拟分包给|拟转包给|拟将本项目分包)");
+
+    private static final Pattern CERT_PREFIX = Pattern.compile(
+            "^(?:(?:且|并|同时)?(?:投标人|供应商|申请人|企业|公司|我方)?(?:[（(][^）)]*[）)])?(?:应当|必须|须|应|需)?(?:具有|具备|持有|取得|通过|提供)?(?:有效的|合法有效的)?)+");
 
     private QualificationVetoPolicy() {
     }
@@ -134,14 +137,6 @@ public final class QualificationVetoPolicy {
             final DocumentContent tenderDoc,
             final TenderRequirements requirements,
             final List<QualityEvidence> kbEvidences) {
-        StringBuilder fullValidText = new StringBuilder();
-        for (EvidenceTextSlice p : validPages) {
-            if (p.text() != null) {
-                fullValidText.append(p.text()).append('\n');
-            }
-        }
-        String normalizedValidText = normalize(fullValidText.toString());
-
         List<String> validQualifications = new ArrayList<>();
         for (String qualification : requirements.certificateRequirements()) {
             if (!CertificateRequirementPolicy.isCertificateReference(qualification)) {
@@ -158,11 +153,24 @@ public final class QualificationVetoPolicy {
 
         List<String> satisfied = new ArrayList<>();
         List<String> unsatisfied = new ArrayList<>();
+        boolean allHaveSubstantiveFacts = true;
         for (String qualification : validQualifications) {
-            if (normalizedValidText.contains(normalize(qualification))) {
+            String cleanCert = stripQualificationPrefix(qualification);
+            if (cleanCert.isBlank()) cleanCert = qualification.trim();
+            String normClean = normalize(cleanCert);
+            String normRaw = normalize(qualification);
+            List<EvidenceTextSlice> matchedPages = validPages.stream()
+                    .filter(p -> p.text() != null && (normalize(p.text()).contains(normClean)
+                            || normalize(p.text()).contains(normRaw)))
+                    .toList();
+            if (!matchedPages.isEmpty()) {
                 satisfied.add(qualification);
+                if (matchedPages.stream().noneMatch(p -> SemanticEvidenceBoundary.hasSubstantiveCertificateFacts(p.text()))) {
+                    allHaveSubstantiveFacts = false;
+                }
             } else {
                 unsatisfied.add(qualification);
+                allHaveSubstantiveFacts = false;
             }
         }
 
@@ -190,6 +198,12 @@ public final class QualificationVetoPolicy {
         if (bidDoc != null) {
             evidences.add(EvidenceAssembler.locateBidSkippingCatalog(bidDoc, "标书资质响应证明", satisfied));
         }
+        if (allHaveSubstantiveFacts) {
+            return Optional.of(QualityCheckItemResult.pass(
+                    BidQualityCheckItem.QUALIFICATION_VETO,
+                    "已核验标书正文中强制资格证书（" + String.join("、", satisfied) + "）的证书编号与有效期证明，无一票否决硬伤",
+                    evidences));
+        }
         String conclusion = "标书已检索到证书名称：【" + String.join("、", satisfied)
                 + "】；名称命中不能证明证书有效及全部资格条件满足，请逐项核验完整资格条件。";
         return Optional.of(QualityCheckItemResult.manualReview(
@@ -197,6 +211,10 @@ public final class QualificationVetoPolicy {
                 conclusion,
                 "请对照招标资格审查清单核验主体、财务、信用、业绩、纳税社保及相关证明；资质库命中不能替代本次投标证明材料核验",
                 evidences));
+    }
+
+    static String stripQualificationPrefix(final String text) {
+        return text == null ? "" : CERT_PREFIX.matcher(text.trim()).replaceFirst("").trim();
     }
 
     private static List<EvidenceTextSlice> filterNonCatalogPages(final DocumentContent doc) {

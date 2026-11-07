@@ -71,6 +71,8 @@ public final class DeterministicBidLetterExtractor {
             letterType = "磋商响应函";
         } else if (tenderText.contains("投标响应函")) {
             letterType = "投标响应函";
+        } else if (tenderText.contains("投标人承诺函")) {
+            letterType = "投标人承诺函";
         } else if (tenderText.contains("投标函")) {
             letterType = "投标函";
         }

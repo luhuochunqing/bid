@@ -24,7 +24,7 @@ public final class BidLetterCheckPolicy {
 
     static final String[] BID_LETTER_KEYWORDS = {
             "投标函", "报价函", "响应函", "投标响应函", "谈判响应函", "磋商响应函",
-            "采购响应函", "投 标 函", "报 价 函", "响 应 函", "投标承诺函", "报价承诺函", "投标申请函"
+            "采购响应函", "投 标 函", "报 价 函", "响 应 函", "投标承诺函", "投标人承诺函", "报价承诺函", "投标申请函"
     };
 
     private static final Pattern SALUTATION_PATTERN = Pattern.compile(

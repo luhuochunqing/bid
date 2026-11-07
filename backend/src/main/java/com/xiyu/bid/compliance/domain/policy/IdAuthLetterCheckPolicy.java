@@ -1,5 +1,5 @@
 // Input: 投标文件 DocumentContent + 可选契约 IdAuthLetterRequirement
-// Output: 身份证明/身份证核查结果及命中号码或图片标记的定位证据，完整身份核验保留人工
+// Output: 身份证明/身份证核查结果及定位证据（抽取到证件图像且正反面要素完整时 PASS，纯文本或要素不全保留人工）
 // Pos: compliance/domain/policy/ - 标书法定代表人及委托代理人身份证明/身份证核查策略 (FP-Java)
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 
 /**
  * 标书法定代表人及委托代理人身份证明/身份证附件核查策略（FP-Java纯核心，无Spring/无IO/无异常）.
- * 严格防范目录点线超前命中假通过与未填占位模板放行，文字与图片标记只作为定位线索，完整身份核验保留人工.
+ * 严格防范目录点线超前命中假通过与未填占位模板放行；抽取到证件图像且具备正反面完整要素时判定 PASS，纯文本或要素不全保留人工.
  */
 public final class IdAuthLetterCheckPolicy {
 
@@ -105,6 +105,11 @@ public final class IdAuthLetterCheckPolicy {
                             List.of(QualityEvidence.bid("身份证附件页", page.pageNumber(), snippet)));
                 }
 
+                if (!bidDoc.images().isEmpty() && hasCompleteBothSidesIdFacts(text)) {
+                    return QualityCheckItemResult.pass(item,
+                            "已核验法定代表人/委托代理人身份证件正反面要素（姓名、公民身份号码、签发机关及有效期限齐全）",
+                            List.of(QualityEvidence.bid("身份证明/身份证正文", page.pageNumber(), snippet)));
+                }
                 return QualityCheckItemResult.manualReview(item,
                         "已定位身份证件文字或图片标记，尚不能证明正反面齐全、人员一致及授权签署有效",
                         "请核对原始身份证正反面、人员一致性与授权签署；号码和图片标记不能替代图像内容核验",
@@ -136,6 +141,15 @@ public final class IdAuthLetterCheckPolicy {
                 || text.contains("身份证明")
                 || text.contains("居民身份证")
                 || text.contains("公民身份号码");
+    }
+
+    static boolean hasCompleteBothSidesIdFacts(final String text) {
+        if (text == null || !ID_CARD_PATTERN.matcher(text).find()) {
+            return false;
+        }
+        boolean hasFaceSide = text.contains("姓名") && (text.contains("性别") || text.contains("民族") || text.contains("住址"));
+        boolean hasBackSide = text.contains("签发机关") && text.contains("有效期限");
+        return hasFaceSide && hasBackSide;
     }
 
     private static boolean hasIdScanFeatures(final String text) {

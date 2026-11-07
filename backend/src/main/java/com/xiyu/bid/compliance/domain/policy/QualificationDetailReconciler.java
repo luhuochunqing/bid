@@ -242,11 +242,19 @@ public final class QualificationDetailReconciler {
         List<String> cues = new ArrayList<>();
         String trimmed = req.trim();
         cues.add(trimmed);
+        String strippedPrefix = QualificationVetoPolicy.stripQualificationPrefix(trimmed);
+        if (!strippedPrefix.isBlank() && !cues.contains(strippedPrefix)) {
+            cues.add(strippedPrefix);
+        }
 
         // 剥离中文/英文括号及内部注释
         String strippedBrackets = trimmed.replaceAll("[（(][^）)]*[）)]", "").trim();
         if (!strippedBrackets.isBlank() && !strippedBrackets.equals(trimmed)) {
             cues.add(strippedBrackets);
+        }
+        String strippedCore = strippedPrefix.replaceAll("[（(][^）)]*[）)]", "").trim();
+        if (!strippedCore.isBlank() && !cues.contains(strippedCore)) {
+            cues.add(strippedCore);
         }
 
         // 按逗号/分号截取前导主体名称

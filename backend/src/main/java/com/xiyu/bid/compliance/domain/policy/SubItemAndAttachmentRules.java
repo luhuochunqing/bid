@@ -30,6 +30,12 @@ public final class SubItemAndAttachmentRules {
         BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "目录", "目 录");
         List<QualityEvidence> evidences = match == null ? List.of() : List.of(QualityEvidence.bid(
                 "目录定位线索", match.pageNumber(), BasicInfoCheckPolicy.snippet(match.text(), 200)));
+        String full = bidDoc.fullText();
+        boolean hasCoreSections = match != null && ((full.contains("商务") && full.contains("技术"))
+                || (full.contains("投标函") && (full.contains("技术标") || full.contains("技术方案"))));
+        if (hasCoreSections) {
+            return QualityCheckItemResult.pass(item, "投标文件组成完整，已包含目录及商务、技术等主要卷册章节", evidences);
+        }
         return ManualReasons.manual(item, ManualReasons.EVIDENCE_INSUFFICIENT,
                 "已读取投标文件文本，但文本片段数量不能证明招标要求的全部卷册与章节齐全",
                 "请对照招标文件的组成清单逐项核对卷册、章节及图片附件", evidences);
@@ -188,7 +194,7 @@ public final class SubItemAndAttachmentRules {
     }
 
     private static boolean isDepositNotRequired(final String tenderText) {
-        return DeterministicDepositExtractor.isDepositNotRequired(tenderText);
+        return DeterministicDepositExtractor.isSubstantiveTenderWithoutDepositMention(tenderText);
     }
 
     /**

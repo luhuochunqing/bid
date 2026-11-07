@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 
 /** 只豁免局部条件规则，不以全篇出现规则词为自身违规开脱。 */
 final class RuleCitationContext {
-    private static final Pattern RULE = Pattern.compile("评标委员会|评审委员会|应当否决|将否决|予以否决|作无效|无效投标|否决其投标|进行处罚|予以处罚|追究责任");
+    private static final Pattern RULE = Pattern.compile("评标委员会|评审委员会|应当否决|将否决|予以否决|作无效|无效投标|否决其投标|进行处罚|予以处罚|追究责任|启动退出|退出程序|终止合作|取消资格|拉黑|清退");
     private static final Pattern SCORING_CONDITION = Pattern.compile("(?:(?:不满足|不符合)(?:要求|上述要求|上述条件|(?:任意)?[0-9一二三四五六七八九十]+项)?(?:或未提供(?:证明文件|材料))?(?:者|的)?|未提供(?:证明文件|材料)(?:者|的)?|缺少(?:一项|任意一项))[,，]?(?:不得分|不予计分)");
     private static final Pattern CONDITION = Pattern.compile("(?:若|如|一旦|否则)|(?:有|存在|出现|发生).{0,90}(?:的|时)|投标人不得");
     private static final Pattern OWN_FACT = Pattern.compile("(?:我司|本公司|我方|本次投标|本项目实际).{0,50}(?:已|存在|采用|进行|发生|负偏离|不满足)|(?:经核实|实际情况)[：:]");

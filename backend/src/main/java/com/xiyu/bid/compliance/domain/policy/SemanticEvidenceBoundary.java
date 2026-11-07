@@ -1,6 +1,6 @@
 // Input: 规则/LLM裁决结果与投标文件分页文本
-// Output: 保留有证据的具体缺陷；证据不足及资格性自动通过转人工
-// Pos: compliance/domain/policy/ - 语义负结论证据边界（spec079）
+// Output: 保留有证据的具体缺陷与已核验实证的正向通过；证据不足转人工
+// Pos: compliance/domain/policy/ - 语义正负结论证据边界（spec079）
 // 维护声明: 与LLM上下文、EvidenceAssembler和图片敏感项契约同步。
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -27,6 +27,10 @@ final class SemanticEvidenceBoundary {
             "^(?:(?:财务材料说明|材料说明|说明)[：:])?\\s*(?:我司|本公司|本投标人|我方|本投标文件)\\s*(?:确实|确认|本次)?\\s*(?:未|不)(?:提供|提交|附具|报送|附)(.+)");
     private static final Pattern CONCRETE_BLANK = Pattern.compile(
             "(授权期限|授权范围|受托人|法定代表人|交货期|质保期|付款方式|投标有效期)[：:]\\s*_{3,}");
+    private static final Pattern CERT_NUMBER_FACT = Pattern.compile(
+            "(?:许可证编号|证书编号|资质编号|认证编号|备案编号|证号|注册号)[\\s|:：]*[A-Za-z0-9\\u4e00-\\u9fa5-]{4,}|合字[A-Z0-9-]{4,}");
+    private static final Pattern CERT_VALIDITY_FACT = Pattern.compile(
+            "(?:有效期限|有效期)[^。；\\n]{0,40}(?:20[2-9]\\d\\s*(?:年|[./-])|长期)");
 
     private SemanticEvidenceBoundary() { }
 
@@ -43,7 +47,8 @@ final class SemanticEvidenceBoundary {
 
     static QualityCheckItemResult reconcile(final QualityCheckItemResult input, final DocumentContent bidDoc) {
         if (input != null && input.status() == QualityCheckStatus.PASS
-                && BidQualityCheckItem.ID_AUTH_LETTER.getCode().equals(input.itemCode())) {
+                && BidQualityCheckItem.ID_AUTH_LETTER.getCode().equals(input.itemCode())
+                && !hasCompleteBothSidesIdFacts(bidDoc)) {
             return ManualReasons.manual(BidQualityCheckItem.ID_AUTH_LETTER, ManualReasons.EVIDENCE_INSUFFICIENT,
                     "文本及图片标记不能证明证件正反面齐全、身份一致或授权签署有效",
                     "请核对扫描页中的实际身份证正反面、人员一致性及签署信息；文字转写不等于图像附件核验通过",
@@ -56,7 +61,7 @@ final class SemanticEvidenceBoundary {
                     "请逐项对照招标评分细则补充响应依据；合同样例留白和检索未命中不能证明方案缺失",
                     input.evidences());
         }
-        final QualityCheckItemResult result = requireQualificationConfirmation(input);
+        final QualityCheckItemResult result = requireQualificationConfirmation(input, bidDoc);
         if (result == null || result.status() != QualityCheckStatus.FAIL || !GUARDED_ITEMS.contains(result.itemCode())) return result;
         boolean financialClaim = result.itemCode().equals(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode())
                 && FINANCIAL_CUES.stream().anyMatch(result.conclusion()::contains);
@@ -73,12 +78,23 @@ final class SemanticEvidenceBoundary {
                 result.evidences(), result.details());
     }
 
-    /** 财务条款解析尚未完成适用条件证明，复合资格项不得由规则或AI自动放行。 */
     static QualityCheckItemResult requireQualificationConfirmation(final QualityCheckItemResult result) {
+        return requireQualificationConfirmation(result, null);
+    }
+
+    /** 无正文实证时复合资格项不得由AI空放行；具备可验证证书编号+有效期或多维资格实证时保持PASS。 */
+    static QualityCheckItemResult requireQualificationConfirmation(
+            final QualityCheckItemResult result, final DocumentContent bidDoc) {
         if (result == null || result.status() != QualityCheckStatus.PASS
                 || !(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode().equals(result.itemCode())
                     || BidQualityCheckItem.QUALIFICATION_VETO.getCode().equals(result.itemCode()))) return result;
         boolean veto = BidQualityCheckItem.QUALIFICATION_VETO.getCode().equals(result.itemCode());
+        if (veto && hasSamePageSubstantiveCertificateFacts(bidDoc)) {
+            return result;
+        }
+        if (!veto && hasSubstantiveQualificationReviewFacts(bidDoc)) {
+            return result;
+        }
         return new QualityCheckItemResult(result.itemCode(), result.category(), result.title(), result.description(),
                 QualityCheckStatus.MANUAL_REVIEW, result.severity(), result.order(),
                 veto ? "完整资格条件及证明材料尚需逐项核验，证书名称或资料库匹配不能证明资格全部满足"
@@ -86,6 +102,48 @@ final class SemanticEvidenceBoundary {
                 veto ? "请对照招标资格审查清单逐项复核主体、财务、信用、业绩、纳税社保及本次投标证明材料"
                         : "请对照招标原文逐项确认财务条款、豁免条件及原始报表；已有定位证据仅供复核",
                 result.evidences(), result.details());
+    }
+
+    static boolean hasSubstantiveCertificateFacts(final DocumentContent bidDoc, final Integer pageNumber) {
+        if (bidDoc == null || pageNumber == null) return false;
+        return bidDoc.pages().stream().filter(p -> p.pageNumber() == pageNumber)
+                .map(DocumentContent.PageContent::text).anyMatch(SemanticEvidenceBoundary::hasSubstantiveCertificateFacts);
+    }
+
+    static boolean hasSubstantiveCertificateFacts(final String text) {
+        return text != null && !text.isBlank()
+                && CERT_NUMBER_FACT.matcher(text).find()
+                && CERT_VALIDITY_FACT.matcher(text).find();
+    }
+
+    private static boolean hasSamePageSubstantiveCertificateFacts(final DocumentContent bidDoc) {
+        if (bidDoc == null || bidDoc.pages() == null) return false;
+        return bidDoc.pages().stream()
+                .filter(p -> p.text() != null && !BidLetterCheckPolicy.isCatalogOrOutlinePage(p.text()))
+                .anyMatch(p -> hasSubstantiveCertificateFacts(p.text()));
+    }
+
+    private static boolean hasCompleteBothSidesIdFacts(final DocumentContent bidDoc) {
+        if (bidDoc == null || bidDoc.pages() == null || bidDoc.images().isEmpty()) return false;
+        return bidDoc.pages().stream()
+                .filter(p -> p.text() != null && !BidLetterCheckPolicy.isCatalogOrOutlinePage(p.text()))
+                .anyMatch(p -> IdAuthLetterCheckPolicy.hasCompleteBothSidesIdFacts(p.text()));
+    }
+
+    private static boolean hasSubstantiveQualificationReviewFacts(final DocumentContent bidDoc) {
+        if (bidDoc == null || bidDoc.fullText() == null || bidDoc.fullText().length() < 200) return false;
+        String text = bidDoc.fullText();
+        int dimensions = 0;
+        if (text.contains("营业执照") || text.contains("统一社会信用代码")) dimensions++;
+        if (text.contains("审计报告") || text.contains("资产负债表") || text.contains("财务报表")) dimensions++;
+        if (text.contains("不存在以下情形") || text.contains("初步评审承诺函") || text.contains("无重大违法")) dimensions++;
+        if (text.contains("业绩") && (text.contains("合同") || text.contains("中标通知书"))) dimensions++;
+        if (bidDoc.pages() != null && bidDoc.pages().stream()
+                .filter(p -> p.text() != null && !BidLetterCheckPolicy.isCatalogOrOutlinePage(p.text()))
+                .anyMatch(p -> hasSubstantiveCertificateFacts(p.text()))) {
+            dimensions++;
+        }
+        return dimensions >= 3;
     }
 
     private static boolean isBody(final QualityEvidence evidence, final DocumentContent bidDoc) {
