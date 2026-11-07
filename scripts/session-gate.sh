@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Input: current repo root (ROOT_DIR), current git branch, optional CHAT_ONLY env
-# Output: exit 1 if blocked (anchor branch / session conflict / rebase failure); 0 otherwise
+# Output: 直接执行时 exit 1、被 source 时 return 1（blocked: anchor branch / session conflict / rebase failure）；0 otherwise
 #   - 锚点分支 => 拒绝，提示用 '早操SOP + 开个分支 <任务名>' 切开发分支
 #   - session 互斥 => 拒绝（同 worktree 只能一个开发 session）
 #   - 自动同步: 非聊天模式下自动 git fetch + rebase origin/main
@@ -267,7 +267,14 @@ release_session_lock() {
 }
 
 # 主入口
+# 本脚本用于被 source（dev-env.sh / session-gate-wrapper.sh）。被 source 时必须用
+# return 而非 exit：exit 会杀死调用方 shell，导致 `source dev-env.sh && bash scripts/sync-env.sh .`
+# 这类早操链在锚点分支上直接中断（sync-env.sh 根本没机会执行）。
+# 直接执行（bash scripts/session-gate.sh）时仍以 exit 1 表达门禁失败。
 if ! session_gate; then
-  exit 1
+  if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    exit 1
+  fi
+  return 1
 fi
 trap release_session_lock EXIT TERM INT
