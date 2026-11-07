@@ -123,7 +123,7 @@ public final class QualificationConditionExtractor {
         if (parent.isEmpty()) {
             BigInteger ordinal = new BigInteger(candidate.get(0));
             boolean sequence = lastOrdinal == null ? ordinal.equals(BigInteger.ONE)
-                    : ordinal.equals(lastOrdinal) || ordinal.equals(lastOrdinal.add(BigInteger.ONE));
+                    : (candidate.size() > 1 && ordinal.equals(lastOrdinal)) || ordinal.equals(lastOrdinal.add(BigInteger.ONE));
             return sequence ? NumberRole.CONDITION : NumberRole.UNKNOWN;
         }
         if (candidate.size() > 1) {

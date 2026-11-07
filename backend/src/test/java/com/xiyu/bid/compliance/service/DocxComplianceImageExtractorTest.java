@@ -49,23 +49,6 @@ class DocxComplianceImageExtractorTest {
         assertThat(images).hasSize(3);
         assertThat(images).extracting(PageImage::pageHint).containsExactly(2, 2, 6);
         assertThat(images).extracting(PageImage::section).containsExactly("授权委托书", "投标人承诺函", "营业执照");
-
-        Path real1360Docx = Path.of("/tmp/xiyu-1360-diagnosis/bid.docx");
-        Path real1360Text = Path.of("/tmp/xiyu-1360-diagnosis/bid-text.txt");
-        if (Files.isRegularFile(real1360Docx) && Files.isRegularFile(real1360Text)) {
-            String rawText = Files.readString(real1360Text);
-            DocumentContent realContent = new DocumentContent(
-                    "新兴际华-2026.6.24.docx", "real-1360", rawText, DocumentContent.virtualPages(rawText));
-            Set<Integer> selected = com.xiyu.bid.compliance.domain.policy.DocumentEvidencePageSelector.select(realContent);
-            List<PageImage> realImages = DocxComplianceImageExtractor.extract(real1360Docx, realContent, selected);
-            assertThat(realImages).isNotEmpty();
-            assertThat(realImages).allSatisfy(img -> {
-                assertThat(img.pageHint()).isNotNull().isGreaterThanOrEqualTo(1);
-                assertThat(img.base64()).isNotBlank();
-            });
-            assertThat(realImages).extracting(PageImage::section)
-                    .contains("公平交易承诺函", "授权委托书", "投标人承诺函", "营业执照");
-        }
     }
 
     @Test
@@ -142,4 +125,3 @@ class DocxComplianceImageExtractorTest {
         zos.closeEntry();
     }
 }
-

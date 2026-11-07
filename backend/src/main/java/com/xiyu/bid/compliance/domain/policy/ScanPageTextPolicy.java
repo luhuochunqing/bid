@@ -13,7 +13,7 @@ public final class ScanPageTextPolicy {
     public static final String TRANSCRIPTION_MARKER = "【页面图像转写，非验签】";
     private static final List<String> ANCHOR_CUES = List.of(
             "身份证明", "授权委托书", "身份证复印件", "身份证",
-            "投标函", "投标人承诺函", "投标承诺函", "公平交易承诺函", "报价函", "响应函",
+            "投标函", "投标人承诺函", "投标承诺函", "公平交易承诺函", "承诺函", "承诺书", "报价函", "响应函",
             "营业执照", "许可证", "资质证书");
 
     private ScanPageTextPolicy() { }

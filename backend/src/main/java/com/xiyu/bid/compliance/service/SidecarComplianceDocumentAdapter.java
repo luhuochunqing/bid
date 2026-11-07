@@ -1,5 +1,5 @@
-// Input: 临时标书文件 + 文本 Sidecar 结果 + 页面图像端口
-// Output: 带文本与页面图像的合规文档内容
+// Input: 临时标书文件 + 文本 Sidecar 结果 + 页面图像端口（含大体积 DOCX 本地流式抽图回退）
+// Output: 带文本、页面图像及百度OCR/多模态转写补充的合规文档内容
 // Pos: compliance/service/ - 合规文档 Sidecar 组合适配器
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.service;

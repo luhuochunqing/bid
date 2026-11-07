@@ -415,7 +415,11 @@ drawer 结构：
       - 移除整页包含服务方案关键词直接判全页占位留白的贪婪逻辑；识别《延保服务协议书》等合同样板留白并放行，解除对大模型满分标准核查的虚假短路拦截；
     - **响应性差异表与否决警示语放行（`ResponsivenessReviewPolicy` / `RuleCitationContext`）**：
       - 词表支持无表格差异表“无差异/无任何差异”正向识别；正向识别“否则将按弄虚作假进行处罚”为合法规则警示；
-      - 投标文件组成对具备商务与技术主章节放行；招标文件未提及保证金场景判定为【不涉及】免收通过。
+      - 投标文件组成对具备商务与技术主章节放行；招标文件未提及保证金场景判定为【不涉及】免收通过；
+    - **后置硬编码待确认解封与百度 OCR + 大体积 DOCX 流式抽图闭环（`SemanticEvidenceBoundary` / `DocxComplianceImageExtractor` / `OpenAiDocumentPageVisionDetector`）**：
+      - 解封 `SemanticEvidenceBoundary`、`QualificationMatchPolicy`、`QualificationVetoPolicy`、`IdAuthLetterCheckPolicy` 对已具备同页证书编号+有效期限实证、多维资格实证、或身份证图像+正反面完整要素场景的硬编码 `MANUAL_REVIEW` 降级；支持《投标人承诺函》作为投标函变体核验；
+      - 新增 `DocxComplianceImageExtractor`（`ZipFile` + StAX 常数内存流式扫描），解决 600MB+ 大体积 `.docx` 超出 Sidecar 64MB 媒体限制跳过抽图及缺少 `pageHint` 问题；
+      - 在 `OpenAiDocumentPageVisionDetector` 接入已配置的 `BaiduTableOcrClient`（单图级回退多模态并按页合并），打通内嵌扫描图片页的文字转写与下游规则核验闭环。
 
 ## 6. 后续任务（Backlog）
 

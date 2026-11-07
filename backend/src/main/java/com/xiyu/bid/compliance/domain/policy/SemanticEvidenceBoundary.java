@@ -28,9 +28,9 @@ final class SemanticEvidenceBoundary {
     private static final Pattern CONCRETE_BLANK = Pattern.compile(
             "(授权期限|授权范围|受托人|法定代表人|交货期|质保期|付款方式|投标有效期)[：:]\\s*_{3,}");
     private static final Pattern CERT_NUMBER_FACT = Pattern.compile(
-            "(?:许可证编号|证书编号|证号|编号)[\\s|:：]*[A-Za-z0-9\\u4e00-\\u9fa5-]{4,}|合字[A-Z0-9-]{4,}");
+            "(?:许可证编号|证书编号|资质编号|认证编号|备案编号|证号|注册号)[\\s|:：]*[A-Za-z0-9\\u4e00-\\u9fa5-]{4,}|合字[A-Z0-9-]{4,}");
     private static final Pattern CERT_VALIDITY_FACT = Pattern.compile(
-            "(?:有效期限|有效期)[^。；\\n]{0,40}(?:20[2-9]\\d\\s*年|长期)");
+            "(?:有效期限|有效期)[^。；\\n]{0,40}(?:20[2-9]\\d\\s*(?:年|[./-])|长期)");
 
     private SemanticEvidenceBoundary() { }
 
@@ -89,7 +89,7 @@ final class SemanticEvidenceBoundary {
                 || !(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode().equals(result.itemCode())
                     || BidQualityCheckItem.QUALIFICATION_VETO.getCode().equals(result.itemCode()))) return result;
         boolean veto = BidQualityCheckItem.QUALIFICATION_VETO.getCode().equals(result.itemCode());
-        if (veto && hasSubstantiveCertificateFacts(bidDoc != null ? bidDoc.fullText() : "")) {
+        if (veto && hasSamePageSubstantiveCertificateFacts(bidDoc)) {
             return result;
         }
         if (!veto && hasSubstantiveQualificationReviewFacts(bidDoc)) {
@@ -116,6 +116,13 @@ final class SemanticEvidenceBoundary {
                 && CERT_VALIDITY_FACT.matcher(text).find();
     }
 
+    private static boolean hasSamePageSubstantiveCertificateFacts(final DocumentContent bidDoc) {
+        if (bidDoc == null || bidDoc.pages() == null) return false;
+        return bidDoc.pages().stream()
+                .filter(p -> p.text() != null && !BidLetterCheckPolicy.isCatalogOrOutlinePage(p.text()))
+                .anyMatch(p -> hasSubstantiveCertificateFacts(p.text()));
+    }
+
     private static boolean hasCompleteBothSidesIdFacts(final DocumentContent bidDoc) {
         if (bidDoc == null || bidDoc.pages() == null || bidDoc.images().isEmpty()) return false;
         return bidDoc.pages().stream()
@@ -131,7 +138,11 @@ final class SemanticEvidenceBoundary {
         if (text.contains("审计报告") || text.contains("资产负债表") || text.contains("财务报表")) dimensions++;
         if (text.contains("不存在以下情形") || text.contains("初步评审承诺函") || text.contains("无重大违法")) dimensions++;
         if (text.contains("业绩") && (text.contains("合同") || text.contains("中标通知书"))) dimensions++;
-        if (hasSubstantiveCertificateFacts(text)) dimensions++;
+        if (bidDoc.pages() != null && bidDoc.pages().stream()
+                .filter(p -> p.text() != null && !BidLetterCheckPolicy.isCatalogOrOutlinePage(p.text()))
+                .anyMatch(p -> hasSubstantiveCertificateFacts(p.text()))) {
+            dimensions++;
+        }
         return dimensions >= 3;
     }
 

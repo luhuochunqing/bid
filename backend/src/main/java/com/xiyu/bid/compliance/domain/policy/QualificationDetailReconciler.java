@@ -242,9 +242,7 @@ public final class QualificationDetailReconciler {
         List<String> cues = new ArrayList<>();
         String trimmed = req.trim();
         cues.add(trimmed);
-        String strippedPrefix = trimmed.replaceFirst(
-                "^(?:(?:且|并|同时)?(?:投标人|供应商|申请人|企业|公司|我方)?(?:[（(][^）)]*[）)])?(?:应当|必须|须|应|需)?(?:具有|具备|持有|取得|通过|提供)?(?:有效的|合法有效的)?)+",
-                "").trim();
+        String strippedPrefix = QualificationVetoPolicy.stripQualificationPrefix(trimmed);
         if (!strippedPrefix.isBlank() && !cues.contains(strippedPrefix)) {
             cues.add(strippedPrefix);
         }

@@ -122,7 +122,10 @@ public final class DocxComplianceImageExtractor {
                         pText = new StringBuilder();
                         pRids = new ArrayList<>(2);
                     } else if ("t".equals(local) && pText != null) {
-                        pText.append(reader.getElementText());
+                        String elem = reader.getElementText();
+                        if (pText.length() <= 200 && elem != null) {
+                            pText.append(elem, 0, Math.min(elem.length(), 201 - pText.length()));
+                        }
                     } else if (pRids != null && ("blip".equals(local) || "imagedata".equals(local))) {
                         String rid = findRelAttribute(reader);
                         if (rid != null && relToTarget.containsKey(rid)) {
@@ -254,7 +257,13 @@ public final class DocxComplianceImageExtractor {
         if (target == null || target.isBlank()) {
             return null;
         }
-        String clean = target.startsWith("/") ? target.substring(1) : target;
+        String clean = target.replace('\\', '/').trim();
+        while (clean.startsWith("/") || clean.startsWith("./") || clean.startsWith("../")) {
+            if (clean.startsWith("../")) clean = clean.substring(3);
+            else if (clean.startsWith("./")) clean = clean.substring(2);
+            else clean = clean.substring(1);
+        }
+        if (clean.contains("..")) return null;
         if (!clean.startsWith("word/")) {
             clean = "word/" + clean;
         }
@@ -286,4 +295,3 @@ public final class DocxComplianceImageExtractor {
     private record ImageCandidate(String entryPath, String keyword, String anchorText) {
     }
 }
-

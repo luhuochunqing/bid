@@ -138,11 +138,8 @@ public final class BidDocumentQualityEngine {
         // 3. 保证金要求联动与标书端 LLM 深度语义裁决接通（保留 LLM 深度条款比对依据）
         boolean tenderDepositExplicitlyNotRequired = (effective.depositRequirement() != null
                 && Boolean.FALSE.equals(effective.depositRequirement().required()))
-                || (effectiveTender != null && effectiveTender.fullText().length() >= 100
-                    && !effectiveTender.fullText().contains("保证金")
-                    && !effectiveTender.fullText().contains("投标担保")
-                    && !effectiveTender.fullText().contains("响应担保")
-                    && !effectiveTender.fullText().contains("退款"));
+                || (effectiveTender != null
+                    && DeterministicDepositExtractor.isSubstantiveTenderWithoutDepositMention(effectiveTender.fullText()));
 
         QualityCheckItemResult existingDeposit = resultMap.get(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode());
         boolean hasStrongVoucherPass = existingDeposit != null

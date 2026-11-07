@@ -26,14 +26,14 @@ class Quality1360UnblockTest {
                 目录
                 七、 投标人资格要求 ....................................................- 4 -
                 八、 投标文件的语言 ....................................................- 6 -
-                
+
                 七、 投标人资格要求
                 1. 投标人为中华人民共和国境内合法注册的独立法人。
                 2. 投标人须具有有效的中华人民共和国增值电信业务经营许可证（EDI和ICP）。
-                
+
                 八、 投标文件的语言
                 投标文件应用中文编写。
-                
+
                 十、 投标人应提供文件和资料
                 第二章
                 投标人资格条件相关证明文件
@@ -100,10 +100,15 @@ class Quality1360UnblockTest {
     }
 
     @Test
-    @DisplayName("仅出现证书名称而无编号与有效期实证时，一票否决仍保持待确认")
+    @DisplayName("仅出现证书名称且其他页含无关项目编号与营业期限时，一票否决仍保持待确认不串页放行")
     void bareCertificateNameWithoutFactsStaysManualReview() {
-        String p1 = "资质证明文件\n依法取得中华人民共和国增值电信业务经营许可证（EDI和ICP）。";
-        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "bid_hash", p1);
+        String p1 = "封面\n项目编号：XY-ZB-2026-0888\n营业执照有效期限：长期";
+        String p2 = "资质证明文件\n依法取得中华人民共和国增值电信业务经营许可证（EDI和ICP）。";
+        DocumentContent bidDoc = new DocumentContent("bid.pdf", "bid_hash", p1 + "\n" + p2,
+                List.of(
+                        new DocumentContent.PageContent(1, p1, List.of()),
+                        new DocumentContent.PageContent(2, p2, List.of())
+                ));
         DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "tender_hash",
                 "七、 投标人资格要求\n投标人须具有中华人民共和国增值电信业务经营许可证（EDI和ICP）。");
         TenderRequirements req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tenderDoc);
@@ -139,7 +144,7 @@ class Quality1360UnblockTest {
         String pageText = """
                 售后服务方案
                 我司承诺提供 7×24 小时技术支持与售后服务保障。
-                
+
                 附：延保服务协议书
                 甲方：西域智慧供应链（上海）股份公司
                 乙方：
@@ -189,10 +194,10 @@ class Quality1360UnblockTest {
                 目 录
                 第一卷 商务标 ..................................... 1
                 第二卷 技术标 ..................................... 10
-                
+
                 第一卷 商务标
                 投标函及商务文件。
-                
+
                 第二卷 技术标
                 技术方案及实施细节。
                 """;

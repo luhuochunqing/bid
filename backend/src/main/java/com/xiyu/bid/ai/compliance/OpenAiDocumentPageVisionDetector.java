@@ -31,9 +31,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -72,50 +74,53 @@ public class OpenAiDocumentPageVisionDetector implements DocumentPageVisionDetec
         var images = document.images().stream().filter(i -> candidates.contains(i.pageHint())).limit(12).toList();
         if (images.isEmpty()) return List.of();
 
-        Map<Integer, List<String>> ocrTextByPage = transcribeWithBaiduOcr(images);
-        List<PageImage> remainingImages = images.stream()
-                .filter(i -> !ocrTextByPage.containsKey(i.pageHint()))
+        List<ScanPageTextPolicy.Transcription> results = new ArrayList<>();
+        Set<Integer> succeededIndexes = transcribeWithBaiduOcr(images, results);
+        List<PageImage> remainingImages = IntStream.range(0, images.size())
+                .filter(idx -> !succeededIndexes.contains(idx))
+                .mapToObj(images::get)
                 .limit(8)
                 .toList();
 
-        List<ScanPageTextPolicy.Transcription> results = new ArrayList<>();
-        for (Map.Entry<Integer, List<String>> entry : ocrTextByPage.entrySet()) {
-            String merged = String.join("\n", entry.getValue()).trim();
-            if (!merged.isBlank()) {
-                results.add(new ScanPageTextPolicy.Transcription(entry.getKey(), merged, BAIDU_OCR_CONFIDENCE));
-            }
-        }
-        if (!remainingImages.isEmpty()) {
+        if (!remainingImages.isEmpty() && !Thread.currentThread().isInterrupted()) {
             results.addAll(transcribeWithMultimodal(remainingImages, candidates.size()));
         }
         return mergeByPageNumber(results);
     }
 
-    private Map<Integer, List<String>> transcribeWithBaiduOcr(final List<PageImage> images) {
+    private Set<Integer> transcribeWithBaiduOcr(
+            final List<PageImage> images, final List<ScanPageTextPolicy.Transcription> outResults) {
         if (baiduTableOcrClient == null || !baiduTableOcrClient.isEnabled()) {
-            return Map.of();
+            return Set.of();
         }
-        Map<Integer, List<String>> byPage = new LinkedHashMap<>();
-        for (PageImage image : images) {
+        Set<Integer> succeededIndexes = new HashSet<>();
+        for (int idx = 0; idx < images.size(); idx++) {
+            PageImage image = images.get(idx);
             if (image.pageHint() == null || image.base64() == null || image.base64().isBlank()) {
                 continue;
             }
             try {
                 byte[] rawBytes = Base64.getDecoder().decode(image.base64());
                 byte[] pdfBytes = wrapImageAsSinglePagePdf(rawBytes);
+                if (pdfBytes.length == 0) {
+                    continue;
+                }
                 BaiduTableResponse response = baiduTableOcrClient.extractTablesFromPdf(pdfBytes, 1);
                 String text = formatBaiduResponse(response);
                 if (!text.isBlank()) {
-                    byPage.computeIfAbsent(image.pageHint(), k -> new ArrayList<>()).add(text);
+                    outResults.add(new ScanPageTextPolicy.Transcription(
+                            image.pageHint(), text, BAIDU_OCR_CONFIDENCE));
+                    succeededIndexes.add(idx);
                 }
-            } catch (IOException | InterruptedException | RuntimeException e) {
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
-                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("百度OCR单图识别中断，停止后续OCR调用: pageHint={}", image.pageHint());
+                break;
+            } catch (IOException | RuntimeException e) {
                 log.warn("百度OCR单图识别未命中，将回退多模态通道: pageHint={}, reason={}", image.pageHint(), e.getMessage());
             }
         }
-        return byPage;
+        return succeededIndexes;
     }
 
     private List<ScanPageTextPolicy.Transcription> transcribeWithMultimodal(
@@ -172,6 +177,10 @@ public class OpenAiDocumentPageVisionDetector implements DocumentPageVisionDetec
         if (imageBytes == null || imageBytes.length == 0) {
             return new byte[0];
         }
+        if (imageBytes.length >= 4 && imageBytes[0] == '%' && imageBytes[1] == 'P'
+                && imageBytes[2] == 'D' && imageBytes[3] == 'F') {
+            return imageBytes;
+        }
         try (PDDocument doc = new PDDocument()) {
             PDImageXObject pdImage = PDImageXObject.createFromByteArray(doc, imageBytes, "ocr-page");
             float width = Math.max(100f, pdImage.getWidth());
@@ -185,7 +194,7 @@ public class OpenAiDocumentPageVisionDetector implements DocumentPageVisionDetec
             doc.save(baos);
             return baos.toByteArray();
         } catch (IOException | RuntimeException e) {
-            return imageBytes;
+            return new byte[0];
         }
     }
 

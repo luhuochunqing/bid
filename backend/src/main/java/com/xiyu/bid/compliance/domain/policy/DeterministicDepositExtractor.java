@@ -135,4 +135,14 @@ public final class DeterministicDepositExtractor {
         DepositRequirement req = extract(tenderText);
         return req != null && Boolean.FALSE.equals(req.required());
     }
+
+    /**
+     * 判断具备实质性长度（>= 100字）的招标文件全文是否完全不涉及保证金/投标担保/响应担保/退款要求.
+     */
+    public static boolean isSubstantiveTenderWithoutDepositMention(final String tenderText) {
+        return isDepositNotRequired(tenderText)
+                || (tenderText != null && tenderText.length() >= 100
+                    && !tenderText.contains("保证金") && !tenderText.contains("投标担保")
+                    && !tenderText.contains("响应担保") && !tenderText.contains("退款"));
+    }
 }

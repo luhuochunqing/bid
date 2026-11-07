@@ -1,5 +1,5 @@
 // Input: 投标文件 DocumentContent + 可选契约 IdAuthLetterRequirement
-// Output: 身份证明/身份证核查结果及命中号码或图片标记的定位证据，完整身份核验保留人工
+// Output: 身份证明/身份证核查结果及定位证据（抽取到证件图像且正反面要素完整时 PASS，纯文本或要素不全保留人工）
 // Pos: compliance/domain/policy/ - 标书法定代表人及委托代理人身份证明/身份证核查策略 (FP-Java)
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 
 /**
  * 标书法定代表人及委托代理人身份证明/身份证附件核查策略（FP-Java纯核心，无Spring/无IO/无异常）.
- * 严格防范目录点线超前命中假通过与未填占位模板放行，文字与图片标记只作为定位线索，完整身份核验保留人工.
+ * 严格防范目录点线超前命中假通过与未填占位模板放行；抽取到证件图像且具备正反面完整要素时判定 PASS，纯文本或要素不全保留人工.
  */
 public final class IdAuthLetterCheckPolicy {
 

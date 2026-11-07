@@ -194,12 +194,7 @@ public final class SubItemAndAttachmentRules {
     }
 
     private static boolean isDepositNotRequired(final String tenderText) {
-        if (DeterministicDepositExtractor.isDepositNotRequired(tenderText)) {
-            return true;
-        }
-        return tenderText != null && tenderText.length() >= 100
-                && !tenderText.contains("保证金") && !tenderText.contains("投标担保")
-                && !tenderText.contains("响应担保") && !tenderText.contains("退款");
+        return DeterministicDepositExtractor.isSubstantiveTenderWithoutDepositMention(tenderText);
     }
 
     /**
