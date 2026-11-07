@@ -1,5 +1,5 @@
 // Input: 投标文件 DocumentContent + 可选契约 IdAuthLetterRequirement
-// Output: 身份证明/身份证核查结果 QualityCheckItemResult（PASS/FAIL/MANUAL）及证据
+// Output: 身份证明/身份证核查结果及命中号码或图片标记的定位证据，完整身份核验保留人工
 // Pos: compliance/domain/policy/ - 标书法定代表人及委托代理人身份证明/身份证核查策略 (FP-Java)
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 
 /**
  * 标书法定代表人及委托代理人身份证明/身份证附件核查策略（FP-Java纯核心，无Spring/无IO/无异常）.
- * 严格防范目录点线超前命中假通过与未填占位模板放行，支持已粘贴图片凭据放行.
+ * 严格防范目录点线超前命中假通过与未填占位模板放行，文字与图片标记只作为定位线索，完整身份核验保留人工.
  */
 public final class IdAuthLetterCheckPolicy {
 
@@ -84,7 +84,7 @@ public final class IdAuthLetterCheckPolicy {
                 continue;
             }
 
-            // 正向事实要素检验：具备真实 18 位身份证号码或已附图片凭证，与身份证明要素
+            // 文本号码与图片标记只用于定位，不证明身份证正反面或授权有效
             Matcher idMatcher = ID_CARD_PATTERN.matcher(text);
             boolean hasIdNumber = idMatcher.find();
             String idCardNumber = hasIdNumber ? idMatcher.group() : null;
@@ -94,10 +94,10 @@ public final class IdAuthLetterCheckPolicy {
             boolean hasLegalRepProof = text.contains("法定代表人身份证明") || text.contains("法定代表人证明书");
 
             if ((hasIdNumber || hasImageEvidence) && (hasIdScanFeatures || hasLegalRepProof || text.contains("身份证"))) {
+                String anchor = hasIdNumber ? idCardNumber : "已附图片";
+                String snippet = extractSnippet(text, anchor, 200);
                 // 若招标明确要求社保证明，核查标书中是否具备社保要素
                 if (req.requireSocialSecurity() && !hasSocialSecurityFeatures(bidDoc)) {
-                    String anchor = idCardNumber != null ? idCardNumber : (hasImageEvidence ? "已附图片" : "身份证");
-                    String snippet = extractSnippet(text, anchor, 200);
                     return QualityCheckItemResult.manualReview(item,
                             "已附身份证件凭证" + (idCardNumber != null ? "(号码: " + maskId(idCardNumber) + ")" : "")
                                     + "，但未检测到招标要求的委托代理人社保证明，需人工复核",
@@ -105,12 +105,9 @@ public final class IdAuthLetterCheckPolicy {
                             List.of(QualityEvidence.bid("身份证附件页", page.pageNumber(), snippet)));
                 }
 
-                String anchor = idCardNumber != null ? idCardNumber : (hasImageEvidence ? "已附图片" : "身份证");
-                String snippet = extractSnippet(text, anchor, 200);
-                String conclusion = idCardNumber != null
-                        ? "已包含有效身份证明与身份证扫描件，识别到公民身份号码: " + maskId(idCardNumber)
-                        : "已包含有效身份证明并附带身份证扫描件/复印件图片凭证";
-                return QualityCheckItemResult.pass(item, conclusion,
+                return QualityCheckItemResult.manualReview(item,
+                        "已定位身份证件文字或图片标记，尚不能证明正反面齐全、人员一致及授权签署有效",
+                        "请核对原始身份证正反面、人员一致性与授权签署；号码和图片标记不能替代图像内容核验",
                         List.of(QualityEvidence.bid("身份证明/身份证正文", page.pageNumber(), snippet)));
             }
         }

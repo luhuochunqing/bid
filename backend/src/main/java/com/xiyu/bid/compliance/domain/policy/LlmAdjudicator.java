@@ -90,13 +90,19 @@ public final class LlmAdjudicator {
             final TenderRequirements requirements,
             final List<KnowledgeMatch> kbMatches,
             final List<QualityEvidence> kbEvidences) {
+        return SemanticEvidenceBoundary.reconcile(adjudicateCandidate(item, bidDoc, tenderDoc, requirements, kbMatches, kbEvidences),
+                bidDoc);
+    }
+
+    /** 引擎候选入口：最终证据护栏由引擎统一执行；公开直接调用仍保留护栏。 */
+    QualityCheckItemResult adjudicateCandidate(BidQualityCheckItem item, DocumentContent bidDoc, DocumentContent tenderDoc,
+            TenderRequirements requirements, List<KnowledgeMatch> kbMatches, List<QualityEvidence> kbEvidences) {
         List<QualityEvidence> evidences =
                 EvidenceAssembler.semanticEvidences(item, bidDoc, tenderDoc, requirements, kbEvidences);
         LlmVerdict.ChatOutcome<LlmVerdict> outcome =
                 port.chat(buildPrompt(item, bidDoc, tenderDoc, requirements, kbMatches));
         if (outcome instanceof LlmVerdict.Success<LlmVerdict> success) {
-            return SemanticEvidenceBoundary.reconcile(
-                    toResult(item, success.verdict(), evidences), bidDoc);
+            return toResult(item, success.verdict(), evidences);
         }
         if (outcome instanceof LlmVerdict.Noop<LlmVerdict>) {
             return ManualReasons.manual(item,
@@ -145,7 +151,7 @@ public final class LlmAdjudicator {
         StringBuilder sb = new StringBuilder();
         sb.append("你是投标文件质量核查专家。请仅依据下列材料裁决检查项「").append(item.getTitle())
                 .append("」，输出且仅输出 JSON 对象：{\"status\":\"PASS|FAIL|MANUAL\",\"conclusion\":\"...\","
-                        + "|REFERENCE_MISSING|MANUAL_REVIEW_REQUIRED\"}（status=MANUAL 时 reasonCode 必填）。\n");
+                        + "\"suggestion\":\"...\",\"reasonCode\":\"\"}（status=MANUAL 时 reasonCode 必填，原因码为LOW_CONFIDENCE、AMBIGUOUS、EVIDENCE_INSUFFICIENT、REFERENCE_MISSING或MANUAL_REVIEW_REQUIRED）。\n");
         sb.append(AdjudicationGuidelines.allGuidelines());
         sb.append("【招标要求（LLM 结构化提取）】\n").append(summarizeRequirements(requirements)).append("\n\n");
         sb.append("【企业知识库真实记录】\n").append(summarizeKbMatches(kbMatches)).append("\n\n");

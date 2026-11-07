@@ -208,4 +208,7 @@ backlinks:
 
 - [[scoreparse-1117-candidate-active-boundary]] — 项目1117候选零分与旧正式评分项并存（2026-11-01历史取证，非当前生产状态）。
 
+
 - [仓库到期重复通知排查](warehouse-expiry-duplicate-investigation.md)
+
+- [[quality1360-diagnosis]] — 项目1360历史质量报告误判、评分证据错位及同输入验收边界。

@@ -242,6 +242,7 @@ const showScoreLink = computed(() =>
   props.item?.itemCode === 'SCORING_RESPONSE' && typeof props.objectiveScore === 'number')
 
 const suggestionText = computed(() => {
+  if (props.item?.status !== 'PASS' && props.item?.suggestion?.trim()) return props.item.suggestion.trim()
   switch (props.item?.status) {
     case 'FAIL': return '高风险项，建议立即修订后重新上传标书并再次执行检查。'
     case 'MANUAL_REVIEW': return '请投标负责人复核后确认是否需要修订。'

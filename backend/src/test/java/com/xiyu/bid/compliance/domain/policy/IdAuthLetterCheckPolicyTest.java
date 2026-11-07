@@ -14,8 +14,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class IdAuthLetterCheckPolicyTest {
 
     @Test
-    @DisplayName("提供有效身份证扫描件与18位公民身份号码时判定PASS")
-    void check_WhenValidIdCardProvided_Pass() {
+    @DisplayName("提供有效身份证扫描件与18位公民身份号码时仍需核对图像")
+    void check_WhenValidIdCardProvided_RequiresImageReview() {
         var pages = List.of(
                 new DocumentContent.PageContent(1, "投标须知及目录概要...", List.of()),
                 new DocumentContent.PageContent(6, """
@@ -37,9 +37,9 @@ class IdAuthLetterCheckPolicyTest {
         QualityCheckItemResult result = IdAuthLetterCheckPolicy.check(bidDoc, req);
 
         assertThat(result.itemCode()).isEqualTo(BidQualityCheckItem.ID_AUTH_LETTER.getCode());
-        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(result.conclusion()).contains("已包含有效身份证明与身份证扫描件");
-        assertThat(result.conclusion()).contains("110108********2345");
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).contains("尚不能证明正反面齐全");
+        assertThat(result.evidences().getFirst().quote()).contains("公民身份号码");
         assertThat(result.evidences()).isNotEmpty();
         assertThat(result.evidences().get(0).pageNumber()).isEqualTo(6);
     }
@@ -87,8 +87,8 @@ class IdAuthLetterCheckPolicyTest {
     }
 
     @Test
-    @DisplayName("招标明确要求社保证明且标书已提供社保证明时判定PASS")
-    void check_WhenSocialSecurityRequiredAndProvided_Pass() {
+    @DisplayName("招标明确要求社保证明且标书已提供社保证明时仍需核对图像")
+    void check_WhenSocialSecurityRequiredAndProvided_RequiresImageReview() {
         var pages = List.of(
                 new DocumentContent.PageContent(6, """
                         委托代理人身份证正反面扫描件
@@ -109,8 +109,8 @@ class IdAuthLetterCheckPolicyTest {
 
         QualityCheckItemResult result = IdAuthLetterCheckPolicy.check(bidDoc, req);
 
-        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(result.conclusion()).contains("已包含有效身份证明与身份证扫描件");
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).contains("尚不能证明正反面齐全");
     }
 
     @Test
@@ -150,8 +150,8 @@ class IdAuthLetterCheckPolicyTest {
     }
 
     @Test
-    @DisplayName("身份证页包含已附图片占位或图片标记时判定PASS")
-    void check_WhenImageEvidenceProvided_Pass() {
+    @DisplayName("身份证页包含已附图片占位或图片标记时仍需核对图像")
+    void check_WhenImageEvidenceProvided_RequiresImageReview() {
         var pages = List.of(
                 new DocumentContent.PageContent(5, """
                         附件三：法定代表人及委托代理人身份证明
@@ -164,8 +164,8 @@ class IdAuthLetterCheckPolicyTest {
 
         QualityCheckItemResult result = IdAuthLetterCheckPolicy.check(bidDoc);
 
-        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(result.conclusion()).contains("已包含有效身份证明并附带身份证扫描件/复印件图片凭证");
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).contains("尚不能证明正反面齐全");
         assertThat(result.evidences()).isNotEmpty();
         assertThat(result.evidences().get(0).pageNumber()).isEqualTo(5);
     }

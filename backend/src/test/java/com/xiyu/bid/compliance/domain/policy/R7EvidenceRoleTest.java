@@ -70,10 +70,10 @@ class R7EvidenceRoleTest {
         assertThat(req.certificateRequirements().get(0)).contains("食品经营许可证");
     }
     @Test
-    void identicalRequirementAndResponseCanPass() {
+    void identicalBidderSuppliedRequirementWithoutTenderNeedsReview() {
         String text = "商务偏离表\n| 序号 | 条款号 | 招标参数要求 | 投标响应参数 | 偏离情况 | 说明 |\n"
                 + "| 1 | 2.1 | 质保3年 | 质保3年 | 无偏离 | / |";
-        assertThat(finalResponsiveness(text).status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(finalResponsiveness(text).status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
     @Test
     void mixedRuleAndOwnFactsMustNotPass() {

@@ -121,7 +121,7 @@ public final class BidDocumentQualityEngine {
             }
             if (llm != null) {
                 resultMap.put(item.getCode(),
-                        llm.adjudicateItem(item, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences));
+                        llm.adjudicateCandidate(item, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences));
                 adjudicated++;
                 progress.accept(adjudicated * 100 / semanticItems.size(), item.getTitle());
                 continue;
@@ -147,7 +147,7 @@ public final class BidDocumentQualityEngine {
 
         if (!hasStrongVoucherPass && llm != null) {
             // 优先接通 LLM 进行全面语义裁决：大模型能精准比对招标文件（如第3.4款）与投标文件（如文件五声明不适用）
-            QualityCheckItemResult depositVerdict = llm.adjudicateItem(
+            QualityCheckItemResult depositVerdict = llm.adjudicateCandidate(
                     BidQualityCheckItem.DEPOSIT_RECEIPT, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
             if (depositVerdict != null && depositVerdict.status() == QualityCheckStatus.PASS) {
                 String c = depositVerdict.conclusion() != null ? depositVerdict.conclusion().trim() : "";
@@ -192,7 +192,7 @@ public final class BidDocumentQualityEngine {
                 && existingBidLetter.status() == QualityCheckStatus.PASS
                 && !existingBidLetter.evidences().isEmpty();
         if (!hasStrongBidLetterPass && llm != null) {
-            QualityCheckItemResult letterVerdict = llm.adjudicateItem(
+            QualityCheckItemResult letterVerdict = llm.adjudicateCandidate(
                     BidQualityCheckItem.BID_LETTER_FORMAT, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
             resultMap.put(BidQualityCheckItem.BID_LETTER_FORMAT.getCode(), letterVerdict);
         }
@@ -203,7 +203,7 @@ public final class BidDocumentQualityEngine {
                 && existingAuthLetter.status() == QualityCheckStatus.PASS
                 && !existingAuthLetter.evidences().isEmpty();
         if (!hasStrongAuthLetterPass && llm != null) {
-            QualityCheckItemResult authVerdict = llm.adjudicateItem(
+            QualityCheckItemResult authVerdict = llm.adjudicateCandidate(
                     BidQualityCheckItem.AUTHORIZATION_LETTER, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
             resultMap.put(BidQualityCheckItem.AUTHORIZATION_LETTER.getCode(), authVerdict);
         }
@@ -217,7 +217,7 @@ public final class BidDocumentQualityEngine {
         boolean licenseNotRequired = effective.businessLicenseRequirement() != null
                 && !effective.businessLicenseRequirement().required();
         if (!licenseNotRequired && !hasStrongLicensePass && llm != null) {
-            QualityCheckItemResult licenseVerdict = llm.adjudicateItem(
+            QualityCheckItemResult licenseVerdict = llm.adjudicateCandidate(
                     BidQualityCheckItem.BUSINESS_LICENSE, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
             resultMap.put(BidQualityCheckItem.BUSINESS_LICENSE.getCode(), licenseVerdict);
         }
@@ -228,7 +228,7 @@ public final class BidDocumentQualityEngine {
                 && existingIdAuth.status() == QualityCheckStatus.PASS
                 && !existingIdAuth.evidences().isEmpty();
         if (!hasStrongIdAuthPass && llm != null) {
-            QualityCheckItemResult idVerdict = llm.adjudicateItem(
+            QualityCheckItemResult idVerdict = llm.adjudicateCandidate(
                     BidQualityCheckItem.ID_AUTH_LETTER, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
             resultMap.put(BidQualityCheckItem.ID_AUTH_LETTER.getCode(), idVerdict);
         }
@@ -241,7 +241,7 @@ public final class BidDocumentQualityEngine {
         boolean hasHardPriceFail = existingPrice != null
                 && existingPrice.status() == QualityCheckStatus.FAIL;
         if (!hasStrongPricePass && !hasHardPriceFail && llm != null) {
-            QualityCheckItemResult priceVerdict = llm.adjudicateItem(
+            QualityCheckItemResult priceVerdict = llm.adjudicateCandidate(
                     BidQualityCheckItem.PRICE_CONSISTENCY, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
             resultMap.put(BidQualityCheckItem.PRICE_CONSISTENCY.getCode(), priceVerdict);
         }
@@ -256,14 +256,14 @@ public final class BidDocumentQualityEngine {
                 && existingTable.conclusion() != null
                 && existingTable.conclusion().contains("占位");
         if (!hasStrongTablePass && !isPlaceholderFail && llm != null) {
-            QualityCheckItemResult tableVerdict = llm.adjudicateItem(
+            QualityCheckItemResult tableVerdict = llm.adjudicateCandidate(
                     BidQualityCheckItem.BID_OPENING_TABLE, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
             resultMap.put(BidQualityCheckItem.BID_OPENING_TABLE.getCode(), tableVerdict);
         }
 
         // 10. 电子标 CA 证书：以知识库 CA 管理台账核验为主导，已有确定性台账结论不被 LLM 覆盖
         if (!resultMap.containsKey(BidQualityCheckItem.CA_CERTIFICATE.getCode()) && llm != null) {
-            QualityCheckItemResult caVerdict = llm.adjudicateItem(
+            QualityCheckItemResult caVerdict = llm.adjudicateCandidate(
                     BidQualityCheckItem.CA_CERTIFICATE, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
             resultMap.put(BidQualityCheckItem.CA_CERTIFICATE.getCode(), caVerdict);
         }
@@ -271,9 +271,13 @@ public final class BidDocumentQualityEngine {
         // 11. 严格按 25 项标准序号排序输出
         List<QualityCheckItemResult> sorted = new ArrayList<>();
         for (QualityCheckItemResult result : resultMap.values()) {
-            sorted.add(SemanticEvidenceBoundary.reconcile(AuthorizationLetterCheckPolicy.enforcePositiveContract(
-                    SemanticEvidenceBoundary.reconcileQualificationApplicability(result, bidDoc, effective),
-                    bidDoc, effective.authorizationRequirement()), bidDoc));
+            var qualification = SemanticEvidenceBoundary.reconcileQualificationApplicability(result, bidDoc, effective);
+            var authorization = AuthorizationLetterCheckPolicy.enforcePositiveContract(
+                    qualification, bidDoc, effective.authorizationRequirement());
+            var semantic = SemanticEvidenceBoundary.reconcile(authorization, bidDoc);
+            var pricing = PricingSubmissionPolicy.reconcile(
+                    semantic, bidDoc, effectiveTender, effective.priceRequirement());
+            sorted.add(pricing);
         }
         sorted.sort(Comparator.comparingInt(QualityCheckItemResult::order));
         return sorted;

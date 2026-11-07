@@ -18,8 +18,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FrontTableAndResponsivenessIntegrationTest {
 
     @Test
-    @DisplayName("前附表与偏离表引擎集成：规范完备响应时直接直通 PASS，不触发大模型调用")
-    void testEvaluateAll_WhenCompliant_PassesWithoutLlm() {
+    @DisplayName("前附表具体事实可核查，缺少原始招标条款的偏离声明仍需人工")
+    void testEvaluateAll_WhenFrontFactsKnownButDeviationSourceMissing_SeparatesVerdicts() {
         String bidText = """
                 第二章 响应说明
                 第一节 投标人须知前附表关键条款响应表
@@ -66,8 +66,8 @@ class FrontTableAndResponsivenessIntegrationTest {
                 .isEqualTo(0);
         assertThat(frontResult.status()).isEqualTo(QualityCheckStatus.PASS);
         assertThat(frontResult.conclusion()).contains("前附表关键条款填写完整");
-        assertThat(respResult.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(respResult.conclusion()).contains("无实质性负偏离");
+        assertThat(respResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(respResult.conclusion()).contains("招标原文不可用");
     }
 
     @Test

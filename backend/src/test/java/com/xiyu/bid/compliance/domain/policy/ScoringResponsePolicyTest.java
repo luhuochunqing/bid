@@ -15,8 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ScoringResponsePolicyTest {
 
     @Test
-    @DisplayName("评分项响应：仅在目录中列出评分响应或技术方案条目判定 FAIL")
-    void testCheckFirstStage_WhenOnlyInCatalog_Fails() {
+    @DisplayName("评分项响应：仅目录召回不足以证明正文缺失，保留人工")
+    void testCheckFirstStage_WhenOnlyInCatalog_RequiresReview() {
         String text = """
                 目 录
                 第三章 评分细则逐项对应表与技术实施方案.......................... 45
@@ -27,33 +27,30 @@ class ScoringResponsePolicyTest {
         Optional<QualityCheckItemResult> result = ScoringResponsePolicy.checkFirstStage(doc, TenderRequirements.empty());
 
         assertThat(result).isPresent();
-        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.FAIL);
-        assertThat(result.get().conclusion()).contains("仅在目录中");
+        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.get().conclusion()).contains("目录索引");
     }
 
     @Test
-    @DisplayName("评分项响应：技术方案中存在占位符模板时判定 FAIL")
+    @DisplayName("评分项响应：技术方案中存在占位符模板时保留人工确认")
     void testCheckFirstStage_WhenBracketPlaceholderPresent_Fails() {
         DocumentContent doc = new DocumentContent("bid.pdf", "hash2", "full", List.of(
                 new DocumentContent.PageContent(1, "目 录\n第一章 总体方案...... 1", List.of()),
                 new DocumentContent.PageContent(2, """
                         第三章 技术方案与项目实施组织设计
                         一、总体设计思路
+                        技术方案：
                         【请根据实际情况填写技术实施方案及架构图】
                         二、进度计划安排
                         满足招标全部进度要求。
                         """, List.of())
         ));
 
-        Optional<QualityCheckItemResult> result = ScoringResponsePolicy.checkFirstStage(doc, TenderRequirements.empty());
-
-        assertThat(result).isPresent();
-        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.FAIL);
-        assertThat(result.get().conclusion()).contains("占位符或下划线留白");
+        assertMandatoryPlaceholder(doc, "技术方案");
     }
 
     @Test
-    @DisplayName("评分项响应：技术方案中存在下划线空白留白时判定 FAIL")
+    @DisplayName("评分项响应：技术方案中存在下划线空白留白时保留人工确认")
     void testCheckFirstStage_WhenUnderlineBlankPresent_Fails() {
         DocumentContent doc = new DocumentContent("bid.pdf", "hash3", "full", List.of(
                 new DocumentContent.PageContent(1, "目 录\n第一章 实施方案...... 1", List.of()),
@@ -64,11 +61,7 @@ class ScoringResponsePolicyTest {
                         """, List.of())
         ));
 
-        Optional<QualityCheckItemResult> result = ScoringResponsePolicy.checkFirstStage(doc, TenderRequirements.empty());
-
-        assertThat(result).isPresent();
-        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.FAIL);
-        assertThat(result.get().conclusion()).contains("占位符或下划线留白");
+        assertMandatoryPlaceholder(doc, "项目经理拟派");
     }
 
     @Test
@@ -104,36 +97,40 @@ class ScoringResponsePolicyTest {
     }
 
     @Test
-    @DisplayName("评分项响应：技术方案中存在【此处填写…】占位时判定 FAIL（此处家族）")
+    @DisplayName("评分项响应：技术方案中存在【此处填写…】占位时保留人工确认（此处家族）")
     void testCheckFirstStage_WhenChuChuPlaceholderPresent_Fails() {
         DocumentContent doc = new DocumentContent("bid.pdf", "hash6", "full", List.of(
                 new DocumentContent.PageContent(1, "目 录\n第一章 总体方案...... 1", List.of()),
                 new DocumentContent.PageContent(2, """
                         第三章 技术方案与项目实施组织设计
                         一、总体设计思路
+                        实施方案：
                         【此处填写实施方案】
                         二、进度计划安排
                         满足招标全部进度要求。
                         """, List.of())
         ));
 
-        Optional<QualityCheckItemResult> result = ScoringResponsePolicy.checkFirstStage(doc, TenderRequirements.empty());
-
-        assertThat(result).isPresent();
-        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.FAIL);
-        assertThat(result.get().conclusion()).contains("占位符或下划线留白");
+        assertMandatoryPlaceholder(doc, "实施方案");
     }
 
     @Test
-    @DisplayName("评分项响应：技术方案中存在【此处粘贴…】占位时判定 FAIL")
+    @DisplayName("评分项响应：技术方案中存在【此处粘贴…】占位时保留人工确认")
     void testCheckFirstStage_WhenChuChuPastePlaceholderPresent_Fails() {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash7",
-                "第二章 项目管理机构及团队配置\n技术方案详见【此处粘贴实施方案详图】，团队配置齐全。");
+                "第二章 项目管理机构及团队配置\n技术方案：\n【此处粘贴实施方案详图】，团队配置齐全。");
 
-        Optional<QualityCheckItemResult> result = ScoringResponsePolicy.checkFirstStage(doc, TenderRequirements.empty());
+        assertMandatoryPlaceholder(doc, "技术方案");
+    }
 
-        assertThat(result).isPresent();
-        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.FAIL);
-        assertThat(result.get().conclusion()).contains("占位符或下划线留白");
+    /** 同一份留白原文：无义务不定罪，即使招标提及该字段，仍核对用途后人工确认。 */
+    private static void assertMandatoryPlaceholder(DocumentContent doc, String field) {
+        assertThat(ScoringResponsePolicy.checkFirstStage(doc, TenderRequirements.empty()).orElseThrow().status())
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        var requirements = new TenderRequirements(List.of(new TenderRequirements.ScoringItem(field, 5.0,
+                "必须填写" + field)), List.of(), List.of(), List.of(), List.of(), false);
+        var result = ScoringResponsePolicy.checkFirstStage(doc, requirements).orElseThrow();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).contains("留白");
     }
 }

@@ -1,5 +1,5 @@
 // Input: 招标文件正文
-// Output: 确定性报价与最高限价结构化契约（PriceRequirement）
+// Output: 确定性报价与最高限价结构化契约（PriceRequirement），纸面义务消费明确提交条款，系统折扣率指令保留原文
 // Pos: compliance/domain/policy/ - 确定性报价与限价提取器（FP-Java 纯核心）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -81,10 +81,17 @@ public final class DeterministicPriceExtractor {
         }
 
         String pricingMethod = extractPricingMethod(tenderText);
-        boolean requireItemized = tenderText.contains("分项报价") || tenderText.contains("报价明细") || tenderText.contains("分项明细");
-        boolean requireTable = tenderText.contains("开标一览表") || tenderText.contains("投标一览表") || tenderText.contains("报价一览表");
+        var facts = PricingSubmissionPolicy.analyze(tenderText);
+        var paper = facts.paper();
+        Boolean requireItemized = paper.requiredTables().stream().anyMatch(name -> name.contains("分项") || name.contains("明细"))
+                ? Boolean.TRUE : paper.waivedClauses().stream().anyMatch(text -> text.contains("分项") || text.contains("明细")) ? Boolean.FALSE : null;
+        Boolean requireTable = !paper.requiredTables().isEmpty() ? Boolean.TRUE : !paper.waivedClauses().isEmpty() ? Boolean.FALSE : null;
 
-        String description = rawText != null ? "招标文件规定：" + rawText : "招标文件未明确设定最高限价，按市场行情自主报价";
+        String systemDiscountSource = facts.systemDiscountSource();
+        boolean systemDiscount = !systemDiscountSource.isEmpty();
+        if (systemDiscount) pricingMethod = PriceRequirement.SYSTEM_DISCOUNT_METHOD;
+        String channel = systemDiscount ? systemDiscountSource + "；" : "";
+        String description = channel + (rawText != null ? "招标文件规定：" + rawText : "招标文件未明确设定最高限价，按市场行情自主报价");
 
         return new PriceRequirement(
                 true,

@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ScoringAndClarificationIntegrationTest {
 
     @Test
-    @DisplayName("评分响应与澄清响应集成：占位留白硬拦截 FAIL，不依赖大模型")
+    @DisplayName("评分留白人工确认；澄清留白仍FAIL，不依赖大模型")
     void testEvaluateAll_WhenPlaceholdersPresent_FailsDirectly() {
         String bidText = """
                 第三章 技术方案
@@ -28,9 +28,12 @@ class ScoringAndClarificationIntegrationTest {
                 投标人盖章：_______
                 """;
         DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash_bid1", bidText);
-        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "hash_tender1", "招标文件发布第1号澄清文件并要求澄清回执");
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "hash_tender1",
+                "技术方案必须填写总体实施规划。招标文件发布第1号澄清文件并要求澄清回执");
+        assertThat(ScoringResponsePolicy.checkFirstStage(bidDoc, TenderRequirements.empty()).orElseThrow().status())
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         TenderRequirements req = new TenderRequirements(
-                List.of(new TenderRequirements.ScoringItem("技术方案", 40.0, "满分要求")),
+                List.of(new TenderRequirements.ScoringItem("技术方案", 40.0, "必须填写总体实施规划")),
                 List.of(), List.of(), List.of(), List.of(), false);
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
@@ -45,8 +48,8 @@ class ScoringAndClarificationIntegrationTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(scoringResult.status()).isEqualTo(QualityCheckStatus.FAIL);
-        assertThat(scoringResult.conclusion()).contains("占位符或下划线留白");
+        assertThat(scoringResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(scoringResult.conclusion()).contains("留白");
         assertThat(clarResult.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(clarResult.conclusion()).contains("占位符或下划线留白");
     }
