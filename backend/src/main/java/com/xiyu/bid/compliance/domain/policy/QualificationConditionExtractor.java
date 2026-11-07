@@ -16,9 +16,12 @@ import java.util.regex.Pattern;
 public final class QualificationConditionExtractor {
     private static final String NUMBER = "(?:第[一二三四五六七八九十0-9]+章\\h*|[0-9]+(?:\\.[0-9]+)+[、.]?\\h*|[一二三四五六七八九十0-9]+[、.]\\h*)";
     private static final String TITLE = "(?:供应商|投标人|申请人)?(?:资格要求|资质要求|资格条件|资质条件|资格审查|资格性审查|专用资格条件|通用资格条件|资质及能力要求)";
-    private static final Pattern HEADING = Pattern.compile("(?m)^\\h*(?:#{1,6}\\h*)?" + NUMBER + "?" + TITLE + "\\h*[：:]?");
+    private static final Pattern TOC_LINE = Pattern.compile("(?m)(?:\\.{3,}|…{2,}|[-—–.·]{3,})\\s*[-—–]?\\s*\\d+\\s*[-—–]?\\s*$");
+    private static final Pattern HEADING = Pattern.compile("(?m)^\\h*(?:#{1,6}\\h*)?" + NUMBER + "?" + TITLE
+            + "(?!\\h*(?:相关证明文件|证明文件|证明材料|材料清单|文件格式|附件))\\h*(?:[(（][^)\n]*[)）])?\\h*[：:]?");
     private static final Pattern NEXT_SECTION = Pattern.compile("(?m)^\\h*(?:#{1,6}\\h*)?" + NUMBER + "?"
-            + "(?:采购需求|采购文件|招标文件|投标文件格式|响应文件格式|投标文件组成|响应文件组成|文件组成|响应文件的递交|投标文件的递交|开标|评标|招标范围|联系方式)");
+            + "(?:采购需求|采购文件|招标文件|投标文件格式|响应文件格式|投标文件组成|响应文件组成|文件组成|响应文件的递交|投标文件的递交|开标|评标|招标范围|联系方式"
+            + "|投标文件的语言|投标有效期|投标人应提供文件和资料|应提供文件和资料|招标文件的澄清|投标报价|第一卷|第二卷|第三卷|商务标|技术标|经济标|投标保证金|投标文件的编制)");
     private static final Pattern BULLET = Pattern.compile("^(?:[①②③④⑤⑥⑦⑧⑨⑩]|[（(][0-9一二三四五六七八九十]+[）)]|[0-9]+(?:\\.[0-9]+)+\\h+|[0-9]+[.、)]|[一二三四五六七八九十]+[、.])\\h*");
     private static final Pattern CHAPTER = Pattern.compile("^\\h*第[一二三四五六七八九十0-9]+章\\h*[^。；，\\n]{0,30}$");
     private static final Pattern MARKDOWN_HEADING = Pattern.compile("^\\h*(#{1,6})\\h+.+");
@@ -55,6 +58,13 @@ public final class QualificationConditionExtractor {
         LinkedHashSet<QualificationCondition> conditions = new LinkedHashSet<>();
         boolean found = false;
         while (heading.find()) {
+            int lineStart = text.lastIndexOf('\n', heading.start());
+            lineStart = lineStart == -1 ? 0 : lineStart + 1;
+            int lineEnd = text.indexOf('\n', heading.end());
+            lineEnd = lineEnd == -1 ? text.length() : lineEnd;
+            String headingLine = text.substring(lineStart, lineEnd);
+            if (TOC_LINE.matcher(headingLine).find()) continue;
+
             found = true;
             Matcher next = NEXT_SECTION.matcher(text);
             int end = next.find(heading.end()) ? next.start() : text.length();
@@ -64,6 +74,7 @@ public final class QualificationConditionExtractor {
             BigInteger lastOrdinal = null;
             boolean uncertainScope = false;
             for (String line : text.substring(heading.end(), end).split("\\r?\\n", -1)) {
+                if (TOC_LINE.matcher(line).find()) continue;
                 if (endsSection(line, opening)) break;
                 NumberPath path = numberPath(line);
                 NumberRole role = HEADING.matcher(line).find() ? NumberRole.NONE : numberRole(parentPath, path, lastOrdinal);
@@ -108,7 +119,13 @@ public final class QualificationConditionExtractor {
     /** 只用编号路径及已观察的列表序列判定；两种解释均成立时不能猜成强制资格。 */
     private static NumberRole numberRole(final List<String> parent, final NumberPath path, final BigInteger lastOrdinal) {
         List<String> candidate = path.parts();
-        if (candidate.isEmpty() || parent.isEmpty()) return candidate.isEmpty() ? NumberRole.NONE : NumberRole.UNKNOWN;
+        if (candidate.isEmpty()) return NumberRole.NONE;
+        if (parent.isEmpty()) {
+            BigInteger ordinal = new BigInteger(candidate.get(0));
+            boolean sequence = lastOrdinal == null ? ordinal.equals(BigInteger.ONE)
+                    : ordinal.equals(lastOrdinal) || ordinal.equals(lastOrdinal.add(BigInteger.ONE));
+            return sequence ? NumberRole.CONDITION : NumberRole.UNKNOWN;
+        }
         if (candidate.size() > 1) {
             boolean child = candidate.size() > parent.size() && candidate.subList(0, parent.size()).equals(parent);
             return child ? NumberRole.CONDITION : path.separated() && isLaterSection(parent, candidate)

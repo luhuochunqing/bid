@@ -39,6 +39,9 @@ public final class QualificationVetoPolicy {
     private static final Pattern SUBCONTRACT_VIOLATION_PATTERN = Pattern.compile(
             "(?:拟将|计划将|拟向|拟委托)[^。；\\n]{0,30}(?:主体|核心|关键|主要)[^。；\\n]{0,30}(?:分包|转包|外包)|(?:拟分包给|拟转包给|拟将本项目分包)");
 
+    private static final Pattern CERT_PREFIX = Pattern.compile(
+            "^(?:(?:且|并|同时)?(?:投标人|供应商|申请人|企业|公司|我方)?(?:应当|必须|须|应|需)?(?:具有|具备|持有|取得|通过|提供)?(?:有效的|合法有效的)?)+");
+
     private QualificationVetoPolicy() {
     }
 
@@ -159,7 +162,10 @@ public final class QualificationVetoPolicy {
         List<String> satisfied = new ArrayList<>();
         List<String> unsatisfied = new ArrayList<>();
         for (String qualification : validQualifications) {
-            if (normalizedValidText.contains(normalize(qualification))) {
+            String cleanCert = CERT_PREFIX.matcher(qualification.trim()).replaceFirst("").trim();
+            if (cleanCert.isBlank()) cleanCert = qualification.trim();
+            if (normalizedValidText.contains(normalize(cleanCert))
+                    || normalizedValidText.contains(normalize(qualification))) {
                 satisfied.add(qualification);
             } else {
                 unsatisfied.add(qualification);

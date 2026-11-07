@@ -26,10 +26,15 @@ final class ResponsivenessRequirementEvidencePolicy {
                 || result.status() != QualityCheckStatus.PASS) return result;
         if (tender == null || tender.fullText().isBlank()) return unknown(result, "招标原文不可用，投标人填写的要求及无偏离声明不能单独证明完整响应");
         var clauses = clauses(tender.fullText());
-        boolean boundRow = false;
-        for (var table : DeviationTableExtractor.extract(bid).tables()) {
+        var tables = DeviationTableExtractor.extract(bid).tables();
+        if (tables.isEmpty()) {
+            boolean tenderRequiresDeviation = tender.fullText().contains("偏离表")
+                    || tender.fullText().contains("差异表")
+                    || tender.fullText().contains("偏差表");
+            return tenderRequiresDeviation ? result : unknown(result, "尚未定位到可与招标原文逐行核对的偏离表要求，不能仅凭响应声明判定通过");
+        }
+        for (var table : tables) {
             for (var row : table.rows()) {
-                boundRow = true;
                 String requirement = compact(row.tenderRequirement());
                 String identity = compact(row.clause());
                 String numericId = identity.replaceAll("[第条()（）]", "");
@@ -46,7 +51,7 @@ final class ResponsivenessRequirementEvidencePolicy {
                 }
             }
         }
-        return boundRow ? result : unknown(result, "尚未定位到可与招标原文逐行核对的偏离表要求，不能仅凭响应声明判定通过");
+        return result;
     }
 
     /** 换行可能只是排版折行，不能把1年换行6个月截成两条要求。 */

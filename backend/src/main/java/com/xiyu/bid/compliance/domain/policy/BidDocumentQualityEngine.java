@@ -136,8 +136,13 @@ public final class BidDocumentQualityEngine {
         }
 
         // 3. 保证金要求联动与标书端 LLM 深度语义裁决接通（保留 LLM 深度条款比对依据）
-        boolean tenderDepositExplicitlyNotRequired = effective.depositRequirement() != null
-                && Boolean.FALSE.equals(effective.depositRequirement().required());
+        boolean tenderDepositExplicitlyNotRequired = (effective.depositRequirement() != null
+                && Boolean.FALSE.equals(effective.depositRequirement().required()))
+                || (effectiveTender != null && !effectiveTender.fullText().isBlank()
+                    && !effectiveTender.fullText().contains("投标保证金")
+                    && !effectiveTender.fullText().contains("投标担保")
+                    && !effectiveTender.fullText().contains("响应担保")
+                    && !effectiveTender.fullText().contains("投标保证"));
 
         QualityCheckItemResult existingDeposit = resultMap.get(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode());
         boolean hasStrongVoucherPass = existingDeposit != null
@@ -164,7 +169,7 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(), depositVerdict);
         } else if (tenderDepositExplicitlyNotRequired) {
             // LLM 未启用（或不可用）且招标明确免收时的确定性覆盖策略
-            String desc = effective.depositRequirement().description();
+            String desc = effective.depositRequirement() != null ? effective.depositRequirement().description() : null;
             String detail = (desc != null && !desc.isBlank() && !desc.contains("免收/不涉及")) ? "：" + desc : "";
             resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(),
                     QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_RECEIPT,

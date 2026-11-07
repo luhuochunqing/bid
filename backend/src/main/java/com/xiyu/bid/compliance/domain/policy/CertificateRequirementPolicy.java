@@ -25,21 +25,23 @@ public final class CertificateRequirementPolicy {
 
     static List<QualificationCondition.CertificateRequirement> classify(final String text, final String sourceQuote) {
         List<QualificationCondition.CertificateRequirement> result = new ArrayList<>();
+        Target defaultTarget = text.matches(".*(?:投标人|供应商|企业|公司|我方).*?") ? Target.BIDDER : Target.UNKNOWN;
         for (String part : text.split("[，,；;。\\r\\n]+|(?:且|并|同时)(?=(?:投标人|供应商)?(?:必须|应当|应|须|需)?(?:具有|具备|持有|取得|通过|提供))")) {
             String clause = part.trim();
             if (!isCertificateReference(clause)) continue;
+            if (clause.matches(".*(?:授权文件|授权书|证明资料|股权关系).*")) continue;
             var role = QualificationClauseRolePolicy.assess(clause);
             if (role.role() == QualificationClauseRolePolicy.Role.PENALTY_FACT
                     || role.role() == QualificationClauseRolePolicy.Role.PENALTY_PROOF) continue;
             clause = role.certificateClause();
             Applicability applicability = role.role() == QualificationClauseRolePolicy.Role.UNKNOWN ? Applicability.UNKNOWN
                     : OPTIONAL.matcher(clause).find() ? Applicability.OPTIONAL
-                    : text.matches("(?s).*(?:或|任选|二选一|至少一项).*?")
+                    : clause.matches(".*(?:或|或者|任选|二选一|至少一项).*")
                         || clause.matches(".*(?:如|若|不|无|除非|仅限).*?") ? Applicability.UNKNOWN
                     : OBLIGATION.matcher(clause).find() ? Applicability.MANDATORY : Applicability.UNKNOWN;
             Target target = clause.matches(".*(?:供货产品|所投产品|投标产品|产品应|产品须|货物).*?") ? Target.PRODUCT
                     : clause.matches(".*(?:人员|项目经理|工程师|员工).*?") ? Target.PERSON
-                    : clause.matches(".*(?:投标人|供应商|企业|公司|我方).*?") ? Target.BIDDER : Target.UNKNOWN;
+                    : clause.matches(".*(?:投标人|供应商|企业|公司|我方).*?") ? Target.BIDDER : defaultTarget;
             result.add(new QualificationCondition.CertificateRequirement(clause, target, applicability,
                     applicability == Applicability.UNKNOWN ? text : clause,
                     cellIndex(sourceQuote, clause)));

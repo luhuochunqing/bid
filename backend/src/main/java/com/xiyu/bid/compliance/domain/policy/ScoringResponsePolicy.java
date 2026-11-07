@@ -110,12 +110,21 @@ public final class ScoringResponsePolicy {
                     && requirements.scoringItems().stream().filter(java.util.Objects::nonNull)
                         .anyMatch(item -> label.equals(item.name())
                                 || item.criteria() != null && item.criteria().contains(label));
-            if (SCORING_FIELD.matcher(field).find() || mentionedByScoring
-                    || SCORING_KEYWORDS.stream().anyMatch(text::contains)) {
+            if (SCORING_FIELD.matcher(field).find() || mentionedByScoring) {
+                if (isAgreementOrSampleContext(text, matcher.start())) continue;
                 return new PlaceholderHit(matcher.start(), matcher.end());
             }
         }
         return null;
+    }
+
+    private static boolean isAgreementOrSampleContext(final String text, final int pos) {
+        int start = Math.max(0, pos - 150);
+        int end = Math.min(text.length(), pos + 150);
+        String local = text.substring(start, end);
+        return local.contains("协议书") || local.contains("协议模板") || local.contains("合同样本")
+                || local.contains("合同样例") || local.contains("格式样例") || local.contains("参考样板")
+                || (local.contains("甲方") && local.contains("乙方"));
     }
 
     private record PlaceholderHit(int start, int end) { }

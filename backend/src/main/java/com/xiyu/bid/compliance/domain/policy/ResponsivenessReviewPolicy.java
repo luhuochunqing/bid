@@ -22,8 +22,8 @@ public final class ResponsivenessReviewPolicy {
     private static final int HEADER_CONTEXT_RADIUS = 15;
 
     private static final List<String> DEVIATION_KEYWORDS = List.of(
-            "商务偏离表", "技术偏离表", "商务规格偏离表", "技术规格偏离表", "条款偏离表", "商务及技术偏离表", "偏离表",
-            "商务偏离说明", "技术偏离说明", "偏离说明", "偏离情况", "商务偏离", "技术偏离", "偏差表", "商务和技术偏差表");
+            "商务偏离表", "技术偏离表", "商务规格偏离表", "技术规格偏离表", "条款偏离表", "商务及技术偏离表", "偏离表", "商务偏离说明",
+            "技术偏离说明", "偏离说明", "偏离情况", "商务偏离", "技术偏离", "偏差表", "商务和技术偏差表", "差异表", "差异说明", "差异情况", "差异表正文");
 
     private static final Pattern UNDERLINE_BLANK_PATTERN = Pattern.compile("_{3,}");
     private static final Pattern BRACKET_PLACEHOLDER_PATTERN = Pattern.compile(
@@ -74,10 +74,8 @@ public final class ResponsivenessReviewPolicy {
             if (extraction.positiveRows().isEmpty()
                     && extraction.tables().stream().allMatch(DeviationTableExtractor.DeviationTable::allNoneOrPositive)) {
                 QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "偏离表正文", DEVIATION_KEYWORDS);
-                return QualityCheckItemResult.pass(
-                        BidQualityCheckItem.RESPONSIVENESS_REVIEW,
-                        "商务与技术条款全面响应，偏离表声明无实质性负偏离",
-                        List.of(evidence));
+                return QualityCheckItemResult.pass(BidQualityCheckItem.RESPONSIVENESS_REVIEW,
+                        "商务与技术条款全面响应，偏离表声明无实质性负偏离", List.of(evidence));
             }
             // 未知/冲突需人工核验；正偏离仍交后续核验
             for (var table : extraction.tables()) {
@@ -154,15 +152,13 @@ public final class ResponsivenessReviewPolicy {
         for (DocumentContent.PageContent page : candidatePages) {
             if (isCatalogDotLine(page.text())) continue;
             String text = page.text();
-            boolean hasNoDeviation = text.contains("无偏离") || text.contains("无任何偏离")
-                    || text.contains("全部响应") || text.contains("完全响应") || text.contains("零偏离")
-                    || text.contains("无负偏离") || text.contains("无实质性负偏离");
+            boolean hasNoDeviation = text.contains("无偏离") || text.contains("无任何偏离") || text.contains("全部响应")
+                    || text.contains("完全响应") || text.contains("零偏离") || text.contains("无负偏离")
+                    || text.contains("无实质性负偏离") || text.contains("无差异") || text.contains("无任何差异");
             if (hasNoDeviation) {
                 QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "偏离表正文", DEVIATION_KEYWORDS);
-                return QualityCheckItemResult.pass(
-                        BidQualityCheckItem.RESPONSIVENESS_REVIEW,
-                        "商务与技术条款全面响应，偏离表声明无实质性负偏离",
-                        List.of(evidence));
+                return QualityCheckItemResult.pass(BidQualityCheckItem.RESPONSIVENESS_REVIEW,
+                        "商务与技术条款全面响应，偏离表声明无实质性负偏离", List.of(evidence));
             }
         }
 
