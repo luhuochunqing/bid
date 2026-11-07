@@ -1,5 +1,5 @@
 // Input: 招标文件提取的最高限价、报价方式、开标一览表及分项报价要求
-// Output: 报价要求结构化契约 Record（纯核心模型）
+// Output: 报价要求结构化契约，纸面义务保留true/false/null三态（纯核心）
 // Pos: compliance/domain/policy/ - 报价与限价要求契约模型
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -17,6 +17,8 @@ public record PriceRequirement(
         Boolean requireItemizedList,
         Boolean requireBidOpeningTable,
         String description) {
+
+    public static final String SYSTEM_DISCOUNT_METHOD = "系统折扣率报价";
 
     public static PriceRequirement standard() {
         return new PriceRequirement(
@@ -40,8 +42,8 @@ public record PriceRequirement(
         BigDecimal max = a.maxPrice() != null ? a.maxPrice() : b.maxPrice();
         String rawText = a.maxPriceRawText() != null && !a.maxPriceRawText().isBlank() ? a.maxPriceRawText() : b.maxPriceRawText();
         String method = a.pricingMethod() != null && !a.pricingMethod().isBlank() ? a.pricingMethod() : b.pricingMethod();
-        Boolean itemized = Boolean.TRUE.equals(a.requireItemizedList()) || Boolean.TRUE.equals(b.requireItemizedList());
-        Boolean table = Boolean.TRUE.equals(a.requireBidOpeningTable()) || Boolean.TRUE.equals(b.requireBidOpeningTable());
+        Boolean itemized = mergeObligation(a.requireItemizedList(), b.requireItemizedList());
+        Boolean table = mergeObligation(a.requireBidOpeningTable(), b.requireBidOpeningTable());
         String desc = a.description() != null && !a.description().isBlank() ? a.description() : b.description();
         return new PriceRequirement(req, max, rawText, method, itemized, table, desc);
     }
@@ -56,9 +58,14 @@ public record PriceRequirement(
         Boolean req = detReq.required() != null ? detReq.required() : llmReq.required();
         String method = detReq.pricingMethod() != null && !detReq.pricingMethod().isBlank()
                 ? detReq.pricingMethod() : llmReq.pricingMethod();
-        Boolean itemized = Boolean.TRUE.equals(detReq.requireItemizedList()) || Boolean.TRUE.equals(llmReq.requireItemizedList());
-        Boolean table = Boolean.TRUE.equals(detReq.requireBidOpeningTable()) || Boolean.TRUE.equals(llmReq.requireBidOpeningTable());
+        Boolean itemized = mergeObligation(detReq.requireItemizedList(), llmReq.requireItemizedList());
+        Boolean table = mergeObligation(detReq.requireBidOpeningTable(), llmReq.requireBidOpeningTable());
         String desc = detReq.description() != null && !detReq.description().isBlank() ? detReq.description() : llmReq.description();
         return new PriceRequirement(req, max, rawText, method, itemized, table, desc);
     }
+    private static Boolean mergeObligation(Boolean first, Boolean second) {
+        if (Boolean.TRUE.equals(first) || Boolean.TRUE.equals(second)) return Boolean.TRUE;
+        return first != null ? first : second;
+    }
+
 }

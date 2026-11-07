@@ -216,7 +216,7 @@ describe('质量核查详情弹窗字段对照表', () => {
       item: {
         itemCode: 'qualification_veto', status: 'FAIL', title: '资格条件一票否决',
         conclusion: '检测到缺少 ISO27001 认证，存在废标风险。',
-        suggestion: '后端建议（不独立展示）',
+        suggestion: '请核对招标要求的具体证书材料。',
         evidences: [
           { sourceType: 'BID', pageNumber: 12, quote: '投标人须具备 ISO27001 认证证书' },
           { sourceType: 'BID', pageNumber: 78, quote: '' },
@@ -229,7 +229,7 @@ describe('质量核查详情弹窗字段对照表', () => {
     expect(text).toContain('第 12 / 78 页')
     expect(text).toContain('投标人须具备 ISO27001 认证证书')
     expect(text).toContain('资质库')
-    expect(text).toContain('高风险项，建议立即修订后重新上传标书并再次执行检查。')
+    expect(text).toContain('请核对招标要求的具体证书材料。')
   })
 
   it('manual 项：剥离 reasonCode 前缀 + 投标负责人复核文案；无页码不显示问题定位', () => {
@@ -478,5 +478,14 @@ describe('质量核查紧凑行', () => {
     expect(fail.text()).toContain('不通过')
     expect(notApplicable.find('.item-icon').text()).toBe('✓')
     expect(notApplicable.text()).toContain('不涉及')
+  })
+})
+
+describe('质量核查建议证据边界', () => {
+  it('优先展示后端给出的具体修订动作', () => {
+    const wrapper = mountDialog({ item: { itemCode: 'SCORING_RESPONSE', status: 'FAIL',
+      title: '评分项响应', conclusion: '项目经理字段留白', suggestion: '请填写项目经理姓名并补充任职证明。' } })
+    expect(wrapper.text()).toContain('请填写项目经理姓名并补充任职证明。')
+    expect(wrapper.text()).not.toContain('高风险项，建议立即修订后重新上传标书并再次执行检查。')
   })
 })

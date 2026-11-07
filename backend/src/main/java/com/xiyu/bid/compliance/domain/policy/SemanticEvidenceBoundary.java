@@ -43,12 +43,17 @@ final class SemanticEvidenceBoundary {
 
     static QualityCheckItemResult reconcile(final QualityCheckItemResult input, final DocumentContent bidDoc) {
         if (input != null && input.status() == QualityCheckStatus.PASS
-                && BidQualityCheckItem.ID_AUTH_LETTER.getCode().equals(input.itemCode())
-                && bidDoc != null && bidDoc.pages().stream().anyMatch(
-                        page -> page.text().contains(ScanPageTextPolicy.TRANSCRIPTION_MARKER))) {
-            return QualityCheckItemResult.manualReview(BidQualityCheckItem.ID_AUTH_LETTER,
-                    "已识别扫描页文字，但文字及身份证号码不能证明证件正反面齐全、身份一致或授权签署有效",
+                && BidQualityCheckItem.ID_AUTH_LETTER.getCode().equals(input.itemCode())) {
+            return ManualReasons.manual(BidQualityCheckItem.ID_AUTH_LETTER, ManualReasons.EVIDENCE_INSUFFICIENT,
+                    "文本及图片标记不能证明证件正反面齐全、身份一致或授权签署有效",
                     "请核对扫描页中的实际身份证正反面、人员一致性及签署信息；文字转写不等于图像附件核验通过",
+                    input.evidences());
+        }
+        if (input != null && input.status() == QualityCheckStatus.FAIL
+                && BidQualityCheckItem.SCORING_RESPONSE.getCode().equals(input.itemCode())) {
+            return ManualReasons.manual(BidQualityCheckItem.SCORING_RESPONSE, ManualReasons.AMBIGUOUS,
+                    "评分响应尚未达到可确认的满分标准，未定位到具体应填评分字段的缺陷，不直接判定不通过",
+                    "请逐项对照招标评分细则补充响应依据；合同样例留白和检索未命中不能证明方案缺失",
                     input.evidences());
         }
         final QualityCheckItemResult result = requireQualificationConfirmation(input);

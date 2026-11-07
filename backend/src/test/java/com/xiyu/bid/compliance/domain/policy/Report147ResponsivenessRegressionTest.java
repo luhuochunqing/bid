@@ -4,7 +4,6 @@ import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 import java.util.List;
 import java.util.Set;
@@ -127,7 +126,7 @@ class Report147ResponsivenessRegressionTest {
         var result = SemanticRulesLane.deterministicOutcome(BidQualityCheckItem.RESPONSIVENESS_REVIEW,
                 bid, DocumentContent.empty(), TenderRequirements.missingSentinel(), List.of(), Set.of());
         assertThat(result).isPresent();
-        assertThat(result.orElseThrow().status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.orElseThrow().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 
     @Test
@@ -136,11 +135,10 @@ class Report147ResponsivenessRegressionTest {
         var result = SemanticRulesLane.deterministicOutcome(BidQualityCheckItem.RESPONSIVENESS_REVIEW,
                 bid, DocumentContent.empty(), TenderRequirements.missingSentinel(), List.of(), Set.of());
         assertThat(result).isPresent();
-        assertThat(result.orElseThrow().status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.orElseThrow().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 
     @Test
-    @EnabledIfSystemProperty(named = "xiyu.responsiveness.known-defects", matches = "true")
     void bidderSuppliedRequirementMustNotReplaceTenderRequirement() {
         var tender = DocumentContent.fromText("tender.docx", "tender", "真实招标要求交货期30天。");
         var bid = DocumentContent.fromText("bid.docx", "bid", """
@@ -182,7 +180,6 @@ class Report147ResponsivenessRegressionTest {
     }
 
     @Test
-    @EnabledIfSystemProperty(named = "xiyu.responsiveness.known-defects", matches = "true")
     void bidderValueIsNotMatchedBySubstringOfDifferentTenderValue() {
         var tender = DocumentContent.fromText("tender.docx", "tender", "质保期不得少于15天。");
         var bid = DocumentContent.fromText("bid.docx", "bid", """

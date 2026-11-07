@@ -1,5 +1,5 @@
 // Input: 投标文件 DocumentContent
-// Output: QualityCheckItemResult（各项分项合规结果）
+// Output: QualityCheckItemResult（各项分项合规结果；否定清单中自身谓语起点否定才豁免，未知自身语境待确认）
 // Pos: compliance/domain/policy/ - 分项合规与附件清单规则策略（纯核心，含承诺书签章反假）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -19,75 +19,55 @@ public final class SubItemAndAttachmentRules {
     private static final Pattern SENSITIVE_VETO_PATTERN = Pattern.compile(
             "(转包|违法分包|串通投标|围标|弄虚作假|挂靠资质|以他人名义投标|自愿放弃中标资格|拒绝承担质保责任)"
     );
-    private static final List<String> NEGATION_PREFIXES = List.of(
-            "承诺不", "严禁", "不得", "不进行", "不含", "不存在", "没有", "无任何",
-            "杜绝", "防范", "禁止", "坚决抵制", "零", "未", "无", "不"
-    );
-
     private SubItemAndAttachmentRules() {
     }
 
     public static QualityCheckItemResult checkDocumentCompleteness(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.DOCUMENT_COMPLETENESS;
-        if (bidDoc.pages().size() >= 3) {
-            BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "目录", "目 录");
-            List<QualityEvidence> evidences = match != null
-                    ? List.of(QualityEvidence.bid("目录页", match.pageNumber(), BasicInfoCheckPolicy.snippet(match.text(), 200)))
-                    : Collections.emptyList();
-            return QualityCheckItemResult.pass(item, "投标文件结构完整（共 " + bidDoc.pages().size() + " 页），包含目录与主要正文章节", evidences);
+        if (bidDoc.fullText().isBlank()) {
+            return QualityCheckItemResult.fail(item, "投标文件文本为空，无法核对组成", "请上传完整可读取的投标文件", Collections.emptyList());
         }
-        return QualityCheckItemResult.fail(item, "投标文件页数过少（少于3页），可能缺少正文或组成卷册", "请检查并上传完整的投标文件正文分卷", Collections.emptyList());
+        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "目录", "目 录");
+        List<QualityEvidence> evidences = match == null ? List.of() : List.of(QualityEvidence.bid(
+                "目录定位线索", match.pageNumber(), BasicInfoCheckPolicy.snippet(match.text(), 200)));
+        return ManualReasons.manual(item, ManualReasons.EVIDENCE_INSUFFICIENT,
+                "已读取投标文件文本，但文本片段数量不能证明招标要求的全部卷册与章节齐全",
+                "请对照招标文件的组成清单逐项核对卷册、章节及图片附件", evidences);
     }
 
     public static QualityCheckItemResult checkTemplateFormat(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.TEMPLATE_FORMAT;
-        if (!bidDoc.fullText().isBlank()) {
-            return QualityCheckItemResult.pass(item, "排版与章节层次清晰，符合一般投标文档格式规范", Collections.emptyList());
+        if (bidDoc.fullText().isBlank()) {
+            return QualityCheckItemResult.fail(item, "文本为空，无法核对格式", "请上传可读取的投标文件", Collections.emptyList());
         }
-        return QualityCheckItemResult.fail(item, "文本为空，格式不符合规范", "请重新生成并检查排版格式", Collections.emptyList());
+        return ManualReasons.manual(item, ManualReasons.EVIDENCE_INSUFFICIENT,
+                "已读取正文文字，文本抽取结果不包含可验证的字体、字号、页边距和版式信息",
+                "请对照招标模板在原始文件中核对字体、字号、页边距及页码", Collections.emptyList());
     }
 
     public static QualityCheckItemResult checkVetoKeyword(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.VETO_KEYWORD;
         List<QualityEvidence> hits = new ArrayList<>();
+        List<QualityEvidence> uncertain = new ArrayList<>();
         for (DocumentContent.PageContent page : bidDoc.pages()) {
             String text = page.text();
             Matcher m = SENSITIVE_VETO_PATTERN.matcher(text);
             while (m.find()) {
-                if (isNegatedOrCommitment(text, m.start())
-                        || RuleCitationContext.isRuleCitation(text, m.start(), m.end())) {
-                    // 正向承诺或否定语境（如「严禁转包」「承诺不违法分包」「无弄虚作假」），予以豁免
-                    continue;
-                }
-                hits.add(QualityEvidence.bid("废标敏感词命中", page.pageNumber(),
-                        "命中词: [" + m.group() + "]，上下文: " + BasicInfoCheckPolicy.snippetAt(text, m.start(), m.end(), 150)));
+                var context = RuleCitationContext.sensitiveContext(text, m.start(), m.end(), SENSITIVE_VETO_PATTERN);
+                if (context == RuleCitationContext.SensitiveContext.DENIED
+                        || context == RuleCitationContext.SensitiveContext.REFERENCE) continue;
+                var evidence = QualityEvidence.bid("敏感词原位事实", page.pageNumber(),
+                        BasicInfoCheckPolicy.snippetAt(text, m.start(), m.end(), 150));
+                if (context == RuleCitationContext.SensitiveContext.AFFIRMED) hits.add(evidence);
+                else uncertain.add(evidence);
             }
         }
+        if (hits.isEmpty() && !uncertain.isEmpty()) return ManualReasons.manual(item, ManualReasons.AMBIGUOUS,
+                "敏感词与自身事实尚未可靠绑定", "请核对原始条目是条件引用还是实际情况陈述", uncertain);
         if (hits.isEmpty()) {
             return QualityCheckItemResult.pass(item, "未扫描到任何废标、转包、挂靠等高危违规关键词（正向履约承诺已合规核验）", Collections.emptyList());
         }
         return QualityCheckItemResult.fail(item, "在投标文件中扫描到 " + hits.size() + " 处高危/废标敏感词！", "请立刻在标书中排查并删除相关敏感词句", hits);
-    }
-
-    /** 检查匹配命中点是否处于否定/承诺豁免前缀语境（如「严禁转包」「承诺不违法分包」「杜绝弄虚作假与串通投标」）. */
-    private static boolean isNegatedOrCommitment(final String text, final int matchStart) {
-        if (text == null || matchStart <= 0) {
-            return false;
-        }
-        int lookbackStart = Math.max(0, matchStart - 20);
-        for (int i = matchStart - 1; i >= lookbackStart; i--) {
-            if ("。；;！!？?\n".indexOf(text.charAt(i)) >= 0) {
-                lookbackStart = i + 1;
-                break;
-            }
-        }
-        String prefix = text.substring(lookbackStart, matchStart);
-        for (String negation : NEGATION_PREFIXES) {
-            if (prefix.contains(negation)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public static QualityCheckItemResult checkCommitmentSeal(final DocumentContent bidDoc) {
@@ -106,7 +86,6 @@ public final class SubItemAndAttachmentRules {
     public static QualityCheckItemResult checkBidOpeningTable(final DocumentContent bidDoc) {
         return BidOpeningTableCheckPolicy.check(bidDoc);
     }
-
 
     public static QualityCheckItemResult checkDepositReceipt(final DocumentContent bidDoc) {
         return checkDepositReceipt(bidDoc, (String) null);

@@ -281,6 +281,7 @@ class QualityEvidenceBoundaryTest {
             var result = SemanticEvidenceBoundary.reconcile(pass, DocumentContent.empty());
             assertThat(result.status()).as(item.getCode()).isEqualTo(
                     item == BidQualityCheckItem.QUALIFICATION_REVIEW || item == BidQualityCheckItem.QUALIFICATION_VETO
+                            || item == BidQualityCheckItem.ID_AUTH_LETTER
                             ? QualityCheckStatus.MANUAL_REVIEW : QualityCheckStatus.PASS);
         }
     }

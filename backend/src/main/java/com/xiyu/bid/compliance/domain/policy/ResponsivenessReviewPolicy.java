@@ -201,7 +201,8 @@ public final class ResponsivenessReviewPolicy {
     }
 
     public static QualityCheckItemResult check(final DocumentContent bidDoc, final DocumentContent tenderDoc) {
-        return ResponsivenessRuleCitation.check(bidDoc, tenderDoc);
+        return ResponsivenessRequirementEvidencePolicy.reconcile(
+                ResponsivenessRuleCitation.check(bidDoc, tenderDoc), bidDoc, tenderDoc);
     }
 
     private static List<DocumentContent.PageContent> findCandidatePages(final DocumentContent bidDoc) {

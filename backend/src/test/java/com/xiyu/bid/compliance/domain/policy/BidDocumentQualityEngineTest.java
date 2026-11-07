@@ -137,8 +137,8 @@ class BidDocumentQualityEngineTest {
     }
 
     @Test
-    @DisplayName("实质性响应回归：标书自述\"无负偏离/无不满足\"时不应误判 FAIL，应判定 PASS")
-    void testResponsivenessReview_WhenExplicitlyNoDeviation_Passes() {
+    @DisplayName("实质性响应回归：仅自述无偏离但缺少招标原文时保留人工核对")
+    void testResponsivenessReview_WhenOnlyNoDeviationClaim_RequiresSource() {
         String bidContent = "偏离表：付款方式无负偏离，无不满足项。";
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
 
@@ -151,7 +151,7 @@ class BidDocumentQualityEngineTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(respResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(respResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(respResult.conclusion()).doesNotContain("存在实质性负偏离");
     }
 
@@ -193,12 +193,12 @@ class BidDocumentQualityEngineTest {
         assertThat(vetoResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(vetoResult.conclusion()).contains("[REFERENCE_MISSING]");
 
-        // 独立项（实质性响应）不受哨兵态影响，照常裁决
+        // 缺少招标原文时，投标人无偏离声明不能独立证明完整响应
         QualityCheckItemResult respResult = results.stream()
                 .filter(r -> r.itemCode().equals(BidQualityCheckItem.RESPONSIVENESS_REVIEW.getCode()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(respResult.status()).isNotEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(respResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(respResult.conclusion()).doesNotContain("[REFERENCE_MISSING]");
     }
 
@@ -608,8 +608,8 @@ class BidDocumentQualityEngineTest {
     }
 
     @Test
-    @DisplayName("身份证明强凭证直通测试：标书具备包含18位身份证号与有效期限等要素的真实证明时，直通 PASS 坚决不调用 LLM")
-    void testEvaluateAll_WhenIdAuthPass_BypassesLlmAdjudication() {
+    @DisplayName("身份证明文字要素不能证明图像齐全；模型PASS也须保留人工")
+    void testEvaluateAll_WhenOnlyIdTextProvided_CannotCertifyImages() {
         String idPage = """
                 法定代表人身份证明
                 投标人名称：上海西域数智供应链有限公司
@@ -644,10 +644,10 @@ class BidDocumentQualityEngineTest {
                 .orElseThrow();
 
         assertThat(llmIdCallCount.get())
-                .as("标书已包含要素齐全的真实身份证明与有效身份证件时，坚决不调 LLM，防止抖动与浪费")
-                .isEqualTo(0);
-        assertThat(idResult.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(idResult.conclusion()).contains("已包含有效身份证明与身份证扫描件");
+                .as("文本存在身份证号码时仍不能证明图像完整")
+                .isEqualTo(1);
+        assertThat(idResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(idResult.conclusion()).contains("不能证明证件正反面齐全");
         assertThat(idResult.evidences()).isNotEmpty();
     }
 
