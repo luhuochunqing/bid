@@ -1,5 +1,5 @@
 // Input: 标书文档 + 招标文件 + TenderRequirements + 知识库证据
-// Output: Optional<QualityCheckItemResult>（字段内明确占位/违规分包 FAIL及原位证据，证书同页具备编号与有效期实证时 PASS，仅名称命中转人工确认）
+// Output: Optional<QualityCheckItemResult>（字段内明确占位/违规分包 FAIL及原位证据，只在原始标书入口清洗 HTML 标签，证书同页具备编号与有效期实证时 PASS，仅名称命中转人工确认，证据复用实际命中原始页）
 // Pos: compliance/domain/policy/ - 标书一票否决与资格前置反假核验策略（纯核心，FP-Java 无外部依赖）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -78,7 +78,7 @@ public final class QualificationVetoPolicy {
         // 3. 证书定位参考，不以关键词命中或未命中判定完整资格结论
         if (requirements != null && !requirements.mandatoryQualifications().isEmpty()) {
             Optional<QualityCheckItemResult> qualResult = checkCertificateReferences(
-                    bidDoc, validPages, tenderDoc, requirements, kbEvidences);
+                    validPages, tenderDoc, requirements, kbEvidences);
             if (qualResult.isPresent()) {
                 return qualResult;
             }
@@ -132,7 +132,6 @@ public final class QualificationVetoPolicy {
     }
 
     private static Optional<QualityCheckItemResult> checkCertificateReferences(
-            final DocumentContent bidDoc,
             final List<EvidenceTextSlice> validPages,
             final DocumentContent tenderDoc,
             final TenderRequirements requirements,
@@ -151,6 +150,7 @@ public final class QualificationVetoPolicy {
             return Optional.empty();
         }
 
+        List<QualityEvidence> bidEvidences = new ArrayList<>();
         List<String> satisfied = new ArrayList<>();
         List<String> unsatisfied = new ArrayList<>();
         boolean allHaveSubstantiveFacts = true;
@@ -160,14 +160,19 @@ public final class QualificationVetoPolicy {
             String normClean = normalize(cleanCert);
             String normRaw = normalize(qualification);
             List<EvidenceTextSlice> matchedPages = validPages.stream()
-                    .filter(p -> p.text() != null && (normalize(p.text()).contains(normClean)
-                            || normalize(p.text()).contains(normRaw)))
+                    .filter(p -> {
+                        String page = normalize(QualificationConditionExtractor.stripHtml(p.text()));
+                        return p.text() != null && (page.contains(normClean) || page.contains(normRaw));
+                    })
                     .toList();
             if (!matchedPages.isEmpty()) {
                 satisfied.add(qualification);
-                if (matchedPages.stream().noneMatch(p -> SemanticEvidenceBoundary.hasSubstantiveCertificateFacts(p.text()))) {
-                    allHaveSubstantiveFacts = false;
-                }
+                EvidenceTextSlice proof = matchedPages.stream()
+                        .filter(p -> SemanticEvidenceBoundary.hasSubstantiveCertificateFacts(p.text()))
+                        .findFirst().orElse(null);
+                if (proof == null) allHaveSubstantiveFacts = false;
+                EvidenceTextSlice hit = proof == null ? matchedPages.getFirst() : proof;
+                bidEvidences.add(QualityEvidence.bid("标书资质响应证明", hit.pageNumber(), hit.text()));
             } else {
                 unsatisfied.add(qualification);
                 allHaveSubstantiveFacts = false;
@@ -177,7 +182,7 @@ public final class QualificationVetoPolicy {
         if (!unsatisfied.isEmpty()) {
             List<QualityEvidence> evidences = new ArrayList<>();
             if (tenderDoc != null) {
-                evidences.add(EvidenceAssembler.locateTender(tenderDoc, "招标文件资质要求", unsatisfied));
+                evidences.add(locateRawTender(tenderDoc, unsatisfied));
             }
             if (kbEvidences != null) {
                 evidences.addAll(kbEvidences);
@@ -193,11 +198,9 @@ public final class QualificationVetoPolicy {
 
         List<QualityEvidence> evidences = new ArrayList<>();
         if (tenderDoc != null) {
-            evidences.add(EvidenceAssembler.locateTender(tenderDoc, "招标文件资质要求", satisfied));
+            evidences.add(locateRawTender(tenderDoc, satisfied));
         }
-        if (bidDoc != null) {
-            evidences.add(EvidenceAssembler.locateBidSkippingCatalog(bidDoc, "标书资质响应证明", satisfied));
-        }
+        evidences.addAll(bidEvidences.stream().distinct().toList());
         if (allHaveSubstantiveFacts) {
             return Optional.of(QualityCheckItemResult.pass(
                     BidQualityCheckItem.QUALIFICATION_VETO,
@@ -211,6 +214,17 @@ public final class QualificationVetoPolicy {
                 conclusion,
                 "请对照招标资格审查清单核验主体、财务、信用、业绩、纳税社保及相关证明；资质库命中不能替代本次投标证明材料核验",
                 evidences));
+    }
+
+    /** 比较只解码原始页一次；证据直接保留该页原文，不再用清洗文本反查原文。 */
+    private static QualityEvidence locateRawTender(final DocumentContent doc, final List<String> requirements) {
+        for (EvidenceTextSlice page : EvidenceTextSlice.from(doc)) {
+            String clean = normalize(QualificationConditionExtractor.stripHtml(page.text()));
+            if (requirements.stream().anyMatch(r -> !normalize(r).isBlank() && clean.contains(normalize(r)))) {
+                return QualityEvidence.tender("招标文件资质要求", page.pageNumber(), page.text());
+            }
+        }
+        return QualityEvidence.tender("招标文件资质要求", null, "");
     }
 
     static String stripQualificationPrefix(final String text) {
@@ -252,6 +266,6 @@ public final class QualificationVetoPolicy {
     }
 
     private static String normalize(final String text) {
-        return text == null ? "" : NORMALIZE_PATTERN.matcher(text).replaceAll("");
+        return text == null ? "" : NORMALIZE_PATTERN.matcher(text.trim()).replaceAll("");
     }
 }

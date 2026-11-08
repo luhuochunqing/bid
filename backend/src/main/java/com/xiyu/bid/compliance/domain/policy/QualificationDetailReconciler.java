@@ -1,5 +1,5 @@
 // Input: 原始裁决结果（QualityCheckItemResult）+ 资质比对结构化明细（List<QualificationDetail>）
-// Output: 状态与明细一致性校准后的 QualityCheckItemResult（纯核心，FP-Java 纯函数）
+// Output: 状态与明细一致性校准后的 QualityCheckItemResult（纯核心，FP-Java 纯函数，文案人性化消除技术术语）
 // Pos: compliance/domain/policy/ - 资质比对明细与总项裁决状态一致性校准器
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -60,11 +60,27 @@ public final class QualificationDetailReconciler {
         List<QualificationDetail> references = entries.stream()
                 .map(d -> !requirements.isUnresolvedCertificateRequirement(d.requirement()) ? d : new QualificationDetail(d.requirement(), d.matchedCertName(),
                         "ATTENTION", d.bidPageNumber(), d.bidQuote(), d.remainingDays(),
-                        "[UNKNOWN] 条件强制性或作用对象待确认；原检索状态=" + d.status() + "；" + d.remark(), d.finding())).toList();
+                        formatUnresolvedRemark(d), d.finding())).toList();
         var pending = QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
                 "证书条件适用范围尚未确认，资料检索不能证明资格满足或缺失", "请按原文逐项确认", raw.evidences());
         List<QualificationDetail> known = entries.stream().filter(d -> !requirements.isUnresolvedCertificateRequirement(d.requirement())).toList();
         return reconcileMaterialFacts(pending, known).withDetails(references);
+    }
+
+    private static String formatUnresolvedRemark(final QualificationDetail d) {
+        String baseRemark = d.remark();
+        String prefix = "条件适用范围或作用对象待确认";
+        if (baseRemark.isBlank()) return prefix;
+        if (baseRemark.contains("已匹配") || baseRemark.contains("未检索") || baseRemark.contains("未匹配") || baseRemark.contains("已在标书")) {
+            return prefix + "；" + baseRemark;
+        }
+        String statusDesc = switch (d.status()) {
+            case "MATCHED" -> "资质库已匹配有效证书";
+            case "UNMATCHED" -> "资质库未检索到对应有效证书";
+            case "EXPIRED" -> "资质库对应证书已过期";
+            default -> "需人工核对";
+        };
+        return prefix + "；" + statusDesc + "；" + baseRemark;
     }
 
     private QualificationDetailReconciler() {
@@ -99,9 +115,7 @@ public final class QualificationDetailReconciler {
     public static QualityCheckItemResult reconcile(
             final QualityCheckItemResult rawResult,
             final List<QualificationDetail> details) {
-        if (rawResult == null) {
-            return null;
-        }
+        if (rawResult == null) return null;
         if (!BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(rawResult.itemCode())) {
             return details == null || details.isEmpty() ? rawResult : rawResult.withDetails(details);
         }
@@ -206,78 +220,51 @@ public final class QualificationDetailReconciler {
                 conclusion, suggestion, rawResult.evidences(), checked);
     }
 
-    /**
-     * 清洗降级为人工复核结论中的陈述冲突短语（避免前称待核实、后称匹配通过）.
-     */
+    /** 清洗降级为人工复核结论中的陈述冲突短语（避免前称待核实、后称匹配通过）. */
     static String cleansePassPhrasesForManual(final String rawConclusion) {
-        if (rawConclusion == null || rawConclusion.isBlank()) {
-            return "";
-        }
-        String text = rawConclusion
+        if (rawConclusion == null || rawConclusion.isBlank()) return "";
+        return rawConclusion
                 .replaceAll("，?\\s*完全满足招标文件的硬性资格要求", "，硬性证明材料已在标书中呈现，但需结合资质状态人工复核")
-                .replaceAll("，?\\s*资质匹配通过[。]?", "，建议人工复核确认。");
-        return text.replaceAll("，+", "，").replaceAll("。+", "。").replaceAll("，。", "。");
+                .replaceAll("，?\\s*资质匹配通过[。]?", "，建议人工复核确认。")
+                .replaceAll("，+", "，").replaceAll("。+", "。").replaceAll("，。", "。");
     }
 
-    /**
-     * 清洗降级为失败结论中的通过类表述.
-     */
+    /** 清洗降级为失败结论中的通过类表述. */
     static String cleansePassPhrasesForFail(final String rawConclusion) {
-        if (rawConclusion == null || rawConclusion.isBlank()) {
-            return "";
-        }
-        String text = rawConclusion
+        if (rawConclusion == null || rawConclusion.isBlank()) return "";
+        return rawConclusion
                 .replaceAll("，?\\s*完全满足招标文件的硬性资格要求", "，硬性资质未能完全满足")
-                .replaceAll("，?\\s*资质匹配通过[。]?", "，存在实质性偏离或废标风险。");
-        return text.replaceAll("，+", "，").replaceAll("。+", "。").replaceAll("，。", "。");
+                .replaceAll("，?\\s*资质匹配通过[。]?", "，存在实质性偏离或废标风险。")
+                .replaceAll("，+", "，").replaceAll("。+", "。").replaceAll("，。", "。");
     }
 
-    /**
-     * 为招标文件资质要求提取标书检索候选关键词（纯函数，剥离括号注释与长句说明）.
-     */
+    /** 为招标文件资质要求提取标书检索候选关键词（纯函数，剥离括号注释与长句说明）. */
     public static List<String> buildBidSearchCues(final String req) {
-        if (req == null || req.isBlank()) {
-            return Collections.emptyList();
-        }
+        if (req == null || req.isBlank()) return Collections.emptyList();
         List<String> cues = new ArrayList<>();
         String trimmed = req.trim();
         cues.add(trimmed);
         String strippedPrefix = QualificationVetoPolicy.stripQualificationPrefix(trimmed);
-        if (!strippedPrefix.isBlank() && !cues.contains(strippedPrefix)) {
-            cues.add(strippedPrefix);
-        }
+        if (!strippedPrefix.isBlank() && !cues.contains(strippedPrefix)) cues.add(strippedPrefix);
 
         // 剥离中文/英文括号及内部注释
         String strippedBrackets = trimmed.replaceAll("[（(][^）)]*[）)]", "").trim();
-        if (!strippedBrackets.isBlank() && !strippedBrackets.equals(trimmed)) {
-            cues.add(strippedBrackets);
-        }
+        if (!strippedBrackets.isBlank() && !strippedBrackets.equals(trimmed)) cues.add(strippedBrackets);
         String strippedCore = strippedPrefix.replaceAll("[（(][^）)]*[）)]", "").trim();
-        if (!strippedCore.isBlank() && !cues.contains(strippedCore)) {
-            cues.add(strippedCore);
-        }
+        if (!strippedCore.isBlank() && !cues.contains(strippedCore)) cues.add(strippedCore);
 
         // 按逗号/分号截取前导主体名称
         String targetForSplit = strippedBrackets.isBlank() ? trimmed : strippedBrackets;
         String[] parts = targetForSplit.split("[,，;；]");
-        if (parts.length > 0 && !parts[0].isBlank()) {
-            String firstPart = parts[0].trim();
-            if (!cues.contains(firstPart)) {
-                cues.add(firstPart);
-            }
+        if (parts.length > 0 && !parts[0].isBlank() && !cues.contains(parts[0].trim())) {
+            cues.add(parts[0].trim());
         }
 
         // 针对常见银行与主体证明材料提取关键名词
-        if (trimmed.contains("基本存款账户") && !cues.contains("基本存款账户")) {
-            cues.add("基本存款账户");
-        }
-        if (trimmed.contains("开户许可证") && !cues.contains("开户许可证")) {
-            cues.add("开户许可证");
-        }
+        if (trimmed.contains("基本存款账户") && !cues.contains("基本存款账户")) cues.add("基本存款账户");
+        if (trimmed.contains("开户许可证") && !cues.contains("开户许可证")) cues.add("开户许可证");
         if ((trimmed.contains("开户许可证") || trimmed.contains("基本存款账户") || trimmed.contains("开户证明"))
-                && !cues.contains("开户证明")) {
-            cues.add("开户证明");
-        }
+                && !cues.contains("开户证明")) cues.add("开户证明");
 
         return Collections.unmodifiableList(cues);
     }

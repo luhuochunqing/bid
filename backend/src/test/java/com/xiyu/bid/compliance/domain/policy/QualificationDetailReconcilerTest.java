@@ -232,7 +232,9 @@ class QualificationDetailReconcilerTest {
         var result = QualificationDetailReconciler.reconcile(raw, List.of(detail), req);
         assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(result.details().get(0).status()).isEqualTo("ATTENTION");
-        assertThat(result.details().get(0).remark()).contains("UNKNOWN", "UNMATCHED");
+        assertThat(result.details().get(0).remark())
+                .contains("条件适用范围或作用对象待确认", "未检索到")
+                .doesNotContain("UNKNOWN", "UNMATCHED");
     }
 
     private QualityCheckItemResult createRawPassResult() {

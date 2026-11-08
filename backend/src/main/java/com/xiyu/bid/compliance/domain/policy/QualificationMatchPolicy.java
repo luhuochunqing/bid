@@ -1,4 +1,4 @@
-// Input: 招标资质要求列表/企业资质库/投标文件内容/参考日期
+// Input: 招标资质要求列表/企业资质库/投标文件内容/参考日期（原始匹配入口解码，结构化条件不重复解码）
 // Output: QualificationDetail 结构化比对明细列表（纯核心，FP-Java 纯函数）与第一阶段确定性核验
 // Pos: compliance/domain/policy/ - 资质匹配纯核心算法与比对清单生成
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -43,15 +43,14 @@ public final class QualificationMatchPolicy {
             "安全生产许可", "营业执照", "一般纳税人", "高新技术企业", "专精特新", "重合同守信用",
             "一级建造师", "二级建造师", "造价工程师", "监理工程师", "特种作业", "增值电信", "电信业务",
             "互联网信息服务", "在线数据处理与交易", "信息安全等级保护", "等保", "等保三级");
-    private QualificationMatchPolicy() {
+    private QualificationMatchPolicy() { }
+    /** 直接匹配已解码的条件与证书名称（与 findBestMatchingCert 保持一致，不执行重复解码）. */
+    public static boolean isQualificationMatch(final String req, final String certName) { return calculateMatchScore(req, certName) > 0; }
+    /** 原始文本兼容入口：针对未清洗的原始 HTML 文本执行单次清洗后再比对. */
+    public static boolean isRawQualificationMatch(final String rawReq, final String certName) {
+        return isQualificationMatch(QualificationConditionExtractor.stripHtml(rawReq), QualificationConditionExtractor.stripHtml(certName));
     }
-    public static boolean isQualificationMatch(final String req, final String certName) {
-        return calculateMatchScore(req, certName) > 0;
-    }
-    public static boolean checkLevelCompatibility(final String req, final String cert) {
-        return QualificationGradePolicy.isGradeCompatible(req, cert);
-    }
-
+    public static boolean checkLevelCompatibility(final String req, final String cert) { return QualificationGradePolicy.isGradeCompatible(req, cert); }
     static int calculateMatchScore(final String req, final String certName) {
         return QualificationGradePolicy.isGradeCompatible(req, certName) ? calculateBaseMatchScore(req, certName) : 0;
     }

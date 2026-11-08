@@ -177,7 +177,7 @@ class R6SemanticBoundaryTest {
         var result = QualificationDetailReconciler.reconcile(raw, List.of(detail), req, doc);
         assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(result.details().get(0).status()).isEqualTo("ATTENTION");
-        assertThat(result.details().get(0).remark()).contains("[UNKNOWN]");
+        assertThat(result.details().get(0).remark()).contains("条件适用范围或作用对象待确认").doesNotContain("[UNKNOWN]");
     }
     @Test
     void conflictingActualShortfallCannotPass() {

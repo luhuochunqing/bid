@@ -20,6 +20,163 @@ import static org.assertj.core.api.Assertions.assertThat;
 class Quality1360UnblockTest {
 
     @Test
+    void headinglessHtmlRequirementIsCleanedBeforeFusionAndMatching() {
+        String raw = "具有EDI和<br>ICP许可证";
+        var tender = DocumentContent.fromText("tender.pdf", "hash", raw);
+        var requirements = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tender);
+
+        assertThat(requirements.certificateRequirements()).containsExactly("具有EDI和ICP许可证");
+        assertThat(requirements.qualificationConditions().getFirst().source().quote()).isEqualTo(raw);
+        assertThat(QualificationMatchPolicy.isQualificationMatch(
+                requirements.certificateRequirements().getFirst(), "EDI和ICP许可证")).isTrue();
+        var bid = DocumentContent.fromText("bid.pdf", "bid_hash",
+                "EDI和ICP许可证\n证书编号：B2-20200044\n有效期限：2025年7月4日至2030年3月28日");
+        assertThat(QualificationVetoPolicy.checkFirstStage(bid, tender, requirements, List.of()))
+                .hasValueSatisfying(result -> assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS));
+    }
+
+    @Test
+    void headinglessEntitiesAreDecodedOnceAndKeepOriginalEvidence() {
+        String raw = "投标人须具有ISO9001&amp;#49;认证";
+        var requirements = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(),
+                DocumentContent.fromText("tender.pdf", "hash", raw));
+
+        assertThat(requirements.certificateRequirements()).containsExactly("投标人须具有ISO9001&#49;认证");
+        assertThat(requirements.qualificationConditions().getFirst().source().quote()).isEqualTo(raw);
+        assertThat(QualificationMatchPolicy.isQualificationMatch(
+                requirements.certificateRequirements().getFirst(), "ISO90011认证")).isFalse();
+        assertThat(QualificationMatchPolicy.isQualificationMatch(
+                requirements.certificateRequirements().getFirst(), "ISO9001&#49;认证")).isTrue();
+    }
+
+    @Test
+    void encodedMarkupSurvivesParagraphClassification() {
+        var conditions = QualificationConditionExtractor.extractStructured(DocumentContent.fromText(
+                "tender.pdf", "hash", "七、投标人资格要求\n投标人须具有ISO&lt;b&gt;9001认证"));
+        assertThat(conditions).hasSize(1);
+        assertThat(conditions.getFirst().text()).isEqualTo("投标人须具有ISO<b>9001认证");
+        assertThat(conditions.getFirst().certificates()).extracting(QualificationCondition.CertificateRequirement::requirementText)
+                .containsExactly("投标人须具有ISO<b>9001认证");
+    }
+
+    @Test
+    void encodedMarkupSurvivesTableAndRequirementsReconstruction() {
+        var document = DocumentContent.fromText("tender.pdf", "hash",
+                "七、投标人资格要求\n| 序号 | 资格要求 |\n| 1 | 投标人须具有ISO&lt;b&gt;9001认证及A&amp;lt;B认证 |");
+        var conditions = QualificationConditionExtractor.extractStructured(document);
+        assertThat(conditions).hasSize(1);
+        assertThat(conditions.getFirst().text()).isEqualTo("投标人须具有ISO<b>9001认证及A&lt;B认证");
+        var requirements = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), document);
+        for (int i = 0; i < 3; i++) {
+            requirements = requirements.withMergedQualifications(List.of("投标人须具有营业执照"));
+            assertThat(requirements.certificateRequirements()).contains("投标人须具有ISO<b>9001认证及A&lt;B认证");
+            assertThat(requirements.mandatoryQualifications()).doesNotContain("投标人须具有ISO9001认证及A<B认证");
+        }
+    }
+
+    @Test
+    void legacyRequirementsDecodeOnceBeforeReconstruction() {
+        var requirements = new TenderRequirements(List.of(), List.of("投标人须具有ISO&lt;b&gt;9001认证及A&amp;lt;B认证"),
+                List.of(), List.of(), List.of(), false);
+        requirements = requirements.withMergedQualifications(List.of("投标人须具有营业执照"));
+        assertThat(requirements.certificateRequirements()).contains("投标人须具有ISO<b>9001认证及A&lt;B认证");
+    }
+
+    @Test
+    void legacyRequirementsKeepRawQuoteAcrossReconstruction() {
+        String raw = "投标人须具有ISO&#57;001认证";
+        var requirements = new TenderRequirements(List.of(), List.of(raw), List.of(), List.of(), List.of(), false);
+        requirements = requirements.withMergedQualifications(List.of("投标人须具有营业执照"));
+        var condition = requirements.qualificationConditions().stream()
+                .filter(c -> c.text().equals("投标人须具有ISO9001认证")).findFirst().orElseThrow();
+        assertThat(condition.source().quote()).isEqualTo(raw);
+    }
+
+    @Test
+    void vetoHtmlMatchesRetainActualSubstantivePageAndRawQuotes() {
+        for (String raw : List.of("EDI和<br>ICP许可证", "ISO&#57;001认证")) {
+            String nameOnly = QualificationConditionExtractor.stripHtml(raw);
+            String bidText = raw + "\n证书编号：合字B2-20210088\n有效期限：2025年3月15日至2030年3月14日";
+            String tenderText = "投标人须具有" + raw;
+            var bid = new DocumentContent("bid.pdf", "bid", nameOnly + "\n" + bidText,
+                    List.of(new DocumentContent.PageContent(2, nameOnly, List.of()),
+                            new DocumentContent.PageContent(8, bidText, List.of())));
+            var tender = new DocumentContent("tender.pdf", "tender", tenderText,
+                    List.of(new DocumentContent.PageContent(6, tenderText, List.of())));
+            var requirements = new TenderRequirements(List.of(), List.of(tenderText), List.of(), List.of(), List.of(), false);
+            var result = QualificationVetoPolicy.checkFirstStage(bid, tender, requirements, List.of()).orElseThrow();
+            assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+            assertThat(result.evidences()).anySatisfy(e -> {
+                assertThat(e.sourceType()).isEqualTo("BID");
+                assertThat(e.pageNumber()).isEqualTo(8);
+                assertThat(e.quote()).contains(raw, "证书编号", "有效期限");
+                assertThat(bidText).contains(e.quote());
+            }).anySatisfy(e -> {
+                assertThat(e.sourceType()).isEqualTo("TENDER");
+                assertThat(e.pageNumber()).isEqualTo(6);
+                assertThat(e.quote()).contains(raw);
+                assertThat(tenderText).contains(e.quote());
+            });
+        }
+    }
+
+    @Test
+    void tableEvidenceLocatesCleanedBrAndNumericEntities() {
+        for (String raw : List.of("投标人须具有EDI和<br>ICP许可证", "投标人须具有ISO&#57;001认证")) {
+            var conditions = QualificationConditionExtractor.extractStructured(DocumentContent.fromText(
+                    "tender.pdf", "hash", "七、投标人资格要求\n| 序号 | 资格要求 |\n| 1 | " + raw + " |"));
+            var condition = conditions.getFirst();
+            assertThat(condition.certificates()).hasSize(1);
+            assertThat(condition.certificates().getFirst().cellIndex()).isEqualTo(2);
+            assertThat(condition.source().quote()).contains(raw);
+        }
+    }
+
+    @Test
+    void htmlCleaningPreservesQualificationComparisons() {
+        String condition = "注册资本<100万元不得投标，营业年限>3年";
+        assertThat(QualificationConditionExtractor.stripHtml(condition)).isEqualTo(condition);
+        assertThat(QualificationConditionExtractor.extract("七、投标人资格要求\n1. " + condition))
+                .containsExactly(condition);
+    }
+
+    @Test
+    void htmlEntitiesPreserveCertificateIdentity() {
+        String condition = "投标人须具有ISO&#57;001认证";
+        assertThat(QualificationConditionExtractor.stripHtml(condition)).isEqualTo("投标人须具有ISO9001认证");
+        var requirements = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(),
+                DocumentContent.fromText("tender.pdf", "hash", "七、投标人资格要求\n1. " + condition));
+        assertThat(requirements.certificateRequirements()).containsExactly("投标人须具有ISO9001认证");
+        String decodedReq = requirements.certificateRequirements().getFirst();
+        assertThat(QualificationMatchPolicy.isQualificationMatch(decodedReq, "ISO9001认证")).isTrue();
+        assertThat(QualificationMatchPolicy.isQualificationMatch(decodedReq, "ISO14001认证")).isFalse();
+        assertThat(QualificationMatchPolicy.isRawQualificationMatch(condition, "ISO9001认证")).isTrue();
+        assertThat(QualificationMatchPolicy.isRawQualificationMatch(condition, "ISO14001认证")).isFalse();
+    }
+
+    @Test
+    void structuredRequirementsDoNotSufferDoubleEntityDecodingInMatching() {
+        // 验证结构化条件在知识库比对路径上不发生二次解码（如 &amp;#49; -> &#49; 不再被错误吞成 1）
+        String rawTender = "七、投标人资格要求\n1. 投标人须具有ISO9001&amp;#49;认证";
+        var requirements = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(),
+                DocumentContent.fromText("tender.pdf", "hash", rawTender));
+        String decodedReq = requirements.certificateRequirements().getFirst();
+        assertThat(decodedReq).isEqualTo("投标人须具有ISO9001&#49;认证");
+        // 结构化匹配入口不进行二次解码，故与不同标准的 ISO90011 证书不匹配
+        assertThat(QualificationMatchPolicy.isQualificationMatch(decodedReq, "ISO90011认证")).isFalse();
+        assertThat(QualificationMatchPolicy.isQualificationMatch(decodedReq, "ISO9001&#49;认证")).isTrue();
+    }
+
+    @Test
+    void htmlCleaningDecodesEntitiesWithoutConsumingComparisons() {
+        assertThat(QualificationConditionExtractor.stripHtml(
+                "<span title=\"a>b\">注册资本&lt;100万元</span>，营业年限&gt;3年，ISO&#x39;001&amp;认证&nbsp;&quot;甲&quot;&apos;乙&apos;"))
+                .isEqualTo("注册资本<100万元，营业年限>3年，ISO9001&认证\u00a0\"甲\"'乙'");
+        assertThat(QualificationConditionExtractor.stripHtml("EDI和<BR />ICP；未知&unknown;"))
+                .isEqualTo("EDI和ICP；未知&unknown;");
+    }
+
+    @Test
     @DisplayName("TOC 目录行与后续章节附件不得污染资格条件提取")
     void tocAndLaterSectionsCannotPolluteQualificationConditions() {
         String tenderText = """
@@ -97,6 +254,50 @@ class Quality1360UnblockTest {
                 QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_MATCH, "资质匹配通过", List.of()),
                 details, req, bidDoc);
         assertThat(reconciled.status()).isEqualTo(QualityCheckStatus.PASS);
+    }
+
+    @Test
+    @DisplayName("招标文件表格中含 <br> HTML标签（如 EDI和<br>ICP）时，自动清洗标签，一票否决与资质匹配闭环 PASS 且备注无英文术语")
+    void htmlBrTagInTenderRequirementIsSanitizedAndProducesHumanizedRemark() {
+        String bidPage = """
+                第二章 投标人资格条件相关证明文件
+                四、西域具有有效的中华人民共和国增值电信业务经营许可证（EDI和ICP）
+                证书编号：合字B2-20210088
+                有效期限：自2021年3月15日至2026年3月14日
+                发证机关：中华人民共和国工业和信息化部
+                """;
+        DocumentContent bidDoc = new DocumentContent("bid.docx", "bid_hash", bidPage,
+                List.of(new DocumentContent.PageContent(2, bidPage, List.of())));
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "tender_hash",
+                "七、 投标人资格要求\n| 1 | 资格要求 | 具有有效的中华人民共和国增值电信业务经营许可证（EDI和<br>ICP） |");
+        TenderRequirements req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tenderDoc);
+
+        // 验证要求文字已清洗掉 <br>
+        assertThat(req.certificateRequirements()).hasSize(1);
+        assertThat(req.certificateRequirements().getFirst())
+                .doesNotContain("<br>")
+                .doesNotContain("<")
+                .doesNotContain(">");
+
+        // 一票否决闭环 PASS
+        Optional<QualityCheckItemResult> vetoResult = QualificationVetoPolicy.checkFirstStage(bidDoc, tenderDoc, req, List.of());
+        assertThat(vetoResult).isPresent();
+        assertThat(vetoResult.orElseThrow().status()).isEqualTo(QualityCheckStatus.PASS);
+
+        // 资质比对详情不含英文术语与 [UNKNOWN]
+        var detail = new QualificationDetail(req.certificateRequirements().getFirst(),
+                "中华人民共和国增值电信业务经营许可证 国家级", "MATCHED", 2, "第 2 页", 1236,
+                "已匹配企业资质库有效证书「中华人民共和国增值电信业务经营许可证 国家级」（有效期至 2030-03-28）");
+        var reconciled = QualificationDetailReconciler.reconcile(
+                QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_MATCH, "资质匹配", List.of()),
+                List.of(detail), req, bidDoc);
+
+        assertThat(reconciled.details()).hasSize(1);
+        String remark = reconciled.details().getFirst().remark();
+        assertThat(remark).doesNotContain("[UNKNOWN]");
+        assertThat(remark).doesNotContain("MATCHED");
+        assertThat(remark).doesNotContain("原检索状态=");
+        assertThat(remark).contains("已匹配企业资质库有效证书");
     }
 
     @Test
