@@ -8175,6 +8175,12 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - 差异表与响应性：支持无表格差异表“无差异/无任何差异”正向无偏离识别；正向识别“否则将按弄虚作假进行处罚”为合法规则警示；投标文件组成对具备商务与技术主章节的解除全员人工待确认；招标文件未提及保证金场景判定为【不涉及】放行；
 - 大体积 DOCX 关键页流式抽图与百度 OCR 接线：`DocxComplianceImageExtractor` 采用 `ZipFile` + StAX 按需流式抽取合规锚点后的图片并绑定非目录逻辑页码 `pageHint`，突破 600MB+ DOCX 在 Sidecar 的 64MB 媒体限制；`OpenAiDocumentPageVisionDetector` 优先调用已配置的 `BaiduTableOcrClient`，按单图级追踪成功状态并在单图失败时回退多模态视觉通道。
 
+2026-11-08 部署脚本预部署数据库备份 fail-closed 化（第 36/39 次生产部署假备份复发）：
+- **根因**：`mysqldump | gzip > file` 的管道退出码取 gzip 的成功状态；生产账号 `ea_bid_pro` 无 `LOCK TABLES` 权限（1044）时 mysqldump 失败但被掩盖，产出 371 字节假备份并打印 `DB backup done`，部署继续推进。
+- **修复**：新增 `scripts/release/backup-db-pre-deploy.sh`（`--single-transaction` + 失败即删半成品 + `gzip -t` / `Dump completed` 尾部 / 体积下限三重校验），`deploy-prod.sh` 与 `deploy-test.sh` 均改为上传到 `<APP_ROOT>/bin/` 后调用；失败返回非零，由 `remote-deploy.sh` 的 `set -e` 中止部署。
+- **通用教训**：部署前置步骤凡"写文件 + 管道"，必须显式校验执行者退出码与产物完整性，并 fail closed；回归契约必须含反向变异（把备份调用改成 `|| true` 后断言必须失败），否则断言易空转。
+- **环境实证**：生产与测试 mysqldump 均为 `5.5.68-MariaDB`，`--single-transaction` 两端可用（测试机 schema dump rc=0、221 表、含 `Dump completed`）；测试账号 `ea_bid` 具备 `LOCK TABLES`，故该缺陷在测试侧是潜伏态而非已触发。
+
 2026-11-08 项目1360 HTML标签污染治理与资质文案去技术化：
 - **HTML标签污染根因**: Sidecar（或文档解析引擎）将 DOCX/PDF 表格转换为 Markdown 单元格时，单元格内换行会生成 `<br>` 标签（如 `具有有效的中华人民共和国增值电信业务经营许可证（EDI和<br>ICP）`）。若直接粗暴剥离所有 `<` / `>`，会误伤数学与商业比较符（如 `<100万`、`>3年`）；若不清洗，提取出的关键词会变成 `EDI和brICP`，导致证书提取与资质一票否决匹配断链。
 - **治理范式**:
