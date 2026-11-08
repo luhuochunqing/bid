@@ -1741,3 +1741,7 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 2026-11-07经用户明确批准，报价纯结构收口：纸面义务原块提取为私有reconcileRequiredPaper，相邻同结果守卫合并；主方法5个return、私有方法2个return。匹配规则、文案、优先级、原文索引和测试预期不变；旧失败保留，最终以本轮新门禁及HEAD验收为准。
 
 2026-11-07用户继续执行响应性纯结构收口：合并两个返回原对象的相邻守卫，空值优先及短路顺序不变，6return降为5；无新方法、规则或测试变化。旧失败保留，新门禁通过后才交付。
+
+## [2026-11-08] deploy-script | 部署脚本两类陷阱回填
+
+第 261 次测试部署暴露两处根因：被 source 的 `session-gate.sh` 用 `exit 1` 杀掉调用方 shell，导致锚点分支早操链中断（!2978 修复）；`remote-deploy.sh` 整体替换前端资产目录删除旧 hash，触发 404 与 Sentry 噪声（!2979 修复）。回填 `.wiki/pages/deploy-script-sourced-exit-and-asset-retention.md` 并更新 `_index.md`。

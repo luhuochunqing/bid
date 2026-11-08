@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-11-05
-health_checked: 2026-11-05
+updated: 2026-11-08
+health_checked: 2026-11-08
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -62,6 +62,7 @@ backlinks:
 - [[data-analysis-revamp]] — 数据分析页面重构 — 架构与数据口径
 - [[data-model]] — 数据模型
 - [[data-permission-hardening]] — 项目数据权限修复收口
+- [[deploy-script-sourced-exit-and-asset-retention]] — 部署脚本两类陷阱（sourced 脚本 exit 杀调用方 shell / 前端 hash 资产整体替换导致 404）
 - [[deployment]] — 部署与上线
 - [[design-system]] — 设计系统基线
 - [[docinsight-engine]] — DocInsight 文档智能引擎
