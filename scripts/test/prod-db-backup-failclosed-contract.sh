@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # Input: none
-# Output: 生产部署数据库预备份 fail-closed 契约验证结果（失败即非零退出并打印明细）
+# Output: 部署前数据库预备份 fail-closed 契约验证结果（失败即非零退出并打印明细）
 # Pos: scripts/test/ - 发布脚本回归契约
 # 维护声明: 重放第 39 次生产部署（2026-11-07）事故：生产账号 ea_bid_pro 无 LOCK TABLES 权限，
 #           `mysqldump | gzip > file` 吞掉 mysqldump 退出码，产出 371 字节假备份且部署继续。
 #           本契约保证：备份失败必非零退出、必删除半成品、remote-deploy.sh 必中止部署；反向变异必须被拒绝。
+#           覆盖 scripts/release/deploy-prod.sh 与 deploy-test.sh 两个入口（两者曾共用同一内联命令）。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BACKUP_SCRIPT="$REPO_ROOT/scripts/release/backup-db-prod.sh"
+BACKUP_SCRIPT="$REPO_ROOT/scripts/release/backup-db-pre-deploy.sh"
 DEPLOY_SCRIPT="$REPO_ROOT/scripts/release/deploy-prod.sh"
+TEST_DEPLOY_SCRIPT="$REPO_ROOT/scripts/release/deploy-test.sh"
 REMOTE_DEPLOY="$REPO_ROOT/scripts/release/remote-deploy.sh"
 
 PASS_COUNT=0
@@ -67,11 +69,15 @@ assert_file_absent() {
 
 # --- 场景 0：脚本语法有效 ---
 bash -n "$BACKUP_SCRIPT"
-echo "[PASS] backup-db-prod.sh bash 语法有效"
+echo "[PASS] backup-db-pre-deploy.sh bash 语法有效"
 PASS_COUNT=$((PASS_COUNT + 1))
 
 bash -n "$DEPLOY_SCRIPT"
 echo "[PASS] deploy-prod.sh bash 语法有效"
+PASS_COUNT=$((PASS_COUNT + 1))
+
+bash -n "$TEST_DEPLOY_SCRIPT"
+echo "[PASS] deploy-test.sh bash 语法有效"
 PASS_COUNT=$((PASS_COUNT + 1))
 
 WORK="$(mktemp -d)"
@@ -240,12 +246,16 @@ BOUNDARY_RC=0
 assert_true "$([[ $BOUNDARY_RC -ne 0 ]] && echo 1 || echo 0)" "场景4反向验证: 同一组边界断言拒绝忽略备份失败"
 assert_contains "$(cat "$WORK/mutant-boundary.log")" "[FAIL] 场景4: 保留备份退出码7" "场景4反向验证: 失败原因是备份退出码丢失"
 
-# --- 场景 5：静态回归断言（防止内联管道回潮）---
+# --- 场景 5：静态回归断言（防止内联管道回潮，两个部署入口同时覆盖）---
 DEPLOY_CONTENT="$(cat "$DEPLOY_SCRIPT")"
+TEST_DEPLOY_CONTENT="$(cat "$TEST_DEPLOY_SCRIPT")"
 BACKUP_CONTENT="$(cat "$BACKUP_SCRIPT")"
-assert_contains "$DEPLOY_CONTENT" "backup-db-prod.sh" "场景5: deploy-prod.sh 调用独立备份脚本"
-assert_contains "$DEPLOY_CONTENT" 'backup-db-prod.sh" "$PROD_HOST:$PROD_APP_ROOT/bin/"' "场景5: 备份脚本上传到 bin/ 权威位置"
+assert_contains "$DEPLOY_CONTENT" "backup-db-pre-deploy.sh" "场景5: deploy-prod.sh 调用独立备份脚本"
+assert_contains "$DEPLOY_CONTENT" 'backup-db-pre-deploy.sh" "$PROD_HOST:$PROD_APP_ROOT/bin/"' "场景5: deploy-prod.sh 上传备份脚本到 bin/ 权威位置"
 assert_not_contains "$DEPLOY_CONTENT" 'mysqldump -h"${DB_HOST' "场景5: deploy-prod.sh 不再内联 mysqldump 管道"
+assert_contains "$TEST_DEPLOY_CONTENT" "backup-db-pre-deploy.sh" "场景5: deploy-test.sh 调用独立备份脚本"
+assert_contains "$TEST_DEPLOY_CONTENT" 'backup-db-pre-deploy.sh" "$TEST_HOST:$TEST_APP_ROOT/bin/"' "场景5: deploy-test.sh 上传备份脚本到 bin/ 权威位置"
+assert_not_contains "$TEST_DEPLOY_CONTENT" 'mysqldump -h"${DB_HOST' "场景5: deploy-test.sh 不再内联 mysqldump 管道"
 assert_contains "$BACKUP_CONTENT" "--single-transaction" "场景5: 备份脚本使用 --single-transaction"
 assert_contains "$BACKUP_CONTENT" "Dump completed" "场景5: 备份脚本校验 Dump completed"
 

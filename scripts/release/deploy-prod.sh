@@ -122,7 +122,7 @@ scp -o StrictHostKeyChecking=no "$RELEASE_ARCHIVE" "$PROD_HOST:$PROD_APP_ROOT/in
 scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/remote-deploy.sh" "$PROD_HOST:$PROD_APP_ROOT/incoming/"
 scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/smoke-sidecar.sh" "$PROD_HOST:$PROD_APP_ROOT/incoming/"
 # 预备份脚本上传到 bin/（权威位置）；scp 失败即中止部署（不吞错），避免远程调用缺失脚本
-scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/backup-db-prod.sh" "$PROD_HOST:$PROD_APP_ROOT/bin/"
+scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/backup-db-pre-deploy.sh" "$PROD_HOST:$PROD_APP_ROOT/bin/"
 scp -o StrictHostKeyChecking=no "$ROOT_DIR/backend/src/test/resources/scoreparse-golden/1371_tables_v1.json" "$PROD_HOST:$PROD_APP_ROOT/incoming/" 2>/dev/null || true
 scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/flyway-repair-runner.sh" "$PROD_HOST:$PROD_APP_ROOT/bin/" 2>/dev/null || true
 printf '✅ 上传完成\n\n'
@@ -140,8 +140,8 @@ DEPLOY_CMD="$DEPLOY_CMD HEALTHCHECK_URL='$PROD_HEALTHCHECK_URL'"
 DEPLOY_CMD="$DEPLOY_CMD SYSTEMCTL_SUDO=true"
 DEPLOY_CMD="$DEPLOY_CMD SKIP_FLYWAY_VALIDATE=$SKIP_FLYWAY_VALIDATE"
 # 每次部署自动备份数据库（来源：SOP xiyu-server-deploy SKILL.md 模板）。
-# backup-db-prod.sh 校验备份并清理半成品；失败返回非零，由 remote-deploy.sh 中止部署。
-DB_BACKUP_COMMAND="bash $PROD_APP_ROOT/bin/backup-db-prod.sh $RELEASE_ID"
+# backup-db-pre-deploy.sh 校验备份并清理半成品；失败返回非零，由 remote-deploy.sh 中止部署。
+DB_BACKUP_COMMAND="bash $PROD_APP_ROOT/bin/backup-db-pre-deploy.sh $RELEASE_ID"
 DEPLOY_CMD="$DEPLOY_CMD DB_BACKUP_COMMAND='$DB_BACKUP_COMMAND'"
 DEPLOY_CMD="$DEPLOY_CMD bash $PROD_APP_ROOT/incoming/remote-deploy.sh"
 

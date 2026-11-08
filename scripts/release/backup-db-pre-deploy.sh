@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Input: release id label; optional BACKEND_ENV_FILE (default /etc/xiyu-bid/backend.env), BACKUP_DIR, DB_BACKUP_MIN_BYTES, MYSQLDUMP_BIN
 # Output: complete gzip-compressed MySQL dump file; nonzero exit with partial file removed when the dump is unusable
-# Pos: scripts/release/ - Production deployment automation
+# Pos: scripts/release/ - Shared pre-deploy database backup（deploy-prod.sh / deploy-test.sh 共用）
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 #
-# 第 39 次生产部署（2026-11-07）事故重放防线：
+# 第 39 次生产部署（2026-11-07）事故重放防线（测试环境同款命令同样存在该缺陷）：
 # 生产账号 ea_bid_pro 无 LOCK TABLES 权限（1044），旧内联命令 `mysqldump | gzip > file`
 # 让 gzip 的成功状态吞掉 mysqldump 退出码，产出 371 字节"假备份"且部署继续。
 # 本脚本契约：任一环节失败必须返回非零并删除半成品，由 remote-deploy.sh（set -e）中止部署。
@@ -22,7 +22,7 @@ fail() {
   exit 1
 }
 
-[[ -n "$RELEASE_ID" ]] || fail "usage: backup-db-prod.sh <release-id>"
+[[ -n "$RELEASE_ID" ]] || fail "usage: backup-db-pre-deploy.sh <release-id>"
 [[ -r "$BACKEND_ENV_FILE" ]] || fail "backend env not readable: $BACKEND_ENV_FILE"
 
 # 复用生产后端同一份 DB 凭据，不在本脚本硬编码账号密码。
