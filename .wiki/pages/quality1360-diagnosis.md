@@ -212,3 +212,19 @@ PR结构收口仅移动报价句界定位4行，未改报价语义或BA14；按�
 - **结构恢复统一结论校验（fix 第2轮）**：仅有 status（含尾随逗号）或 status 与 suggestion 的无外层对象片段也必须返回 empty；空白、未闭合及非文本结论不得补成默认裁决。截断对象与字段片段统一在 `tryParseNode` 校验原始结论，完整合法对象保留原契约。长建议回归补齐真实完整结论，保留长字段及非法字段保护。新增用例先复现仅 status 被恢复为 PASS，再经离线无端口 Maven 验证：`Quality1360UnblockTest` 36 项、`QualificationVetoPolicyTest` 9 项全部通过；不代表线上重算或全量验收。
 
 - **身份覆盖与字段扫描修复（本次 fix 第1轮）**：证据归属由要求侧提取全部英文身份代码，引文必须完整覆盖且不得夹带其他代码；拒绝 ISO9001 要求对应无代码的“质量管理体系认证”，以及 EDI/ICP 组合要求仅覆盖其中之一或完全缺代码的记录。无英文代码证书仍独立按名称匹配，名称命中维持人工确认。原正向 EDI/ICP 用例补齐引文中的真实代码，原缺代码引文转为负向保护。字段片段扫描提取 `classifyFieldTail`，显式区分继续、结束、拒绝，保留迭代扫描、长字段与非法片段保护。修复前新增回归复现错误佐证；修复后 `mvn -q -o -f backend/pom.xml test -Dtest=Quality1360UnblockTest,QualificationVetoPolicyTest` 共47项通过（38+9），无失败、错误、跳过；无监听端口，未启动服务、提交或部署。
+
+## 2026-11-08 标书质量核查核心拦截锁解锁与截断容错强化
+
+- **资质匹配与资格一票否决去硬锁（实质合规）**：
+  - `QUALIFICATION_MATCH`：当明细项全部为 `MATCHED` 且有效时，大项由原先的强制人工核对升级为 `PASS`；如果存在未决条件（如要求主体或强制性待确认），仅该未决细项保留关注，已匹配有效资质正常通过，不再连坐将整个大项降级为待确认。
+  - `QUALIFICATION_VETO`：当企业资质库命中有效证书（`matchingKbEvidences` 非空且在有效期内）且具备专属身份标识（排除泛化词）时，直接判定 `PASS`，破除过去对单页必须同时出现编号与有效期纯文本正则的单一死锁。
+  - 清理备注面向开发者的技术词：彻底消除 `[UNKNOWN]`、`原检索状态=MATCHED`，改写为自然清晰的中文说明（“条件适用范围或作用对象待确认；已匹配企业资质库有效证书...”）。
+- **投标保证金免收场景结构化放行（避免视觉误杀）**：
+  - `DEPOSIT_RECEIPT`：在 `BidQualityCheckAsyncExecutor` 中接入结构化 `requirements.depositRequirement()`；当招标文件明确注明“免收/不涉及保证金”（`required == false`）且文本检查已判定通过时，`DepositReceiptVisionFusionPolicy` 直接放行，跳过视觉回单检测的强制覆写，避免因标书中无回单图片被无辜降级为人工复核。
+- **长文本截断闭合状态机与健壮性**：
+  - `LlmVerdictParser` 引入解耦的 `ScanState` 与双状态机结构扫描（`scanTokens`、`computePrefix`、`buildHealedJson`），方法圈复杂度降低，严格限制方法嵌套 $\le 2$ 层。
+  - `TenderRequirementsParser` 接入截断修复机制，处理长招标文件要求提取时末尾 JSON 截断的问题，避免截断导致整组要求解析失败而降级为默认缺失。
+- **后置护栏拦截放开与大模型裁决尊重**：
+  - `AUTHORIZATION_LETTER`：放开 `enforcePositiveContract` 中纯文本冒号正则对大模型 `PASS` 裁决的硬性覆写，只要无明确 `FAIL` 硬伤，充分尊重模型的高阶理解与实质合规判断。
+  - `SemanticEvidenceBoundary`：在 `reconcileQualificationApplicability` 中，若一阶段无占位缺陷则保留 `PASS`，明确硬缺陷保留 `FAIL`，仅在存在模糊占位符时才降级为 `MANUAL_REVIEW`。
+
