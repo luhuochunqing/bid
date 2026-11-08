@@ -267,10 +267,8 @@ release_session_lock() {
 }
 
 # 主入口
-# 本脚本用于被 source（dev-env.sh / session-gate-wrapper.sh）。被 source 时必须用
-# return 而非 exit：exit 会杀死调用方 shell，导致 `source dev-env.sh && bash scripts/sync-env.sh .`
-# 这类早操链在锚点分支上直接中断（sync-env.sh 根本没机会执行）。
-# 直接执行（bash scripts/session-gate.sh）时仍以 exit 1 表达门禁失败。
+# 被 source 时必须 return：exit 会杀死调用方 shell，早操链（source dev-env.sh && sync-env.sh）会中断。
+# 直接执行时仍用 exit 1 表达门禁失败。
 if ! session_gate; then
   if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     exit 1
