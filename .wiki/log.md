@@ -1745,3 +1745,7 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-11-08] deploy-script | 部署脚本两类陷阱回填
 
 第 261 次测试部署暴露两处根因：被 source 的 `session-gate.sh` 用 `exit 1` 杀掉调用方 shell，导致锚点分支早操链中断（!2978 修复）；`remote-deploy.sh` 整体替换前端资产目录删除旧 hash，触发 404 与 Sentry 噪声（!2979 修复）。回填 `.wiki/pages/deploy-script-sourced-exit-and-asset-retention.md` 并更新 `_index.md`。
+
+## [2026-11-08] deploy-script | 预部署数据库备份 fail-closed 化
+
+第 36/39 次生产部署出现 371 字节假备份：`mysqldump | gzip > file` 让 gzip 成功状态掩盖 mysqldump 失败退出码（生产账号 `ea_bid_pro` 无 `LOCK TABLES`，1044），仍打印 `DB backup done` 并继续部署。修复为 `scripts/release/backup-db-pre-deploy.sh`（`--single-transaction` + 失败即删半成品 + `gzip -t`/`Dump completed`/体积三重校验），`deploy-prod.sh` 与 `deploy-test.sh` 均改为上传 `bin/` 后调用，失败即中止（!2982）。知识沉淀见 `docs/lessons/lessons-learned.md`，部署口径回填 `.wiki/pages/deployment.md` §9.2。
