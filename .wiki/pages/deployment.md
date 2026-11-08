@@ -374,6 +374,13 @@ CONFIRM_RESTORE=YES bash scripts/release/restore-db.sh <backup-file>
    - 上一个稳定后端 jar：`/opt/xiyu-bid/releases/<previous-release-id>/backend/app.jar`
    - 上一个稳定前端：`/opt/xiyu-bid/releases/<previous-release-id>/frontend`
 
+> **自动化部署的备份是 fail-closed 的**：`deploy-prod.sh` / `deploy-test.sh` 会先把
+> `scripts/release/backup-db-pre-deploy.sh` 上传到 `<APP_ROOT>/bin/` 再调用。该脚本用
+> `--single-transaction`（不依赖 `LOCK TABLES`），并做 `gzip -t` + `Dump completed` 尾部 +
+> 体积下限三重校验，任一失败返回非零 → `remote-deploy.sh`（`set -e`）中止部署并删除半成品。
+> 第 36/39 次生产部署的 371 字节"假备份 + 打印 DB backup done + 继续部署"即
+> `mysqldump | gzip > file` 吞掉 mysqldump 退出码所致，已在脚本层收口。
+
 ### 9.3 打包命令
 
 ```bash
