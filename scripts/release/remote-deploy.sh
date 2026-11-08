@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Input: uploaded release archive path, remote host deployment paths, service restart configuration, backend.env AI_PROVIDER guard, optional DB_BACKUP_COMMAND (pre-activation DB backup), and optional FLYWAY_REPAIR_RUNNER (defaults to $APP_ROOT/bin/flyway-repair-runner.sh, the authoritative runner location)
+# Input: uploaded release archive path, remote host deployment paths, service restart configuration, backend.env AI_PROVIDER guard, optional DB_BACKUP_COMMAND (pre-activation DB backup), optional ASSETS_RETAIN_RELEASES (defaults to 2, activated histories merged before frontend activation, current public assets always retained), and optional FLYWAY_REPAIR_RUNNER (defaults to $APP_ROOT/bin/flyway-repair-runner.sh, the authoritative runner location)
 # Output: pre-activation DB backup + Flyway validate + atomically activated release files, restarted backend service, and remote health verification
 # Pos: scripts/release/ - Release automation and rehearsal helpers
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -268,22 +268,41 @@ cp -R "$RELEASE_DIR/frontend/." "$PENDING_FRONTEND_DIR/"
 # ── 跨版本 hash 资产保留（防止旧标签页 404）──
 # 前端产物文件名带 hash，整体替换公开目录会删除旧 hash 文件；用户浏览器中尚未刷新的
 # 旧标签页 <link rel="preload"> 指向已删除资源 → Nginx 404 → Sentry "Unable to preload CSS" 噪声。
-# 激活后把最近 N 个历史 release 的 assets 补拷回公开目录。cp -rn 不覆盖新版本同名文件，
-# 只补回被删除的旧 hash 文件。默认 N=2（覆盖两版之前的旧标签页）。
+# 公开目录是实际已激活资产的权威来源，先保留它（包括上线前手工补齐的旧 hash）。
+# 历史目录只接纳前端已激活标记，避免备份/Sidecar/Flyway 失败候选挤占名额。
+# 默认另保留最近 N=2 个已激活 release；cp -rn 不覆盖新版本同名文件。
 ASSETS_RETAIN_RELEASES="${ASSETS_RETAIN_RELEASES:-2}"
-RETAIN_RELEASE_DIRS="$(ls -1dt "$RELEASES_DIR"/*/ 2>/dev/null | grep -vxF "$RELEASE_DIR/" | head -n "$ASSETS_RETAIN_RELEASES" || true)"
-
-rm -rf "$FRONTEND_PUBLIC_DIR"
-mv "$PENDING_FRONTEND_DIR" "$FRONTEND_PUBLIC_DIR"
+if [[ -d "$FRONTEND_PUBLIC_DIR/assets" ]]; then
+  if ! cp -rn "$FRONTEND_PUBLIC_DIR/assets/." "$PENDING_FRONTEND_DIR/assets/"; then
+    printf '\n❌ 当前公开 assets 保留失败；前端未激活，旧版本仍保留。\n' >&2
+    exit 1
+  fi
+fi
+RETAIN_RELEASE_DIRS="$(
+  { ls -1t "$RELEASES_DIR"/*/.frontend-activated 2>/dev/null || true; } |
+    while IFS= read -r marker; do
+      [[ "${marker%/.frontend-activated}" != "$RELEASE_DIR" ]] || continue
+      printf '%s/\n' "${marker%/.frontend-activated}"
+    done | head -n "$ASSETS_RETAIN_RELEASES" || true
+)"
 
 if [[ -n "${RETAIN_RELEASE_DIRS:-}" ]]; then
   printf '==> Retaining assets from previous release(s): %s\n' "$ASSETS_RETAIN_RELEASES"
   while IFS= read -r retain_dir; do
     [[ -d "${retain_dir}frontend/assets" ]] || continue
-    cp -rn "${retain_dir}frontend/assets/." "$FRONTEND_PUBLIC_DIR/assets/" 2>/dev/null || true
+    if ! cp -rn "${retain_dir}frontend/assets/." "$PENDING_FRONTEND_DIR/assets/"; then
+      printf '\n❌ 历史 assets 保留失败：%s → %s；前端未激活，旧版本仍保留。\n' \
+        "${retain_dir}frontend/assets/" "$PENDING_FRONTEND_DIR/assets/" >&2
+      exit 1
+    fi
     printf '    ↩ %s\n' "$retain_dir"
   done <<< "$RETAIN_RELEASE_DIRS"
 fi
+
+rm -rf "$FRONTEND_PUBLIC_DIR"
+mv "$PENDING_FRONTEND_DIR" "$FRONTEND_PUBLIC_DIR"
+# 仅在真实公开目录切换后记录；预检失败留下的 release 没有此标记。
+touch "$RELEASE_DIR/.frontend-activated"
 
 # 必须先停服务再替换 jar，再启动服务。
 # 反例：先 cp 替换 jar 再 systemctl restart 会导致旧进程 ShutdownHook
