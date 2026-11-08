@@ -1,5 +1,5 @@
 // Input: LLM 结构化提取或规则提取的招标要求（评分/资质/否决/组成/格式 + 各分项契约，自动清洗 HTML 标签）
-// Output: 招标要求纯核心模型（完整资格条件与独立证书子集/否决条款/组成要求/各分项契约）+ missing 哨兵
+// Output: 保留原始来源引文的招标要求纯核心模型（完整资格条件与独立证书子集/否决条款/组成要求/各分项契约）+ missing 哨兵
 // Pos: compliance/domain/policy/ - 招标要求领域模型（spec 049 US2，data-model.md §3.1）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -110,12 +110,16 @@ public record TenderRequirements(
         scoringItems = scoringItems == null ? List.of() : List.copyOf(scoringItems);
         // 结构化条件已解码；模型 with*/merge 重建时只处理尚未覆盖的原始旧文本。
         List<QualificationCondition> existing = qualificationConditions == null ? List.of() : qualificationConditions;
-        List<String> sanitizedMandatory = mandatoryQualifications == null ? List.of() :
-                mandatoryQualifications.stream().filter(java.util.Objects::nonNull)
-                        .filter(raw -> existing.stream().noneMatch(c -> c.text().equals(raw)))
-                        .map(QualificationConditionExtractor::stripHtml)
-                        .filter(s -> !s.isBlank()).toList();
-        qualificationConditions = QualificationCondition.complete(existing, sanitizedMandatory);
+        List<QualificationCondition> completed = new ArrayList<>(existing);
+        for (String raw : mandatoryQualifications == null ? List.<String>of() : mandatoryQualifications) {
+            if (raw == null || existing.stream().anyMatch(c -> c.text().equals(raw))) continue;
+            for (String text : QualificationCondition.cleanTexts(List.of(QualificationConditionExtractor.stripHtml(raw)))) {
+                if (completed.stream().noneMatch(c -> c.text().equals(text))) {
+                    completed.add(new QualificationCondition(text, new QualificationCondition.Source("", "", null, raw), null));
+                }
+            }
+        }
+        qualificationConditions = completed.stream().distinct().toList();
         mandatoryQualifications = qualificationConditions.stream().map(QualificationCondition::text).distinct().toList();
         vetoClauses = vetoClauses == null ? List.of() : List.copyOf(vetoClauses);
         compositionRequirements = compositionRequirements == null ? List.of() : List.copyOf(compositionRequirements);

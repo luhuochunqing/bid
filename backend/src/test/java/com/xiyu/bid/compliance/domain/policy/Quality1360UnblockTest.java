@@ -83,6 +83,44 @@ class Quality1360UnblockTest {
     }
 
     @Test
+    void legacyRequirementsKeepRawQuoteAcrossReconstruction() {
+        String raw = "投标人须具有ISO&#57;001认证";
+        var requirements = new TenderRequirements(List.of(), List.of(raw), List.of(), List.of(), List.of(), false);
+        requirements = requirements.withMergedQualifications(List.of("投标人须具有营业执照"));
+        var condition = requirements.qualificationConditions().stream()
+                .filter(c -> c.text().equals("投标人须具有ISO9001认证")).findFirst().orElseThrow();
+        assertThat(condition.source().quote()).isEqualTo(raw);
+    }
+
+    @Test
+    void vetoHtmlMatchesRetainActualSubstantivePageAndRawQuotes() {
+        for (String raw : List.of("EDI和<br>ICP许可证", "ISO&#57;001认证")) {
+            String nameOnly = QualificationConditionExtractor.stripHtml(raw);
+            String bidText = raw + "\n证书编号：合字B2-20210088\n有效期限：2025年3月15日至2030年3月14日";
+            String tenderText = "投标人须具有" + raw;
+            var bid = new DocumentContent("bid.pdf", "bid", nameOnly + "\n" + bidText,
+                    List.of(new DocumentContent.PageContent(2, nameOnly, List.of()),
+                            new DocumentContent.PageContent(8, bidText, List.of())));
+            var tender = new DocumentContent("tender.pdf", "tender", tenderText,
+                    List.of(new DocumentContent.PageContent(6, tenderText, List.of())));
+            var requirements = new TenderRequirements(List.of(), List.of(tenderText), List.of(), List.of(), List.of(), false);
+            var result = QualificationVetoPolicy.checkFirstStage(bid, tender, requirements, List.of()).orElseThrow();
+            assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+            assertThat(result.evidences()).anySatisfy(e -> {
+                assertThat(e.sourceType()).isEqualTo("BID");
+                assertThat(e.pageNumber()).isEqualTo(8);
+                assertThat(e.quote()).contains(raw, "证书编号", "有效期限");
+                assertThat(bidText).contains(e.quote());
+            }).anySatisfy(e -> {
+                assertThat(e.sourceType()).isEqualTo("TENDER");
+                assertThat(e.pageNumber()).isEqualTo(6);
+                assertThat(e.quote()).contains(raw);
+                assertThat(tenderText).contains(e.quote());
+            });
+        }
+    }
+
+    @Test
     void tableEvidenceLocatesCleanedBrAndNumericEntities() {
         for (String raw : List.of("投标人须具有EDI和<br>ICP许可证", "投标人须具有ISO&#57;001认证")) {
             var conditions = QualificationConditionExtractor.extractStructured(DocumentContent.fromText(
