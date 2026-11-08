@@ -20,6 +20,36 @@ import static org.assertj.core.api.Assertions.assertThat;
 class Quality1360UnblockTest {
 
     @Test
+    void headinglessHtmlRequirementIsCleanedBeforeFusionAndMatching() {
+        String raw = "具有EDI和<br>ICP许可证";
+        var tender = DocumentContent.fromText("tender.pdf", "hash", raw);
+        var requirements = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tender);
+
+        assertThat(requirements.certificateRequirements()).containsExactly("具有EDI和ICP许可证");
+        assertThat(requirements.qualificationConditions().getFirst().source().quote()).isEqualTo(raw);
+        assertThat(QualificationMatchPolicy.isQualificationMatch(
+                requirements.certificateRequirements().getFirst(), "EDI和ICP许可证")).isTrue();
+        var bid = DocumentContent.fromText("bid.pdf", "bid_hash",
+                "EDI和ICP许可证\n证书编号：B2-20200044\n有效期限：2025年7月4日至2030年3月28日");
+        assertThat(QualificationVetoPolicy.checkFirstStage(bid, tender, requirements, List.of()))
+                .hasValueSatisfying(result -> assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS));
+    }
+
+    @Test
+    void headinglessEntitiesAreDecodedOnceAndKeepOriginalEvidence() {
+        String raw = "投标人须具有ISO9001&amp;#49;认证";
+        var requirements = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(),
+                DocumentContent.fromText("tender.pdf", "hash", raw));
+
+        assertThat(requirements.certificateRequirements()).containsExactly("投标人须具有ISO9001&#49;认证");
+        assertThat(requirements.qualificationConditions().getFirst().source().quote()).isEqualTo(raw);
+        assertThat(QualificationMatchPolicy.isQualificationMatch(
+                requirements.certificateRequirements().getFirst(), "ISO90011认证")).isFalse();
+        assertThat(QualificationMatchPolicy.isQualificationMatch(
+                requirements.certificateRequirements().getFirst(), "ISO9001&#49;认证")).isTrue();
+    }
+
+    @Test
     void encodedMarkupSurvivesParagraphClassification() {
         var conditions = QualificationConditionExtractor.extractStructured(DocumentContent.fromText(
                 "tender.pdf", "hash", "七、投标人资格要求\n投标人须具有ISO&lt;b&gt;9001认证"));

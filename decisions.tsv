@@ -30,3 +30,4 @@ ts	phase	decision	why	evidence	result
 2026-11-08T08:23:00Z	fix-review-r1	仅剥离已知HTML标签并复用jsoup解码实体，标准编号冲突检查共用清洗入口	避免比较符吞掉资格约束或数字实体改变证书身份，不改变原有br清洗与文案规则	Quality1360UnblockTest新增3项回归，先复现3失败再修复；相关8类测试162项通过	RED/GREEN verified，git diff --check通过
 2026-11-08T08:32:00Z	fix-review-r2	原始HTML入口仅解码一次，结构化条件重建与匹配不再解码；原始单元格同规则清洗后定位	修复字面标签和嵌套实体被重复解释、br及数字实体导致证据索引丢失；保留原始引文及重复命中未知语义	Quality1360UnblockTest新增4项回归先失败4项；8类相关纯核心测试166项通过，行数门禁与git diff --check通过	两项审查发现已修复；未提交、push、PR、部署或写审查凭证
 2026-11-08T08:40:00Z	fix-review-r3	区分已解码条件与原始文本匹配入口，结构化匹配不再重复解码	isQualificationMatch直接比对已解码条件与标准编号，新增isRawQualificationMatch兼容入口，补充二次解码回归测试	Quality1360UnblockTest.java, QualificationMatchPolicy.java	121 tests green, line budget & ArchUnit green
+2026-11-08	fix-headingless-html-r1	无标题兜底复用appendCondition完成单次清洗并保留原始引文	避免原始HTML及嵌套实体进入结构化分类；不重复清洗模型已有条件	最小保护测试先通过；新增2项回归先失败2项，修复后三类纯核心测试97项通过；git diff --check通过	仅修改授权文件；未提交、push、PR、部署或生成审查凭证

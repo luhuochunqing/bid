@@ -93,8 +93,12 @@ public final class QualificationConditionExtractor {
             List<QualificationCondition> remaining = assembleConditions(lines);
             conditions.addAll(uncertainScope ? remaining.stream().map(QualificationConditionExtractor::unknownScope).toList() : remaining);
         }
-        return found ? List.copyOf(conditions)
-                : QualificationCondition.complete(null, DeterministicQualificationExtractor.extractCertificates(text));
+        if (found) return List.copyOf(conditions);
+        List<QualificationCondition> fallback = new ArrayList<>();
+        for (String raw : DeterministicQualificationExtractor.extractCertificates(text)) {
+            appendCondition(fallback, raw, raw);
+        }
+        return List.copyOf(fallback);
     }
 
     private static boolean endsSection(final String line, final String opening) {

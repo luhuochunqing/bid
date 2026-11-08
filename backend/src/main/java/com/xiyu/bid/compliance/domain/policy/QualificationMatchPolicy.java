@@ -48,7 +48,7 @@ public final class QualificationMatchPolicy {
     public static boolean isQualificationMatch(final String req, final String certName) { return calculateMatchScore(req, certName) > 0; }
     /** 原始文本兼容入口：针对未清洗的原始 HTML 文本执行单次清洗后再比对. */
     public static boolean isRawQualificationMatch(final String rawReq, final String certName) {
-        return calculateMatchScore(QualificationConditionExtractor.stripHtml(rawReq), QualificationConditionExtractor.stripHtml(certName)) > 0;
+        return isQualificationMatch(QualificationConditionExtractor.stripHtml(rawReq), QualificationConditionExtractor.stripHtml(certName));
     }
     public static boolean checkLevelCompatibility(final String req, final String cert) { return QualificationGradePolicy.isGradeCompatible(req, cert); }
     static int calculateMatchScore(final String req, final String certName) {
@@ -247,8 +247,7 @@ public final class QualificationMatchPolicy {
         return expiryDate == null ? null : (int) ChronoUnit.DAYS.between(today, expiryDate);
     }
     private static String normalize(final String text) {
-        String clean = text == null ? "" : text;
-        return NORMALIZE_RE.matcher(clean.toLowerCase(Locale.ROOT)).replaceAll("");
+        return text == null ? "" : NORMALIZE_RE.matcher(text.toLowerCase(Locale.ROOT)).replaceAll("");
     }
     private static String stripGovPrefix(final String normText) {
         return normText == null || normText.isBlank() ? "" : GOV_PREFIX_RE.matcher(normText).replaceFirst("");
