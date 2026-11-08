@@ -1,4 +1,4 @@
-// Input: LLM 结构化提取或规则提取的招标要求（评分/资质/否决/组成/格式 + 各分项契约）
+// Input: LLM 结构化提取或规则提取的招标要求（评分/资质/否决/组成/格式 + 各分项契约，自动清洗 HTML 标签）
 // Output: 招标要求纯核心模型（完整资格条件与独立证书子集/否决条款/组成要求/各分项契约）+ missing 哨兵
 // Pos: compliance/domain/policy/ - 招标要求领域模型（spec 049 US2，data-model.md §3.1）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -108,7 +108,11 @@ public record TenderRequirements(
 
     public TenderRequirements {
         scoringItems = scoringItems == null ? List.of() : List.copyOf(scoringItems);
-        qualificationConditions = QualificationCondition.complete(qualificationConditions, mandatoryQualifications);
+        List<String> sanitizedMandatory = mandatoryQualifications == null ? List.of() :
+                mandatoryQualifications.stream().filter(java.util.Objects::nonNull)
+                        .map(QualificationConditionExtractor::stripHtml)
+                        .filter(s -> !s.isBlank()).toList();
+        qualificationConditions = QualificationCondition.complete(qualificationConditions, sanitizedMandatory);
         mandatoryQualifications = qualificationConditions.stream().map(QualificationCondition::text).distinct().toList();
         vetoClauses = vetoClauses == null ? List.of() : List.copyOf(vetoClauses);
         compositionRequirements = compositionRequirements == null ? List.of() : List.copyOf(compositionRequirements);

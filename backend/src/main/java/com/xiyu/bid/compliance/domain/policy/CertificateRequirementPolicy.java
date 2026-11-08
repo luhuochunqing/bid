@@ -1,4 +1,4 @@
-// Input: 单条完整资格条件及原文行/单元格
+// Input: 单条完整资格条件及原文行/单元格（支持清洗 HTML 标签与表格多行）
 // Output: 子句级证书要求及分类、匹配、证据共用的识别结果
 // Pos: compliance/domain/policy/ - 资格条件内的证书子项纯核心
 package com.xiyu.bid.compliance.domain.policy;
@@ -20,15 +20,19 @@ public final class CertificateRequirementPolicy {
 
     /** 分类及消费共用识别；完整证书子句不受旧证书名称长度上限裁剪。 */
     static boolean isCertificateReference(final String text) {
-        return text != null && !text.isBlank()
-                && !text.matches(".*(?:授权文件|授权书|证明资料|股权关系|出资关系).*")
-                && (CERTIFICATE.matcher(text).find() || DeterministicQualificationExtractor.hasSpecificCertificateKeyword(text));
+        String clean = QualificationConditionExtractor.stripHtml(text);
+        return clean != null && !clean.isBlank()
+                && !clean.matches(".*(?:授权文件|授权书|证明资料|股权关系|出资关系).*")
+                && (CERTIFICATE.matcher(clean).find() || DeterministicQualificationExtractor.hasSpecificCertificateKeyword(clean));
     }
 
     static List<QualificationCondition.CertificateRequirement> classify(final String text, final String sourceQuote) {
         List<QualificationCondition.CertificateRequirement> result = new ArrayList<>();
-        Target defaultTarget = text.matches(".*(?:投标人|供应商|企业|公司|我方).*?") ? Target.BIDDER : Target.UNKNOWN;
-        for (String part : text.split("[，,；;。\\r\\n]+|(?:且|并|同时)(?=(?:投标人|供应商)?(?:必须|应当|应|须|需)?(?:具有|具备|持有|取得|通过|提供))")) {
+        String cleanText = QualificationConditionExtractor.stripHtml(text);
+        String cleanQuote = QualificationConditionExtractor.stripHtml(sourceQuote);
+        Target defaultTarget = (cleanText.matches(".*(?:投标人|供应商|申请人|企业|公司|我方).*?")
+                || (cleanQuote != null && cleanQuote.matches(".*(?:投标人|供应商|申请人|企业|公司).*?"))) ? Target.BIDDER : Target.UNKNOWN;
+        for (String part : cleanText.split("[，,；;。\\r\\n]+|(?:且|并|同时)(?=(?:投标人|供应商)?(?:必须|应当|应|须|需)?(?:具有|具备|持有|取得|通过|提供))")) {
             String clause = part.trim();
             if (!isCertificateReference(clause)) continue;
             var role = QualificationClauseRolePolicy.assess(clause);
@@ -45,7 +49,7 @@ public final class CertificateRequirementPolicy {
                     : strippedClause.matches(".*(?:人员|项目经理|工程师|员工).*?") ? Target.PERSON
                     : strippedClause.matches(".*(?:投标人|供应商|企业|公司|我方).*?") ? Target.BIDDER : defaultTarget;
             result.add(new QualificationCondition.CertificateRequirement(clause, target, applicability,
-                    applicability == Applicability.UNKNOWN ? text : clause,
+                    applicability == Applicability.UNKNOWN ? cleanText : clause,
                     cellIndex(sourceQuote, clause)));
         }
         return List.copyOf(result);

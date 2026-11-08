@@ -100,6 +100,50 @@ class Quality1360UnblockTest {
     }
 
     @Test
+    @DisplayName("招标文件表格中含 <br> HTML标签（如 EDI和<br>ICP）时，自动清洗标签，一票否决与资质匹配闭环 PASS 且备注无英文术语")
+    void htmlBrTagInTenderRequirementIsSanitizedAndProducesHumanizedRemark() {
+        String bidPage = """
+                第二章 投标人资格条件相关证明文件
+                四、西域具有有效的中华人民共和国增值电信业务经营许可证（EDI和ICP）
+                证书编号：合字B2-20210088
+                有效期限：自2021年3月15日至2026年3月14日
+                发证机关：中华人民共和国工业和信息化部
+                """;
+        DocumentContent bidDoc = new DocumentContent("bid.docx", "bid_hash", bidPage,
+                List.of(new DocumentContent.PageContent(2, bidPage, List.of())));
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "tender_hash",
+                "七、 投标人资格要求\n| 1 | 资格要求 | 具有有效的中华人民共和国增值电信业务经营许可证（EDI和<br>ICP） |");
+        TenderRequirements req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tenderDoc);
+
+        // 验证要求文字已清洗掉 <br>
+        assertThat(req.certificateRequirements()).hasSize(1);
+        assertThat(req.certificateRequirements().getFirst())
+                .doesNotContain("<br>")
+                .doesNotContain("<")
+                .doesNotContain(">");
+
+        // 一票否决闭环 PASS
+        Optional<QualityCheckItemResult> vetoResult = QualificationVetoPolicy.checkFirstStage(bidDoc, tenderDoc, req, List.of());
+        assertThat(vetoResult).isPresent();
+        assertThat(vetoResult.orElseThrow().status()).isEqualTo(QualityCheckStatus.PASS);
+
+        // 资质比对详情不含英文术语与 [UNKNOWN]
+        var detail = new QualificationDetail(req.certificateRequirements().getFirst(),
+                "中华人民共和国增值电信业务经营许可证 国家级", "MATCHED", 2, "第 2 页", 1236,
+                "已匹配企业资质库有效证书「中华人民共和国增值电信业务经营许可证 国家级」（有效期至 2030-03-28）");
+        var reconciled = QualificationDetailReconciler.reconcile(
+                QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_MATCH, "资质匹配", List.of()),
+                List.of(detail), req, bidDoc);
+
+        assertThat(reconciled.details()).hasSize(1);
+        String remark = reconciled.details().getFirst().remark();
+        assertThat(remark).doesNotContain("[UNKNOWN]");
+        assertThat(remark).doesNotContain("MATCHED");
+        assertThat(remark).doesNotContain("原检索状态=");
+        assertThat(remark).contains("已匹配企业资质库有效证书");
+    }
+
+    @Test
     @DisplayName("仅出现证书名称且其他页含无关项目编号与营业期限时，一票否决仍保持待确认不串页放行")
     void bareCertificateNameWithoutFactsStaysManualReview() {
         String p1 = "封面\n项目编号：XY-ZB-2026-0888\n营业执照有效期限：长期";

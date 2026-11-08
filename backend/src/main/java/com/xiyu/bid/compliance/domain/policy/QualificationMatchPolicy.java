@@ -1,4 +1,4 @@
-// Input: 招标资质要求列表/企业资质库/投标文件内容/参考日期
+// Input: 招标资质要求列表/企业资质库/投标文件内容/参考日期（清洗 HTML 标签）
 // Output: QualificationDetail 结构化比对明细列表（纯核心，FP-Java 纯函数）与第一阶段确定性核验
 // Pos: compliance/domain/policy/ - 资质匹配纯核心算法与比对清单生成
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -43,15 +43,9 @@ public final class QualificationMatchPolicy {
             "安全生产许可", "营业执照", "一般纳税人", "高新技术企业", "专精特新", "重合同守信用",
             "一级建造师", "二级建造师", "造价工程师", "监理工程师", "特种作业", "增值电信", "电信业务",
             "互联网信息服务", "在线数据处理与交易", "信息安全等级保护", "等保", "等保三级");
-    private QualificationMatchPolicy() {
-    }
-    public static boolean isQualificationMatch(final String req, final String certName) {
-        return calculateMatchScore(req, certName) > 0;
-    }
-    public static boolean checkLevelCompatibility(final String req, final String cert) {
-        return QualificationGradePolicy.isGradeCompatible(req, cert);
-    }
-
+    private QualificationMatchPolicy() { }
+    public static boolean isQualificationMatch(final String req, final String certName) { return calculateMatchScore(req, certName) > 0; }
+    public static boolean checkLevelCompatibility(final String req, final String cert) { return QualificationGradePolicy.isGradeCompatible(req, cert); }
     static int calculateMatchScore(final String req, final String certName) {
         return QualificationGradePolicy.isGradeCompatible(req, certName) ? calculateBaseMatchScore(req, certName) : 0;
     }
@@ -248,7 +242,9 @@ public final class QualificationMatchPolicy {
         return expiryDate == null ? null : (int) ChronoUnit.DAYS.between(today, expiryDate);
     }
     private static String normalize(final String text) {
-        return text == null ? "" : NORMALIZE_RE.matcher(text.toLowerCase(Locale.ROOT)).replaceAll("");
+        if (text == null) return "";
+        String clean = QualificationConditionExtractor.stripHtml(text);
+        return NORMALIZE_RE.matcher(clean.toLowerCase(Locale.ROOT)).replaceAll("");
     }
     private static String stripGovPrefix(final String normText) {
         return normText == null || normText.isBlank() ? "" : GOV_PREFIX_RE.matcher(normText).replaceFirst("");

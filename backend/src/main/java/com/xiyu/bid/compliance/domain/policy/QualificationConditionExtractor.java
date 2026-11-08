@@ -1,5 +1,5 @@
-// Input: 招标原文中的资格章节（包含 Markdown 标题）
-// Output: 完整资格条件，不以证书词表或证书名长度裁剪条件
+// Input: 招标原文中的资格章节（包含 Markdown 标题与表格内容）
+// Output: 完整资格条件（清洗 HTML 标签与表格多行换行），不以证书词表或证书名长度裁剪条件
 // Pos: compliance/domain/policy/ - 资格章节边界与条件清洗纯核心
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -193,11 +193,18 @@ public final class QualificationConditionExtractor {
         return result;
     }
 
+    private static final Pattern HTML_TAG_RE = Pattern.compile("(?i)<(?:br\\s*/?|[^>]+)>|&(?:nbsp|amp|lt|gt|quot|apos|#\\d+);");
+
+    public static String stripHtml(final String text) {
+        if (text == null || text.isBlank()) return "";
+        return HTML_TAG_RE.matcher(text).replaceAll("").trim();
+    }
+
     private static String tableCondition(final List<String> cells, final List<String> header) {
         List<String> values = new ArrayList<>();
         for (int i = 0; i < cells.size(); i++) {
             boolean serial = i < header.size() && header.get(i).equals("序号") && cells.get(i).matches("[0-9]+");
-            if (!serial && !cells.get(i).isBlank()) values.add(cells.get(i));
+            if (!serial && !cells.get(i).isBlank()) values.add(stripHtml(cells.get(i)));
         }
         return String.join("；", values);
     }
@@ -214,7 +221,7 @@ public final class QualificationConditionExtractor {
     }
 
     static String cleanCondition(final String text) {
-        String clean = text == null ? "" : text.trim().replaceFirst("^#{1,6}\\h*", "");
+        String clean = text == null ? "" : stripHtml(text.trim().replaceFirst("^#{1,6}\\h*", ""));
         clean = clean.replaceAll("^[|；;。，,、：:\\s]+|[|；;。，,：:\\s]+$", "");
         if (VALUE_PREFIX.matcher(clean).find()) return clean;
         return BULLET.matcher(clean).replaceFirst("").trim();

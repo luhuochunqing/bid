@@ -1,5 +1,5 @@
 // Input: 标书文档 + 招标文件 + TenderRequirements + 知识库证据
-// Output: Optional<QualityCheckItemResult>（字段内明确占位/违规分包 FAIL及原位证据，证书同页具备编号与有效期实证时 PASS，仅名称命中转人工确认）
+// Output: Optional<QualityCheckItemResult>（字段内明确占位/违规分包 FAIL及原位证据，清洗 HTML 标签，证书同页具备编号与有效期实证时 PASS，仅名称命中转人工确认）
 // Pos: compliance/domain/policy/ - 标书一票否决与资格前置反假核验策略（纯核心，FP-Java 无外部依赖）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -214,7 +214,8 @@ public final class QualificationVetoPolicy {
     }
 
     static String stripQualificationPrefix(final String text) {
-        return text == null ? "" : CERT_PREFIX.matcher(text.trim()).replaceFirst("").trim();
+        String clean = QualificationConditionExtractor.stripHtml(text);
+        return clean.isBlank() ? "" : CERT_PREFIX.matcher(clean.trim()).replaceFirst("").trim();
     }
 
     private static List<EvidenceTextSlice> filterNonCatalogPages(final DocumentContent doc) {
@@ -252,6 +253,8 @@ public final class QualificationVetoPolicy {
     }
 
     private static String normalize(final String text) {
-        return text == null ? "" : NORMALIZE_PATTERN.matcher(text).replaceAll("");
+        if (text == null) return "";
+        String clean = QualificationConditionExtractor.stripHtml(text);
+        return NORMALIZE_PATTERN.matcher(clean).replaceAll("");
     }
 }
