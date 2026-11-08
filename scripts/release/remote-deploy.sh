@@ -264,8 +264,26 @@ fi
 rm -rf "$PENDING_FRONTEND_DIR"
 mkdir -p "$PENDING_FRONTEND_DIR"
 cp -R "$RELEASE_DIR/frontend/." "$PENDING_FRONTEND_DIR/"
+
+# ── 跨版本 hash 资产保留（防止旧标签页 404）──
+# 前端产物文件名带 hash，整体替换公开目录会删除旧 hash 文件；用户浏览器中尚未刷新的
+# 旧标签页 <link rel="preload"> 指向已删除资源 → Nginx 404 → Sentry "Unable to preload CSS" 噪声。
+# 激活后把最近 N 个历史 release 的 assets 补拷回公开目录。cp -rn 不覆盖新版本同名文件，
+# 只补回被删除的旧 hash 文件。默认 N=2（覆盖两版之前的旧标签页）。
+ASSETS_RETAIN_RELEASES="${ASSETS_RETAIN_RELEASES:-2}"
+RETAIN_RELEASE_DIRS="$(ls -1dt "$RELEASES_DIR"/*/ 2>/dev/null | grep -vxF "$RELEASE_DIR/" | head -n "$ASSETS_RETAIN_RELEASES" || true)"
+
 rm -rf "$FRONTEND_PUBLIC_DIR"
 mv "$PENDING_FRONTEND_DIR" "$FRONTEND_PUBLIC_DIR"
+
+if [[ -n "${RETAIN_RELEASE_DIRS:-}" ]]; then
+  printf '==> Retaining assets from previous release(s): %s\n' "$ASSETS_RETAIN_RELEASES"
+  while IFS= read -r retain_dir; do
+    [[ -d "${retain_dir}frontend/assets" ]] || continue
+    cp -rn "${retain_dir}frontend/assets/." "$FRONTEND_PUBLIC_DIR/assets/" 2>/dev/null || true
+    printf '    ↩ %s\n' "$retain_dir"
+  done <<< "$RETAIN_RELEASE_DIRS"
+fi
 
 # 必须先停服务再替换 jar，再启动服务。
 # 反例：先 cp 替换 jar 再 systemctl restart 会导致旧进程 ShutdownHook
