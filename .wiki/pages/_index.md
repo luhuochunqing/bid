@@ -26,6 +26,7 @@ backlinks:
 
 ## Engineering Space
 
+- [[scoreparse-1119-multiple-package-review]] — 项目1119多标包重解析与旧100分来源诊断
 - [[_index]] — 西域投标管理平台知识库
 - [[agent-sop-quickref]] — Agent 开发 SOP 快速参考
 - [[ai-capabilities]] — AI 能力
