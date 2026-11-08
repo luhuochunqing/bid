@@ -778,8 +778,8 @@ class Quality1360UnblockTest {
     }
 
     @Test
-    @DisplayName("资质库匹配及证书名称定位不能将人工复核升级为通过")
-    void matchedReferencesCannotUpgradeManualReview() {
+    @DisplayName("资质库有效且标书仅声明证书名称时仍须人工复核")
+    void validMatchedNameReferencesCannotUpgradeManualReview() {
         var raw = QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
                 "初始人工复核", "建议复核", List.of());
         String name = "中华人民共和国增值电信业务经营许可证";
@@ -798,6 +798,42 @@ class Quality1360UnblockTest {
         var reconciled = QualificationDetailReconciler.reconcile(raw, details, req, bid);
         assertThat(reconciled.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(reconciled.details()).hasSize(1);
+    }
+
+    @Test
+    void missingDepositTermsCannotBecomeStructuredExemption() {
+        String context = "本项目采用综合评估法，投标人应按招标文件编制商务技术经济文件。".repeat(6);
+        for (String clause : List.of("", "投标人须提交银行保函，金额及格式见附件。",
+                "投标人应提交电子保函，具体要求见附件。", "投标人应提供担保，详见附件。")) {
+            var requirements = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(),
+                    DocumentContent.fromText("tender", "hash", context + clause));
+            assertThat(requirements.depositRequirement()).as(clause).isNull();
+        }
+        var explicit = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(),
+                DocumentContent.fromText("tender", "hash", "本项目免收投标保证金。"));
+        assertThat(explicit.depositRequirement().required()).isFalse();
+    }
+
+    @Test
+    void matchedDetailsCannotOverrideUnresolvedApplicabilityOrPlaceholderFailure() {
+        String clause = "具有安全生产许可证";
+        var requirements = new TenderRequirements(List.of(), List.of(clause), List.of(), List.of(), List.of(), false);
+        assertThat(requirements.hasUnresolvedCertificateRequirements()).isTrue();
+        var detail = new QualificationDetail(clause, "安全生产许可证", "MATCHED", 1,
+                "我司具有安全生产许可证", 365, "资料库匹配", QualificationDetail.Finding.MATCHED_REFERENCE);
+        var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_MATCH, "匹配", List.of())
+                .withDetails(List.of(detail));
+        var bid = DocumentContent.fromText("bid", "hash", "我司具有安全生产许可证");
+        assertThat(SemanticEvidenceBoundary.reconcileQualificationApplicability(pass, bid, requirements).status())
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        var known = new TenderRequirements(List.of(), List.of("投标人须具有安全生产许可证"),
+                List.of(), List.of(), List.of(), false);
+        var blank = DocumentContent.fromText("bid", "hash", "安全生产许可证\n证书编号：_____");
+        assertThat(QualificationMatchPolicy.checkFirstStage(blank, known)).hasValueSatisfying(
+                r -> assertThat(r.status()).isEqualTo(QualityCheckStatus.FAIL));
+        var results = BidDocumentQualityEngine.evaluateAll(blank, DocumentContent.empty(), List.of(), known, java.util.Set.of());
+        assertThat(results).filteredOn(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_MATCH.getCode()))
+                .singleElement().satisfies(r -> assertThat(r.status()).isEqualTo(QualityCheckStatus.FAIL));
     }
 
     @Test
@@ -875,10 +911,11 @@ class Quality1360UnblockTest {
     }
 
     @Test
-    @DisplayName("截断评分要求必须保留缺失保护")
-    void tenderRequirementsParserRejectsTruncatedJson() {
+    @DisplayName("截断评分要求在解析与合并链路均保持缺失哨兵")
+    void tenderRequirementsParserRejectsTruncatedScoringBeforeMerge() {
         String truncatedJson = """
                 {
+                  "mandatoryQualifications": [ "增值电信业务经营许可证" ],
                   "scoringItems": [
                     {
                       "name": "投标人业绩",
@@ -891,6 +928,9 @@ class Quality1360UnblockTest {
                       "criteria": "ISO认证
                 """;
         var parsed = TenderRequirementsParser.parse(truncatedJson);
+        assertThat(parsed).isEqualTo(TenderRequirements.missingSentinel());
+        assertThat(TenderRequirements.merge(List.of(parsed)))
+                .isEqualTo(TenderRequirements.missingSentinel());
         assertThat(parsed.missing()).isTrue();
     }
     @Test
@@ -927,16 +967,14 @@ class Quality1360UnblockTest {
     }
 
     @Test
-    void matchedKnowledgeEvidenceCannotBypassBidCertificateBoundary() {
+    void matchedQualificationKnowledgeEvidenceAloneCannotPreserveVetoPass() {
         var bid = DocumentContent.fromText("bid.pdf", "hash", "具有增值电信业务经营许可证");
-        for (String source : List.of(KnowledgeMatch.SOURCE_QUALIFICATION, KnowledgeMatch.SOURCE_PERFORMANCE)) {
-            var evidence = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
-                    source, "record", "增值电信业务经营许可证", true));
-            var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO,
-                    "符合要求", List.of(evidence));
-            assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status())
-                    .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
-        }
+        var evidence = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
+                KnowledgeMatch.SOURCE_QUALIFICATION, "record", "增值电信业务经营许可证", true));
+        var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO,
+                "符合要求", List.of(evidence));
+        assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status())
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 
     @Test
@@ -952,6 +990,106 @@ class Quality1360UnblockTest {
             assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status())
                     .as("目录、模板及缺少财务正文不能证明全部资格要求：%s", text)
                     .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        }
+    }
+
+    @Test
+    void ordinaryBodyOrTenderEvidenceCannotProveCompositeQualification() {
+        var bid = DocumentContent.fromText("bid.pdf", "hash", "本公司提供货物并承诺履约。");
+        for (var evidence : List.of(
+                QualityEvidence.bid("普通正文", 1, "本公司提供货物并承诺履约。"),
+                new QualityEvidence("TENDER", "资格要求", 1, "须提供财务及社保证明", null, null, null, null))) {
+            var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_REVIEW,
+                    "资格评审通过", List.of(evidence));
+            assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status())
+                    .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        }
+    }
+
+    @Test
+    void genericSalutationPrefixCannotHideWrongRecipient() {
+        var requirement = new BidLetterRequirement("投标函", "上海西域机电系统有限公司", null, null);
+        for (var salutation : List.of(
+                "致采购人：北京某某集团采购中心：",
+                "致采购人：\n北京某某集团采购中心：",
+                "致招标人：\r\n  北京某某集团采购中心：",
+                "致采购人：\n\n北京某某集团采购中心",
+                "致招标人：北京某某集团采购中心：",
+                "致：北京某某集团采购中心：\n说明：致采购人表达承诺。",
+                "致：北京某某集团采购中心：\n致采购人：",
+                "致采购人或采购代理机构：北京某某集团采购中心：")) {
+            var bid = DocumentContent.fromText("bid.pdf", "hash",
+                    "投标函\n" + salutation + "\n我方承诺响应全部条款。\n投标人：某公司（盖章）");
+            assertThat(BidLetterCheckPolicy.check(bid, requirement).status())
+                    .as(salutation).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        }
+    }
+
+    @Test
+    void genericSalutationsCannotHideRecipientsOfUnlistedOrganizationTypes() {
+        var requirement = new BidLetterRequirement("投标函", "上海西域机电系统有限公司", null, null);
+        for (String recipient : List.of("北京某某大学", "北京某某学校", "北京某某银行", "北京某某指挥部",
+                "北京某某工作组", "某未分类收件主体")) {
+            for (String separator : List.of("\n", "\r\n  ", "\n\n")) {
+                for (String ending : List.of("：", "")) {
+                    var bid = DocumentContent.fromText("bid.pdf", "hash",
+                            "投标函\n致采购人：" + separator + recipient + ending
+                                    + "\n我方承诺响应全部条款。\n投标人：某公司（盖章）");
+                    assertThat(BidLetterCheckPolicy.check(bid, requirement).status())
+                            .as("%s/%s/%s", recipient, separator, ending)
+                            .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+                }
+            }
+        }
+    }
+
+    @Test
+    void completeGenericSalutationsRemainAccepted() {
+        var requirement = new BidLetterRequirement("投标函", "上海西域机电系统有限公司", null, null);
+        for (var salutation : List.of("致采购人：", "致招标人:", "致采购人或采购代理机构：",
+                "致采购人或招标代理机构：", "致招标人或招标代理机构：")) {
+            for (String separator : List.of("\n", "\r\n  ", "\n\n")) {
+                var bid = DocumentContent.fromText("bid.pdf", "hash",
+                        "投标函\n" + salutation + separator + "我方承诺响应全部条款。\n投标人：某公司（盖章）");
+                assertThat(BidLetterCheckPolicy.check(bid, requirement).status())
+                        .as("%s/%s", salutation, separator).isEqualTo(QualityCheckStatus.PASS);
+            }
+        }
+    }
+
+    @Test
+    void truncatedHardRequirementsMustRemainIncomplete() {
+        for (String json : List.of(
+                "{\"mandatoryQualifications\":[\"营业执照\",\"社保",
+                "{\"mandatoryQualifications\":[\"营业执照\"],\"vetoClauses\":[{\"clause\":\"不得转包\",\"keywords\":[]},{\"clause\":\"不得")) {
+            assertThat(TenderRequirementsParser.parse(json).missing()).as(json).isTrue();
+        }
+    }
+
+    @Test
+    void longQualificationMaterialListsCannotProveCompliance() {
+        for (String text : List.of(
+                "目录\n营业执照 ........ 1\n审计报告 ........ 2\n无重大违法承诺 ........ 3\n",
+                "材料清单：营业执照、审计报告、无重大违法声明。")) {
+            var bid = DocumentContent.fromText("bid.pdf", "hash", text + "项目说明。".repeat(60));
+            var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_REVIEW,
+                    "资格符合要求", List.of());
+            assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status())
+                    .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        }
+    }
+
+    @Test
+    void unrelatedOrPartialKnowledgeMatchesCannotProveVetoCompliance() {
+        var bid = DocumentContent.fromText("bid.pdf", "hash",
+                "本次要求ISO9001及ISO27001证书，现仅声明具有ISO9001。证明页待补。");
+        for (String quote : List.of("无关的建筑施工资质", "ISO9001")) {
+            var evidence = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
+                    KnowledgeMatch.SOURCE_QUALIFICATION, "record", quote, true));
+            var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO,
+                    "全部资格符合要求", List.of(evidence));
+            assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status())
+                    .as(quote).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         }
     }
 
