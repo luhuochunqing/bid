@@ -44,6 +44,17 @@ class DepositReceiptVisionFusionPolicyTest {
         assertThat(result.conclusion()).contains("真实交易要素");
     }
 
+    @Test
+    void notRequiredDepositBypassesVisionWhenTextPass() {
+        var notRequired = DepositRequirement.notRequired("免收保证金");
+        var result = DepositReceiptVisionFusionPolicy.fuseDepositReceipt(
+                QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_RECEIPT, "【不涉及】免收保证金", List.of()),
+                DepositReceiptVisionResult.unavailable("未抽取到 PDF 页面图像"),
+                notRequired);
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.conclusion()).contains("【不涉及】免收保证金");
+    }
+
     private static QualityCheckItemResult textPass() {
         return QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_RECEIPT,
                 "文本出现保证金回单", List.of());
