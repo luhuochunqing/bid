@@ -117,10 +117,12 @@ printf '\n✅ 打包完成：%s（%s）\n\n' "$RELEASE_ARCHIVE" "$ARCHIVE_SIZE"
 
 # ── Step 4: 上传 ──
 printf '==> Step 4: 上传到生产服务器\n'
-ssh -o StrictHostKeyChecking=no "$PROD_HOST" "mkdir -p $PROD_APP_ROOT/incoming"
+ssh -o StrictHostKeyChecking=no "$PROD_HOST" "mkdir -p $PROD_APP_ROOT/incoming $PROD_APP_ROOT/bin"
 scp -o StrictHostKeyChecking=no "$RELEASE_ARCHIVE" "$PROD_HOST:$PROD_APP_ROOT/incoming/"
 scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/remote-deploy.sh" "$PROD_HOST:$PROD_APP_ROOT/incoming/"
 scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/smoke-sidecar.sh" "$PROD_HOST:$PROD_APP_ROOT/incoming/"
+# 预备份脚本上传到 bin/（权威位置）；scp 失败即中止部署（不吞错），避免远程调用缺失脚本
+scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/backup-db-prod.sh" "$PROD_HOST:$PROD_APP_ROOT/bin/"
 scp -o StrictHostKeyChecking=no "$ROOT_DIR/backend/src/test/resources/scoreparse-golden/1371_tables_v1.json" "$PROD_HOST:$PROD_APP_ROOT/incoming/" 2>/dev/null || true
 scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/flyway-repair-runner.sh" "$PROD_HOST:$PROD_APP_ROOT/bin/" 2>/dev/null || true
 printf '✅ 上传完成\n\n'
@@ -138,8 +140,8 @@ DEPLOY_CMD="$DEPLOY_CMD HEALTHCHECK_URL='$PROD_HEALTHCHECK_URL'"
 DEPLOY_CMD="$DEPLOY_CMD SYSTEMCTL_SUDO=true"
 DEPLOY_CMD="$DEPLOY_CMD SKIP_FLYWAY_VALIDATE=$SKIP_FLYWAY_VALIDATE"
 # 每次部署自动备份数据库（来源：SOP xiyu-server-deploy SKILL.md 模板）。
-# 转义说明：\$(date ...) 与 \${DB_*} 保持字面传给远端，由远端 bash -lc 展开；$RELEASE_ID 在本地展开。
-DB_BACKUP_COMMAND='source /etc/xiyu-bid/backend.env && mysqldump -h"${DB_HOST:-127.0.0.1}" -P"${DB_PORT:-3306}" -u"${DB_USER:-root}" -p"${DB_PASSWORD}" "${DB_NAME:-xiyu_bid_main}" | gzip > /opt/xiyu-bid/db-backups/winbid-'"$RELEASE_ID"'-$(date +%Y%m%d%H%M%S).sql.gz && echo DB backup done'
+# backup-db-prod.sh 校验备份并清理半成品；失败返回非零，由 remote-deploy.sh 中止部署。
+DB_BACKUP_COMMAND="bash $PROD_APP_ROOT/bin/backup-db-prod.sh $RELEASE_ID"
 DEPLOY_CMD="$DEPLOY_CMD DB_BACKUP_COMMAND='$DB_BACKUP_COMMAND'"
 DEPLOY_CMD="$DEPLOY_CMD bash $PROD_APP_ROOT/incoming/remote-deploy.sh"
 
@@ -157,6 +159,7 @@ if [[ $DEPLOY_EXIT -ne 0 ]]; then
   printf '   1. Flyway validate 失败 → 用 SKIP_FLYWAY_VALIDATE=1 重试（不推荐）\n' >&2
   printf '   2. 健康检查超时 → 检查服务状态：ssh %s "sudo systemctl status %s"\n' "$PROD_HOST" "$PROD_SERVICE_NAME" >&2
   printf '   3. Kafka SDK 启动延迟 → 等待 8 分钟后手动检查健康状态\n' >&2
+  printf '   4. 预备份失败 → 查看 remote-deploy 输出与 /opt/xiyu-bid/db-backups（失败时会删除半成品）\n' >&2
   printf '\n   ⚠️  部署失败，继续执行 Step 6 校验以收集 OBS 诊断信息\n' >&2
 fi
 
