@@ -140,8 +140,8 @@
 
 ## 项目1360 HTML标签清洗与资质文案人性化
 
-- `HTML标签清洗`：PDF/Docx 表格转换为 Markdown 单元格时，单元格内部换行会生成 `<br>` 或 `<br/>`（如 `EDI和<br>ICP`）。`QualificationConditionExtractor`、`CertificateRequirementPolicy`、`QualificationVetoPolicy`、`QualificationMatchPolicy`、`TenderRequirements` 均在归一化与提取前置统一剥离 HTML 标签，避免标点剥离后残留 `br` 导致资质与标书永久失配。
-- `资质比对文案人性化`：`QualificationDetailReconciler` 彻底消除面向用户的技术化英文代码（如 `[UNKNOWN]`、`原检索状态=MATCHED` 等），转换为自然中文“条件适用范围或作用对象待确认；资质库已匹配有效证书...”，显著提升业务用户可读性。
+- `HTML标签清洗`：PDF/Docx 表格转换为 Markdown 单元格时，单元格内部换行会生成 `<br>` 或 `<br/>`（如 `EDI和<br>ICP`）。原始 HTML 在 `QualificationConditionExtractor` 条件装配或 `TenderRequirements` 未覆盖的旧文本入口剥离已知标签并解码一次；编号清理、证书分类与结构化条件匹配只消费已解码文本。模型重建复用已有结构化条件，避免将 `&lt;b&gt;` 解码所得字面 `<b>` 再当标签吞掉。直接匹配入口 `isQualificationMatch` 消费已解码文本，与 `findBestMatchingCert` 保持一致避免人员库二次解码；另提供 `isRawQualificationMatch` 用于未清洗的原始 HTML。证据保留原始引文，定位时按原始单元格一次清洗后比较，重复命中仍保持未知索引。
+- `资质比对文案人性化`：`QualificationDetailReconciler` 不再向未确认条件备注追加技术化英文代码（如 `[UNKNOWN]`、`原检索状态=MATCHED` 等），转换为自然中文“条件适用范围或作用对象待确认；资质库已匹配有效证书...”；保留原始备注和人工复核状态。文案格式化为类内实现细节。
 
 - P6 fix第2轮：评分来源采用完整直接来源绑定，历史/参考/未知来源不证明本次义务；报价载体限定单独绑定，非系统报价表/单不被认定为系统渠道，保留独立材料失败。新增真实Engine双模型对照和确定性提取/校准回归。
 

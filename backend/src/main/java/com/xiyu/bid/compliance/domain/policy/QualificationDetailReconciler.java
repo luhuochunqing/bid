@@ -67,8 +67,8 @@ public final class QualificationDetailReconciler {
         return reconcileMaterialFacts(pending, known).withDetails(references);
     }
 
-    static String formatUnresolvedRemark(final QualificationDetail d) {
-        String baseRemark = d.remark() == null ? "" : d.remark().trim();
+    private static String formatUnresolvedRemark(final QualificationDetail d) {
+        String baseRemark = d.remark();
         String prefix = "条件适用范围或作用对象待确认";
         if (baseRemark.isBlank()) return prefix;
         if (baseRemark.contains("已匹配") || baseRemark.contains("未检索") || baseRemark.contains("未匹配") || baseRemark.contains("已在标书")) {

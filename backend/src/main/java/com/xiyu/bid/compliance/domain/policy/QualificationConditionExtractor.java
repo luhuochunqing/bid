@@ -1,9 +1,11 @@
 // Input: 招标原文中的资格章节（包含 Markdown 标题与表格内容）
-// Output: 完整资格条件（清洗 HTML 标签与表格多行换行），不以证书词表或证书名长度裁剪条件
+// Output: 完整资格条件（清洗 HTML 标签、解码实体并保留比较符），不以证书词表或证书名长度裁剪条件
 // Pos: compliance/domain/policy/ - 资格章节边界与条件清洗纯核心
 package com.xiyu.bid.compliance.domain.policy;
 
 import com.xiyu.bid.compliance.domain.DocumentContent;
+import org.jsoup.parser.Parser;
+import org.jsoup.parser.Tag;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -193,18 +195,22 @@ public final class QualificationConditionExtractor {
         return result;
     }
 
-    private static final Pattern HTML_TAG_RE = Pattern.compile("(?i)<(?:br\\s*/?|[^>]+)>|&(?:nbsp|amp|lt|gt|quot|apos|#\\d+);");
+    private static final Pattern HTML_TAG_RE = Pattern.compile(
+            "(?i)</?([a-z][a-z0-9]*)(?=\\s|/?>)(?:[^<>\"']|\"[^\"]*\"|'[^']*')*>");
 
     public static String stripHtml(final String text) {
         if (text == null || text.isBlank()) return "";
-        return HTML_TAG_RE.matcher(text).replaceAll("").trim();
+        // 只移除已知 HTML 标签；先去标签再解码，避免将编码后的文字当作标记吞掉。
+        String clean = HTML_TAG_RE.matcher(text).replaceAll(match -> Matcher.quoteReplacement(
+                Tag.isKnownTag(match.group(1).toLowerCase(java.util.Locale.ROOT)) ? "" : match.group()));
+        return Parser.unescapeEntities(clean, false).trim();
     }
 
     private static String tableCondition(final List<String> cells, final List<String> header) {
         List<String> values = new ArrayList<>();
         for (int i = 0; i < cells.size(); i++) {
             boolean serial = i < header.size() && header.get(i).equals("序号") && cells.get(i).matches("[0-9]+");
-            if (!serial && !cells.get(i).isBlank()) values.add(stripHtml(cells.get(i)));
+            if (!serial && !cells.get(i).isBlank()) values.add(cells.get(i));
         }
         return String.join("；", values);
     }
@@ -215,13 +221,14 @@ public final class QualificationConditionExtractor {
     }
 
     private static boolean appendCondition(final List<QualificationCondition> result, final String text, final String quote) {
-        String item = cleanCondition(text);
+        String item = cleanCondition(stripHtml(text));
         if (item.isBlank() || isHeading(item) || item.matches("无|不适用|不要求|/|[-:|\\s]+")) return false;
         return result.add(new QualificationCondition(item, new QualificationCondition.Source("", "", null, quote), null));
     }
 
+    /** 已解码条件的编号与标点清理；不再解释 HTML 或实体。 */
     static String cleanCondition(final String text) {
-        String clean = text == null ? "" : stripHtml(text.trim().replaceFirst("^#{1,6}\\h*", ""));
+        String clean = text == null ? "" : text.trim().replaceFirst("^#{1,6}\\h*", "");
         clean = clean.replaceAll("^[|；;。，,、：:\\s]+|[|；;。，,：:\\s]+$", "");
         if (VALUE_PREFIX.matcher(clean).find()) return clean;
         return BULLET.matcher(clean).replaceFirst("").trim();

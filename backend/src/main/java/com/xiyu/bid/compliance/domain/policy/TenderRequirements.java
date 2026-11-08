@@ -108,11 +108,14 @@ public record TenderRequirements(
 
     public TenderRequirements {
         scoringItems = scoringItems == null ? List.of() : List.copyOf(scoringItems);
+        // 结构化条件已解码；模型 with*/merge 重建时只处理尚未覆盖的原始旧文本。
+        List<QualificationCondition> existing = qualificationConditions == null ? List.of() : qualificationConditions;
         List<String> sanitizedMandatory = mandatoryQualifications == null ? List.of() :
                 mandatoryQualifications.stream().filter(java.util.Objects::nonNull)
+                        .filter(raw -> existing.stream().noneMatch(c -> c.text().equals(raw)))
                         .map(QualificationConditionExtractor::stripHtml)
                         .filter(s -> !s.isBlank()).toList();
-        qualificationConditions = QualificationCondition.complete(qualificationConditions, sanitizedMandatory);
+        qualificationConditions = QualificationCondition.complete(existing, sanitizedMandatory);
         mandatoryQualifications = qualificationConditions.stream().map(QualificationCondition::text).distinct().toList();
         vetoClauses = vetoClauses == null ? List.of() : List.copyOf(vetoClauses);
         compositionRequirements = compositionRequirements == null ? List.of() : List.copyOf(compositionRequirements);
