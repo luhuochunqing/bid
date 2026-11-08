@@ -1,5 +1,5 @@
 // Input: 原始裁决结果（QualityCheckItemResult）+ 资质比对结构化明细（List<QualificationDetail>）
-// Output: 状态与明细一致性校准后的 QualityCheckItemResult（纯核心，FP-Java 纯函数，文案人性化消除技术术语）
+// Output: 状态与明细一致性校准后的 QualityCheckItemResult（纯核心，FP-Java 纯函数，备注去除技术状态标记）
 // Pos: compliance/domain/policy/ - 资质比对明细与总项裁决状态一致性校准器
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -68,7 +68,7 @@ public final class QualificationDetailReconciler {
     }
 
     private static String formatUnresolvedRemark(final QualificationDetail d) {
-        String baseRemark = d.remark();
+        String baseRemark = d.remark().replaceAll("\\[UNKNOWN\\]\\s*", "").replaceAll("原检索状态=[A-Z_]+；?\\s*", "");
         String prefix = "条件适用范围或作用对象待确认";
         if (baseRemark.isBlank()) return prefix;
         if (baseRemark.contains("已匹配") || baseRemark.contains("未检索") || baseRemark.contains("未匹配") || baseRemark.contains("已在标书")) {
