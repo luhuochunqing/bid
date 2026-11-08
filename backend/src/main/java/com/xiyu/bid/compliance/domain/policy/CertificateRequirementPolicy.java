@@ -1,4 +1,4 @@
-// Input: 单条完整资格条件及原文行/单元格（条件文本已在入口解码，来源引文保留原样）
+// Input: 单条完整资格条件及原文行/单元格（条件文本已在入口解码，来源引文保留原样，支持前导并列连词）
 // Output: 子句级证书要求及分类、匹配、证据共用的识别结果
 // Pos: compliance/domain/policy/ - 资格条件内的证书子项纯核心
 package com.xiyu.bid.compliance.domain.policy;
@@ -14,7 +14,7 @@ public final class CertificateRequirementPolicy {
     private static final Pattern CERTIFICATE = Pattern.compile("(?i)ISO\\s*[-:]?\\s*\\d{3,5}|许可证|认证|资质证书|资格证书|备案证明|等级保护");
     private static final Pattern OPTIONAL = Pattern.compile("[（(](?:如有|若有)(?:则)?提供[）)]|^(?:如有|若有)(?:该)?(?:证书|ISO\\s*\\d+)|^(?:无需|不要求|不必|不需要)");
     private static final Pattern SUBJECT_AFFILIATE = Pattern.compile("[（(][^）)]*(?:母子公司|集团公司|体系内|关联公司)[^）)]*[）)]");
-    private static final Pattern OBLIGATION = Pattern.compile("^(?:(?:投标人|供应商|申请人|企业|公司|我方)\\s*)?(?:应当|必须|须|应|需)?\\s*(?:具有|具备|持有|取得|通过|提供)");
+    private static final Pattern OBLIGATION = Pattern.compile("^(?:(?:且|并|同时)\\s*)?(?:(?:投标人|供应商|申请人|企业|公司|我方)\\s*)?(?:应当|必须|须|应|需)?\\s*(?:具有|具备|持有|取得|通过|提供)");
 
     private CertificateRequirementPolicy() { }
 

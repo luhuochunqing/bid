@@ -150,8 +150,8 @@ public final class LlmAdjudicator {
             final List<KnowledgeMatch> kbMatches) {
         StringBuilder sb = new StringBuilder();
         sb.append("你是投标文件质量核查专家。请仅依据下列材料裁决检查项「").append(item.getTitle())
-                .append("」，输出且仅输出 JSON 对象：{\"status\":\"PASS|FAIL|MANUAL\",\"conclusion\":\"...\","
-                        + "\"suggestion\":\"...\",\"reasonCode\":\"\"}（status=MANUAL 时 reasonCode 必填，原因码为LOW_CONFIDENCE、AMBIGUOUS、EVIDENCE_INSUFFICIENT、REFERENCE_MISSING或MANUAL_REVIEW_REQUIRED）。\n");
+                .append("」，输出且仅输出单个合法闭合的 JSON 对象：{\"status\":\"PASS|FAIL|MANUAL\",\"conclusion\":\"...\","
+                        + "\"suggestion\":\"...\",\"reasonCode\":\"\"}（conclusion 请精炼在 200 字内禁止冗长输出；status=MANUAL 时 reasonCode 必填，原因码为LOW_CONFIDENCE、AMBIGUOUS、EVIDENCE_INSUFFICIENT、REFERENCE_MISSING或MANUAL_REVIEW_REQUIRED）。\n");
         sb.append(AdjudicationGuidelines.allGuidelines());
         sb.append("【招标要求（LLM 结构化提取）】\n").append(summarizeRequirements(requirements)).append("\n\n");
         sb.append("【企业知识库真实记录】\n").append(summarizeKbMatches(kbMatches)).append("\n\n");

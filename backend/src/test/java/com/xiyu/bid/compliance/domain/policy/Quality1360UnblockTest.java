@@ -8,6 +8,8 @@ import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualificationDetail;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
+import com.xiyu.bid.compliance.domain.QualityEvidence;
+import com.xiyu.bid.compliance.service.LlmVerdictParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -218,6 +220,239 @@ class Quality1360UnblockTest {
     }
 
     @Test
+    @DisplayName("无投标人上下文的独立产品或制造商证书子句，主体保持 UNKNOWN 避免盲目升级为投标人强制要求")
+    void certificateClauseWithoutBidderContextRetainsTargetUnknown() {
+        String clause = "具有ISO9001质量管理体系认证";
+        var certs = CertificateRequirementPolicy.classify(clause, clause);
+        assertThat(certs).hasSize(1);
+        assertThat(certs.getFirst().target()).isEqualTo(QualificationCondition.Target.UNKNOWN);
+    }
+
+    @Test
+    void certificateCategoryWithoutHolderContextRequiresManualConfirmation() {
+        for (String clause : List.of("具有一级建造师资格证书", "具有施工资质证书")) {
+            var certs = CertificateRequirementPolicy.classify(clause, clause);
+            assertThat(certs).hasSize(1);
+            assertThat(certs.getFirst().applicability()).isEqualTo(QualificationCondition.Applicability.MANDATORY);
+            assertThat(certs.getFirst().target()).isEqualTo(QualificationCondition.Target.UNKNOWN);
+            var tender = DocumentContent.fromText("tender.pdf", "hash", "资格要求\n" + clause);
+            var req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tender);
+            assertThat(req.hasUnresolvedCertificateRequirements()).isTrue();
+            var detail = new QualificationDetail(clause, "企业资质证书", "MATCHED", 1, clause, 365, "已匹配有效证书");
+            var result = QualificationDetailReconciler.reconcile(
+                    QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_MATCH, "匹配", List.of()),
+                    List.of(detail), req);
+            assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        }
+    }
+
+    @Test
+    void unrelatedOrEmptyKnowledgeQuotesAreExcludedFromCertificateEvidence() {
+        var tender = DocumentContent.fromText("tender.pdf", "hash", "投标人须具有ISO9001认证");
+        var req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tender);
+        var bid = DocumentContent.fromText("bid.pdf", "bid_hash", "ISO9001认证证明材料");
+        for (String quote : java.util.Arrays.asList(null, "", "   ", "完全无关的营业执照")) {
+            var evidence = new QualityEvidence("KNOWLEDGE_BASE", "资质记录", null, quote,
+                    "unrelated", 1.0, KnowledgeMatch.SOURCE_QUALIFICATION, true);
+            var result = QualificationVetoPolicy.checkFirstStage(bid, tender, req, List.of(evidence));
+            assertThat(result).isPresent();
+            assertThat(result.orElseThrow().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+            assertThat(result.orElseThrow().evidences()).noneMatch(e -> "KNOWLEDGE_BASE".equals(e.sourceType()));
+        }
+    }
+
+    @Test
+    void genericKnowledgeQuotesCannotIdentifyRequiredCertificate() {
+        for (String certificate : List.of("ISO9001认证", "增值电信业务经营许可证")) {
+            var tender = DocumentContent.fromText("tender.pdf", "hash", "投标人须具有" + certificate);
+            var req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tender);
+            var bid = DocumentContent.fromText("bid.pdf", "bid_hash", certificate + "证明材料");
+            for (String quote : List.of("认证", "许可证", "经营许可证", "管理体系认证", "企业资质证书")) {
+                var evidence = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
+                        KnowledgeMatch.SOURCE_QUALIFICATION, "generic", quote, true));
+                var result = QualificationVetoPolicy.checkFirstStage(bid, tender, req, List.of(evidence));
+                assertThat(result).isPresent();
+                assertThat(result.orElseThrow().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+                assertThat(result.orElseThrow().evidences())
+                        .as("要求 %s 不得归属泛化引文 %s", certificate, quote)
+                        .noneMatch(e -> "KNOWLEDGE_BASE".equals(e.sourceType()));
+            }
+        }
+    }
+
+    @Test
+    void shortCertificateCodesCannotIdentifyRequiredCertificate() {
+        for (String certificate : List.of("ISO9001认证", "ICP许可证", "EDI许可证")) {
+            var tender = DocumentContent.fromText("tender.pdf", "hash", "投标人须具有" + certificate);
+            var req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tender);
+            var bid = DocumentContent.fromText("bid.pdf", "bid_hash", certificate + "证明材料");
+            for (String quote : List.of("ISO", "ISO900", "IC", "ED")) {
+                var evidence = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
+                        KnowledgeMatch.SOURCE_QUALIFICATION, "short", quote, true));
+                var result = QualificationVetoPolicy.checkFirstStage(bid, tender, req, List.of(evidence)).orElseThrow();
+                assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+                assertThat(result.evidences()).noneMatch(e -> "KNOWLEDGE_BASE".equals(e.sourceType()));
+            }
+            var exact = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
+                    KnowledgeMatch.SOURCE_QUALIFICATION, "exact", certificate, true));
+            assertThat(QualificationVetoPolicy.checkFirstStage(bid, tender, req, List.of(exact)).orElseThrow().evidences())
+                    .anyMatch(e -> "KNOWLEDGE_BASE".equals(e.sourceType()));
+        }
+    }
+
+    @Test
+    void certificateEvidenceMustCoverEveryRequiredIdentityCode() {
+        for (var pair : List.of(
+                List.of("ISO9001质量管理体系认证", "质量管理体系认证"),
+                List.of("EDI和ICP许可证", "EDI许可证"),
+                List.of("EDI和ICP许可证", "ICP许可证"),
+                List.of("中华人民共和国增值电信业务经营许可证（EDI和ICP）",
+                        "中华人民共和国增值电信业务经营许可证 国家级"))) {
+            String certificate = pair.getFirst();
+            var tender = DocumentContent.fromText("tender.pdf", "hash", "投标人须具有" + certificate);
+            var req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tender);
+            var bid = DocumentContent.fromText("bid.pdf", "bid_hash", certificate + "证明材料");
+            var incomplete = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
+                    KnowledgeMatch.SOURCE_QUALIFICATION, "incomplete", pair.get(1), true));
+            var result = QualificationVetoPolicy.checkFirstStage(bid, tender, req, List.of(incomplete)).orElseThrow();
+            assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+            assertThat(result.evidences()).as("要求 %s 不得归属引文 %s", certificate, pair.get(1))
+                    .noneMatch(e -> "KNOWLEDGE_BASE".equals(e.sourceType()));
+            var complete = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
+                    KnowledgeMatch.SOURCE_QUALIFICATION, "complete", certificate, true));
+            assertThat(QualificationVetoPolicy.checkFirstStage(bid, tender, req, List.of(complete))
+                    .orElseThrow().evidences()).contains(complete);
+        }
+    }
+
+    @Test
+    void certificateWithoutEnglishCodeRetainsIndependentNameMatch() {
+        String certificate = "建筑工程施工总承包资质证书";
+        var tender = DocumentContent.fromText("tender.pdf", "hash", "投标人须具有" + certificate);
+        var req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tender);
+        var bid = DocumentContent.fromText("bid.pdf", "bid_hash", certificate + "证明材料");
+        var evidence = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
+                KnowledgeMatch.SOURCE_QUALIFICATION, "chinese", certificate, true));
+        var result = QualificationVetoPolicy.checkFirstStage(bid, tender, req, List.of(evidence)).orElseThrow();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.evidences()).contains(evidence);
+    }
+
+    @Test
+    void longFieldFragmentsPreserveParsingAndRejectMalformedValues() {
+        String longValue = "核验内容".repeat(4000);
+        for (String field : List.of("conclusion", "suggestion")) {
+            String prefix = "判定：\"status\":\"PASS\","
+                    + (field.equals("suggestion") ? "\"conclusion\":\"完整结论\"," : "")
+                    + "\"" + field + "\":\"";
+            assertThat(LlmVerdictParser.parse(prefix + longValue + "\""))
+                    .isPresent();
+            assertThat(LlmVerdictParser.parse(prefix + longValue))
+                    .isEmpty();
+            assertThat(LlmVerdictParser.parse(prefix + longValue + "\", \"status\":null"))
+                    .isEmpty();
+        }
+    }
+
+    @Test
+    void invalidTopLevelVerdictCannotBorrowNestedStatus() {
+        for (String response : List.of(
+                "{\"status\":null,\"conclusion\":\"无法判定\",\"example\":{\"status\":\"PASS\"}}",
+                "{\"status\":\"UNKNOWN\",\"example\":{\"status\":\"PASS\"}}",
+                "{\"conclusion\":\"无法判定\",\"example\":{\"status\":\"PASS\"}",
+                "{\"status\":null,\"conclusion\":\"无法判定\"} {\"status\":\"PASS\"}")) {
+            assertThat(LlmVerdictParser.parse(response))
+                    .as("无效顶层裁决不得借用示例或后续对象：%s", response).isEmpty();
+        }
+    }
+
+    @Test
+    void malformedVerdictCannotCombineFieldsAcrossObjects() {
+        for (String response : List.of(
+                "{\"conclusion\":\"无法判定\",} {\"status\":\"PASS\"}",
+                "\"conclusion\":\"无法判定\", 另一对象：\"status\":\"PASS\"",
+                "\"status\":null, \"example\":{\"status\":\"PASS\"}")) {
+            assertThat(LlmVerdictParser.parse(response))
+                    .as("字段必须来自同一个裁决对象：%s", response).isEmpty();
+        }
+    }
+
+    @Test
+    void fieldFragmentRequiresCompleteNonBlankConclusion() {
+        for (String status : List.of("PASS", "FAIL", "MANUAL")) {
+            String prefix = "\"status\":\"" + status + "\"";
+            for (String suffix : List.of("", ",", ",\"conclusion\":\"\"",
+                    ",\"conclusion\":\"   \"", ",\"conclusion\":\"未完成",
+                    ",\"suggestion\":\"请核查材料\"", ",\"conclusion\":null",
+                    ",\"conclusion\":123")) {
+                assertThat(LlmVerdictParser.parse(prefix + suffix))
+                        .as("字段恢复不得补造结论：%s", prefix + suffix).isEmpty();
+            }
+            for (String suffix : List.of("", ",")) {
+                assertThat(LlmVerdictParser.parse(
+                        prefix + ",\"conclusion\":\"完整结论\"" + suffix))
+                        .hasValueSatisfying(verdict -> {
+                            assertThat(verdict.status()).isEqualTo(status);
+                            assertThat(verdict.conclusion()).isEqualTo("完整结论");
+                        });
+            }
+        }
+    }
+
+    @Test
+    void truncatedVerdictRequiresCompleteNonBlankConclusion() {
+        for (String status : List.of("PASS", "FAIL", "MANUAL")) {
+            String prefix = "{\"status\":\"" + status + "\"";
+            for (String suffix : List.of("", ",\"conclusion\":\"", ",\"conclusion\":\"尚未输出完整结论",
+                    ",\"conclusion\":\"结论包含转义引号\\\"但仍未结束", ",\"conclusion\":\"\"",
+                    ",\"conclusion\":\"   \"", ",\"conclusion\":null")) {
+                String response = prefix + suffix;
+                assertThat(LlmVerdictParser.parse(response))
+                        .as("截断响应不得补造裁决：%s", response).isEmpty();
+            }
+            var complete = LlmVerdictParser.parse(
+                    prefix + ",\"conclusion\":\"已完整输出的结论\"");
+            assertThat(complete).hasValueSatisfying(verdict -> {
+                assertThat(verdict.status()).isEqualTo(status);
+                assertThat(verdict.conclusion()).isEqualTo("已完整输出的结论");
+            });
+        }
+    }
+
+    @Test
+    @DisplayName("大模型响应末尾截断或丢失闭合花括号时，解析器自动修复并成功提取裁决结果")
+    void truncatedOrMalformedLlmResponseIsHealedSuccessfully() {
+        // 场景 1：结论已完整输出，仅建议截断；丢弃未完成建议，保留完整裁决。
+        String truncated = """
+                {
+                  "status": "PASS",
+                  "conclusion": "投标文件对各项评分标准响应完整，无占位符留白，符合满分标准。",
+                  "suggestion": "建议在后续执行中保持发货时效
+                """;
+        var parsed1 = LlmVerdictParser.parse(truncated);
+        assertThat(parsed1).isPresent();
+        assertThat(parsed1.get().status()).isEqualTo("PASS");
+        assertThat(parsed1.get().conclusion()).contains("符合满分标准");
+        assertThat(parsed1.get().suggestion()).isEmpty();
+
+        // 场景 2：仅丢失最外层花括号
+        String missingBrace = """
+                {"status": "MANUAL", "conclusion": "需人工核对系统报价", "reasonCode": "LOW_CONFIDENCE"
+                """;
+        var parsed2 = LlmVerdictParser.parse(missingBrace);
+        assertThat(parsed2).isPresent();
+        assertThat(parsed2.get().status()).isEqualTo("MANUAL");
+        assertThat(parsed2.get().reasonCode()).isEqualTo("LOW_CONFIDENCE");
+
+        // 场景 3：无外层对象的连续字段补齐后仍经 JSON 结构校验
+        String brokenJson = "AI判定结果：\"status\": \"PASS\", \"conclusion\": \"响应充分\", 详情见后文...";
+        var parsed3 = LlmVerdictParser.parse(brokenJson);
+        assertThat(parsed3).isPresent();
+        assertThat(parsed3.get().status()).isEqualTo("PASS");
+        assertThat(parsed3.get().conclusion()).isEqualTo("响应充分");
+    }
+
+    @Test
     @DisplayName("条件性补充文件（如授权文件、股权证明）不被误提取为独立证书要求")
     void authorizationLetterInConditionIsNotExtractedAsCertificateRequirement() {
         String text = "如证书及平台非投标人自身拥有，须补充提供：-具备前述平台和经营许可证的单位出具的针对本项目的“授权文件”，证明投标人被授权合法使用该主网站；-股权关系证明资料。";
@@ -257,7 +492,7 @@ class Quality1360UnblockTest {
     }
 
     @Test
-    @DisplayName("招标文件表格中含 <br> HTML标签（如 EDI和<br>ICP）时，自动清洗标签，一票否决与资质匹配闭环 PASS 且备注无英文术语")
+    @DisplayName("招标文件表格中含 <br> HTML标签（如 EDI和<br>ICP）时，自动清洗标签，一票否决实证 PASS，资质匹配保留主体待确认且备注无英文术语")
     void htmlBrTagInTenderRequirementIsSanitizedAndProducesHumanizedRemark() {
         String bidPage = """
                 第二章 投标人资格条件相关证明文件
@@ -287,17 +522,44 @@ class Quality1360UnblockTest {
         // 资质比对详情不含英文术语与 [UNKNOWN]
         var detail = new QualificationDetail(req.certificateRequirements().getFirst(),
                 "中华人民共和国增值电信业务经营许可证 国家级", "MATCHED", 2, "第 2 页", 1236,
-                "已匹配企业资质库有效证书「中华人民共和国增值电信业务经营许可证 国家级」（有效期至 2030-03-28）");
+                "[UNKNOWN] 原检索状态=MATCHED；已匹配企业资质库有效证书「中华人民共和国增值电信业务经营许可证 国家级」（有效期至 2030-03-28）");
         var reconciled = QualificationDetailReconciler.reconcile(
                 QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_MATCH, "资质匹配", List.of()),
                 List.of(detail), req, bidDoc);
 
+        assertThat(req.hasUnresolvedCertificateRequirements()).isTrue();
+        assertThat(reconciled.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(reconciled.details()).hasSize(1);
         String remark = reconciled.details().getFirst().remark();
         assertThat(remark).doesNotContain("[UNKNOWN]");
         assertThat(remark).doesNotContain("MATCHED");
         assertThat(remark).doesNotContain("原检索状态=");
         assertThat(remark).contains("已匹配企业资质库有效证书");
+    }
+
+    @Test
+    @DisplayName("标书命中证书名称且企业资质库具备匹配证据时，一票否决严格保持人工核查契约且证据链纳入资质库佐证")
+    void certificateNameHitWithEnterpriseKbEvidenceRetainsManualReviewAndEvidence() {
+        String p1 = "封面\n项目编号：XY-ZB-2026-0888\n营业执照有效期限：长期";
+        String p2 = "第二章 投标人资格条件相关证明文件\n依法取得中华人民共和国增值电信业务经营许可证（EDI和ICP）。";
+        DocumentContent bidDoc = new DocumentContent("bid.pdf", "bid_hash", p1 + "\n" + p2,
+                List.of(
+                        new DocumentContent.PageContent(1, p1, List.of()),
+                        new DocumentContent.PageContent(2, p2, List.of())
+                ));
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "tender_hash",
+                "七、 投标人资格要求\n投标人须具有中华人民共和国增值电信业务经营许可证（EDI和ICP）。");
+        TenderRequirements req = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tenderDoc);
+        var kbEvidence = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
+                KnowledgeMatch.SOURCE_QUALIFICATION, "46", "中华人民共和国增值电信业务经营许可证（EDI和ICP） 国家级", true));
+
+        Optional<QualityCheckItemResult> result = QualificationVetoPolicy.checkFirstStage(bidDoc, tenderDoc, req, List.of(kbEvidence));
+        assertThat(result).isPresent();
+        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.get().evidences()).anyMatch(e -> "KNOWLEDGE_BASE".equals(e.sourceType())
+                && "中华人民共和国增值电信业务经营许可证（EDI和ICP） 国家级".equals(e.quote()));
+        assertThat(SemanticEvidenceBoundary.reconcile(result.get(), bidDoc).status())
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 
     @Test

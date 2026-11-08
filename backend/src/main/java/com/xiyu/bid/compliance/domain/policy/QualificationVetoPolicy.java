@@ -1,5 +1,5 @@
 // Input: 标书文档 + 招标文件 + TenderRequirements + 知识库证据
-// Output: Optional<QualityCheckItemResult>（字段内明确占位/违规分包 FAIL及原位证据，只在原始标书入口清洗 HTML 标签，证书同页具备编号与有效期实证时 PASS，仅名称命中转人工确认，证据复用实际命中原始页）
+// Output: Optional<QualityCheckItemResult>（字段内明确占位/违规分包 FAIL及原位证据，只在原始标书入口清洗 HTML 标签，证书同页具备编号与有效期实证时 PASS，仅名称命中结合身份完整匹配的资质库记录转人工确认，证据复用实际命中原始页）
 // Pos: compliance/domain/policy/ - 标书一票否决与资格前置反假核验策略（纯核心，FP-Java 无外部依赖）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -54,26 +54,17 @@ public final class QualificationVetoPolicy {
             final DocumentContent tenderDoc,
             final TenderRequirements requirements,
             final List<QualityEvidence> kbEvidences) {
-        if (bidDoc == null) {
-            return Optional.empty();
-        }
-
+        if (bidDoc == null) return Optional.empty();
         List<EvidenceTextSlice> validPages = filterNonCatalogPages(bidDoc);
-        if (validPages.isEmpty()) {
-            return Optional.empty();
-        }
+        if (validPages.isEmpty()) return Optional.empty();
 
         // 1. 占位符反假拦截：检测资格声明或否决条款响应中的未填写占位符
         Optional<QualityCheckItemResult> placeholderFail = checkPlaceholders(validPages);
-        if (placeholderFail.isPresent()) {
-            return placeholderFail;
-        }
+        if (placeholderFail.isPresent()) return placeholderFail;
 
         // 2. 实质性违规拦截：检测标书自述违规分包/转包
         Optional<QualityCheckItemResult> violationFail = checkViolations(validPages);
-        if (violationFail.isPresent()) {
-            return violationFail;
-        }
+        if (violationFail.isPresent()) return violationFail;
 
         // 3. 证书定位参考，不以关键词命中或未命中判定完整资格结论
         if (requirements != null && !requirements.mandatoryQualifications().isEmpty()) {
@@ -155,8 +146,8 @@ public final class QualificationVetoPolicy {
         List<String> unsatisfied = new ArrayList<>();
         boolean allHaveSubstantiveFacts = true;
         for (String qualification : validQualifications) {
-            String cleanCert = stripQualificationPrefix(qualification);
-            if (cleanCert.isBlank()) cleanCert = qualification.trim();
+            String rawClean = stripQualificationPrefix(qualification);
+            final String cleanCert = rawClean.isBlank() ? qualification.trim() : rawClean;
             String normClean = normalize(cleanCert);
             String normRaw = normalize(qualification);
             List<EvidenceTextSlice> matchedPages = validPages.stream()
@@ -170,9 +161,16 @@ public final class QualificationVetoPolicy {
                 EvidenceTextSlice proof = matchedPages.stream()
                         .filter(p -> SemanticEvidenceBoundary.hasSubstantiveCertificateFacts(p.text()))
                         .findFirst().orElse(null);
+                List<QualityEvidence> matchingKbEvidences = kbEvidences == null ? List.of() : kbEvidences.stream()
+                        .filter(e -> e != null && Boolean.TRUE.equals(e.matched())
+                                && "KNOWLEDGE_BASE".equals(e.sourceType())
+                                && KnowledgeMatch.SOURCE_QUALIFICATION.equals(e.knowledgeSource()))
+                        .filter(e -> matchesCertificateEvidence(cleanCert, qualification, e.quote()))
+                        .toList();
                 if (proof == null) allHaveSubstantiveFacts = false;
                 EvidenceTextSlice hit = proof == null ? matchedPages.getFirst() : proof;
                 bidEvidences.add(QualityEvidence.bid("标书资质响应证明", hit.pageNumber(), hit.text()));
+                bidEvidences.addAll(matchingKbEvidences);
             } else {
                 unsatisfied.add(qualification);
                 allHaveSubstantiveFacts = false;
@@ -209,11 +207,27 @@ public final class QualificationVetoPolicy {
         }
         String conclusion = "标书已检索到证书名称：【" + String.join("、", satisfied)
                 + "】；名称命中不能证明证书有效及全部资格条件满足，请逐项核验完整资格条件。";
-        return Optional.of(QualityCheckItemResult.manualReview(
-                BidQualityCheckItem.QUALIFICATION_VETO,
-                conclusion,
-                "请对照招标资格审查清单核验主体、财务、信用、业绩、纳税社保及相关证明；资质库命中不能替代本次投标证明材料核验",
-                evidences));
+        return Optional.of(QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_VETO, conclusion,
+                "请对照招标资格审查清单核验主体、财务、信用、业绩、纳税社保及相关证明；资质库命中不能替代本次投标证明材料核验", evidences));
+    }
+
+    private static final Pattern EVIDENCE_CODE = Pattern.compile("(?i)[a-z]+[0-9]*");
+    private static final Pattern GENERIC_CATEGORY = Pattern.compile(
+            "^(?:企业|国家|行业)?(?:资质|资格|体系|管理体系|质量体系|环境体系|安全体系|经营|业务)*(?:认证|许可证|资质证书|资格证书|备案证明|证书|证明材料)?$");
+
+    /** 排除泛化类别引文（如“经营许可证”“管理体系认证”），要求中的全部代码必须出现在引文中；无代码证书继续按名称独立匹配。 */
+    private static boolean matchesCertificateEvidence(final String certificate, final String requirement, final String quote) {
+        String normQuote = normalize(quote);
+        if (normQuote.isBlank() || GENERIC_CATEGORY.matcher(normQuote).matches()) return false;
+        List<String> requiredCodes = EVIDENCE_CODE.matcher(normalize(certificate)).results()
+                .map(m -> m.group().toLowerCase(java.util.Locale.ROOT)).toList();
+        List<String> quoteCodes = EVIDENCE_CODE.matcher(normQuote).results()
+                .map(m -> m.group().toLowerCase(java.util.Locale.ROOT)).toList();
+        if (!quoteCodes.containsAll(requiredCodes)
+                || quoteCodes.stream().anyMatch(code -> code.length() < 3 || "iso".equals(code)
+                        || !requiredCodes.contains(code))) return false;
+        return QualificationMatchPolicy.isQualificationMatch(certificate, quote)
+                || QualificationMatchPolicy.isQualificationMatch(requirement, quote);
     }
 
     /** 比较只解码原始页一次；证据直接保留该页原文，不再用清洗文本反查原文。 */
