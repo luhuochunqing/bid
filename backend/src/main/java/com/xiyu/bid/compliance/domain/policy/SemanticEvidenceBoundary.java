@@ -42,7 +42,6 @@ final class SemanticEvidenceBoundary {
         if (firstStage.filter(v -> v.status() == QualityCheckStatus.FAIL).isPresent()) {
             return firstStage.orElseThrow();
         }
-        if (firstStage.isEmpty()) return result;
         return QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
                 "证书条件的强制性或作用对象尚未确认，资料检索结果不能直接证明招标资格满足或缺失",
                 "请按结构化条件的原文依据确认适用范围，再核对企业资质与本次投标材料", result.evidences());
@@ -137,8 +136,11 @@ final class SemanticEvidenceBoundary {
     }
 
     private static String sourceText(final QualityEvidence evidence, final DocumentContent bidDoc) {
-        return bidDoc == null ? evidence.quote() : bidDoc.pages().stream()
-                .filter(p -> p.pageNumber() == evidence.pageNumber()).findFirst()
+        if (bidDoc == null || evidence == null || evidence.pageNumber() == null) {
+            return evidence == null ? "" : evidence.quote();
+        }
+        return bidDoc.pages().stream()
+                .filter(p -> evidence.pageNumber().equals(p.pageNumber())).findFirst()
                 .map(DocumentContent.PageContent::text).orElse(evidence.quote());
     }
 

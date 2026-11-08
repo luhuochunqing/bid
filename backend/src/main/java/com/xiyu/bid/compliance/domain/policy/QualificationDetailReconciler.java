@@ -15,14 +15,7 @@ import java.util.List;
 
 /**
  * 资质比对明细与总项裁决状态一致性校准器（纯核心，spec 049 / 准则 15）.
- *
- * <p>解决双轨脱节问题：
- * <ul>
- *   <li>任何资质过期（EXPIRED）或等级不足：一票否决，强制判定 FAIL（不通过）；</li>
- *   <li>检索未命中或证明事实不完整：只能转为 MANUAL_REVIEW，不能据此认定材料缺失；</li>
- *   <li>存在需关注项（ATTENTION）：资质库未维护但标书有疑似证明，或即将过期，若原状态为 PASS，降级为 MANUAL_REVIEW（待确认）；</li>
- *   <li>全量满足（MATCHED）：保持原状态（通常为 PASS）。</li>
- * </ul>
+ * 过期/等级不足一票否决；材料未确认转人工；资料库匹配与名称定位只保留原裁决，不升级 PASS.
  */
 public final class QualificationDetailReconciler {
 
@@ -71,7 +64,7 @@ public final class QualificationDetailReconciler {
     }
 
     private static String formatUnresolvedRemark(final QualificationDetail d) {
-        String baseRemark = d.remark();
+        String baseRemark = d.remark() == null ? "" : d.remark().trim();
         String prefix = "条件适用范围或作用对象待确认";
         if (baseRemark.isBlank()) return prefix;
         if (baseRemark.contains("已匹配") || baseRemark.contains("未检索") || baseRemark.contains("未匹配") || baseRemark.contains("已在标书")) {
@@ -267,19 +260,13 @@ public final class QualificationDetailReconciler {
         String strippedCore = strippedPrefix.replaceAll("[（(][^）)]*[）)]", "").trim();
         if (!strippedCore.isBlank() && !cues.contains(strippedCore)) cues.add(strippedCore);
 
-        // 按逗号/分号截取前导主体名称
         String targetForSplit = strippedBrackets.isBlank() ? trimmed : strippedBrackets;
         String[] parts = targetForSplit.split("[,，;；]");
-        if (parts.length > 0 && !parts[0].isBlank() && !cues.contains(parts[0].trim())) {
-            cues.add(parts[0].trim());
-        }
-
-        // 针对常见银行与主体证明材料提取关键名词
+        if (parts.length > 0 && !parts[0].isBlank() && !cues.contains(parts[0].trim())) cues.add(parts[0].trim());
         if (trimmed.contains("基本存款账户") && !cues.contains("基本存款账户")) cues.add("基本存款账户");
         if (trimmed.contains("开户许可证") && !cues.contains("开户许可证")) cues.add("开户许可证");
         if ((trimmed.contains("开户许可证") || trimmed.contains("基本存款账户") || trimmed.contains("开户证明"))
                 && !cues.contains("开户证明")) cues.add("开户证明");
-
         return Collections.unmodifiableList(cues);
     }
 }

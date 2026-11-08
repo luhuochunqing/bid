@@ -123,11 +123,8 @@ public class TenderRequirementsExtractor {
                 禁止臆造任何文本中不存在的内容；无法确定的类别一律返回空数组或null。
                 输出必须是严格 JSON（不要包含 Markdown 代码块或解释文字），结构如下：
                 {
-                  "scoringItems": [ { "name": "评分项名称", "maxScore": 数值或null, "criteria": "评分标准描述" } ],
                   "mandatoryQualifications": [ "完整资格审查条件原文：分别保留法人、财务、信用、业绩、人员、纳税社保及证书条件，不得只提取证书，不得用附件清单替代资格条件" ],
                   "vetoClauses": [ { "clause": "否决条款原文", "keywords": ["否决关键词"] } ],
-                  "compositionRequirements": [ "投标文件组成要求条目" ],
-                  "formatRequirements": [ "格式要求条目" ],
                   "depositRequirement": {
                     "required": true或false或null,
                     "amount": "保证金金额或null",
@@ -195,7 +192,10 @@ public class TenderRequirementsExtractor {
                     "qualityStandard": "质量标准或null",
                     "keyClauses": { "其他关键条款名": "条款内容" },
                     "description": "招标文件投标人须知前附表关于各项关键条款要求的原文摘录或null"
-                  }
+                  },
+                  "compositionRequirements": [ "投标文件组成要求条目" ],
+                  "formatRequirements": [ "格式要求条目" ],
+                  "scoringItems": [ { "name": "评分项名称", "maxScore": 数值或null, "criteria": "评分标准简要描述（不超过80字）" } ]
                 }
                 顶层键必须全部存在。
 

@@ -96,9 +96,7 @@ public final class BidLetterCheckPolicy {
         if (requirement != null) {
             if (requirement.recipientName() != null && !requirement.recipientName().isBlank()) {
                 if (!match.text().contains(requirement.recipientName())) {
-                    boolean hasGenericTemplateSalutation = match.text().contains("采购人或采购代理机构")
-                            || match.text().contains("采购人或招标代理机构")
-                            || match.text().contains("招标人或招标代理机构");
+                    boolean hasGenericTemplateSalutation = isCompleteGenericSalutation(match.text());
                     if (!hasGenericTemplateSalutation) {
                         return QualityCheckItemResult.manualReview(
                                 item,
@@ -206,6 +204,15 @@ public final class BidLetterCheckPolicy {
             return DeterministicBidLetterExtractor.parseDigitsSafely(m.group(1));
         }
         return null;
+    }
+
+    static boolean isCompleteGenericSalutation(final String text) {
+        if (text == null || text.isBlank()) return false;
+        if (Pattern.compile("致[^\\n：:]*[：:][ \\t]*[^\\s：:]+").matcher(text).find()) return false;
+        // 只接受独立称谓直接进入明确投标方正文；未知行保留人工复核，不枚举单位后缀。
+        return Pattern.compile("(?m)^[ \t]*致(?:采购人|招标人)(?:或(?:采购|招标)代理机构)?[：:][ \t]*"
+                + "\\R\\s*(?:我方|我司|本公司|我公司|我们)(?:承诺|已|愿|根据|同意)")
+                .matcher(text).find();
     }
 
     private static String resolveEvidenceTitle(final String text) {
