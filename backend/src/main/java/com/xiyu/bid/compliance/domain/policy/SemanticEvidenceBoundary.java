@@ -37,9 +37,12 @@ final class SemanticEvidenceBoundary {
     static QualityCheckItemResult reconcileQualificationApplicability(final QualityCheckItemResult result,
             final DocumentContent bidDoc, final TenderRequirements requirements) {
         if (!BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(result.itemCode())
-                || !requirements.hasUnresolvedCertificateRequirements()
-                || QualificationMatchPolicy.checkFirstStage(bidDoc, requirements)
-                    .filter(v -> v.status() == QualityCheckStatus.FAIL).isPresent()) return result;
+                || !requirements.hasUnresolvedCertificateRequirements()) return result;
+        var firstStage = QualificationMatchPolicy.checkFirstStage(bidDoc, requirements);
+        if (firstStage.filter(v -> v.status() == QualityCheckStatus.FAIL).isPresent()) {
+            return firstStage.orElseThrow();
+        }
+        if (firstStage.isEmpty()) return result;
         return QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
                 "证书条件的强制性或作用对象尚未确认，资料检索结果不能直接证明招标资格满足或缺失",
                 "请按结构化条件的原文依据确认适用范围，再核对企业资质与本次投标材料", result.evidences());
@@ -82,7 +85,7 @@ final class SemanticEvidenceBoundary {
         return requireQualificationConfirmation(result, null);
     }
 
-    /** 无正文实证时复合资格项不得由AI空放行；具备可验证证书编号+有效期或多维资格实证时保持PASS。 */
+    /** 无正文实证时复合资格项不得由AI空放行；具备可验证证书编号+有效期时保留证书项PASS；复合资格评审仍需逐项核验适用要求。 */
     static QualityCheckItemResult requireQualificationConfirmation(
             final QualityCheckItemResult result, final DocumentContent bidDoc) {
         if (result == null || result.status() != QualityCheckStatus.PASS
@@ -92,9 +95,7 @@ final class SemanticEvidenceBoundary {
         if (veto && hasSamePageSubstantiveCertificateFacts(bidDoc)) {
             return result;
         }
-        if (!veto && hasSubstantiveQualificationReviewFacts(bidDoc)) {
-            return result;
-        }
+        // 此边界未持有完整适用资格要求，不能用全文标题或关键词推定逐项材料核验完成。
         return new QualityCheckItemResult(result.itemCode(), result.category(), result.title(), result.description(),
                 QualityCheckStatus.MANUAL_REVIEW, result.severity(), result.order(),
                 veto ? "完整资格条件及证明材料尚需逐项核验，证书名称或资料库匹配不能证明资格全部满足"
@@ -128,22 +129,6 @@ final class SemanticEvidenceBoundary {
         return bidDoc.pages().stream()
                 .filter(p -> p.text() != null && !BidLetterCheckPolicy.isCatalogOrOutlinePage(p.text()))
                 .anyMatch(p -> IdAuthLetterCheckPolicy.hasCompleteBothSidesIdFacts(p.text()));
-    }
-
-    private static boolean hasSubstantiveQualificationReviewFacts(final DocumentContent bidDoc) {
-        if (bidDoc == null || bidDoc.fullText() == null || bidDoc.fullText().length() < 200) return false;
-        String text = bidDoc.fullText();
-        int dimensions = 0;
-        if (text.contains("营业执照") || text.contains("统一社会信用代码")) dimensions++;
-        if (text.contains("审计报告") || text.contains("资产负债表") || text.contains("财务报表")) dimensions++;
-        if (text.contains("不存在以下情形") || text.contains("初步评审承诺函") || text.contains("无重大违法")) dimensions++;
-        if (text.contains("业绩") && (text.contains("合同") || text.contains("中标通知书"))) dimensions++;
-        if (bidDoc.pages() != null && bidDoc.pages().stream()
-                .filter(p -> p.text() != null && !BidLetterCheckPolicy.isCatalogOrOutlinePage(p.text()))
-                .anyMatch(p -> hasSubstantiveCertificateFacts(p.text()))) {
-            dimensions++;
-        }
-        return dimensions >= 3;
     }
 
     private static boolean isBody(final QualityEvidence evidence, final DocumentContent bidDoc) {

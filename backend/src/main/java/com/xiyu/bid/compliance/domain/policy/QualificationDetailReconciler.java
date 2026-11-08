@@ -55,8 +55,10 @@ public final class QualificationDetailReconciler {
                     "证书要求存在但未形成比对明细，不能据此判定材料齐全", "请逐项核验原始证书及投标证明", raw.evidences())
                     .withDetails(entries);
         }
-        if (requirements == null || !requirements.hasUnresolvedCertificateRequirements()
-                && entries.stream().noneMatch(d -> requirements.isUnresolvedCertificateRequirement(d.requirement()))) return reconcileMaterialFacts(raw, entries);
+        if (requirements == null || entries.stream()
+                .noneMatch(d -> requirements.isUnresolvedCertificateRequirement(d.requirement()))) {
+            return reconcileMaterialFacts(raw, entries);
+        }
         List<QualificationDetail> references = entries.stream()
                 .map(d -> !requirements.isUnresolvedCertificateRequirement(d.requirement()) ? d : new QualificationDetail(d.requirement(), d.matchedCertName(),
                         "ATTENTION", d.bidPageNumber(), d.bidQuote(), d.remainingDays(),
@@ -64,11 +66,12 @@ public final class QualificationDetailReconciler {
         var pending = QualityCheckItemResult.manualReview(BidQualityCheckItem.QUALIFICATION_MATCH,
                 "证书条件适用范围尚未确认，资料检索不能证明资格满足或缺失", "请按原文逐项确认", raw.evidences());
         List<QualificationDetail> known = entries.stream().filter(d -> !requirements.isUnresolvedCertificateRequirement(d.requirement())).toList();
-        return reconcileMaterialFacts(pending, known).withDetails(references);
+        var reconciled = reconcileMaterialFacts(pending, known);
+        return (reconciled.status() == QualityCheckStatus.FAIL ? reconciled : pending).withDetails(references);
     }
 
     private static String formatUnresolvedRemark(final QualificationDetail d) {
-        String baseRemark = d.remark().replaceAll("\\[UNKNOWN\\]\\s*", "").replaceAll("原检索状态=[A-Z_]+；?\\s*", "");
+        String baseRemark = d.remark();
         String prefix = "条件适用范围或作用对象待确认";
         if (baseRemark.isBlank()) return prefix;
         if (baseRemark.contains("已匹配") || baseRemark.contains("未检索") || baseRemark.contains("未匹配") || baseRemark.contains("已在标书")) {
@@ -95,14 +98,24 @@ public final class QualificationDetailReconciler {
                 .filter(d -> d != null).map(QualificationDetailReconciler::validateFinding).toList();
     }
 
+    private static String cleanLookupRemark(final String remark) {
+        return remark == null ? "" : remark.replaceAll("\\[UNKNOWN\\]\\s*", "")
+                .replaceAll("原检索状态=[A-Z_]+；?\\s*", "");
+    }
+
     private static QualificationDetail validateFinding(final QualificationDetail detail) {
-        if (detail.finding() == QualificationDetail.Finding.GRADE_INSUFFICIENT
-                && (detail.matchedCertName().isBlank()
-                    || QualificationGradePolicy.isGradeCompatible(detail.requirement(), detail.matchedCertName()))) {
-            return new QualificationDetail(detail.requirement(), detail.matchedCertName(), "ATTENTION", detail.bidPageNumber(),
-                    detail.bidQuote(), detail.remainingDays(), "等级冲突尚未得到实际比较证明；" + detail.remark(), QualificationDetail.Finding.UNKNOWN);
+        String cleanRemark = cleanLookupRemark(detail.remark());
+        QualificationDetail d = cleanRemark.equals(detail.remark()) ? detail :
+                new QualificationDetail(detail.requirement(), detail.matchedCertName(),
+                        detail.status(), detail.bidPageNumber(), detail.bidQuote(),
+                        detail.remainingDays(), cleanRemark, detail.finding());
+        if (d.finding() == QualificationDetail.Finding.GRADE_INSUFFICIENT
+                && (d.matchedCertName().isBlank()
+                    || QualificationGradePolicy.isGradeCompatible(d.requirement(), d.matchedCertName()))) {
+            return new QualificationDetail(d.requirement(), d.matchedCertName(), "ATTENTION", d.bidPageNumber(),
+                    d.bidQuote(), d.remainingDays(), "等级冲突尚未得到实际比较证明；" + d.remark(), QualificationDetail.Finding.UNKNOWN);
         }
-        return detail;
+        return d;
     }
 
     /**
@@ -180,6 +193,7 @@ public final class QualificationDetailReconciler {
         if (!attentionList.isEmpty() && rawResult.status() == QualityCheckStatus.PASS) {
             return reviewAttention(rawResult, checked, attentionList);
         }
+        // MATCHED_REFERENCE 只代表检索定位，不能据此将待确认升级为已核验通过。
         return checked.isEmpty() ? rawResult : rawResult.withDetails(checked);
     }
 

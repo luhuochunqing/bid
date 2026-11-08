@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -155,41 +157,87 @@ public final class LlmVerdictParser {
         }
     }
 
+    private record ScanState(boolean inString, int stringStart, List<Character> stack, List<Integer> posStack) { }
+
     static String healTruncatedJson(final String text) {
         int start = text.indexOf('{');
         if (start < 0) return null;
         String sub = text.substring(start).trim();
-        boolean inString = false;
-        boolean escaped = false;
+        ScanState scan = scanTokens(sub);
+        if (!scan.inString() && scan.stack().isEmpty()) return null;
+        return buildHealedJson(sub, scan);
+    }
+
+    private static ScanState scanTokens(final String sub) {
+        boolean inString = false, escaped = false;
         int stringStart = -1;
-        int depth = 0;
+        List<Character> stack = new ArrayList<>();
+        List<Integer> posStack = new ArrayList<>();
         for (int i = 0; i < sub.length(); i++) {
             char c = sub.charAt(i);
             if (inString) {
                 if (escaped) escaped = false;
                 else if (c == '\\') escaped = true;
                 else if (c == '"') inString = false;
-            } else {
-                if (c == '"') {
-                    inString = true;
-                    stringStart = i;
-                }
-                else if (c == '{') depth++;
-                else if (c == '}') depth--;
+                continue;
+            }
+            if (c == '"') {
+                inString = true;
+                stringStart = i;
+            } else if (c == '{' || c == '[') {
+                stack.add(c);
+                posStack.add(i);
+            } else if (c == '}' || c == ']') {
+                popMatchingOpener(stack, posStack, c == '}' ? '{' : '[');
             }
         }
-        if (!inString && depth == 0) return null;
-        StringBuilder sb = new StringBuilder(sub);
-        // 丢弃未完成字符串，而不是将其补造成已输出的裁决或建议。
-        if (inString) {
-            sb.setLength(stringStart);
-            sb.append("null");
+        return new ScanState(inString, stringStart, List.copyOf(stack), List.copyOf(posStack));
+    }
+
+    private static void popMatchingOpener(final List<Character> stack, final List<Integer> posStack, final char expected) {
+        if (!stack.isEmpty() && stack.get(stack.size() - 1) == expected) {
+            stack.remove(stack.size() - 1);
+            posStack.remove(posStack.size() - 1);
         }
-        while (depth > 0) {
-            sb.append('}');
-            depth--;
+    }
+
+    private static String buildHealedJson(final String sub, final ScanState scan) {
+        StringBuilder sb = new StringBuilder(computePrefix(sub, scan));
+        int len = sb.length();
+        while (len > 0 && Character.isWhitespace(sb.charAt(len - 1))) len--;
+        if (len > 0 && sb.charAt(len - 1) == ',') sb.setLength(len - 1);
+        int remaining = scan.stack().size() - (isIncompleteArrayObject(scan) ? 1 : 0);
+        for (int i = remaining - 1; i >= 0; i--) {
+            char opener = scan.stack().get(i);
+            sb.append(opener == '{' ? '}' : ']');
         }
         return sb.toString();
+    }
+
+    private static boolean isIncompleteArrayObject(final ScanState scan) {
+        return scan.stack().size() >= 2
+                && scan.stack().get(scan.stack().size() - 1) == '{'
+                && scan.stack().get(scan.stack().size() - 2) == '[';
+    }
+
+    private static String computePrefix(final String sub, final ScanState scan) {
+        if (isIncompleteArrayObject(scan)) {
+            return sub.substring(0, backtrackBeforeCut(sub, scan.posStack().get(scan.posStack().size() - 1)));
+        }
+        if (!scan.stack().isEmpty() && scan.stack().get(scan.stack().size() - 1) == '[' && scan.inString()) {
+            return sub.substring(0, backtrackBeforeCut(sub, scan.stringStart()));
+        }
+        if (scan.inString()) {
+            return sub.substring(0, scan.stringStart()) + "null";
+        }
+        return sub;
+    }
+
+    private static int backtrackBeforeCut(final String text, final int index) {
+        int cut = index;
+        while (cut > 0 && Character.isWhitespace(text.charAt(cut - 1))) cut--;
+        if (cut > 0 && text.charAt(cut - 1) == ',') cut--;
+        return cut;
     }
 
     /**

@@ -1,5 +1,5 @@
 // Input: LLM 结构化提取的 JSON 响应字符串（contracts/tender-requirements-extraction.md §2，容忍 markdown 代码围栏与前后解释文字）
-// Output: TenderRequirements 招标要求模型；JSON 非法或响应为空 → missingSentinel，不抛异常
+// Output: TenderRequirements 招标要求模型；JSON 非法、截断或响应为空 → missingSentinel，不抛异常
 // Pos: compliance/service/ - 招标要求 JSON 解析适配器（spec 049 US2，契约 §2/§3）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.service;
@@ -54,55 +54,57 @@ public final class TenderRequirementsParser {
         if (json == null) {
             return TenderRequirements.missingSentinel();
         }
+        final JsonNode root;
         try {
-            JsonNode root = OBJECT_MAPPER.readTree(json);
-            if (root == null || !root.isObject()) {
-                return TenderRequirements.missingSentinel();
-            }
-            List<TenderRequirements.ScoringItem> scoringItems = new ArrayList<>();
-            for (JsonNode node : RequirementSectionParser.arrayAt(root, "scoringItems")) {
-                String name = RequirementSectionParser.textAt(node, "name");
-                if (name.isBlank()) {
-                    continue;
-                }
-                Double maxScore = node.path("maxScore").isNumber() ? node.path("maxScore").asDouble() : null;
-                scoringItems.add(new TenderRequirements.ScoringItem(name, maxScore, RequirementSectionParser.textAt(node, "criteria")));
-            }
-            List<TenderRequirements.VetoClause> vetoClauses = new ArrayList<>();
-            for (JsonNode node : RequirementSectionParser.arrayAt(root, "vetoClauses")) {
-                String clause = RequirementSectionParser.textAt(node, "clause");
-                if (clause.isBlank()) {
-                    continue;
-                }
-                vetoClauses.add(new TenderRequirements.VetoClause(clause, RequirementSectionParser.stringListAt(node, "keywords")));
-            }
-            DepositRequirement depositRequirement = RequirementSectionParser.parseDepositRequirement(root.path("depositRequirement"));
-            BidLetterRequirement bidLetterRequirement = RequirementSectionParser.parseBidLetterRequirement(root.path("bidLetterRequirement"));
-            AuthorizationRequirement authorizationRequirement = RequirementSectionParser.parseAuthorizationRequirement(root.path("authorizationRequirement"));
-            BusinessLicenseRequirement businessLicenseRequirement = RequirementSectionParser.parseBusinessLicenseRequirement(root.path("businessLicenseRequirement"));
-            IdAuthLetterRequirement idAuthLetterRequirement = RequirementSectionParser.parseIdAuthLetterRequirement(root.path("idAuthLetterRequirement"));
-            FinancialRequirement financialRequirement = RequirementSectionParser.parseFinancialRequirement(root.path("financialRequirement"));
-            PriceRequirement priceRequirement = RequirementSectionParser.parsePriceRequirement(root.path("priceRequirement"));
-            CaCertificateRequirement caCertificateRequirement = RequirementSectionParser.parseCaCertificateRequirement(root.path("caCertificateRequirement"));
-            FrontTableRequirement frontTableRequirement = RequirementSectionParser.parseFrontTableRequirement(root.path("frontTableRequirement"));
-            return new TenderRequirements(
-                    scoringItems,
-                    RequirementSectionParser.stringListAt(root, "mandatoryQualifications"),
-                    vetoClauses,
-                    RequirementSectionParser.stringListAt(root, "compositionRequirements"),
-                    RequirementSectionParser.stringListAt(root, "formatRequirements"),
-                    depositRequirement,
-                    bidLetterRequirement,
-                    authorizationRequirement,
-                    businessLicenseRequirement,
-                    idAuthLetterRequirement,
-                    financialRequirement,
-                    priceRequirement,
-                    caCertificateRequirement,
-                    frontTableRequirement,
-                    false);
+            root = OBJECT_MAPPER.readTree(json);
         } catch (JsonProcessingException e) {
             return TenderRequirements.missingSentinel();
         }
+        if (root == null || !root.isObject()) {
+            return TenderRequirements.missingSentinel();
+        }
+        List<TenderRequirements.ScoringItem> scoringItems = new ArrayList<>();
+        for (JsonNode node : RequirementSectionParser.arrayAt(root, "scoringItems")) {
+            String name = RequirementSectionParser.textAt(node, "name");
+            if (name.isBlank()) {
+                continue;
+            }
+            Double maxScore = node.path("maxScore").isNumber() ? node.path("maxScore").asDouble() : null;
+            scoringItems.add(new TenderRequirements.ScoringItem(name, maxScore, RequirementSectionParser.textAt(node, "criteria")));
+        }
+        List<TenderRequirements.VetoClause> vetoClauses = new ArrayList<>();
+        for (JsonNode node : RequirementSectionParser.arrayAt(root, "vetoClauses")) {
+            String clause = RequirementSectionParser.textAt(node, "clause");
+            if (clause.isBlank()) {
+                continue;
+            }
+            vetoClauses.add(new TenderRequirements.VetoClause(clause, RequirementSectionParser.stringListAt(node, "keywords")));
+        }
+        DepositRequirement depositRequirement = RequirementSectionParser.parseDepositRequirement(root.path("depositRequirement"));
+        BidLetterRequirement bidLetterRequirement = RequirementSectionParser.parseBidLetterRequirement(root.path("bidLetterRequirement"));
+        AuthorizationRequirement authorizationRequirement = RequirementSectionParser.parseAuthorizationRequirement(root.path("authorizationRequirement"));
+        BusinessLicenseRequirement businessLicenseRequirement = RequirementSectionParser.parseBusinessLicenseRequirement(root.path("businessLicenseRequirement"));
+        IdAuthLetterRequirement idAuthLetterRequirement = RequirementSectionParser.parseIdAuthLetterRequirement(root.path("idAuthLetterRequirement"));
+        FinancialRequirement financialRequirement = RequirementSectionParser.parseFinancialRequirement(root.path("financialRequirement"));
+        PriceRequirement priceRequirement = RequirementSectionParser.parsePriceRequirement(root.path("priceRequirement"));
+        CaCertificateRequirement caCertificateRequirement = RequirementSectionParser.parseCaCertificateRequirement(root.path("caCertificateRequirement"));
+        FrontTableRequirement frontTableRequirement = RequirementSectionParser.parseFrontTableRequirement(root.path("frontTableRequirement"));
+        return new TenderRequirements(
+                scoringItems,
+                RequirementSectionParser.stringListAt(root, "mandatoryQualifications"),
+                vetoClauses,
+                RequirementSectionParser.stringListAt(root, "compositionRequirements"),
+                RequirementSectionParser.stringListAt(root, "formatRequirements"),
+                depositRequirement,
+                bidLetterRequirement,
+                authorizationRequirement,
+                businessLicenseRequirement,
+                idAuthLetterRequirement,
+                financialRequirement,
+                priceRequirement,
+                caCertificateRequirement,
+                frontTableRequirement,
+                false);
     }
+
 }

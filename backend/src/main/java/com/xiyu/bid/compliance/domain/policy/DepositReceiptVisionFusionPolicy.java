@@ -17,6 +17,17 @@ public final class DepositReceiptVisionFusionPolicy {
     public static QualityCheckItemResult fuseDepositReceipt(
             final QualityCheckItemResult textResult,
             final DepositReceiptVisionResult vision) {
+        return fuseDepositReceipt(textResult, vision, null);
+    }
+
+    public static QualityCheckItemResult fuseDepositReceipt(
+            final QualityCheckItemResult textResult,
+            final DepositReceiptVisionResult vision,
+            final DepositRequirement requirement) {
+        if (requirement != null && Boolean.FALSE.equals(requirement.required())
+                && textResult != null && textResult.status() == com.xiyu.bid.compliance.domain.QualityCheckStatus.PASS) {
+            return textResult;
+        }
         if (vision == null || !vision.available()) {
             return manual("保证金凭证视觉检测不可用，文本层不能单独证明已附真实回单",
                     vision == null ? "结果缺失" : vision.unavailableReason(), textResult.evidences());

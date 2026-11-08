@@ -1,5 +1,5 @@
 // Input: 投标文件 DocumentContent + 可选招标授权要求 AuthorizationRequirement
-// Output: 授权委托书核查结果 QualityCheckItemResult（PASS/FAIL/MANUAL）及证据
+// Output: 授权委托书核查结果及证据；文字字段通过不覆盖已有授权风险裁决
 // Pos: compliance/domain/policy/ - 授权委托书与法定代表人证明反假核查策略 (FP-Java)
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -140,14 +140,14 @@ public final class AuthorizationLetterCheckPolicy {
             final DocumentContent document, final AuthorizationRequirement requirement) {
         if (result == null || !BidQualityCheckItem.AUTHORIZATION_LETTER.getCode().equals(result.itemCode())) return result;
         QualityCheckItemResult deterministic = check(document, requirement);
-        if (deterministic.status() == QualityCheckStatus.MANUAL_REVIEW) return ManualReasons.manual(
+        if (deterministic.status() == QualityCheckStatus.FAIL) return deterministic;
+        // 字段填写不能排除有效期、身份或签章风险，保留已有非通过裁决及其证据。
+        if (deterministic.status() == QualityCheckStatus.PASS) {
+            return result.status() == QualityCheckStatus.PASS ? deterministic : result;
+        }
+        return ManualReasons.manual(
                 BidQualityCheckItem.AUTHORIZATION_LETTER, ManualReasons.EVIDENCE_INSUFFICIENT,
                 deterministic.conclusion(), deterministic.suggestion(), deterministic.evidences());
-        if (result.status() != QualityCheckStatus.PASS) return result;
-        if (deterministic.status() == QualityCheckStatus.PASS) return deterministic;
-        return QualityCheckItemResult.manualReview(BidQualityCheckItem.AUTHORIZATION_LETTER,
-                "授权人员、权限或期限缺少正向填写证据，AI通过结论不能替代字段核验",
-                deterministic.suggestion(), deterministic.evidences());
     }
 
     private static QualityCheckItemResult evaluateLegalRepOnlyPage(
