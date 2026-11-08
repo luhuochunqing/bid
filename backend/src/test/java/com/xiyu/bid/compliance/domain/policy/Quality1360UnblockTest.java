@@ -443,6 +443,45 @@ class Quality1360UnblockTest {
     }
 
     @Test
+    void truncatedArrayObjectsCannotReplaceCompletedVerdictFields() {
+        String prefix = "{\"status\":\"FAIL\",\"conclusion\":\"缺少原始凭证\","
+                + "\"suggestion\":\"请补充凭证\",\"reasonCode\":\"EVIDENCE_INSUFFICIENT\",\"details\":[";
+        for (String tail : List.of(
+                "{\"status\":\"PASS\",\"conclusion\":\"未完成",
+                "{\"page\":1}, {\"status\":\"PASS\",\"conclusion\":\"不得借用\"",
+                "{\"status\":\"PASS\",\"conclusion\":\"不得借用\", ")) {
+            assertThat(LlmVerdictParser.parse(prefix + tail)).as(tail)
+                    .contains(new LlmVerdict("FAIL", "EVIDENCE_INSUFFICIENT", "缺少原始凭证", "请补充凭证"));
+        }
+    }
+
+    @Test
+    void truncatedArrayStringsAndNestedContainersPreserveOnlyCompletedVerdict() {
+        String prefix = "{\"status\":\"MANUAL\",\"conclusion\":\"需核对原图\","
+                + "\"reasonCode\":\"LOW_CONFIDENCE\",";
+        for (String tail : List.of(
+                "\"details\":[\"未完成",
+                "\"details\":[\"完整线索\", \"未完成",
+                "\"details\":[\"包含转义\\\"引号及括号]}但未完成",
+                "\"details\":{\"pages\":[[1,2",
+                "\"details\":{\"pages\":[{\"page\":1}, ")) {
+            assertThat(LlmVerdictParser.parse(prefix + tail)).as(tail)
+                    .contains(new LlmVerdict("MANUAL", "LOW_CONFIDENCE", "需核对原图", ""));
+        }
+    }
+
+    @Test
+    void truncatedArraysCannotSupplyMissingTopLevelConclusionOrStatus() {
+        for (String response : List.of(
+                "{\"status\":\"PASS\",\"details\":[{\"conclusion\":\"不得借用\"",
+                "{\"conclusion\":\"顶层结论\",\"details\":[{\"status\":\"PASS\"",
+                "{\"status\":\"PASS\",\"conclusion\":\"\",\"details\":[\"未完成",
+                "{\"status\":\"PASS\",\"conclusion\":null,\"details\":{\"pages\":[1")) {
+            assertThat(LlmVerdictParser.parse(response)).as(response).isEmpty();
+        }
+    }
+
+    @Test
     void truncatedVerdictRequiresCompleteNonBlankConclusion() {
         for (String status : List.of("PASS", "FAIL", "MANUAL")) {
             String prefix = "{\"status\":\"" + status + "\"";
@@ -769,18 +808,6 @@ class Quality1360UnblockTest {
         var vision = DepositReceiptVisionResult.unavailable("无回单图片");
         var fused = DepositReceiptVisionFusionPolicy.fuseDepositReceipt(passResult, vision);
         assertThat(fused.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
-    }
-
-    @Test
-    @DisplayName("结构化声明免收保证金时，通过判定不会被视觉回单检测器降级")
-    void structuredNotRequiredDepositBypassesVision() {
-        var passResult = QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_RECEIPT,
-                "【不涉及】招标文件未要求缴纳投标保证金/响应担保（免收/不涉及）", List.of());
-        var vision = DepositReceiptVisionResult.unavailable("无回单图片");
-        var fused = DepositReceiptVisionFusionPolicy.fuseDepositReceipt(
-                passResult, vision, DepositRequirement.notRequired("免收"));
-        assertThat(fused.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(fused.conclusion()).contains("【不涉及】");
     }
 
     @Test

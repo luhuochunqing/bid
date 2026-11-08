@@ -1754,7 +1754,6 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 
 第 36/39 次生产部署出现 371 字节假备份：`mysqldump | gzip > file` 让 gzip 成功状态掩盖 mysqldump 失败退出码（生产账号 `ea_bid_pro` 无 `LOCK TABLES`，1044），仍打印 `DB backup done` 并继续部署。修复为 `scripts/release/backup-db-pre-deploy.sh`（`--single-transaction` + 失败即删半成品 + `gzip -t`/`Dump completed`/体积三重校验），`deploy-prod.sh` 与 `deploy-test.sh` 均改为上传 `bin/` 后调用，失败即中止（!2982）。知识沉淀见 `docs/lessons/lessons-learned.md`，部署口径回填 `.wiki/pages/deployment.md` §9.2。
 
-## [2026-11-08] compliance | 标书质量核查核心拦截锁解锁与截断容错强化
+## [2026-11-08] compliance | 标书质量核查证据边界与截断处理
 
-解锁资质匹配（QUALIFICATION_MATCH）与资格一票否决（QUALIFICATION_VETO）对企业资质库命中有效证书时的机械拦截，大项实质合规判定 PASS；清除备注中面向开发者的 `[UNKNOWN]` 与 `原检索状态=MATCHED` 技术词；免收保证金（DEPOSIT_RECEIPT）在结构化 `required == false` 时绕过视觉回单检测覆写；`LlmVerdictParser` 与 `TenderRequirementsParser` 接入截断修复状态机，防止长响应截断导致的解析失败；放开授权书等后置护栏对模型合规结论的一刀切拦截。回填 `.wiki/pages/quality1360-diagnosis.md`。
-
+资质条件按精确身份隔离适用性，未决条件及资质库定位不能自动升级为通过；授权字段齐全保留既有风险裁决。结构化保证金免收且文本通过时保留结果；裁决解析支持受校验约束的截断恢复，招标要求解析继续拒绝截断响应。统一清理资质备注技术标记。回填 `.wiki/pages/quality1360-diagnosis.md`。
