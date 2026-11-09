@@ -227,3 +227,13 @@ PR结构收口仅移动报价句界定位4行，未改报价语义或BA14；按�
 - **fix 第1轮反馈修复**：补充换行、CRLF、空行及无末尾冒号的错误收件单位负向保护；通用称谓独立成行接正常正文仍允许。移除无消费路径的要求截断恢复，补充 Parser→merge 缺失哨兵断言。新增保护修复前复现两项失败。
 
 - **fix 第2轮反馈修复**：确认有限单位后缀黑名单会漏过“大学”等具体收件人，改为仅接受独立通用称谓后直接进入明确投标方正文；未知后续行保持人工复核，不再靠单位类型证明安全。新增大学、学校、银行、指挥部、工作组及未知主体，覆盖 LF/CRLF/空行与有无冒号，共36组负向输入；独立称谓正文保留15组正向保护。新增回归修复前复现“大学”误判 PASS；修复后 `mvn -q -o -f backend/pom.xml test -Dtest=Quality1360UnblockTest,QualificationDetailReconcilerTest,QualificationVetoPolicyTest,BidDocumentQualityEngineTest` 共161项通过（66+47+9+39），失败/错误/跳过为0；未启动服务。
+
+## 2026-11-09 标书合规质检放行通道打通（方案 1 全面打通与放行）
+
+- **决策 A (系统填报折扣率)**：Word 标书中明确声明“折扣率详见系统填报/开标一览表”时，作为待确认（`MANUAL_REVIEW`）保留，不再误判为缺失。
+- **决策 B (OCR 识别信任放行)**：放开 Prompt 对“已附图片”与“页面图像转写，非验签”的死锁，授权书只要包含签字盖章事实即判定 `PASS`。
+- **决策 C (保证金免收)**：判定项目免收保证金（`requirements.depositRequirement().required() == false`）时，绝对禁止调用视觉回单模型，锁定为 `PASS`。
+- **决策 D (资质与一票否决知识库放行)**：标书正文命中证书且企业资质库存在有效匹配记录时，直接判定为 `PASS`，打通企业知识库放行通道。
+- **架构治理与行数预算治理**：拆分授权书签署要件与痕迹策略至 `AuthorizationFieldPolicy`（228行），治理 `SemanticEvidenceBoundary`（300行）、`QualificationVetoPolicy`（291行）及 `BidQualityCheckAsyncExecutor`（284行），严格满足 `<= 300` 行棘轮硬上限。
+- **语义证据边界加固**：完善正式章节标题（章/节/篇/部分）与样例作用域边界，排除核验章节对证书上下文的误清除，支持空签署栏与不完整修饰词精准识别。
+

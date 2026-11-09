@@ -158,14 +158,19 @@ public class BidQualityCheckAsyncExecutor {
                         .toList();
             }
 
-            DepositReceiptVisionResult depositVision = depositReceiptVisionDetector == null
-                    ? DepositReceiptVisionResult.unavailable("保证金凭证视觉检测器未配置")
-                    : depositReceiptVisionDetector.detect(bidDoc);
             final TenderRequirements finalRequirements = requirements;
-            itemResults = itemResults.stream()
-                    .map(result -> BidQualityCheckItem.DEPOSIT_RECEIPT.getCode().equals(result.itemCode())
-                            ? DepositReceiptVisionFusionPolicy.fuseDepositReceipt(result, depositVision, finalRequirements.depositRequirement()) : result)
-                    .toList();
+            boolean depositNotApplicable = requirements.depositRequirement() != null
+                    && Boolean.FALSE.equals(requirements.depositRequirement().required());
+
+            if (!depositNotApplicable) {
+                DepositReceiptVisionResult depositVision = depositReceiptVisionDetector == null
+                        ? DepositReceiptVisionResult.unavailable("保证金凭证视觉检测器未配置")
+                        : depositReceiptVisionDetector.detect(bidDoc);
+                itemResults = itemResults.stream()
+                        .map(result -> BidQualityCheckItem.DEPOSIT_RECEIPT.getCode().equals(result.itemCode())
+                                ? DepositReceiptVisionFusionPolicy.fuseDepositReceipt(result, depositVision, finalRequirements.depositRequirement()) : result)
+                        .toList();
+            }
 
             // 组装资质比对结构化清单（招标要求 vs 我司证书 vs 标书页码）
             List<QualificationDetail> qualDetails = QualificationMatchPolicy.buildDetails(
