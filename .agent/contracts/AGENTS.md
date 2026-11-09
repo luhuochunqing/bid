@@ -85,7 +85,7 @@ python3 scripts/review-workflow.py run \
 
 上例验证命令只适用于门禁脚本本身的修改；业务任务必须替换/补齐该任务的真实测试、构建命令。每个 `--verify` 是 JSON argv 数组，顺序执行，不经 shell 展开。
 
-执行顺序：`ai-slop-cleaner` 标准写入 → 验证命令 → 独立只读 `google-code-review` → 独立只读 `xiyu-code-review`。发现问题自动交给写入 Agent 修复，再从清理开始完整重跑，最多三轮；第三轮仍失败、ESCALATE、越界或进程故障立即停止，报告问题，不创建 PR。Minor/Info 也必须记录接受/延期理由，不能静默忽略。
+执行顺序：`ai-slop-cleaner` 标准写入 → 验证命令 → 独立只读 `google-code-review` → 独立只读 `xiyu-code-review`。发现问题自动交给写入 Agent 修复，再从清理开始完整重跑，最多三轮；第 2/3 轮审查自动注入前序轮次审查与修复历史摘要（禁止对前序修复做反向翻案或对未改动代码发散构造新合成语料）；`Critical/Major` 仅限真实业务主路径故障、核心需求未满足、崩溃、安全越权或架构违规（纯人工拼接的极端自然语言句式变形等启发式正则边界最高定为 `Minor/Info`）。第三轮仍失败、ESCALATE、越界或进程故障立即停止，报告问题，不创建 PR；同一分支若连续 2 次耗尽三轮自动审查仍未收敛，触发防死循环熔断，严禁 Agent 私自继续重跑，必须立即汇报用户裁决（人工授权后可传 `--allow-rerun`）。Minor/Info 也必须记录接受/延期理由，不能静默忽略。
 
 默认调用已登录的 Codex CLI，每阶段新进程；三个精确技能必须安装在项目或用户 `.agents/skills` / `.codex/skills`。其他宿主可用 `--agent-command '<JSON argv>'` 指定受信任适配器，见 `scripts/README.md`。
 

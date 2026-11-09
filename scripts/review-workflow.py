@@ -71,7 +71,7 @@ def record_failure(state, directory, active, exc):
 
 
 def execute_stage(args, root, directory, state, original, skills, adapter,
-                  commands, folder, number, stage, active, feedback=None):
+                  commands, folder, number, stage, active, feedback=None, history=None):
     before = snapshot(root, args.base)
     before['head'] = git(root, 'rev-parse', 'HEAD').decode().strip()
     active.update(stage=stage, number=number, before=before, folder=folder,
@@ -83,7 +83,8 @@ def execute_stage(args, root, directory, state, original, skills, adapter,
         passed = all(result['exit_code'] == 0 for result in report)
     else:
         code, report_path, artifacts = invoke(root, folder, stage, number,
-            list(original['files']), original['base'], skills, adapter, args.timeout, feedback)
+            list(original['files']), original['base'], skills, adapter, args.timeout,
+            feedback, history)
         active['code'] = code
         if code:
             raise GateError(f'Agent 进程失败（exit {code}），停止；日志: {folder}')
@@ -97,27 +98,45 @@ def execute_stage(args, root, directory, state, original, skills, adapter,
 
 
 def execute_rounds(args, root, directory, state, original, skills, adapter, commands, work, active):
+    history = []
     for number in range(1, 4):
         folder = work / str(number)
         folder.mkdir()
         feedback = None
         for stage in STAGES:
             current, passed, report = execute_stage(args, root, directory, state, original,
-                skills, adapter, commands, folder, number, stage, active)
+                skills, adapter, commands, folder, number, stage, active, history=history)
             if not passed:
                 feedback = {'stage': stage, 'report': report}
                 break
         if feedback is None:
-            state.update(status='MERGE_READY', fingerprint=current['fingerprint'])
+            state.update(status='MERGE_READY', fingerprint=current['fingerprint'], exhausted_runs=0)
             write_json(directory / 'state.json', state)
             validate_receipt(root, clean=False)
             print('[review-gate] MERGE_READY；提交相同内容后可 push/创建 PR，任何内容变化须重跑。')
             return
         if number == 3:
+            state['exhausted_runs'] = state.get('exhausted_runs', 0) + 1
             raise GateError('三轮仍未通过，停止并请人工裁决；不得提交 PR')
-        execute_stage(args, root, directory, state, original, skills, adapter,
-                      commands, folder, number, 'fix', active, feedback)
+        _, _, fix_report = execute_stage(args, root, directory, state, original, skills, adapter,
+                                         commands, folder, number, 'fix', active, feedback, history)
+        history.append({'round': number, 'failed_stage': feedback['stage'],
+                        'review_report': feedback['report'],
+                        'fix_summary': fix_report.get('summary', '') if isinstance(fix_report, dict) else ''})
         # A fix never approves itself; every next round starts with cleaning.
+
+
+def prior_exhausted_runs(directory, branch):
+    state_file = directory / 'state.json'
+    if not state_file.is_file():
+        return 0
+    try:
+        prior = read_json(state_file)
+    except GateError:
+        return 0
+    if prior.get('branch') != branch or prior.get('status') != 'BLOCKED':
+        return 0
+    return int(prior.get('exhausted_runs', 0))
 
 
 def run_workflow(args, root):
@@ -128,11 +147,16 @@ def run_workflow(args, root):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             raise GateError('同一 worktree 已有审查流程运行') from exc
-        state = {'version': 1, 'status': 'RUNNING', 'base_ref': args.base, 'events': []}
-        write_json(directory / 'state.json', state)
         active = {}
+        state = {'version': 1, 'status': 'RUNNING', 'base_ref': args.base, 'events': []}
         try:
             original = snapshot(root, args.base)
+            exhausted = prior_exhausted_runs(directory, original['branch'])
+            state.update(branch=original['branch'], exhausted_runs=exhausted)
+            write_json(directory / 'state.json', state)
+            if exhausted >= 2 and not getattr(args, 'allow_rerun', False):
+                raise GateError('当前分支已连续 2 次耗尽三轮自动审查仍未收敛，触发防死循环熔断；'
+                                '请立即向用户汇报并由人工裁决（人工授权后可传 --allow-rerun）')
             if not original['files']:
                 raise GateError('没有可审查的任务改动')
             skills = load_skills(root, args.skills_dir)
@@ -225,6 +249,7 @@ def main():
     run.add_argument('--agent-command', help='受信任适配器 JSON argv，追加 request.json report.json；默认 Codex')
     run.add_argument('--skills-dir', help='三个精确技能目录所在根目录')
     run.add_argument('--timeout', type=int, default=1800, help='每个进程超时秒数')
+    run.add_argument('--allow-rerun', action='store_true', help='人工裁决授权后允许在连续耗尽三轮后重跑')
     guard = sub.add_parser('check', help='只读检查当前凭证')
     guard.add_argument('--push', action='store_true')
     guard.add_argument('--pr', action='store_true')
