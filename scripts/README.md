@@ -71,13 +71,13 @@ python3 scripts/review-workflow.py check
 
 ### 其他宿主适配协议
 
-`--agent-command '["/absolute/path/to/adapter"]'` 指定**受信任的本地程序**；执行器追加两个绝对路径：`request.json report.json`。request 包含 stage、round、原任务 scope、base、精确技能全文和 prompt；仅 fix 阶段收到上阶段失败报告。适配器必须启动独立审查会话并遵守只读要求，退出 0 后将以下 JSON 写到 report 路径。默认 Codex 使用相同契约并通过 JSON Schema 约束最终输出。
+`--agent-command '["/absolute/path/to/adapter"]'` 指定**受信任的本地程序**；执行器追加两个绝对路径：`request.json report.json`。request 包含 stage、round、原任务 scope、base、精确技能全文、prompt、feedback 与前序轮次 history；仅 fix 阶段收到上阶段失败报告，第 2/3 轮审查阶段收到前序轮次审查与修复历史摘要（禁止对前序修复做反向翻案或对未改动代码发散构造新合成语料）。适配器必须启动独立审查会话并遵守只读要求，退出 0 后将以下 JSON 写到 report 路径。默认 Codex 使用相同契约并通过 JSON Schema 约束最终输出。
 
 ```json
 {"verdict":"PASS","summary":"具体判断与验证边界","findings":[]}
 ```
 
-verdict 为 PASS / NEEDS_FIXES / ESCALATE。finding 必须包含 severity（Critical/Major/Minor/Info）、file、line、message、disposition（open/accepted/deferred）、reason；Critical/Major 永远阻断，Minor/Info 的 accepted/deferred 须有具体理由。最终一轮全部通过后才生成 MERGE_READY；fix 自报 PASS 不算审查通过。
+verdict 为 PASS / NEEDS_FIXES / ESCALATE。finding 必须包含 severity（Critical/Major/Minor/Info）、file、line、message、disposition（open/accepted/deferred）、reason；Critical/Major 永远阻断（仅限真实业务主路径故障、核心需求未满足、空指针/崩溃、安全越权或架构违规；纯人工拼接的极端自然语言句式变形等启发式正则边界最高定为 Minor/Info），Minor/Info 的 accepted/deferred 须有具体理由。最终一轮全部通过后才生成 MERGE_READY；fix 自报 PASS 不算审查通过。同一分支若连续 2 次耗尽三轮自动审查仍未收敛，将触发防死循环熔断阻断后续自动 `run`，Agent 必须立即停下汇报人工裁决（人工授权后可传 `--allow-rerun`）。
 
 每次 run 清除上一轮放行状态，保留历史运行目录。凭证记录分支、origin/main tip、merge-base、完整改动文件内容/模式（含新增与删除）、每阶段请求/报告/日志哈希。路径收集显式禁用 Git 重命名检测，将移动绑定为旧路径删除与新路径新增，保证暂存/提交不改变同内容指纹，恢复旧路径会使凭证失效。最终交付要求工作区干净，允许同内容提交；PR 还读取 origin 上实际分支 SHA，与本地 HEAD 核对。执行器不会自动创建 PR 或向他人发消息。
 

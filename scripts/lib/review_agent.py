@@ -75,7 +75,8 @@ def run_process(command, root, logfile, timeout, prompt=None):
     return process.returncode
 
 
-def invoke(root, folder, stage, round_number, scope, base, skills, adapter, timeout, feedback=None):
+def invoke(root, folder, stage, round_number, scope, base, skills, adapter, timeout,
+           feedback=None, history=None):
     review = stage in SKILLS[1:]
     prompt = (
         '你好，同志！在当前隔离任务工作区执行指定阶段。禁止提交、push、PR、部署、删除文件范围外的内容。\n'
@@ -87,7 +88,13 @@ def invoke(root, folder, stage, round_number, scope, base, skills, adapter, time
     if review:
         prompt += ('你是新进程的独立审查者，必须只读。自行从全量代码推断行为与设计，不接受作者解释。'
                    '同时给出行为/设计复杂度/交付就绪判断，发现标文件行号。'
-                   'Critical/Major 必须阻断。Minor/Info 如接受或延后必须写具体理由；否则 open。\n')
+                   'Critical/Major 必须阻断，但仅限真实业务主路径故障、核心需求未满足、空指针/崩溃、安全越权或架构违规；'
+                   '纯人工拼接的极端自然语言句式变形、罕见省略语序等启发式正则边界最高定为 Minor/Info。'
+                   'Minor/Info 如接受或延后必须写具体理由；否则 open。\n')
+        if history:
+            prompt += ('第 2/3 轮收敛约束：仅核验前序轮次问题是否已修复及本轮修改是否引入新回归；'
+                       '严禁对未改动代码发散构造前序轮次未提出的新合成语料，严禁做出与前序轮次修复方向相悖的反向要求。\n'
+                       '前序轮次审查与修复历史：\n' + json.dumps(history, ensure_ascii=False) + '\n')
     else:
         prompt += ('你是写入阶段。只允许修改以下原任务文件；不要扩展范围，不改门禁凭证或Git元数据：\n'
                    + json.dumps(scope, ensure_ascii=False) + '\n'
@@ -101,7 +108,8 @@ def invoke(root, folder, stage, round_number, scope, base, skills, adapter, time
     if feedback:
         prompt += '\n修复以下真实运行发现，勿通过删除测试或弱化门禁解决：\n' + json.dumps(feedback, ensure_ascii=False)
     request = {'stage': stage, 'round': round_number, 'scope': scope,
-               'base': base, 'prompt': prompt, 'skill': skills.get(stage), 'feedback': feedback}
+               'base': base, 'prompt': prompt, 'skill': skills.get(stage),
+               'feedback': feedback, 'history': history or []}
     request_path = folder / f'{stage}-request.json'
     report_path = folder / f'{stage}-report.json'
     logfile = folder / f'{stage}.log'
