@@ -1,5 +1,5 @@
 // Input: 标书文档 + 招标文件 + TenderRequirements + 知识库证据
-// Output: Optional<QualityCheckItemResult>（字段内明确占位/违规分包 FAIL及原位证据，只在原始标书入口清洗 HTML 标签，证书同页具备编号与有效期实证时 PASS，仅名称命中结合身份完整匹配的资质库记录转人工确认，证据复用实际命中原始页）
+// Output: Optional<QualityCheckItemResult>（字段内明确占位/违规分包 FAIL及原位证据，只在原始标书入口清洗 HTML 标签，证书同页具备编号与有效期实证或同句投标人持证事实结合完整代码资质库佐证时 PASS，否定或矛盾响应转人工确认，证据复用实际命中原始页）
 // Pos: compliance/domain/policy/ - 标书一票否决与资格前置反假核验策略（纯核心，FP-Java 无外部依赖）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  * 1. 物理剔除目录点线页，杜绝目录欺骗；
  * 2. 占位符反假拦截：若资格声明或否决条款响应存在未填占位模板或空白留白，直接判定 FAIL；
  * 3. 严格区分正向合规承诺与实质性违规分包/转包，对实质性违规硬阻断 FAIL，对合规承诺放行；
- * 4. 强制证书在命中页同时具备可验证的证书编号与有效期限实证时判定 PASS，仅名称命中转人工确认；
+ * 4. 强制证书在命中页同时具备可验证的证书编号与有效期限实证时判定 PASS，或正向代码响应获匹配资质库佐证时可通过，否定或矛盾响应转人工确认；
  * 5. 其余无硬信号场景移交 LLM lane 深度语义裁决.
  */
 public final class QualificationVetoPolicy {
@@ -144,6 +144,8 @@ public final class QualificationVetoPolicy {
         List<QualityEvidence> bidEvidences = new ArrayList<>();
         List<String> satisfied = new ArrayList<>();
         List<String> unsatisfied = new ArrayList<>();
+        String bodyText = validPages.stream().map(EvidenceTextSlice::text)
+                .collect(java.util.stream.Collectors.joining("\n\f\n"));
         boolean allHaveSubstantiveFacts = true;
         for (String qualification : validQualifications) {
             String rawClean = stripQualificationPrefix(qualification);
@@ -167,7 +169,10 @@ public final class QualificationVetoPolicy {
                                 && KnowledgeMatch.SOURCE_QUALIFICATION.equals(e.knowledgeSource()))
                         .filter(e -> matchesCertificateEvidence(cleanCert, qualification, e.quote()))
                         .toList();
-                if (proof == null) allHaveSubstantiveFacts = false;
+                boolean hasSpecificCodeMatch = EVIDENCE_CODE.matcher(normClean).find()
+                        && !matchingKbEvidences.isEmpty()
+                        && SemanticEvidenceBoundary.hasPositiveCertificateStatement(bodyText, cleanCert);
+                if (proof == null && !hasSpecificCodeMatch) allHaveSubstantiveFacts = false;
                 EvidenceTextSlice hit = proof == null ? matchedPages.getFirst() : proof;
                 bidEvidences.add(QualityEvidence.bid("标书资质响应证明", hit.pageNumber(), hit.text()));
                 bidEvidences.addAll(matchingKbEvidences);
@@ -202,7 +207,7 @@ public final class QualificationVetoPolicy {
         if (allHaveSubstantiveFacts) {
             return Optional.of(QualityCheckItemResult.pass(
                     BidQualityCheckItem.QUALIFICATION_VETO,
-                    "已核验标书正文中强制资格证书（" + String.join("、", satisfied) + "）的证书编号与有效期证明，无一票否决硬伤",
+                    "已核验标书正文中强制资格证书（" + String.join("、", satisfied) + "）的正文证明或正向响应与匹配资质库佐证，无一票否决硬伤",
                     evidences));
         }
         String conclusion = "标书已检索到证书名称：【" + String.join("、", satisfied)

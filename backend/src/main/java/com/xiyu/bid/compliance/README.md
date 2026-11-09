@@ -32,7 +32,7 @@
 | `domain/policy/QualificationCondition.java` | Domain Model | 完整条件、来源及证书子项；作用对象、强制/可选/未知分开保存 |
 | `domain/policy/CertificateRequirementPolicy.java` | Policy | 证书候选沿用既有类型能力，子句作用域不明保留UNKNOWN与依据 |
 | `domain/policy/QualificationConditionExtractor.java` | Policy | 完整章节、表格单元格和连续段落组装，绑定实际原文来源 |
-| `domain/policy/QualificationVetoPolicy.java` | Policy | 占位与明确违规保留失败；强制证书在命中页具备证书编号与有效期实证时 PASS，仅名称命中或检索缺口转人工 |
+| `domain/policy/QualificationVetoPolicy.java` | Policy | 占位与明确违规保留失败；强制证书在命中页具备证书编号与有效期实证，或正文含明确肯定持证声明且企业资质库匹配有效记录时放行 PASS，仅名称命中、检索缺口或存在矛盾陈述转人工 |
 | `domain/policy/DeterministicDepositExtractor.java` | Policy | 招标投标保证金/担保及政采响应担保确定性提取与免收识别纯核心策略 |
 | `domain/policy/RuleCitationContext.java` | Policy | 区分条件规则引用与投标人自身违规，按命中语境定位证据 |
 | `domain/policy/CommitmentSealCheckPolicy.java` | Policy | 承诺正文优先定位，目录/评分索引不作为签章事实 |
@@ -183,7 +183,7 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 
 - **第一刀（后置证据边界解封与资格/评分/响应性收敛）**：
   - `QualificationConditionExtractor` / `CertificateRequirementPolicy`：过滤目录点线行与通用格式章节（投标文件的语言、第二卷技术标等），支持主语带关联公司括注（如“投标人（或与投标人为母子公司...）”）的强制属性推导，排除条件性补充授权/股权证明被误抽为独立证书。
-  - `QualificationMatchPolicy` / `QualificationVetoPolicy` / `QualificationDetailReconciler` / `SemanticEvidenceBoundary`：当标书正文中对应证书命中页同时具备可验证的证书编号（许可证编号/证书编号/证号/合字等）与有效期限实证时，直接闭环判定 `PASS`（`MATCHED_REFERENCE` + `PASS`），不再无论有无实证一律降级 `MANUAL_REVIEW`；仅出现证书名称而无编号/有效期实证时仍保留 `MANUAL_REVIEW`。
+  - `QualificationMatchPolicy` / `QualificationVetoPolicy` / `QualificationDetailReconciler` / `SemanticEvidenceBoundary`：当标书正文中对应证书命中页具备可验证证书编号与有效期限实证，或正文具备明确投标人肯定持证声明且企业资质库命中有效匹配记录时，直接闭环判定 `PASS`（`MATCHED_REFERENCE` + `PASS`）；仅出现证书名称而无编号/有效期实证、未关联资质库或存在过期/第三方持有等矛盾陈述时仍保持 `MANUAL_REVIEW`。
   - `IdAuthLetterCheckPolicy` / `SemanticEvidenceBoundary`：当标书抽取到页面图像且正文中具备身份证正反面完整要素（18位号码、姓名、性别/民族/住址、签发机关、有效期限）时闭环判定 `PASS`；纯文本无图像或要素不全仍保留 `MANUAL_REVIEW`。
   - `BidLetterCheckPolicy` / `DeterministicBidLetterExtractor`：支持《投标人承诺函》作为投标函变体的识别与核心要素核验。
   - `ScoringResponsePolicy`：识别《延保服务协议书》等合同样板留白，避免样板下划线连坐阻断评分项响应。
@@ -191,3 +191,19 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - **第二刀（百度OCR通道复用与大体积DOCX按需流式抽图）**：
   - `DocxComplianceImageExtractor` / `SidecarComplianceDocumentAdapter`：针对超过 Sidecar 64MB 媒体限制跳过抽图或无物理页码的 `.docx` 投标文件，通过 `ZipFile` + StAX 流式扫描合规章节锚点后的内嵌图片，并绑定到 `DocumentContent` 对应非目录逻辑页码 `pageHint`。
   - `OpenAiDocumentPageVisionDetector` / `ScanPageTextPolicy`：优先调用后台已配置的 `BaiduTableOcrClient`（APIHub `BAIDU_OCR_DOC_API`）识别合规页图片文字，按单图级追踪识别状态，单图未命中或异常时回退既有结构化多模态通道并按页合并转写结果，写回 `DocumentContent` 参与确定性与 LLM 核查。
+
+评分与授权证据边界修复：`SemanticEvidenceBoundary` 对原页可核对的评分应答占位或投标人自认评分材料缺失（含项目经理业绩与项目管理机构）保留裁决 `FAIL`；括号须有明确填写/输入等占位语义或为空白，完整引用及普通括注不作缺陷；样例归属按缺陷分句及跨页明确样例标题判断，分页不重置归属，“正式正文”标题才解除样例上下文，同页其他分句的甲乙方称谓、参考资料或填写提示不抹掉真实缺陷；无正文依据、引用无法原位核对或合同样例归属不明时仍转人工。`AuthorizationFieldPolicy` 不把“须/请签字盖章”等要求本身视为未签署事实；同页仍须具备抽取图像及肯定签署观察，明确未签署、空缺与疑问描述继续阻断自动通过。回归见 `Quality1360UnblockTest`。
+
+证书正向声明与缺陷扫描均跳过明确样例块正文，分页保留样例归属，正式声明/正文标题解除样例归属，但保留此前正式证据的证书身份；标题及中间样例块不能切断后续矛盾与先前持证声明的关联，正式正文的否定与过期描述仍阻断通过。
+
+证书编号仅作为字段事实，不能跳过整句肯定持证状态校验；同句包含借用、权属待议等未确认状态时，即使资质库匹配或存在有效期字段，仍转人工复核。
+
+省略证书对象的权属或状态续句沿用已建立的证书上下文，并继续整句肯定事实校验；“权属待议”“状态待确认”等未知状态在同句、分句及跨页均阻断资质库佐证自动通过，明确其他业务对象或其他证书切换仍保持隔离。
+
+空值签署栏（如“签署人（签字）”有无冒号后换行均属空栏）优先阻断授权自动通过，其他公章肯定观察不能消除该空值；评分占位识别覆盖“项目经理业绩（证明）”“项目管理机构配置”等完整字段名，仍要求原页引用核对并排除样例正文。
+
+同行签署字段的下一标签同样构成空值边界，肯定公章观察不得掩盖空签署栏；省略对象的“为／是”判断续句沿用证书身份并接受整句肯定校验，“仅为借用”“实际为借用”以及省略系词的“实际借用自合作方”、租用／租赁续句不能借资质库匹配通过。其他证书、明确业务对象和样例正文保持隔离。
+
+明确签署栏的部分完成、尚待确认等状态优先阻断授权通过，另一项公章观察不能消除该状态。证书缺陷的宽松扫描须先关联证书对象；项目经理、人员配置、安装及售后服务等明确业务主题切断隐含证书续句关联，显式“该证书”仍可重新关联原证书。
+
+样例作用域在后续普通章、节、篇、部分标题处结束（含 Markdown 标题及分页）；标题仍含样例或填写说明时保持样例隔离。证书正反向扫描与评分留白边界复用同一判断，正式章节中的矛盾声明和具体留白不得被前面的填写示例吞掉。
