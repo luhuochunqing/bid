@@ -1761,3 +1761,5 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-11-10] compound | semantic-boundary-debt 逐方法清单与结构/行为变更边界回填 quality1360-diagnosis；尚未实施
 
 ## [2026-11-10] compound | semantic-boundary-debt 实施回填：773项迁移/结构等价、默认契约与跨句人工收口、旧集成断言基线复现
+
+## [2026-11-10] compound | semantic-boundary-minor：完整字符类、find冗余及换页空分支清理；685语料按静态新期望全绿，原件UAT范围不变

@@ -213,3 +213,5 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 `SemanticEvidenceBoundary`只协调结果与定位证据；同包纯核心`CertificateEvidenceContextPolicy`核对明确同句证书事实，不传播跨句指代，未具名状态转人工。`AuthorizationFieldPolicy`保留字段与签署判定，命名片段共用重复文法。
 
 业务/HTML/JSON契约默认运行；`SemanticHeuristicCorpusTest`加`heuristic-corpus`标签，Surefire默认排除，显式传`-DexcludedGroups=`可运行历史观察。完整清单与证据见`specs/083-semantic-boundary-debt/`。
+
+2026-11-10 Minor收敛：证书策略复用完整分句字符类，移除换页空分支与find冗余；语料已按收口后的静态期望校正，显式685项可全绿。旧59条差异保留为已关闭历史记录，业务契约大类本轮不裁剪。
