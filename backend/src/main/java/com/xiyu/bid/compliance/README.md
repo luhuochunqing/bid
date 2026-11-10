@@ -207,3 +207,9 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 明确签署栏的部分完成、尚待确认等状态优先阻断授权通过，另一项公章观察不能消除该状态。证书缺陷的宽松扫描须先关联证书对象；项目经理、人员配置、安装及售后服务等明确业务主题切断隐含证书续句关联，显式“该证书”仍可重新关联原证书。
 
 样例作用域在后续普通章、节、篇、部分标题处结束（含 Markdown 标题及分页）；标题仍含样例或填写说明时保持样例隔离。证书正反向扫描与评分留白边界复用同一判断，正式章节中的矛盾声明和具体留白不得被前面的填写示例吞掉。
+
+### Semantic boundary 技术债收口（2026-11-10）
+
+`SemanticEvidenceBoundary`只协调结果与定位证据；同包纯核心`CertificateEvidenceContextPolicy`核对明确同句证书事实，不传播跨句指代，未具名状态转人工。`AuthorizationFieldPolicy`保留字段与签署判定，命名片段共用重复文法。
+
+业务/HTML/JSON契约默认运行；`SemanticHeuristicCorpusTest`加`heuristic-corpus`标签，Surefire默认排除，显式传`-DexcludedGroups=`可运行历史观察。完整清单与证据见`specs/083-semantic-boundary-debt/`。
