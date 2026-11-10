@@ -12,8 +12,8 @@ sources:
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-11-06
-updated: 2026-11-08
-health_checked: 2026-11-08
+updated: 2026-11-10
+health_checked: 2026-11-10
 ---
 
 # 项目1360质量核查误判诊断
@@ -238,3 +238,17 @@ PR结构收口仅移动报价句界定位4行，未改报价语义或BA14；按�
 - **语义证据边界加固**：完善正式章节标题（章/节/篇/部分）与样例作用域边界，排除核验章节对证书上下文的误清除，支持空签署栏与不完整修饰词精准识别。
 - **三技能自动审查防死循环与收敛治理（2026-11-10）**：针对正则边界在无状态多轮审查中左右互搏的问题，升级 `scripts/lib/review_agent.py` 与 `scripts/review-workflow.py`：① 在第 2/3 轮审查请求中注入前序轮次审查与修复历史（`history`），禁止对前序修复做反向翻案或对未改动代码发散构造新合成语料；② 明确 `Critical/Major` 仅限真实业务故障、核心需求未满足或安全/架构违规，人工拼接的极端自然语言句式变形最高定为 `Minor/Info`；③ 增加跨 Run 防死循环熔断器（`exhausted_runs >= 2` 自动阻断后续盲目重跑，强制交由人工裁决或传 `--allow-rerun`）。
 
+
+## 2026-11-10 semantic boundary 技术债清单（未实施）
+
+- 基线 `e49dcc4e3` 已包含 !2993（`4c1fe8871`）及 !2994；隔离任务分支 `agent/claude/semantic-boundary-debt`。
+- [逐方法清单](../../docs/exec-plans/active/semantic-boundary-debt-inventory.md)：151个方法全部有去向；67业务＋12HTML＋10解析方法候选留门禁，62方法及部分参数转观察语料。静态计数不替代JUnit实跑。
+- [实施边界](../../docs/exec-plans/active/semantic-boundary-debt-plan.md)：纯结构行为等价与撤回跨句指代能力分阶段验收。语料标签必须配默认排除配置；解析/HTML契约不随语料退出门禁。真实样本来源仍须原件hash/页码核验。
+- !2994 的历史注入与连续耗尽熔断已在基线；不清理审查状态、不自行使用 `--allow-rerun`。此记录不表示代码已重构或测试已通过。
+
+## 2026-11-10 实施与证据分层
+
+- 测试迁移与纯结构阶段均实际执行773项旧断言通过；默认89项业务/HTML/JSON契约，新增4项范围契约。跨句指代断言按粒度迁语料，不改旧期望。
+- 新增纯核心`CertificateEvidenceContextPolicy`；删除previousRelated/lastCertificateRelated/pendingDefect/certificateContextKnown传播状态，只保留样例作用域。明确同句对象可判断；未具名状态/材料/权属转人工。
+- 范围契约4项在旧实现2项RED，同页/跨页“未到场”实际PASS；当前领域引擎、资质入口及最终边界均验证。详细状态及基线遗留测试见[分析](../../specs/083-semantic-boundary-debt/analysis.md)。
+- `FullDocumentSemanticRetrievalAcceptanceTest` 中60页合成标书“七项全部PASS”断言在原policy隔离副本同样失败（16项1失败）；本次不扩大修复范围。测试证据不代表生产原件UAT。

@@ -8221,3 +8221,10 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - **fix 第1轮反馈修复**：补充换行、CRLF、空行及无末尾冒号的错误收件单位负向保护；通用称谓独立成行接正常正文仍允许。移除无消费路径的要求截断恢复，补充 Parser→merge 缺失哨兵断言。新增保护修复前复现两项失败。
 
 - **fix 第2轮反馈修复**：确认有限单位后缀黑名单会漏过“大学”等具体收件人，改为仅接受独立通用称谓后直接进入明确投标方正文；未知后续行保持人工复核，不再靠单位类型证明安全。新增大学、学校、银行、指挥部、工作组及未知主体，覆盖 LF/CRLF/空行与有无冒号，共36组负向输入；独立称谓正文保留15组正向保护。新增回归修复前复现“大学”误判 PASS；修复后 `mvn -q -o -f backend/pom.xml test -Dtest=Quality1360UnblockTest,QualificationDetailReconcilerTest,QualificationVetoPolicyTest,BidDocumentQualityEngineTest` 共161项通过（66+47+9+39），失败/错误/跳过为0；未启动服务。
+
+## Semantic boundary：语料不替代业务契约（2026-11-10）
+
+- 现象：Quality1360UnblockTest含151方法，JUnit实际773项；只统计ValueSource会漏MethodSource/CsvSource。
+- 处置：先按方法与调用次数对账，完整迁移773项并验证旧断言，再将89项业务/HTML/JSON契约留门禁、684项变形观察标记为显式语料。仅加Tag不排除测试，必须配置Surefire默认excludedGroups。
+- 边界：纯结构阶段773项旧断言全部通过；撤回跨句身份传播属于单独行为变化，先用同页/跨页无主语状态获得RED，不靠放宽语料断言宣称等价。
+- 证据：specs/083-semantic-boundary-debt/analysis.md；最小范围契约覆盖资格入口、最终边界和领域引擎，生产验收仍需真实原件复核。

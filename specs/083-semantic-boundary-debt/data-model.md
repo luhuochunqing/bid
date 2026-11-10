@@ -1,0 +1,3 @@
+# Data Model
+
+不修改持久模型。QualityCheckItemResult输入输出、QualityEvidence页码/摘录、DocumentContent分页与图片均复用。唯一允许行为变化为主体未明确的证书续句无法自动通过，转MANUAL_REVIEW。

@@ -19,6 +19,8 @@
     <description>XiYu Bidding Platform Backend</description>
 
     <properties>
+        <!-- Historical language variants run only when explicitly requested. -->
+        <excludedGroups>heuristic-corpus</excludedGroups>
         <java.version>21</java.version>
         <jjwt.version>0.12.5</jjwt.version>
         <eventlibrary.version>release_0.0.2</eventlibrary.version>
@@ -396,6 +398,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.0.0</version>
                 <configuration>
+                    <excludedGroups>${excludedGroups}</excludedGroups>
                     <argLine>
                         @{argLine}
                         -Dnet.bytebuddy.experimental=true
