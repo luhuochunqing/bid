@@ -252,3 +252,9 @@ PR结构收口仅移动报价句界定位4行，未改报价语义或BA14；按�
 - 新增纯核心`CertificateEvidenceContextPolicy`；删除previousRelated/lastCertificateRelated/pendingDefect/certificateContextKnown传播状态，只保留样例作用域。明确同句对象可判断；未具名状态/材料/权属转人工。
 - 范围契约4项在旧实现2项RED，同页/跨页“未到场”实际PASS；当前领域引擎、资质入口及最终边界均验证。详细状态及基线遗留测试见[分析](../../specs/083-semantic-boundary-debt/analysis.md)。
 - `FullDocumentSemanticRetrievalAcceptanceTest` 中60页合成标书“七项全部PASS”断言在原policy隔离副本同样失败（16项1失败）；本次不扩大修复范围。测试证据不代表生产原件UAT。
+
+## 2026-11-10 !2995后Minor收敛
+
+- 新任务`agent/claude/semantic-boundary-minor`，基线2193dcab2。语料保留685项输入，按收口后的静态期望校正；生产未改时685+93=778项全绿，再重构后同组全绿。旧59差异文档标记为已关闭历史。
+- 完整字符类分为含/不含换页终止符两种，不在类内部断开。扫描删除换页空分支，纯分句判断复用失效检查。20→19个预编译Pattern；18个保留pattern原文/flags相同，find冗余对现有2251分句原文/归一化等价。
+- 业务大测试与授权策略冻结；不把仍服务同句判断的权属/业务边界词表误删。详见[验收与限制](../../specs/084-semantic-boundary-minor/analysis.md)。

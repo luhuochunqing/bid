@@ -8228,3 +8228,7 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - 处置：先按方法与调用次数对账，完整迁移773项并验证旧断言，再将89项业务/HTML/JSON契约留门禁、684项变形观察标记为显式语料。仅加Tag不排除测试，必须配置Surefire默认excludedGroups。
 - 边界：纯结构阶段773项旧断言全部通过；撤回跨句身份传播属于单独行为变化，先用同页/跨页无主语状态获得RED，不靠放宽语料断言宣称等价。
 - 证据：specs/083-semantic-boundary-debt/analysis.md；最小范围契约覆盖资格入口、最终边界和领域引擎，生产验收仍需真实原件复核。
+
+### Semantic boundary Minor补充（2026-11-10）
+
+已批准收口后的语料必须维护新的明确预期，不能长期保留“已知59项红”而让维护者误判回归。混合输入逐行指定PASS/人工，不禁用、不从被测函数动态生成expected；先生产不变时确认685语料全绿，再做重构。公共字符类必须完整提取，并区分是否允许换页字符；不能为了统一常量改变规则。find词表冗余可按布尔命中证明清理，但匹配位置不保证相等。证据：specs/084-semantic-boundary-minor/analysis.md。

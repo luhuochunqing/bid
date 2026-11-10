@@ -1,5 +1,5 @@
 // Input: 明确业务契约或已标记的历史启发式观察输入
-// Output: 保留原测试断言；语料不作为默认门禁
+// Output: 保留既有输入，断言收口后的明确预期；语料不作为默认门禁
 // Pos: compliance/domain/policy - semantic boundary 技术债分层测试
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -60,7 +60,7 @@ class SemanticHeuristicCorpusTest {
             String priorStatement = "本公司具有ISO9001认证。\n填写示例：\n" + sample
                     + separator + "正式正文：\n该证书有效。";
             assertThat(SemanticEvidenceBoundary.hasPositiveCertificateStatement(priorStatement, "ISO9001认证"))
-                    .as("样例不能改变先前正式证书身份").isTrue();
+                    .as("样例结束后的代词续句仍需复核").isFalse();
             assertThat(SemanticEvidenceBoundary.hasPositiveCertificateStatement(
                     text + "该证书已过期。", "ISO9001认证")).isFalse();
         }
@@ -400,12 +400,12 @@ class SemanticHeuristicCorpusTest {
             "该证书属于我司的子公司, MANUAL_REVIEW",
             "该认证持有单位：本投标人的合作方, MANUAL_REVIEW",
             "该证书持证主体为投标人的供应商, MANUAL_REVIEW",
-            "该证书属于 本公司, PASS",
-            "该证书属于： 本公司, PASS",
-            "该证书持证单位为 我司, PASS",
-            "该认证持有单位： 本投标人, PASS",
-            "该证书持证主体为： 投标人, PASS",
-            "该证书属于　我方, PASS"})
+            "该证书属于 本公司, MANUAL_REVIEW",
+            "该证书属于： 本公司, MANUAL_REVIEW",
+            "该证书持证单位为 我司, MANUAL_REVIEW",
+            "该认证持有单位： 本投标人, MANUAL_REVIEW",
+            "该证书持证主体为： 投标人, MANUAL_REVIEW",
+            "该证书属于　我方, MANUAL_REVIEW"})
     void completeOwnershipSubjectControlsEntryBoundaryAndEngine(String ownership, QualityCheckStatus expected) {
         var match = new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "record", "ISO9001认证", true);
         var evidence = QualityEvidence.fromKnowledgeMatch(match);
@@ -487,53 +487,89 @@ class SemanticHeuristicCorpusTest {
     }
 
     @Test
-    void unrelatedDefectsAndUnexpiredCertificatePreserveKbPass() {
+    void certificateFactsAndContinuationsUseExplicitExpectations() {
         var evidence = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
                 KnowledgeMatch.SOURCE_QUALIFICATION, "record", "ISO9001认证", true));
-        for (String text : List.of("本公司具有ISO9001认证（证书编号：ABCD1234）。",
-                "本公司具有ISO9001认证。该证书编号：ABCD1234。",
-                "本公司具有ISO9001认证，售后承诺缺页。",
-                "本公司持有ISO9001认证，证书未过期。", "本公司具有ISO9001认证。",
-                "本公司具有ISO9001认证。未附售后服务承诺。",
-                "本公司具有ISO9001认证。经核对报价表未附。",
-                "本公司具有ISO9001认证。售后承诺未提供清晰的扫描件。",
-                "本公司具有ISO9001认证。第二章 合同材料未提交加盖公章的复印件。",
-                "本公司具有ISO9001认证。ISO14001认证未提供清晰的扫描件。",
-                "本公司具有ISO9001认证。经核对报价表尚未提供。",
-                "本公司具有ISO9001认证。经核对报价表缺失。",
-                "本公司具有ISO9001认证。经现场复核确认报价表暂时无法提供。",
-                "本公司具有ISO9001认证。售后服务承诺缺少。",
-                "本公司具有ISO9001认证。经核对售后服务承诺未提交。",
-                "本公司具有ISO9001认证。ISO14001认证。该证书属于供应商。",
-                "本公司具有ISO9001认证。该证书归属本公司。",
-                "本公司具有ISO9001认证。该证书持证单位为本公司。",
-                "本公司具有ISO9001认证。该认证持有单位：我司。",
-                "本公司具有ISO9001认证。该证书持证主体为本投标人。",
-                "本公司具有ISO9001认证。该证书由认证机构颁发。",
-                "本公司具有ISO9001认证。待补报价表。",
-                "本公司具有ISO9001认证。合同。权属待议。",
-                "本公司具有ISO9001认证。合同。仅为借用。",
-                "本公司具有ISO9001认证。合同。实际借用自合作方。",
-                "本公司具有ISO9001认证。ISO14001认证。实际借用自合作方。",
-                "本公司具有ISO9001认证。\n填写示例：\n实际借用自合作方。",
-                "本公司具有ISO9001认证。ISO14001认证。实际为借用。",
-                "本公司具有ISO9001认证。\n填写示例：\n仅为借用。",
-                "本公司具有ISO9001认证。报价。状态待确认。",
-                "本公司具有ISO9001认证。\n填写示例：\n权属待议。状态待确认。",
-                "本公司具有ISO9001认证。ISO14001认证。该证书已过期。")) {
+        for (CorpusExpectation sample : List.of(
+                new CorpusExpectation("本公司具有ISO9001认证（证书编号：ABCD1234）。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。该证书编号：ABCD1234。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证，售后承诺缺页。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司持有ISO9001认证，证书未过期。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。未附售后服务承诺。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。经核对报价表未附。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。售后承诺未提供清晰的扫描件。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。第二章 合同材料未提交加盖公章的复印件。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。ISO14001认证未提供清晰的扫描件。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。经核对报价表尚未提供。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。经核对报价表缺失。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。经现场复核确认报价表暂时无法提供。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。售后服务承诺缺少。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。经核对售后服务承诺未提交。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。ISO14001认证。该证书属于供应商。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。该证书归属本公司。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。该证书持证单位为本公司。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。该认证持有单位：我司。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。该证书持证主体为本投标人。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。该证书由认证机构颁发。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。待补报价表。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。合同。权属待议。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。合同。仅为借用。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。合同。实际借用自合作方。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。ISO14001认证。实际借用自合作方。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。\n填写示例：\n实际借用自合作方。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。ISO14001认证。实际为借用。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。\n填写示例：\n仅为借用。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。报价。状态待确认。",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                new CorpusExpectation("本公司具有ISO9001认证。\n填写示例：\n权属待议。状态待确认。",
+                        QualityCheckStatus.PASS),
+                new CorpusExpectation("本公司具有ISO9001认证。ISO14001认证。该证书已过期。",
+                        QualityCheckStatus.MANUAL_REVIEW))) {
+            String text = sample.text();
+            QualityCheckStatus expected = sample.status();
             var bid = DocumentContent.fromText("bid", "hash", text);
             var req = new TenderRequirements(List.of(), List.of("投标人须具有ISO9001认证"),
                     List.of(), List.of(), List.of(), false);
             assertThat(QualificationVetoPolicy.checkFirstStage(bid, DocumentContent.empty(), req,
-                    List.of(evidence)).orElseThrow().status()).as(text).isEqualTo(QualityCheckStatus.PASS);
+                    List.of(evidence)).orElseThrow().status()).as(text).isEqualTo(expected);
             var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO, "通过", List.of(evidence));
             assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status()).as(text)
-                    .isEqualTo(QualityCheckStatus.PASS);
+                    .isEqualTo(expected);
         }
     }
 
     @Test
-    void unrelatedNamedCertificateDefectsDoNotDemoteKbPass() {
+    void unresolvedOtherCertificateDefectsRequireReview() {
         var req = new TenderRequirements(List.of(), List.of("投标人须具有ISO9001认证"),
                 List.of(), List.of(), List.of(), false);
         var evidence = QualityEvidence.fromKnowledgeMatch(new KnowledgeMatch(
@@ -545,11 +581,11 @@ class SemanticHeuristicCorpusTest {
                         "本公司具有ISO9001认证" + separator + defect + "。");
                 var result = QualificationVetoPolicy.checkFirstStage(bid, DocumentContent.empty(), req,
                         List.of(evidence)).orElseThrow();
-                assertThat(result.status()).as(bid.fullText()).isEqualTo(QualityCheckStatus.PASS);
+                assertThat(result.status()).as(bid.fullText()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
                 var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO,
                         "通过", List.of(evidence));
                 assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status()).as(bid.fullText())
-                        .isEqualTo(QualityCheckStatus.PASS);
+                        .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             }
         }
     }
@@ -616,10 +652,10 @@ class SemanticHeuristicCorpusTest {
             "该证书由北京乙有限公司持有, MANUAL_REVIEW",
             "该证书由上海甲公司取得, MANUAL_REVIEW",
             "该证书由本公司的合作方持有, MANUAL_REVIEW",
-            "该证书由 本公司 持有, PASS",
-            "该证书由我司取得, PASS",
-            "该证书由本投标人持有, PASS",
-            "ISO14001认证。该证书由上海甲公司持有, PASS",
+            "该证书由 本公司 持有, MANUAL_REVIEW",
+            "该证书由我司取得, MANUAL_REVIEW",
+            "该证书由本投标人持有, MANUAL_REVIEW",
+            "ISO14001认证。该证书由上海甲公司持有, MANUAL_REVIEW",
             "合同由上海甲公司持有, PASS"
     })
     void namedCertificateHolderRequiresConfirmedBidderIdentity(String ownership, QualityCheckStatus expected) {
@@ -1073,7 +1109,7 @@ class SemanticHeuristicCorpusTest {
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {
             "安全生产许可证", "建筑企业资质证书", "环境管理体系认证", "ISO14001认证", "ABC123认证", "CS01认证"})
-    void namedCertificateSwitchesContextBeforeDefect(String otherCertificate) {
+    void certificateHeadingDoesNotResolveFollowingDefect(String otherCertificate) {
         var match = new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "record", "ISO9001认证", true);
         var evidence = QualityEvidence.fromKnowledgeMatch(match);
         var req = new TenderRequirements(List.of(), List.of("投标人须具有ISO9001认证"),
@@ -1083,15 +1119,15 @@ class SemanticHeuristicCorpusTest {
                     "本公司具有ISO9001认证。" + otherCertificate + "。" + defect + "。");
             assertThat(QualificationVetoPolicy.checkFirstStage(bid, DocumentContent.empty(), req,
                     List.of(evidence)).orElseThrow().status()).as("入口: %s / %s", otherCertificate, defect)
-                    .isEqualTo(QualityCheckStatus.PASS);
+                    .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO, "通过", List.of(evidence));
             assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status()).as("最终边界: %s / %s", otherCertificate, defect)
-                    .isEqualTo(QualityCheckStatus.PASS);
+                    .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             var result = BidDocumentQualityEngine.evaluateAll(bid, DocumentContent.empty(), List.of(match),
                     req, java.util.Set.of()).stream()
                     .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))
                     .findFirst().orElseThrow();
-            assertThat(result.status()).as("引擎: %s / %s", otherCertificate, defect).isEqualTo(QualityCheckStatus.PASS);
+            assertThat(result.status()).as("引擎: %s / %s", otherCertificate, defect).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         }
     }
 
@@ -1100,7 +1136,7 @@ class SemanticHeuristicCorpusTest {
             "ISO14001认证。证书编号：CN12345", "安全生产许可证。证书编号：CN12345",
             "ISO14001认证", "安全生产许可证",
             "ISO14001认证。持证单位为供应商", "安全生产许可证。持证单位为供应商"})
-    void otherCertificateOwnershipDoesNotDemoteCurrentCertificate(String otherCertificate) {
+    void unattributedOwnershipAfterAnotherCertificateRequiresReview(String otherCertificate) {
         var match = new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "record", "ISO9001认证", true);
         var evidence = QualityEvidence.fromKnowledgeMatch(match);
         var req = new TenderRequirements(List.of(), List.of("投标人须具有ISO9001认证"),
@@ -1109,15 +1145,15 @@ class SemanticHeuristicCorpusTest {
                 "本公司具有ISO9001认证。" + otherCertificate + "。持证人为供应商。");
         assertThat(QualificationVetoPolicy.checkFirstStage(bid, DocumentContent.empty(), req,
                 List.of(evidence)).orElseThrow().status()).as("入口: %s", otherCertificate)
-                .isEqualTo(QualityCheckStatus.PASS);
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO, "通过", List.of(evidence));
         assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status()).as("最终边界: %s", otherCertificate)
-                .isEqualTo(QualityCheckStatus.PASS);
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         var result = BidDocumentQualityEngine.evaluateAll(bid, DocumentContent.empty(), List.of(match),
                 req, java.util.Set.of()).stream()
                 .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))
                 .findFirst().orElseThrow();
-        assertThat(result.status()).as("引擎: %s", otherCertificate).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.status()).as("引擎: %s", otherCertificate).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 
     @org.junit.jupiter.params.ParameterizedTest
@@ -1294,20 +1330,8 @@ class SemanticHeuristicCorpusTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {
-            "第三章 合同条款。本合同到期后自动终止", "本合同到期后自动终止",
-            "经核对合同已失效", "售后服务协议已到期", "报价有效期已届满",
-            "第三章 合同条款。经查已终止", "第3节 商务条款。已到期", "\f合同已到期",
-            "\f经核对：\n合同已到期", "\f经核对，\n报价表未提供",
-            "\f经现场核实：\nISO14001认证已过期",
-            "\f经核对：\n第三章 合同条款。证书未提供",
-            "\f经核对\n合同已到期", "\f经核对\n报价表未提供",
-            "\f经现场核实\nISO14001认证已过期",
-            "\f经核对\n第三章 合同条款。证书未提供",
-            "\f经复核确认后：\n合同已到期", "\f经现场核实后：报价表未提供",
-            "\f核对结果：ISO14001认证已过期",
-            "\f经复核确认后：\n第三章 合同条款。证书未提供"})
-    void unrelatedBusinessStatusCannotInheritCertificateContext(String continuation) {
+    @org.junit.jupiter.params.provider.MethodSource("unrelatedBusinessStatusCases")
+    void unrelatedBusinessStatusCannotInheritCertificateContext(String continuation, QualityCheckStatus expected) {
         var match = new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "record", "ISO9001认证", true);
         var evidence = QualityEvidence.fromKnowledgeMatch(match);
         var req = new TenderRequirements(List.of(), List.of("投标人须具有ISO9001认证"),
@@ -1320,18 +1344,62 @@ class SemanticHeuristicCorpusTest {
                         new DocumentContent.PageContent(2, continuation.substring(1), List.of()))
                         : List.of(new DocumentContent.PageContent(1, text, List.of())), List.of());
         org.assertj.core.api.SoftAssertions.assertSoftly(softly -> {
-            softly.assertThat(SemanticEvidenceBoundary.hasPositiveCertificateStatement(text, "ISO9001认证")).isTrue();
+            softly.assertThat(SemanticEvidenceBoundary.hasPositiveCertificateStatement(text, "ISO9001认证")).isEqualTo(expected == QualityCheckStatus.PASS);
             softly.assertThat(QualificationVetoPolicy.checkFirstStage(bid, DocumentContent.empty(), req,
-                    List.of(evidence)).orElseThrow().status()).as("入口").isEqualTo(QualityCheckStatus.PASS);
+                    List.of(evidence)).orElseThrow().status()).as("入口").isEqualTo(expected);
             var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO, "通过", List.of(evidence));
             softly.assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status())
-                    .as("最终边界").isEqualTo(QualityCheckStatus.PASS);
+                    .as("最终边界").isEqualTo(expected);
             var result = BidDocumentQualityEngine.evaluateAll(bid, DocumentContent.empty(), List.of(match),
                     req, java.util.Set.of()).stream()
                     .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))
                     .findFirst().orElseThrow();
-            softly.assertThat(result.status()).as("引擎").isEqualTo(QualityCheckStatus.PASS);
+            softly.assertThat(result.status()).as("引擎").isEqualTo(expected);
         });
+    }
+
+    static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> unrelatedBusinessStatusCases() {
+        return java.util.stream.Stream.of(
+                org.junit.jupiter.params.provider.Arguments.of("第三章 合同条款。本合同到期后自动终止",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("本合同到期后自动终止",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("经核对合同已失效",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("售后服务协议已到期",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("报价有效期已届满",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("第三章 合同条款。经查已终止",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                org.junit.jupiter.params.provider.Arguments.of("第3节 商务条款。已到期",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                org.junit.jupiter.params.provider.Arguments.of("\f合同已到期",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("\f经核对：\n合同已到期",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("\f经核对，\n报价表未提供",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("\f经现场核实：\nISO14001认证已过期",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("\f经核对：\n第三章 合同条款。证书未提供",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                org.junit.jupiter.params.provider.Arguments.of("\f经核对\n合同已到期",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("\f经核对\n报价表未提供",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("\f经现场核实\nISO14001认证已过期",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("\f经核对\n第三章 合同条款。证书未提供",
+                        QualityCheckStatus.MANUAL_REVIEW),
+                org.junit.jupiter.params.provider.Arguments.of("\f经复核确认后：\n合同已到期",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("\f经现场核实后：报价表未提供",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("\f核对结果：ISO14001认证已过期",
+                        QualityCheckStatus.PASS),
+                org.junit.jupiter.params.provider.Arguments.of("\f经复核确认后：\n第三章 合同条款。证书未提供",
+                        QualityCheckStatus.MANUAL_REVIEW));
     }
 
     @org.junit.jupiter.params.ParameterizedTest
@@ -1364,7 +1432,7 @@ class SemanticHeuristicCorpusTest {
     @org.junit.jupiter.params.provider.ValueSource(strings = {
             "该证书尚未到期", "该证书未到期", "该证书尚未过期", "该证书尚未失效",
             "该证书未过期", "该证书未失效"})
-    void negatedInvalidStatusPreservesValidCertificate(String continuation) {
+    void unattributedValidStatusStillRequiresReview(String continuation) {
         var match = new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "record", "ISO9001认证", true);
         var evidence = QualityEvidence.fromKnowledgeMatch(match);
         var req = new TenderRequirements(List.of(), List.of("投标人须具有ISO9001认证"),
@@ -1373,17 +1441,17 @@ class SemanticHeuristicCorpusTest {
         String text = firstPage + continuation + "。";
         var bid = DocumentContent.fromText("bid", "hash", text);
         org.assertj.core.api.SoftAssertions.assertSoftly(softly -> {
-            softly.assertThat(SemanticEvidenceBoundary.hasPositiveCertificateStatement(text, "ISO9001认证")).isTrue();
+            softly.assertThat(SemanticEvidenceBoundary.hasPositiveCertificateStatement(text, "ISO9001认证")).isFalse();
             softly.assertThat(QualificationVetoPolicy.checkFirstStage(bid, DocumentContent.empty(), req,
-                    List.of(evidence)).orElseThrow().status()).as("入口").isEqualTo(QualityCheckStatus.PASS);
+                    List.of(evidence)).orElseThrow().status()).as("入口").isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO, "通过", List.of(evidence));
             softly.assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status())
-                    .as("最终边界").isEqualTo(QualityCheckStatus.PASS);
+                    .as("最终边界").isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             var result = BidDocumentQualityEngine.evaluateAll(bid, DocumentContent.empty(), List.of(match),
                     req, java.util.Set.of()).stream()
                     .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))
                     .findFirst().orElseThrow();
-            softly.assertThat(result.status()).as("引擎").isEqualTo(QualityCheckStatus.PASS);
+            softly.assertThat(result.status()).as("引擎").isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         });
     }
 
@@ -1543,9 +1611,9 @@ class SemanticHeuristicCorpusTest {
             "该证书拒绝随投标文件一并提供, MANUAL_REVIEW",
             "经核对未随本次投标文件一并提交证书, MANUAL_REVIEW",
             "该证书未随本次投标文件 一并 提交, MANUAL_REVIEW",
-            "该证书已随本次投标文件一并提交, PASS",
-            "该证书已随标书一同提供, PASS",
-            "该证书已随本次投标文件同时报送, PASS"})
+            "该证书已随本次投标文件一并提交, MANUAL_REVIEW",
+            "该证书已随标书一同提供, MANUAL_REVIEW",
+            "该证书已随本次投标文件同时报送, MANUAL_REVIEW"})
     void accompanyingSubmissionStatusControlsEntryBoundaryAndEngine(String continuation, QualityCheckStatus expected) {
         var match = new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "record", "ISO9001认证", true);
         var evidence = QualityEvidence.fromKnowledgeMatch(match);
@@ -1573,7 +1641,7 @@ class SemanticHeuristicCorpusTest {
     @org.junit.jupiter.params.provider.CsvSource({
             "项目经理未到场, PASS", "售后服务未包含安装, PASS",
             "人员配置未完成, PASS", "安装服务尚未提供, PASS",
-            "项目经理未到场。已过期, PASS",
+            "项目经理未到场。已过期, MANUAL_REVIEW",
             "售后服务未包含安装。该证书已过期, MANUAL_REVIEW",
             "该证书尚未确认, MANUAL_REVIEW", "未取得, MANUAL_REVIEW"})
     void unrelatedBusinessDefectsDoNotChangeCertificateStatus(String continuation, QualityCheckStatus expected) {
@@ -1800,7 +1868,7 @@ class SemanticHeuristicCorpusTest {
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"说明如下。\n合同履行说明。", "第2页\n本公司具有ISO14001认证。", "说明如下。\n第二章 商务响应"})
-    void explicitObjectSwitchAcrossIntermediatePagesClearsCertificateAssociation(String middle) {
+    void unattributedDefectRequiresReviewAfterOtherObject(String middle) {
         var match = new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "record", "ISO9001认证", true);
         var evidence = QualityEvidence.fromKnowledgeMatch(match);
         var req = new TenderRequirements(List.of(), List.of("投标人须具有ISO9001认证"),
@@ -1817,18 +1885,18 @@ class SemanticHeuristicCorpusTest {
                             : List.of(new DocumentContent.PageContent(1, text, List.of())), List.of());
             org.assertj.core.api.SoftAssertions.assertSoftly(softly -> {
                 softly.assertThat(SemanticEvidenceBoundary.hasPositiveCertificateStatement(text, "ISO9001认证"))
-                        .as("纯函数: %s", middle).isTrue();
+                        .as("纯函数: %s", middle).isFalse();
                 softly.assertThat(QualificationVetoPolicy.checkFirstStage(bid, DocumentContent.empty(), req,
                         List.of(evidence)).orElseThrow().status()).as("入口: %s", middle)
-                        .isEqualTo(QualityCheckStatus.PASS);
+                        .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
                 var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO, "通过", List.of(evidence));
                 softly.assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status())
-                        .as("最终边界: %s", middle).isEqualTo(QualityCheckStatus.PASS);
+                        .as("最终边界: %s", middle).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
                 var result = BidDocumentQualityEngine.evaluateAll(bid, DocumentContent.empty(), List.of(match),
                         req, java.util.Set.of()).stream()
                         .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))
                         .findFirst().orElseThrow();
-                softly.assertThat(result.status()).as("引擎: %s", middle).isEqualTo(QualityCheckStatus.PASS);
+                softly.assertThat(result.status()).as("引擎: %s", middle).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             });
         }
     }
@@ -1902,7 +1970,7 @@ class SemanticHeuristicCorpusTest {
             "本公司具有ISO9001认证。\n\f\n安全生产许可证。\n\f\n已被暂停。",
             "本公司具有ISO9001认证。合同履行说明。已被暂停。",
             "本公司具有ISO9001认证。\n\f\n合同履行说明。\n\f\n已被暂停。"})
-    void namedCertificateSwitchIsIndependentOfPagination(String text) {
+    void certificateHeadingDoesNotResolveStatusAcrossPagination(String text) {
         var match = new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "record", "ISO9001认证", true);
         var evidence = QualityEvidence.fromKnowledgeMatch(match);
         var req = new TenderRequirements(List.of(), List.of("投标人须具有ISO9001认证"),
@@ -1914,18 +1982,18 @@ class SemanticHeuristicCorpusTest {
         var bid = new DocumentContent("bid", "hash", text, pages, List.of());
         org.assertj.core.api.SoftAssertions.assertSoftly(softly -> {
             softly.assertThat(SemanticEvidenceBoundary.hasPositiveCertificateStatement(text, "ISO9001认证"))
-                    .as("纯函数: %s", text).isTrue();
+                    .as("纯函数: %s", text).isFalse();
             softly.assertThat(QualificationVetoPolicy.checkFirstStage(bid, DocumentContent.empty(), req,
                     List.of(evidence)).orElseThrow().status()).as("入口: %s", text)
-                    .isEqualTo(QualityCheckStatus.PASS);
+                    .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO, "通过", List.of(evidence));
             softly.assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status())
-                    .as("最终边界: %s", text).isEqualTo(QualityCheckStatus.PASS);
+                    .as("最终边界: %s", text).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             var result = BidDocumentQualityEngine.evaluateAll(bid, DocumentContent.empty(), List.of(match),
                     req, java.util.Set.of()).stream()
                     .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))
                     .findFirst().orElseThrow();
-            softly.assertThat(result.status()).as("引擎: %s", text).isEqualTo(QualityCheckStatus.PASS);
+            softly.assertThat(result.status()).as("引擎: %s", text).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         });
     }
 
@@ -1938,9 +2006,9 @@ class SemanticHeuristicCorpusTest {
             "核验说明。该证书已过期。本公司具有ISO14001认证。本公司具有ISO9001认证。",
             "本公司具有ISO14001认证。该证书已过期。本公司具有ISO9001认证。",
             "核验说明。该证书未过期。说明如下。本公司具有ISO9001认证。"})
-    void precedingDefectRetainsIdentityBoundariesAndNegatedStatus(String text) {
+    void unattributedDefectRemainsUnresolvedAcrossIdentityBoundaries(String text) {
         assertThat(SemanticEvidenceBoundary.hasPositiveCertificateStatement(text, "ISO9001认证"))
-                .as(text).isTrue();
+                .as(text).isFalse();
     }
 
     @org.junit.jupiter.params.ParameterizedTest
@@ -2088,14 +2156,15 @@ class SemanticHeuristicCorpusTest {
     }
 
     @Test
-    void sampleBoundaryContinuationKeepsHistoricalObservation() {
+    void sampleBoundaryDoesNotResolveUnattributedCertificateFact() {
         String sample = "本公司未取得ISO9001认证。";
         for (String separator : List.of("\n", "\n\f\n")) {
             String priorStatement = "本公司具有ISO9001认证。\n填写示例：\n" + sample
                     + separator + "正式正文：\n该证书有效。";
             assertThat(SemanticEvidenceBoundary.hasPositiveCertificateStatement(priorStatement, "ISO9001认证"))
-                    .as("样例不能改变先前正式证书身份").isTrue();
+                    .as("样例结束后的代词续句仍需复核").isFalse();
         }
     }
 
+    private record CorpusExpectation(String text, QualityCheckStatus status) { }
 }
