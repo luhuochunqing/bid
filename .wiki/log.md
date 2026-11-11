@@ -1776,3 +1776,8 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 生产空正文根因与本地修复范围回填；保留全卷性能和生产验收边界。
 
 ## [2026-11-11] compound | scoring-only-adoption 资格零分候选入库根因及本地修复边界回填
+## [2026-11-11] compound | scoreparse-1123-double-total：满分汇总重复计分根因及原PDF、隔离对照证据；仅诊断。
+
+## [2026-11-11] compound | scoreparse-1123-double-total 本地修复：精确汇总标签共享、表头边界与防重复计分回归；未部署。
+
+## [2026-11-11] compound | scoreparse-1123-double-total fix第1轮：修复无表头独立汇总表总分丢失，保留无数值满分列表头反例；复审待主执行器执行。

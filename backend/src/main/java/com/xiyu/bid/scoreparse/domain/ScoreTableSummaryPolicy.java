@@ -5,6 +5,7 @@ package com.xiyu.bid.scoreparse.domain;
 
 import com.xiyu.bid.scoreparse.domain.grid.CanonicalCell;
 import com.xiyu.bid.scoreparse.domain.grid.CanonicalTableGrid;
+import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.CanonicalCellDto;
 import com.xiyu.bid.scoreparse.domain.grid.TableColumnMapping;
 
 import java.math.BigDecimal;
@@ -106,9 +107,8 @@ public final class ScoreTableSummaryPolicy {
     }
 
     public static boolean isSummaryRow(String code, String dimension) {
-        String codeText = normalizeCompact(code);
         String dimensionText = normalizeCompact(dimension);
-        return isSummaryLabel(codeText) && hasTotalMarker(dimensionText);
+        return isSummaryLabel(code) && hasTotalMarker(dimensionText);
     }
 
     /** Recognize summary rows even when merged/shifted cells defeat column mapping. */
@@ -119,7 +119,6 @@ public final class ScoreTableSummaryPolicy {
         boolean hasSummaryLabel = rowCells.stream()
                 .filter(CanonicalCell::isUsableOrigin)
                 .map(CanonicalCell::rawText)
-                .map(ScoreTableSummaryPolicy::normalizeCompact)
                 .anyMatch(ScoreTableSummaryPolicy::isSummaryLabel);
         boolean hasTotalMarker = rowCells.stream()
                 .filter(CanonicalCell::isUsableOrigin)
@@ -132,6 +131,14 @@ public final class ScoreTableSummaryPolicy {
                 .map(String::trim)
                 .anyMatch(text -> SUMMARY_NUMERIC_CELL_PATTERN.matcher(text).matches());
         return hasSummaryLabel && (hasTotalMarker || hasNumericTotal);
+    }
+
+    /** A headerless summary can itself contain a header keyword such as 满分100分. */
+    static boolean isSourceSummaryRow(List<CanonicalCellDto> row, boolean headerRow) {
+        return row.stream().anyMatch(c -> isSummaryLabel(c.rawText()))
+                && (!headerRow || row.stream().anyMatch(c -> c.rawText() != null
+                && (ScoreSubtotalColumnPolicy.NUMBER.matcher(c.rawText()).matches()
+                || ScoreSubtotalColumnPolicy.EXPLICIT_TOTAL.matcher(c.rawText()).find())));
     }
 
     private static String textAt(List<CanonicalCell> cells, int column) {
@@ -159,9 +166,11 @@ public final class ScoreTableSummaryPolicy {
         return text == null ? "" : text.replaceAll("\\s+", "");
     }
 
-    private static boolean isSummaryLabel(String text) {
-        return text.equals("合计") || text.equals("总计")
-                || text.equals("合计得分") || text.equals("总计得分");
+    /** Exact standalone labels shared by extraction and source-total resolution. */
+    public static boolean isSummaryLabel(String text) {
+        String label = normalizeCompact(text);
+        return label.equals("合计") || label.equals("总计") || label.equals("满分")
+                || label.equals("合计得分") || label.equals("总计得分");
     }
 
     private static boolean hasTotalMarker(String text) {

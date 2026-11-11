@@ -80,13 +80,13 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             if (detail) detailTables++;
             for (var entry : rows.entrySet()) {
                 var row = entry.getValue();
-                boolean summary = row.stream().anyMatch(c -> c.rawText() != null
-                        && c.rawText().replaceAll("\\s+", "").matches("^(?:合计|总计)(?:得分)?$"));
-                var selection = summary ? ScoreSubtotalColumnPolicy.select(table, mapping.headerRows(), row)
+                boolean headerRow = entry.getKey() < mapping.headerRows();
+                boolean summary = ScoreTableSummaryPolicy.isSourceSummaryRow(row, headerRow);
+                var selection = summary ? ScoreSubtotalColumnPolicy.select(table, headerRow ? 0 : mapping.headerRows(), row)
                         : new ScoreSubtotalColumnPolicy.Selection(-1, false);
                 if (summary && selection.unresolved()) localProblems.add(selection.problem(table.tableId()));
                 // A detail row is not a scheme declaration even when OCR yields only its rule cell.
-                boolean detailRow = detail && !summary && entry.getKey() >= mapping.headerRows();
+                boolean detailRow = detail && !summary && !headerRow;
                 for (var cell : row) {
                     String raw = cell.rawText() == null ? "" : cell.rawText();
                     String locator = table.tableId() + ":" + cell.cellId();

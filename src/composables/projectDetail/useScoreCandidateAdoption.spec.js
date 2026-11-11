@@ -45,6 +45,21 @@ describe('useScoreCandidateAdoption.js', () => {
     fetchAnalysisData = vi.fn().mockResolvedValue()
   })
 
+  it('counts corrected detail facts once against the source maximum total', () => {
+    reviewSnapshot.value = { schemes: [{ schemeId: 'scheme-summary', declaredTotal: 100,
+      totalEvidenceStatus: 'VERIFIED', tableIds: ['qualification', 'score'] }] }
+    reviewFacts.value = [
+      { factId: 'a', code: '1', dimension: '实施方案', weight: 40, candidateEligible: true, schemeId: 'scheme-summary' },
+      { factId: 'b', code: '2', dimension: '履约能力', weight: 60, candidateEligible: true, schemeId: 'scheme-summary' },
+    ]
+    const drawer = useScoreCandidateAdoption({
+      props, reviewFacts, reviewSnapshot, reviewSubmitted, currentStage, fetchAnalysisData,
+    })
+    expect(drawer.candidateTotalWeight.value).toBe(100)
+    expect(drawer.declaredTotalWeight.value).toBe(100)
+    expect(drawer.adoptionStatus.value).toBe('DECLARED_TOTAL')
+  })
+
   it('candidateFacts 应展示包括零分项在内的完整候选', () => {
     const { candidateFacts, candidateTotalWeight } = useScoreCandidateAdoption({
       props,
