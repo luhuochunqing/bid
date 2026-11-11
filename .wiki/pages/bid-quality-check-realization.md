@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出, 资质智能匹配, 三级穿透]
 created: 2026-08-20
-updated: 2026-11-07
-health_checked: 2026-11-07
+updated: 2026-11-11
+health_checked: 2026-11-11
 sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
@@ -420,6 +420,15 @@ drawer 结构：
       - 解封 `SemanticEvidenceBoundary`、`QualificationMatchPolicy`、`QualificationVetoPolicy`、`IdAuthLetterCheckPolicy` 对已具备同页证书编号+有效期限实证、多维资格实证、或身份证图像+正反面完整要素场景的硬编码 `MANUAL_REVIEW` 降级；支持《投标人承诺函》作为投标函变体核验；
       - 新增 `DocxComplianceImageExtractor`（`ZipFile` + StAX 常数内存流式扫描），解决 600MB+ 大体积 `.docx` 超出 Sidecar 64MB 媒体限制跳过抽图及缺少 `pageHint` 问题；
       - 在 `OpenAiDocumentPageVisionDetector` 接入已配置的 `BaiduTableOcrClient`（单图级回退多模态并按页合并），打通内嵌扫描图片页的文字转写与下游规则核验闭环。
+50. **响应性评审偏离表提取语义门禁与 DOCX 虚拟页码展示对齐（2026-11-11）**：
+    - **偏离表强语义门禁与误报根治（`DeviationTableExtractor` / `DeviationEvidencePolicy`）**：
+      - 强制要求偏离表具备明确标题（`isDeviationTitle`）或表头显式包含“偏离/偏差”，普通自查表、资格审查表、业绩表不再被误判为偏离表；
+      - 收敛状态列（`typeCol`）识别，剔除“情况/类型”等泛化词；
+      - 扩充规则上下文正则（`RULE_FRAME`），排除“资格要求/否决投标/废标/公平性”等法条引用被误当成负偏离自认；
+      - 修复 `ResponsivenessReviewPolicy` 负偏离结论文案兜底（禁止输出冒号后为空的文案）；
+    - **DOCX 虚拟页码与前端排版浮动指引（`QualityCheckDetailDialog.vue`）**：
+      - 排查确认 DOCX 经 Sidecar 提取后无排版物理页码、退化为虚拟分块（`virtualPages`）机制；
+      - 在前端质检弹窗“问题定位”旁增加排版浮动与结合原文摘录核对的明确提示，引导用户以最权威的原文摘录为准。
 
 ## 6. 后续任务（Backlog）
 

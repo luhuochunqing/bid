@@ -3,7 +3,9 @@
 .dt-label { font-size: 11px; color: var(--gray-350); font-weight: 600; margin-bottom: 4px; letter-spacing: 0.5px; }
 .dt-val { font-size: 13px; color: var(--text-primary-ui); line-height: 1.6; }
 .dt-quote { background: var(--gray-50); border-left: 3px solid var(--color-danger); padding: 8px 12px; border-radius: 4px; font-size: 12px; color: var(--text-secondary-ui); line-height: 1.6; }
+.dt-location-wrapper { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .dt-location { display: inline-flex; align-items: center; gap: 4px; background: var(--color-danger-bg); border: 1px solid var(--color-danger-dark); color: var(--color-danger-dark); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.dt-location-tip { font-size: 11px; color: var(--gray-350); line-height: 1.4; }
 .dt-source-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .dt-source { display: inline-flex; align-items: center; gap: 4px; background: var(--brand-xiyu-logo-light); color: var(--brand-xiyu-logo); padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 500; border: 1px solid var(--brand-xiyu-logo-soft); transition: background-color 0.16s; }
 .dt-source:hover { background: var(--brand-xiyu-logo-soft); }

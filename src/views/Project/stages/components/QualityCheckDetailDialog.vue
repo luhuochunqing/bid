@@ -127,7 +127,10 @@
       <!-- 问题定位：页码（仅非通过且可定位时显示） -->
       <div v-if="showLocationRows && pagesText" class="dt-row">
         <div class="dt-label">问题定位</div>
-        <span class="dt-location">{{ pagesText }}</span>
+        <div class="dt-location-wrapper">
+          <span class="dt-location">{{ pagesText }}</span>
+          <span class="dt-location-tip">（排版页码可能因阅读器缩放或文档转换略有差异，请结合下方原文摘录核对）</span>
+        </div>
       </div>
 
       <!-- 原文摘录：投标文件段落原文（不高亮） -->

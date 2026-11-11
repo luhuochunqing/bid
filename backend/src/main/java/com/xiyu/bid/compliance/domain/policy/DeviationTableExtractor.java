@@ -135,7 +135,8 @@ public final class DeviationTableExtractor {
                 else if (col.contains("招标") || col.contains("采购") || col.contains("要求") || col.contains("标准") || col.contains("规范")) reqCol = c;
                 else if (col.contains("投标") || col.contains("实际") || col.contains("应答") || col.contains("承诺") || (col.contains("响应") && !col.contains("差异") && !col.contains("偏离"))) respCol = c;
                 else if (col.contains("说明") || col.contains("备注") || col.contains("原因")) descCol = c;
-                else if (col.contains("偏离") || col.contains("差异") || col.contains("类型") || col.contains("情况") || col.contains("偏差")) typeCol = c;
+                else if (col.contains("偏离") || col.contains("差异") || col.contains("偏差")
+                        || (col.contains("响应") && (col.contains("情况") || col.contains("状态") || col.contains("结论")))) typeCol = c;
             }
             if (clauseCol >= 0 || typeCol >= 0 || descCol >= 0) {
                 headerIdx = i;
@@ -143,6 +144,17 @@ public final class DeviationTableExtractor {
             }
         }
         if (headerIdx < 0) return null;
+
+        boolean hasDeviationTitle = !title.isBlank() && isDeviationTitle(title);
+        boolean hasDeviationColumn = false;
+        List<String> headerCols = splitCells(lines.get(headerIdx));
+        for (String col : headerCols) {
+            if (col.contains("偏离") || col.contains("偏差")) {
+                hasDeviationColumn = true;
+                break;
+            }
+        }
+        if (!hasDeviationTitle && !hasDeviationColumn) return null;
 
         List<DeviationRow> rows = new ArrayList<>();
         List<String> placeholders = new ArrayList<>();
