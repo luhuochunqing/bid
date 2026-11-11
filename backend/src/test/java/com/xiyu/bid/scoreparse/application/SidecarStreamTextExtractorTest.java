@@ -63,6 +63,31 @@ class SidecarStreamTextExtractorTest {
     }
 
     @Test
+    void scoring_requestsOcrAndKeepsExplicitLimitCallerUnchanged() throws Exception {
+        AtomicReference<String> flag = new AtomicReference<>();
+        server.createContext("/convert-stream", exchange -> {
+            flag.set(exchange.getRequestHeaders().getFirst("X-Pdf-Ocr"));
+            exchange.getRequestBody().readAllBytes();
+            exchange.sendResponseHeaders(200, 2);
+            exchange.getResponseBody().write("ok".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        });
+        extractor.extractForScoring(docFile, "scan.pdf");
+        assertThat(flag.get()).isEqualTo("true");
+        extractor.extract(docFile, "tender.pdf", 10);
+        assertThat(flag.get()).isNull();
+    }
+
+    @Test
+    void ocrUnavailable_hasSafeActionableFailure() {
+        serveConvertStream(422, "{\"detail\":\"BID_OCR_UNAVAILABLE\"}");
+        assertThatThrownBy(() -> extractor.extractForScoring(docFile, "scan.pdf"))
+                .isInstanceOf(BidTextExtractionException.class)
+                .hasMessageContaining("OCR 服务不可用")
+                .hasMessageNotContaining("重新上传");
+    }
+
+    @Test
     void extract_returnsStreamedTextAndMultipartUpload() throws Exception {
         serveConvertStream(200, "投标文件正文");
 

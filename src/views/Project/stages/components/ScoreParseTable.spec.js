@@ -12,6 +12,19 @@ describe('ScoreParseTable.vue', () => {
     expect(wrapper.findAll('.code-cell').map(cell => cell.text())).toEqual(['1', '2', '3'])
     expect(items[0].code).toBe('business_financial')
   })
+  it('distinguishes subjective, unsupported estimates and genuine zero without affecting actual mode', () => {
+    const items = [
+      { id: 1, scoreType: '主观项', estScore: '待确认', status: 'neutral' },
+      { id: 2, scoreType: '客观项', estScore: null, status: 'neutral', estBasis: '未识别到知识库匹配类别，待人工确认预计得分' },
+      { id: 3, scoreType: '客观项', estScore: 0, status: 'danger' },
+      { id: 4, scoreType: '客观项', estScore: null, status: 'neutral' },
+    ]
+    const wrapper = mount(ScoreParseTable, { props: { items } })
+    expect(wrapper.findAll('tbody .score-cell').map(c => c.text())).toEqual(['待专家评审', '需人工评估', '0', '待确认'])
+    const actual = mount(ScoreParseTable, { props: { items, mode: 'actual' } })
+    expect(actual.findAll('tbody .score-cell').every(c => c.text() === '待确认')).toBe(true)
+  })
+
   const mockItems = [
     {
       code: '1',

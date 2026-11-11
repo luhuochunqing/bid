@@ -115,3 +115,50 @@ async def test_convert_stream_wrong_key_returns_401():
     response = await _post_convert_stream(
         keyed.app, b"data", headers={"X-Sidecar-Key": "wrongkey"})
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_scoring_header_enables_complete_pdf_ocr(no_key_app):
+    from types import SimpleNamespace
+    app_module = sys.modules['app']
+    convert = AsyncMock(return_value=SimpleNamespace(text_content='[第 1 页]\n识别正文', pages=[]))
+    with patch.object(app_module, '_convert_document', new=convert):
+        response = await _post_convert_stream(no_key_app, b'%PDF-test', headers={'X-Pdf-Ocr': 'true'})
+    assert response.status_code == 200
+    assert '识别正文' in response.text
+    assert convert.await_args.kwargs == {'pdf_ocr': True}
+
+
+@pytest.mark.asyncio
+async def test_ocr_boundary_code_survives_process_pool(no_key_app, monkeypatch):
+    import asyncio
+    from fastapi import HTTPException
+    app_module = sys.modules['app']
+    future = asyncio.get_running_loop().create_future()
+    future.set_result({'error': 'BID_OCR_TIMEOUT', 'code': 'BID_OCR_TIMEOUT'})
+    monkeypatch.setattr(app_module, '_get_convert_pool', lambda: None)
+    monkeypatch.setattr(asyncio.get_running_loop(), 'run_in_executor', lambda *args: future)
+    with pytest.raises(HTTPException) as caught:
+        await app_module._convert_document('scan.pdf', pdf_ocr=True)
+    assert caught.value.status_code == 422
+    assert caught.value.detail == 'BID_OCR_TIMEOUT'
+
+
+@pytest.mark.asyncio
+async def test_real_scanned_pdf_through_http_and_worker(no_key_app, tmp_path):
+    import shutil
+    if not shutil.which('tesseract'):
+        pytest.skip('requires real Tesseract')
+    from .test_scanned_bid_ocr import make_pdf
+    path = tmp_path / 'scan.pdf'
+    make_pdf(path, scanned_pages=2)
+    app_module = sys.modules['app']
+    try:
+        response = await _post_convert_stream(no_key_app, path.read_bytes(), headers={'X-Pdf-Ocr': 'true'})
+        assert response.status_code == 200
+        assert response.text.count('ANNUAL SALES') == 2
+        assert '[第 2 页]' in response.text
+    finally:
+        if app_module._CONVERT_POOL is not None:
+            app_module._CONVERT_POOL.shutdown()
+            app_module._CONVERT_POOL = None

@@ -178,7 +178,7 @@ public class ScoreScoringAppService {
             log.warn("投标文件加载/提取失败: taskId={}, projectId={}, type={}, msg={}",
                     taskId, task.getProjectId(), ex.getClass().getSimpleName(), ex.getMessage(), ex);
             failScoringWithPending(taskId, task, items, ex instanceof OversizedBidTextException
-                    || ex instanceof BidFileQuotaException ? ex.getMessage()
+                    || ex instanceof BidFileQuotaException || ex instanceof BidTextExtractionException ? ex.getMessage()
                     : "投标文件解析失败，无法完成打分，请检查文件内容或重新上传");
             return;
         }

@@ -299,8 +299,13 @@ def _extract_docx_streaming_sax(docx_path: str) -> str:
         return ""
 
 
-def _convert_worker(path: str) -> Any:
+def _convert_worker(path: str, pdf_ocr: bool = False) -> Any:
     from types import SimpleNamespace
+
+    if pdf_ocr and path.lower().endswith(".pdf"):
+        from converter import convert_scoring_pdf_document
+        result = convert_scoring_pdf_document(path)
+        return SimpleNamespace(text_content=result["markdown"], markdown=result["markdown"], pages=result["pages"])
 
     _suppress_docx_image_inlining()
     _suppress_docx_pre_process()
@@ -352,7 +357,7 @@ def _convert_worker(path: str) -> Any:
     )
 
 
-def _safe_convert_worker(path: str) -> Any:
+def _safe_convert_worker(path: str, pdf_ocr: bool = False) -> Any:
     """Wrapper around _convert_worker ensuring no unpicklable exceptions cross processes.
 
     Python 3.11 multiprocessing fails to pickle certain chained exceptions (like
@@ -361,19 +366,25 @@ def _safe_convert_worker(path: str) -> Any:
     Catching and packing error details as a dictionary avoids crashing the worker pool.
     """
     try:
-        return _convert_worker(path)
+        return _convert_worker(path, pdf_ocr) if pdf_ocr else _convert_worker(path)
     except Exception as exc:
+        from converter import ScoringPdfOcrError
+        if isinstance(exc, ScoringPdfOcrError):
+            return {"error": str(exc), "code": str(exc)}
         logger.exception("Worker conversion failed for %s: %s", path, exc)
         return {"error": f"{type(exc).__name__}: {str(exc)}"}
 
 
-async def _convert_document(path: str) -> Any:
+async def _convert_document(path: str, pdf_ocr: bool = False) -> Any:
     """Run md.convert in the isolated worker pool (async seam; tests patch this)."""
     global _CONVERT_POOL
     loop = asyncio.get_running_loop()
     try:
-        res = await loop.run_in_executor(_get_convert_pool(), _safe_convert_worker, path)
+        args = (path, True) if pdf_ocr else (path,)
+        res = await loop.run_in_executor(_get_convert_pool(), _safe_convert_worker, *args)
         if isinstance(res, dict) and "error" in res:
+            if res.get("code") in ("BID_OCR_TIMEOUT", "BID_OCR_UNAVAILABLE", "BID_OCR_EMPTY"):
+                raise HTTPException(status_code=422, detail=res["code"])
             raise RuntimeError(res["error"])
         return res
     except BrokenProcessPool:
@@ -509,6 +520,7 @@ async def convert_document(
 async def convert_document_stream(
     file: UploadFile,
     x_sidecar_key: str | None = Header(default=None),
+    x_pdf_ocr: bool = Header(default=False),
 ) -> StreamingResponse:
     """Convert an uploaded document and stream back plain markdown text (spec 045).
 
@@ -558,7 +570,10 @@ async def convert_document_stream(
 
         started_at = time.perf_counter()
         try:
-            result = await _convert_document(processing_path)
+            if x_pdf_ocr:
+                result = await _convert_document(processing_path, pdf_ocr=True)
+            else:
+                result = await _convert_document(processing_path)
         except HTTPException:
             raise
         except Exception:

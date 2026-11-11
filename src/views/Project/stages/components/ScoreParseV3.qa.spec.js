@@ -293,7 +293,7 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
     expect(scoreCells[1].classes()).toContain('zero')
     expect(scoreCells[2].classes()).toContain('subjective')
     expect(scoreCells[2].classes()).not.toContain('zero')
-    expect(scoreCells[2].text()).toBe('待确认')
+    expect(scoreCells[2].text()).toBe('需人工评估')
 
     // 合计口径：仅计数字得分（6 + 0），null 不参与求和
     expect(wrapper.vm.estTotalScore).toBe(6)

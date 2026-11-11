@@ -283,6 +283,22 @@ class ScoreScoringAppServiceTest {
     }
 
     @Test
+    void ocrFailure_keepsActionableCauseInTaskAndEachPendingResult() {
+        ScoreParseTask task = scoringTask();
+        when(taskRepository.findByTaskId(anyString())).thenReturn(Optional.of(task));
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
+                .thenReturn(List.of(item(10L, "销售额", "销售额", "15", "OBJECTIVE")));
+        var failure = new BidTextExtractionException("BID_OCR_TIMEOUT");
+        when(bidFileLoader.load(eq(PROJECT_ID), anyString())).thenThrow(failure);
+        service.executeScoringAsync("task-uuid");
+        verify(stateService).failTask("task-uuid", failure.getMessage());
+        ArgumentCaptor<List<ScoreResult>> captor = ArgumentCaptor.captor();
+        verify(resultRepository).saveAll(captor.capture());
+        assertThat(captor.getValue().get(0).getMissedReason()).isEqualTo(failure.getMessage());
+        org.mockito.Mockito.verifyNoInteractions(scoreAnalyzer);
+    }
+
+    @Test
     void sameBidAndItemHash_skipsWithoutAnalyzer() {
         mockNoActiveScoringTask();
         mockBidDocumentPresent();
