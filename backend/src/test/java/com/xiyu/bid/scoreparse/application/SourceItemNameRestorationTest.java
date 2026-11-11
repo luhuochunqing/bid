@@ -83,6 +83,35 @@ class SourceItemNameRestorationTest {
         assertThat(bound.sourceCellIds()).containsExactly("t-r3-c2");
     }
 
+    @Test void continuationRowAcrossPagesRestoresItemNameFromPrimaryRow() {
+        var cells = new ArrayList<DocumentArtifact.CanonicalTable.CanonicalCellDto>();
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r0-c0", 0, 0, "序号", "序号", 1, 1, false, ""));
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r0-c1", 0, 1, "评审因素", "评审因素", 1, 1, false, ""));
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r0-c2", 0, 2, "评审标准", "评审标准", 1, 1, false, ""));
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r0-c3", 0, 3, "分值", "分值", 1, 1, false, ""));
+        // Row 1 (page 35):
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r1-c0", 1, 0, "1", "1", 1, 1, false, "pdf:page=35", 35, "t-r1"));
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r1-c1", 1, 1, "针对办公用品的\n综合服务方案\n（10分）", "针对办公用品的 综合服务方案 （10分）", 1, 1, false, "pdf:page=35", 35, "t-r1"));
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r1-c2", 1, 2, "售前服务能力...", "售前服务能力...", 1, 1, false, "pdf:page=35", 35, "t-r1"));
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r1-c3", 1, 3, "10", "10", 1, 1, false, "pdf:page=35", 35, "t-r1"));
+        // Row 2 (page 36 continuation):
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r2-c0", 2, 0, "", "", 1, 1, false, "pdf:page=36", 36, "t-r2"));
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r2-c1", 2, 1, "", "", 1, 1, false, "pdf:page=36", 36, "t-r2"));
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r2-c2", 2, 2, "配送纠纷解决方案及周期...", "配送纠纷解决方案及周期...", 1, 1, false, "pdf:page=36", 36, "t-r2"));
+        cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto("t-r2-c3", 2, 3, "", "", 1, 1, false, "pdf:page=36", 36, "t-r2"));
+
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "v2"),
+                List.of(new DocumentArtifact.CanonicalTable("t", 35, "第四章 评审办法", 3, 4, List.of(), cells, true, "PDF")), List.of());
+
+        var fact = new MultimodalScoreFact("第四章 评审办法", "1", "", "技术评审", BigDecimal.TEN,
+                "售前服务能力...配送纠纷解决方案及周期...", "SUBJECTIVE", 35, "t",
+                List.of("t-r1-c2", "t-r2-c2"), "售前服务能力...", 0.9, ChildAggregation.SUM, "", "IN_SCHEME", ScoreSourceMetadata.EMPTY);
+
+        var restored = SourceItemNameRestoration.restore(List.of(fact), artifact).getFirst();
+        assertThat(restored.dimension()).isEqualTo("针对办公用品的综合服务方案");
+        assertThat(restored.sourceCellIds()).contains("t-r1-c1");
+    }
+
     static MultimodalScoreFact fact(String code, String parent, int weight, String row, String quote) {
         return new MultimodalScoreFact("第四章 评审办法", code, parent, "详细评审", new BigDecimal(weight), quote,
                 "OBJECTIVE", 1, "t", List.of("t-r"+row+"-c1", "t-r"+row+"-c2"), quote, .9,
