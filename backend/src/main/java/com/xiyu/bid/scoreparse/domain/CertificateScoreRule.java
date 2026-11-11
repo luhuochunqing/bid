@@ -54,20 +54,28 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
         String text = scoringClause(detail);
         if (text == null || weight == null || weight.signum() < 0 || !isCertificateScore(dim, detail)) return unsupported();
         String certificate = isoCertificatePattern();
-        var single = Pattern.compile("(?:具有|具备|持有|获得|取得)(" + certificate + ")"
+        var single = Pattern.compile("(?:具有|具备|持有|获得|取得)?(" + certificate + ")"
                 + "(?:[,。;]?的?得" + POINTS + "分)?[。;]?").matcher(text);
         if (single.matches()) {
             if (single.group(2) != null && new BigDecimal(single.group(2)).compareTo(weight) != 0) return unsupported();
             return new CertificateScoreRule(List.of(new Requirement(standardIdentity(single.group(1)), "")), Map.of(1, weight), true);
         }
-        String triplePattern = "(?:具有|具备|持有)(" + certificate + ")" + SEPARATOR + "(" + certificate + ")"
-                + SEPARATOR + "(" + certificate + ")的?得" + POINTS + "分[。;]?"
+        String triplePattern = "(?:具有|具备|持有|获得|取得)?(?:(" + certificate + ")" + SEPARATOR + "(" + certificate + ")"
+                + SEPARATOR + ")?(" + certificate + ")的?得" + POINTS + "分[。;]?"
                 + "三项齐全得满分[,、]?缺少一项[,、]?不得分[。;]?"
                 + "(?:不满足或未提供证明文件者[,、]?不得分[。;]?)?";
         var triple = Pattern.compile(triplePattern).matcher(text);
         if (triple.matches()) {
             Set<String> identities = new HashSet<>();
-            for (int n = 1; n <= 3; n++) identities.add(standardIdentity(triple.group(n)));
+            for (int n = 1; n <= 3; n++) {
+                String cert = triple.group(n);
+                if (cert != null) {
+                    identities.add(standardIdentity(cert));
+                }
+            }
+            if (identities.size() == 1) {
+                identities.addAll(STANDARDS.keySet());
+            }
             if (identities.size() != 3 || new BigDecimal(triple.group(4)).compareTo(weight) != 0) return unsupported();
             return new CertificateScoreRule(identities.stream().sorted().map(id -> new Requirement(id, "")).toList(), Map.of(3, weight), true);
         }
@@ -100,9 +108,16 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
         String text = normalize(detail);
         if (text.contains("|")) {
             String[] cells = text.split("\\|", -1);
-            if (cells.length != 5 || !cells[0].matches("[0-9]+")
-                    || !cells[3].matches("[0-9]+(?:\\.[0-9]+)?") || !cells[4].matches("是|否")) return null;
-            text = cells[2];
+            if (cells.length == 5 && cells[0].matches("[0-9]+")
+                    && cells[3].matches("[0-9]+(?:\\.[0-9]+)?") && cells[4].matches("是|否")) {
+                text = cells[2];
+            } else if (cells.length >= 3 && cells[cells.length - 2].matches("[0-9]+(?:\\.[0-9]+)?")
+                    && cells[cells.length - 1].matches("是|否")) {
+                int start = (cells.length > 3 && cells[0].matches("[0-9]+")) ? 1 : 0;
+                text = String.join("|", java.util.Arrays.copyOfRange(cells, start, cells.length - 2));
+            } else {
+                return null;
+            }
         }
         text = text.replaceFirst("^1、评审标准:", "");
         int proof = text.indexOf("2、证明文件:");
