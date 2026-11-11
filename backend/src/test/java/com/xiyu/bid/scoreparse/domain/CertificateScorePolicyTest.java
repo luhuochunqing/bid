@@ -112,4 +112,13 @@ class CertificateScorePolicyTest {
         assertThat(CertificateScoreRule.parse("企业荣誉",original.replace("原件备查", "原件备查并须另具CMMI证书"),new BigDecimal("5")).supported()).isFalse();
     }
 
+    @Test
+    void testProject1117TrailingPipeAndTripleStandardClause() {
+        String raw = "ISO45001职业健康安全管理体系认证的得10分。2）三项齐全得满分，缺少一项，不得分3）不满足或未提供证明文件者，不得分2、证明文件：投标人须提供在有效期内的认证证书复印件或扫描件加盖投标人公章。| 10.0 | 否";
+        var all = List.of(fact("ISO9001"), fact("ISO14001"), fact("ISO45001"));
+        var result = assess(raw, all);
+        assertThat(result.score()).isEqualByComparingTo("10");
+        assertThat(result.status()).isEqualTo("OK");
+    }
+
 }
