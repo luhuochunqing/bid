@@ -138,4 +138,14 @@ class CertMatchServiceTest {
         assertThat(result.proofs()).allSatisfy(proof -> assertThat(proof.conditions())
                 .anyMatch(condition -> "MISSING_EVIDENCE".equals(condition.status())));
     }
+
+    @Test
+    @DisplayName("指纹生成：在资质库不变且证书未到期的情况下，跨天指纹一致")
+    void fingerprint_consistentAcrossDays_whenFactsUnchanged() {
+        when(repository.findAll()).thenReturn(List.of(
+                cert(1L, "ISO9001 质量管理体系", "三级", LocalDate.of(2028, 12, 31), QualificationStatus.IN_STOCK)));
+        String fpDay1 = service.fingerprintForScore("管理体系", "具有ISO9001证书", java.math.BigDecimal.TEN, LocalDate.of(2026, 11, 10));
+        String fpDay2 = service.fingerprintForScore("管理体系", "具有ISO9001证书", java.math.BigDecimal.TEN, LocalDate.of(2026, 11, 11));
+        assertThat(fpDay1).isEqualTo(fpDay2);
+    }
 }
