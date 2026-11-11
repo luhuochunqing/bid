@@ -8299,6 +8299,7 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - 前后端：共享manualScoreCandidate用于列表和提交，零分/未知分值默认进入审计；人工明确纳入可编辑，最终采纳仍由后端正分约束兜底。正式score_item读取不做掩盖性过滤。
 - 历史恢复：新解析候选不自动替换已采纳正式项。必须在版本部署、文件和任务核验、备份后，经正常重新解析及人工核对采纳；旧实际评分可能失效，应单独重算。不能用合并或测试通过代替生产数据恢复。
 - 规格、验证及边界：specs/084-scoring-only-adoption/；合成混表Artifact→真实确定性抽取→来源校验→采纳回放，另覆盖显式/默认/旧快照、补分与正分资格引用。当前仅本地修复，未部署或改生产数据。
+
 ## 项目1123：独立满分汇总行重复计分（2026-11-11）
 
 - 现场task220有12条正分明细合计100，另将表尾“满分 | 100”提取为普通事实，候选合计200。原PDF物理32页（印刷31页）明确满分100；旧15项正式结果108属于另一批历史数据。
@@ -8306,3 +8307,18 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - 本地修复边界：共享精确独立标签；无数值的“满分”分值列表头不判汇总。启发式表头范围内若有独立汇总标签和数值证据，仍按无表头规则解析，保留独立“合计 | 满分100分”表格的来源总分。普通细则“本项满分40分”保持明细；不使用任意contains满分删除整行。
 - 防回归：合成四列表、同方案两物理表、真实布局同类的合并汇总格、满分列表头；金标验证事实数/分值/来源格，不只比较最终100。RED→GREEN及撤销关键标签修复反证，证据位于本地.omc/evidence-score1123。
 - 本地工作区交付，未部署、未重解析、未采纳，历史快照需后续独立验收。规格：specs/085-standalone-maximum-total/。
+
+## 498. 跨页评分细则截断丢项与候选落库总分守卫（2026-11-11）
+
+### 问题背景
+在生产项目 22 中，评分项总分声明为 100 分，但前端展示与落库实际仅有 90 分（共 12 项，缺失首个 10 分主观项 `3.2.3(2)-1` “针对办公用品的综合服务方案”）。
+
+### 根因深度剖析
+1. **跨页细则列被物理截断**：评分表在 PDF 第 35 页末（row 8）换页至第 36 页首（row 9），row 9 只有细则列延伸（行首列为空）。`TextPrimaryEvidenceBinder` 仅绑定了第 35 页首格，导致 `citedRaw` 缺失后半截原文；
+2. **原文还原与项名恢复连带失效**：`OriginalRuleRestoration` 因原文不完整无法匹配完整引用，返回空串，`TextPrimaryScoreFactMapper` 将其降级为 `REVIEW_REQUIRED` 且退化维度名为通用名称；
+3. **落库门禁存在漏洞**：`ScoreFact.toCandidate()` 过滤掉了非 `AUTO_APPROVED` 项，将 13 项缩减为 12 项；`StructuredTableExtractionHandler` 仅判定顶层 `AUTO_APPROVED` 且 `candidates` 非空，漏校验候选权重和与声明总分的一致性，导致 90 分残缺数据静默覆盖写入生产 `score_item`。
+
+### 修复与防护方案
+1. **候选总分落库硬门禁（Hard Gate）**：在 `StructuredTableExtractionHandler` 中，`persistItems` 前增加 `candidateWeightClosed` 断言，比较实际候选权重总和与声明总分；若单项因原文还原失败被过滤导致总分不闭合，直接降级为 `REVIEW_REQUIRED`（fallbackReason: `CANDIDATE_WEIGHT_SUM_MISMATCH`），设置归一化告警并坚决拒绝覆盖 `score_item`。
+2. **跨页续行证据收集**：`TextPrimaryEvidenceBinder` 增加 `collectContinuationCells`，自动收集行首为空、细则列延伸的后续跨页单元格，合并完整原文并恢复正确引用。
+3. **跨页项名恢复容错**：`SourceItemNameRestoration` 增加续行判定，除细则列外其余列皆为空的续行不影响以基准行 `primaryRow` 恢复真实评分项名称。

@@ -12,11 +12,14 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/ScoreFactChunkMerger.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/baidu/BaiduTableArtifactEnricher.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreUnitPolicy.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/StructuredTableExtractionHandler.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/TextPrimaryEvidenceBinder.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreWeightSourceEvidence.java
 backlinks:
   - .wiki/pages/_index.md
 created: 2026-10-26
-updated: 2026-11-04
-health_checked: 2026-11-04
+updated: 2026-11-11
+health_checked: 2026-11-11
 
 archive: false
 ---
@@ -106,3 +109,22 @@ archive: false
 
 
 - 新原件真实模型按task182入口重放为11计分项100分；可逆br换行归一化后全部规则正文非空。版本化legacy冻结合并summary来源诊断，已补真实freeze边界RED。最终测试与审查状态以本任务验证记录为准，未部署。
+
+## 2026-11-11：项目22/1382 跨页续行证据收集与候选落库总分守卫（生产已订正恢复100分）
+
+### 业务现场与根因分析
+- **现场现象**：项目 22 评分表声明总分 100 分，页面与数据库实际仅有 90 分（共 12 项，缺失第 1 个 10 分主观项 `3.2.3(2)-1` “针对办公用品的综合服务方案”）。
+- **根因 1（跨页细则列物理截断）**：评分表在 PDF 第 35 页末（row 8）跨页到第 36 页首（row 9），row 9 仅细则列延伸（行首列为空）。`TextPrimaryEvidenceBinder` 仅绑定了第 35 页首格，导致 `combinedRaw` 缺少后半截原文，`OriginalRuleRestoration` 无法还原，项名恢复与自动通过失效。
+- **根因 2（落库门禁漏洞导致静默丢分）**：`StructuredTableExtractionHandler` 仅判断 `decision == AUTO_APPROVED`，未校验最终生成的 `candidates` 权重总和与声明总分是否严格闭合，导致单项被过滤后以 90 分残缺数据静默覆盖生产 `score_item`。
+
+### 修复与契约固化
+1. **落库总分硬守卫（Hard Gate）**：
+   - 在 `StructuredTableExtractionHandler.java` 中，`persistItems` 前增加 `candidateWeightClosed` 断言（`weightResult.weightWarning() == false` 且 `candidateTotal == declaredTotal`）。
+   - 若候选总分不闭合，直接降级为 `REVIEW_REQUIRED`（`fallbackReason = CANDIDATE_WEIGHT_SUM_MISMATCH`），记录 `normalizationWarning`，并拦截 `persistItems`，绝对禁止静默覆盖落库。
+2. **跨页续行单元格合并收集与序号边界收窄**：
+   - 在 `TextPrimaryEvidenceBinder.java` 中增加 `collectContinuationCells`，自动收集行首为空、细则列延伸的跨页后续单元格，并利用 `NEW_ITEM_HEADER` 正则排查独立序号（如 `2、`、`（2）`），仅在事实文本显式包含引文时才跨独立序号收集。
+   - 在 `SourceItemNameRestoration.java` 中支持续行多行容错，保留主行 `primaryRow` 以便从基准行恢复规范项名。
+3. **跨物理行权重锚点识别（ScoreWeightSourceEvidence）**：
+   - 在 `ScoreWeightSourceEvidence.anchor` 中，增强 `sameRow` 判定：当单元格属于同一细则列且后续行行首为空时，视为主行逻辑续行，避免因跨页多行导致 `anchor` 判空并误报 `ITEM_WEIGHT_SOURCE_UNKNOWN`。
+4. **生产数据订正**：
+   - 生产项目 22 成功补入 `3.2.3(2)-1`（10分，item_index 8 顺移），总分恢复 100.00 分，API 与 UI 验真通过。订正脚本归档至 `scripts/data-fix/fix_project22_score_item.sql`。

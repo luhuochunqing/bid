@@ -153,6 +153,20 @@ final class StructuredTableExtractionHandler {
                 && completeness != null && completeness.decision() == ScoreParseDecision.AUTO_APPROVED) {
             fallbackReason = "ORIGINAL_SOURCE_UNVERIFIED";
         }
+        BigDecimal declaredTotal = completeness == null ? null : completeness.declaredTotalScore();
+        BigDecimal leafTotal = completeness == null ? null : completeness.leafWeightSum();
+        BigDecimal targetTotal = declaredTotal != null ? declaredTotal : leafTotal;
+        BigDecimal candidateTotal = candidates.stream()
+                .map(ScoreCandidate::weight)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        boolean candidateWeightClosed = targetTotal != null && candidateTotal.compareTo(targetTotal) == 0;
+        if (decision == ScoreParseDecision.AUTO_APPROVED && !candidateWeightClosed) {
+            log.warn("Evidence Pipeline 候选总分与目标总分不闭合，降级为需复核: taskId={}, candidateTotal={}, targetTotal={}",
+                    taskId, candidateTotal, targetTotal);
+            decision = ScoreParseDecision.REVIEW_REQUIRED;
+            fallbackReason = "CANDIDATE_WEIGHT_SUM_MISMATCH";
+        }
         // spec 062：权重合计信号基于全部表叶子候选（不以落库过滤集为准），
         // 保证文档级 REVIEW_REQUIRED 时 originalTotalWeight 仍反映全部事实权重。
         List<ScoreCandidate> allLeafCandidates = structured.tableCompletenesses().stream()
@@ -175,15 +189,18 @@ final class StructuredTableExtractionHandler {
         task.setPipelineVersion(ScoreParsePipeline.EVIDENCE_PIPELINE_V1);
         task.setDecisionStatus(decision.name());
         task.setFallbackReason(fallbackReason);
-        BigDecimal declaredTotal = completeness == null ? null : completeness.declaredTotalScore();
         // spec 062：多表场景文档级 declaredTotal 与全表 totalWeight 无直接可比性，
         // 归一化告警以 weightWarning（leafWeightSum vs 声明总分）为唯一判据，避免多表自洽必现误报。
-        if (weightResult.weightWarning() && weightResult.totalWeight() != null && declaredTotal != null) {
-            task.setOriginalTotalWeight(weightResult.totalWeight());
-            task.setNormalizationWarning(String.format(
-                    "评分权重合计为 %s分，不符合%s分声明总分（Evidence Pipeline 不自动归一化，保留旧评分项待复核）",
-                    weightResult.totalWeight().stripTrailingZeros().toPlainString(),
-                    declaredTotal.stripTrailingZeros().toPlainString()));
+        if ((weightResult.weightWarning() || !candidateWeightClosed) && declaredTotal != null) {
+            BigDecimal displayTotal = weightResult.weightWarning() && weightResult.totalWeight() != null
+                    ? weightResult.totalWeight() : candidateTotal;
+            if (displayTotal != null) {
+                task.setOriginalTotalWeight(displayTotal);
+                task.setNormalizationWarning(String.format(
+                        "评分权重合计为 %s分，不符合%s分声明总分（Evidence Pipeline 不自动归一化，保留旧评分项待复核）",
+                        displayTotal.stripTrailingZeros().toPlainString(),
+                        declaredTotal.stripTrailingZeros().toPlainString()));
+            }
         }
         taskRepository.save(task);
         structured.tableCompletenesses().forEach(table -> {
@@ -208,7 +225,8 @@ final class StructuredTableExtractionHandler {
         // score_parse_fact/score_parse_evidence 供复核按任务读取，绝不 deleteByProjectId
         // 洗掉已有正式评分项与实际打分。STRUCTURE_INCOMPLETE / PARSE_FAILED 在上游
         // markIncomplete / failTask 收口，同样不进入本发布路径。
-        if (decision == ScoreParseDecision.AUTO_APPROVED && structured.originalVerified() && !candidates.isEmpty()) {
+        if (decision == ScoreParseDecision.AUTO_APPROVED && structured.originalVerified()
+                && !candidates.isEmpty() && candidateWeightClosed) {
             updateProgress(taskId, 90, "Evidence Pipeline 评分项落库", stateService, progressService);
             itemPersistenceService.persistItems(task.getProjectId(), task.getId(), candidates);
             updateProgress(taskId, 95, "阶段 1 预计得分计算", stateService, progressService);

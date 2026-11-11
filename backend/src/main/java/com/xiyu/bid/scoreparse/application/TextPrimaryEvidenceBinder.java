@@ -195,13 +195,30 @@ final class TextPrimaryEvidenceBinder {
         return cleanPrefix.length() >= 10 && normalizedRaw.replaceAll("\\s+", "").contains(cleanPrefix);
     }
 
+    static List<DocumentArtifact.CanonicalTable.CanonicalCellDto> collectContinuationCells(
+            DocumentArtifact.CanonicalTable table,
+            DocumentArtifact.CanonicalTable.CanonicalCellDto initialCell) {
+        return TableContinuationCellCollector.collect(table, initialCell, null);
+    }
+
+    static List<DocumentArtifact.CanonicalTable.CanonicalCellDto> collectContinuationCells(
+            DocumentArtifact.CanonicalTable table,
+            DocumentArtifact.CanonicalTable.CanonicalCellDto initialCell,
+            MultimodalScoreFact fact) {
+        return TableContinuationCellCollector.collect(table, initialCell, fact);
+    }
+
     private static MultimodalScoreFact bound(MultimodalScoreFact fact, Object[] pair) {
         var table = (DocumentArtifact.CanonicalTable) pair[0];
         var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
+        var cells = collectContinuationCells(table, cell, fact);
         Integer page = cell.sourcePage() == null ? table.sourcePage() : cell.sourcePage();
-        String ruleText = fact.ruleText().isBlank() ? (fact.quotedText().isBlank() ? cell.rawText() : fact.quotedText()) : fact.ruleText();
+        String combinedRaw = cells.stream().map(DocumentArtifact.CanonicalTable.CanonicalCellDto::rawText)
+                .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.joining("\n"));
+        String ruleText = fact.ruleText().isBlank() ? (fact.quotedText().isBlank() ? combinedRaw : fact.quotedText()) : fact.ruleText();
+        List<String> cellIds = cells.stream().map(DocumentArtifact.CanonicalTable.CanonicalCellDto::cellId).toList();
         return new MultimodalScoreFact(fact.sectionTitle(), fact.code(), fact.parentCode(), fact.dimension(), fact.weight(),
-                ruleText, fact.scoreType(), page, table.tableId(), List.of(cell.cellId()), restoredQuote(cell.rawText(), fact.quotedText()),
+                ruleText, fact.scoreType(), page, table.tableId(), cellIds, restoredQuote(combinedRaw, fact.quotedText()),
                 fact.confidence(), fact.childAggregation(), fact.schemeId(), fact.scopeStatus());
     }
 

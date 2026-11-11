@@ -291,4 +291,34 @@ class StructuredTableExtractionMarkCompletedTest {
                 .contains("\"provider\":\"deepseek\"")
                 .contains("\"latencyMs\":2100");
     }
+
+    @Test
+    void candidatesWeightSumMismatchWithDeclaredTotal_downgradesToReviewRequired_neverPersistsItems()
+            throws IOException, InterruptedException {
+        StructuredTableResult verified = extract(multiTableArtifact(),
+                "本项目评分总分100分。评分标准由技术评分表和商务评分表两张独立评分表组成。");
+        var reducedCandidates = verified.candidates().subList(0, verified.candidates().size() - 1);
+        var mockProof = mock(com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.PublicationProof.class);
+        org.mockito.Mockito.when(mockProof.matches(any(), any())).thenReturn(true);
+        StructuredTableResult reduced = StructuredTableResult.evidencePipeline(verified.facts(),
+                reducedCandidates, verified.completeness(), verified.tableCompletenesses(), List.of(mockProof));
+
+        ScoreParseTask task = new ScoreParseTask();
+        ScoreParseTaskRepository taskRepo = mock(ScoreParseTaskRepository.class);
+        ScoreParseTaskStateService stateService = mock(ScoreParseTaskStateService.class);
+        ScoreParseProgressService progressService = mock(ScoreParseProgressService.class);
+        ScoreItemPersistenceService itemService = mock(ScoreItemPersistenceService.class);
+        EstimatedScoreService estService = mock(EstimatedScoreService.class);
+
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(
+                task, "task-weight-mismatch", reduced, taskRepo, stateService,
+                progressService, itemService, estService);
+
+        assertThat(task.getDecisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
+        assertThat(task.getFallbackReason()).isEqualTo("CANDIDATE_WEIGHT_SUM_MISMATCH");
+        verify(itemService, never()).persistItems(any(), any(), anyList());
+        verify(estService, never()).estimateForProject(any());
+        assertThat(task.getNormalizationWarning()).contains("不符合100分声明总分");
+        verify(taskRepo).save(task);
+    }
 }

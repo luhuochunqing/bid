@@ -611,7 +611,7 @@ class TextPrimaryEvidenceBinderTest {
 
         var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, "").get(0);
         assertThat(bound.tableId()).isEqualTo("p34-t0010");
-        assertThat(bound.sourceCellIds()).containsExactly("r16-c3");
+        assertThat(bound.sourceCellIds()).containsExactly("r16-c3", "r17-c3");
         assertThat(bound.pageNumber()).isEqualTo(38);
     }
 }
