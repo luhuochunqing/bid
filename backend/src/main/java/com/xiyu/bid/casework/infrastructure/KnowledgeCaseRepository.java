@@ -13,6 +13,26 @@ public interface KnowledgeCaseRepository extends JpaRepository<KnowledgeCase, Lo
 
     List<KnowledgeCase> findByStatus(String status);
 
+    List<KnowledgeCase> findBySubTopicIsNull();
+
+    /**
+     * 仅回填两列，不保存旧实体快照；空主题、原质量分及计算依据必须仍与读取时一致。
+     * 二进制比较避免 MySQL 校对规则忽略标题/正文的大小写或尾随空格；冲突返回 0，留待下次回填。
+     */
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true, clearAutomatically = true)
+    @org.springframework.data.jpa.repository.Query(value = "UPDATE knowledge_case SET "
+            + "sub_topic = :subTopic, quality_score = :qualityScore "
+            + "WHERE id = :id AND sub_topic IS NULL AND quality_score = :expectedQualityScore "
+            + "AND CAST(scoring_point_title AS BINARY) = CAST(:expectedScoringPointTitle AS BINARY) "
+            + "AND CAST(response_text AS BINARY) = CAST(:expectedResponseText AS BINARY)", nativeQuery = true)
+    int updateFeaturesIfUnchanged(
+            @org.springframework.data.repository.query.Param("id") Long id,
+            @org.springframework.data.repository.query.Param("subTopic") String subTopic,
+            @org.springframework.data.repository.query.Param("qualityScore") int qualityScore,
+            @org.springframework.data.repository.query.Param("expectedScoringPointTitle") String expectedScoringPointTitle,
+            @org.springframework.data.repository.query.Param("expectedResponseText") String expectedResponseText,
+            @org.springframework.data.repository.query.Param("expectedQualityScore") Integer expectedQualityScore);
+
     boolean existsBySourceProjectIdAndScoringPointTitle(Long sourceProjectId, String scoringPointTitle);
 
     /**

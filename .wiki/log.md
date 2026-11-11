@@ -1,3 +1,11 @@
+## [2026-11-11] fix | 案例子主题与质量分写入缺口
+
+- 根因：匹配器读 `knowledge_case.sub_topic` / `quality_score`，结项沉淀和历史导入都没写。生产空主题、质量分全是默认 60，精确 25 分和质量加分不生效。
+- 修复：结项保存前用 `KnowledgeCaseFeatures.assign` 写入。存量仅在 `XIYU_CASE_FEATURE_BACKFILL=1` 时回填空主题。不改匹配权重，不直接更新生产库。
+- 回填：[[knowledge-case-feature-writers]]。
+- 并发修复：整实体 saveAll 改为只更新两列的条件 UPDATE；原子校验原空主题、质量分、标题和正文，保留并发下架等业务写入。真实 JPA/H2 事务交错测试在旧实现复现 ACTIVE 覆盖 OFF_SHELF。
+- 验证：原保护测试42项通过；新增真实持久化事务交错回归在旧实现9项失败，修复后四个任务测试类共51项通过。未启动服务或更新生产数据；MySQL8验证留给主执行器。
+
 ## [2026-11-07] compound | 项目1119多标包重解析只读诊断
 
 - 回填 [[scoreparse-1119-multiple-package-review]]：新旧84条事实一致，11项100分来源为标包一，项目名为标包2和3；区分多方案保护与候选展示缺陷，未改业务代码或生产数据。

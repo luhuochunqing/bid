@@ -694,6 +694,45 @@ class ProjectClosedEventListenerTest {
         verify(bidResultRepository, times(1)).findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(1L, BidResultFetchResult.Status.CONFIRMED);
     }
 
+    @Test
+    @DisplayName("结项沉淀写入子主题，短正文质量分为 0")
+    void onProjectClosed_assignsSubTopicAndQualityScore() throws Exception {
+        Project project = project(1L, 7L, "天山材料");
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        ArchiveFile file = bidFile(1L, 99L);
+        file.setFilePath(java.nio.file.Files.writeString(tempDir.resolve("bid.pdf"), "标书内容").toString());
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(file));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "仓储配送方案", "物流配送能力")));
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument("## 正文", 1, "text/markdown", "bid.pdf", java.util.Map.of()));
+        String body = """
+                一、仓储布局
+                自有仓储管理覆盖主要地市，并承诺物流配送时效。
+                1. 最后一公里由自有车辆完成，2小时内响应。
+                2. 库存管理按安全库存补货。
+                """;
+        when(caseAiMatcher.extractSlicesWithAi(any(), any()))
+                .thenReturn(List.of(slice(101L, body, 0.9)));
+        when(caseAiMatcher.extractCategory(any())).thenReturn("技术");
+        when(tenderRepository.findById(any())).thenReturn(Optional.empty());
+        when(projectResultRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(bidResultRepository.findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(
+                anyLong(), any())).thenReturn(Optional.empty());
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "天山材料"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<KnowledgeCase>> captor = ArgumentCaptor.forClass(List.class);
+        verify(knowledgeCaseRepository).saveAll(captor.capture());
+        KnowledgeCase saved = captor.getValue().get(0);
+        assertThat(saved.getSubTopic()).isEqualTo("LOGISTICS_WAREHOUSE");
+        assertThat(saved.getQualityScore()).isZero();
+    }
+
     private Project project(Long id, Long managerId, String name) {
         Project p = new Project();
         p.setId(id);
