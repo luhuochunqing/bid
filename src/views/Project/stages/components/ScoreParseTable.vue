@@ -37,7 +37,7 @@
               {{ item.scoreType }}
             </span>
           </td>
-          <td class="score-cell" :class="getScoreClass(item)">
+          <td class="score-cell" :class="getScoreClass(item)" :title="mode === 'est' ? item.estBasis : undefined">
             {{ getScoreText(item) }}
             <span v-if="mode === 'actual' && resultOf(item)?.reuseKind === 'LEGACY_UNVERIFIED'" class="history-label">历史评分，需重新评分</span>
             <span v-if="mode === 'actual' && resultOf(item)?.reuseKind === 'REUSED'" class="pill neutral">沿用</span>
@@ -112,7 +112,7 @@ function getItemStatusText(item) {
   const status = getItemStatus(item)
   if (status === 'ok') return '满足'
   if (status === 'danger') return '不满足'
-  return '待确认'
+  return props.mode === 'est' ? pendingEstimateText(item) : '待确认'
 }
 
 function getScoreText(item) {
@@ -126,8 +126,13 @@ function getScoreText(item) {
   if (typeof item.estScore === 'number') {
     return item.estScore
   }
-  if (item.scoreType === '主观项') return '待确认'
-  return item.estScore || '待确认'
+  return pendingEstimateText(item)
+}
+
+function pendingEstimateText(item) {
+  if (item.scoreType === '主观项') return '待专家评审'
+  if (item.estBasis?.includes('未识别到知识库匹配类别') || item.estBasis?.includes('系统无自动评估底表')) return '需人工评估'
+  return '待确认'
 }
 
 function getScoreClass(item) {

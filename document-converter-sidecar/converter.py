@@ -1200,3 +1200,66 @@ def _link_pdf_logical_rows(tables: list[dict]) -> None:
         for cell in first:
             cell["logicalRowId"] = last[0]["logicalRowId"]
 
+
+
+class ScoringPdfOcrError(RuntimeError):
+    """Stable boundary error: incomplete OCR must never become scoring evidence."""
+
+
+def convert_scoring_pdf_document(pdf_path: str) -> dict:
+    """Read every physical page, OCR pages containing images; return complete evidence.
+
+    Scoring opt-in only. Unlike table-artifact OCR this has no 30-page sampling cap.
+    Rendering is page-scoped; elapsed budget bounds a large scanned document.
+    """
+    import time
+    import pymupdf
+
+    deadline = time.monotonic() + float(os.environ.get("SIDECAR_BID_OCR_TIMEOUT_SECONDS", "1500"))
+    native_pages = {p["pageNumber"]: p["text"] for p in convert_pdf_to_pages(pdf_path)}
+    pages = []
+    with pymupdf.open(pdf_path) as document:
+        for index in range(len(document)):
+            if time.monotonic() >= deadline:
+                raise ScoringPdfOcrError("BID_OCR_TIMEOUT")
+            page = document.load_page(index)
+            text = native_pages.get(index + 1, "").strip()
+            images = page.get_image_info()  # Includes inline images without image XObjects.
+            # Native titles do not prove image evidence was extracted. Partial screenshots
+            # and tiled scans need OCR too, regardless of any single image's page coverage.
+            if images:
+                pixmap = page.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
+                from PIL import Image
+                extrema = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples).getextrema()
+                # Only an entirely white raster proves blankness; sparse or faint
+                # text must still undergo OCR or fail explicitly, never disappear.
+                if extrema == ((255, 255), (255, 255), (255, 255)):
+                    del pixmap
+                    pages.append({"pageNumber": index + 1, "text": text})
+                    continue  # Truly blank scanned sheets are not missing evidence.
+                try:
+                    process = subprocess.run(
+                        ["tesseract", "stdin", "stdout", "-l", "chi_sim+eng", "--psm", "3"],
+                        input=pixmap.tobytes("png"), capture_output=True,
+                        timeout=max(0.001, min(30, deadline - time.monotonic())), check=False,
+                    )
+                except subprocess.TimeoutExpired as exc:
+                    raise ScoringPdfOcrError("BID_OCR_TIMEOUT") from exc
+                except OSError as exc:
+                    raise ScoringPdfOcrError("BID_OCR_UNAVAILABLE") from exc
+                finally:
+                    del pixmap
+                if process.returncode != 0:
+                    raise ScoringPdfOcrError("BID_OCR_UNAVAILABLE")
+                ocr_text = process.stdout.decode("utf-8", errors="replace").strip()
+                if not ocr_text:
+                    raise ScoringPdfOcrError("BID_OCR_EMPTY")
+                if re.sub(r"\s+", "", text) in re.sub(r"\s+", "", ocr_text):
+                    text = ocr_text
+                else:
+                    text += "\n" + ocr_text
+            if time.monotonic() >= deadline:
+                raise ScoringPdfOcrError("BID_OCR_TIMEOUT")
+            pages.append({"pageNumber": index + 1, "text": text})
+    return {"markdown": "\n\n".join(f"[第 {p['pageNumber']} 页]\n{p['text']}" for p in pages if p['text']),
+            "pages": pages}

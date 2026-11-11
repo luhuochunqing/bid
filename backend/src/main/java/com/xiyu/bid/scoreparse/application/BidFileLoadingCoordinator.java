@@ -113,9 +113,21 @@ public class BidFileLoadingCoordinator {
     }
 
     private LoadedBidDocument extractInMemory(LoadedBidFile.InMemory file) {
-        ExtractedTenderDocument extracted =
-                textExtractor.extract(file.fileName(), file.contentType(), file.content());
-        String text = extracted == null ? null : extracted.text();
+        String text;
+        if ("application/pdf".equalsIgnoreCase(file.contentType())
+                || file.fileName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) {
+            try {
+                text = streamTextExtractor.extractForScoring(file.content(), file.fileName());
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("投标文件提取中断", ex);
+            } catch (IOException ex) {
+                throw new IllegalStateException("投标文件提取失败", ex);
+            }
+        } else {
+            ExtractedTenderDocument extracted = textExtractor.extract(file.fileName(), file.contentType(), file.content());
+            text = extracted == null ? null : extracted.text();
+        }
         if (text == null || text.isBlank()) {
             throw new IllegalStateException("投标文件未能提取出有效正文: " + file.fileName());
         }
@@ -129,7 +141,7 @@ public class BidFileLoadingCoordinator {
         String contentHash = BidScoreSkipPolicy.hashFile(file.tempFile());
         String text;
         try {
-            text = streamTextExtractor.extract(file.tempFile(), file.fileName());
+            text = streamTextExtractor.extractForScoring(file.tempFile(), file.fileName());
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("投标文件流式提取中断: " + file.fileName(), ex);

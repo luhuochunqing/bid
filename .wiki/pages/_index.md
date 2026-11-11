@@ -214,3 +214,5 @@ backlinks:
 - [仓库到期重复通知排查](warehouse-expiry-duplicate-investigation.md)
 
 - [[quality1360-diagnosis]] — 项目1360历史质量报告误判、评分证据错位及同输入验收边界。
+
+- [[score580-scanned-bid-scoring]] — 项目580扫描件实际评分和预估能力边界。

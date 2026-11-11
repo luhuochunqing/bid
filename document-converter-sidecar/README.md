@@ -178,3 +178,30 @@ Expected in local development. Set the env var for any environment reachable ove
 a network.
 
 PDF scoring tables with repeated page headers are linked only when adjacent source pages, a shared named section, a continued rule row and consecutive item numbers provide evidence of the same table. Each cell keeps its original page and coordinates; closed, ambiguous and unrelated tables remain separate.
+
+## Scanned bid scoring (2026-11-11)
+
+`POST /convert-stream` accepts the authenticated opt-in header `X-Pdf-Ocr: true`.
+Only that PDF request path reads every physical page and uses installed
+Tesseract (`chi_sim+eng`) for pages containing images, including partial screenshots,
+tiled scans and scans with native headers. No image-area threshold is used because
+native text does not prove that scanned evidence was extracted. Native text/table extraction is preserved; genuinely blank
+scanned sheets keep their page position. No 30-page table-artifact sampling cap
+is used. Results are returned only after the complete document is processed.
+
+The OCR budget `SIDECAR_BID_OCR_TIMEOUT_SECONDS` defaults to 1500 seconds.
+Unfinished recognition, missing OCR tools/languages and image pages with no
+recognizable text return HTTP 422 with `detail` equal to `BID_OCR_TIMEOUT`,
+`BID_OCR_UNAVAILABLE` or `BID_OCR_EMPTY`. Partial text is never returned as success.
+Requests without the header retain the existing conversion contract.
+
+The Java scoring entry uses `app.score-parse.bid-file.scoring-timeout-seconds`
+(default 1800), separately from existing extraction callers (default 600).
+Frontend polling already permits 30 minutes. OCR and downstream AI assessment
+share that user-visible window; very large documents require whole-file timing
+validation before production acceptance. Deploy the sidecar and backend together;
+no production re-score or document replacement is performed by this change.
+
+Validation: from this directory run `python -m pytest tests/test_scanned_bid_ocr.py
+ tests/test_convert_stream.py -q` (one line). The tests generate synthetic PDFs,
+exercise real local OCR and the HTTP/worker entry; customer originals stay outside Git.

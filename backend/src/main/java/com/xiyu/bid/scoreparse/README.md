@@ -71,3 +71,10 @@
 - 无方案标题或未知总分时保留未知状态，不自动补100分，待复核门禁不变。
 
 - `BidFileQuotaException(actualBytes, maxBytes)`：单文件大小拒绝时携带已知大小下界和本次配额；下载比较条件与上限不变。
+
+### 扫描投标PDF评分入口（2026-11-11）
+`BidFileLoadingCoordinator` 的内存PDF与磁盘文件统一调用
+`SidecarStreamTextExtractor.extractForScoring`，评分请求显式启用Sidecar完整扫描页OCR；
+非评分的 `extract` 调用继续原有契约。`BidTextExtractionException` 只透传白名单安全原因，
+任务errorMessage与各项missedReason保持一致；OCR未完成不调用评分模型。
+OCR处理预算默认1500秒，评分HTTP等待默认1800秒；全卷耗时仍需真实文档验收。

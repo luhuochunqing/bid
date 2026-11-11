@@ -1,5 +1,5 @@
 // Input: 临时文件 Path + 文件名（OnDisk 路径，LoadedBidFile.OnDisk）
-// Output: 提取后的 markdown 纯文本；char 超限抛 OversizedBidTextException
+// Output: 完整评分正文（扫描PDF启用OCR）；安全分类失败；char 超限抛 OversizedBidTextException
 // Pos: scoreparse/application — /convert-stream 流式客户端（spec 045 T009，契约 contracts/sidecar-streaming-api.md）
 package com.xiyu.bid.scoreparse.application;
 
@@ -39,6 +39,8 @@ public class SidecarStreamTextExtractor {
     private final String sharedKey;
     private final long maxTextChars;
     private final long extractTimeoutSeconds;
+    @Value("${app.score-parse.bid-file.scoring-timeout-seconds:1800}")
+    private long scoringTimeoutSeconds = 1800;
 
     public SidecarStreamTextExtractor(
             // 默认值与部署现实对齐：测试/生产 sidecar 容器映射 host 8000（同 doc-insight 两个提取器）；
@@ -60,23 +62,38 @@ public class SidecarStreamTextExtractor {
         return extract(file, fileName, maxTextChars);
     }
 
+    public String extractForScoring(Path file, String fileName) throws IOException, InterruptedException {
+        return extract(HttpRequest.BodyPublishers.ofFile(file), fileName, maxTextChars, true);
+    }
+
     /**
      * 调用方覆盖文本量上限的提取（spec 065：招标侧用 tender-file 键，不沿用本 bean 的 bid-file 默认值）。
      */
     public String extract(Path file, String fileName, long maxTextChars)
             throws IOException, InterruptedException {
+        return extract(HttpRequest.BodyPublishers.ofFile(file), fileName, maxTextChars, false);
+    }
+
+    /** In-memory scoring uses the same OCR boundary without another temporary file. */
+    public String extractForScoring(byte[] content, String fileName) throws IOException, InterruptedException {
+        return extract(HttpRequest.BodyPublishers.ofByteArray(content), fileName, maxTextChars, true);
+    }
+
+    private String extract(HttpRequest.BodyPublisher content, String fileName, long maxTextChars,
+                           boolean pdfOcr) throws IOException, InterruptedException {
         String boundary = "xiyu-score-parse-" + UUID.randomUUID().toString().replace("-", "");
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(sidecarUrl + "/convert-stream"))
-                .timeout(Duration.ofSeconds(extractTimeoutSeconds))
+                .timeout(Duration.ofSeconds(pdfOcr ? scoringTimeoutSeconds : extractTimeoutSeconds))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary);
+        if (pdfOcr) requestBuilder.header("X-Pdf-Ocr", "true");
         if (!sharedKey.isBlank()) {
             requestBuilder.header(SidecarMultipart.SIDECAR_KEY_HEADER, sharedKey);
         }
         HttpRequest request = requestBuilder
                 .POST(HttpRequest.BodyPublishers.concat(
                         HttpRequest.BodyPublishers.ofByteArray(SidecarMultipart.prefix(boundary, fileName)),
-                        HttpRequest.BodyPublishers.ofFile(file),
+                        content,
                         HttpRequest.BodyPublishers.ofByteArray(SidecarMultipart.suffix(boundary))))
                 .build();
         IOException lastIoFailure = null;
@@ -86,7 +103,17 @@ public class SidecarStreamTextExtractor {
                         httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
                 int status = response.statusCode();
                 if (status == 422) {
-                    throw new IllegalStateException("投标文件无法解析：" + readErrorSnippet(response.body()));
+                    String detail = readErrorSnippet(response.body());
+                    try {
+                        String code = new com.fasterxml.jackson.databind.ObjectMapper().readTree(detail)
+                                .path("detail").asText();
+                        if (java.util.Set.of("BID_OCR_UNAVAILABLE", "BID_OCR_TIMEOUT", "BID_OCR_EMPTY").contains(code)) {
+                            throw new BidTextExtractionException(code);
+                        }
+                    } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) {
+                        // Legacy sidecars may return plain text rather than a JSON error.
+                    }
+                    throw new IllegalStateException("投标文件无法解析：" + detail);
                 }
                 if (status < 200 || status >= 300) {
                     String detail = readErrorSnippet(response.body());
@@ -97,8 +124,13 @@ public class SidecarStreamTextExtractor {
                     throw new IllegalStateException("调用文档转换服务失败 HTTP " + status + "：" + detail);
                 }
                 try (InputStream body = response.body()) {
-                    return readTextWithCharLimit(body, maxTextChars);
+                    String text = readTextWithCharLimit(body, maxTextChars);
+                    if (pdfOcr && text.isBlank()) throw new BidTextExtractionException("EMPTY_TEXT");
+                    return text;
                 }
+            } catch (java.net.http.HttpTimeoutException ex) {
+                if (pdfOcr) throw new BidTextExtractionException("BID_OCR_TIMEOUT");
+                throw ex;
             } catch (IOException ex) {
                 lastIoFailure = ex;
                 if (attempt == MAX_ATTEMPTS) {

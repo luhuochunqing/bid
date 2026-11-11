@@ -75,6 +75,21 @@ class BidFileLoadingCoordinatorTest {
     }
 
     @Test
+    void load_smallPdfUsesSameOcrBoundaryWithoutTemporaryCopy() throws Exception {
+        String url = "/storage/small-scan.pdf";
+        byte[] content = "scanned-pdf".getBytes(StandardCharsets.UTF_8);
+        ProjectDocument document = new ProjectDocument();
+        document.setName("scan.pdf"); document.setFileUrl(url); document.setFileType("application/pdf");
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "BID", null, null)).thenReturn(List.of(document));
+        when(fileStorage.load(url)).thenReturn(Optional.of(
+                new LoadedProjectDocumentFile(url, url, "application/pdf", content, null)));
+        when(streamTextExtractor.extractForScoring(content, "scan.pdf")).thenReturn("扫描件识别正文");
+        assertThat(coordinator.load(PROJECT_ID, TASK_ID).text()).isEqualTo("扫描件识别正文");
+        verifyNoInteractions(textExtractor, tempFileStore);
+    }
+
+    @Test
     void load_inMemory_extractsImagesViaByteArray() throws Exception {
         mockLocalStorageBidDocument();
         byte[] content = "DOCX内容".getBytes(StandardCharsets.UTF_8);
@@ -97,7 +112,7 @@ class BidFileLoadingCoordinatorTest {
         Path spill = tempDir.resolve(TASK_ID + ".part");
         java.nio.file.Files.write(spill, "DOCX-BYTES".getBytes(StandardCharsets.UTF_8));
         mockObsBidDocument(spill);
-        when(streamTextExtractor.extract(spill, FILE_NAME)).thenReturn("投标正文");
+        when(streamTextExtractor.extractForScoring(spill, FILE_NAME)).thenReturn("投标正文");
         when(imageExtractor.extract(spill, FILE_NAME))
                 .thenReturn(new SidecarImageExtraction(List.of(IMAGE), true));
 
