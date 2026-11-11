@@ -8322,3 +8322,19 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 1. **候选总分落库硬门禁（Hard Gate）**：在 `StructuredTableExtractionHandler` 中，`persistItems` 前增加 `candidateWeightClosed` 断言，比较实际候选权重总和与声明总分；若单项因原文还原失败被过滤导致总分不闭合，直接降级为 `REVIEW_REQUIRED`（fallbackReason: `CANDIDATE_WEIGHT_SUM_MISMATCH`），设置归一化告警并坚决拒绝覆盖 `score_item`。
 2. **跨页续行证据收集**：`TextPrimaryEvidenceBinder` 增加 `collectContinuationCells`，自动收集行首为空、细则列延伸的后续跨页单元格，合并完整原文并恢复正确引用。
 3. **跨页项名恢复容错**：`SourceItemNameRestoration` 增加续行判定，除细则列外其余列皆为空的续行不影响以基准行 `primaryRow` 恢复真实评分项名称。
+
+## 499. 评标客观项过度防御短路、仓储多区域得分与证书跨天失效根因及修复（2026-11-11）
+
+### 问题背景
+在生产项目 1117（招商积余）中，评分解析后的三个客观评分项（管理体系认证 10 分、公司业绩 30 分、仓储能力 25 分）满足状态与得分全部表现为“待确认”或置空。
+
+### 根因深度剖析
+1. **证书项跨天失效（STALE 投影清空）**：`CertMatchService.fingerprint` 将当前执行日期 `String.valueOf(asOf)` 参与 SHA-256 哈希计算。跨天之后日期变动导致指纹不匹配变 `STALE`；只读投影层 `ScoreParseItemsReadSupport` 只要检测到 `STALE`，就会在投影 DTO 中强行将已计算保存的 `estScore` 抹去并将 `status` 覆盖为 `PENDING`。
+2. **业绩项过度防御短路**：细则中包含“该合同甲方的最少一次付款银行流水及对应的发票扫”等佐证要求，命中 `ProjectEvidenceRequirementPolicy`；系统过度防御一刀切执行 `item.setEstScore(null); item.setStatusStage1("PENDING");`，彻底丢弃了已匹配出的合格业绩分值。
+3. **仓储能力多区域规则未覆盖**：条款中未包含固定面积数值，`extractMinArea(...)` 为 `null`，系统直接防御性置空退出；忽略了条款中“六大地区内各一个配送仓得 15 分，缺一扣 3 分；六大区每多一个得 1 分，满分 5 分；面积横向排序 5 分”的清晰规则。
+
+### 修复与防护方案
+1. **证书指纹与事实解耦**：移除指纹中对易变日期 `asOf` 的强制哈希，规则指纹仅由【规则配置 + 资质库事实】决定；同时在 `CertMatchService` 增加 `hasCertificateExpiredSince`，仅在核验后证书真实到达到期日时才标记失效，跨天读取保持 `FRESH`。
+2. **业绩客观分与材料提示并存**：解除一刀切短路。在无匹配合同时保持待确认；在有匹配业绩时给出计算得分（如 30 分），并在依据尾部追加“提示：招标文件包含强制材料要求（银行流水、发票），请在投标文件制作时备齐佐证文件”。
+3. **多区域仓储复合计分**：引入纯领域策略 `WarehouseRegionalScorePolicy`，识别六大区域覆盖（缺一扣 3 分）与增仓（上限 5 分），计算出 20 分确定性得分，剩余 5 分在依据中提示现场横向评比。
+4. **单测覆盖与防回归**：补充 `WarehouseRegionalScorePolicyTest`、`ScoreEstimateFreshnessTest`，全量 48 个相关测试绿灯通过。

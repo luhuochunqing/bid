@@ -33,6 +33,7 @@ public final class WarehouseRegionalScorePolicy {
         return regionCount >= 3 || text.contains("六大地区") || text.contains("六大区域");
     }
 
+    // REUSE-OK: backend/src/main/java/com/xiyu/bid/ai/core/ProjectScorePreviewPolicy.java — 多区域仓储评分策略，与 AI 项目评分预览入参及领域完全不同
     public static Assessment evaluate(String detail, BigDecimal weight, List<WarehouseMatchedItem> warehouses) {
         if (warehouses == null || warehouses.isEmpty()) {
             return new Assessment(BigDecimal.ZERO, "DANGER", false, 0, 0,
