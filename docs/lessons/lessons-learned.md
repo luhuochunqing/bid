@@ -8242,3 +8242,28 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
   3. `DeviationEvidencePolicy` 扩充 `RULE_FRAME`（增加资格要求/否决投标/废标/公平性），排除规则性否决法条陈述误判；
   4. `ResponsivenessReviewPolicy` 负偏离结论文案兜底，禁止输出冒号后为空的文案；
   5. DOCX 格式文档无物理排版分页，Java 端 fallback 为虚拟分块（`virtualPages`）；在前端“问题定位”弹窗中增加排版浮动与结合原文摘录核对的明确提示。
+
+## 496. 大标书 AI 案例沉淀配额超限与通知截断治理（2026-11-11）
+
+### 问题背景
+生产项目 1130（包钢股份网络采购供应商预选）标书 `包钢投标文件包1.docx` 大小为 1.15 GB（1,238,456,531 字节）。在完成投标结果确认且满足前置条件后，用户在项目结项页点击「🤖 AI自动生成案例」，按钮正常触发受理，但后台异步任务失败；工作台通知卡片仅显示“AI 生成案例失败 / 项目【2026年包钢股份网络采购供应商预选...”，用户无法获知具体失败原因。
+
+### 根因深度剖析
+1. **上下游组件配额不一致**：
+   - Nginx 反向代理层配置为 `client_max_body_size 3g;`。
+   - Python 文档转换服务（Sidecar）生产环境已配置 `SIDECAR_MAX_UPLOAD_MB=3072`（3 GiB）。
+   - 但 Java 后端 `StreamingBidFileFetcher` 的 `@Value("${app.score-parse.bid-file.max-file-bytes}")` 默认硬编码为 1 GiB（1,073,741,824 字节），且生产 `/etc/xiyu-bid/backend.env` 未显式注入 `APP_SCORE_PARSE_BID_MAX_FILE_BYTES`。
+   - 当流式下载 1.15 GB 的包钢标书时，Declared Content-Length（1,238,456,531）> 1,073,741,824，触发 `rejectIfDeclaredOverQuota` 抛出 `BidFileQuotaException`。
+2. **通知文案结构与前端展示截断掩盖真相**：
+   - 后端 `CasePrecipitationNotifier` 发送通知的文案格式为：`项目【${projectName}】的 AI 生成案例执行失败。失败原因：${reason}`。
+   - 工作台通知卡片（`WorkbenchNotifications.vue`）CSS 为 `overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`，卡片宽度有限且项目名过长，关键的“失败原因”被完全截断在 `...` 之后。
+   - 页面通知组件缺乏原生 tooltip（`:title`），导致用户鼠标悬停也无法查看被省略的完整错误信息。
+
+### 修复与防护方案
+1. **运维配置对齐（生产立即生效）**：生产 `/etc/xiyu-bid/backend.env` 注入 `APP_SCORE_PARSE_BID_MAX_FILE_BYTES=3221225472`，平滑重启后项目 1130 案例生成顺利通过。
+2. **代码层默认值统合**：
+   - `backend/src/main/resources/application.yml` 与 `StreamingBidFileFetcher.java` 默认值统一从 1 GiB 提升至 3 GiB（3,221,225,472 字节），与 Nginx 和 Sidecar 彻底对齐；
+   - `.env.example` 补充环境配置说明。
+3. **通知文案与可访问性体验优化**：
+   - `CasePrecipitationNotifier` 将失败原因前置：`reason + "（项目【" + projectName + "】）"`，单行截断时优先保证第一眼看到具体报错（如“案例生成失败：标书文件大小至少为...”）；
+   - `WorkbenchNotifications.vue`、`NotificationPanel.vue`、`NotificationInbox.vue` 统一为通知标题和描述补充原生 `:title` 悬浮属性，长文本无损可读。

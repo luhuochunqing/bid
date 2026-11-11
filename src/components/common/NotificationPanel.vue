@@ -42,8 +42,8 @@
             </el-icon>
           </div>
           <div class="notification-item-content">
-            <div class="notification-item-title">{{ item.title }}</div>
-            <div v-if="item.body" class="notification-item-desc">{{ item.body }}</div>
+            <div class="notification-item-title" :title="item.title">{{ item.title }}</div>
+            <div v-if="item.body" class="notification-item-desc" :title="item.body">{{ item.body }}</div>
             <div class="notification-item-time">{{ formatNotificationTime(item.createdAt) }}</div>
           </div>
           <el-icon v-if="getItemRoute(item)" class="notification-item-arrow" aria-hidden="true">

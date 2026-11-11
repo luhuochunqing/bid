@@ -50,8 +50,8 @@
           </div>
         </div>
         <div class="inbox-item-body">
-          <div class="inbox-item-title">{{ item.title }}</div>
-          <div v-if="item.body" class="inbox-item-desc">{{ item.body }}</div>
+          <div class="inbox-item-title" :title="item.title">{{ item.title }}</div>
+          <div v-if="item.body" class="inbox-item-desc" :title="item.body">{{ item.body }}</div>
           <ChangeDiffCard v-if="hasChangeDiff(item)" :changes="extractChanges(item)" />
           <div class="inbox-item-meta">
             <el-tag v-if="item.type" size="small" type="info">{{ getNotificationTypeLabel(item.type) }}</el-tag>

@@ -52,7 +52,7 @@ class CasePrecipitationNotifier {
                 return;
             }
             String title = "AI 生成案例失败";
-            String body = "项目【" + projectName + "】的 AI 生成案例执行失败。失败原因：" + reason;
+            String body = reason + "（项目【" + projectName + "】）";
             Map<String, Object> payload = Map.of(
                     "projectId", projectId, "count", 0,
                     "success", false, "reason", reason,

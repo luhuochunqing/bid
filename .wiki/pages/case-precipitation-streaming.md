@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [案例沉淀, 超大文件, 流式, 摘录化, LLM, choices包装, 唯一键, spec049]
 created: 2026-08-20
-updated: 2026-09-18
-health_checked: 2026-10-25
+updated: 2026-11-11
+health_checked: 2026-11-11
 sources:
   - specs/049-case-precipitation-streaming/
   - docs/implementation-notes/case-precipitation-spec049.md
@@ -72,6 +72,15 @@ POST /api/cases/precipitate?projectId=X → triggerPrecipitation 发 ProjectClos
 - 只有 `InterruptedException` 才恢复线程中断标记；普通 `IOException` 不能污染异步执行线程的中断状态。
 
 项目 34 的失败属于上述流式提取阶段，原通知只暴露 OBS 文件标识，无法定位 Sidecar 根因；修复后会先对短暂故障重试，仍失败时把最后一次底层错误透出。
+
+### 坑 4：组件配额不一致与通知展示截断（2026-11-11，包钢项目 1130）
+- **现象**：标书 1.15 GB（`包钢投标文件包1.docx`，1,238,456,531 字节），前置条件满足且点击触发受理，但后台生成失败。工作台消息通知仅展示“AI 生成案例失败 / 项目【2026年包钢股份网络采购供应商预选...”，用户无法获知原因。
+- **根因**：
+  1. Nginx（`client_max_body_size 3g;`）与 Sidecar（`SIDECAR_MAX_UPLOAD_MB=3072`）均已支持 3GiB，但 Java 后端 `StreamingBidFileFetcher` 默认硬编码 1GiB（`1073741824`），且生产未注入环境变量 `APP_SCORE_PARSE_BID_MAX_FILE_BYTES`，导致 1.15GB 文件流式下载时被拒绝抛出 `BidFileQuotaException`。
+  2. 通知正文结构为 `项目【${projectName}】...失败原因：${reason}`，加之工作台卡片 CSS `white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`，导致长项目名直接将失败原因截断。
+- **治理**：
+  1. 生产环境注入 `APP_SCORE_PARSE_BID_MAX_FILE_BYTES=3221225472`，并统合后端代码默认值为 3GiB；
+  2. 通知文案失败原因前置，通知面板组件统一补充原生 `:title` 悬浮属性。
 
 ## 六、相关页面
 
