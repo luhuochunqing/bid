@@ -481,6 +481,7 @@ class GoldenCasesReplayTest {
 
     static Stream<Arguments> cases() {
         return Stream.of(
+                Arguments.of("case-standalone-maximum-total"),
                 Arguments.of("case-source-alias-double-count"),
                 Arguments.of("case-owned-headerless-continuation"),
                 Arguments.of("case-score-unit-authority"),
@@ -535,6 +536,12 @@ class GoldenCasesReplayTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
     void replayGoldenCase(String caseName) throws Exception {
+        if (caseName.equals("case-standalone-maximum-total")) {
+            com.xiyu.bid.scoreparse.domain.StandaloneMaximumSummaryTest.verifyGolden(
+                    GoldenCasesReplaySupport.readFixture(caseName + ".md"),
+                    GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json")));
+            return;
+        }
         if (caseName.equals("case-source-alias-double-count")) {
             com.xiyu.bid.scoreparse.application.Project43SourceIdentityRegressionTest.verifyGolden(
                     GoldenCasesReplaySupport.readFixture(caseName + ".md"),

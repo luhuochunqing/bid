@@ -219,3 +219,4 @@ backlinks:
 - [[score580-scanned-bid-scoring]] — 项目580扫描件实际评分和预估能力边界。
 
 - [[scoring-only-adoption]] — 资格/零分审计事实与正式评分项的采纳边界。
+- [[scoreparse-1123-double-total]] — 项目1123满分汇总行误作评分项，候选100+100=200的只读诊断。

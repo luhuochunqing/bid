@@ -1,0 +1,20 @@
+{
+  "synthetic": true,
+  "declaredTotal": 100,
+  "expectedFactCount": 2,
+  "expectedTotalCell": "golden-r3-c2",
+  "items": [
+    {
+      "code": "1",
+      "dim": "实施方案",
+      "weight": 40,
+      "detail": "本项满分40分，方案完整得40分。"
+    },
+    {
+      "code": "2",
+      "dim": "履约能力",
+      "weight": 60,
+      "detail": "提供有效履约证明得60分。"
+    }
+  ]
+}

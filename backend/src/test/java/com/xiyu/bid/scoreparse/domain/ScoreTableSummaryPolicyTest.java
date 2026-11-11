@@ -82,6 +82,18 @@ class ScoreTableSummaryPolicyTest {
                 grid.cellsInRow(1))).isTrue();
     }
 
+    @Test
+    void standaloneMaximumLabelDoesNotMatchItemMaximumLanguage() {
+        assertThat(ScoreTableSummaryPolicy.isSummaryLabel("满\n分")).isTrue();
+        assertThat(ScoreTableSummaryPolicy.isSummaryLabel(null)).isFalse();
+        assertThat(ScoreTableSummaryPolicy.isSummaryLabel("本项满分10分")).isFalse();
+        assertThat(ScoreTableSummaryPolicy.isSummaryRow("1", "综合能力（满分10分）")).isFalse();
+        var grid = grid(List.of(cell(0, 0, "序号"), cell(0, 1, "评分因素"), cell(0, 2, "评分标准"),
+                cell(1, 0, "1"), cell(1, 1, "综合能力"), cell(1, 2, "本项满分10分")), 2);
+        assertThat(ScoreTableSummaryPolicy.isSummaryRow(grid.cellsInRow(1))).isFalse();
+        assertThat(ScoreTableSummaryPolicy.extractDeclaredTotals(grid, mapping())).isEmpty();
+    }
+
     private static TableColumnMapping mapping() {
         return new TableColumnMapping(0, -1, 1, 2, -1, 1, false);
     }
