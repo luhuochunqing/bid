@@ -37,7 +37,7 @@ public class StreamingBidFileFetcher {
     public StreamingBidFileFetcher(
             TempBidFileStore tempFileStore,
             @Value("${app.score-parse.bid-file.ram-buffer-bytes:52428800}") long ramBufferBytes,
-            @Value("${app.score-parse.bid-file.max-file-bytes:536870912}") long maxFileBytes,
+            @Value("${app.score-parse.bid-file.max-file-bytes:3221225472}") long maxFileBytes,
             @Value("${app.score-parse.bid-file.download-timeout-seconds:600}") long downloadTimeoutSeconds) {
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
         this.tempFileStore = tempFileStore;

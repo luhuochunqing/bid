@@ -22,8 +22,8 @@ Pos: src/views/Dashboard/components/ - 工作台改造组件
       >
         <div class="unread-dot" :class="{ read: item.read }"></div>
         <div class="ni-body">
-          <div class="ni-title">{{ item.title }}</div>
-          <div class="ni-desc" v-if="item.body">{{ item.body }}</div>
+          <div class="ni-title" :title="item.title">{{ item.title }}</div>
+          <div class="ni-desc" v-if="item.body" :title="item.body">{{ item.body }}</div>
         </div>
         <div class="ni-time">{{ formatTime(item.createdAt) }}</div>
       </div>
