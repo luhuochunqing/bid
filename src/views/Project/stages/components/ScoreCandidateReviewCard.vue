@@ -107,8 +107,8 @@
         <li v-for="fact in auditFacts" :key="fact.factId" class="audit-fact-row">
           <div class="audit-fact-info">
             <strong>{{ fact.dimension || fact.code || '未命名评分事实' }}</strong>
-            <span>{{ fact.candidateEligible === true ? '其他评分方案（未选择）' : scopeLabel(fact.scopeStatus) }}</span>
-            <span v-if="fact.exclusionReason">：{{ exclusionLabel(fact.exclusionReason) }}</span>
+            <span>{{ fact.weight > 0 ? (fact.candidateEligible === true ? '其他评分方案（未选择）' : scopeLabel(fact.scopeStatus)) : '非计分条款或分值待确认' }}</span>
+            <span v-if="fact.exclusionReason && fact.exclusionReason !== 'SCORE_WEIGHT_NOT_CONFIRMED'">：{{ exclusionLabel(fact.exclusionReason) }}</span>
             <small v-if="fact.sourceText"> {{ fact.sourceText }}</small>
           </div>
           <el-button

@@ -1774,3 +1774,5 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 
 ## 2026-11-11 compound | score580-scanned-bid-scoring
 生产空正文根因与本地修复范围回填；保留全卷性能和生产验收边界。
+
+## [2026-11-11] compound | scoring-only-adoption 资格零分候选入库根因及本地修复边界回填

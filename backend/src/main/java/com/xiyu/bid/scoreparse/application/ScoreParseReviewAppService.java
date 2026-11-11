@@ -214,7 +214,7 @@ public class ScoreParseReviewAppService {
                     if (!eligibleIds.contains(fact.getFactId())) return false;
                     var q = qualifications.get(fact.getFactId());
                     return q == null || q.schemeId() == null || q.schemeId().isBlank() || adoptedSchemeId.equals(q.schemeId());
-                }).map(f -> toCandidateInput(f, edits.get(f.getFactId()))).toList();
+                }).map(f -> toCandidateInput(f, edits.get(f.getFactId()), qualificationEvidence)).toList();
 
         com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.AdoptionResult result =
                 adoptionPolicy.adopt(inputs, selectedFactIds, adjustedWeights);
@@ -244,13 +244,15 @@ public class ScoreParseReviewAppService {
                 .build());
     }
     private com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput toCandidateInput(
-            ScoreParseFact fact, ScoreParseReviewCommand.Action edit) {
+            ScoreParseFact fact, ScoreParseReviewCommand.Action edit, List<ScoreParseEvidence> evidence) {
         return new com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput(
                 fact.getFactId(), prefer(edit == null ? null : edit.adjustedCode(), fact.getCode()),
                 prefer(edit == null ? null : edit.adjustedDimension(), fact.getDimension()), fact.getWeight(),
                 prefer(edit == null ? null : edit.adjustedSourceText(), fact.getSourceText()),
                 prefer(edit == null ? null : edit.adjustedParentFactId(), fact.getParentFactId()),
-                edit == null ? null : edit.adjustedScoreType(), fact.getChildAggregation());
+                edit == null ? null : edit.adjustedScoreType(), fact.getChildAggregation(),
+                ScoreParseReviewFactMapper.verifiedZeroDeduction(fact, evidence)
+                        && (edit == null || edit.adjustedSourceText() == null || fact.getSourceText().equals(edit.adjustedSourceText())));
     }
     private String prefer(String adjusted, String original) {
         return adjusted == null ? original : adjusted;

@@ -234,7 +234,6 @@ describe('useScoreCandidateAdoption.js', () => {
       actions: [
         { factId: 'f1', action: 'ADOPT_CANDIDATES' },
         { factId: 'f2', action: 'ADOPT_CANDIDATES' },
-        { factId: 'f3', action: 'ADOPT_CANDIDATES' },
       ],
     })
     expect(reviewSubmitted.value).toBe(true)
