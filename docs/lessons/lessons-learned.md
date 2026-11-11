@@ -8232,3 +8232,13 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 ### Semantic boundary Minor补充（2026-11-10）
 
 已批准收口后的语料必须维护新的明确预期，不能长期保留“已知59项红”而让维护者误判回归。混合输入逐行指定PASS/人工，不禁用、不从被测函数动态生成expected；先生产不变时确认685语料全绿，再做重构。公共字符类必须完整提取，并区分是否允许换页字符；不能为了统一常量改变规则。find词表冗余可按布尔命中证明清理，但匹配位置不保证相等。证据：specs/084-semantic-boundary-minor/analysis.md。
+
+## 响应性评审偏离表提取语义门禁与DOCX页码对齐（2026-11-11）
+
+- **偏离表误报根因**：原 `DeviationTableExtractor` 缺少严格的偏离表标题前置门禁，且表头列识别将泛化的“情况”与“类型”误指派为 `typeCol`（偏离状态列）。标书中大量的资格审查自查表、否决投标条款确认表等普通表格因含有“自查情况/说明”列被误判为偏离表；而自查内容中包含“不满足招标文件对投标人资质...要求”，触发了 `NEGATIVE_FACT` 匹配，直接被误判为“实质性负偏离”硬 FAIL。
+- **边界收敛方案**：
+  1. `DeviationTableExtractor` 必须满足明确的偏离表标题（`isDeviationTitle`）或表头显式包含“偏离/偏差”，普通表格直接过滤；
+  2. `typeCol` 收敛为仅匹配“偏离/偏差/差异/响应情况/状态”，杜绝泛化词匹配；
+  3. `DeviationEvidencePolicy` 扩充 `RULE_FRAME`（增加资格要求/否决投标/废标/公平性），排除规则性否决法条陈述误判；
+  4. `ResponsivenessReviewPolicy` 负偏离结论文案兜底，禁止输出冒号后为空的文案；
+  5. DOCX 格式文档无物理排版分页，Java 端 fallback 为虚拟分块（`virtualPages`）；在前端“问题定位”弹窗中增加排版浮动与结合原文摘录核对的明确提示。

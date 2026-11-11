@@ -62,9 +62,12 @@ public final class ResponsivenessReviewPolicy {
                     ? "条款 " + neg.clause() + "（" + neg.description() + "）"
                     : neg.description();
             QualityEvidence evidence = ResponsivenessRuleCitation.negativeRowEvidence(bidDoc, extraction, neg);
+            String explanation = (detail != null && !detail.isBlank())
+                    ? "商务或技术条款中存在实质性负偏离：" + detail
+                    : "商务或技术条款中存在实质性负偏离（详见证据定位条款）";
             return QualityCheckItemResult.fail(
                     BidQualityCheckItem.RESPONSIVENESS_REVIEW,
-                    "商务或技术条款中存在实质性负偏离：" + detail,
+                    explanation,
                     "请核减负偏离项或补充合理解释，避免触发招标文件实质性偏离否决条款",
                     List.of(evidence));
         }

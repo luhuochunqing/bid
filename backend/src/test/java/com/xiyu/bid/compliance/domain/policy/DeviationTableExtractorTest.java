@@ -253,4 +253,18 @@ class DeviationTableExtractorTest {
         assertThat(result.negativeRows().get(0).clause()).contains("供货期");
         assertThat(result.negativeRows().get(0).type()).isEqualTo(DeviationTableExtractor.DeviationType.NEGATIVE);
     }
+
+    @Test
+    @DisplayName("非偏离表（如资格审查自查表、带有说明/情况列）不应提取为偏离表，更不得误报负偏离")
+    void testExtract_WhenNonDeviationTableWithNoteColumn_ShouldNotBeExtractedAsDeviationTable() {
+        String text = """
+                ### 资格审查与否决投标条件自查
+                | 序号 | 审查项 | 自查情况 | 说明 |
+                | 1 | 关联关系与资格要求 | 同一人或者存在控股、管理关系的，同时参加同一标段投标或者未划分标段的同一招标项目投标的，影响招标公平性的；5. 不满足招标文件对投标人资质、业绩、委托授权书、承诺函、联合体协议、建造师证书、各项安全资格证书等（但不限于）资格要求；6 | 符合要求 |
+                """;
+        DocumentContent doc = DocumentContent.fromText("1. 新兴际华-2026.6.24.docx", "h1360", text);
+        var extraction = DeviationTableExtractor.extract(doc);
+        assertThat(extraction.tables()).isEmpty();
+        assertThat(extraction.negativeRows()).isEmpty();
+    }
 }

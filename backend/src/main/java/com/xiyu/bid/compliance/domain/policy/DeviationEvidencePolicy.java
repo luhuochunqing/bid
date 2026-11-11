@@ -12,7 +12,7 @@ final class DeviationEvidencePolicy {
     record Fact(Origin origin, Polarity polarity, String text) { }
 
     private static final Pattern SELF = Pattern.compile("我方|我司|本企业|本公司|本单位|我单位|本投标人");
-    private static final Pattern RULE_FRAME = Pattern.compile("评审标准|评分标准|评分规则|评审规则|招标文件要求|采购文件要求");
+    private static final Pattern RULE_FRAME = Pattern.compile("评审标准|评分标准|评分规则|评审规则|招标文件要求|采购文件要求|资格要求|否决投标|废标|不予通过|公平性");
     private static final Pattern NEGATIVE_FACT = Pattern.compile("负偏离|负偏差|部分满足|部分响应|达不到|低于|不足|(?:未能|无法|不能|未|不)[^，,。；;]{0,20}(?:满足|符合|达到|履约)");
     private static final Pattern ACKNOWLEDGEMENT = Pattern.compile("(?:无偏离|无偏差|无负偏离|无负偏差|不存在负偏离|不存在负偏差|完全响应|全面响应|全部响应|符合要求|满足要求|满足招标要求|符合招标文件要求|遵照执行|严格遵从|响应|满足|符合|无|/|-)(?:[，,。；;].*)?");
 
@@ -41,6 +41,9 @@ final class DeviationEvidencePolicy {
         for (String part : parts) {
             if (SELF.matcher(part).find()) inheritedSelf = true;
             if (hasUnnegatedNegative(part)) {
+                if (isRuleFrame(part) || isRuleFrame(compact) || isNegatedOrConditional(part)) {
+                    continue;
+                }
                 if (origin == Origin.STATUS_COLUMN) return new Fact(origin, Polarity.NEGATIVE, text);
                 if ((SELF.matcher(part).find() || inheritedSelf && part.contains("实际")) && !isRuleFrame(part)
                         && !part.matches("(?s).*(?:引用|遵照执行|投标人).*"))
