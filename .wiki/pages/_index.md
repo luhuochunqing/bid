@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-11-08
-health_checked: 2026-11-08
+updated: 2026-11-11
+health_checked: 2026-11-11
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -34,6 +34,7 @@ backlinks:
   - 2026-11-02：固定真实文件对照，记录来源页、非评分续表和无编号续文的局部改善及剩余验收差异。
 - [[pr2948-scoreparse-scope-and-fallback-risk]] — PR2948评分前序漏扫修复范围与fallback证据退化复审记录
 - [[ai-case-recommend-data-source-fix]] — AI 智能案例推荐契约与陷阱（数据源、裸响应、前端分数门禁、资质提示边界）
+- [[knowledge-case-feature-writers]] — 案例子主题与质量分由谁写入；结项现写，存量回填默认关闭
 - [[ai-case-precipitation-concurrency]] — AI 案例沉淀并发任务与大文件隔离契约（projectId 门禁 + UUID 临时文件 + 前端状态）
 - [[ai-provider-configuration]] — AI Provider 配置与陷阱指南
 - [[db-schema-dictionary-comment-backfill]] — 数据字典补齐与生成器六类解析盲区（V1218 注释回填）

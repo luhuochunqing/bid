@@ -1,5 +1,6 @@
 package com.xiyu.bid.casework.application;
 
+import com.xiyu.bid.casework.domain.policy.KnowledgeCaseFeatures;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
 import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
@@ -259,6 +260,10 @@ public class ProjectClosedEventListener {
             kCase.setBidResult(ctx.bidResult);
             kCase.setScoringCategory(caseAiMatcher.extractCategory(scoreItem.category()));
             kCase.setProductLine(ctx.productLine);
+            KnowledgeCaseFeatures.Assigned features = KnowledgeCaseFeatures.assign(
+                    scoreItem.title(), slice.getMatchedSnippet());
+            kCase.setSubTopic(features.subTopic());
+            kCase.setQualityScore(features.qualityScore());
 
             try {
                 MarkdownSourceSectionIndex.Provenance prov = slice.getProvenance();
