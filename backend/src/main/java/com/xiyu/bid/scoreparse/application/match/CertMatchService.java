@@ -57,11 +57,21 @@ public class CertMatchService {
                 .sorted(Comparator.comparing(Object::toString)).toList();
     }
 
+    public boolean hasCertificateExpiredSince(String dim, String detail, LocalDate estimatedOn, LocalDate currentDay) {
+        if (estimatedOn == null || currentDay == null || !currentDay.isAfter(estimatedOn)) {
+            return false;
+        }
+        return scoreFacts().stream()
+                .filter(fact -> fact.expiryDate() != null)
+                .filter(fact -> !fact.expiryDate().isBefore(estimatedOn))
+                .anyMatch(fact -> fact.expiryDate().isBefore(currentDay));
+    }
+
     private static String fingerprint(String dim, String detail, BigDecimal weight, LocalDate asOf,
                                       List<CertificateScorePolicy.Fact> facts) {
         StringBuilder input = new StringBuilder();
         for (Object value : List.of(CertificateScorePolicy.ENGINE_VERSION,
-                String.valueOf(dim), String.valueOf(detail), String.valueOf(weight), String.valueOf(asOf))) {
+                String.valueOf(dim), String.valueOf(detail), String.valueOf(weight))) {
             appendFingerprint(input, value);
         }
         for (var fact : facts) {

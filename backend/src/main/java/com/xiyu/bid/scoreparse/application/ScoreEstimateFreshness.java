@@ -15,7 +15,13 @@ public class ScoreEstimateFreshness {
         if (!CertificateScoreEstimateSupport.applies(item)) return "NOT_APPLICABLE";
         if (item.getEstimatedAt() == null || item.getEstimateInputFingerprint() == null) return "STALE";
         String current = certificates.fingerprintForScore(item.getDim(), item.getDetail(), item.getWeight(), day);
-        return item.getEstimateInputFingerprint().equals(
-                CertificateScoreEstimateSupport.sealedFingerprint(item,current)) ? "FRESH" : "STALE";
+        if (!item.getEstimateInputFingerprint().equals(
+                CertificateScoreEstimateSupport.sealedFingerprint(item, current))) {
+            return "STALE";
+        }
+        if (certificates.hasCertificateExpiredSince(item.getDim(), item.getDetail(), item.getEstimatedAt().toLocalDate(), day)) {
+            return "STALE";
+        }
+        return "FRESH";
     }
 }

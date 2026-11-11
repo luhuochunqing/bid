@@ -10,6 +10,8 @@ import com.xiyu.bid.scoreparse.application.match.PersonMatchService;
 import com.xiyu.bid.scoreparse.application.match.ProjectMatchService;
 import com.xiyu.bid.scoreparse.application.match.WarehouseMatchService;
 import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
+import com.xiyu.bid.scoreparse.domain.WarehouseRegionalScorePolicy;
+import com.xiyu.bid.scoreparse.dto.WarehouseMatchedItem;
 import com.xiyu.bid.scoreparse.domain.IncrementalCountScorePolicy;
 import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
 import com.xiyu.bid.scoreparse.domain.ProjectEvidenceRequirementPolicy;
@@ -144,34 +146,18 @@ public class EstimatedScoreService {
             return;
         }
         String category = categoryPolicy.categorize(item.getDim(), item.getDetail());
-        if (KnowledgeCategoryPolicy.CATEGORY_OTHER.equals(category)) {
-            item.setEstScore(null);
-            item.setKbHit(false);
-            item.setStatusStage1(ScoreStatusPolicy.PENDING);
-            item.setEstBasis("未识别到知识库匹配类别，待人工确认预计得分");
-            return;
-        }
-        if (KnowledgeCategoryPolicy.CATEGORY_FINANCIAL.equals(category)) {
-            item.setEstScore(null);
-            item.setKbHit(false);
-            item.setStatusStage1(ScoreStatusPolicy.PENDING);
-            item.setEstBasis("财务类评分项目，系统无自动评估底表，待人工确认预计得分");
-            return;
-        }
-        if (KnowledgeCategoryPolicy.CATEGORY_CREDIT.equals(category)) {
-            item.setEstScore(null);
-            item.setKbHit(false);
-            item.setStatusStage1(ScoreStatusPolicy.PENDING);
-            item.setEstBasis("信用评价类评分项目，系统无自动评估底表，待人工确认预计得分");
-            return;
-        }
-        if (KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE.equals(category)
-                && categoryPolicy.extractMinArea(item.getDetail()) == null) {
-            item.setEstScore(null);
-            item.setKbHit(false);
-            item.setStatusStage1(ScoreStatusPolicy.PENDING);
-            item.setEstBasis("未抽取到可执行的仓库匹配约束（面积），禁止按在用仓存在性给满分，待人工确认预计得分");
-            return;
+        if (isPassiveOrUnsupportedCategory(category, item)) return;
+        if (KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE.equals(category)) {
+            if (WarehouseRegionalScorePolicy.isMultiRegionWarehouseClause(item.getDetail())) {
+                var a = WarehouseRegionalScorePolicy.evaluate(item.getDetail(), item.getWeight(), warehouseMatchService.findActiveWarehouses());
+                item.setEstScore(a.score()); item.setKbHit(a.kbHit()); item.setStatusStage1(a.status()); item.setEstBasis(a.basis());
+                return;
+            }
+            if (categoryPolicy.extractMinArea(item.getDetail()) == null) {
+                item.setEstScore(null); item.setKbHit(false); item.setStatusStage1(ScoreStatusPolicy.PENDING);
+                item.setEstBasis("未抽取到可执行的仓库匹配约束（面积），禁止按在用仓存在性给满分，待人工确认预计得分");
+                return;
+            }
         }
         CrossChapterPerformancePolicy.Constraint crossConstraint = null;
         if (KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
@@ -202,18 +188,8 @@ public class EstimatedScoreService {
                 KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
                         ? projectEvidencePolicy.assess(item.getDetail())
                         : new ProjectEvidenceRequirementPolicy.Assessment(List.of());
-        if (evidenceAssessment.requiresManualReview()) {
-            item.setEstScore(null);
-            item.setKbHit(false);
-            item.setStatusStage1(ScoreStatusPolicy.PENDING);
-            item.setEstBasis(basisFormatter.manualReviewBasis(
-                    match,
-                    evidenceAssessment,
-                    categoryPolicy.extractSignedAfter(item.getDetail()) != null,
-                    minContractAmount != null));
-            return;
-        }
         boolean flagged = hasFlaggedItems(match.matched());
+        boolean hasMatched = !match.matched().isEmpty();
         BigDecimal estScore = KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category)
                 ? IncrementalCountScorePolicy.parse(item.getDetail())
                         .map(rule -> rule.score(match.matched().size(), item.getWeight()))
@@ -225,8 +201,31 @@ public class EstimatedScoreService {
             log.warn("预计得分超出 [0, weight] 区间，置空待确认: itemId={}, raw={}",
                     item.getId(), estScore);
         }
+
+        if (evidenceAssessment.requiresManualReview()) {
+            if (!hasMatched) {
+                item.setEstScore(null);
+                item.setKbHit(false);
+                item.setStatusStage1(ScoreStatusPolicy.PENDING);
+                item.setEstBasis(basisFormatter.manualReviewBasis(
+                        match,
+                        evidenceAssessment,
+                        categoryPolicy.extractSignedAfter(item.getDetail()) != null,
+                        minContractAmount != null));
+                return;
+            }
+            item.setEstScore(guarded.score());
+            item.setKbHit(true);
+            item.setStatusStage1(scoreStatusPolicy.evaluate(
+                    guarded.score(), item.getWeight(), item.getScoreType(), flagged));
+            String baseBasis = basisFormatter.matchBasis(category, match, flagged, crossConstraint);
+            item.setEstBasis(baseBasis + "；提示：招标文件包含强制材料要求（"
+                    + String.join("、", evidenceAssessment.manualChecks())
+                    + "），请在投标文件制作时备齐佐证文件。");
+            return;
+        }
+
         item.setEstScore(guarded.score());
-        // FR-018：阶段 1 评分依据携带知识库命中标记
         item.setKbHit(!"NONE".equals(match.tier()));
         item.setStatusStage1(scoreStatusPolicy.evaluate(
                 guarded.score(), item.getWeight(), item.getScoreType(), flagged));
@@ -271,5 +270,17 @@ public class EstimatedScoreService {
             }
         }
         return false;
+    }
+    private boolean isPassiveOrUnsupportedCategory(String category, ScoreItem item) {
+        String basis = switch (category) {
+            case KnowledgeCategoryPolicy.CATEGORY_OTHER -> "未识别到知识库匹配类别，待人工确认预计得分";
+            case KnowledgeCategoryPolicy.CATEGORY_FINANCIAL -> "财务类评分项目，系统无自动评估底表，待人工确认预计得分";
+            case KnowledgeCategoryPolicy.CATEGORY_CREDIT -> "信用评价类评分项目，系统无自动评估底表，待人工确认预计得分";
+            default -> null;
+        };
+        if (basis == null) return false;
+        item.setEstScore(null); item.setKbHit(false); item.setStatusStage1(ScoreStatusPolicy.PENDING);
+        item.setEstBasis(basis);
+        return true;
     }
 }

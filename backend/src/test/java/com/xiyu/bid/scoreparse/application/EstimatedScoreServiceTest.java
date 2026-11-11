@@ -14,6 +14,7 @@ import com.xiyu.bid.scoreparse.dto.ProjectMatchedItem;
 import com.xiyu.bid.scoreparse.dto.WarehouseMatchRequest;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
+import com.xiyu.bid.scoreparse.dto.WarehouseMatchedItem;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -239,12 +240,38 @@ class EstimatedScoreServiceTest {
         verify(projectMatchService).match(captor.capture());
         assertThat(captor.getValue().minContractAmount()).isEqualByComparingTo("10000000");
         assertThat(captor.getValue().requiredCount()).isEqualTo(6);
-        assertThat(project.getEstScore()).isNull();
-        assertThat(project.getStatusStage1()).isEqualTo("PENDING");
-        assertThat(project.getKbHit()).isFalse();
+        assertThat(project.getEstScore()).isEqualByComparingTo("30");
+        assertThat(project.getStatusStage1()).isEqualTo("OK");
+        assertThat(project.getKbHit()).isTrue();
         assertThat(project.getEstBasis())
-                .contains("业绩库", "2 条候选资料", "尚不能确认", "付款银行流水", "对应发票")
-                .doesNotContain("tier=", "FULL", "知识库命中");
+                .contains("业绩库", "付款银行流水", "对应发票");
+    }
+
+    @Test
+    void project1117_warehouseMultiRegion_calculatesScore() {
+        String detail = "1、评审标准: 1) 投标人需提供指定六大地区内各一个配送仓库，得15分，缺一个区域扣3分。（①华北地区（北京市、天津市、河北省、山西省、内蒙古）②东北地区（辽宁省、吉林省、黑龙江省）③华东地区（上海市、江苏省、浙江省、安徽省、江西省、福建省、山东省）④中南地区（河南省、湖北省、湖南省、广东省、海南省、广西壮族自治区）⑤西南地区（重庆市、四川省、贵州省、云南省）⑥西北地区（青海省、甘肃省、宁夏省））。2）六大区域每多一个仓库得1分，满分5分；3）按投标人自有及租赁仓储面积进行排序，第一名得分为5分，第二名3分，第三名1分，其余不得分。";
+        ScoreItem warehouse = item("仓储能力", detail, "25", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1117L)).thenReturn(List.of(warehouse));
+        when(warehouseMatchService.findActiveWarehouses()).thenReturn(List.of(
+                new WarehouseMatchedItem(1L, "北京仓", "华北", new BigDecimal("2000"), "IN_USE"),
+                new WarehouseMatchedItem(2L, "沈阳仓", "东北", new BigDecimal("2000"), "IN_USE"),
+                new WarehouseMatchedItem(3L, "上海仓", "华东", new BigDecimal("5000"), "IN_USE"),
+                new WarehouseMatchedItem(4L, "广州仓", "中南", new BigDecimal("3000"), "IN_USE"),
+                new WarehouseMatchedItem(5L, "成都仓", "西南", new BigDecimal("3000"), "IN_USE"),
+                new WarehouseMatchedItem(6L, "西安仓", "西北", new BigDecimal("2000"), "IN_USE"),
+                new WarehouseMatchedItem(7L, "苏州仓", "华东", new BigDecimal("4000"), "IN_USE"),
+                new WarehouseMatchedItem(8L, "武汉仓", "中南", new BigDecimal("3000"), "IN_USE"),
+                new WarehouseMatchedItem(9L, "天津仓", "华北", new BigDecimal("2000"), "IN_USE"),
+                new WarehouseMatchedItem(10L, "重庆仓", "西南", new BigDecimal("2000"), "IN_USE"),
+                new WarehouseMatchedItem(11L, "杭州仓", "华东", new BigDecimal("2000"), "IN_USE")
+        ));
+
+        service.estimateForProject(1117L);
+
+        assertThat(warehouse.getEstScore()).isEqualByComparingTo("20");
+        assertThat(warehouse.getStatusStage1()).isEqualTo("OK");
+        assertThat(warehouse.getKbHit()).isTrue();
+        assertThat(warehouse.getEstBasis()).contains("覆盖六大区域中 6 个地区", "15", "增分 5 分", "另 5 分仓储面积横向排序");
     }
 
     @Test

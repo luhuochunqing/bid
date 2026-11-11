@@ -210,6 +210,7 @@ backlinks:
 - [[scoreparse-multimodal-primary]] — 1135 跨页评分表、OCR合行与来源校验回放边界。
 
 - [[scoreparse-1117-candidate-active-boundary]] — 项目1117候选零分与旧正式评分项并存（2026-11-01历史取证，非当前生产状态）。
+- [[scoreparse-objective-pending-resolution-20261111]] — 项目1117客观评分项全为待确认根因剖析与代码修复（证书跨天指纹、业绩发票材料提示、仓储六大区复合计分）。
 
 
 - [仓库到期重复通知排查](warehouse-expiry-duplicate-investigation.md)

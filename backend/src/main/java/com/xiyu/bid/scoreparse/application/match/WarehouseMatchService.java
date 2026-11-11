@@ -58,6 +58,14 @@ public class WarehouseMatchService {
                 buildDetail(matched.size(), degraded));
     }
 
+    public List<WarehouseMatchedItem> findActiveWarehouses() {
+        return repository.findAll((root, query, cb) ->
+                root.get("status").in(WarehouseStatus.IN_USE, WarehouseStatus.EXPIRING)).stream()
+                .map(row -> new WarehouseMatchedItem(row.getId(), row.getName(), row.getRegion(),
+                        row.getArea(), row.getStatus() == null ? null : row.getStatus().name()))
+                .toList();
+    }
+
     private static final java.util.Set<String> GENERIC_WAREHOUSE_KEYWORDS = java.util.Set.of(
             "仓库", "仓储", "自有", "租赁", "数量", "面积", "排序", "全国", "各地", "情况",
             "评分", "优秀", "良好", "一般", "满分", "分值", "根据", "应答人", "承诺", "要求",
