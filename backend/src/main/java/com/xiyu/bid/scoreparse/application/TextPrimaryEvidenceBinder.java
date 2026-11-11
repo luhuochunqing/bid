@@ -198,37 +198,20 @@ final class TextPrimaryEvidenceBinder {
     static List<DocumentArtifact.CanonicalTable.CanonicalCellDto> collectContinuationCells(
             DocumentArtifact.CanonicalTable table,
             DocumentArtifact.CanonicalTable.CanonicalCellDto initialCell) {
-        if (table == null || initialCell == null || initialCell.row() == null || initialCell.column() == null) {
-            return initialCell == null ? List.of() : List.of(initialCell);
-        }
-        List<DocumentArtifact.CanonicalTable.CanonicalCellDto> result = new java.util.ArrayList<>();
-        result.add(initialCell);
-        int targetCol = initialCell.column();
-        int currentRow = initialCell.row();
-        var rowMap = table.cells().stream().filter(c -> c.row() != null)
-                .collect(java.util.stream.Collectors.groupingBy(DocumentArtifact.CanonicalTable.CanonicalCellDto::row));
-        while (true) {
-            int nextRow = currentRow + 1;
-            var nextRowCells = rowMap.get(nextRow);
-            if (nextRowCells == null || nextRowCells.isEmpty()
-                    || nextRowCells.stream().anyMatch(c -> com.xiyu.bid.scoreparse.domain.ScoreTableSummaryPolicy.isReviewerInstruction(c.rawText()))) {
-                break;
-            }
-            var contCell = nextRowCells.stream().filter(c -> c.column() != null && c.column() == targetCol).findFirst().orElse(null);
-            if (contCell == null || contCell.rawText() == null || contCell.rawText().isBlank()) break;
-            boolean otherBlank = nextRowCells.stream().filter(c -> c.column() != null && c.column() != targetCol)
-                    .allMatch(c -> c.rawText() == null || c.rawText().isBlank() || Boolean.TRUE.equals(c.isMergedContinue()));
-            if (!otherBlank) break;
-            result.add(contCell);
-            currentRow = nextRow;
-        }
-        return List.copyOf(result);
+        return TableContinuationCellCollector.collect(table, initialCell, null);
+    }
+
+    static List<DocumentArtifact.CanonicalTable.CanonicalCellDto> collectContinuationCells(
+            DocumentArtifact.CanonicalTable table,
+            DocumentArtifact.CanonicalTable.CanonicalCellDto initialCell,
+            MultimodalScoreFact fact) {
+        return TableContinuationCellCollector.collect(table, initialCell, fact);
     }
 
     private static MultimodalScoreFact bound(MultimodalScoreFact fact, Object[] pair) {
         var table = (DocumentArtifact.CanonicalTable) pair[0];
         var cell = (DocumentArtifact.CanonicalTable.CanonicalCellDto) pair[1];
-        var cells = collectContinuationCells(table, cell);
+        var cells = collectContinuationCells(table, cell, fact);
         Integer page = cell.sourcePage() == null ? table.sourcePage() : cell.sourcePage();
         String combinedRaw = cells.stream().map(DocumentArtifact.CanonicalTable.CanonicalCellDto::rawText)
                 .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.joining("\n"));

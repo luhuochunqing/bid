@@ -27,17 +27,17 @@ final class ScoreWeightSourceEvidence {
         var sources = table.cells().stream().filter(c -> sourceIds.contains(c.cellId())).toList();
         var owners = sources.stream().filter(c -> !numericScore(c, table))
                 .filter(c -> !normalized.isBlank() && EvidenceText.normalize(table.cells().stream()
-                        .filter(other -> sameRow(other, c))
+                        .filter(other -> sameRow(other, c, table))
                         .map(other -> other.rawText() == null ? "" : other.rawText())
                         .collect(java.util.stream.Collectors.joining(" "))).text().contains(normalized)).toList();
         var sourceAnchor = sources.isEmpty() ? null : sources.getFirst();
         if (owners.isEmpty() && sourceAnchor != null
-                && sources.stream().allMatch(c -> sameRow(c, sourceAnchor))) owners = List.of(sourceAnchor);
-        var owner = owners.isEmpty() ? null : owners.getFirst();
-        if (owner != null && owners.stream().anyMatch(c -> !sameRow(c, owner))) return null;
+                && sources.stream().allMatch(c -> sameRow(c, sourceAnchor, table))) owners = List.of(sourceAnchor);
+        var owner = owners.stream().min(java.util.Comparator.comparingInt(c -> c.row() == null ? 0 : c.row())).orElse(null);
+        if (owner != null && owners.stream().anyMatch(c -> !sameRow(c, owner, table))) return null;
         if (owner == null && !cited.isEmpty()
-                && cited.stream().anyMatch(c -> !sameRow(c, cited.getFirst()))) return null;
-        var candidates = owner == null ? cited : cited.stream().filter(c -> sameRow(c, owner)).toList();
+                && cited.stream().anyMatch(c -> !sameRow(c, cited.getFirst(), table))) return null;
+        var candidates = owner == null ? cited : cited.stream().filter(c -> sameRow(c, owner, table)).toList();
         return candidates.stream().filter(c -> numericScore(c, table)).findFirst()
                 .orElse(owner != null ? owner : cited.isEmpty() ? null : cited.getFirst());
     }
@@ -47,10 +47,28 @@ final class ScoreWeightSourceEvidence {
                 && scoreColumn(cell, table);
     }
 
-    private static boolean sameRow(CanonicalCellDto cell, CanonicalCellDto owner) {
-        return owner.row() != null && owner.row().equals(cell.row())
-                || owner.logicalRowId() != null && !owner.logicalRowId().isBlank()
-                && owner.logicalRowId().equals(cell.logicalRowId());
+    private static boolean sameRow(CanonicalCellDto cell, CanonicalCellDto owner, CanonicalTable table) {
+        if (owner.row() != null && owner.row().equals(cell.row())) return true;
+        if (owner.logicalRowId() != null && !owner.logicalRowId().isBlank()
+                && owner.logicalRowId().equals(cell.logicalRowId())) return true;
+        if (table != null && owner.row() != null && cell.row() != null) {
+            int primary = Math.min(owner.row(), cell.row());
+            int cont = Math.max(owner.row(), cell.row());
+            int col = cell.column() == null ? (owner.column() == null ? -1 : owner.column()) : cell.column();
+            boolean allCont = true;
+            for (int r = primary + 1; r <= cont; r++) {
+                final int checkRow = r;
+                boolean blankOther = table.cells().stream()
+                        .filter(c -> c.row() != null && c.row() == checkRow && !java.util.Objects.equals(c.column(), col))
+                        .allMatch(c -> c.rawText() == null || c.rawText().isBlank() || Boolean.TRUE.equals(c.isMergedContinue()));
+                if (!blankOther) {
+                    allCont = false;
+                    break;
+                }
+            }
+            if (allCont) return true;
+        }
+        return false;
     }
 
     record UnitEvidence(List<BigDecimal> values, List<BigDecimal> titles, List<BigDecimal> maxima,
