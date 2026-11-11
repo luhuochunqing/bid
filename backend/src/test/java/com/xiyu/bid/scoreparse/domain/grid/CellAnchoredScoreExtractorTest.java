@@ -374,5 +374,21 @@ class CellAnchoredScoreExtractorTest {
         assertThat(candidates.get(0).weight()).isEqualByComparingTo(new BigDecimal("8"));
     }
 
+    @Test
+    void extract_project1117ManagementSystemIsoClause_extractsCorrectCandidate() {
+        String markdown = """
+                | 1 | 管理体系 | ISO45001职业健康安全管理体系认证的得10分。2）三项齐全得满分，缺少一项，不得分3）不满足或未提供证明文件者，不得分2、证明文件：投标人须提供在有效期内的认证证书复印件或扫描件加盖投标人公章。 | 10.0 | 否 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = new TableColumnMapping(0, -1, 1, 2, 3, 0, false);
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+
+        assertThat(candidates).hasSize(1);
+        assertThat(candidates.get(0).code()).isEqualTo("1");
+        assertThat(candidates.get(0).dim()).contains("管理体系");
+        assertThat(candidates.get(0).weight()).isEqualByComparingTo(new BigDecimal("10.0"));
+        assertThat(candidates.get(0).detail()).contains("ISO45001");
+    }
+
     // 关联：项目 33 真实物理版式中跨页残行大类标题含换行（部分\n（30\n分））单测见 ScoreParseContinuationRowTest
 }
