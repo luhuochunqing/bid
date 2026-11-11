@@ -75,6 +75,12 @@ final class ScoreParseFactEvidenceWriter {
                         .build());
             }
             var qualification = qualificationByFact.get(f.factId());
+            if (com.xiyu.bid.scoreparse.domain.SourceDeductionSelectionPolicy.verified(f, qualification)) {
+                evidenceEntities.add(com.xiyu.bid.scoreparse.entity.ScoreParseEvidence.builder()
+                        .factId(f.factId()).parseTaskId(parseTaskId)
+                        .kind(com.xiyu.bid.scoreparse.domain.SourceDeductionSelectionPolicy.EVIDENCE_KIND)
+                        .quotedText(f.sourceText()).explanation("完整原文核验的零分扣分规则").build());
+            }
             if (qualification != null) {
                 evidenceEntities.add(com.xiyu.bid.scoreparse.entity.ScoreParseEvidence.builder()
                         .factId(f.factId())

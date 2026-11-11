@@ -12,6 +12,33 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ScoreReviewAdoptionPolicyTest {
 
+    @Test void explicitMixedSelectionNeverPublishesZeroOrUnknownMaximum() {
+        var facts = List.of(
+                new ScoreReviewAdoptionPolicy.CandidateInput("q", "1", "资格要求", BigDecimal.ZERO, "具备有效营业执照", ""),
+                new ScoreReviewAdoptionPolicy.CandidateInput("u", "2", "待确认公式", null, "按价格公式计分", ""),
+                new ScoreReviewAdoptionPolicy.CandidateInput("s", "3", "业绩", BigDecimal.valueOf(100), "满足资格条件的业绩得100分", ""));
+        var result = policy.adopt(facts, Set.of("q", "u", "s"), Map.of());
+        assertThat(result.success()).isTrue();
+        assertThat(result.candidates()).extracting(ScoreCandidate::dim).containsExactly("业绩");
+        assertThat(result.totalWeight()).isEqualByComparingTo("100");
+    }
+
+    @Test void explicitlySelectingOnlyZeroOrUnknownMaximumFails() {
+        for (BigDecimal maximum : java.util.Arrays.asList(null, BigDecimal.ZERO)) {
+            var fact = new ScoreReviewAdoptionPolicy.CandidateInput("f", "1", "待确认项", maximum, "原文", "");
+            assertThat(policy.adopt(List.of(fact), Set.of("f"), Map.of()).success()).isFalse();
+        }
+    }
+
+    @Test void reviewerCanSupplyPositiveMaximumButCannotPublishAdjustedZero() {
+        var unknown = new ScoreReviewAdoptionPolicy.CandidateInput("u", "1", "业绩", null, "业绩评分规则", "");
+        var scored = new ScoreReviewAdoptionPolicy.CandidateInput("s", "2", "方案", BigDecimal.TEN, "方案评分", "");
+        var result = policy.adopt(List.of(unknown, scored), Set.of("u", "s"),
+                Map.of("u", BigDecimal.TEN, "s", BigDecimal.ZERO));
+        assertThat(result.candidates()).extracting(ScoreCandidate::dim).containsExactly("业绩");
+        assertThat(policy.adopt(List.of(unknown), Set.of("u"), Map.of("u", BigDecimal.ONE.negate())).success()).isFalse();
+    }
+
     @Test void allowsManualAdoptionWithMissingRuleTextWithoutInventingContent() {
         for (String text : List.of("", "   ", "—")) {
             var result = new ScoreReviewAdoptionPolicy().adopt(List.of(

@@ -46,6 +46,8 @@ final class ScoreParseReviewFactMapper {
                         .filter(evidence -> "ITEM_SCHEME_SCOPE_MISMATCH".equals(evidence.getKind()))
                         .map(ScoreParseReviewFactMapper::qualification).findFirst()
                         .orElseGet(Qualification::sourceUnverified));
+        boolean scored = fact.getWeight() != null && fact.getWeight().signum() > 0
+                || verifiedZeroDeduction(fact, evidences);
         return new ScoreParseReviewDTO.Fact(
                 fact.getFactId(),
                 fact.getCode(),
@@ -73,10 +75,21 @@ final class ScoreParseReviewFactMapper {
                                 evidence.getExplanation()))
                         .toList(),
                 com.xiyu.bid.scoreparse.domain.ChildAggregation.legacyDefault(fact.getChildAggregation()).name(),
-                qualification.schemeId(), qualification.scopeStatus(), qualification.candidateEligible(),
-                qualification.reason(), qualification.schemeTitle(), qualification.declaredTotal(),
+                qualification.schemeId(), qualification.scopeStatus(), qualification.candidateEligible() && scored,
+                qualification.candidateEligible() && !scored ? "SCORE_WEIGHT_NOT_CONFIRMED" : qualification.reason(),
+                qualification.schemeTitle(), qualification.declaredTotal(),
                 qualification.totalEvidenceStatus(), qualification.totalQuote(), qualification.totalLocator(),
                 qualification.layoutStatus(), qualification.tableIds());
+    }
+
+    static boolean verifiedZeroDeduction(ScoreParseFact fact, List<ScoreParseEvidence> evidences) {
+        if (fact.getWeight() == null || fact.getWeight().signum() != 0
+                || fact.getSourceText() == null || fact.getSourceText().isBlank()) return false;
+        var local = evidences.stream().filter(e -> fact.getFactId().equals(e.getFactId())).toList();
+        return local.stream().filter(e -> "SCHEME_QUALIFICATION".equals(e.getKind())).map(ScoreParseReviewFactMapper::qualification)
+                .anyMatch(q -> q.candidateEligible() && "IN_SCHEME".equals(q.scopeStatus()))
+                && local.stream().anyMatch(e -> com.xiyu.bid.scoreparse.domain.SourceDeductionSelectionPolicy.EVIDENCE_KIND.equals(e.getKind())
+                        && fact.getSourceText().equals(e.getQuotedText()));
     }
 
     static Qualification qualification(ScoreParseEvidence evidence) {

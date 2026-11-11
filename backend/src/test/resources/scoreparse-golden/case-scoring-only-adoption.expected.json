@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "factCount": 5,
+  "items": [
+    {
+      "dim": "供应商业绩",
+      "weight": 30
+    },
+    {
+      "dim": "技术方案",
+      "weight": 70
+    }
+  ],
+  "total": 100,
+  "trustedDeductionDimension": "质量扣分",
+  "trustedCount": 3
+}

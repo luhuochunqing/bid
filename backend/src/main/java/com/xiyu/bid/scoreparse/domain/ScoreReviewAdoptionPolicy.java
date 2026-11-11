@@ -20,8 +20,13 @@ public final class ScoreReviewAdoptionPolicy {
             String sourceText,
             String parentFactId,
             String scoreType,
-            String childAggregation
+            String childAggregation,
+            boolean verifiedZeroDeduction
     ) {
+        public CandidateInput(String factId, String code, String dimension, BigDecimal weight,
+                              String sourceText, String parentFactId, String scoreType, String childAggregation) {
+            this(factId, code, dimension, weight, sourceText, parentFactId, scoreType, childAggregation, false);
+        }
         public CandidateInput(String factId, String code, String dimension, BigDecimal weight,
                               String sourceText, String parentFactId, String scoreType) {
             this(factId, code, dimension, weight, sourceText, parentFactId, scoreType, null);
@@ -62,7 +67,7 @@ public final class ScoreReviewAdoptionPolicy {
      * 评估并转换候选评分事实为可持久化的 ScoreCandidate。
      *
      * @param facts 全部可用候选事实
-     * @param selectedFactIds 用户选中的 factId 集合（若为空则默认选择所有权重大于 0 的项）
+     * @param selectedFactIds 用户选中的 factId 集合（若为空则默认选择正分项及经原文核验的零分扣分规则）
      * @param adjustedWeights 用户手动微调的权重映射（factId -> weight，可选）
      * @return 采纳评估结果
      */
@@ -102,14 +107,11 @@ public final class ScoreReviewAdoptionPolicy {
             if (weight != null && weight.compareTo(BigDecimal.ZERO) < 0) {
                 return AdoptionResult.failure("候选评分项分值不能为负数");
             }
-            if (weight == null || weight.compareTo(BigDecimal.ZERO) <= 0) {
-                // 如果用户没有显式勾选特定 ID，自动跳过分值为 0 的模板占位项
-                if (!filterByIds) {
-                    continue;
-                }
+            if (weight == null || (weight.signum() == 0 && !fact.verifiedZeroDeduction())) {
+                // 只保留正分或服务端完整来源核验的零分扣分规则；显式选择不能绕过。
+                continue;
             }
 
-            BigDecimal effectiveWeight = weight == null ? BigDecimal.ZERO : weight;
             String dim = fact.dimension();
             if (dim.isBlank()) {
                 dim = !fact.code().isBlank() ? "评分项 " + fact.code() : "评分项 " + index;
@@ -122,7 +124,7 @@ public final class ScoreReviewAdoptionPolicy {
                     code,
                     dim,
                     detail,
-                    effectiveWeight,
+                    weight,
                     "OBJECTIVE".equals(fact.scoreType()) || "SUBJECTIVE".equals(fact.scoreType())
                             ? fact.scoreType() : new ScoreTypeClassificationPolicy().classify(detail),
                     "",
@@ -131,12 +133,12 @@ public final class ScoreReviewAdoptionPolicy {
                     "MANUAL_REVIEW_ADOPTED"
             ));
 
-            total = total.add(effectiveWeight);
+            total = total.add(weight);
             index++;
         }
 
         if (converted.isEmpty()) {
-            return AdoptionResult.failure("未选出任何有效分值的评分项（分值必须大于 0）");
+            return AdoptionResult.failure("未选出任何有效分值的评分项（须有正分值或经原文核验的扣分规则）");
         }
 
         return AdoptionResult.success(converted, total);

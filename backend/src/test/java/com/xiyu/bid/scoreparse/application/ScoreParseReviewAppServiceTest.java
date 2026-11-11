@@ -14,6 +14,8 @@ import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -57,6 +59,49 @@ class ScoreParseReviewAppServiceTest {
     void setUp() {
         service = new ScoreParseReviewAppService(taskRepository, factRepository, evidenceRepository,
                 reviewRepository, projectAccessScopeService, itemPersistenceService, estimatedScoreService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void verifiedZeroDeductionSurvivesAdoptionButModifiedRuleLosesItsException(boolean edited) {
+        mockLatestTask();
+        var deduction = fact("deduction", "0");
+        deduction.setSourceText("每发生一次扣2分");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(deduction, fact("score", "100")));
+        var evidence = new java.util.ArrayList<>(eligibleEvidence("deduction", "score"));
+        evidence.add(ScoreParseEvidence.builder().id(88L).factId("deduction").parseTaskId(9L)
+                .kind("SOURCE_VERIFIED_ZERO_DEDUCTION").quotedText(deduction.getSourceText()).build());
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(evidence);
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+        assertThat(service.getReviewSnapshot(PROJECT_ID).facts().getFirst().candidateEligible()).isTrue();
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("deduction", "ADOPT_CANDIDATES", null, "确认", null, null,
+                        edited ? "替换后的非计分要求" : null, null, null),
+                new ScoreParseReviewCommand.Action("score", "ADOPT_CANDIDATES", null, "确认")), "人工确认", 9L), "admin");
+        ArgumentCaptor<List<com.xiyu.bid.scoreparse.domain.ScoreCandidate>> captured = ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), captured.capture());
+        assertThat(captured.getValue()).hasSize(edited ? 1 : 2);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void legacyEligibleZeroFactsAreAuditOnlyForDefaultAndExplicitAdoption(boolean explicitSelection) {
+        mockLatestTask();
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("qualification", "0"), fact("score", "100")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(eligibleEvidence("qualification", "score"));
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+        var snapshot = service.getReviewSnapshot(PROJECT_ID);
+        assertThat(snapshot.facts().get(0).candidateEligible()).isFalse();
+        var actions = explicitSelection ? List.of(
+                new ScoreParseReviewCommand.Action("qualification", "ADOPT_CANDIDATES", null, "旧页面选择"),
+                new ScoreParseReviewCommand.Action("score", "ADOPT_CANDIDATES", null, "旧页面选择")) : List.of(
+                new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "默认采纳"));
+        var command = new ScoreParseReviewCommand(actions, "人工确认", 9L);
+        service.submitReview(PROJECT_ID, command, "admin");
+        ArgumentCaptor<List<com.xiyu.bid.scoreparse.domain.ScoreCandidate>> captured = ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), captured.capture());
+        assertThat(captured.getValue()).hasSize(1);
+        assertThat(captured.getValue().getFirst().weight()).isEqualByComparingTo("100");
     }
 
     @Test
