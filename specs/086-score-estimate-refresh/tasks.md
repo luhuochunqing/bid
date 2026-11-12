@@ -1,10 +1,22 @@
-# Tasks
-- [x] T001 [US1] backend/src/test/java/com/xiyu/bid/scoreparse/application/EstimatedScoreServiceTest.java 无证书刷新RED
-- [x] T002 [US1] backend/src/main/java/com/xiyu/bid/scoreparse/application/EstimatedScoreService.java 全量刷新
-- [x] T003 [US2] backend/src/main/java/com/xiyu/bid/scoreparse/dto/ScoreEstimateRefreshDTO.java 结果契约及控制器
-- [x] T004 [US3] src/views/Project/stages/components/ScoreParseDrawer.vue 折叠外按钮
-- [x] T005 [US2] src/composables/projectDetail/useScoreEstimateRefresh.js 摘要及原因、回读失败/竞态
-- [x] T006 [US4] backend/src/test/java/com/xiyu/bid/scoreparse/application/ScoreEstimateRefreshMysqlTest.java 真实保存与不变性
-- [x] T007 specs/086-score-estimate-refresh/analysis.md 清理后验证与独立审查（round2 PASS，源码/测试摘要固定于.omc/review-agent_claude_score-estimate-refresh.md）
-- [ ] T008 [US4] specs/086-score-estimate-refresh/quickstart.md 授权发布后生产1117/1119完整验收
-Dependencies:T001→T002→T003→T006；契约固定后T004/T005可并行；T007最后。working_tree禁止自动提交。
+# Tasks: 知识库满足度预计得分 V1
+
+2026-11-12：用户已将目标明确为简单满足度粗估。已按批准方案实施并完成本地验证；远端验收仍未执行。
+
+## 已有成果与被替代内容
+
+- T001—T007：原全量刷新、回执/权限/竞态及按钮修复已实现，保留。
+- T008：原1117/1119授权发布验收仍未执行。
+- T009：历史因素名兼容成果保留。
+- T010：旧“复杂条件整项禁算”方案被本轮FR010替代，不能作为新方案完成凭证。
+- T011—T012：此前MySQL及审查是旧实现证据；新口径必须重验。
+
+## 当前实施任务
+
+- [x] T013 [US1/US2] PartialScorePolicyTest RED→estimateByCount GREEN：全有/没有/部分、封顶、两位精度与阶段二不变。
+- [x] T014 [US1/US2] ScoreItemConstraintExtractor及必要MatchService测试RED→GREEN：数量目标、默认1、证书身份/资源/品牌去重、可用状态、泛因素名不当具体名称过滤。
+- [x] T015 [US3/US4] EstimatedScoreService/CertificateScoreEstimateSupport/Freshness：删除临时禁算策略，接简单计数及新粗估指纹；真实MySQL保存/回读/摘要与规则和stage2不变。
+- [x] T016 [US3] 抽屉/详情说明与Vitest：0分、部分分、PENDING有数值、预计与实际模式隔离；不新建流程。
+- [x] T017 清理、完整受影响验证、Spec一致性、独立双审查与新S5/S6证据；之前141项与MERGE_READY不计作新方案验收。
+- [ ] T018 后续授权部署后对1371四个客观知识库项完成真实数据/HTTP/UI数值核验，原始规则与实际评分不变；未授权前不执行。
+
+依赖：T013→T014→T015→T016→T017；T018依赖后续部署授权。T013—T017本地完成；T018保持未完成，等待后续部署授权。

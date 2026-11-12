@@ -12,6 +12,57 @@ class CertificateScorePolicyTest {
     static final String HONOR = "具有中国品牌信誉评价认证五星级证书；企业质量信用等级评价认证3A级证书；商品售后五星级认证；企业标准化管理体系认证3A级证书；以上４项，具备任意４项则得5分，具备任意３项得3分，具备任意２项得2分，具备任意１项的得1分，不满足任意1项或未提供证明文件者，不得分";
     static CertificateScorePolicy.Fact fact(String name) { return new CertificateScorePolicy.Fact(name,null,DAY.plusYears(1),"IN_STOCK",false,null); }
     CertificateScorePolicy.Assessment assess(String text,List<CertificateScorePolicy.Fact> facts) { return CertificateScorePolicy.assess("管理体系",text,BigDecimal.TEN,DAY,facts); }
+    @Test
+    void simpleEstimateKeepsNamedCertificateRelevanceAndCanonicalizesGenericAliases() {
+        var day=LocalDate.of(2026,11,12);
+        assertThat(CertificateScoreRule.identitiesForEstimate("资质", "具有中国品牌信誉评价认证五星级证书"))
+                .containsExactly("品牌信誉");
+        var facts=List.of(simpleFact(1L,"ISO9001",day),simpleFact(2L,"GB/T19001质量管理体系认证证书",day),
+                simpleFact(3L,"ISO9001质量管理体系认证证书",day));
+        for(String dim:List.of("安全生产许可证","资质"))
+            assertThat(CertificateScorePolicy.assessSimple(dim,"提供安全生产许可证",BigDecimal.TEN,day,facts).score()).isZero();
+        assertThat(CertificateScorePolicy.assessSimple("管理体系","需提供三项认证",BigDecimal.TEN,day,facts).score()).isEqualByComparingTo("3.33");
+        assertThat(CertificateScorePolicy.assessSimple("资质","需提供3项证书",new BigDecimal("15"),day,facts).score()).isEqualByComparingTo("5.00");
+    }
+
+    @Test
+    void simpleEstimateCountsIndependentIdentitiesRatherThanUploadsOrClosedGrammar() {
+        var day = LocalDate.of(2026,11,12);
+        var facts = List.of(simpleFact(1L,"ISO9001",day),simpleFact(2L,"ISO9001",day),simpleFact(3L,"ISO14001",day));
+        var result = CertificateScorePolicy.assessSimple("管理体系", "ISO9001、ISO14001、ISO45001；资料按日期排序，缺一不得分",new BigDecimal("15"),day,facts);
+        assertThat(result.score()).isEqualByComparingTo("10.00");
+        assertThat(result.basis()).contains("要求3项", "命中2项", "知识库粗估");
+        assertThat(CertificateScorePolicy.assessSimple("企业资质", "ISO20000认证",BigDecimal.TEN,day,facts).score()).isZero();
+    }
+    @Test
+    void simpleEstimateReadsCertificateIdentitiesOnlyFromScoringClause() {
+        var day = LocalDate.of(2026,11,12);
+        String detail = "具有ISO9001质量管理体系认证证书得10分。2、证明文件：投标人须提供ISO14001环境管理体系认证证书复印件。";
+        assertThat(CertificateScoreRule.identitiesForEstimate("管理体系", detail)).containsExactly("ISO9001");
+        var facts = List.of(simpleFact(1L,"ISO9001质量管理体系认证证书",day),
+                simpleFact(2L,"ISO14001环境管理体系认证证书",day));
+        var estimate = CertificateScorePolicy.assessSimple("管理体系", detail, BigDecimal.TEN, day, facts);
+        assertThat(estimate.score()).isEqualByComparingTo("10.00");
+        assertThat(estimate.basis()).contains("要求1项", "命中1项");
+    }
+    @Test
+    void simpleEstimateTruncatesUnrecognizedProofMaterialHeading() {
+        String detail = "具有ISO9001质量管理体系认证证书得10分。2、证明材料：另附ISO14001环境管理体系认证证书复印件。";
+        assertThat(CertificateScoreRule.identitiesForEstimate("管理体系", detail)).containsExactly("ISO9001");
+    }
+    @Test
+    void simpleEstimateExcludesExpiredRetiredAndPersonalCertificates() {
+        var day=LocalDate.of(2026,11,12);
+        var facts=List.of(new CertificateScorePolicy.Fact(1L,"ISO9001","",day.minusDays(1),"IN_STOCK",false,null,"MANAGEMENT"),
+                new CertificateScorePolicy.Fact(2L,"ISO9001","",day.plusYears(1),"IN_STOCK",true,null,"MANAGEMENT"),
+                new CertificateScorePolicy.Fact(3L,"ISO9001内审员证书","",day.plusYears(1),"IN_STOCK",false,null,"PERSONNEL"),
+                new CertificateScorePolicy.Fact(4L,"ISO9001","",null,"IN_STOCK",false,null,"MANAGEMENT"));
+        assertThat(CertificateScorePolicy.assessSimple("资质","ISO9001证书",BigDecimal.TEN,day,facts).score()).isZero();
+    }
+    private static CertificateScorePolicy.Fact simpleFact(Long id,String name,LocalDate day) {
+        return new CertificateScorePolicy.Fact(id,name,"",day.plusYears(1),"IN_STOCK",false,day.minusYears(1),"MANAGEMENT");
+    }
+
     @Test void explicitStandardEditionsRequireHumanReview() {
         for (String edition : List.of("2015", "2099")) {
             for (String certificate : List.of("ISO9001:2008质量管理体系认证证书", "ISO9001")) {

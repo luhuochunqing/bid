@@ -33,6 +33,13 @@ public class ProjectMatchService {
 
     private final PerformanceRecordJpaRepository repository;
 
+    /** Stage-1 existence/count estimate; strict public matching constraints stay in match(). */
+    public List<ProjectMatchedItem> findEstimateCandidates() {
+        return repository.findAll().stream().map(row -> new ProjectMatchedItem(row.getId(), row.getContractName(),
+                displayName(row), row.getGroupCompany(), row.getCustomerType() == null ? null : row.getCustomerType().displayName(),
+                row.getSigningDate(), row.getContractAmount())).distinct().toList();
+    }
+
     public KnowledgeMatchResult match(ProjectMatchRequest request) {
         if (request == null) {
             return KnowledgeMatchResult.empty("请求参数为空");

@@ -54,6 +54,15 @@ describe('ScoreItemDetailModal.vue', () => {
     expect(wrapper.text()).toContain('知识库未匹配 CMMI 5 级证书')
   })
 
+  it('shows a numeric partial estimate and identifies its rough-estimate meaning', () => {
+    const wrapper = mount(ScoreItemDetailModal, {
+      props: { visible: true, mode: 'est', item: { ...mockItem, weight: 10, estScore: 5, status: 'pending' }, result: null },
+      global: { stubs: globalStubs },
+    })
+    expect(wrapper.text()).toContain('5 / 10')
+    expect(wrapper.text()).toContain('知识库粗估，最终评审另算')
+  })
+
   it('renders actual score mode with quote, missed reason and suggestion', () => {
     const wrapper = mount(ScoreItemDetailModal, {
       props: {

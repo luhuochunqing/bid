@@ -1,5 +1,5 @@
 // Input: scoreparse-golden/case-production-cross-chapter-perf 夹具
-// Output: 跨章节业绩穿透 + 基础分递增计分全链路回放测试
+// Output: 正式跨章节规则回放 + 简单预计分数量比例回放
 // Pos: scoreparse/golden
 // 维护声明: spec 080 黄金回归用例
 
@@ -7,7 +7,6 @@ package com.xiyu.bid.scoreparse.golden;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xiyu.bid.casework.application.port.TenderQualificationQueryPort;
 import com.xiyu.bid.scoreparse.application.EstimatedScoreService;
 import com.xiyu.bid.scoreparse.application.match.BrandMatchService;
 import com.xiyu.bid.scoreparse.application.match.CertMatchService;
@@ -18,8 +17,6 @@ import com.xiyu.bid.scoreparse.domain.IncrementalCountScorePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreItemConstraintExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy;
 import com.xiyu.bid.scoreparse.domain.policy.CrossChapterPerformancePolicy;
-import com.xiyu.bid.scoreparse.dto.KnowledgeMatchResult;
-import com.xiyu.bid.scoreparse.dto.ProjectMatchRequest;
 import com.xiyu.bid.scoreparse.dto.ProjectMatchedItem;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
@@ -39,7 +36,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -110,10 +106,10 @@ class ProductionCrossChapterPerformanceGoldenReplayTest {
     @ParameterizedTest(name = "命中业绩数量 {0} 篇 -> 预计折算分 {1}")
     @CsvSource({
             "0, 0.00",
-            "1, 3.00",
-            "2, 4.00",
-            "3, 5.00",
-            "4, 5.00"
+            "1, 1.00",
+            "2, 2.00",
+            "3, 3.00",
+            "4, 4.00"
     })
     @DisplayName("黄金样本：端到端预计得分回放（0~4份业绩计分折算）")
     void endToEndEstimatedScoreReplay(int matchCount, String expectedScore) {
@@ -123,11 +119,10 @@ class ProductionCrossChapterPerformanceGoldenReplayTest {
         ProjectMatchService projectMatchService = mock(ProjectMatchService.class);
         WarehouseMatchService warehouseMatchService = mock(WarehouseMatchService.class);
         BrandMatchService brandMatchService = mock(BrandMatchService.class);
-        TenderQualificationQueryPort qualPort = mock(TenderQualificationQueryPort.class);
 
         EstimatedScoreService customService = new EstimatedScoreService(itemRepository,
                 certMatchService, personMatchService, projectMatchService,
-                warehouseMatchService, brandMatchService, qualPort);
+                warehouseMatchService, brandMatchService);
 
         JsonNode scoreItemNode = expectedJson.path("scoreItem");
         String detail = scoreItemNode.path("detail").asText();
@@ -145,13 +140,6 @@ class ProductionCrossChapterPerformanceGoldenReplayTest {
 
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(item));
 
-        when(qualPort.findByProjectId(1L)).thenReturn(Optional.of(
-                new TenderQualificationQueryPort.TenderQualificationInfo(
-                        List.of("自2023年1月1日至今，具备类似工业品/MRO供货业绩，且单项合同金额不低于1000万元，须提供合同关键页及对应发票。"),
-                        fixtureMarkdown
-                )
-        ));
-
         List<ProjectMatchedItem> matchedItems = new ArrayList<>();
         for (int i = 1; i <= matchCount; i++) {
             matchedItems.add(new ProjectMatchedItem(
@@ -165,18 +153,7 @@ class ProductionCrossChapterPerformanceGoldenReplayTest {
             ));
         }
 
-        when(projectMatchService.match(any())).thenAnswer(invocation -> {
-            ProjectMatchRequest req = invocation.getArgument(0);
-            assertThat(req.minContractAmount()).isEqualByComparingTo("10000000");
-            assertThat(req.projectTypeKeywords()).contains("工业品");
-            return new KnowledgeMatchResult(
-                    matchCount >= 3 ? "FULL" : (matchCount > 0 ? "PARTIAL" : "NONE"),
-                    matchCount >= 3 ? 100 : (matchCount * 33),
-                    matchedItems,
-                    "命中" + matchCount + "项业绩",
-                    List.of()
-            );
-        });
+        when(projectMatchService.findEstimateCandidates()).thenReturn(matchedItems);
 
         customService.estimateForProject(1L);
 
@@ -187,14 +164,14 @@ class ProductionCrossChapterPerformanceGoldenReplayTest {
         } else {
             assertThat(item.getEstScore()).isEqualByComparingTo(expectedScore);
             assertThat(item.getKbHit()).isTrue();
-            if (matchCount >= 3) {
+            if (matchCount >= 5) {
                 assertThat(item.getStatusStage1()).isEqualTo("OK");
             } else {
                 assertThat(item.getStatusStage1()).isEqualTo("PENDING");
             }
-            assertThat(item.getEstBasis()).contains("跨章节资格项穿透");
+            assertThat(item.getEstBasis()).contains("知识库粗估", "未核验");
             assertThat(item.getEstBasis()).contains("工业品");
-            assertThat(item.getEstBasis()).contains("10000000");
+            assertThat(item.getEstBasis()).contains("要求5项");
         }
     }
 }

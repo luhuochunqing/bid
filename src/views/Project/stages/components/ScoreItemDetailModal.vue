@@ -40,7 +40,7 @@
       </div>
 
       <div class="detail-row">
-        <div class="detail-label">{{ mode === 'actual' ? '实际得分' : '预计得分' }}</div>
+        <div class="detail-label">{{ mode === 'actual' ? '实际得分' : '预计得分' }}<span v-if="mode === 'est'"> · 知识库粗估，最终评审另算</span></div>
         <div class="detail-value" :class="scoreClass">{{ scoreDisplay }}</div>
       </div>
 

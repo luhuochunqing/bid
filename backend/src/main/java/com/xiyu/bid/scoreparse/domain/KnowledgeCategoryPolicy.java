@@ -53,6 +53,20 @@ public class KnowledgeCategoryPolicy {
             new CategoryRule(CATEGORY_CERT, Pattern.compile("证书|资质|认证|许可证|ISO|CMMI|体系",
                     Pattern.CASE_INSENSITIVE)));
 
+    /** Resolve legacy factor names stored in code, without rewriting persisted rule fields. */
+    public String factorName(String code, String dim) {
+        if (dim == null || !GENERIC_HEADERS.contains(normalizeDim(dim)) || code == null) {
+            return dim;
+        }
+        String candidate = code.trim();
+        if (candidate.length() > 50 || !candidate.matches(".*[\\p{IsHan}].*")
+                || !candidate.matches("[\\p{IsHan}a-zA-Z0-9（）() /._-]+")
+                || GENERIC_HEADERS.contains(normalizeDim(candidate))) {
+            return dim;
+        }
+        return candidate;
+    }
+
     /**
      * 知识库类别判定。
      *

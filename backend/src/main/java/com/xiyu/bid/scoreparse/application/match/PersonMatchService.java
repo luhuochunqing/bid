@@ -35,6 +35,14 @@ public class PersonMatchService {
     private final PersonnelJpaRepository personnelRepository;
     private final PersonnelCertificateJpaRepository certificateRepository;
 
+    /** Count active personnel for stage-1 estimates without weakening strict match requirements. */
+    public List<PersonMatchedItem> findEstimateCandidates() {
+        var request = new PersonMatchRequest(null, null, 1);
+        return personnelRepository.findAll(specificationOf(request, false, false)).stream()
+                .map(row -> new PersonMatchedItem(row.getId(), row.getName(), row.getEmployeeNumber(), row.getTechnicalTitle(), List.of()))
+                .distinct().toList();
+    }
+
     public KnowledgeMatchResult match(PersonMatchRequest request) {
         boolean hasPosition = hasText(request.positionKeywords());
         boolean hasCert = hasText(request.certNameKeywords());
