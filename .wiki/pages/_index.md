@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-11-12
-health_checked: 2026-11-12
+updated: 2026-11-13
+health_checked: 2026-11-13
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -27,6 +27,7 @@ backlinks:
 ## Engineering Space
 
 - [[scoreparse-1119-multiple-package-review]] — 项目1119多标包重解析与旧100分来源诊断
+- [[test-env-obs-upload-and-bidfile-cleanup]] — 测试环境 OBS 直传必须用域名、投标文件删除残留与 sidecar OCR 直测手法
 - [[_index]] — 西域投标管理平台知识库
 - [[agent-sop-quickref]] — Agent 开发 SOP 快速参考
 - [[ai-capabilities]] — AI 能力
