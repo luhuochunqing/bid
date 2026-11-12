@@ -22,8 +22,8 @@ import java.util.List;
 
 /**
  * 打分链路投标文件加载协调器（spec 045 T011 + spec 048 T013）。
- * <p>loadBidFile 二态分派：InMemory 走既有 textExtractor（快路径，行为与现网一致）；
- * OnDisk 走 SidecarStreamTextExtractor（流式上传 + char 计数）。
+ * <p>PDF 与 Word 的正文走评分 OCR（内存和落盘都带 X-Pdf-Ocr）。其他格式的内存文件仍走 textExtractor。
+ * OnDisk 一律走 SidecarStreamTextExtractor（流式上传 + char 计数）。
  * contentHash 与 BidScoreSkipPolicy.hashBytes 同口径，skip 策略跨加载路径可比。
  * OnDisk 临时文件在提取完成后立即 release（早于任务终态，配额占用最小化）。
  * <p>spec 048：两路径均经 SidecarImageExtractor 抽图（InMemory byte[] 直传 / OnDisk ofFile 流式，
@@ -114,8 +114,8 @@ public class BidFileLoadingCoordinator {
 
     private LoadedBidDocument extractInMemory(LoadedBidFile.InMemory file) {
         String text;
-        if ("application/pdf".equalsIgnoreCase(file.contentType())
-                || file.fileName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) {
+        boolean scoringOcr = usesScoringOcr(file);
+        if (scoringOcr) {
             try {
                 text = streamTextExtractor.extractForScoring(file.content(), file.fileName());
             } catch (InterruptedException ex) {
@@ -128,9 +128,7 @@ public class BidFileLoadingCoordinator {
             ExtractedTenderDocument extracted = textExtractor.extract(file.fileName(), file.contentType(), file.content());
             text = extracted == null ? null : extracted.text();
         }
-        if (text == null || text.isBlank()) {
-            throw new IllegalStateException("投标文件未能提取出有效正文: " + file.fileName());
-        }
+        requireExtractedText(text, file, scoringOcr);
         return new LoadedBidDocument(
                 text,
                 BidScoreSkipPolicy.hashBytes(file.content()),
@@ -148,10 +146,38 @@ public class BidFileLoadingCoordinator {
         } catch (IOException ex) {
             throw new IllegalStateException("投标文件流式提取失败: " + file.fileName(), ex);
         }
-        if (text == null || text.isBlank()) {
-            throw new IllegalStateException("投标文件未能提取出有效正文: " + file.fileName());
-        }
+        requireExtractedText(text, file, usesScoringOcr(file));
         return new LoadedBidDocument(text, contentHash, extractImages(file.tempFile(), file.fileName()));
+    }
+
+    private static boolean usesScoringOcr(LoadedBidFile file) {
+        return isPdf(file) || isWord(file);
+    }
+
+    private static boolean isPdf(LoadedBidFile file) {
+        return "application/pdf".equalsIgnoreCase(file.contentType())
+                || hasExtension(file, ".pdf");
+    }
+
+    private static boolean isWord(LoadedBidFile file) {
+        String type = file.contentType() == null ? "" : file.contentType().toLowerCase(java.util.Locale.ROOT);
+        return type.contains("word")
+                || hasExtension(file, ".doc") || hasExtension(file, ".docx");
+    }
+
+    private static boolean hasExtension(LoadedBidFile file, String extension) {
+        return file.fileName() != null && file.fileName().toLowerCase(java.util.Locale.ROOT).endsWith(extension);
+    }
+
+    /** PDF 和 Word 空白才是识别失败。其他格式没有这条 OCR 路径。 */
+    private static void requireExtractedText(String text, LoadedBidFile file, boolean scoringOcr) {
+        if (text != null && !text.isBlank()) {
+            return;
+        }
+        if (scoringOcr) {
+            throw new BidTextExtractionException("EMPTY_TEXT");
+        }
+        throw new IllegalStateException("投标文件未能提取出有效正文: " + file.fileName());
     }
 
     /** InMemory 抽图：全量 byte[] 直传（review H2）。 */

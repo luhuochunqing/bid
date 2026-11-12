@@ -177,6 +177,121 @@ def test_native_heading_does_not_hide_inline_scanned_body(tmp_path):
     assert [p['pageNumber'] for p in result['pages']] == [1]
 
 
+def test_empty_ocr_on_one_image_keeps_the_other_pages(tmp_path, monkeypatch):
+    path = tmp_path / 'mixed.pdf'
+    make_pdf(path, native=True)
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, b'   ', b''))
+    result = converter.convert_scoring_pdf_document(str(path))
+    assert 'NATIVE CONTRACT TERMS' in result['markdown']
+    assert result['pages'][1]['text'] == ''
+
+
+def test_imageless_page_without_text_uses_existing_ocr(tmp_path, monkeypatch):
+    path = tmp_path / 'vector.pdf'
+    with pymupdf.open() as pdf:
+        page = pdf.new_page(width=400, height=200)
+        page.draw_rect(pymupdf.Rect(30, 30, 180, 80), color=(0, 0, 0), fill=(0, 0, 0))
+        pdf.save(path)
+    with pymupdf.open(path) as pdf:
+        assert pdf[0].get_image_info() == []
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, b'SCANNED CLAUSE', b''))
+    result = converter.convert_scoring_pdf_document(str(path))
+    assert 'SCANNED CLAUSE' in result['markdown']
+
+
+def test_document_with_no_text_after_ocr_fails(tmp_path, monkeypatch):
+    path = tmp_path / 'scan.pdf'
+    make_pdf(path, scanned_pages=1)
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, b'   ', b''))
+    with pytest.raises(converter.ScoringPdfOcrError, match='BID_OCR_EMPTY'):
+        converter.convert_scoring_pdf_document(str(path))
+
+
+def _docx_with_picture(path, paragraph, image_size):
+    from docx import Document
+    from docx.shared import Inches
+    image_path = path.with_suffix('.png')
+    image = Image.new('RGB', image_size, 'white')
+    ImageDraw.Draw(image).rectangle((4, 4, image_size[0] - 4, image_size[1] - 4), fill='black')
+    image.save(image_path)
+    document = Document()
+    if paragraph:
+        document.add_paragraph(paragraph)
+    document.add_picture(str(image_path), width=Inches(2))
+    document.save(path)
+
+
+def test_docx_embedded_scan_uses_existing_ocr(tmp_path, monkeypatch):
+    path = tmp_path / 'bid.docx'
+    _docx_with_picture(path, 'NATIVE WORD TERMS', (800, 400))
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, b'SCANNED CLAUSE', b''))
+    text = converter.append_docx_image_ocr(str(path), 'NATIVE WORD TERMS')
+    assert 'NATIVE WORD TERMS' in text
+    assert 'SCANNED CLAUSE' in text
+
+
+@pytest.mark.parametrize('scoring', [False, True])
+@pytest.mark.parametrize('paragraph', ['', 'NATIVE WORD TERMS ' * 5])
+def test_docx_worker_conversion_failure_preserves_scoring_opt_in(tmp_path, monkeypatch, scoring, paragraph):
+    import app
+
+    path = tmp_path / 'fallback.docx'
+    _docx_with_picture(path, paragraph, (800, 400))
+
+    def failed_conversion(*args, **kwargs):
+        raise RuntimeError('conversion failed')
+
+    monkeypatch.setattr(app.md, 'convert', failed_conversion)
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, b'SCANNED CLAUSE', b''))
+    if not scoring and not paragraph:
+        with pytest.raises(RuntimeError, match='conversion failed'):
+            app._convert_worker(str(path), pdf_ocr=scoring)
+        return
+
+    result = app._convert_worker(str(path), pdf_ocr=scoring)
+    assert ('SCANNED CLAUSE' in result.text_content) == scoring
+    if paragraph:
+        assert 'NATIVE WORD TERMS' in result.text_content
+    assert result.markdown == result.text_content
+    assert result.pages == []
+
+
+def test_docx_native_text_does_not_require_ocr_engine(tmp_path, monkeypatch):
+    from docx import Document
+    path = tmp_path / 'native.docx'
+    document = Document()
+    document.add_paragraph('NATIVE WORD TERMS')
+    document.save(path)
+
+    def missing(*args, **kwargs):
+        raise FileNotFoundError('tesseract')
+
+    monkeypatch.setattr(subprocess, 'run', missing)
+    assert converter.append_docx_image_ocr(str(path), 'NATIVE WORD TERMS') == 'NATIVE WORD TERMS'
+
+
+def test_docx_placeholder_only_empty_ocr_fails(tmp_path, monkeypatch):
+    path = tmp_path / 'scan.docx'
+    _docx_with_picture(path, None, (800, 400))
+    monkeypatch.setattr(subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a, 0, b'   ', b''))
+    with pytest.raises(converter.ScoringPdfOcrError, match='BID_OCR_EMPTY'):
+        converter.append_docx_image_ocr(str(path), '【已附图片】')
+
+
+def test_docx_icon_empty_ocr_keeps_native_text(tmp_path, monkeypatch):
+    path = tmp_path / 'icon.docx'
+    _docx_with_picture(path, 'NATIVE WORD TERMS', (32, 32))
+    called = {'n': 0}
+
+    def empty_recognition(*args, **kwargs):
+        called['n'] += 1
+        return subprocess.CompletedProcess(args, 0, b'   ', b'')
+
+    monkeypatch.setattr(subprocess, 'run', empty_recognition)
+    assert converter.append_docx_image_ocr(str(path), 'NATIVE WORD TERMS') == 'NATIVE WORD TERMS'
+    assert called['n'] == 1
+
+
 def test_native_only_pdf_does_not_require_ocr(tmp_path, monkeypatch):
     path = tmp_path / 'native-only.pdf'
     make_pdf(path, scanned_pages=0, native=True)
@@ -185,3 +300,69 @@ def test_native_only_pdf_does_not_require_ocr(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, 'run', unavailable)
     result = converter.convert_scoring_pdf_document(str(path))
     assert result['markdown'].count('NATIVE CONTRACT TERMS') == 1
+
+
+@pytest.mark.parametrize('previous_scan', [False, True], ids=['native-cover', 'first-scan'])
+@pytest.mark.parametrize('failure,code', [
+    ('timeout', 'BID_OCR_TIMEOUT'),
+    ('missing', 'BID_OCR_UNAVAILABLE'),
+    ('nonzero', 'BID_OCR_UNAVAILABLE'),
+    ('deadline', 'BID_OCR_TIMEOUT'),
+])
+def test_docx_ocr_failure_never_returns_partial_text(tmp_path, monkeypatch, previous_scan, failure, code):
+    from docx import Document
+    import time
+
+    path = tmp_path / 'partial.docx'
+    native = '' if previous_scan else 'NATIVE COVER'
+    _docx_with_picture(path, native, (800, 400))
+    if previous_scan:
+        picture = io.BytesIO()
+        Image.new('RGB', (800, 400), 'black').save(picture, format='PNG')
+        picture.seek(0)
+        document = Document(path)
+        document.add_picture(picture)
+        document.save(path)
+
+    clock = [0.0]
+    calls = [0]
+
+    def recognize(*args, **kwargs):
+        calls[0] += 1
+        if previous_scan and calls[0] == 1:
+            if failure == 'deadline':
+                clock[0] = 10.0
+            return subprocess.CompletedProcess(args, 0, b'FIRST SCANNED CLAUSE', b'')
+        if failure == 'timeout':
+            raise subprocess.TimeoutExpired('tesseract', 30)
+        if failure == 'missing':
+            raise FileNotFoundError('tesseract')
+        return subprocess.CompletedProcess(args, 1, b'', b'OCR engine failed')
+
+    monkeypatch.setattr(subprocess, 'run', recognize)
+    if failure == 'deadline':
+        monkeypatch.setenv('SIDECAR_BID_OCR_TIMEOUT_SECONDS', '1' if previous_scan else '0')
+        monkeypatch.setattr(time, 'monotonic', lambda: clock[0])
+    with pytest.raises(converter.ScoringPdfOcrError, match=code):
+        converter.append_docx_image_ocr(str(path), native)
+
+
+@pytest.mark.skipif(shutil.which('tesseract') is None, reason='requires real Tesseract')
+def test_docx_small_contract_screenshot_is_not_lost_with_native_text(tmp_path):
+    from docx import Document
+
+    path = tmp_path / 'small-contract.docx'
+    picture = io.BytesIO()
+    image = Image.new('RGB', (399, 200), 'white')
+    ImageDraw.Draw(image).text((15, 70), 'CONTRACT VALUE 72000000', fill='black',
+                              font=ImageFont.load_default(size=20))
+    image.save(picture, format='PNG')
+    picture.seek(0)
+    document = Document()
+    document.add_paragraph('NATIVE WORD TERMS')
+    document.add_picture(picture)
+    document.save(path)
+
+    text = converter.append_docx_image_ocr(str(path), 'NATIVE WORD TERMS')
+    assert 'NATIVE WORD TERMS' in text
+    assert 'CONTRACT VALUE 72000000' in text

@@ -299,6 +299,14 @@ def _extract_docx_streaming_sax(docx_path: str) -> str:
         return ""
 
 
+def _with_scoring_docx_ocr(path: str, text: str, pdf_ocr: bool) -> str:
+    """Scoring opt-in only. Other callers keep the existing Word text."""
+    if not pdf_ocr:
+        return text
+    from converter import append_docx_image_ocr
+    return append_docx_image_ocr(path, text or "")
+
+
 def _convert_worker(path: str, pdf_ocr: bool = False) -> Any:
     from types import SimpleNamespace
 
@@ -329,15 +337,23 @@ def _convert_worker(path: str, pdf_ocr: bool = False) -> Any:
                 logger.info("Docx document.xml exceeds threshold; using streaming SAX parser: %s", target_path)
                 sax_text = _extract_docx_streaming_sax(target_path)
                 if sax_text and len(sax_text.strip()) >= 50:
-                    return SimpleNamespace(text_content=sax_text, markdown=sax_text, pages=[])
+                    text = _with_scoring_docx_ocr(target_path, sax_text, pdf_ocr)
+                    return SimpleNamespace(text_content=text, markdown=text, pages=[])
             try:
                 result = md.convert(target_path)
             except Exception as e:
                 logger.warning("markitdown failed on docx (%s), falling back to streaming SAX: %s", e, target_path)
                 sax_text = _extract_docx_streaming_sax(target_path)
-                if sax_text and len(sax_text.strip()) >= 50:
-                    return SimpleNamespace(text_content=sax_text, markdown=sax_text, pages=[])
+                if pdf_ocr or (sax_text and len(sax_text.strip()) >= 50):
+                    text = _with_scoring_docx_ocr(target_path, sax_text, pdf_ocr)
+                    return SimpleNamespace(text_content=text, markdown=text, pages=[])
                 raise
+            text = _MD_IMG_PATTERN.sub("【已附图片】", result.text_content or "")
+            text = _with_scoring_docx_ocr(target_path, text, pdf_ocr)
+            return SimpleNamespace(
+                text_content=text,
+                markdown=text if pdf_ocr else (getattr(result, "markdown", None) or result.text_content),
+                pages=[])
     else:
         result = md.convert(path)
 

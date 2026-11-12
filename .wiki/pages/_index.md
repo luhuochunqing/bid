@@ -217,7 +217,7 @@ backlinks:
 
 - [[quality1360-diagnosis]] — 项目1360历史质量报告误判、评分证据错位及同输入验收边界。
 
-- [[score580-scanned-bid-scoring]] — 项目580扫描件实际评分和预估能力边界。
+- [[score580-scanned-bid-scoring]] — 项目580扫描件实际评分和预估能力边界；2026-11-12 评分 PDF 与 Word 嵌入图接入现有 OCR；Word 失败不返回部分正文，小型证据截图不按尺寸跳过。
 
 - [[scoring-only-adoption]] — 资格/零分审计事实与正式评分项的采纳边界。
 - [[scoreparse-1123-double-total]] — 项目1123满分汇总行误作评分项，候选100+100=200的只读诊断。

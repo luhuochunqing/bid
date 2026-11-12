@@ -12,14 +12,15 @@ backlinks:
   - _index
   - score-parse-service
 created: 2026-11-11
-updated: 2026-11-11
-health_checked: 2026-11-11
+updated: 2026-11-12
+health_checked: 2026-11-12
 ---
 # 项目580扫描投标PDF实际评分与预估边界
 
 - 生产任务d4c579d0，release2960e7ea5：177MB下载到Sidecar后200空正文（chars0、low_text_density），extractOnDisk:140终止，AI未开始。
 - 评分入口的完整PDF OCR必须覆盖内存/磁盘两种文件路径；表格OCR30页样本不能替代1225页全卷。
-- X-Pdf-Ocr:true为评分专用opt-in；默认转换不变。原生文字/表格保留，扫描页逐页识别带物理页号；真实空白扫描页允许，失败/超时不返回部分正文。
+- X-Pdf-Ocr:true 为评分专用 opt-in；默认转换不变。PDF：有图或无原生文字的页送现有 Tesseract；单页识别为空保留该页已有文字，整卷无文字才失败；引擎缺失、非零退出或超时整卷失败。
+- Word（.doc/.docx）走同一评分入口。原生文字保留，可解码的非纯白嵌入图片均用同一套 Tesseract，不按像素尺寸跳过小型证据截图；图标识别为空可继续，整卷无文字才失败。引擎缺失、非零退出或超时必须整卷失败，不因已有原生正文或前序图片文字而静默返回部分正文。
 - Java安全错误映射只认BID_OCR_UNAVAILABLE/TIMEOUT/EMPTY；任务和逐项missedReason同源。
 - 预估5项主观+4项客观不支持自动匹配：显示待专家评审/需人工评估；不是零分，也不是实际评分失败导致。
 - 跨模块：Casework/Compliance/Tender其他extract调用仍保留原契约；评分HTTP1800s/OCR1500s独立预算。Sidecar和后端需配套发布。
