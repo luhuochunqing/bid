@@ -380,6 +380,10 @@ CONFIRM_RESTORE=YES bash scripts/release/restore-db.sh <backup-file>
 > 体积下限三重校验，任一失败返回非零 → `remote-deploy.sh`（`set -e`）中止部署并删除半成品。
 > 第 36/39 次生产部署的 371 字节"假备份 + 打印 DB backup done + 继续部署"即
 > `mysqldump | gzip > file` 吞掉 mysqldump 退出码所致，已在脚本层收口。
+>
+> **手工部署同样禁止内联 mysqldump**（第 41 次复发的直接原因：照抄技能文档旧模板）：
+> `DB_BACKUP_COMMAND="bash /opt/xiyu-bid/bin/backup-db-pre-deploy.sh <release-id>"`，
+> 并先把该脚本 scp 到 `<APP_ROOT>/bin/`。技能 `SKILL.md` / `release-runbook.md` 已同步改口径。
 
 ### 9.3 打包命令
 

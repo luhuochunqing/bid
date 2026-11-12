@@ -8180,6 +8180,9 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - **修复**：新增 `scripts/release/backup-db-pre-deploy.sh`（`--single-transaction` + 失败即删半成品 + `gzip -t` / `Dump completed` 尾部 / 体积下限三重校验），`deploy-prod.sh` 与 `deploy-test.sh` 均改为上传到 `<APP_ROOT>/bin/` 后调用；失败返回非零，由 `remote-deploy.sh` 的 `set -e` 中止部署。
 - **通用教训**：部署前置步骤凡"写文件 + 管道"，必须显式校验执行者退出码与产物完整性，并 fail closed；回归契约必须含反向变异（把备份调用改成 `|| true` 后断言必须失败），否则断言易空转。
 - **环境实证**：生产与测试 mysqldump 均为 `5.5.68-MariaDB`，`--single-transaction` 两端可用（测试机 schema dump rc=0、221 表、含 `Dump completed`）；测试账号 `ea_bid` 具备 `LOCK TABLES`，故该缺陷在测试侧是潜伏态而非已触发。
+- **2026-11-12 第 3 次复发（第 41 次生产部署）**：脚本层早已收口，但 `xiyu-server-deploy` 技能文档仍教手工内联 mysqldump，照抄即复现 371 字节假备份（`1044 ... when using LOCK TABLES`，exit=2）。已把 `SKILL.md` / `references/release-runbook.md` 的 `DB_BACKUP_COMMAND` 改为 `bash /opt/xiyu-bid/bin/backup-db-pre-deploy.sh <release-id>` 并把该脚本加入 scp 上传清单。
+  - 教训：**修复必须同时收口"自动路径"与"文档路径"**。只要 SOP 里还留着手工命令模板，人就一定会照抄；文档中的示例命令等同于可执行契约。
+  - 自查方式：部署后 `ls -lh /opt/xiyu-bid/db-backups/*<release-id>*`，MB 级且 `zcat | grep -c "^CREATE TABLE"` 与库表数一致才算有效；371 字节文件立即重做并重命名 `*.invalid.sql.gz` 防误用。
 
 2026-11-08 项目1360 HTML标签污染治理与资质文案去技术化：
 - **HTML标签污染根因**: Sidecar（或文档解析引擎）将 DOCX/PDF 表格转换为 Markdown 单元格时，单元格内换行会生成 `<br>` 标签（如 `具有有效的中华人民共和国增值电信业务经营许可证（EDI和<br>ICP）`）。若直接粗暴剥离所有 `<` / `>`，会误伤数学与商业比较符（如 `<100万`、`>3年`）；若不清洗，提取出的关键词会变成 `EDI和brICP`，导致证书提取与资质一票否决匹配断链。
