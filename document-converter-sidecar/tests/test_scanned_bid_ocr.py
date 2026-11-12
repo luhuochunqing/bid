@@ -69,13 +69,22 @@ def test_mixed_pdf_keeps_sparse_scanned_contract_number(tmp_path):
     assert '[第 2 页]\nCONTRACT NO 20261111' in result['markdown']
 
 
-def test_ocr_failure_never_returns_partial_document(tmp_path, monkeypatch):
+@pytest.mark.parametrize('failure,code', [
+    ('missing', 'BID_OCR_UNAVAILABLE'),
+    ('timeout', 'BID_OCR_TIMEOUT'),
+    ('nonzero', 'BID_OCR_UNAVAILABLE'),
+])
+def test_ocr_failure_never_returns_partial_document(tmp_path, monkeypatch, failure, code):
     path = tmp_path / 'failure.pdf'
     make_pdf(path, native=True)
     def fail(*args, **kwargs):
-        raise FileNotFoundError('tesseract missing')
+        if failure == 'missing':
+            raise FileNotFoundError('tesseract missing')
+        if failure == 'timeout':
+            raise subprocess.TimeoutExpired('tesseract', 30)
+        return subprocess.CompletedProcess(args, 1, b'', b'OCR engine failed')
     monkeypatch.setattr(subprocess, 'run', fail)
-    with pytest.raises(converter.ScoringPdfOcrError, match='BID_OCR_UNAVAILABLE'):
+    with pytest.raises(converter.ScoringPdfOcrError, match=code):
         converter.convert_scoring_pdf_document(str(path))
 
 
@@ -345,6 +354,34 @@ def test_docx_ocr_failure_never_returns_partial_text(tmp_path, monkeypatch, prev
         monkeypatch.setattr(time, 'monotonic', lambda: clock[0])
     with pytest.raises(converter.ScoringPdfOcrError, match=code):
         converter.append_docx_image_ocr(str(path), native)
+
+
+@pytest.mark.skipif(shutil.which('tesseract') is None, reason='requires real Tesseract')
+@pytest.mark.parametrize('mode', ['RGBA', 'LA', 'P'])
+@pytest.mark.parametrize('native', ['', 'NATIVE WORD TERMS'])
+def test_docx_transparent_contract_preserves_visible_amount(tmp_path, mode, native):
+    from docx import Document
+
+    path = tmp_path / 'transparent-contract.docx'
+    image = Image.new('RGBA', (1400, 500), (0, 0, 0, 0))
+    ImageDraw.Draw(image).text((70, 150), 'CONTRACT VALUE 72000000', fill='black',
+                              font=ImageFont.load_default(size=55))
+    image = image.convert(mode)
+    if mode == 'P':
+        image.info['transparency'] = image.getpixel((0, 0))
+    picture = io.BytesIO()
+    image.save(picture, format='PNG')
+    picture.seek(0)
+    document = Document()
+    if native:
+        document.add_paragraph(native)
+    document.add_picture(picture)
+    document.save(path)
+
+    text = converter.append_docx_image_ocr(str(path), native)
+    if native:
+        assert native in text
+    assert 'CONTRACT VALUE 72000000' in text
 
 
 @pytest.mark.skipif(shutil.which('tesseract') is None, reason='requires real Tesseract')

@@ -16,6 +16,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -116,6 +118,26 @@ class BidFileLoadingCoordinatorTest {
                 .isInstanceOf(BidTextExtractionException.class)
                 .hasMessageContaining("未提取出有效正文");
         verifyNoInteractions(textExtractor);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"投标文件.doc,doc", "投标文件.DOC,application/msword", "投标文件,application/msword"})
+    void load_legacyDocPreservesOriginalTextExtractor(String fileName, String contentType) {
+        String url = "/storage/uploads/legacy.doc";
+        byte[] content = "legacy-doc-bytes".getBytes(StandardCharsets.UTF_8);
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(1L).projectId(PROJECT_ID).name(fileName).fileType(contentType).fileUrl(url).build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(PROJECT_ID, "BID", null, null))
+                .thenReturn(List.of(doc));
+        when(fileStorage.load(url)).thenReturn(Optional.of(
+                new LoadedProjectDocumentFile(url, url, contentType, content, null)));
+        when(textExtractor.extract(fileName, contentType, content))
+                .thenReturn(new ExtractedTenderDocument(fileName, contentType, "原有DOC正文", 7, "poi-hwpf-fallback"));
+
+        BidFileLoadingCoordinator.LoadedBidDocument loaded = coordinator.load(PROJECT_ID, TASK_ID);
+
+        assertThat(loaded.text()).isEqualTo("原有DOC正文");
+        verifyNoInteractions(streamTextExtractor);
     }
 
     @Test

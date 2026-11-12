@@ -190,15 +190,20 @@ is skipped. One page with empty recognition keeps that page's existing text and
 the rest of the document continues. No 30-page table-artifact sampling cap is used.
 
 The OCR budget `SIDECAR_BID_OCR_TIMEOUT_SECONDS` defaults to 1500 seconds.
-For scoring PDFs and Word files, a missing engine, a non-zero Tesseract exit, or a timeout returns HTTP 422 with
+For scoring PDFs and DOCX files, a missing engine, a non-zero Tesseract exit, or a timeout returns HTTP 422 with
 `detail` equal to `BID_OCR_UNAVAILABLE` or `BID_OCR_TIMEOUT` and does not return
 partial text. `BID_OCR_EMPTY` is returned only when the finished document has no
 text on any page.
-A Word file keeps its native text and OCRs every decodable non-white embedded
+A DOCX file keeps its native text and OCRs every decodable non-white embedded
 picture, including small screenshots. Pixel dimensions do not distinguish icons
 from scoring evidence. Icons with empty recognition keep the native text; OCR
 errors fail the whole conversion even when earlier images or native text yielded
-content. Pure-white pictures are skipped.
+content. Transparent pictures are composited onto white before OCR, including
+RGBA, grayscale-alpha and palette transparency. Pure-white pictures are skipped.
+Legacy `.doc` in-memory scoring files retain the existing DocInsight extraction
+path and its POI HWPF fallback. Scanned `.doc` OCR is not verified: the current
+Linux Sidecar has no validated DOC-to-DOCX converter. Existing on-disk routing
+is unchanged.
 Requests without the header retain the existing conversion contract.
 
 The Java scoring entry uses `app.score-parse.bid-file.scoring-timeout-seconds`

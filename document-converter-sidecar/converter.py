@@ -1206,6 +1206,25 @@ class ScoringPdfOcrError(RuntimeError):
     """Stable boundary error: incomplete OCR must never become scoring evidence."""
 
 
+def _run_scoring_ocr(image: bytes, deadline: float) -> str:
+    """Run the shared scoring OCR engine and map process failures to boundary errors."""
+    import time
+
+    try:
+        process = subprocess.run(
+            ["tesseract", "stdin", "stdout", "-l", "chi_sim+eng", "--psm", "3"],
+            input=image, capture_output=True,
+            timeout=max(0.001, min(30, deadline - time.monotonic())), check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ScoringPdfOcrError("BID_OCR_TIMEOUT") from exc
+    except OSError as exc:
+        raise ScoringPdfOcrError("BID_OCR_UNAVAILABLE") from exc
+    if process.returncode != 0:
+        raise ScoringPdfOcrError("BID_OCR_UNAVAILABLE")
+    return process.stdout.decode("utf-8", errors="replace").strip()
+
+
 def convert_scoring_pdf_document(pdf_path: str) -> dict:
     """OCR every scoring page that has an image or no native text.
 
@@ -1236,20 +1255,9 @@ def convert_scoring_pdf_document(pdf_path: str) -> dict:
                     pages.append({"pageNumber": index + 1, "text": text})
                     continue
                 try:
-                    process = subprocess.run(
-                        ["tesseract", "stdin", "stdout", "-l", "chi_sim+eng", "--psm", "3"],
-                        input=pixmap.tobytes("png"), capture_output=True,
-                        timeout=max(0.001, min(30, deadline - time.monotonic())), check=False,
-                    )
-                except subprocess.TimeoutExpired as exc:
-                    raise ScoringPdfOcrError("BID_OCR_TIMEOUT") from exc
-                except OSError as exc:
-                    raise ScoringPdfOcrError("BID_OCR_UNAVAILABLE") from exc
+                    ocr_text = _run_scoring_ocr(pixmap.tobytes("png"), deadline)
                 finally:
                     del pixmap
-                if process.returncode != 0:
-                    raise ScoringPdfOcrError("BID_OCR_UNAVAILABLE")
-                ocr_text = process.stdout.decode("utf-8", errors="replace").strip()
                 if ocr_text:
                     if re.sub(r"\s+", "", text) in re.sub(r"\s+", "", ocr_text):
                         text = ocr_text
@@ -1295,28 +1303,20 @@ def append_docx_image_ocr(docx_path: str, native_text: str) -> str:
             try:
                 image = Image.open(io.BytesIO(raw))
                 image.load()
-                rgb = image.convert("RGB")
+                # Match Word's white page: dropping alpha turns transparent black
+                # backgrounds into black and destroys otherwise visible black text.
+                rgba = image.convert("RGBA")
+                rgb = Image.new("RGB", image.size, "white")
+                rgb.paste(rgba, mask=rgba.getchannel("A"))
             except (OSError, ValueError):
                 continue
             if rgb.getextrema() == ((255, 255), (255, 255), (255, 255)):
                 continue
             png = io.BytesIO()
             rgb.save(png, format="PNG")
-            try:
-                process = subprocess.run(
-                    ["tesseract", "stdin", "stdout", "-l", "chi_sim+eng", "--psm", "3"],
-                    input=png.getvalue(), capture_output=True,
-                    timeout=max(0.001, min(30, deadline - time.monotonic())), check=False,
-                )
-            except subprocess.TimeoutExpired as exc:
-                raise ScoringPdfOcrError("BID_OCR_TIMEOUT") from exc
-            except OSError as exc:
-                raise ScoringPdfOcrError("BID_OCR_UNAVAILABLE") from exc
-            if process.returncode != 0:
-                raise ScoringPdfOcrError("BID_OCR_UNAVAILABLE")
+            ocr_text = _run_scoring_ocr(png.getvalue(), deadline)
             if time.monotonic() >= deadline:
                 raise ScoringPdfOcrError("BID_OCR_TIMEOUT")
-            ocr_text = process.stdout.decode("utf-8", errors="replace").strip()
             if ocr_text:
                 pieces.append(ocr_text)
     if not pieces:

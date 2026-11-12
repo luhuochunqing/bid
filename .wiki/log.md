@@ -1,3 +1,11 @@
+## [2026-11-12] fix 第1轮 | 透明图片金额保真与旧版 DOC 回退
+
+- 根因：透明图片直接转 RGB 丢弃 alpha，透明黑底与可见黑字合成全黑；宽泛 Word 分流绕过 DOC 的 DocInsight/POI HWPF 回退。
+- 修复：DOCX 嵌入图先合成白底再 OCR（RGBA、LA、调色板透明度）；内存新增评分分流限定 PDF/DOCX，旧版 DOC 保留原 textExtractor；磁盘路由不变。Linux 扫描 DOC OCR 未验证，不作为本次交付能力。
+- 行为保护：改前 Python 34 项、Java 8 项通过；新增透明图 6 项及 DOC 路由 3 项先失败。改后 `test_scanned_bid_ocr.py` 40 项、`BidFileLoadingCoordinatorTest` 11 项通过。最终透明图测试进程内换回旧 RGB 转换后 6 项再次全部失败，未改写工作区代码。
+- 环境：复用已安装 Sidecar Python 环境，Java 离线测试预加载已有 Byte Buddy agent；均无监听端口。HTTP 测试留主执行器 verify；未提交、push、PR 或部署。
+- 回填：[[score580-scanned-bid-scoring]]。
+
 ## [2026-11-12] fix 第1轮 | Word OCR 完整性与小型证据截图
 
 - 根因：已有正文时吞掉后续 Word OCR 超时/引擎错误，返回部分正文；最长边不足400像素被误作图标跳过。

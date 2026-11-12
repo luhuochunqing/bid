@@ -22,7 +22,8 @@ import java.util.List;
 
 /**
  * 打分链路投标文件加载协调器（spec 045 T011 + spec 048 T013）。
- * <p>PDF 与 Word 的正文走评分 OCR（内存和落盘都带 X-Pdf-Ocr）。其他格式的内存文件仍走 textExtractor。
+ * <p>PDF 与 DOCX 的正文走评分 OCR（内存和落盘都带 X-Pdf-Ocr）。其他格式的内存文件仍走 textExtractor，
+ * 包括依赖 DocInsight/POI 回退的旧版 DOC。
  * OnDisk 一律走 SidecarStreamTextExtractor（流式上传 + char 计数）。
  * contentHash 与 BidScoreSkipPolicy.hashBytes 同口径，skip 策略跨加载路径可比。
  * OnDisk 临时文件在提取完成后立即 release（早于任务终态，配额占用最小化）。
@@ -151,7 +152,7 @@ public class BidFileLoadingCoordinator {
     }
 
     private static boolean usesScoringOcr(LoadedBidFile file) {
-        return isPdf(file) || isWord(file);
+        return isPdf(file) || isDocx(file);
     }
 
     private static boolean isPdf(LoadedBidFile file) {
@@ -159,17 +160,16 @@ public class BidFileLoadingCoordinator {
                 || hasExtension(file, ".pdf");
     }
 
-    private static boolean isWord(LoadedBidFile file) {
-        String type = file.contentType() == null ? "" : file.contentType().toLowerCase(java.util.Locale.ROOT);
-        return type.contains("word")
-                || hasExtension(file, ".doc") || hasExtension(file, ".docx");
+    private static boolean isDocx(LoadedBidFile file) {
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                .equalsIgnoreCase(file.contentType()) || hasExtension(file, ".docx");
     }
 
     private static boolean hasExtension(LoadedBidFile file, String extension) {
         return file.fileName() != null && file.fileName().toLowerCase(java.util.Locale.ROOT).endsWith(extension);
     }
 
-    /** PDF 和 Word 空白才是识别失败。其他格式没有这条 OCR 路径。 */
+    /** PDF 和 DOCX 空白才是识别失败。其他格式没有这条 OCR 路径。 */
     private static void requireExtractedText(String text, LoadedBidFile file, boolean scoringOcr) {
         if (text != null && !text.isBlank()) {
             return;
