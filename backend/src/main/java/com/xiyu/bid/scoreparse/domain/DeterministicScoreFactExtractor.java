@@ -43,25 +43,17 @@ public final class DeterministicScoreFactExtractor {
         Map<Integer, ScoreFact> parentFactByOriginRow = new HashMap<>();
         for (int row = startRow; row < grid.rows(); row++) {
             List<CanonicalCell> rowCells = grid.cellsInRow(row).stream()
-                    .sorted(Comparator.comparingInt(CanonicalCell::column))
-                    .toList();
-            if (rowCells.isEmpty()) {
-                continue;
-            }
+                    .sorted(Comparator.comparingInt(CanonicalCell::column)).toList();
+            if (rowCells.isEmpty()) continue;
             CanonicalCell detailCell = cellAt(rowCells, mapping.detailCol()).orElse(null);
             String detail = detailCell == null ? "" : detailCell.rawText();
             CanonicalCell dimCell = cellAt(rowCells, mapping.dimCol()).orElse(null);
             String dimension = cleanDimension(dimCell == null ? "" : dimCell.rawText());
             String code = cellAt(rowCells, mapping.codeCol()).map(CanonicalCell::rawText).orElse("").trim();
-            String sourceText = rowCells.stream()
-                    .filter(cell -> !cell.isMergedContinue())
-                    .map(CanonicalCell::rawText)
-                    .filter(text -> !text.isBlank())
-                    .reduce((left, right) -> left + " | " + right)
-                    .orElse("");
-            if (sourceText.isBlank()) {
-                continue;
-            }
+            String sourceText = rowCells.stream().filter(cell -> !cell.isMergedContinue())
+                    .map(CanonicalCell::rawText).filter(text -> !text.isBlank())
+                    .reduce((left, right) -> left + " | " + right).orElse("");
+            if (sourceText.isBlank()) continue;
             if (rowCells.stream().anyMatch(cell -> cell.isUsableOrigin()
                     && cell.column() == 0 && cell.colspan() == grid.columns())
                     && ScoreTableSummaryPolicy.isReviewerInstruction(sourceText)) continue;
@@ -261,7 +253,13 @@ public final class DeterministicScoreFactExtractor {
         String dim = !fact.dimension().isBlank() ? fact.dimension()
                 : (parent != null && !parent.dimension().isBlank() ? parent.dimension()
                 : (originLeaf != null && !originLeaf.dimension().isBlank() ? originLeaf.dimension() : ""));
-        return fact.withParentFactId(parent != null ? parent.factId() : "").withDimension(dim);
+        String originCellId = dimensionOriginCellIdByRow.get(row);
+        List<String> sourceCellIds = new ArrayList<>(fact.sourceCellIds());
+        if (originCellId != null && !sourceCellIds.contains(originCellId)) sourceCellIds.add(originCellId);
+        String sourceText = fact.sourceText();
+        if (!dim.isBlank() && !sourceText.contains(dim)) sourceText = dim + " | " + sourceText;
+        return fact.withParentFactId(parent != null ? parent.factId() : "")
+                .withDimension(dim).withSourceCellIdsAndText(sourceCellIds, sourceText);
     }
 
     private static ScoreFact resolveParentFact(

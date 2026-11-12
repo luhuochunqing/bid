@@ -96,6 +96,20 @@ public record ScoreFact(
                 confidence, validationStatus, childAggregation, sourceMetadata);
     }
 
+    /** Returns a copy of this fact with {@code sourceCellIds} replaced. */
+    public ScoreFact withSourceCellIds(List<String> newSourceCellIds) {
+        return new ScoreFact(factId, sourceTableId, newSourceCellIds, sourceText, code, dimension,
+                weight, weightEvidence, scoreRule, parentFactId, extractionMethod,
+                confidence, validationStatus, childAggregation, sourceMetadata);
+    }
+
+    /** Returns a copy of this fact with {@code sourceCellIds} and {@code sourceText} replaced. */
+    public ScoreFact withSourceCellIdsAndText(List<String> newSourceCellIds, String newSourceText) {
+        return new ScoreFact(factId, sourceTableId, newSourceCellIds, newSourceText, code, dimension,
+                weight, weightEvidence, scoreRule, parentFactId, extractionMethod,
+                confidence, validationStatus, childAggregation, sourceMetadata);
+    }
+
     /** Returns a copy of this fact with {@code dimension} replaced (semantic classification). */
     public ScoreFact withDimension(String newDimension) {
         return new ScoreFact(factId, sourceTableId, sourceCellIds, sourceText, code, newDimension,

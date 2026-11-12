@@ -35,7 +35,8 @@ final class MultimodalExtractionReviewPolicy {
             declaredTotal = context.total().value();
         }
         List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact, tenderText);
-        List<MultimodalScoreFact> scopedFacts = com.xiyu.bid.scoreparse.domain.SourceFactDeduplication.merge(extraction.facts().stream()
+        List<MultimodalScoreFact> prunedFacts = pruneSyntheticParents(extraction.facts());
+        List<MultimodalScoreFact> scopedFacts = com.xiyu.bid.scoreparse.domain.SourceFactDeduplication.merge(prunedFacts.stream()
                 .map(fact -> assignScope(fact, context, artifact, tenderText, schemes)).toList(), artifact);
         var baseFacts = ZeroDeductionUnitEvidence.resolve(SingletonScoreUnitEvidence.resolve(
                 MultimodalFactParentCodeNormalizer.normalize(scopedFacts), artifact), artifact);
@@ -155,6 +156,109 @@ final class MultimodalExtractionReviewPolicy {
                         entry.getKey(), -1, entry.getValue().locator(), entry.getValue().locator()))
                 .toList();
         return ScoreTableSplitPolicy.split(inputs, totals, tenderSectionText);
+    }
+
+    /**
+     * 跨行合并分值聚合与虚构大项剪枝：
+     * 当模型或表格同时存在“大类总分项（如 19分、13分）”与其内部平级子项（6~9项、11~12项）时，
+     * 若子项分值之和精确等于大项分值（4 + 4 + 4 + 7 = 19、4 + 9 = 13），
+     * 自动将大项予以剪枝，禁止将其单独作为叶子事实或方案外杂音呈现给用户。
+     */
+    public static List<MultimodalScoreFact> pruneSyntheticParents(List<MultimodalScoreFact> facts) {
+        if (facts == null || facts.size() < 2) return facts == null ? List.of() : facts;
+
+        java.util.Set<MultimodalScoreFact> pruned = new java.util.HashSet<>();
+
+        for (int i = 0; i < facts.size(); i++) {
+            MultimodalScoreFact parentCandidate = facts.get(i);
+            if (parentCandidate.weight() == null || parentCandidate.weight().compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+
+            // 虚构大项特征：无单元格 ID、无 tableId、或无具体细则规则（规则等于名称或为空）
+            boolean isFloatingOrContainer = (parentCandidate.tableId().isBlank() || parentCandidate.sourceCellIds().isEmpty())
+                    || (parentCandidate.ruleText() == null || parentCandidate.ruleText().isBlank()
+                    || parentCandidate.ruleText().trim().equals(parentCandidate.dimension().trim()));
+
+            if (!isFloatingOrContainer) {
+                continue;
+            }
+
+            BigDecimal targetWeight = parentCandidate.weight();
+
+            // 若存在任何子项显式关联此节点作为 parentCode，则这是合法的树状父节点，绝不能作为虚构大项剪枝
+            boolean hasExplicitChildren = facts.stream()
+                    .anyMatch(f -> !f.equals(parentCandidate) && !f.parentCode().isBlank()
+                            && (f.parentCode().equals(parentCandidate.code()) || f.parentCode().equals(parentCandidate.dimension())));
+            if (hasExplicitChildren) {
+                continue;
+            }
+
+            // 2. 检查平级子项聚合：在紧随其后或同区域的候选事实中，寻找连续或关联子集
+            List<MultimodalScoreFact> concreteItems = new java.util.ArrayList<>();
+            for (int j = 0; j < facts.size(); j++) {
+                if (j == i) continue;
+                MultimodalScoreFact candidateChild = facts.get(j);
+                if (pruned.contains(candidateChild)) continue;
+                if (candidateChild.weight() == null || candidateChild.weight().compareTo(BigDecimal.ZERO) <= 0) continue;
+                boolean hasDetail = (!candidateChild.ruleText().isBlank() && !candidateChild.ruleText().equals(candidateChild.dimension()))
+                        || !candidateChild.sourceCellIds().isEmpty();
+                if (hasDetail) {
+                    concreteItems.add(candidateChild);
+                }
+            }
+
+            // 候选子项集：紧随 parentCandidate 之后的一段连续子集
+            List<MultimodalScoreFact> candidateSubset = new java.util.ArrayList<>();
+            boolean tracking = false;
+            for (int j = 0; j < facts.size(); j++) {
+                if (j == i) {
+                    tracking = true;
+                    continue;
+                }
+                if (tracking) {
+                    MultimodalScoreFact f = facts.get(j);
+                    if (concreteItems.contains(f)) {
+                        candidateSubset.add(f);
+                        BigDecimal currentSum = candidateSubset.stream().map(MultimodalScoreFact::weight)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                        if (currentSum.compareTo(targetWeight) == 0 && candidateSubset.size() >= 2) {
+                            pruned.add(parentCandidate);
+                            break;
+                        } else if (currentSum.compareTo(targetWeight) > 0) {
+                            break;
+                        }
+                    } else if (f.weight() != null && f.weight().compareTo(BigDecimal.ZERO) > 0) {
+                        break;
+                    }
+                }
+            }
+
+            if (pruned.contains(parentCandidate)) {
+                continue;
+            }
+
+            // 3. 全局在同章节 concreteItems 中寻找名称相关或紧凑子集
+            String pName = parentCandidate.dimension().replaceAll("\\s+", "");
+            List<MultimodalScoreFact> relatedChildren = concreteItems.stream()
+                    .filter(c -> {
+                        String cDim = c.dimension().replaceAll("\\s+", "");
+                        String cRule = c.ruleText().replaceAll("\\s+", "");
+                        return cDim.contains(pName) || pName.contains(cDim) || cRule.contains(pName);
+                    }).toList();
+            if (relatedChildren.size() >= 2) {
+                BigDecimal sum = relatedChildren.stream().map(MultimodalScoreFact::weight)
+                        .filter(java.util.Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+                if (sum.compareTo(targetWeight) == 0) {
+                    pruned.add(parentCandidate);
+                }
+            }
+        }
+
+        if (pruned.isEmpty()) {
+            return facts;
+        }
+        return facts.stream().filter(f -> !pruned.contains(f)).toList();
     }
 
     private static boolean isScoringSection(String sectionTitle) {

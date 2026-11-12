@@ -187,6 +187,7 @@ public final class CanonicalTableGridFactory {
         }
 
         // ---- PASS 4: verify isMergedContinue coverage ----
+        Map<String, CanonicalCell> updatedContinuations = new HashMap<>();
         for (CanonicalCell origin : canonicalCells) {
             if (origin.isMergedContinue()) {
                 continue;
@@ -218,7 +219,25 @@ public final class CanonicalTableGridFactory {
                                 origin.cellId(),
                                 "expected isMergedContinue at (" + rr + "," + cc + ") "
                                         + "but found origin cellId " + covered.cellId()));
+                    } else if (covered.rawText().isBlank() && !origin.rawText().isBlank()) {
+                        CanonicalCell inherited = new CanonicalCell(
+                                covered.cellId(), covered.row(), covered.column(),
+                                origin.rawText(), origin.normalizedText(),
+                                covered.rowspan(), covered.colspan(),
+                                covered.isMergedContinue(), covered.sourceXmlPath()
+                        );
+                        rowMap.put(cc, inherited);
+                        updatedContinuations.put(covered.cellId(), inherited);
                     }
+                }
+            }
+        }
+        if (!updatedContinuations.isEmpty()) {
+            for (int i = 0; i < canonicalCells.size(); i++) {
+                CanonicalCell cell = canonicalCells.get(i);
+                CanonicalCell updated = updatedContinuations.get(cell.cellId());
+                if (updated != null) {
+                    canonicalCells.set(i, updated);
                 }
             }
         }

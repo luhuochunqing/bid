@@ -8345,3 +8345,27 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - 本地修复：复用全项计算和原CAS保存；返回本次处理、数值项（含0）、无分值项和逐项原因；空处理拒绝。UI工具栏移出折叠区，证书过期统计明确仅描述证书。
 - 独立审查发现并发窗口：计算A摘要与后续读取B结果可能混用。保存计算形成不可变结果身份，Controller读取变化返回409；POST到GET间规则或结果变化时前端拒绝旧摘要。分别新增MySQL与前端反例，先RED再GREEN。
 - 验收边界：真实MySQL业绩/仓储匹配、旧依据替换、0分统计与候选/阶段2不变性；真实浏览器验证折叠点击→API→保存→页面。生产1117/1119仍须授权发布后验收，不把测试通过当作线上恢复。规格`specs/086-score-estimate-refresh`。
+
+## 501. 大跨度 Rowspan 与平级编号项评分表格解析失真及三阶收敛（Project 1123，2026-11-12）
+
+### 问题背景
+生产项目 1123（集采项目 100 分综合评估法，包含 12 个真实评分项）解析持续失真：
+1. 界面呈现 16 项候选，有效合计 108 分（膨胀 8 分）；
+2. 页面底部存在 2 条方案外事实（19分大类“物流保障与配送服务能力”、13分大类“结算服务能力及无息账期”），显示“详细评审方案外: 无法确认属于当前评分方案”；
+3. 确定性管道计算为 76 分（100 - 24 = 76），触发 `TABLE_SUBTOTAL_MISMATCH` 熔断后降级为多模态模型提取与行补漏。
+
+### 根因深度剖析（四阶致错链）
+1. **OCR 网格跨行续行文本割裂**：`BaiduTableGridBuilder` 处理 `safeRowspan > 1` 的续行单元格时，直接填充空字符串 `""`，导致续行单元格与父级合并单元格名称割裂。
+2. **事实引用丢失合并列 Cell ID**：`DeterministicScoreFactExtractor` 过滤了 `isMergedContinue=true` 单元格，导致续行事实的 `sourceCellIds` 丢失了合并列 origin Cell ID。`OriginalScoreQualificationPolicy` 进行 `quoteMatches` 核验时，仅用第 0 列序号和细则匹配父级维度名（“物流保障与配送服务能力”），必然失败并报 `SOURCE_QUOTE_NOT_VERIFIED`。误杀 4+4+7+9 = 24 分，导致有效分暴跌至 76 分，确定性管道直接熔断降级。
+3. **平级编号大项沦为方案外杂音**：标书细项采用平级编号（6~9、11~12），而非带点层级编码（6.1, 6.2）。大模型提取了 19 分和 13 分大类，由于没有点号层级，`MultimodalFactParentCodeNormalizer` 无法挂载父子关系；`assignScope` 因其无 tableId 且 code 为纯文字，直接判定为 `OUT_OF_SCHEME`，作为方案外杂音呈现给用户。
+4. **补漏恢复缺乏幂等去重**：`SourceReviewRowRecovery` 强行从 shadow table 回补时，缺少针对已有模型事实 `(code, weight)` 及文本包含的幂等去重门禁，导致模型已提取的第 6 项（4分）和第 7 项（4分）被重复追加，产生 108 分（100 + 4 + 4 = 108）。
+
+### 架构三阶收敛方案
+1. **OCR 网格跨行继承下沉与 Cell ID 穿透**：
+   - 在 `BaiduTableGridBuilder` 与 `CanonicalTableGridFactory` 中，纵向合并续行单元格完整继承父级合并单元格的内容与规范文本；
+   - 在 `DeterministicScoreFactExtractor.resolveContinuationFact` 中，将合并列 origin Cell ID 穿透写入 `sourceCellIds`，并在 `sourceText` 中补充继承的维度文本；
+   - 在 `ScoreWeightSourceEvidence.sameRow` 中，增强合并单元格跨行覆盖判定，避免 anchor 错位锚定到首行。
+2. **虚构大项剪枝与容器化（Prune Synthetic Parent）**：
+   - 在 `MultimodalExtractionReviewPolicy` 中新增 `pruneSyntheticParents`：当模型或表格存在大类总分项（如 19分、13分）与其平级子项，且子项分值和精确等于大项时，自动剪枝剔除虚构大项，禁止其流入方案外杂音。
+3. **补漏恢复幂等与去重门禁**：
+   - 在 `SourceReviewRowRecovery` 中新增 `isExistingModelFactDuplicate`：基于归一化编号 `cleanCode`、分值相等、以及维度/细则文本包含关系对现有模型事实去重，杜绝二次追加导致总分膨胀。
