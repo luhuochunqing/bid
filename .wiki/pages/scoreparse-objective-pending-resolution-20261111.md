@@ -11,8 +11,8 @@ sources:
 backlinks:
   - _index
 created: 2026-11-11
-updated: 2026-11-11
-health_checked: 2026-11-11
+updated: 2026-11-12
+health_checked: 2026-11-12
 ---
 
 # 项目1117客观评分项全为待确认根因剖析与代码修复
@@ -39,6 +39,14 @@ health_checked: 2026-11-11
 - **修复措施**：引入 FP-Java 纯领域策略 `WarehouseRegionalScorePolicy`，识别华北、东北、华东、中南、西南、西北六大区域，结合知识库在用仓库计算出 20 分确定性得分，剩余 5 分横向排序项在依据中提示现场评比。
 
 ## 3. 防护与回归边界
+
+## 2026-11-12 刷新入口漏执行非证书项
+
+- 现场1119：按钮发出POST estimates/refresh并GET items，返回200但全部11项仍待确认。
+- 根因：refreshForProject调用calculate(...,certificateOnly=true)，无证书时遍历空集仍返回true；业绩/仓储策略修复未接入手动刷新路径。不能归因为必须重新解析。
+- 本次本地修复：全部生效项重新计算，保留CAS保存、项目鉴权与候选/阶段2不变边界；refresh摘要来自本次计算并成功保存的集合，0分算有数值得分，缺分值逐项说明。
+- UI刷新工具栏移出第一部分折叠区并固定可见；过期统计明确只指证书，不能用证书0项推断整项目无需更新。
+- 规格specs/086-score-estimate-refresh。生产1117/1119尚需授权部署后的真实按钮→MySQL→UI验收；本地测试或部署健康检查不能替代。
 
 - 补充 `WarehouseRegionalScorePolicyTest`、`ScoreEstimateFreshnessTest`、`CertMatchServiceTest`；
 - 全量 48 项单元与集成测试绿灯通过；

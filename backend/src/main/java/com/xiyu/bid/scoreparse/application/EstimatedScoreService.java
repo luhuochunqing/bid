@@ -11,7 +11,6 @@ import com.xiyu.bid.scoreparse.application.match.ProjectMatchService;
 import com.xiyu.bid.scoreparse.application.match.WarehouseMatchService;
 import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
 import com.xiyu.bid.scoreparse.domain.WarehouseRegionalScorePolicy;
-import com.xiyu.bid.scoreparse.dto.WarehouseMatchedItem;
 import com.xiyu.bid.scoreparse.domain.IncrementalCountScorePolicy;
 import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
 import com.xiyu.bid.scoreparse.domain.ProjectEvidenceRequirementPolicy;
@@ -99,18 +98,17 @@ public class EstimatedScoreService {
     @Transactional(propagation=org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
     @org.springframework.scheduling.annotation.Async("scoreParseExecutor")
     public void estimateForVersion(Long projectId, String expectedFingerprint) {
-        calculate(projectId, expectedFingerprint, false);
+        calculate(projectId, expectedFingerprint);
     }
-    /** Synchronous refresh of certificate estimates, independent of extraction and scoring tasks. */
+    /** Synchronous refresh of all active estimates, independent of extraction and scoring tasks. */
     @Transactional(propagation=org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
-    public boolean refreshForProject(Long projectId) { return calculate(projectId, null, true); }
-    private boolean calculate(Long projectId, String expectedFingerprint, boolean certificateOnly) {
+    public List<ScoreItem> refreshItemsForProject(Long projectId) { return calculate(projectId, null); }
+    private List<ScoreItem> calculate(Long projectId, String expectedFingerprint) {
         var snapshot = versions == null ? null : versions.capture(projectId);
-        if (snapshot != null && expectedFingerprint != null && !snapshot.fingerprint().equals(expectedFingerprint)) return false;
+        if (snapshot != null && expectedFingerprint != null && !snapshot.fingerprint().equals(expectedFingerprint)) return null;
         List<ScoreItem> items = snapshot == null ? itemRepository.findByProjectIdOrderByItemIndexAsc(projectId)
                 : snapshot.items().stream().map(i -> ScoreItem.builder().id(i.getId()).code(i.getCode()).dim(i.getDim())
                 .detail(i.getDetail()).weight(i.getWeight()).scoreType(i.getScoreType()).build()).toList();
-        if (certificateOnly) items = items.stream().filter(CertificateScoreEstimateSupport::applies).toList();
         for (ScoreItem item : items) {
             try {
                 estimateItem(projectId, item);
@@ -124,9 +122,9 @@ public class EstimatedScoreService {
                 item.setEstBasis("预计得分计算失败，未沿用历史匹配结果，待人工确认");
             }
         }
-        if (versions != null) return versions.saveEstimates(projectId, snapshot.fingerprint(), items);
+        if (versions != null) return versions.saveEstimates(projectId, snapshot.fingerprint(), items) ? items : null;
         itemRepository.saveAll(items);
-        return true;
+        return items;
     }
     private void estimateItem(Long projectId, ScoreItem item) {
         if (CertificateScoreEstimateSupport.applies(item)) {

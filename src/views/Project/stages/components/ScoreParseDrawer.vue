@@ -1,6 +1,6 @@
 <!--
   Input: projectId, open options (stage, autoScore, file)
-  Output: AI 评分标准解析 V3 抽屉（阶段 1 招标文件提取及知识库预判更新 + 阶段 2 投标文件实际打分）
+  Output: AI 评分标准解析 V3 抽屉（折叠外预判更新及本次统计/原因 + 阶段 2 投标文件实际打分）
   Pos: src/views/Project/stages/components/ScoreParseDrawer.vue
   注：保留解析重试与 E2E 钩子；抽屉遮罩锁定内容滚动，候选支持复核采纳。
       方案资格按原文评分方案判定，清楚标识方案内、方案外与来源未验证事实；多方案需显式选择（2026-09-24）。
@@ -30,6 +30,19 @@
         <div class="scoring-text" data-test="score-parse-overlay-text">AI 正在对标已上传标书进行实际打分...</div>
         <div class="scoring-sub">读取评分项 → 解析标书内容 → 比对知识库资质证书、仓库信息、品牌授权资料 → 计算客观项得分</div>
       </div>
+
+      <div class="toolbar estimate-refresh-toolbar">
+        <span v-if="scoreItems.length" class="doc-time">证书新鲜度：{{ staleEstimateCount }} 项待核验 · 证书核验时间 {{ estimateCheckedAt }}（仅反映证书变化）</span>
+        <span v-else class="doc-time">暂无生效评分项，无法更新知识库预判</span>
+        <button class="btn-tool" data-test="refresh-estimates" :disabled="!scoreItems.length || estimatesRefreshing || loading || scoringOverlayVisible" @click="refreshEstimates">{{ estimatesRefreshing ? '正在更新知识库预判…' : '更新知识库预判' }}</button>
+      </div>
+      <p v-if="estimateRefreshError" role="alert" data-test="estimate-refresh-error">{{ estimateRefreshError }}</p>
+      <section v-if="estimateRefreshResult" role="status" data-test="estimate-refresh-result" aria-label="本次知识库预判刷新结果">
+        <p>本次处理 {{ estimateRefreshResult.processedCount }} 项 · 有数值得分 {{ estimateRefreshResult.scoredCount }} 项（含 0 分）· 无分值 {{ estimateRefreshResult.pendingCount }} 项</p>
+        <ul v-if="estimateRefreshResult.pendingItems.length">
+          <li v-for="item in estimateRefreshResult.pendingItems" :key="item.id">{{ item.dim }}：{{ item.reason }}</li>
+        </ul>
+      </section>
 
       <!-- 第一部分：招标文件解析 -->
       <div class="section-divider">
@@ -104,11 +117,6 @@
               </div>
             </div>
             <h3 v-if="scoreItems.length">当前生效评分项</h3>
-            <div v-if="scoreItems.length" class="toolbar">
-              <span class="doc-time">需要更新 {{ staleEstimateCount }} 项 · 核验时间 {{ estimateCheckedAt }}</span>
-              <button class="btn-tool" data-test="refresh-estimates" :disabled="estimatesRefreshing || loading || scoringOverlayVisible" @click="refreshEstimates">{{ estimatesRefreshing ? '正在更新知识库预判…' : '更新知识库预判' }}</button>
-            </div>
-            <p v-if="estimateRefreshError" role="alert">{{ estimateRefreshError }}</p>
             <ScoreParseTable
               v-if="scoreItems.length"
               mode="est"
@@ -242,7 +250,7 @@ const {
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
-  estimatesRefreshing, estimateRefreshError, staleEstimateCount, estimateCheckedAt, refreshEstimates,
+  estimatesRefreshing, estimateRefreshError, estimateRefreshResult, staleEstimateCount, estimateCheckedAt, refreshEstimates,
   decisionBadgeType, decisionBadgeText, decisionBadgeVisible, reviewReason, sourceDiagnostics,
   candidateFacts, schemes, selectedSchemeId, schemeSelectionRequired, candidateTotalWeight, declaredTotalWeight,
   adoptionStatus, isAdoptingCandidates, adoptCandidateFacts,
@@ -252,6 +260,18 @@ defineExpose({ open, runScoring, scoringOverlayVisible, loading })
 </script>
 
 <style scoped src="./scoreParseDrawer.css"></style>
+<style scoped>
+.estimate-refresh-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-white);
+  padding: 8px 0;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.estimate-refresh-toolbar .btn-tool { margin-left: auto; flex-shrink: 0; }
+</style>
 
 <!-- 全局：el-drawer teleport 后根元素不带 scoped data-v，scoped/:deep 选择器无法命中，必须用类前缀全局规则 -->
 <style>

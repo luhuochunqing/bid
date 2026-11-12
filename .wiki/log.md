@@ -1781,3 +1781,5 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-11-11] compound | scoreparse-1123-double-total 本地修复：精确汇总标签共享、表头边界与防重复计分回归；未部署。
 
 ## [2026-11-11] compound | scoreparse-1123-double-total fix第1轮：修复无表头独立汇总表总分丢失，保留无数值满分列表头反例；复审待主执行器执行。
+
+## [2026-11-12] compound | scoreparse-objective-pending-resolution-20261111 手动刷新仅证书导致无证书项目空跑，新增全量刷新、真实统计与折叠外入口；生产恢复待验。
