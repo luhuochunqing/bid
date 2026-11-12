@@ -94,7 +94,9 @@ final class SourceReviewRowRecovery {
             var rowIds = table.cells().stream().filter(c -> Integer.valueOf(row).equals(c.row())).map(c -> c.cellId()).collect(Collectors.toSet());
             var model = new MultimodalScoreFact("", fact.code(), "", fact.dimension(), fact.weight(), "", "",
                     null, fact.sourceTableId(), fact.sourceCellIds(), "", fact.confidence());
-            boolean ambiguous = validation.facts().stream().anyMatch(m ->
+            boolean duplicate = validation.facts().stream().anyMatch(m ->
+                    isExistingModelFactDuplicate(fact, m));
+            boolean ambiguous = duplicate || validation.facts().stream().anyMatch(m ->
                     fact.factId().equals(OriginalScoreEvidencePolicy.modelFactId(m))
                     || LogicalRuleSourceUnit.sharesLogicalRow(artifact, model, m)
                     || m.sourceCellIds().stream().anyMatch(rowIds::contains)
@@ -122,5 +124,40 @@ final class SourceReviewRowRecovery {
             recoveredRows.add(table.tableId() + ":" + table.tableId() + "-r" + row);
         }
         return new Result(recovered, qualifications, recoveredRows);
+    }
+
+    private static boolean isExistingModelFactDuplicate(ScoreFact fact, MultimodalScoreFact m) {
+        if (m == null || fact == null) return false;
+        boolean sameWeight = m.weight() != null && fact.weight() != null
+                && m.weight().compareTo(fact.weight()) == 0;
+        if (!sameWeight) return false;
+
+        String cFact = cleanCode(fact.code());
+        String cModel = cleanCode(m.code());
+        if (!cFact.isBlank() && cFact.equals(cModel)) {
+            return true;
+        }
+
+        String fDim = compactText(fact.dimension());
+        String mDim = compactText(m.dimension());
+        if (!fDim.isBlank() && !mDim.isBlank() && (fDim.contains(mDim) || mDim.contains(fDim))) {
+            return true;
+        }
+        String fText = compactText(fact.sourceText());
+        String mRule = compactText(m.ruleText().isBlank() ? m.quotedText() : m.ruleText());
+        if (!fText.isBlank() && !mRule.isBlank() && (fText.contains(mRule) || mRule.contains(fText))) {
+            return true;
+        }
+        return false;
+    }
+
+    private static String cleanCode(String code) {
+        if (code == null) return "";
+        return code.replaceAll("^[（(]|[)）]$", "").replaceAll("[、.\\s]+$", "").trim();
+    }
+
+    private static String compactText(String text) {
+        if (text == null) return "";
+        return text.replaceAll("\\s+", "");
     }
 }

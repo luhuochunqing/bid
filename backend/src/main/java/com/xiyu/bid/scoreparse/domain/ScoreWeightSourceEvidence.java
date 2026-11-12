@@ -51,6 +51,16 @@ final class ScoreWeightSourceEvidence {
         if (owner.row() != null && owner.row().equals(cell.row())) return true;
         if (owner.logicalRowId() != null && !owner.logicalRowId().isBlank()
                 && owner.logicalRowId().equals(cell.logicalRowId())) return true;
+        int ownerSpan = owner.rowspan() == null ? 1 : owner.rowspan();
+        if (owner.row() != null && cell.row() != null && ownerSpan > 1
+                && cell.row() >= owner.row() && cell.row() < owner.row() + ownerSpan) {
+            return true;
+        }
+        int cellSpan = cell.rowspan() == null ? 1 : cell.rowspan();
+        if (owner.row() != null && cell.row() != null && cellSpan > 1
+                && owner.row() >= cell.row() && owner.row() < cell.row() + cellSpan) {
+            return true;
+        }
         if (table != null && owner.row() != null && cell.row() != null) {
             int primary = Math.min(owner.row(), cell.row());
             int cont = Math.max(owner.row(), cell.row());

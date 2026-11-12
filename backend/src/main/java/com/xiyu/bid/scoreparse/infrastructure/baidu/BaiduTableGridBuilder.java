@@ -72,7 +72,8 @@ final class BaiduTableGridBuilder {
                 for (int c = cStart; c <= cell.cEnd() && c < colCount; c++) {
                     if (r == rStart && c == cStart) continue;
                     grid[r][c] = new CanonicalCellDto(
-                            tableId + "_r" + r + "_c" + c, r, c, "", "", 1, 1, true,
+                            tableId + "_r" + r + "_c" + c, r, c,
+                            cell.text(), cell.text().trim(), 1, 1, true,
                             "pdf:page=" + pageNum + ";row=" + r + ";col=" + c, pageNum, ""
                     );
                 }
