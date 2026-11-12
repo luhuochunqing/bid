@@ -71,29 +71,68 @@ def test_mixed_pdf_keeps_sparse_scanned_contract_number(tmp_path):
 
 @pytest.mark.parametrize('failure,code', [
     ('missing', 'BID_OCR_UNAVAILABLE'),
-    ('timeout', 'BID_OCR_TIMEOUT'),
     ('nonzero', 'BID_OCR_UNAVAILABLE'),
 ])
-def test_ocr_failure_never_returns_partial_document(tmp_path, monkeypatch, failure, code):
+def test_ocr_engine_failure_does_not_return_partial_document(tmp_path, monkeypatch, failure, code):
     path = tmp_path / 'failure.pdf'
     make_pdf(path, native=True)
     def fail(*args, **kwargs):
         if failure == 'missing':
             raise FileNotFoundError('tesseract missing')
-        if failure == 'timeout':
-            raise subprocess.TimeoutExpired('tesseract', 30)
         return subprocess.CompletedProcess(args, 1, b'', b'OCR engine failed')
     monkeypatch.setattr(subprocess, 'run', fail)
     with pytest.raises(converter.ScoringPdfOcrError, match=code):
         converter.convert_scoring_pdf_document(str(path))
 
 
-def test_ocr_deadline_does_not_return_native_only(tmp_path, monkeypatch):
+def test_ocr_timeout_keeps_native_text(tmp_path, monkeypatch):
     path = tmp_path / 'timeout.pdf'
     make_pdf(path, native=True)
+
+    def timed_out(*args, **kwargs):
+        raise subprocess.TimeoutExpired('tesseract', 30)
+
+    monkeypatch.setattr(subprocess, 'run', timed_out)
+    result = converter.convert_scoring_pdf_document(str(path))
+    assert 'NATIVE CONTRACT TERMS' in result['markdown']
+
+
+def test_ocr_timeout_without_text_fails(tmp_path, monkeypatch):
+    path = tmp_path / 'blank-timeout.pdf'
+    make_pdf(path, scanned_pages=1)
     monkeypatch.setenv('SIDECAR_BID_OCR_TIMEOUT_SECONDS', '0')
     with pytest.raises(converter.ScoringPdfOcrError, match='BID_OCR_TIMEOUT'):
         converter.convert_scoring_pdf_document(str(path))
+
+
+def test_ocr_timeout_keeps_native_text_after_unfinished_scan(tmp_path, monkeypatch):
+    path = tmp_path / 'scan-then-native.pdf'
+    image = Image.new('RGB', (1400, 500), 'white')
+    ImageDraw.Draw(image).rectangle((4, 4, 1390, 490), fill='black')
+    data = io.BytesIO()
+    image.save(data, format='PNG')
+    with pymupdf.open() as pdf:
+        page = pdf.new_page(width=700, height=250)
+        page.insert_image(page.rect, stream=data.getvalue())
+        page = pdf.new_page(width=700, height=250)
+        page.insert_text((30, 80), 'LATER NATIVE TERMS', fontsize=18)
+        pdf.save(path)
+
+    def timed_out(*args, **kwargs):
+        raise subprocess.TimeoutExpired('tesseract', 30)
+
+    monkeypatch.setattr(subprocess, 'run', timed_out)
+    monkeypatch.setenv('SIDECAR_BID_OCR_TIMEOUT_SECONDS', '0')
+    result = converter.convert_scoring_pdf_document(str(path))
+    assert 'LATER NATIVE TERMS' in result['markdown']
+
+
+def test_ocr_deadline_keeps_native_text(tmp_path, monkeypatch):
+    path = tmp_path / 'timeout.pdf'
+    make_pdf(path, native=True)
+    monkeypatch.setenv('SIDECAR_BID_OCR_TIMEOUT_SECONDS', '0')
+    result = converter.convert_scoring_pdf_document(str(path))
+    assert 'NATIVE CONTRACT TERMS' in result['markdown']
 
 
 def test_scoring_ocr_is_not_limited_to_artifact_30_pages(tmp_path, monkeypatch):
@@ -313,14 +352,11 @@ def test_native_only_pdf_does_not_require_ocr(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize('previous_scan', [False, True], ids=['native-cover', 'first-scan'])
 @pytest.mark.parametrize('failure,code', [
-    ('timeout', 'BID_OCR_TIMEOUT'),
     ('missing', 'BID_OCR_UNAVAILABLE'),
     ('nonzero', 'BID_OCR_UNAVAILABLE'),
-    ('deadline', 'BID_OCR_TIMEOUT'),
 ])
-def test_docx_ocr_failure_never_returns_partial_text(tmp_path, monkeypatch, previous_scan, failure, code):
+def test_docx_engine_failure_does_not_return_partial_text(tmp_path, monkeypatch, previous_scan, failure, code):
     from docx import Document
-    import time
 
     path = tmp_path / 'partial.docx'
     native = '' if previous_scan else 'NATIVE COVER'
@@ -333,27 +369,90 @@ def test_docx_ocr_failure_never_returns_partial_text(tmp_path, monkeypatch, prev
         document.add_picture(picture)
         document.save(path)
 
+    calls = [0]
+
+    def recognize(*args, **kwargs):
+        calls[0] += 1
+        if previous_scan and calls[0] == 1:
+            return subprocess.CompletedProcess(args, 0, b'FIRST SCANNED CLAUSE', b'')
+        if failure == 'missing':
+            raise FileNotFoundError('tesseract')
+        return subprocess.CompletedProcess(args, 1, b'', b'OCR engine failed')
+
+    monkeypatch.setattr(subprocess, 'run', recognize)
+    with pytest.raises(converter.ScoringPdfOcrError, match=code):
+        converter.append_docx_image_ocr(str(path), native)
+
+
+@pytest.mark.parametrize('previous_scan', [False, True], ids=['native-cover', 'first-scan'])
+def test_docx_timeout_keeps_text_already_extracted(tmp_path, monkeypatch, previous_scan):
+    from docx import Document
+    import time
+
+    path = tmp_path / 'partial.docx'
+    native = '' if previous_scan else 'NATIVE COVER'
+    _docx_with_picture(path, native, (800, 400))
+    if previous_scan:
+        picture = io.BytesIO()
+        Image.new('RGB', (40, 40), 'black').save(picture, format='PNG')
+        picture.seek(0)
+        document = Document(path)
+        document.add_picture(picture)
+        document.save(path)
+
     clock = [0.0]
     calls = [0]
 
     def recognize(*args, **kwargs):
         calls[0] += 1
         if previous_scan and calls[0] == 1:
-            if failure == 'deadline':
-                clock[0] = 10.0
+            clock[0] = 10.0
             return subprocess.CompletedProcess(args, 0, b'FIRST SCANNED CLAUSE', b'')
-        if failure == 'timeout':
-            raise subprocess.TimeoutExpired('tesseract', 30)
-        if failure == 'missing':
-            raise FileNotFoundError('tesseract')
-        return subprocess.CompletedProcess(args, 1, b'', b'OCR engine failed')
+        raise subprocess.TimeoutExpired('tesseract', 30)
 
     monkeypatch.setattr(subprocess, 'run', recognize)
-    if failure == 'deadline':
-        monkeypatch.setenv('SIDECAR_BID_OCR_TIMEOUT_SECONDS', '1' if previous_scan else '0')
-        monkeypatch.setattr(time, 'monotonic', lambda: clock[0])
-    with pytest.raises(converter.ScoringPdfOcrError, match=code):
-        converter.append_docx_image_ocr(str(path), native)
+    monkeypatch.setenv('SIDECAR_BID_OCR_TIMEOUT_SECONDS', '1' if previous_scan else '0')
+    monkeypatch.setattr(time, 'monotonic', lambda: clock[0])
+    text = converter.append_docx_image_ocr(str(path), native)
+    if previous_scan:
+        assert 'FIRST SCANNED CLAUSE' in text
+    else:
+        assert text == 'NATIVE COVER'
+
+
+def test_docx_large_file_reads_largest_image_before_budget(tmp_path, monkeypatch):
+    from docx import Document
+    import time
+
+    path = tmp_path / 'large.docx'
+    document = Document()
+    document.add_paragraph('NATIVE BID BODY')
+    small = io.BytesIO()
+    Image.new('RGB', (20, 20), 'black').save(small, format='PNG')
+    small.seek(0)
+    document.add_picture(small)
+    large = io.BytesIO()
+    Image.effect_noise((600, 400), 80).convert('RGB').save(large, format='PNG')
+    large.seek(0)
+    document.add_picture(large)
+    document.save(path)
+
+    seen = []
+    clock = [0.0]
+
+    def recognize(*args, **kwargs):
+        seen.append(len(kwargs['input']))
+        clock[0] = 10.0
+        return subprocess.CompletedProcess(args, 0, b'LARGE SCAN TEXT', b'')
+
+    monkeypatch.setattr(subprocess, 'run', recognize)
+    monkeypatch.setenv('SIDECAR_BID_OCR_SUPPLEMENT_SECONDS', '1')
+    monkeypatch.setattr(time, 'monotonic', lambda: clock[0])
+    text = converter.append_docx_image_ocr(str(path), 'NATIVE BID BODY')
+    assert text.startswith('NATIVE BID BODY')
+    assert 'LARGE SCAN TEXT' in text
+    assert len(seen) == 1
+    assert seen[0] > 10_000
 
 
 @pytest.mark.skipif(shutil.which('tesseract') is None, reason='requires real Tesseract')
@@ -403,3 +502,166 @@ def test_docx_small_contract_screenshot_is_not_lost_with_native_text(tmp_path):
     text = converter.append_docx_image_ocr(str(path), 'NATIVE WORD TERMS')
     assert 'NATIVE WORD TERMS' in text
     assert 'CONTRACT VALUE 72000000' in text
+
+
+def _recognize(payload):
+    def run(*args, **kwargs):
+        return subprocess.CompletedProcess(args, 0, payload, b'')
+    return run
+
+
+@pytest.mark.parametrize('kind', ['pdf', 'docx'])
+@pytest.mark.parametrize('native,count,ceiling,last,elapsed', [
+    ('', 10, '1500', 10, 290),
+    ('', 16, '1500', 13, 383),
+    ('', 10, '260', 8, 260),
+    ('NATIVE BID BODY', 10, '1500', 6, 180),
+])
+def test_supplement_budget_starts_at_first_text(
+        tmp_path, monkeypatch, kind, native, count, ceiling, last, elapsed):
+    import time
+    import zipfile
+
+    path = tmp_path / f'late-text.{kind}'
+    if kind == 'pdf':
+        make_pdf(path, scanned_pages=count, native=bool(native))
+    else:
+        picture = io.BytesIO()
+        Image.new('RGB', (32, 32), 'black').save(picture, format='PNG')
+        with zipfile.ZipFile(path, 'w') as archive:
+            for index in range(count):
+                archive.writestr(f'word/media/image{index}.png', picture.getvalue())
+
+    clock = [0.0]
+    calls = [0]
+
+    def recognize(*args, **kwargs):
+        calls[0] += 1
+        if kwargs['timeout'] < 29:
+            clock[0] += kwargs['timeout']
+            raise subprocess.TimeoutExpired('tesseract', kwargs['timeout'])
+        clock[0] += 29
+        payload = f'SCAN CLAUSE {calls[0]} END'.encode() if native or calls[0] >= 7 else b''
+        return subprocess.CompletedProcess(args, 0, payload, b'')
+
+    monkeypatch.setenv('SIDECAR_BID_OCR_TIMEOUT_SECONDS', ceiling)
+    monkeypatch.setenv('SIDECAR_BID_OCR_SUPPLEMENT_SECONDS', '180')
+    monkeypatch.setattr(time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(subprocess, 'run', recognize)
+    if kind == 'pdf':
+        text = converter.convert_scoring_pdf_document(str(path))['markdown']
+    else:
+        text = converter.append_docx_image_ocr(str(path), native)
+    assert f'SCAN CLAUSE {last} END' in text
+    assert f'SCAN CLAUSE {last + 1} END' not in text
+    assert clock[0] == elapsed
+
+
+def test_large_scan_pdf_without_text_stops_at_double_cap(tmp_path, monkeypatch):
+    path = tmp_path / 'many-scans.pdf'
+    make_pdf(path, scanned_pages=45)
+    calls = {'n': 0}
+
+    def recognize(*args, **kwargs):
+        calls['n'] += 1
+        return subprocess.CompletedProcess(args, 0, b'ANNUAL SALES', b'')
+
+    monkeypatch.setattr(subprocess, 'run', recognize)
+    result = converter.convert_scoring_pdf_document(str(path))
+    assert calls['n'] == 24
+    assert [page['pageNumber'] for page in result['pages']] == list(range(1, 25))
+    assert result['markdown'].count('ANNUAL SALES') == 24
+
+
+def test_large_pdf_reads_scans_before_pages_that_already_have_text(tmp_path, monkeypatch):
+    path = tmp_path / 'logos-and-scans.pdf'
+    logo = io.BytesIO()
+    Image.new('RGB', (40, 40), 'black').save(logo, format='PNG')
+    scan = io.BytesIO()
+    Image.effect_noise((900, 600), 40).convert('RGB').save(scan, format='PNG')
+    with pymupdf.open() as pdf:
+        for number in range(20):
+            page = pdf.new_page(width=700, height=400)
+            page.insert_text((30, 80), f'DECORATED NATIVE {number}', fontsize=16)
+            page.insert_image(pymupdf.Rect(600, 10, 660, 70), stream=logo.getvalue())
+        for _ in range(25):
+            page = pdf.new_page(width=700, height=400)
+            page.insert_image(page.rect, stream=scan.getvalue())
+        pdf.save(path)
+
+    monkeypatch.setattr(subprocess, 'run', _recognize(b'SCAN BODY'))
+    result = converter.convert_scoring_pdf_document(str(path))
+    scan_pages = [page for page in result['pages'] if 'SCAN BODY' in page['text']]
+    assert len(scan_pages) == 12
+    assert all('DECORATED NATIVE' not in page['text'] for page in scan_pages)
+    assert result['markdown'].count('DECORATED NATIVE') == 20
+
+
+def test_docx_many_images_open_only_the_largest(tmp_path, monkeypatch):
+    from docx import Document
+
+    path = tmp_path / 'many.docx'
+    document = Document()
+    document.add_paragraph('NATIVE BID BODY')
+    for index in range(33):
+        picture = io.BytesIO()
+        icon = Image.new('RGB', (8, 8), 'black')
+        icon.putpixel((index % 8, index // 8), (index, 20, 40))
+        icon.save(picture, format='PNG')
+        picture.seek(0)
+        document.add_picture(picture)
+    for edge in range(12):
+        picture = io.BytesIO()
+        Image.effect_noise((180 + edge, 120), 50).convert('RGB').save(picture, format='PNG')
+        picture.seek(0)
+        document.add_picture(picture)
+    document.save(path)
+
+    opened = []
+    real_open = Image.open
+
+    def spy(fp, *args, **kwargs):
+        image = real_open(fp, *args, **kwargs)
+        opened.append(max(image.size))
+        return image
+
+    monkeypatch.setattr(Image, 'open', spy)
+    monkeypatch.setattr(subprocess, 'run', _recognize(b'LARGE SCAN TEXT'))
+    text = converter.append_docx_image_ocr(str(path), 'NATIVE BID BODY')
+    assert text.startswith('NATIVE BID BODY')
+    assert text.count('LARGE SCAN TEXT') == 12
+    assert len(opened) == 12
+    assert min(opened) >= 180
+
+
+def test_ocr_input_long_edge_stays_within_cap(tmp_path, monkeypatch):
+    seen = []
+
+    def recognize(*args, **kwargs):
+        seen.append(kwargs['input'])
+        return subprocess.CompletedProcess(args, 0, b'POSTER SCAN', b'')
+
+    monkeypatch.setattr(subprocess, 'run', recognize)
+    pdf_path = tmp_path / 'poster.pdf'
+    marker = io.BytesIO()
+    Image.new('RGB', (80, 80), 'black').save(marker, format='PNG')
+    with pymupdf.open() as pdf:
+        page = pdf.new_page(width=4000, height=3000)
+        page.insert_image(pymupdf.Rect(0, 0, 400, 300), stream=marker.getvalue())
+        pdf.save(pdf_path)
+    converter.convert_scoring_pdf_document(str(pdf_path))
+
+    from docx import Document
+    docx_path = tmp_path / 'poster.docx'
+    picture = io.BytesIO()
+    Image.effect_noise((3200, 1800), 20).convert('RGB').save(picture, format='PNG')
+    picture.seek(0)
+    document = Document()
+    document.add_paragraph('NATIVE BID BODY')
+    document.add_picture(picture)
+    document.save(docx_path)
+    converter.append_docx_image_ocr(str(docx_path), 'NATIVE BID BODY')
+
+    assert len(seen) == 2
+    for payload in seen:
+        assert max(Image.open(io.BytesIO(payload)).size) <= 2000

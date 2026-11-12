@@ -189,17 +189,28 @@ Native-only pages are not sent to Tesseract. A pure-white raster
 is skipped. One page with empty recognition keeps that page's existing text and
 the rest of the document continues. No 30-page table-artifact sampling cap is used.
 
-The OCR budget `SIDECAR_BID_OCR_TIMEOUT_SECONDS` defaults to 1500 seconds.
-For scoring PDFs and DOCX files, a missing engine, a non-zero Tesseract exit, or a timeout returns HTTP 422 with
-`detail` equal to `BID_OCR_UNAVAILABLE` or `BID_OCR_TIMEOUT` and does not return
-partial text. `BID_OCR_EMPTY` is returned only when the finished document has no
-text on any page.
-A DOCX file keeps its native text and OCRs every decodable non-white embedded
-picture, including small screenshots. Pixel dimensions do not distinguish icons
-from scoring evidence. Icons with empty recognition keep the native text; OCR
-errors fail the whole conversion even when earlier images or native text yielded
-content. Transparent pictures are composited onto white before OCR, including
-RGBA, grayscale-alpha and palette transparency. Pure-white pictures are skipped.
+The OCR ceiling `SIDECAR_BID_OCR_TIMEOUT_SECONDS` defaults to 1500 seconds.
+Real bid files are 500MB and contain thousands of pictures. Once any text has
+been extracted, further OCR stops after `SIDECAR_BID_OCR_SUPPLEMENT_SECONDS`
+(default 180) so assessment can still run inside the 30-minute scoring window.
+A timeout then returns the text already extracted. `BID_OCR_TIMEOUT` is returned
+only when the timeout leaves no text. A missing engine or a non-zero Tesseract
+exit still returns HTTP 422 `BID_OCR_UNAVAILABLE` and does not return partial
+text. `BID_OCR_EMPTY` is returned only when recognition finishes with no text.
+
+`SIDECAR_BID_OCR_LARGE_FILE_MIN` (default 40) is the candidate count that is
+still read in full. Above it, `SIDECAR_BID_OCR_LARGE_FILE_CAP` (default 12)
+is how many pictures or scan pages are opened when text already exists. With
+no text yet, that cap is doubled. A DOCX file keeps its native text and opens
+only the largest decodable non-white pictures in that set; the remaining media
+stays in the zip. A large PDF prefers pages with no native text, then the
+largest embedded image, and still returns native text from pages it does not
+rasterize. Before Tesseract, the long edge is reduced to
+`SIDECAR_BID_OCR_MAX_EDGE` (default 2000). An A4 page stays at about 2x.
+Small screenshots below the candidate floor are not dropped by pixel size.
+Icons with empty recognition keep the native text. Transparent pictures are
+composited onto white before OCR, including RGBA, grayscale-alpha and palette
+transparency. Pure-white pictures are skipped.
 Legacy `.doc` in-memory scoring files retain the existing DocInsight extraction
 path and its POI HWPF fallback. Scanned `.doc` OCR is not verified: the current
 Linux Sidecar has no validated DOC-to-DOCX converter. Existing on-disk routing
