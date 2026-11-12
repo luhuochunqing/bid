@@ -8,8 +8,8 @@
 // 重新解析遮罩文字落在全部内容中点、远低于当前浏览位置。
 // 本用例固化修复后的布局契约：
 //   1. .el-drawer__body 必须是 flex 列布局（内容区才能按可视区滚动）
-//   2. 遮罩文字在可视区内（而非内容中点）
-//   3. 遮罩展示期间内容区滚动被锁定（.scroll-locked），轮询中提示不漂出可视区
+//   2. 进行中提示在可视区内（而非内容中点）
+//   3. 进行中不锁死滚动，提示条吸顶，并可关闭抽屉
 // score-parse 五个接口走 page.route mock：AI 解析结果非确定性、耗时数十秒，布局断言不需要真实解析。
 
 import { test, expect } from '@playwright/test'
@@ -56,7 +56,7 @@ function buildResults() {
 }
 
 test.describe('AI 评分标准解析抽屉布局契约（2026-08-26 修复）', () => {
-  test('body 为 flex 布局；重新解析遮罩文字始终在可视区且滚动被锁定', async ({ page }) => {
+  test('body 为 flex 布局；进行中提示在可视区且不锁死滚动', async ({ page }) => {
     // —— 真实生命周期：建项目 → 上传招标文件 → 立项审批通过 → DRAFTING（标书制作） ——
     const session = await createAuthenticatedSession()
     const pl = await ensureRoleUser('bid-projectLeader')
@@ -143,31 +143,19 @@ test.describe('AI 评分标准解析抽屉布局契约（2026-08-26 修复）', 
     expect(textRect.y).toBeGreaterThan(0)
     expect(textRect.y).toBeLessThan(page.viewportSize().height)
 
-    // 契约 3：遮罩期间内容区滚动被锁定（.scroll-locked + 轮询中提示不漂出可视区）
+    // 契约 3：进行中不锁死内容区，提示吸顶，并可关闭抽屉
     const wrapper = drawer.locator('[data-test="score-parse-content"]')
-    await expect(wrapper).toHaveClass(/scroll-locked/)
-    expect(await wrapper.evaluate((el) => getComputedStyle(el).overflowY)).toBe('hidden')
+    await expect(wrapper).not.toHaveClass(/scroll-locked/)
+    expect(await wrapper.evaluate((el) => getComputedStyle(el).overflowY)).not.toBe('hidden')
+    await expect(drawer.locator('[data-test="score-parse-dismiss"]')).toBeVisible()
     await wrapper.hover()
     await page.mouse.wheel(0, 900)
-    // 条件等待：轮询 scrollTop 连续 100ms 保持稳定（替代固定 waitForTimeout），再断言锁定生效未发生滚动
-    await wrapper.evaluate(async (el) => {
-      let last = el.scrollTop
-      let stableSince = performance.now()
-      while (performance.now() - stableSince < 100) {
-        await new Promise((r) => requestAnimationFrame(r))
-        if (el.scrollTop !== last) {
-          last = el.scrollTop
-          stableSince = performance.now()
-        }
-      }
-    })
-    expect(await wrapper.evaluate((el) => el.scrollTop)).toBe(0)
+    await expect.poll(() => wrapper.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
     const textRectAfterWheel = await drawer.locator('[data-test="score-parse-overlay-text"]').boundingBox()
     expect(textRectAfterWheel.y).toBeGreaterThan(0)
     expect(textRectAfterWheel.y).toBeLessThan(page.viewportSize().height)
 
-    // 解析完成后遮罩消失、滚动解锁
+    // 解析完成后提示消失
     await expect(drawer.locator('.scoring-overlay.show')).toHaveCount(0, { timeout: 20000 })
-    await expect(wrapper).not.toHaveClass(/scroll-locked/)
   })
 })

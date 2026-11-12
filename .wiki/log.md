@@ -1,3 +1,10 @@
+## [2026-11-12] fix | 评分抽屉打分遮罩不再锁死页面
+
+- 根因：「AI 实际打分」轮询期间白遮罩盖住抽屉，模态层挡住页面。Element Plus 的 body 滚动锁只在 setup 读一次 `lockScroll`。
+- 修复：进行中改为吸顶提示，关掉模态并允许点穿；静态 `:lock-scroll="false"`。关抽屉不取消后台打分。再次解析和打分仍禁用。
+- 回填：[[score-parse-drawer-scoring-overlay]]、`docs/lessons/lessons-learned.md` §503。
+- 验证：相关 vitest 68 项通过。本 worktree 未跑 Playwright。
+
 ## [2026-11-11] fix | 案例子主题与质量分写入缺口
 
 - 根因：匹配器读 `knowledge_case.sub_topic` / `quality_score`，结项沉淀和历史导入都没写。生产空主题、质量分全是默认 60，精确 25 分和质量加分不生效。

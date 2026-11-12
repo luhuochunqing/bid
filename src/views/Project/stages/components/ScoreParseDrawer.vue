@@ -2,7 +2,7 @@
   Input: projectId, open options (stage, autoScore, file)
   Output: AI 评分标准解析 V3 抽屉（折叠外预判更新及本次统计/原因 + 阶段 2 投标文件实际打分）
   Pos: src/views/Project/stages/components/ScoreParseDrawer.vue
-  注：保留解析重试与 E2E 钩子；抽屉遮罩锁定内容滚动，候选支持复核采纳。
+  注：保留解析重试与 E2E 钩子；打分或解析进行中只显示提示，不锁死抽屉和页面。候选支持复核采纳。
       方案资格按原文评分方案判定，清楚标识方案内、方案外与来源未验证事实；多方案需显式选择（2026-09-24）。
 -->
 <template>
@@ -11,6 +11,9 @@
     title="AI 评分标准解析"
     size="960px"
     :close-on-click-modal="false"
+    :modal="!scoringOverlayVisible"
+    :modal-penetrable="scoringOverlayVisible"
+    :lock-scroll="false"
     class="score-parse-drawer"
   >
     <div v-if="loading && !scoreItems.length && !latestExtraction" class="loading-state">
@@ -24,11 +27,14 @@
       <el-button size="small" style="margin-top: 12px" :disabled="loading || scoringOverlayVisible" @click="reparse">重新解析</el-button>
     </div>
 
-    <div v-if="!loading || scoreItems.length || latestExtraction" class="drawer-content-wrapper" :class="{ 'scroll-locked': scoringOverlayVisible }" data-test="score-parse-content">
+    <div v-if="!loading || scoreItems.length || latestExtraction" class="drawer-content-wrapper" data-test="score-parse-content">
       <div class="scoring-overlay" :class="{ show: scoringOverlayVisible }">
         <div class="spinner"></div>
-        <div class="scoring-text" data-test="score-parse-overlay-text">AI 正在对标已上传标书进行实际打分...</div>
-        <div class="scoring-sub">读取评分项 → 解析标书内容 → 比对知识库资质证书、仓库信息、品牌授权资料 → 计算客观项得分</div>
+        <div>
+          <div class="scoring-text" data-test="score-parse-overlay-text">AI 正在对标已上传标书进行实际打分...</div>
+          <div class="scoring-sub">可以继续查看本页，或关闭抽屉使用其他功能。任务在后台继续。</div>
+        </div>
+        <button type="button" class="btn-tool" data-test="score-parse-dismiss" @click="visible = false">关闭抽屉</button>
       </div>
 
       <div class="toolbar estimate-refresh-toolbar">
