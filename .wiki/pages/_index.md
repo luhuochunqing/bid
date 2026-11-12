@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-11-11
-health_checked: 2026-11-11
+updated: 2026-11-12
+health_checked: 2026-11-12
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -121,6 +121,7 @@ backlinks:
 - [[score-subtotal-peritem-semantics-provenance-snapshot]] — 评分单项满分及 PDF 跨行范围判断、案例来源快照守卫
 - [[score-parse-adoption-consistency]] — 评分候选采纳与最新解析任务一致性（长说明、锁、过期页面）
 - [[score-parse-service]] — AI 评分标准解析后端服务
+- [[score-parse-drawer-scoring-overlay]] — 评分抽屉打分中吸顶提示，不再用白遮罩锁死页面
 - [[scoreparse-certificate-estimate-staleness-rca]] — 证书评分历史漏认、预判残留与组合证书任一命中假满分根因（只读诊断，未修复）
 - [[scoreparse-cross-chapter-qualification-performance]] — 评分项跨章节穿透资格项业绩检索与基础分递增计分规范
 - [[scoreparse-performance-evidence-clarity]] — 业绩预计得分证据可信度、保守计分与中文解释契约

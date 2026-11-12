@@ -8384,3 +8384,10 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - 后续保留因素名兼容，移除临时整项禁算/固定六区公式，复用资料服务和PartialScorePolicy。只在最终分值保留2位，避免最小1分钳位；实际评分入口保持不变。
 - 独立审查发现并用反例验证：未知中文证书要求不能由任意有效证书替代；同义证书名称必须复用既有身份映射去重；资源数量与计分推导冲突须执行默认1且说明假设。均已补回归。
 - 新版本本地182项后端/57项前端、构建及第2轮双审查通过；真实MySQL四类同形样本均有数值、规则和阶段二不变。未部署、未刷新测试环境，不能把本地合成值当成项目1371现场得分。
+
+## 503. 评分抽屉打分中全屏遮罩把页面锁死（2026-11-12）
+
+- 现场：AI 评分标准解析里点「AI 实际打分」后，页面不能再操作。按钮本身会提交阶段 2 打分并轮询状态，不是空操作。
+- 根因：`scoringOverlayVisible` 用铺满内容区的白遮罩加上 `scroll-locked`，抽屉又是模态。轮询最长 30 分钟，期间没有取消。Element Plus 的 body 滚动锁在 setup 时读一次 `lockScroll`，事后改 prop 解不开；`modal` 和 `modalPenetrable` 才会随状态变。
+- 修复：进行中改成吸顶提示。静态 `:lock-scroll="false"`，同时 `:modal="false"`、`:modal-penetrable="true"`。关闭抽屉只隐藏界面，服务端打分继续。进行中仍不能再次解析或打分。
+- 验证：`ScoreParseDrawer.spec.js`、`useScoreParseDrawer.spec.js`、`ScoreParseV3.qa.spec.js` 共 68 项通过。布局 E2E 契约已改，本 worktree 未启动服务，没有实机点击。

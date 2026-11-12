@@ -436,6 +436,49 @@ describe('ScoreParseDrawer.vue', () => {
     await wrapper.vm.$nextTick()
     expect(reparseBtn.attributes('disabled')).toBeDefined()
   })
+
+  it('keeps the page usable while actual scoring is still running', async () => {
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, meta: { bidFileName: '投标书.pdf' } } })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
+    let releaseStatus
+    scoreParseApi.getScoringStatus.mockReturnValue(new Promise((resolve) => { releaseStatus = resolve }))
+
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId: 123 },
+      global: {
+        stubs: {
+          'el-drawer': {
+            props: {
+              modelValue: Boolean,
+              modal: { type: Boolean, default: true },
+              modalPenetrable: { type: Boolean, default: false },
+              lockScroll: { type: Boolean, default: true },
+            },
+            template: '<div v-if="modelValue" class="el-drawer-mock" :data-modal="String(modal)" :data-modal-penetrable="String(modalPenetrable)" :data-lock-scroll="String(lockScroll)"><slot /></div>',
+          },
+          'el-dialog': true,
+          'el-button': true,
+        },
+      },
+    })
+
+    await wrapper.vm.open({ autoScore: false, autoParse: false })
+    const scoreBtn = wrapper.findAll('button').find((button) => button.text().includes('AI 实际打分'))
+    await scoreBtn.trigger('click')
+    await vi.waitFor(() => expect(wrapper.find('.scoring-overlay').classes()).toContain('show'))
+
+    expect(wrapper.find('[data-test="score-parse-content"]').classes()).not.toContain('scroll-locked')
+    const drawer = wrapper.find('.el-drawer-mock')
+    expect(drawer.attributes('data-modal')).toBe('false')
+    expect(drawer.attributes('data-modal-penetrable')).toBe('true')
+    expect(drawer.attributes('data-lock-scroll')).toBe('false')
+
+    await wrapper.find('[data-test="score-parse-dismiss"]').trigger('click')
+    expect(wrapper.vm.visible).toBe(false)
+
+    releaseStatus({ data: { status: 'COMPLETED', completedAt: '2026-08-15T14:30:00' } })
+    await vi.waitFor(() => expect(wrapper.vm.scoringOverlayVisible).toBe(false))
+  })
 })
 
 describe('versioned drawer coexistence', () => {
