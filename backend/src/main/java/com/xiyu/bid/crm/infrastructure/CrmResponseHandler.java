@@ -17,7 +17,8 @@ public final class CrmResponseHandler {
         try {
             JsonNode root = mapper.readTree(body);
             int code = root.path("code").asInt(-1);
-            String msg = root.path("msg").asText("");
+            // OSS 统一认证接口使用 message 字段，其他 CRM 接口使用 msg，需同时兼容。
+            String msg = root.hasNonNull("msg") ? root.path("msg").asText("") : root.path("message").asText("");
             
             // CRM 某些接口（如 customer-chance/page-list）返回扁平结构：
             // {"code":"0","totalCount":3,"dataList":[...]} 没有外层 data 字段。

@@ -48,6 +48,7 @@ public class OssDelegationService {
 
         log.warn("OSS login failed for user: {} code={} msg={}",
                 user.getUsername(), response.code(), response.msg());
+        OssLoginFailureClassifier.throwIfNotCredentialFailure(response);
         return false;
     }
 }
