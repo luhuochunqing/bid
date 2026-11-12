@@ -327,12 +327,12 @@ CRM 存储该字符串后 1 小时即永久失效。
 - 现象：OSS 测试环境部分账号密码正确，但登录投标平台提示「密码错误，请重新输入」，实际 OSS 返回
   `{"code":501,"message":"没有权限访问该系统"}`（账号未授权 bid-platform 系统）。
 - 根因链：
-  1. `OssDelegationService` 把 OSS 所有失败统一转成 `BadCredentialsException` → 401；
+  1. `OssDelegationService` 对 OSS 失败返回 `false`，调用方 `AuthService` 统一抛 `BadCredentialsException` → 401；
   2. `CrmHttpClient.postForm` 捕获 HTTP 500 后丢弃响应体，OSS 业务错误退化为 `code=-1`；
   3. `CrmResponseHandler.parse` 只读 CRM 的 `msg` 字段，OSS 用的是 `message`，错误文案直接丢失。
-- 修复模式：HTTP 边界保留 4xx/5xx 响应体并解析；`msg`/`message` 双兼容；登录失败分三类——
+- 修复模式：HTTP 边界解析 4xx/5xx 响应体并保留文案，统一返回 `code=-1, success=false`，避免错误状态中的成功响应体被接受；`msg` 优先、缺失或为 null 时回退到 `message`；登录失败分三类——
   系统未授权 → 403 `ROLE_NOT_AUTHORIZED`（前端已有友好文案）、凭据错误 → 401、OSS 不可达 → 502。
-- 通用对策：委托外部系统认证时，禁止把「上游业务拒绝」压缩成「密码错误」；先保留上游 code/message，
+- 通用对策：委托外部系统认证时，禁止把「上游业务拒绝」压缩成「密码错误」；先区分 HTTP 失败与业务失败并保留上游文案，
   再按「凭据 / 授权 / 依赖不可用」分类映射到不同 HTTP 语义。测试用 `message` 字段响应体覆盖 HTTP 500 分支。
 
 ---
