@@ -43,6 +43,33 @@ const resultsFixture = {
 }
 
 describe('ScoreParseDrawer.vue', () => {
+  it('removes the previous refresh counts and reasons when reopening the same project with new items', async () => {
+    scoreParseApi.getLatestExtraction.mockResolvedValue({ data: null })
+    const saved = itemsFixture.map(item => ({ ...item, estBasis: item.id === 1 ? '缺少旧方案证据' : item.estBasis }))
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: saved } })
+    scoreParseApi.refreshEstimates.mockResolvedValue({ data: { items: saved, refresh: {
+      processedCount: 2, scoredCount: 1, pendingCount: 1,
+      pendingItems: [{ id: 1, dim: '技术方案', reason: '缺少旧方案证据' }],
+    } } })
+    const wrapper = mount(ScoreParseDrawer, { props: { projectId: 123 }, global: { stubs: {
+      'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true,
+    } } })
+    const options = { stage: 1, autoParse: false, autoScore: false }
+    await wrapper.vm.open(options)
+    await wrapper.find('[data-test="refresh-estimates"]').trigger('click')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('有数值得分 1 项'))
+    expect(wrapper.find('[data-test="estimate-refresh-result"]').text()).toContain('缺少旧方案证据')
+
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: [
+      { ...itemsFixture[0], id: 99, dim: '新财务规则', estBasis: '财务证据待确认' },
+    ] } })
+    await wrapper.vm.open(options)
+
+    expect(wrapper.text()).toContain('新财务规则')
+    expect(wrapper.find('[data-test="estimate-refresh-result"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('缺少旧方案证据')
+  })
+
   it('shows the OCR cause even when structure failure leaves no candidates', async () => {
     scoreParseApi.getItems.mockResolvedValue({ data: { items: [], meta: {
       lastParseStatus: 'COMPLETED', decisionStatus: 'STRUCTURE_INCOMPLETE',
@@ -492,24 +519,71 @@ describe('independent knowledge estimates', () => {
     vi.clearAllMocks()
     scoreParseApi.getLatestExtraction.mockResolvedValue({ data: null })
     scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
-    scoreParseApi.getItems.mockResolvedValueOnce({ data: { items: [{ ...itemsFixture[1], estimateStatus: 'STALE', estScore: null, status: 'PENDING' }] } })
-      .mockResolvedValueOnce({ data: { items: [{ ...itemsFixture[1], estimateStatus: 'FRESH', estimatedAt: '2026-10-26T10:00:00' }] } })
+    const activeItem = { ...itemsFixture[1], dim: '财务信用', detail: '财务信用证明',
+      estScore: null, status: 'PENDING', estBasis: '缺少财务证据', kbHit: false }
+    const refreshedItem = { ...activeItem, estimateStatus: 'FRESH', estimatedAt: '2026-10-26T10:00:00' }
+    scoreParseApi.getItems.mockResolvedValueOnce({ data: { items: [{ ...activeItem, estimateStatus: 'STALE' }] } })
+      .mockResolvedValueOnce({ data: { items: [{ ...refreshedItem }] } })
     let finish
     scoreParseApi.refreshEstimates.mockImplementation(() => new Promise(resolve => { finish = resolve }))
     const w = mount(ScoreParseDrawer, { props: { projectId: 123, showExtractionReview: false }, global: { stubs: { 'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true } } })
     await w.vm.open({ stage: 1, autoParse: false, autoScore: false })
-    expect(w.text()).toContain('需要更新 1 项')
+    expect(w.text()).toContain('证书新鲜度：1 项待核验')
+    expect(w.text()).toContain('仅反映证书变化')
+    await w.find('.collapse-header').trigger('click')
     const button = w.find('[data-test="refresh-estimates"]')
+    expect(button.isVisible()).toBe(true)
+    expect(button.element.closest('.collapse-item')).toBeNull()
     await button.trigger('click')
     expect(button.attributes('disabled')).toBeDefined()
     await button.trigger('click')
-    finish({ data: {} })
-    await vi.waitFor(() => expect(w.text()).toContain('需要更新 0 项'))
-    expect(w.text()).toContain('核验时间')
+    finish({ data: { items: [{ ...refreshedItem }], summary: null, meta: {}, refresh: {
+      processedCount: 1, scoredCount: 0, pendingCount: 1,
+      pendingItems: [{ id: 2, dim: '财务信用', reason: '缺少财务证据' }],
+    } } })
+    await vi.waitFor(() => expect(w.text()).toContain('本次处理 1 项'))
+    expect(w.text()).toContain('有数值得分 0 项')
+    expect(w.text()).toContain('无分值 1 项')
+    expect(w.text()).toContain('财务信用：缺少财务证据')
+    expect(w.text()).toContain('证书新鲜度：0 项待核验')
     expect(scoreParseApi.refreshEstimates).toHaveBeenCalledTimes(1)
     expect(scoreParseApi.getItems).toHaveBeenCalledTimes(2)
     expect(scoreParseApi.triggerParse).not.toHaveBeenCalled()
     expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
     expect(scoreParseApi.activateExtraction).not.toHaveBeenCalled()
+  })
+
+  it('keeps empty-run and request failures visible with the section collapsed', async () => {
+    scoreParseApi.getLatestExtraction.mockResolvedValue({ data: null })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture } })
+    scoreParseApi.refreshEstimates.mockResolvedValueOnce({ data: { refresh: {
+      processedCount: 0, scoredCount: 0, pendingCount: 0, pendingItems: [],
+    } } }).mockRejectedValueOnce(new Error('版本冲突，请重试'))
+    const w = mount(ScoreParseDrawer, { props: { projectId: 123 }, global: { stubs: {
+      'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true,
+    } } })
+    await w.vm.open({ stage: 1, autoParse: false, autoScore: false })
+    await w.find('.collapse-header').trigger('click')
+    await w.find('[data-test="refresh-estimates"]').trigger('click')
+    await vi.waitFor(() => expect(w.text()).toContain('没有处理任何生效评分项'))
+    expect(w.find('[data-test="estimate-refresh-result"]').exists()).toBe(false)
+    await w.find('[data-test="refresh-estimates"]').trigger('click')
+    await vi.waitFor(() => expect(w.text()).toContain('版本冲突，请重试'))
+    expect(w.find('[data-test="estimate-refresh-error"]').isVisible()).toBe(true)
+  })
+
+  it('explains why refresh is unavailable when there are no active items', async () => {
+    scoreParseApi.getLatestExtraction.mockResolvedValue({ data: null })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: [] } })
+    const w = mount(ScoreParseDrawer, { props: { projectId: 123 }, global: { stubs: {
+      'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true,
+    } } })
+    await w.vm.open({ stage: 1, autoParse: false, autoScore: false })
+    const button = w.find('[data-test="refresh-estimates"]')
+    expect(button.exists()).toBe(true)
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(w.text()).toContain('暂无生效评分项，无法更新知识库预判')
   })
 })

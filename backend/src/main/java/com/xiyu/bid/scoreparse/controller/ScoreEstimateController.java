@@ -7,7 +7,7 @@ package com.xiyu.bid.scoreparse.controller;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.scoreparse.application.ScoreEstimateRefreshService;
 import com.xiyu.bid.scoreparse.application.ScoreParseAppService;
-import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
+import com.xiyu.bid.scoreparse.dto.ScoreEstimateRefreshDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,8 +25,13 @@ public class ScoreEstimateController {
 
     @PostMapping("/refresh")
     @PreAuthorize("isAuthenticated()")
-    public ApiResponse<ScoreParseItemsDTO> refresh(@PathVariable Long projectId) {
-        estimates.refresh(projectId);
-        return ApiResponse.success(parser.getItems(projectId));
+    public ApiResponse<ScoreEstimateRefreshDTO> refresh(@PathVariable Long projectId) {
+        var receipt = estimates.refresh(projectId);
+        var read = parser.getItems(projectId);
+        if (read == null || !receipt.matchesSavedResults(read.items())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT, "预判结果在刷新后发生变化，请重新更新知识库预判");
+        }
+        return ApiResponse.success(new ScoreEstimateRefreshDTO(read.items(), read.summary(), read.meta(), receipt));
     }
 }

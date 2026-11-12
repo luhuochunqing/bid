@@ -76,6 +76,20 @@ class EstimatedScoreServiceTest {
     }
 
     @Test
+    void explicitRefreshWithoutCertificatesRecalculatesWarehouseAndClearsHistoricalBasis() {
+        ScoreItem warehouse = item("仓储能力", "六大地区华北东北华东中南西南西北各一个仓库", "25", "OBJECTIVE");
+        warehouse.setEstBasis("未抽取到可执行的仓库匹配约束（面积）");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(warehouse));
+        when(warehouseMatchService.findActiveWarehouses()).thenReturn(List.of());
+
+        assertThat(service.refreshItemsForProject(1L)).containsExactly(warehouse);
+
+        assertThat(warehouse.getEstScore()).isEqualByComparingTo("0");
+        assertThat(warehouse.getEstBasis()).isEqualTo("知识库未匹配到在用仓储数据");
+        verify(itemRepository).saveAll(List.of(warehouse));
+    }
+
+    @Test
     void objectiveCert_fullMatch_estimatesFullScore() {
         ScoreItem cert = item("资质", "具有 ISO9001 质量管理体系认证证书", "8", "OBJECTIVE");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(cert));

@@ -2,6 +2,10 @@
 
 > 一旦我所属的文件夹有所变化，请更新我。
 
+手动 `POST /api/projects/{projectId}/score-parse/estimates/refresh` 刷新全部生效评分项，沿用现有计分策略和版本保护，不重解析或采纳候选、不写阶段2。响应保留items/summary/meta并添加refresh统计：processedCount/scoredCount/pendingCount/pendingItems。数值0计为已得分；无数值逐项返回原因。证书过期计数只描述证书；UI入口独立于评分标准折叠区域。验收边界见specs/086-score-estimate-refresh。
+
+前端刷新摘要及无分值原因仅适用于本次回读的评分项；同项目采纳后重载、重新打开抽屉加载评分项时清除旧摘要，刷新自身回读校验通过后再展示本次摘要。
+
 ## 职责说明
 
 `scoreparse` 承载项目详情页「AI 评分标准解析」抽屉（V3 双阶段闭环）的全部后端能力：

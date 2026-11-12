@@ -5,6 +5,13 @@ import com.xiyu.bid.businessqualification.domain.valueobject.*;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.BusinessQualificationEntity;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.BusinessQualificationJpaRepository;
 import com.xiyu.bid.scoreparse.application.match.*;
+import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceRecordEntity;
+import com.xiyu.bid.performance.infrastructure.persistence.repository.PerformanceRecordJpaRepository;
+import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
+import com.xiyu.bid.warehouse.infrastructure.WarehouseRepository;
+import com.xiyu.bid.warehouse.domain.WarehouseStatus;
+import com.xiyu.bid.warehouse.domain.WarehouseType;
+import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.entity.*;
 import com.xiyu.bid.scoreparse.repository.*;
 import com.xiyu.bid.service.ProjectAccessScopeService;
@@ -46,9 +53,9 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
  }
  @AfterAll static void stop(){if(MYSQL.isRunning())MYSQL.stop();}
  @Configuration @EnableAutoConfiguration
- @EntityScan(basePackageClasses={ScoreItem.class,BusinessQualificationEntity.class})
- @EnableJpaRepositories(basePackageClasses={ScoreItemRepository.class,BusinessQualificationJpaRepository.class})
- @Import({CertMatchService.class,EstimatedScoreService.class,ScoreScoringVersionService.class,ScoreExtractionCodec.class,ScoreEstimateFreshness.class,ScoreEstimateRefreshService.class})
+ @EntityScan(basePackageClasses={ScoreItem.class,BusinessQualificationEntity.class,PerformanceRecordEntity.class,WarehouseEntity.class})
+ @EnableJpaRepositories(basePackageClasses={ScoreItemRepository.class,BusinessQualificationJpaRepository.class,PerformanceRecordJpaRepository.class,WarehouseRepository.class})
+ @Import({CertMatchService.class,ProjectMatchService.class,WarehouseMatchService.class,EstimatedScoreService.class,ScoreScoringVersionService.class,ScoreExtractionCodec.class,ScoreEstimateFreshness.class,ScoreEstimateRefreshService.class})
  static class Config {
   @Bean ObjectMapper mapper(){return new ObjectMapper().findAndRegisterModules();}
   @Bean ProjectAccessScopeService access(){return new ProjectAccessScopeService(
@@ -59,11 +66,11 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
    mock(com.xiyu.bid.repository.TaskRepository.class),mock(com.xiyu.bid.project.repository.BidDocumentReviewRepository.class),mock(com.xiyu.bid.security.EffectiveRoleResolver.class));}
  }
  @MockBean PersonMatchService people;
- @MockBean ProjectMatchService projects;
- @MockBean WarehouseMatchService warehouses;
  @MockBean BrandMatchService brands;
  @Autowired ScoreItemRepository items;
  @Autowired BusinessQualificationJpaRepository certificates;
+ @Autowired PerformanceRecordJpaRepository performances;
+ @Autowired WarehouseRepository warehouseRecords;
  @Autowired ScoreScoringVersionService versions;
  @Autowired ScoreEstimateRefreshService refresh;
  @Autowired ScoreEstimateFreshness freshness;
@@ -72,7 +79,7 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
  long project;
  static final String RULE="具有ISO9001质量管理体系认证、ISO14001环境管理体系认证、ISO45001职业健康安全管理体系认证的得10分。三项齐全得满分，缺少一项，不得分";
  @BeforeEach void setup(){
-  SecurityContextHolder.clearContext();certificates.deleteAll();
+  SecurityContextHolder.clearContext();certificates.deleteAll();performances.deleteAll();warehouseRecords.deleteAll();
   jdbc.execute("CREATE TABLE IF NOT EXISTS projects(id BIGINT PRIMARY KEY)");
   project=System.nanoTime();jdbc.update("INSERT INTO projects(id) VALUES(?)",project);
  }
@@ -106,7 +113,9 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
   authorizeExternalApi();refresh.refresh(project);var fresh=read(old.getId());
   assertThat(fresh.getEstScore()).isEqualByComparingTo("10");assertThat(fresh.getEstimatedAt()).isNotNull();
   assertThat(freshness.status(fresh,LocalDate.now())).isEqualTo("FRESH");
-  assertThat(freshness.status(fresh,LocalDate.now().plusDays(1))).isEqualTo("STALE");
+  // Current fingerprint excludes the wall-clock day; unchanged, unexpired evidence stays fresh.
+  assertThat(freshness.status(fresh,LocalDate.now().plusDays(1))).isEqualTo("FRESH");
+  assertThat(freshness.status(fresh,LocalDate.now().plusYears(1).plusDays(1))).isEqualTo("STALE");
   var cert=certificates.findAll().getFirst();cert.setRetired(true);certificates.saveAndFlush(cert);
   assertThat(freshness.status(read(old.getId()),LocalDate.now())).isEqualTo("STALE");
   refresh.refresh(project);var missing=read(old.getId());assertThat(missing.getEstScore()).isZero();
@@ -114,6 +123,8 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
  }
  @Test void refreshPreservesCandidateRowsAndStageTwoBytes(){
   var old=item();allCertificates();
+  objective(2,"业务业绩","近三年办公用品业绩，具有1份合同得10分");
+  objective(3,"仓储能力","仓库面积不少于1000平方米得10分");
   jdbc.update("INSERT INTO score_result(score_item_id,scoring_task_id,actual_score,status_stage2,evidence,created_at,updated_at) VALUES(?,1,7,'PENDING','immutable stage2',NOW(),NOW())",old.getId());
   jdbc.update("INSERT INTO score_extraction_snapshot(parse_task_id,project_id,base_fingerprint,payload) VALUES(?,?,?,?)",project,project,"unadopted","{\"candidate\":\"pending review\"}");
   var stage2=jdbc.queryForList("SELECT * FROM score_result WHERE score_item_id=?",old.getId());
@@ -165,7 +176,7 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
   when(roles.resolveRoleCode(member)).thenReturn("bid-Specialist");
   when(scopes.getAccessProfile(member)).thenReturn(com.xiyu.bid.admin.service.DataScopeAccessProfile.builder().explicitProjectIds(List.of(project)).build());
   SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("member",null,List.of(new SimpleGrantedAuthority("ROLE_USER"))));
-  var parser=mock(ScoreParseAppService.class);
+  var parser=parserWithReadFixture(project);
   var mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
    new com.xiyu.bid.scoreparse.controller.ScoreEstimateController(refresh,parser))
    .setControllerAdvice(new com.xiyu.bid.exception.GlobalExceptionHandler()).build();
@@ -179,6 +190,117 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
   assertThat(jdbc.queryForMap("SELECT * FROM score_item WHERE id=?",denied.getId())).isEqualTo(deniedBefore);
   verify(parser,never()).getItems(deniedProject);
  }
+
+ /** Real PROJECT/WAREHOUSE matching catches cert-only refresh silently skipping every active row. */
+ @Test void noCertificateProjectRecalculatesBusinessAndWarehouseAndClearsSubjectiveBasis() {
+  performances.saveAndFlush(PerformanceRecordEntity.builder().contractName("办公用品合同")
+   .projectType(com.xiyu.bid.performance.domain.valueobject.ProjectType.OFFICE)
+   .signingDate(LocalDate.now()).contractAmount(new BigDecimal("2000000")).build());
+  warehouseRecords.saveAndFlush(WarehouseEntity.builder().name("上海测试仓库").type(WarehouseType.SELF_OPERATED)
+   .region("华东").province("上海").address("测试地址").area(new BigDecimal("2000"))
+   .contactPerson("测试").startDate(LocalDate.now().minusYears(1)).endDate(LocalDate.now().plusYears(1))
+   .lessor("出租方").lessee("承租方").hasPropertyCert(false).hasInvoice(false).hasPhotos(false)
+   .hasLeaseContract(false).status(WarehouseStatus.IN_USE).build());
+  var business=objective(1,"业务业绩","近三年办公用品业绩，具有1份合同得10分");
+  var warehouse=objective(2,"仓储能力","仓库面积不少于1000平方米得10分");
+  var subjective=objective(3,"服务方案","根据方案合理性评分");
+  subjective.setScoreType("SUBJECTIVE");items.saveAndFlush(subjective);
+  var financial=objective(4,"财务状况","根据财务报表评价");
+  assertThat(certificates.count()).isZero();
+  authorizeExternalApi();var receipt=refresh.refresh(project);
+  assertThat(receipt.processedCount()).isEqualTo(4);
+  assertThat(receipt.scoredCount()).isEqualTo(2);
+  assertThat(receipt.pendingCount()).isEqualTo(2);
+  for(var id:List.of(business.getId(),warehouse.getId())) {
+   var persisted=read(id);
+   assertThat(persisted.getEstScore()).isEqualByComparingTo("10");
+   assertThat(persisted.getKbHit()).isTrue();assertThat(persisted.getStatusStage1()).isEqualTo("OK");
+   assertThat(persisted.getEstBasis()).doesNotContain("主观项不计分");
+  }
+  assertThat(read(subjective.getId()).getEstScore()).isNull();
+  assertThat(read(financial.getId()).getEstScore()).isNull();
+  assertThat(receipt.pendingItems()).extracting(p -> p.id())
+   .containsExactlyInAnyOrder(subjective.getId(),financial.getId());
+  for(var pending:receipt.pendingItems()) {
+   var persisted=read(pending.id());
+   assertThat(pending.dim()).isEqualTo(persisted.getDim());
+   assertThat(pending.reason()).isNotBlank().isEqualTo(persisted.getEstBasis());
+   assertThat(persisted.getStatusStage1()).isEqualTo("PENDING");
+  }
+  // A second refresh must replace the obsolete subjective explanation when the rule becomes objective.
+  subjective=read(subjective.getId());subjective.setScoreType("OBJECTIVE");items.saveAndFlush(subjective);
+  var second=refresh.refresh(project);
+  var changedId=subjective.getId();
+  assertThat(read(changedId).getEstBasis()).doesNotContain("主观项不计分");
+  assertThat(second.pendingItems()).filteredOn(p -> p.id().equals(changedId)).singleElement()
+   .satisfies(p -> assertThat(p.reason()).isEqualTo(read(changedId).getEstBasis()).doesNotContain("主观项不计分"));
+ }
+
+ @Test void zeroScoreIsCountedAsScoredAndHttpReceiptKeepsReadShape() throws Exception {
+  var warehouse=objective(1,"仓储能力","仓库面积不少于1000平方米得10分");
+  var financial=objective(2,"财务状况","根据财务报表评价");
+  authorizeExternalApi();
+  var mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+   new com.xiyu.bid.scoreparse.controller.ScoreEstimateController(refresh,parserWithReadFixture(project)))
+   .setControllerAdvice(new com.xiyu.bid.exception.GlobalExceptionHandler()).build();
+  var response=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+   .post("/api/projects/"+project+"/score-parse/estimates/refresh").accept(org.springframework.http.MediaType.APPLICATION_JSON))
+   .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk()).andReturn();
+  var data=new ObjectMapper().readTree(response.getResponse().getContentAsByteArray()).path("data");
+  assertThat(data.path("items").isArray()).isTrue();
+  assertThat(data.path("summary").path("totalWeight").decimalValue()).isEqualByComparingTo("20");
+  assertThat(data.path("meta").path("sourceFileName").asText()).isEqualTo("integration.pdf");
+  var receipt=data.path("refresh");
+  assertThat(receipt.path("processedCount").asInt(-1)).isEqualTo(2);
+  assertThat(receipt.path("scoredCount").asInt(-1)).isEqualTo(1);
+  assertThat(receipt.path("pendingCount").asInt(-1)).isEqualTo(1);
+  assertThat(receipt.path("pendingItems").size()).isEqualTo(1);
+  var pending=receipt.path("pendingItems").get(0);
+  assertThat(pending.path("id").asLong()).isEqualTo(financial.getId());
+  assertThat(pending.path("dim").asText()).isEqualTo("财务状况");
+  assertThat(pending.path("reason").asText()).isNotBlank().isEqualTo(read(financial.getId()).getEstBasis());
+  var zero=read(warehouse.getId());assertThat(zero.getEstScore()).isZero();
+  assertThat(zero.getKbHit()).isFalse();assertThat(zero.getStatusStage1()).isEqualTo("DANGER");
+  assertThat(zero.getEstBasis()).doesNotContain("主观项不计分");
+ }
+
+ ScoreItem objective(int index,String dim,String detail) {
+  return items.saveAndFlush(ScoreItem.builder().projectId(project).parseTaskId(1L).itemIndex(index)
+   .code("N"+index).dim(dim).detail(detail).weight(BigDecimal.TEN).scoreType("OBJECTIVE")
+   .statusStage1("PENDING").estBasis("主观项不计分，历史依据").build());
+ }
+ ScoreParseAppService parserWithReadFixture(long projectId) {
+  var parser=mock(ScoreParseAppService.class);
+  var summary=new ScoreParseItemsDTO.Summary(new BigDecimal("20"),BigDecimal.ZERO,0,1,1,
+   new BigDecimal("20"),BigDecimal.ZERO,true,null,null);
+  var meta=new ScoreParseItemsDTO.Meta("integration.pdf",null,null,null,null,null,null,null,null,null,null,null);
+  when(parser.getItems(projectId)).thenAnswer(inv -> new ScoreParseItemsDTO(
+   items.findByProjectIdOrderByItemIndexAsc(projectId).stream().map(i ->
+    new com.xiyu.bid.scoreparse.dto.ScoreItemDTO(i.getId(),i.getCode(),i.getDim(),i.getDetail(),i.getWeight(),
+     i.getScoreType(),i.getStatusStage1(),i.getEstScore(),i.getEstBasis(),i.getKbHit(),null)).toList(),summary,meta));
+  return parser;
+ }
+
+ @Test void concurrentResultOverwriteBeforeControllerReadRejectsOldReceipt() throws Exception {
+  var warehouse=objective(1,"仓储能力","仓库面积不少于1000平方米得10分");
+  authorizeExternalApi();var parser=parserWithReadFixture(project);
+  var readResponse=parser.getItems(project);
+  when(parser.getItems(project)).thenAnswer(inv -> {
+   var changed=read(warehouse.getId());changed.setEstScore(null);changed.setStatusStage1("PENDING");
+   changed.setEstBasis("另一次刷新已经改变结果");items.saveAndFlush(changed);
+   return new ScoreParseItemsDTO(List.of(new com.xiyu.bid.scoreparse.dto.ScoreItemDTO(changed.getId(),
+    changed.getCode(),changed.getDim(),changed.getDetail(),changed.getWeight(),changed.getScoreType(),
+    changed.getStatusStage1(),changed.getEstScore(),changed.getEstBasis(),changed.getKbHit(),null)),
+    readResponse.summary(),readResponse.meta());
+  });
+  var mvc=org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+   new com.xiyu.bid.scoreparse.controller.ScoreEstimateController(refresh,parser))
+   .setControllerAdvice(new com.xiyu.bid.exception.GlobalExceptionHandler()).build();
+  mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+   .post("/api/projects/"+project+"/score-parse/estimates/refresh"))
+   .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict());
+ }
+
  @Test void changedPersistedEstimateCannotBorrowFreshInputStamp() {
   var old=item();allCertificates();authorizeExternalApi();refresh.refresh(project);
   var overwritten=read(old.getId());overwritten.setEstScore(new BigDecimal("9"));
