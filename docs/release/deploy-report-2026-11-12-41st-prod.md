@@ -112,6 +112,9 @@
    `mysqldump | gzip` 管道吞掉退出码，产出 371 字节"假备份"（`winbid-6d843c212-20261112195240.sql.gz`，仅 16 行头部）。
    - 本次处理：保留证据文件，另用 `--single-transaction --no-tablespaces --routines --triggers` 重做备份，校验 211 张 `CREATE TABLE` 与库表数一致。
    - 建议修复：备份命令加 `set -o pipefail`，并校验 dump 尾部 `-- Dump completed` 与文件大小下限，失败即中止部署。
+   - **修复已落地（2026-11-12 当日）**：仓库侧 `scripts/release/backup-db-pre-deploy.sh` 与 `deploy-prod.sh` / `deploy-test.sh` 早已是 fail-closed 实现，本次仅技能文档 `SKILL.md` / `references/release-runbook.md` 仍给出手工内联 mysqldump，已改为
+     `DB_BACKUP_COMMAND="bash /opt/xiyu-bid/bin/backup-db-pre-deploy.sh <release-id>"`，并把该脚本加入 scp 上传清单。
+   - 验证证据：`scripts/test/prod-db-backup-failclosed-contract.sh` 33 条断言全通过；生产机用新命令实测 `DB backup completed ... (7318692 bytes)`，`CREATE TABLE` 计数 211 与库表数一致，退出码 0。
 2. **零迁移降低了本次风险**：无 schema 变更，DB 回滚非必需，备份主要用于数据兜底。
 3. **Sentry 仍关闭**：未注入 `VITE_SENTRY_DSN`，前端错误上报保持关闭（与上一版一致）。
 4. **SSH 瞬断**：首次连接被对端关闭，无鉴权失败记录，重试即恢复；如复现需关注网络侧策略。
