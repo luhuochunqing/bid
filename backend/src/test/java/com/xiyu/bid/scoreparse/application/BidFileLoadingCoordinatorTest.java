@@ -16,6 +16,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -90,11 +93,77 @@ class BidFileLoadingCoordinatorTest {
     }
 
     @Test
+    void load_blankScoringText_usesExtractionFailureNotGenericParseError() throws Exception {
+        String url = "/storage/small-scan.pdf";
+        byte[] content = "scanned-pdf".getBytes(StandardCharsets.UTF_8);
+        ProjectDocument document = new ProjectDocument();
+        document.setName("scan.pdf"); document.setFileUrl(url); document.setFileType("application/pdf");
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "BID", null, null)).thenReturn(List.of(document));
+        when(fileStorage.load(url)).thenReturn(Optional.of(
+                new LoadedProjectDocumentFile(url, url, "application/pdf", content, null)));
+        when(streamTextExtractor.extractForScoring(content, "scan.pdf")).thenReturn("  ");
+        assertThatThrownBy(() -> coordinator.load(PROJECT_ID, TASK_ID))
+                .isInstanceOf(BidTextExtractionException.class)
+                .hasMessageContaining("未提取出有效正文");
+    }
+
+    @Test
+    void load_blankDocx_usesExtractionFailure() throws Exception {
+        mockLocalStorageBidDocument();
+        when(streamTextExtractor.extractForScoring("DOCX内容".getBytes(StandardCharsets.UTF_8), FILE_NAME))
+                .thenReturn("  ");
+
+        assertThatThrownBy(() -> coordinator.load(PROJECT_ID, TASK_ID))
+                .isInstanceOf(BidTextExtractionException.class)
+                .hasMessageContaining("未提取出有效正文");
+        verifyNoInteractions(textExtractor);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"投标文件.doc,doc", "投标文件.DOC,application/msword", "投标文件,application/msword"})
+    void load_legacyDocPreservesOriginalTextExtractor(String fileName, String contentType) {
+        String url = "/storage/uploads/legacy.doc";
+        byte[] content = "legacy-doc-bytes".getBytes(StandardCharsets.UTF_8);
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(1L).projectId(PROJECT_ID).name(fileName).fileType(contentType).fileUrl(url).build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(PROJECT_ID, "BID", null, null))
+                .thenReturn(List.of(doc));
+        when(fileStorage.load(url)).thenReturn(Optional.of(
+                new LoadedProjectDocumentFile(url, url, contentType, content, null)));
+        when(textExtractor.extract(fileName, contentType, content))
+                .thenReturn(new ExtractedTenderDocument(fileName, contentType, "原有DOC正文", 7, "poi-hwpf-fallback"));
+
+        BidFileLoadingCoordinator.LoadedBidDocument loaded = coordinator.load(PROJECT_ID, TASK_ID);
+
+        assertThat(loaded.text()).isEqualTo("原有DOC正文");
+        verifyNoInteractions(streamTextExtractor);
+    }
+
+    @Test
+    void load_blankSpreadsheet_staysFileParseError() {
+        String url = "/storage/uploads/quote.xlsx";
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(1L).projectId(PROJECT_ID).name("报价.xlsx").fileType("xlsx").fileUrl(url).build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(PROJECT_ID, "BID", null, null))
+                .thenReturn(List.of(doc));
+        byte[] content = "sheet".getBytes(StandardCharsets.UTF_8);
+        when(fileStorage.load(url)).thenReturn(Optional.of(
+                new LoadedProjectDocumentFile(url, url, "xlsx", content, null)));
+        when(textExtractor.extract("报价.xlsx", "xlsx", content))
+                .thenReturn(new ExtractedTenderDocument("报价.xlsx", "xlsx", "  ", 0, "test"));
+
+        assertThatThrownBy(() -> coordinator.load(PROJECT_ID, TASK_ID))
+                .isInstanceOf(IllegalStateException.class)
+                .isNotInstanceOf(BidTextExtractionException.class)
+                .hasMessageContaining("未能提取出有效正文");
+    }
+
+    @Test
     void load_inMemory_extractsImagesViaByteArray() throws Exception {
         mockLocalStorageBidDocument();
         byte[] content = "DOCX内容".getBytes(StandardCharsets.UTF_8);
-        when(textExtractor.extract(FILE_NAME, "docx", content))
-                .thenReturn(new ExtractedTenderDocument(FILE_NAME, "docx", "投标正文", 4, "test"));
+        when(streamTextExtractor.extractForScoring(content, FILE_NAME)).thenReturn("投标正文");
         when(imageExtractor.extract(content, FILE_NAME))
                 .thenReturn(new SidecarImageExtraction(List.of(IMAGE), false));
 
@@ -105,6 +174,7 @@ class BidFileLoadingCoordinatorTest {
         // InMemory 全量 byte[] 直传（review H2：内存中已有整包，不再绕道临时文件）
         verify(imageExtractor).extract(content, FILE_NAME);
         verify(imageExtractor, org.mockito.Mockito.never()).extract(any(Path.class), anyString());
+        verifyNoInteractions(textExtractor);
     }
 
     @Test
@@ -128,8 +198,7 @@ class BidFileLoadingCoordinatorTest {
     void load_imageExtractionFails_degradesToEmptyImages() throws Exception {
         mockLocalStorageBidDocument();
         byte[] content = "DOCX内容".getBytes(StandardCharsets.UTF_8);
-        when(textExtractor.extract(FILE_NAME, "docx", content))
-                .thenReturn(new ExtractedTenderDocument(FILE_NAME, "docx", "投标正文", 4, "test"));
+        when(streamTextExtractor.extractForScoring(content, FILE_NAME)).thenReturn("投标正文");
         when(imageExtractor.extract(content, FILE_NAME))
                 .thenThrow(new OversizedImageResponseException());
 
@@ -148,8 +217,7 @@ class BidFileLoadingCoordinatorTest {
                 imageExtractor, false);
         mockLocalStorageBidDocument();
         byte[] content = "DOCX内容".getBytes(StandardCharsets.UTF_8);
-        when(textExtractor.extract(FILE_NAME, "docx", content))
-                .thenReturn(new ExtractedTenderDocument(FILE_NAME, "docx", "投标正文", 4, "test"));
+        when(streamTextExtractor.extractForScoring(content, FILE_NAME)).thenReturn("投标正文");
 
         BidFileLoadingCoordinator.LoadedBidDocument loaded = coordinator.load(PROJECT_ID, TASK_ID);
 

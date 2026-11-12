@@ -1,3 +1,25 @@
+## [2026-11-12] fix 第1轮 | 透明图片金额保真与旧版 DOC 回退
+
+- 根因：透明图片直接转 RGB 丢弃 alpha，透明黑底与可见黑字合成全黑；宽泛 Word 分流绕过 DOC 的 DocInsight/POI HWPF 回退。
+- 修复：DOCX 嵌入图先合成白底再 OCR（RGBA、LA、调色板透明度）；内存新增评分分流限定 PDF/DOCX，旧版 DOC 保留原 textExtractor；磁盘路由不变。Linux 扫描 DOC OCR 未验证，不作为本次交付能力。
+- 行为保护：改前 Python 34 项、Java 8 项通过；新增透明图 6 项及 DOC 路由 3 项先失败。改后 `test_scanned_bid_ocr.py` 40 项、`BidFileLoadingCoordinatorTest` 11 项通过。最终透明图测试进程内换回旧 RGB 转换后 6 项再次全部失败，未改写工作区代码。
+- 环境：复用已安装 Sidecar Python 环境，Java 离线测试预加载已有 Byte Buddy agent；均无监听端口。HTTP 测试留主执行器 verify；未提交、push、PR 或部署。
+- 回填：[[score580-scanned-bid-scoring]]。
+
+## [2026-11-12] fix 第1轮 | Word OCR 完整性与小型证据截图
+
+- 根因：已有正文时吞掉后续 Word OCR 超时/引擎错误，返回部分正文；最长边不足400像素被误作图标跳过。
+- 修复：引擎缺失、非零退出、单图超时或总预算耗尽均整卷失败；非纯白图片不按尺寸跳过，图标空识别仍保留原生正文。
+- 本轮验证：修改前保护测试23项通过；新增8种失败组合与真实399×200金额截图共9项先失败；修复后 `test_scanned_bid_ocr.py` 32项通过，无监听端口。Java与HTTP监听测试留主执行器verify阶段；未提交或部署。
+- 回填：[[score580-scanned-bid-scoring]]。
+
+## [2026-11-12] fix | 投标文件实际打分接入现有 OCR
+
+- 根因：评分 PDF 已部署 Tesseract，但单页识别为空会整卷失败；无图且无原生文字的页不送识别。Word 投标文件不进这条 OCR，图片只变成「已附图片」。
+- 修复：PDF 单页空识别继续处理其余正文；Word 走同一评分入口，嵌入扫描图用同一套 Tesseract。打分公式未改。
+- 回填：[[score580-scanned-bid-scoring]]。
+- 验证：`test_scanned_bid_ocr.py` 19 项通过；`BidFileLoadingCoordinatorTest` 8 项通过。未部署，未重算生产分数。
+
 ## [2026-11-12] fix | 评分抽屉打分遮罩不再锁死页面
 
 - 根因：「AI 实际打分」轮询期间白遮罩盖住抽屉，模态层挡住页面。Element Plus 的 body 滚动锁只在 setup 读一次 `lockScroll`。

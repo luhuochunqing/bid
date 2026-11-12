@@ -182,17 +182,28 @@ PDF scoring tables with repeated page headers are linked only when adjacent sour
 ## Scanned bid scoring (2026-11-11)
 
 `POST /convert-stream` accepts the authenticated opt-in header `X-Pdf-Ocr: true`.
-Only that PDF request path reads every physical page and uses installed
-Tesseract (`chi_sim+eng`) for pages containing images, including partial screenshots,
-tiled scans and scans with native headers. No image-area threshold is used because
-native text does not prove that scanned evidence was extracted. Native text/table extraction is preserved; genuinely blank
-scanned sheets keep their page position. No 30-page table-artifact sampling cap
-is used. Results are returned only after the complete document is processed.
+Only that request path uses installed Tesseract (`chi_sim+eng`). A PDF page is
+read when it contains an image or has no native text, including partial screenshots,
+tiled scans, scans with native headers, and image-less pages.
+Native-only pages are not sent to Tesseract. A pure-white raster
+is skipped. One page with empty recognition keeps that page's existing text and
+the rest of the document continues. No 30-page table-artifact sampling cap is used.
 
 The OCR budget `SIDECAR_BID_OCR_TIMEOUT_SECONDS` defaults to 1500 seconds.
-Unfinished recognition, missing OCR tools/languages and image pages with no
-recognizable text return HTTP 422 with `detail` equal to `BID_OCR_TIMEOUT`,
-`BID_OCR_UNAVAILABLE` or `BID_OCR_EMPTY`. Partial text is never returned as success.
+For scoring PDFs and DOCX files, a missing engine, a non-zero Tesseract exit, or a timeout returns HTTP 422 with
+`detail` equal to `BID_OCR_UNAVAILABLE` or `BID_OCR_TIMEOUT` and does not return
+partial text. `BID_OCR_EMPTY` is returned only when the finished document has no
+text on any page.
+A DOCX file keeps its native text and OCRs every decodable non-white embedded
+picture, including small screenshots. Pixel dimensions do not distinguish icons
+from scoring evidence. Icons with empty recognition keep the native text; OCR
+errors fail the whole conversion even when earlier images or native text yielded
+content. Transparent pictures are composited onto white before OCR, including
+RGBA, grayscale-alpha and palette transparency. Pure-white pictures are skipped.
+Legacy `.doc` in-memory scoring files retain the existing DocInsight extraction
+path and its POI HWPF fallback. Scanned `.doc` OCR is not verified: the current
+Linux Sidecar has no validated DOC-to-DOCX converter. Existing on-disk routing
+is unchanged.
 Requests without the header retain the existing conversion contract.
 
 The Java scoring entry uses `app.score-parse.bid-file.scoring-timeout-seconds`
