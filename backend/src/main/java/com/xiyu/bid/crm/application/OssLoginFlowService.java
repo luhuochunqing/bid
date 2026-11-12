@@ -65,6 +65,7 @@ public class OssLoginFlowService {
         if (!loginResponse.success() || loginResponse.data() == null) {
             log.warn("OSS login failed for user={} code={} msg={}",
                     username, loginResponse.code(), loginResponse.msg());
+            OssLoginFailureClassifier.throwIfNotCredentialFailure(loginResponse);
             result.authenticated(false);
             return result.build();
         }

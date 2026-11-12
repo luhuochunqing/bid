@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [CRM, 集成, 踩坑, webhook, 商机状态, OAuth, CallerContext, OBS预签名]
 created: 2026-07-10
-updated: 2026-10-23
+updated: 2026-11-12
 health_checked: 2026-11-01
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandService.java
@@ -322,6 +322,19 @@ CRM 存储该字符串后 1 小时即永久失效。
   3. **非相关字段守卫**：立项详情更新时，仅在修改了入围家数或不利项字段时才触发 `ProjectInitiationChangedEvent`，防止无关字段更新造成无效 Webhook 投递。
   4. **Element Plus 表单继承禁用解耦**：父级 `<el-form :disabled="locked">` 会穿透覆盖子组件 `:disabled="false"`，需在父 form 上解绑，改由各子字段精细化锁定。详见 [[lessons-learned]] §440。
 
+### 9.8 OSS 登录失败不能一律报「密码错误」（2026-11-12）
+
+- 现象：OSS 测试环境部分账号密码正确，但登录投标平台提示「密码错误，请重新输入」，实际 OSS 返回
+  `{"code":501,"message":"没有权限访问该系统"}`（账号未授权 bid-platform 系统）。
+- 根因链：
+  1. `OssDelegationService` 对 OSS 失败返回 `false`，调用方 `AuthService` 统一抛 `BadCredentialsException` → 401；
+  2. `CrmHttpClient.postForm` 捕获 HTTP 500 后丢弃响应体，OSS 业务错误退化为 `code=-1`；
+  3. `CrmResponseHandler.parse` 只读 CRM 的 `msg` 字段，OSS 用的是 `message`，错误文案直接丢失。
+- 修复模式：HTTP 边界解析 4xx/5xx 响应体并保留文案，统一返回 `code=-1, success=false`，避免错误状态中的成功响应体被接受；`msg` 优先、缺失或为 null 时回退到 `message`；登录失败分三类——
+  系统未授权 → 403 `ROLE_NOT_AUTHORIZED`（前端已有友好文案）、凭据错误 → 401、OSS 不可达 → 502。
+- 通用对策：委托外部系统认证时，禁止把「上游业务拒绝」压缩成「密码错误」；先区分 HTTP 失败与业务失败并保留上游文案，
+  再按「凭据 / 授权 / 依赖不可用」分类映射到不同 HTTP 语义。测试用 `message` 字段响应体覆盖 HTTP 500 分支。
+
 ---
 
 ## 10. 相关文档
@@ -343,3 +356,4 @@ CRM 存储该字符串后 1 小时即永久失效。
 | 2026-08-19 | 新增 §9.5：历史数据重推运维接口落地（webhook_delivery_tasks.payload 为排查入口） |
 | 2026-08-28 | 新增 §9.6：对接人座机号 fixedPhone 驼峰/下划线字段名不匹配，@JsonAlias 双兼容修复 |
 | 2026-10-23 | 新增 §9.7：立项通过后微调入围家数与不利项同步 CRM，包含 status=null 隔离与商机反查跳过守卫 |
+| 2026-11-12 | 新增 §9.8：OSS 登录失败分三类报错，HTTP 500 保留响应体并兼容 message 字段 |

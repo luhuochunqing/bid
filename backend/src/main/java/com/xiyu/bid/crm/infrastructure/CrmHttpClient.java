@@ -11,6 +11,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -57,6 +58,12 @@ public class CrmHttpClient {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
             log.info("CRM POST form {} -> {}", url, response.getStatusCode());
             return CrmResponseHandler.parse(response.getBody());
+        } catch (HttpStatusCodeException e) {
+            // 保留 HTTP 失败标记及业务提示，只有明确的凭据/权限错误由登录分类器映射。
+            // 不能直接返回解析结果，否则普通 500/503 会被误判为密码错误，甚至接受成功响应体。
+            log.warn("CRM POST form {} -> {} body={}", url, e.getStatusCode(), e.getResponseBodyAsString());
+            CrmResponseHandler.CrmApiResponse error = CrmResponseHandler.parse(e.getResponseBodyAsString());
+            return CrmResponseHandler.CrmApiResponse.parseError(error.msg());
         } catch (RuntimeException e) {
             log.error("CRM POST form failed: {}", e.getMessage());
             return CrmResponseHandler.CrmApiResponse.parseError(e.getMessage());
