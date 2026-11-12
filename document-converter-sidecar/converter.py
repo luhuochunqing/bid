@@ -1203,7 +1203,85 @@ def _link_pdf_logical_rows(tables: list[dict]) -> None:
 
 
 class ScoringPdfOcrError(RuntimeError):
-    """Stable boundary error: incomplete OCR must never become scoring evidence."""
+    """Stable boundary error. A timeout may keep text already extracted."""
+
+
+def _scoring_ocr_bounds() -> tuple[float, float]:
+    """Absolute ceiling, and the duration allowed after the first body text.
+
+    Real bid files carry thousands of embedded pictures. Spending the whole
+    ceiling on those pictures consumes the 30-minute scoring window before
+    assessment starts. Text already in hand is returned when the shorter stop
+    or the ceiling is reached.
+    """
+    import time
+
+    started = time.monotonic()
+    full = max(0.0, float(os.environ.get("SIDECAR_BID_OCR_TIMEOUT_SECONDS", "1500")))
+    supplement = max(0.0, float(os.environ.get("SIDECAR_BID_OCR_SUPPLEMENT_SECONDS", "180")))
+    return started + full, supplement
+
+
+def _ocr_budget_exhausted(full_deadline: float, text_deadline: float, have_text: bool) -> bool:
+    import time
+
+    now = time.monotonic()
+    return now >= (text_deadline if have_text else full_deadline)
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(float(os.environ.get(name, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+def _scoring_ocr_candidate_limit(count: int, have_text: bool) -> int:
+    """How many pictures or scan pages to open.
+
+    A bid under the floor is read in full, so a few dozen scans are not sampled.
+    Above it, only a handful are opened. Decoding every picture in a 500MB file
+    spends the scoring window before assessment starts. With text already in
+    hand the cap is the configured value; with none yet, twice that, still
+    bounded by the candidate count.
+    """
+    floor = max(1, _env_int("SIDECAR_BID_OCR_LARGE_FILE_MIN", 40))
+    if count <= floor:
+        return count
+    cap = max(1, _env_int("SIDECAR_BID_OCR_LARGE_FILE_CAP", 12))
+    if not have_text:
+        cap *= 2
+    return min(count, cap)
+
+
+def _ocr_max_edge() -> int:
+    return max(1, _env_int("SIDECAR_BID_OCR_MAX_EDGE", 2000))
+
+
+def _pixmap_zoom(width: float, height: float) -> float:
+    """About 2x on A4. A poster page stays near the OCR long-edge cap."""
+    long_edge = max(float(width), float(height), 1.0)
+    return min(2.0, _ocr_max_edge() / long_edge)
+
+
+def _prepare_ocr_png(rgb) -> bytes:
+    """Shrink one raster so Tesseract is not handed a multi-thousand-pixel scan."""
+    import io
+    from PIL import Image
+
+    edge = _ocr_max_edge()
+    width, height = rgb.size
+    long_edge = max(width, height)
+    if long_edge > edge:
+        scale = edge / long_edge
+        rgb = rgb.resize(
+            (max(1, min(edge, int(round(width * scale)))),
+             max(1, min(edge, int(round(height * scale))))),
+            Image.Resampling.LANCZOS,
+        )
+    out = io.BytesIO()
+    rgb.save(out, format="PNG")
+    return out.getvalue()
 
 
 def _run_scoring_ocr(image: bytes, deadline: float) -> str:
@@ -1226,79 +1304,147 @@ def _run_scoring_ocr(image: bytes, deadline: float) -> str:
 
 
 def convert_scoring_pdf_document(pdf_path: str) -> dict:
-    """OCR every scoring page that has an image or no native text.
+    """OCR scoring pages that have an image or no native text.
 
     Scoring opt-in only. Unlike table-artifact OCR this has no 30-page sampling cap.
-    A single empty page does not discard the rest of the document. The document fails
-    only when no page yields text, or when the OCR engine itself is missing or times out.
+    A file past the large-file floor rasterizes only the capped set: pages with no
+    native text first, then the largest embedded image. Skipped pages still return
+    native text. A single empty page does not discard the rest of the document.
+    Once any page has text, a timeout returns that text instead of failing the file.
+    The document fails on timeout only when no text has been extracted, or when the
+    OCR engine itself is missing or exits non-zero.
     """
     import time
     import pymupdf
+    from PIL import Image
 
-    deadline = time.monotonic() + float(os.environ.get("SIDECAR_BID_OCR_TIMEOUT_SECONDS", "1500"))
+    full_deadline, supplement_seconds = _scoring_ocr_bounds()
     native_pages = {p["pageNumber"]: p["text"] for p in convert_pdf_to_pages(pdf_path)}
+    text_deadline = full_deadline
+    if any(text.strip() for text in native_pages.values()):
+        text_deadline = min(full_deadline, time.monotonic() + supplement_seconds)
     pages = []
+    saw_timeout = False
+
+    def have_text() -> bool:
+        return any(page["text"].strip() for page in pages) or any(
+            text.strip() for text in native_pages.values())
+
+    def stop(timed_out: bool) -> dict:
+        # A timeout must not drop native text on pages the OCR loop has not reached.
+        carried = list(pages)
+        seen = {page["pageNumber"] for page in carried}
+        for number in sorted(native_pages):
+            text = native_pages.get(number, "").strip()
+            if number not in seen and text:
+                carried.append({"pageNumber": number, "text": text})
+        carried.sort(key=lambda page: page["pageNumber"])
+        markdown = "\n\n".join(f"[第 {p['pageNumber']} 页]\n{p['text']}" for p in carried if p["text"])
+        if not markdown.strip():
+            raise ScoringPdfOcrError("BID_OCR_TIMEOUT" if timed_out or saw_timeout else "BID_OCR_EMPTY")
+        return {"markdown": markdown, "pages": carried}
+
+    if _ocr_budget_exhausted(full_deadline, text_deadline, have_text()):
+        return stop(True)
     with pymupdf.open(pdf_path) as document:
+        candidates = []
         for index in range(len(document)):
-            if time.monotonic() >= deadline:
-                raise ScoringPdfOcrError("BID_OCR_TIMEOUT")
-            page = document.load_page(index)
             text = native_pages.get(index + 1, "").strip()
-            images = page.get_image_info()  # Includes inline images without image XObjects.
-            # A title is not the scanned body. Image-less pages with no text are scans too.
-            if images or not text:
-                pixmap = page.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
-                from PIL import Image
-                extrema = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples).getextrema()
-                if extrema == ((255, 255), (255, 255), (255, 255)):
-                    del pixmap
+            info = document.load_page(index).get_image_info()
+            if not info and text:
+                continue
+            area = 0
+            for image in info:
+                area = max(area, int(image.get("width", 0)) * int(image.get("height", 0)))
+            # No native text is a real scan. A page that already has text waits behind those.
+            candidates.append((0 if not text else 1, -area, index))
+        limit = _scoring_ocr_candidate_limit(len(candidates), have_text())
+        chosen = {index for _priority, _area, index in sorted(candidates)[:limit]}
+        for index in range(len(document)):
+            if _ocr_budget_exhausted(full_deadline, text_deadline, have_text()):
+                return stop(True)
+            text = native_pages.get(index + 1, "").strip()
+            if index not in chosen:
+                if text:
                     pages.append({"pageNumber": index + 1, "text": text})
-                    continue
-                try:
-                    ocr_text = _run_scoring_ocr(pixmap.tobytes("png"), deadline)
-                finally:
-                    del pixmap
-                if ocr_text:
-                    if re.sub(r"\s+", "", text) in re.sub(r"\s+", "", ocr_text):
-                        text = ocr_text
-                    else:
-                        text += "\n" + ocr_text
-            if time.monotonic() >= deadline:
-                raise ScoringPdfOcrError("BID_OCR_TIMEOUT")
+                continue
+            page = document.load_page(index)
+            zoom = _pixmap_zoom(page.rect.width, page.rect.height)
+            pixmap = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+            image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+            del pixmap
+            if image.getextrema() == ((255, 255), (255, 255), (255, 255)):
+                pages.append({"pageNumber": index + 1, "text": text})
+                continue
+            active_deadline = text_deadline if have_text() else full_deadline
+            try:
+                ocr_text = _run_scoring_ocr(_prepare_ocr_png(image), active_deadline)
+            except ScoringPdfOcrError as exc:
+                if str(exc) != "BID_OCR_TIMEOUT":
+                    raise
+                saw_timeout = True
+                ocr_text = ""
+            finally:
+                del image
+            if ocr_text:
+                if not have_text():
+                    text_deadline = min(full_deadline, time.monotonic() + supplement_seconds)
+                if re.sub(r"\s+", "", text) in re.sub(r"\s+", "", ocr_text):
+                    text = ocr_text
+                else:
+                    text += "\n" + ocr_text
             pages.append({"pageNumber": index + 1, "text": text})
-    markdown = "\n\n".join(f"[第 {p['pageNumber']} 页]\n{p['text']}" for p in pages if p['text'])
-    if not markdown.strip():
-        raise ScoringPdfOcrError("BID_OCR_EMPTY")
-    return {"markdown": markdown, "pages": pages}
+    return stop(False)
 
 
 def append_docx_image_ocr(docx_path: str, native_text: str) -> str:
     """OCR embedded Word images with the same Tesseract call used for scoring PDFs.
 
-    Native Word text is kept. Every non-white image is recognized regardless of size:
-    small screenshots can contain scoring evidence too. Empty recognition is allowed,
-    but an engine failure or timeout fails the document even if earlier text exists.
+    Native Word text is kept. Pictures are recognized largest-first. Past the
+    large-file floor only that many are opened; the rest stay in the zip.
+    Empty recognition is allowed. A timeout returns text already extracted.
+    The document fails on timeout only when nothing remains, or when the engine
+    is missing or exits non-zero.
     """
     import io
     import time
     import zipfile
     from PIL import Image
 
-    deadline = time.monotonic() + float(os.environ.get("SIDECAR_BID_OCR_TIMEOUT_SECONDS", "1500"))
+    full_deadline, supplement_seconds = _scoring_ocr_bounds()
+    text_deadline = full_deadline
     pieces = []
     body = (native_text or "").replace("【已附图片】", "").strip()
     if body:
         pieces.append(body)
+        text_deadline = min(full_deadline, time.monotonic() + supplement_seconds)
     if not zipfile.is_zipfile(docx_path):
         if pieces:
             return "\n\n".join(pieces)
         raise ScoringPdfOcrError("BID_OCR_EMPTY")
+    saw_timeout = False
+
+    def have_text() -> bool:
+        return any(piece.strip() for piece in pieces)
+
+    def stop(timed_out: bool) -> str:
+        if not have_text():
+            raise ScoringPdfOcrError("BID_OCR_TIMEOUT" if timed_out or saw_timeout else "BID_OCR_EMPTY")
+        return "\n\n".join(pieces)
+
+    if _ocr_budget_exhausted(full_deadline, text_deadline, have_text()):
+        return stop(True)
     with zipfile.ZipFile(docx_path) as archive:
-        names = sorted(name for name in archive.namelist()
-                       if name.startswith("word/media/") and not name.endswith("/"))
+        names = sorted(
+            (name for name in archive.namelist()
+             if name.startswith("word/media/") and not name.endswith("/")),
+            key=lambda name: archive.getinfo(name).file_size,
+            reverse=True,
+        )
+        names = names[:_scoring_ocr_candidate_limit(len(names), have_text())]
         for name in names:
-            if time.monotonic() >= deadline:
-                raise ScoringPdfOcrError("BID_OCR_TIMEOUT")
+            if _ocr_budget_exhausted(full_deadline, text_deadline, have_text()):
+                return stop(True)
             raw = archive.read(name)
             try:
                 image = Image.open(io.BytesIO(raw))
@@ -1312,13 +1458,18 @@ def append_docx_image_ocr(docx_path: str, native_text: str) -> str:
                 continue
             if rgb.getextrema() == ((255, 255), (255, 255), (255, 255)):
                 continue
-            png = io.BytesIO()
-            rgb.save(png, format="PNG")
-            ocr_text = _run_scoring_ocr(png.getvalue(), deadline)
-            if time.monotonic() >= deadline:
-                raise ScoringPdfOcrError("BID_OCR_TIMEOUT")
+            active_deadline = text_deadline if have_text() else full_deadline
+            try:
+                ocr_text = _run_scoring_ocr(_prepare_ocr_png(rgb), active_deadline)
+            except ScoringPdfOcrError as exc:
+                if str(exc) != "BID_OCR_TIMEOUT":
+                    raise
+                saw_timeout = True
+                if _ocr_budget_exhausted(full_deadline, text_deadline, have_text()):
+                    return stop(True)
+                continue
             if ocr_text:
+                if not have_text():
+                    text_deadline = min(full_deadline, time.monotonic() + supplement_seconds)
                 pieces.append(ocr_text)
-    if not pieces:
-        raise ScoringPdfOcrError("BID_OCR_EMPTY")
-    return "\n\n".join(pieces)
+    return stop(False)
