@@ -1,3 +1,10 @@
+## [2026-11-13] compound | 测试环境 OBS 直传必须用域名 + 投标文件删除残留
+
+- 现象：用 `http://172.16.38.78:8080` 上传投标文件，OBS `HEAD ?apiversion` 失败（status 0），`bid_file` 停在 `UPLOADING`；换 `https://winbid-test.ehsy.com` 后正常。
+- 现象：UI 删除投标文件只解除项目关联，`bid_file` 行与 OBS 对象仍保留，需单独清理。
+- 回填：[[test-env-obs-upload-and-bidfile-cleanup]]。
+- 验证：第 269 次测试部署后的 ego-browser E2E；sidecar `/convert-stream` 带/不带 `X-Pdf-Ocr` 对照。
+
 ## [2026-11-13] fix | 500MB 标书只补少量大图再打分
 
 - 根因：超时保留正文之后，循环仍会打开全部嵌入图。500MB、上千张图时，解码和大图 2 倍光栅化会占满 30 分钟打分窗口，模型拿不到正文。
