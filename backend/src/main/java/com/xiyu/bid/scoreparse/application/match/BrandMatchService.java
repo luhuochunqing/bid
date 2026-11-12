@@ -35,6 +35,20 @@ public class BrandMatchService {
 
     private final ManufacturerAuthorizationJpaRepository repository;
 
+    /** Count usable brands once each; future, expired and retired authorizations cannot satisfy an estimate. */
+    public List<BrandMatchedItem> findEstimateCandidates(LocalDate day) {
+        var request = new BrandMatchRequest(null, null, null, day);
+        return List.copyOf(repository.findAll(specificationOf(request, null)).stream()
+                .filter(row -> row.getStatus() == AuthStatus.ACTIVE || row.getStatus() == AuthStatus.EXPIRING_SOON)
+                .filter(row -> row.getAuthStartDate() != null && !row.getAuthStartDate().isAfter(day))
+                .filter(row -> row.getAuthEndDate() != null && !row.getAuthEndDate().isBefore(day))
+                .filter(row -> StringUtils.hasText(row.getBrandId()))
+                .collect(java.util.stream.Collectors.toMap(ManufacturerAuthorizationEntity::getBrandId,
+                        row -> new BrandMatchedItem(row.getId(), row.getBrandName(), row.getManufacturerName(),
+                                row.getProductLine() == null ? null : row.getProductLine().name(), row.getAuthEndDate(), isExpireSoon(row.getAuthEndDate(), day)),
+                        (first, duplicate) -> first, java.util.LinkedHashMap::new)).values());
+    }
+
     public KnowledgeMatchResult match(BrandMatchRequest request) {
         LocalDate today = LocalDate.now();
         ProductLine parsedProductLine = StringUtils.hasText(request.productLine())

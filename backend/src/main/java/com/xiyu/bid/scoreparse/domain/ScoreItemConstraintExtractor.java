@@ -52,6 +52,39 @@ public final class ScoreItemConstraintExtractor {
     private static final Pattern NEAR_YEARS_PATTERN = Pattern.compile(
             "近\\s*([一二三两四五12345])\\s*年");
 
+    public record EstimateCount(int count, boolean explicit) {}
+
+    /** Only unambiguous resource counts are used; dates, amounts and incidental digits are not counts. */
+    public static EstimateCount requiredForEstimate(String text, String category, BigDecimal weight) {
+        if (text == null) return new EstimateCount(1, false);
+        text = text.replaceAll("[（(][^）)]*[）)]", "");
+        String number = "([0-9]+|[一二两三四五六七八九十])";
+        Set<Integer> counts = new LinkedHashSet<>();
+        var per = Pattern.compile("每(?:提供|增加)?\\s*" + number + "?\\s*(?:个|份|项|名|人|座|处)[^。；;\\n]{0,20}?(?:得|加)?\\s*([0-9]+(?:\\.[0-9]+)?)\\s*分").matcher(text);
+        var cap = Pattern.compile("(?:最高|最多|满分)[^。；;\\n]{0,8}?([0-9]+(?:\\.[0-9]+)?)\\s*分").matcher(text);
+        BigDecimal maximum = cap.find() ? new BigDecimal(cap.group(1)) : weight;
+        while (per.find()) {
+            int units = per.group(1) == null ? 1 : IncrementalCountScorePolicy.parseCount(per.group(1)).orElse(0);
+            BigDecimal points = new BigDecimal(per.group(2));
+            if (units > 0 && points.signum() > 0 && maximum != null && maximum.signum() > 0) {
+                BigDecimal count = maximum.divide(points, 0, java.math.RoundingMode.CEILING).multiply(BigDecimal.valueOf(units));
+                if (count.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) <= 0) counts.add(count.intValue());
+            }
+        }
+        String resource = switch (category) {
+            case "CERT" -> "证书|认证|资质"; case "WAREHOUSE" -> "仓库|仓储|库房";
+            case "BRAND" -> "品牌|授权"; case "PERSON" -> "人员|员工|项目经理|工程师";
+            default -> "业绩|合同|案例";
+        };
+        var direct = Pattern.compile("(?:需(?:要)?|要求|至少|不少于|提供|具有|具备)\\s*(?:提供|拥有)?\\s*" + number
+                + "\\s*(?:个|份|项|名|人|座|处)\\s*(?:有效|可用|独立|在用|自建或租赁)?\\s*(?:" + resource + ")").matcher(text);
+        while (direct.find()) {
+            if (!text.substring(0, direct.start()).stripTrailing().endsWith("每"))
+                IncrementalCountScorePolicy.parseCount(direct.group(1)).filter(n -> n > 0).ifPresent(counts::add);
+        }
+        return counts.size() == 1 ? new EstimateCount(counts.iterator().next(), true) : new EstimateCount(1, false);
+    }
+
     /** 提取面积门槛：如 "不少于 5000 平方米"。抽失败或 ≤0 返回 null，禁止当成无门槛。 */
     public static BigDecimal extractMinArea(String text) {
         if (text == null || text.isBlank()) {

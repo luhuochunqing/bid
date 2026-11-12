@@ -1,7 +1,7 @@
 // Input: 权重 / 匹配 tier / 匹配比例 / 评分类别
 // Output: 阶段 1 预计得分（BigDecimal 或 null）
 // Pos: scoreparse/domain — 纯核心，无框架依赖
-// 维护声明: 维护者按项目SOP；spec 041 FR-011 / FR-013 / SC-003
+// 维护声明: 维护者按项目SOP；spec 041 FR-011 / 简单粗估 / SC-003
 
 package com.xiyu.bid.scoreparse.domain;
 
@@ -15,7 +15,7 @@ import java.math.RoundingMode;
  * <ul>
  *   <li>主观项 → null（SC-003 主观项数字得分零泄漏）</li>
  *   <li>FULL → 权重满分；NONE → 0 分</li>
- *   <li>PARTIAL → 权重 × 匹配比例 / 100 四舍五入取整，并钳位到开区间 (0, weight)</li>
+ *   <li>PARTIAL → 权重 × 匹配比例 / 100 保留两位小数，限制到 [0, weight]</li>
  * </ul>
  */
 public class PartialScorePolicy {
@@ -42,22 +42,15 @@ public class PartialScorePolicy {
         if (TIER_FULL.equals(tier)) {
             return weight;
         }
-        BigDecimal raw = weight.multiply(BigDecimal.valueOf(matchRatio))
-                .divide(HUNDRED, 0, RoundingMode.HALF_UP);
-        return clampToOpenInterval(raw, weight);
+        return estimateByCount(weight, Math.max(0, Math.min(100, matchRatio)), 100);
     }
 
-    /** FR-013 开区间 (0, weight) 钳位：下界 1（不超过 weight），上界 weight-1（不低于下界）。 */
-    private BigDecimal clampToOpenInterval(BigDecimal raw, BigDecimal weight) {
-        BigDecimal lower = BigDecimal.ONE.min(weight);
-        BigDecimal upper = weight.subtract(BigDecimal.ONE).max(lower);
-        if (raw.compareTo(lower) < 0) {
-            return lower;
-        }
-        if (raw.compareTo(upper) > 0) {
-            return upper;
-        }
-        return raw;
+    /** Knowledge-library estimate: round the final score once, without a minimum one-point clamp. */
+    public BigDecimal estimateByCount(BigDecimal weight, int matchedCount, int requiredCount) {
+        int target = Math.max(1, requiredCount);
+        int matched = Math.min(Math.max(0, matchedCount), target);
+        return weight.multiply(BigDecimal.valueOf(matched))
+                .divide(BigDecimal.valueOf(target), 2, RoundingMode.HALF_UP);
     }
 
     /**

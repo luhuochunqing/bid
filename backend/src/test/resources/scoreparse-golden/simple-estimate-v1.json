@@ -1,0 +1,48 @@
+{
+  "synthetic": true,
+  "purpose": "knowledge-library count estimate; no customer source data",
+  "cases": [
+    {
+      "weight": "15",
+      "matched": 2,
+      "required": 3,
+      "score": "10.00"
+    },
+    {
+      "weight": "10",
+      "matched": 1,
+      "required": 2,
+      "score": "5.00"
+    },
+    {
+      "weight": "10",
+      "matched": 0,
+      "required": 1,
+      "score": "0.00"
+    },
+    {
+      "weight": "10",
+      "matched": 3,
+      "required": 2,
+      "score": "10.00"
+    },
+    {
+      "weight": "1",
+      "matched": 1,
+      "required": 2,
+      "score": "0.50"
+    },
+    {
+      "weight": "5",
+      "matched": 1,
+      "required": 3,
+      "score": "1.67"
+    },
+    {
+      "weight": "0",
+      "matched": 1,
+      "required": 1,
+      "score": "0.00"
+    }
+  ]
+}

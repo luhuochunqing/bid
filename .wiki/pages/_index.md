@@ -222,3 +222,5 @@ backlinks:
 - [[scoring-only-adoption]] — 资格/零分审计事实与正式评分项的采纳边界。
 - [[scoreparse-1123-double-total]] — 项目1123满分汇总行误作评分项，候选100+100=200的只读诊断。
 - [[scoreparse-1123-rowspan-and-prune-fix]] — 项目1123大跨度Rowspan与平级编号项评分表格解析失真及三阶收敛（网格跨行下沉/虚构大项剪枝/补漏幂等去重）。
+
+- [[scoreparse-1371-estimate-routing-20261112]] — 测试1371历史因素名字段错位、预计得分分类对照与PR边界

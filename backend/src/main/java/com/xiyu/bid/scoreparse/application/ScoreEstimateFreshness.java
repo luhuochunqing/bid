@@ -14,12 +14,13 @@ public class ScoreEstimateFreshness {
     public String status(ScoreItem item, LocalDate day) {
         if (!CertificateScoreEstimateSupport.applies(item)) return "NOT_APPLICABLE";
         if (item.getEstimatedAt() == null || item.getEstimateInputFingerprint() == null) return "STALE";
-        String current = certificates.fingerprintForScore(item.getDim(), item.getDetail(), item.getWeight(), day);
+        String factorName = CertificateScoreEstimateSupport.factorName(item);
+        String current = certificates.simpleFingerprintForScore(factorName, item.getDetail(), item.getWeight(), day);
         if (!item.getEstimateInputFingerprint().equals(
                 CertificateScoreEstimateSupport.sealedFingerprint(item, current))) {
             return "STALE";
         }
-        if (certificates.hasCertificateExpiredSince(item.getDim(), item.getDetail(), item.getEstimatedAt().toLocalDate(), day)) {
+        if (certificates.hasCertificateExpiredSince(factorName, item.getDetail(), item.getEstimatedAt().toLocalDate(), day)) {
             return "STALE";
         }
         return "FRESH";

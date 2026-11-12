@@ -16,6 +16,26 @@ class KnowledgeCategoryPolicyTest {
     private final KnowledgeCategoryPolicy policy = new KnowledgeCategoryPolicy();
 
     @Test
+    void legacyFactorNameResolutionPreservesSpecificNamesAndRejectsIdentifiers() {
+        record Example(String code, String dim, String expected) {}
+        for (var c : List.of(
+                new Example("仓储能力", "技术", "仓储能力"),
+                new Example("服务案例及业绩", "商务（56分）", "服务案例及业绩"),
+                new Example("品牌授权", "技术部分", "品牌授权"),
+                new Example("企业荣誉", "商务", "企业荣誉"),
+                new Example("品牌授权", "财务状况", "财务状况"),
+                new Example("3.3(2)", "技术", "技术"),
+                new Example("A1", "商务", "商务"),
+                new Example("技术", "商务", "商务"),
+                new Example("", "商务", "商务"))) {
+            assertThat(policy.factorName(c.code(), c.dim())).as(c.toString()).isEqualTo(c.expected());
+        }
+        assertThat(policy.factorName(null, "商务")).isEqualTo("商务");
+        assertThat(policy.factorName("仓储能力", null)).isNull();
+        assertThat(policy.factorName("仓储能力", "")).isEmpty();
+    }
+
+    @Test
     @DisplayName("资质证书类 → CERT")
     void categorize_cert() {
         assertThat(policy.categorize("资质", "具有 ISO9001 质量管理体系认证证书且在有效期内"))

@@ -1,14 +1,12 @@
-# 验收
-## 本地
-`mvn -f backend/pom.xml test -Dtest=EstimatedScoreServiceTest,ScoreEstimateRefreshMysqlTest,ScoreEstimateFreshnessTest,CertificateScorePolicyTest,WarehouseRegionalScorePolicyTest`
-`npx vitest run src/composables/projectDetail/useScoreEstimateRefresh.spec.js src/views/Project/stages/components/ScoreParseDrawer.spec.js src/api/modules/scoreParse.spec.js`
-`npm run build:api`
-真实MySQL与浏览器记录位于隔离工作区.omc/mysql-evidence.md、browser-evidence.md。测试容器为专用schema，不复用开发/生产数据库。
-## 授权发布后的现场验收（尚未执行）
-1. 记录部署SHA与1117/1119当前评分项ID、完整规则、候选快照、score_result；冻结前后对比范围。
-2. 进入标书制作→AI评分标准解析，折叠第一部分，确认刷新按钮仍可见。
-3. 点击更新知识库预判，核对POST refresh摘要、GET items、数据库已提交字段、UI逐项一致；0分计入数值得分，空项不可显示成功。
-4. 1119业绩进入真实匹配，新依据不能沿用主观项不计分；无合格业绩时明确缺失约束或记录原因，不保证满分。
-5. 1117证书/业绩/六区域仓储全部重新计算；横向排序的未决分值只说明待评比，不伪造。
-6. 财务/信用缺少自动评估底表时，摘要无分值并逐项说明。对比候选和实际评分全行/完整载荷无变化。
-7. 记录业务接受结果，未满足即返回修复，不用HTTP200或部署健康替代业务验收。
+# 简单知识库预计得分 V1 验收
+
+状态：本地实现及验证已完成，以下流程可复验。本轮未操作测试服务器。
+
+1. 在隔离MySQL8测试库准备：三种证书要求仅两种有效；同一证书重复两条；要求两仓仅一仓；另一个有授权与完全无资料的案例。
+2. 点击更新预判或调用既有POST estimates/refresh，然后GET items：满分15的两种/三种证书=10.00；满分10的一仓/两仓=5.00；无资料=0.00，均计入数值项。
+3. 重复记录不增加比例；数量超过要求封顶；1分项满足一半=0.50；年份/金额不被误当数量；资料查询失败不变成0分。
+4. 刷新前后对比code/dim/detail/weight/scoreType、候选和stage2，应逐字段相等。验证无权限403、版本变化409及回执/GET竞态。
+5. UI应显示“预计得分为知识库粗估，最终评审另算”，依据包含M/N、来源记录与默认数量假设。实际得分页面不变。
+6. 后续授权部署后：先只读导出1371当前项和真实资料计数，再刷新并回读。运营能力及业绩、服务案例及业绩、品牌及货源渠道管控及佐证材料、仓储能力四项应有数值（可为0）；不预填分数、不承诺固定项目总分。财务/纯主观/无资料源项单独待评。
+
+命令与文件见plan.md。旧实现测试结果不作为本版通过证据。未授权前不写远端数据、不部署。

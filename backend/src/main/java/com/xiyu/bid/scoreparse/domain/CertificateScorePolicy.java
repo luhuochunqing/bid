@@ -62,6 +62,36 @@ public final class CertificateScorePolicy {
         return new Assessment(score, score.signum() == 0 ? "DANGER" : score.compareTo(weight) == 0 ? "OK" : "PENDING", hit, String.join("；", proofs));
     }
 
+    /** Stage-1 rough estimate only; the strict assess method and its proof semantics stay unchanged. */
+    public static Assessment assessSimple(String dim, String detail, BigDecimal weight, LocalDate asOf, List<Fact> facts) {
+        if (weight == null || asOf == null) return new Assessment(null, "PENDING", false, "粗估输入不完整，未计算");
+        List<Fact> usable = facts.stream().filter(f -> f.name() != null && !f.name().isBlank())
+                .filter(f -> !f.retired() && List.of("IN_STOCK", "EXPIRING", "VALID").contains(f.status() == null ? "" : f.status()))
+                .filter(f -> f.expiryDate() != null && !f.expiryDate().isBefore(asOf))
+                .filter(f -> f.issueDate() == null || !f.issueDate().isAfter(asOf))
+                .filter(f -> !List.of("PERSONNEL", "PRODUCT").contains(f.category() == null ? "" : f.category()))
+                .filter(f -> !CertificateScoreRule.normalize(f.name()).matches(".*(内审员|审核员|培训|人员|合格证|资格证).*"))
+                .toList();
+        var identities = CertificateScoreRule.identitiesForEstimate(dim, detail);
+        var target = identities.isEmpty() ? ScoreItemConstraintExtractor.requiredForEstimate(detail, "CERT", weight)
+                : new ScoreItemConstraintExtractor.EstimateCount(identities.size(), true);
+        List<String> hits = identities.isEmpty()
+                ? usable.stream().flatMap(f -> {
+                    var known = CertificateScoreRule.identitiesForEstimate(f.name(), "");
+                    return (known.isEmpty() ? List.of(CertificateScoreRule.normalize(f.name())) : known).stream();
+                }).distinct().toList()
+                : identities.stream().filter(id -> usable.stream().anyMatch(f -> CertificateScoreRule.matchesEstimateIdentity(f.name(), id))).toList();
+        int count = hits.size();
+        BigDecimal score = new PartialScorePolicy().estimateByCount(weight, count, target.count());
+        String status = new ScoreStatusPolicy().evaluate(score, weight, "OBJECTIVE", false);
+        String basis = "知识库粗估（资质证书）：要求" + target.count() + "项，命中" + count + "项，满足比例"
+                + BigDecimal.valueOf(Math.min(count, target.count()) * 100L).divide(BigDecimal.valueOf(target.count()), 2, java.math.RoundingMode.HALF_UP)
+                + "%，预计" + score + "/" + weight + "；" + (target.explicit() ? "按明确要求数量" : "未指定明确数量，按有无粗估")
+                + "；命中资料：" + (hits.isEmpty() ? "无" : String.join("、", hits))
+                + "；仅计有效且未退役的企业证书，有效期不明不计入；未核验正式评审附加条件";
+        return new Assessment(score, status, count > 0, basis);
+    }
+
     private static Evidence corporateKind(Fact fact, String identity) {
         String name = CertificateScoreRule.normalize(fact.name());
         if ("PERSONNEL".equals(fact.category()) || name.matches(".*(内审员|审核员|培训|人员|合格证|资格证).*")) return Evidence.FAIL;

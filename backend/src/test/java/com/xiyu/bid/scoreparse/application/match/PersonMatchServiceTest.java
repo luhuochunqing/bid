@@ -56,6 +56,13 @@ class PersonMatchServiceTest {
     }
 
     @Test
+    void estimateCanCountActivePersonnelWithoutTheStrictKeywordGate() {
+        when(personnelRepository.findAll(any(Specification.class))).thenReturn(List.of(person(1L,"张三","工程师")));
+        assertThat(service.findEstimateCandidates()).extracting(com.xiyu.bid.scoreparse.dto.PersonMatchedItem::id).containsExactly(1L);
+        assertThat(service.match(new PersonMatchRequest(null,null,2)).matched()).isEmpty();
+    }
+
+    @Test
     @DisplayName("比例计算：3/5 符合 → PARTIAL/60")
     void ratio_threeOfFive() {
         List<PersonnelEntity> people = List.of(

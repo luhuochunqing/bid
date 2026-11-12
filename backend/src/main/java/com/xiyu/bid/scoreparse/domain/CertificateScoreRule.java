@@ -34,6 +34,36 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
                 .toUpperCase(Locale.ROOT).replaceAll("\\s+", "");
     }
 
+    /** Named identities for rough estimates; Chinese names also constrain relevance. */
+    public static List<String> identitiesForEstimate(String dim, String detail) {
+        String clause = scoringClause(detail, false);
+        String text = normalize(dim) + ";" + (clause == null ? "" : clause);
+        Set<String> identities = new java.util.LinkedHashSet<>();
+        STANDARDS.keySet().stream().sorted().filter(id -> identifies(text, id)).forEach(identities::add);
+        for (String id : HONOR_ORDER) if (identifies(text, id)) identities.add(id);
+        var standard = Pattern.compile("ISO[0-9]{4,5}(?![0-9])|CMMI[1-5]?").matcher(text);
+        while (standard.find()) identities.add(standard.group());
+        var named = Pattern.compile("[\\p{IsHan}]{2,30}?(?:许可证|证书)").matcher(text);
+        while (named.find()) {
+            String before = text.substring(0, named.start());
+            if (STANDARDS.values().stream().anyMatch(alias -> before.matches("(?s).*" + alias + "$"))
+                    || before.matches("(?s).*(?:ISO[0-9]{4,5}|CMMI[1-5]?)$")) continue;
+            String label = named.group().replaceFirst("^(?:(?:投标人|供应商|应当|应|须|需|具有|具备|持有|提供|取得|获得|有效的|有效|相关|相应|以及|和|及))+", "");
+            if (!Set.of("证书", "认证证书", "资质证书").contains(label)
+                    && !label.matches("[一二两三四五六七八九十]+(?:项|份)?(?:认证)?证书")) {
+                String canonical = java.util.stream.Stream.concat(STANDARDS.keySet().stream(), java.util.Arrays.stream(HONOR_ORDER))
+                        .filter(id -> identifies(label, id)).findFirst().orElse(label);
+                identities.add(canonical);
+            }
+        }
+        return List.copyOf(identities);
+    }
+
+    static boolean matchesEstimateIdentity(String name, String identity) {
+        return identifies(name, identity)
+                || Pattern.compile(Pattern.quote(identity) + "(?![0-9])").matcher(normalize(name)).find();
+    }
+
     /** Recall is separate from verifying that a record really is a corporate certificate. */
     public static boolean identifies(String text, String identity) {
         String pattern = STANDARDS.getOrDefault(identity, HONORS.get(identity));
@@ -51,7 +81,7 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
     }
 
     public static CertificateScoreRule parse(String dim, String detail, BigDecimal weight) {
-        String text = scoringClause(detail);
+        String text = scoringClause(detail, true);
         if (text == null || weight == null || weight.signum() < 0 || !isCertificateScore(dim, detail)) return unsupported();
         String certificate = isoCertificatePattern();
         var single = Pattern.compile("(?:具有|具备|持有|获得|取得)?(" + certificate + ")"
@@ -104,7 +134,7 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
     }
 
     /** Only known wrappers and a closed proof-material sentence may be removed. */
-    private static String scoringClause(String detail) {
+    private static String scoringClause(String detail, boolean rejectUnrecognizedProofMaterials) {
         String text = normalize(detail);
         if (text.contains("|")) {
             String[] cells = text.split("\\|", -1);
@@ -120,11 +150,12 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
             }
         }
         text = text.replaceFirst("^1、评审标准:", "");
-        int proof = text.indexOf("2、证明文件:");
-        if (proof >= 0) {
-            String materials = text.substring(proof + "2、证明文件:".length());
-            if (!materials.matches("投标人须提供(?:在有效期内的)?认证证书(?:复印件或扫描件|复印件|扫描件)(?:加盖投标人公章)?(?:[,。;]?原件备查)?[。;]?")) return null;
-            text = text.substring(0, proof);
+        var proofHeading = Pattern.compile("(?:2[、.．]?)?证明(?:文件|材料):").matcher(text);
+        if (proofHeading.find()) {
+            String materials = text.substring(proofHeading.end());
+            if (rejectUnrecognizedProofMaterials && !materials.matches(
+                    "投标人须提供(?:在有效期内的)?认证证书(?:复印件或扫描件|复印件|扫描件)(?:加盖投标人公章)?(?:[,。;]?原件备查)?[。;]?")) return null;
+            text = text.substring(0, proofHeading.start());
         }
         return text.replaceAll("(^|[。;]|分)[1-3]\\)", "$1");
     }

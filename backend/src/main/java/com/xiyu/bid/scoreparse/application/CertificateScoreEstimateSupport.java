@@ -11,16 +11,21 @@ import java.time.LocalDateTime;
 final class CertificateScoreEstimateSupport {
     private CertificateScoreEstimateSupport() {}
 
+    static String factorName(ScoreItem item) {
+        return new KnowledgeCategoryPolicy().factorName(item.getCode(), item.getDim());
+    }
+
     static boolean applies(ScoreItem item) {
         if (!"OBJECTIVE".equals(item.getScoreType())) return false;
-        String category = new KnowledgeCategoryPolicy().categorize(item.getDim(), item.getDetail());
+        String factorName = factorName(item);
+        String category = new KnowledgeCategoryPolicy().categorize(factorName, item.getDetail());
         return (KnowledgeCategoryPolicy.CATEGORY_CERT.equals(category)
                 || KnowledgeCategoryPolicy.CATEGORY_OTHER.equals(category))
-                && CertificateScoreRule.isCertificateScore(item.getDim(), item.getDetail());
+                && CertificateScoreRule.isCertificateScore(factorName, item.getDetail());
     }
 
     static void calculate(ScoreItem item, CertMatchService certificates, LocalDate day) {
-        var estimate = certificates.estimateScore(item.getDim(), item.getDetail(), item.getWeight(), day);
+        var estimate = certificates.estimateSimpleScore(factorName(item), item.getDetail(), item.getWeight(), day);
         var assessment = estimate.assessment();
         item.setEstScore(assessment.score());
         item.setStatusStage1(assessment.status());

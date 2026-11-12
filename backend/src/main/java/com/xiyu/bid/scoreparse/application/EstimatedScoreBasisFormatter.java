@@ -1,119 +1,38 @@
 package com.xiyu.bid.scoreparse.application;
 
-import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
-import com.xiyu.bid.scoreparse.domain.ProjectEvidenceRequirementPolicy;
-import com.xiyu.bid.scoreparse.domain.policy.CrossChapterPerformancePolicy;
-import com.xiyu.bid.scoreparse.dto.KnowledgeMatchResult;
-
-import java.util.ArrayList;
+import com.xiyu.bid.scoreparse.domain.ScoreItemConstraintExtractor.EstimateCount;
+import com.xiyu.bid.scoreparse.dto.BrandMatchedItem;
+import com.xiyu.bid.scoreparse.dto.PersonMatchedItem;
+import com.xiyu.bid.scoreparse.dto.ProjectMatchedItem;
+import com.xiyu.bid.scoreparse.dto.WarehouseMatchedItem;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
+import java.util.stream.Collectors;
 
-/** 将阶段 1 匹配结果转换为面向业务用户的中文得分依据。 */
+/** Formats existing estimate fields without turning candidate facts into formal scoring proofs. */
 final class EstimatedScoreBasisFormatter {
-
-    String manualReviewBasis(
-            KnowledgeMatchResult match,
-            ProjectEvidenceRequirementPolicy.Assessment assessment,
-            boolean signedAfterChecked,
-            boolean amountChecked) {
-        StringBuilder basis = match.matched().isEmpty()
-                ? new StringBuilder("业绩库未找到候选资料，且当前条件仍不能自动确认。")
-                : new StringBuilder("业绩库找到 ").append(match.matched().size())
-                        .append(" 条候选资料，但尚不能确认均为有效业绩。");
-        List<String> checked = new ArrayList<>();
-        if (signedAfterChecked) {
-            checked.add("签约日期");
-        }
-        if (amountChecked) {
-            checked.add("合同金额");
-        }
-        if (!checked.isEmpty()) {
-            basis.append("已按").append(String.join("、", checked)).append("筛选；");
-        }
-        return basis.append("仍需人工核验：")
-                .append(String.join("、", assessment.manualChecks()))
-                .append("。案例库与本预判使用的业绩库是不同数据来源。")
-                .toString();
-    }
-
-    String matchBasis(String category, KnowledgeMatchResult match, boolean flagged) {
-        return matchBasis(category, match, flagged, null);
-    }
-
-    String matchBasis(String category, KnowledgeMatchResult match, boolean flagged,
-                      CrossChapterPerformancePolicy.Constraint crossConstraint) {
-        if (flagged && KnowledgeCategoryPolicy.CATEGORY_CERT.equals(category)) {
-            return "证书已过期，标书需补充说明或更新证书";
-        }
-        String sourceLabel = KnowledgeCategoryPolicy.CATEGORY_PROJECT.equals(category) ? "业绩库" : "知识库";
-        StringBuilder basis = new StringBuilder(sourceLabel).append("匹配（")
-                .append(categoryLabel(category)).append("，").append(tierLabel(match.tier()))
-                .append("，匹配比例 ").append(match.matchRatio()).append("%）：")
-                .append(readableDetail(match.matchDetail()));
-        if (!match.proofs().isEmpty()) {
-            basis.append("；逐记录证明：");
-            match.proofs().stream().filter(proof -> !proof.conditions().isEmpty()).forEach(proof -> {
-                basis.append("[").append(proof.recordName()).append("：");
-                proof.conditions().forEach(condition -> basis.append(condition.condition()).append("=")
-                        .append(conditionStatusLabel(condition.status())).append("（")
-                        .append(condition.evidence()).append("）；"));
-                basis.append("]");
-            });
-        }
-        if (crossConstraint != null && crossConstraint.hasEffectiveConstraint()) {
-            basis.append("；跨章节资格项穿透：");
-            List<String> parts = new ArrayList<>();
-            if (!crossConstraint.targetCategories().isEmpty()) {
-                parts.add("品类:" + String.join("/", crossConstraint.targetCategories()));
-            }
-            if (crossConstraint.minContractAmount() != null) {
-                parts.add("金额≥" + crossConstraint.minContractAmount() + "元");
-            }
-            basis.append(String.join(", ", parts));
-        }
-        if (flagged) {
-            basis.append("；命中记录含过期或即将到期标记，需更新资料或人工补充说明");
-        }
-        return basis.toString();
-    }
-
-    private String readableDetail(String detail) {
-        return String.valueOf(detail)
-                .replace("expired=true", "已过期")
-                .replace("expireSoon=true", "即将到期")
-                .replace("expired=false", "有效期正常")
-                .replace("expireSoon=false", "有效期正常");
-    }
-
-    private String categoryLabel(String category) {
-        return switch (category) {
-            case null -> "知识库";
-            case KnowledgeCategoryPolicy.CATEGORY_CERT -> "资质证书";
-            case KnowledgeCategoryPolicy.CATEGORY_PERSON -> "人员";
-            case KnowledgeCategoryPolicy.CATEGORY_PROJECT -> "业绩";
-            case KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE -> "仓库";
-            case KnowledgeCategoryPolicy.CATEGORY_BRAND -> "品牌授权";
-            case KnowledgeCategoryPolicy.CATEGORY_FINANCIAL -> "财务指标";
-            case KnowledgeCategoryPolicy.CATEGORY_CREDIT -> "信用评价";
-            default -> "知识库";
+    String simple(String category, List<?> rows, EstimateCount target, BigDecimal score, BigDecimal weight) {
+        String source = switch (category) {
+            case "WAREHOUSE" -> "仓库"; case "PROJECT" -> "业绩";
+            case "BRAND" -> "品牌授权"; case "PERSON" -> "人员"; default -> "知识库";
         };
+        var ratio = BigDecimal.valueOf(Math.min(rows.size(), target.count()) * 100L)
+                .divide(BigDecimal.valueOf(target.count()), 2, RoundingMode.HALF_UP);
+        String records = rows.isEmpty() ? "无" : rows.stream().limit(10).map(this::recordLabel).collect(Collectors.joining("、"));
+        return "知识库粗估（" + source + "）：要求" + target.count() + "项，命中" + rows.size() + "项，满足比例" + ratio
+                + "%，预计" + score + "/" + weight + "；" + (target.explicit() ? "按明确要求数量" : "未指定明确数量，按有无粗估")
+                + "；资料来源：" + source + "库；命中资料：" + records + (rows.size() > 10 ? "等（仅列前10条）" : "")
+                + "；未核验正式评审附加条件（排名、材料组合、地区覆盖或承诺），最终评审另算";
     }
 
-    private String conditionStatusLabel(String status) {
-        return switch (status) {
-            case "PASS" -> "已核验";
-            case "FAIL" -> "未通过";
-            default -> "缺少资料";
+    private String recordLabel(Object row) {
+        return switch (row) {
+            case WarehouseMatchedItem r -> "#" + r.id() + " " + r.name();
+            case ProjectMatchedItem r -> "#" + r.id() + " " + r.contractName();
+            case BrandMatchedItem r -> "#" + r.id() + " " + r.brandName();
+            case PersonMatchedItem r -> "#" + r.id() + " " + r.name();
+            default -> "资料记录";
         };
-    }
-
-    private String tierLabel(String tier) {
-        if ("FULL".equals(tier)) {
-            return "完全匹配";
-        }
-        if ("PARTIAL".equals(tier)) {
-            return "部分匹配";
-        }
-        return "未匹配";
     }
 }

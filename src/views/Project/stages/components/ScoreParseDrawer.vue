@@ -209,10 +209,10 @@
           <b class="legend-title">说明：</b> 阶段 2 已检测到投标文件，点击「AI 实际打分」按钮开始对标打分。
         </template>
         <template v-else>
-          <b class="legend-title">阶段 1 说明：</b> 当前仅展示满足状态（基于知识库资质证书预判），<b>不计算实际得分</b>。上传投标文件后进入阶段 2，AI 将自动对标打分。<br />
-          <span class="status-cell ok">✓ 满足</span> 知识库已匹配证书 ｜
+          <b class="legend-title">阶段 1 说明：</b> 预计得分为<b>知识库粗估，最终评审另算</b>：有则满分、无则零分、部分按比例。上传投标文件后进入阶段 2，AI 将自动对标打分。<br />
+          <span class="status-cell ok">✓ 满足</span> 可用资料全部满足 ｜
           <span class="status-cell danger">✗ 不满足</span> 知识库未匹配 ｜
-          <span class="status-cell neutral">待确认</span> 主观项或需人工判断
+          <span class="status-cell neutral">待确认</span> 部分满足（仍显示数值）、主观项或无对应资料源
         </template>
       </div>
     </div>

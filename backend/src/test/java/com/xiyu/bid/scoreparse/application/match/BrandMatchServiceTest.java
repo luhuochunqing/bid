@@ -49,6 +49,18 @@ class BrandMatchServiceTest {
     }
 
     @Test
+    void simpleEstimateCountsEachUsableBrandOnceAndExcludesInvalidDatesAndStatus() {
+        LocalDate day=LocalDate.now();
+        var a=auth(1L,"品牌A",ProductLine.TOOLS,day.plusYears(1));a.setBrandId("A");
+        var duplicate=auth(2L,"品牌A",ProductLine.TOOLS,day.plusYears(1));duplicate.setBrandId("A");
+        var expired=auth(3L,"品牌B",ProductLine.TOOLS,day.minusDays(1));expired.setBrandId("B");
+        var future=auth(4L,"品牌C",ProductLine.TOOLS,day.plusYears(1));future.setBrandId("C");future.setAuthStartDate(day.plusDays(1));
+        var revoked=auth(5L,"品牌D",ProductLine.TOOLS,day.plusYears(1));revoked.setBrandId("D");revoked.setStatus(AuthStatus.REVOKED);
+        when(repository.findAll(any(Specification.class))).thenReturn(List.of(a,duplicate,expired,future,revoked));
+        assertThat(service.findEstimateCandidates(day)).extracting(BrandMatchedItem::brandName).containsExactly("品牌A");
+    }
+
+    @Test
     @DisplayName("基本命中 → FULL/100")
     void basicMatch_full() {
         when(repository.findAll(any(Specification.class))).thenReturn(List.of(

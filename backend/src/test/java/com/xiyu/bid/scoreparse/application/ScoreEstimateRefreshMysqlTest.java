@@ -53,9 +53,9 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
  }
  @AfterAll static void stop(){if(MYSQL.isRunning())MYSQL.stop();}
  @Configuration @EnableAutoConfiguration
- @EntityScan(basePackageClasses={ScoreItem.class,BusinessQualificationEntity.class,PerformanceRecordEntity.class,WarehouseEntity.class})
- @EnableJpaRepositories(basePackageClasses={ScoreItemRepository.class,BusinessQualificationJpaRepository.class,PerformanceRecordJpaRepository.class,WarehouseRepository.class})
- @Import({CertMatchService.class,ProjectMatchService.class,WarehouseMatchService.class,EstimatedScoreService.class,ScoreScoringVersionService.class,ScoreExtractionCodec.class,ScoreEstimateFreshness.class,ScoreEstimateRefreshService.class})
+ @EntityScan(basePackageClasses={ScoreItem.class,BusinessQualificationEntity.class,PerformanceRecordEntity.class,WarehouseEntity.class,com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.ManufacturerAuthorizationEntity.class})
+ @EnableJpaRepositories(basePackageClasses={ScoreItemRepository.class,BusinessQualificationJpaRepository.class,PerformanceRecordJpaRepository.class,WarehouseRepository.class,com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.repository.ManufacturerAuthorizationJpaRepository.class})
+ @Import({BrandMatchService.class,CertMatchService.class,ProjectMatchService.class,WarehouseMatchService.class,EstimatedScoreService.class,ScoreScoringVersionService.class,ScoreExtractionCodec.class,ScoreEstimateFreshness.class,ScoreEstimateRefreshService.class})
  static class Config {
   @Bean ObjectMapper mapper(){return new ObjectMapper().findAndRegisterModules();}
   @Bean ProjectAccessScopeService access(){return new ProjectAccessScopeService(
@@ -66,7 +66,7 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
    mock(com.xiyu.bid.repository.TaskRepository.class),mock(com.xiyu.bid.project.repository.BidDocumentReviewRepository.class),mock(com.xiyu.bid.security.EffectiveRoleResolver.class));}
  }
  @MockBean PersonMatchService people;
- @MockBean BrandMatchService brands;
+ @Autowired com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.repository.ManufacturerAuthorizationJpaRepository brandRecords;
  @Autowired ScoreItemRepository items;
  @Autowired BusinessQualificationJpaRepository certificates;
  @Autowired PerformanceRecordJpaRepository performances;
@@ -79,7 +79,7 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
  long project;
  static final String RULE="具有ISO9001质量管理体系认证、ISO14001环境管理体系认证、ISO45001职业健康安全管理体系认证的得10分。三项齐全得满分，缺少一项，不得分";
  @BeforeEach void setup(){
-  SecurityContextHolder.clearContext();certificates.deleteAll();performances.deleteAll();warehouseRecords.deleteAll();
+  SecurityContextHolder.clearContext();certificates.deleteAll();performances.deleteAll();warehouseRecords.deleteAll();brandRecords.deleteAll();
   jdbc.execute("CREATE TABLE IF NOT EXISTS projects(id BIGINT PRIMARY KEY)");
   project=System.nanoTime();jdbc.update("INSERT INTO projects(id) VALUES(?)",project);
  }
@@ -88,7 +88,7 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
  void allCertificates(){for(String name:List.of("ISO9001","ISO14001","ISO45001"))certificates.saveAndFlush(BusinessQualificationEntity.builder().name(name).subjectName("isolated fixture").subjectType(QualificationSubjectType.values()[0]).category(QualificationCategory.values()[0]).status(QualificationStatus.IN_STOCK).expiryDate(LocalDate.now().plusYears(1)).build());}
  void authorizeExternalApi(){SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("integration",null,List.of(new SimpleGrantedAuthority("ROLE_EXTERNAL_API"))));}
  ScoreItem read(Long id){return items.findById(id).orElseThrow();}
- @Test void explicitDimensionsWithUnknownSyntaxCannotKeepHistoricalFullScore(){
+ @Test void unknownScoringSyntaxStillProducesCountBasedCertificateEstimates(){
   var ids=new java.util.ArrayList<Long>();
   for(String dim:List.of("企业荣誉","管理体系","企业资质")) {
    for(String detail:List.of("投标人具有中国品牌信誉评价认证五星级证书得5分","须具备相关认证证书","任意未知条件","")) {
@@ -97,15 +97,16 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
    }
   }
   allCertificates();authorizeExternalApi();refresh.refresh(project);
-  for(Long id:ids){var pending=read(id);assertThat(pending.getEstScore()).isNull();
-   assertThat(pending.getStatusStage1()).isEqualTo("PENDING");assertThat(pending.getKbHit()).isFalse();
-   assertThat(freshness.status(pending,LocalDate.now())).isEqualTo("FRESH");}
+  for(Long id:ids){var estimated=read(id);assertThat(estimated.getEstScore()).isNotNull();
+   assertThat(estimated.getEstBasis()).contains("知识库粗估");
+   if(estimated.getDetail().contains("品牌信誉")) assertThat(estimated.getEstScore()).isZero();
+   assertThat(freshness.status(estimated,LocalDate.now())).isEqualTo("FRESH");}
  }
- @Test void unknownProofConditionsRefreshHistoricalFullScoreToPending(){
+ @Test void missingNamedCertificateEvidenceProducesNumericZeroEvenWithProofConditions(){
   var old=item();old.setDim("企业荣誉");old.setDetail("具有中国品牌信誉评价认证五星级证书；2、证明文件：投标人须提供认证证书扫描件，原件备查并须另具CMMI证书");
   items.saveAndFlush(old);assertThat(freshness.status(old,LocalDate.now())).isEqualTo("STALE");
   authorizeExternalApi();refresh.refresh(project);var pending=read(old.getId());
-  assertThat(pending.getEstScore()).isNull();assertThat(pending.getStatusStage1()).isEqualTo("PENDING");
+  assertThat(pending.getEstScore()).isZero();assertThat(pending.getStatusStage1()).isEqualTo("DANGER");
   assertThat(freshness.status(pending,LocalDate.now())).isEqualTo("FRESH");
  }
  @Test void legacyRefreshRetirementAndDateAreRealPersistedTransitions(){
@@ -118,8 +119,8 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
   assertThat(freshness.status(fresh,LocalDate.now().plusYears(1).plusDays(1))).isEqualTo("STALE");
   var cert=certificates.findAll().getFirst();cert.setRetired(true);certificates.saveAndFlush(cert);
   assertThat(freshness.status(read(old.getId()),LocalDate.now())).isEqualTo("STALE");
-  refresh.refresh(project);var missing=read(old.getId());assertThat(missing.getEstScore()).isZero();
-  assertThat(missing.getStatusStage1()).isEqualTo("DANGER");assertThat(freshness.status(missing,LocalDate.now())).isEqualTo("FRESH");
+  refresh.refresh(project);var missing=read(old.getId());assertThat(missing.getEstScore()).isEqualByComparingTo("6.67");
+  assertThat(missing.getStatusStage1()).isEqualTo("PENDING");assertThat(freshness.status(missing,LocalDate.now())).isEqualTo("FRESH");
  }
  @Test void refreshPreservesCandidateRowsAndStageTwoBytes(){
   var old=item();allCertificates();
@@ -234,6 +235,63 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
   assertThat(read(changedId).getEstBasis()).doesNotContain("主观项不计分");
   assertThat(second.pendingItems()).filteredOn(p -> p.id().equals(changedId)).singleElement()
    .satisfies(p -> assertThat(p.reason()).isEqualTo(read(changedId).getEstBasis()).doesNotContain("主观项不计分"));
+ }
+
+ @Test void legacyNamesRefreshAcrossRealTransactionsWithoutChangingRuleOrStageTwoColumns() {
+  warehouseRecords.saveAndFlush(WarehouseEntity.builder().name("测试面积仓").type(WarehouseType.SELF_OPERATED)
+   .region("华东").province("上海").address("测试地址").area(new BigDecimal("20000"))
+   .contactPerson("测试").startDate(LocalDate.now().minusYears(1)).endDate(LocalDate.now().plusYears(1))
+   .lessor("出租方").lessee("承租方").hasPropertyCert(false).hasInvoice(false).hasPhotos(false)
+   .hasLeaseContract(false).status(WarehouseStatus.IN_USE).build());
+  var warehouse=objective(1,"技术","仓库面积不少于15000平方米得10分");
+  warehouse.setCode("仓储能力");items.saveAndFlush(warehouse);
+  var cert=objective(2,"商务",RULE);cert.setCode("管理体系");items.saveAndFlush(cert);allCertificates();
+  var ranked=objective(3,"商务","按业绩份数排序，排名第一得10分");
+  ranked.setCode("服务案例及业绩");items.saveAndFlush(ranked);
+  var compound=objective(4,"技术","山西区域仓库不少于15000平方米，服务网点和代储承诺另计分");
+  compound.setCode("仓储能力");items.saveAndFlush(compound);
+  var brand=objective(5,"技术","二级类目每份品牌授权得1分，最多10分");
+  brand.setCode("品牌及货源渠道管控及佐证材料");items.saveAndFlush(brand);
+  var ruleColumns=jdbc.queryForList("SELECT id,code,dim,detail,weight,score_type FROM score_item WHERE project_id=? ORDER BY id",project);
+  jdbc.update("INSERT INTO score_result(score_item_id,scoring_task_id,actual_score,status_stage2,evidence,created_at,updated_at) VALUES(?,1,7,'PENDING','legacy stage2',NOW(),NOW())",warehouse.getId());
+  var stage2=jdbc.queryForMap("SELECT * FROM score_result WHERE score_item_id=?",warehouse.getId());
+  authorizeExternalApi();var receipt=refresh.refresh(project);
+  assertThat(receipt.processedCount()).isEqualTo(5);assertThat(receipt.scoredCount()).isEqualTo(5);
+  assertThat(receipt.pendingCount()).isZero();
+  assertThat(read(warehouse.getId()).getEstScore()).isEqualByComparingTo("10");
+  assertThat(read(cert.getId()).getEstScore()).isEqualByComparingTo("10");
+  assertThat(freshness.status(read(cert.getId()),LocalDate.now())).isEqualTo("FRESH");
+  assertThat(read(ranked.getId()).getEstScore()).isZero();
+  assertThat(read(compound.getId()).getEstScore()).isEqualByComparingTo("10");
+  assertThat(read(brand.getId()).getEstScore()).isZero();
+  for(var row:List.of(ranked,compound,brand)) {
+   assertThat(read(row.getId()).getEstBasis()).contains("知识库粗估", "未核验").doesNotContain("未识别", "计算失败");
+  }
+  assertThat(jdbc.queryForList("SELECT id,code,dim,detail,weight,score_type FROM score_item WHERE project_id=? ORDER BY id",project)).isEqualTo(ruleColumns);
+  assertThat(jdbc.queryForMap("SELECT * FROM score_result WHERE score_item_id=?",warehouse.getId())).isEqualTo(stage2);
+ }
+
+ @Test void fourProject1371LibraryFactorsProduceNumericEstimatesFromRealRepositories() {
+  performances.saveAndFlush(PerformanceRecordEntity.builder().contractName("示例合同").projectType(com.xiyu.bid.performance.domain.valueobject.ProjectType.OFFICE)
+   .signingDate(LocalDate.now()).contractAmount(new BigDecimal("2000000")).build());
+  for(int index=1;index<=2;index++) brandRecords.saveAndFlush(
+   com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.ManufacturerAuthorizationEntity.builder()
+   .brandId("same-brand").brandName("示例品牌").manufacturerName("示例厂家").importDomestic("国产")
+   .productLine(com.xiyu.bid.brandauth.manufacturer.domain.valueobject.ProductLine.TOOLS)
+   .authStartDate(LocalDate.now().minusYears(1)).authEndDate(LocalDate.now().plusYears(1))
+   .status(com.xiyu.bid.brandauth.manufacturer.domain.valueobject.AuthStatus.ACTIVE).build());
+  var operating=objective(1,"商务","平台运营年限和SKU排名");operating.setCode("运营能力及业绩");items.saveAndFlush(operating);
+  var projectRow=objective(2,"商务","业绩按份数排名，需发票及材料");projectRow.setCode("服务案例及业绩");items.saveAndFlush(projectRow);
+  var brand=objective(3,"技术","需提供2份品牌授权");brand.setCode("品牌及货源渠道管控及佐证材料");items.saveAndFlush(brand);
+  var warehouse=objective(4,"技术","仓储地区覆盖及代储承诺");warehouse.setCode("仓储能力");items.saveAndFlush(warehouse);
+  var rules=jdbc.queryForList("SELECT id,code,dim,detail,weight,score_type FROM score_item WHERE project_id=? ORDER BY id",project);
+  authorizeExternalApi();var receipt=refresh.refresh(project);
+  assertThat(receipt.processedCount()).isEqualTo(4);assertThat(receipt.scoredCount()).isEqualTo(4);assertThat(receipt.pendingCount()).isZero();
+  assertThat(read(operating.getId()).getEstScore()).isEqualByComparingTo("10");
+  assertThat(read(projectRow.getId()).getEstScore()).isEqualByComparingTo("10");
+  assertThat(read(brand.getId()).getEstScore()).isEqualByComparingTo("5");
+  assertThat(read(warehouse.getId()).getEstScore()).isZero();
+  assertThat(jdbc.queryForList("SELECT id,code,dim,detail,weight,score_type FROM score_item WHERE project_id=? ORDER BY id",project)).isEqualTo(rules);
  }
 
  @Test void zeroScoreIsCountedAsScoredAndHttpReceiptKeepsReadShape() throws Exception {
