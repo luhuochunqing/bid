@@ -41,3 +41,10 @@ backlinks:
 
 - 模型复述类（`documentRawMatch=false`）仍需在提示词或模型侧收敛，见 Linear CO-661。
 - 部署后需用项目 1364 重跑实际打分复验 A1 项。
+
+## 补充：A1 项的第二类根因（2026-11-13 部署 4d99c0d2a 后复验）
+
+- OMS 项已真实出分（6 分）；A1 仍 `QUOTE_NOT_IN_EXCERPT`，但 `documentRawMatch=true`、quoteLength=298。
+- 排除节选覆盖：该项目投标 PDF 仅 805 字，节选等于全文（1 个 segment），引用区间完整落在节选内；离线抄原文仍失败。
+- 根因是 `EvidenceText.normalize` 的上下文相关规则（行 48：句号前为数字且后接汉字时转 `.`）。引用以「…2027-12-31。」结尾时末尾无后继字符，保留 `。`；文档中该句号后紧跟「第四章」，被归一化为 `.`，仅末 1 字符不同即整体判负。
+- 修复：`verifyQuote` 增加原文精确命中快速路径——`excerpt` 与 `document` 同时包含原始 quote（≥8 字）时直接 VERIFIED，再回退到归一化路径；不放松“引用必须来自节选与原件”的门禁。
