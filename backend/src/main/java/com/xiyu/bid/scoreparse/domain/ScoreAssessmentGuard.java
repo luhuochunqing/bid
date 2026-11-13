@@ -37,12 +37,11 @@ public class ScoreAssessmentGuard {
     /** Restore a source slice using the existing reversible layout normalizer. No semantic matching. */
     public QuoteProof verifyQuote(String quote,String document,String excerpt) {
         if(quote==null||quote.isBlank())return new QuoteProof(null,"MODEL_QUOTE_MISSING");
-        String raw=quote.strip();
+        String candidate=quote.strip();
         // Layout normalization is context-sensitive at the quote tail (e.g. digit + 句号 follows Han),
         // so an exact verbatim quote is verified before normalization instead of failing on one character.
-        if(raw.length()>=8&&excerpt.contains(raw)&&document.contains(raw))return new QuoteProof(raw,"VERIFIED");
+        if(candidate.length()>=8&&excerpt.contains(candidate)&&document.contains(candidate))return new QuoteProof(candidate,"VERIFIED");
         var normalized=EvidenceText.normalize(excerpt);
-        String candidate=raw;
         String target=EvidenceText.normalize(candidate).text();
         int start=normalized.text().indexOf(target);
         if(start<0) {
