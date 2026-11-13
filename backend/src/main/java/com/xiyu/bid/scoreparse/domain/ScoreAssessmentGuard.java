@@ -57,14 +57,15 @@ public class ScoreAssessmentGuard {
         }
         var normalizedDocument=EvidenceText.normalize(document);
         // 节选在多段落之间插入了分隔符，跨段引用无法连续命中；去掉分隔符后仍命中节选时才回退到全文定位。
-        if(withoutExcerptSeparators(normalized.text()).contains(target)) {
+        String excerptWithoutSeparators=withoutExcerptSeparators(normalized.text());
+        if(excerptWithoutSeparators.contains(target)) {
             int documentStart=normalizedDocument.text().indexOf(target);
             if(documentStart<0)return new QuoteProof(null,"QUOTE_NOT_IN_DOCUMENT");
             return new QuoteProof(document.substring(normalizedDocument.offsets().get(documentStart),
                     normalizedDocument.offsets().get(documentStart+target.length()-1)+1),"VERIFIED");
         }
         // 固定宽度换行会把拉丁/数字编号拆断，归一化随后在字符间补空格；忽略空白后仍命中节选才用全文定位。
-        Compact compactExcerpt=compact(normalized.text());
+        Compact compactExcerpt=compact(excerptWithoutSeparators);
         Compact compactDocument=compact(normalizedDocument.text());
         for(String compactTarget:new String[]{compact(target).text(),compact(withHanTail(candidate)).text()}) {
             if(compactTarget.length()<8||!compactExcerpt.text().contains(compactTarget))continue;
