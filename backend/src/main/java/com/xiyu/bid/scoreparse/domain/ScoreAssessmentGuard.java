@@ -55,14 +55,45 @@ public class ScoreAssessmentGuard {
             return document.contains(source)?new QuoteProof(source,"VERIFIED")
                     :new QuoteProof(null,"QUOTE_NOT_IN_DOCUMENT");
         }
-        // 节选在多段落之间插入了分隔符，跨段引用无法连续命中；去掉分隔符后仍命中节选时才回退到全文定位。
-        if(!withoutExcerptSeparators(normalized.text()).contains(target))return new QuoteProof(null,"QUOTE_NOT_IN_EXCERPT");
         var normalizedDocument=EvidenceText.normalize(document);
-        int documentStart=normalizedDocument.text().indexOf(target);
-        if(documentStart<0)return new QuoteProof(null,"QUOTE_NOT_IN_DOCUMENT");
-        String source=document.substring(normalizedDocument.offsets().get(documentStart),
-                normalizedDocument.offsets().get(documentStart+target.length()-1)+1);
-        return new QuoteProof(source,"VERIFIED");
+        // 节选在多段落之间插入了分隔符，跨段引用无法连续命中；去掉分隔符后仍命中节选时才回退到全文定位。
+        if(withoutExcerptSeparators(normalized.text()).contains(target)) {
+            int documentStart=normalizedDocument.text().indexOf(target);
+            if(documentStart<0)return new QuoteProof(null,"QUOTE_NOT_IN_DOCUMENT");
+            return new QuoteProof(document.substring(normalizedDocument.offsets().get(documentStart),
+                    normalizedDocument.offsets().get(documentStart+target.length()-1)+1),"VERIFIED");
+        }
+        // 固定宽度换行会把拉丁/数字编号拆断，归一化随后在字符间补空格；忽略空白后仍命中节选才用全文定位。
+        Compact compactExcerpt=compact(normalized.text());
+        Compact compactDocument=compact(normalizedDocument.text());
+        for(String compactTarget:new String[]{compact(target).text(),compact(withHanTail(candidate)).text()}) {
+            if(compactTarget.length()<8||!compactExcerpt.text().contains(compactTarget))continue;
+            int compactStart=compactDocument.text().indexOf(compactTarget);
+            if(compactStart<0)return new QuoteProof(null,"QUOTE_NOT_IN_DOCUMENT");
+            return new QuoteProof(document.substring(normalizedDocument.offsets().get(compactDocument.index()[compactStart]),
+                    normalizedDocument.offsets().get(compactDocument.index()[compactStart+compactTarget.length()-1])+1),"VERIFIED");
+        }
+        return new QuoteProof(null,"QUOTE_NOT_IN_EXCERPT");
+    }
+
+    /** 归一化对句尾标点有后继字符依赖；补一个汉字哨兵再归一化，使句尾规则与文档中一致。 */
+    private static String withHanTail(String candidate) {
+        String normalized=EvidenceText.normalize(candidate+"汉").text();
+        return normalized.endsWith("汉")?normalized.substring(0,normalized.length()-1):normalized;
+    }
+
+    private record Compact(String text,int[] index) {}
+
+    /** 去掉全部空白，并记录每个保留字符在归一化文本中的下标，便于回切原文。 */
+    private static Compact compact(String normalized) {
+        StringBuilder text=new StringBuilder(normalized.length());
+        int[] index=new int[normalized.length()];
+        int size=0;
+        for(int i=0;i<normalized.length();i++) {
+            if(Character.isWhitespace(normalized.charAt(i)))continue;
+            text.append(normalized.charAt(i));index[size++]=i;
+        }
+        return new Compact(text.toString(),index);
     }
 
     /** ScoreDocExcerptExtractor 用 {@code \n\n---\n\n} 拼接非连续段落；移除分隔符后复用版式归一化保留词间空格。 */

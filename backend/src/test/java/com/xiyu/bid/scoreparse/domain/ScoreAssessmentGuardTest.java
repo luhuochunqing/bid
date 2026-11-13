@@ -74,6 +74,20 @@ class ScoreAssessmentGuardTest {
         assertThat(proof.verified()).isTrue();
         assertThat(proof.quote()).isEqualTo(quote);
     }
+    @Test void quoteJoinedAcrossLineWrappedIdentifierIsVerified() {
+        String document="已取得OMS订单管理系统软件著作权登记证书，登记号 2022S\nR0445566，有效期至 2027-06-30。";
+        String quote="已取得OMS订单管理系统软件著作权登记证书，登记号 2022SR0445566，有效期至 2027-06-30。";
+        var proof=guard.verifyQuote(quote,document,document);
+        assertThat(proof.verified()).isTrue();
+        assertThat(proof.quote()).isEqualTo(document);
+    }
+    @Test void joinedQuoteWithDigitPeriodTailIsVerified() {
+        String document="已取得OMS订单管理系统软件著作权登记证书，登记号 2022S\nR0445566，有效期至 2027-12-31。\n第四章 服务方案";
+        String quote="已取得OMS订单管理系统软件著作权登记证书，登记号 2022SR0445566，有效期至 2027-12-31。";
+        var proof=guard.verifyQuote(quote,document,document);
+        assertThat(proof.verified()).isTrue();
+        assertThat(proof.quote()).startsWith("已取得OMS订单管理系统软件著作权登记证书");
+    }
     private ScoreAssessmentGuard.Input.InputBuilder objectiveInput() {
         return ScoreAssessmentGuard.Input.builder()
                 .actualScore(new BigDecimal("6"))
