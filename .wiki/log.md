@@ -1865,3 +1865,5 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-11-13] compound | 087实际评分本地实现、1123原件性能反例与发布打包依赖回填；未部署/重算。
 
 ## [2026-11-13] compound | 用户确认1123第652项预期9分；真实模型及生产验收仍未执行。
+
+## [2026-11-13] compound | CO-661 根因：节选分隔符误杀跨段引用（A1 项 documentRawMatch=true 仍 QUOTE_NOT_IN_EXCERPT），回填 [[co661-quote-excerpt-separator-fix]]。

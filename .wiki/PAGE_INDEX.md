@@ -71,6 +71,7 @@
 | [duplicate-implementation-gate](pages/duplicate-implementation-gate.md) | 重复实现门禁（防造轮子） | 3 | 2026-08-21 | 1 |
 | [engineering-discipline](pages/engineering-discipline.md) | 工程纪律手册 — 反复修复的根因、根治与预防 | 5 | 2026-09-18 | 2 |
 | [flyway-migration-pitfalls](pages/flyway-migration-pitfalls.md) | Flyway 迁移陷阱集 | 4 | 2026-09-03 | 3 |
+| [co661-quote-excerpt-separator-fix](pages/co661-quote-excerpt-separator-fix.md) | CO-661 评分引用门禁：节选分隔符导致跨段引用被误杀 | 4 | 2026-11-13 | 1 |
 | [frontend-pitfalls](pages/frontend-pitfalls.md) | 前端 Vue3 / Element Plus 陷阱集 | 2 | 2026-09-16 | 3 |
 | [gitee-token-resolution](pages/gitee-token-resolution.md) | Gitee token 多源可见性与统一解析链（Agent 提 PR 找不到 token 的根因与唯一真相源规范） | 6 | 2026-09-03 | 1 |
 | [historical-case-obs-download](pages/historical-case-obs-download.md) | 历史案例原文 OBS 直链下载（spec 058：三分流 + 预签名签发 + 中文键编码分工） | 4 | 2026-09-01 | 1 |
@@ -220,7 +221,7 @@
 
 ## Summary
 
-- pages: 102
-- engineering: 88
+- pages: 103
+- engineering: 89
 - implementation: 14
 
