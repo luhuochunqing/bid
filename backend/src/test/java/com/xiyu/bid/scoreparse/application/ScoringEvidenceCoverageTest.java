@@ -31,6 +31,67 @@ class ScoringEvidenceCoverageTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"false,false", "false,true", "true,false"})
+    void numericTextScoreWithInvalidCitationSupplementsOnlyWithinSharedBudget(
+            boolean exhausted,boolean invalidSupplement)throws Exception {
+        String certificate="ISO9001质量管理体系认证证书";
+        String marker="[word/document.xml#p1 rId1]";
+        var document=new ScoringDocument(marker+" "+certificate,List.of(Map.of(
+                "partName","word/document.xml","anchor","p1","relationshipId","rId1","mediaName","word/media/cert.png")),
+                new ScoringExtractionReport(1,"fixture","COMPLETE",1,1,1,0,0,0,List.of(),List.of(),List.of(),0));
+        var textOutput=new ScoreAssessmentOutput();
+        textOutput.actualScore=10d; textOutput.quote="并未出现在投标文件的证书引用";
+        textOutput.evidence="需核验引用";
+        var imageOutput=new ScoreAssessmentOutput();
+        imageOutput.actualScore=10d; imageOutput.quote=invalidSupplement?textOutput.quote:certificate;
+        var calls=new java.util.concurrent.atomic.AtomicInteger();
+        var imageCalls=new java.util.concurrent.atomic.AtomicInteger();
+        var usedBudget=new java.util.concurrent.atomic.AtomicReference<OpenAiRequestBudget>();
+        var model=new OpenAiScoreAnalyzer(null,null,null) {
+            @Override public ScoreAssessmentOutput assessObjective(String detail,BigDecimal weight,String excerpt,
+                    List<DocumentImage> images,OpenAiRequestBudget budget) {
+                calls.incrementAndGet();usedBudget.set(budget);budget.acquire(Duration.ofSeconds(1));
+                if(images.isEmpty()) {
+                    if(exhausted)budget.acquire(Duration.ofSeconds(1));
+                    return textOutput;
+                }
+                imageCalls.incrementAndGet();
+                assertThat(images).hasSize(1);
+                return imageOutput;
+            }
+        };
+        var texts=mock(SidecarStreamTextExtractor.class);
+        when(texts.extractScoringDocument(any(byte[].class),anyString(),anyLong())).thenReturn(document);
+        var png=new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(2,2,java.awt.image.BufferedImage.TYPE_INT_RGB),"png",png);
+        var bytes=new java.io.ByteArrayOutputStream();
+        try(var zip=new java.util.zip.ZipOutputStream(bytes)) {
+            zip.putNextEntry(new java.util.zip.ZipEntry("word/media/cert.png"));zip.write(png.toByteArray());zip.closeEntry();
+        }
+        long deadline=System.currentTimeMillis()+10000;
+        try(var session=new ScoringFileSession(1L,"hash",new LoadedBidFile.InMemory(bytes.toByteArray(),"bid.docx","docx"),
+                texts,mock(SidecarImageExtractor.class),deadline,()->{})) {
+            session.extract();
+            var result=new ScoreItemAssessor(model,new ImageBudget(3,1024)).assessScoring(
+                    ScoreParseTask.builder().id(1L).build(),ScoreItem.builder().id(2L).detail("具有ISO9001质量管理体系认证证书得10分")
+                            .dim("资质证书").weight(BigDecimal.TEN).scoreType("OBJECTIVE").build(),document,session,deadline,
+                    new OpenAiBidAgentRequestConfig("synthetic","http://provider.invalid/v1","synthetic",Duration.ofSeconds(1),
+                            OpenAiBidAgentApiStyle.CHAT_COMPLETIONS));
+            assertThat(usedBudget.get().attempts()).isEqualTo(2);
+            assertThat(calls.get()).isEqualTo(exhausted?1:2);
+            assertThat(imageCalls.get()).isEqualTo(exhausted?0:1);
+            if(exhausted || invalidSupplement) {
+                assertThat(result.getActualScore()).isNull();
+                assertThat(result.getQuote()).isNull();
+                if(exhausted)assertThat(result.getEvidence()).isEqualTo(textOutput.evidence);
+            }else {
+                assertThat(result.getActualScore()).isEqualByComparingTo("10");
+                assertThat(result.getQuote()).isEqualTo(certificate);
+            }
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"unread", "failed", "empty"})
     void nativeParagraphSubstringRejectsUnverifiedSource(String kind) {
         String paragraph = "证书名称：ISO9001质量管理体系认证证书";
@@ -47,7 +108,7 @@ class ScoringEvidenceCoverageTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {"RESPONSES", "BAD_REQUEST", "SCHEMA_FALLBACK"})
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"RESPONSES", "BAD_REQUEST", "SCHEMA_FALLBACK", "NETWORK"})
     void rejectedImageSupplementPreservesTextAssessmentWithinTwoTransmissions(String rejection)throws Exception {
         var textOutput=new ScoreAssessmentOutput();
         textOutput.evidence="正文可读，但证书影像需人工确认";
@@ -64,6 +125,7 @@ class ScoringEvidenceCoverageTest {
                 if("RESPONSES".equals(rejection))throw new IllegalStateException("multimodal requires CHAT_COMPLETIONS");
                 budget.acquire(Duration.ofSeconds(1));
                 if("SCHEMA_FALLBACK".equals(rejection))budget.acquire(Duration.ofSeconds(1));
+                if("NETWORK".equals(rejection))throw new RuntimeException("connection interrupted");
                 throw com.openai.errors.BadRequestException.builder()
                         .headers(com.openai.core.http.Headers.builder().build())
                         .build();
@@ -85,7 +147,8 @@ class ScoringEvidenceCoverageTest {
         try(var session=new ScoringFileSession(1L,"hash",new LoadedBidFile.InMemory(bytes.toByteArray(),"bid.docx","docx"),
                 texts,mock(SidecarImageExtractor.class),deadline,()->{})) {
             session.extract();
-            assertThat(session.imagesFor(marker,new ImageBudget(3,1024))).hasSize(1);
+            assertThat(session.imagesFor(new ScoreDocExcerptExtractor.Excerpt(marker,List.of(
+                    new ScoreDocExcerptExtractor.Segment("selected",marker,0))),new ImageBudget(3,1024))).hasSize(1);
             var style="RESPONSES".equals(rejection)?OpenAiBidAgentApiStyle.RESPONSES:OpenAiBidAgentApiStyle.CHAT_COMPLETIONS;
             var result=new ScoreItemAssessor(model,new ImageBudget(3,1024)).assessScoring(
                     ScoreParseTask.builder().id(1L).build(),ScoreItem.builder().id(2L).detail("提供资质证书得10分")

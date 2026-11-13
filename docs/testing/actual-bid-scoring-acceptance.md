@@ -89,3 +89,9 @@
 ## 最新业务金标确认
 
 用户明确回复“确认，预期9分”：1123第652项的业务验收预期现固定为9分，对应同SHA原件及当前规则。此前工程回放/阶段记录中的pending保留为当时状态，已由本次确认更新；实际模型调用仍为0，确认金标不等于真实模型评分或DB/API/UI验收通过。最新确认见本地087-business-golden-confirmation.json。
+
+### PR3021 设计审查修正验证
+
+本轮仅修复评分主链/证据补图/来源定位/会话图片复用。统一回归为 10 类 91 项，零失败、零错误、零跳过：ScoreScoringAppServiceTest、ScoreItemAssessorTest、ScoringFileSessionTest、ScoringSourceIndexTest、ScoringSourceRefTest、ScoringEvidenceCoverageTest、ScoringCreditLimitProofTest、ScoringSidecarResponseReaderTest、NativeScoringDocumentExtractorTest、ScoreDocExcerptExtractorTest。命令为 `mvn -f backend/pom.xml -Dtest=<上述逗号分隔类名> test`。独立只读源码复审通过，diff 格式检查通过。
+
+此记录不覆盖真实MySQL/Testcontainers或现场模型评分；T030–T034状态不变。完整三技能流程凭证仍未形成，沿用用户已授权的本地review-gate例外，不能声称三技能门禁通过。

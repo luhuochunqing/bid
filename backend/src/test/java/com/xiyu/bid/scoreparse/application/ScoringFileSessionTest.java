@@ -9,6 +9,30 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class ScoringFileSessionTest {
+    private static ScoreDocExcerptExtractor.Excerpt selection(String text,int offset) {
+        return new ScoreDocExcerptExtractor.Excerpt(text,List.of(new ScoreDocExcerptExtractor.Segment("selected",text,offset)));
+    }
+    @Test void pageCacheEvictsWithinByteBudgetAndRendersAgainAfterEviction() throws Exception {
+        String body="[第 1 页]\nONE\n\n[第 2 页]\nTWO";
+        var texts=mock(SidecarStreamTextExtractor.class);var images=mock(SidecarImageExtractor.class);
+        when(texts.extractScoringDocument(any(byte[].class),anyString(),anyLong())).thenReturn(
+                new ScoringDocument(body,List.of(Map.of("pageNumber",1),Map.of("pageNumber",2)),null));
+        var one=new DocumentImage(0,"image/png",null,1,2,2,"AAAAAAAA");
+        var two=new DocumentImage(0,"image/png",null,2,2,2,"BBBBBBBB");
+        when(images.renderPages(any(byte[].class),anyString(),eq(Set.of(1)),anyLong()))
+                .thenReturn(new SidecarImageExtraction(List.of(one),false));
+        when(images.renderPages(any(byte[].class),anyString(),eq(Set.of(2)),anyLong()))
+                .thenReturn(new SidecarImageExtraction(List.of(two),false));
+        try(var file=new ScoringFileSession(1L,"hash",new LoadedBidFile.InMemory(new byte[]{1},"bid.pdf","pdf"),
+                texts,images,System.currentTimeMillis()+10000,()->{})) {
+            file.extract();var budget=new ImageBudget(1,8);
+            assertThat(file.imagesFor(selection("ONE",body.indexOf("ONE")),budget)).containsExactly(one);
+            assertThat(file.imagesFor(selection("TWO",body.indexOf("TWO")),budget)).containsExactly(two);
+            assertThat(file.imagesFor(selection("ONE",body.indexOf("ONE")),budget)).containsExactly(one);
+        }
+        verify(images,times(2)).renderPages(any(byte[].class),anyString(),eq(Set.of(1)),anyLong());
+        verify(images).renderPages(any(byte[].class),anyString(),eq(Set.of(2)),anyLong());
+    }
     @Test void longWordOcrExcerptWithoutMarkerLoadsOnlyOverlappingSourceMedia() throws Exception {
         String marker = "[word/document.xml#p7 rId9]";
         String ocr = "ordinary OCR text ".repeat(220) + "CERTIFICATE ABC999 " + "tail OCR text ".repeat(220);
@@ -39,14 +63,14 @@ class ScoringFileSessionTest {
         try (var file = new ScoringFileSession(1L, "hash", new LoadedBidFile.InMemory(bytes.toByteArray(), "bid.docx", "docx"),
                 text, mock(SidecarImageExtractor.class), System.currentTimeMillis() + 10000, () -> {})) {
             file.extract();
-            assertThat(file.imagesFor(excerpt, new ImageBudget(3, 1024)))
+            assertThat(file.imagesFor(selection(excerpt,body.indexOf(excerpt)), new ImageBudget(3, 1024)))
                     .singleElement().satisfies(image -> {
                         assertThat(image.section()).isEqualTo("word/media/cert.png");
                         assertThat(image.base64()).isEqualTo(Base64.getEncoder().encodeToString(png.toByteArray()));
                     });
             // Repeated OCR fragments do not identify a unique source position.
-            assertThat(file.imagesFor("ordinary OCR text", new ImageBudget(3, 1024))).isEmpty();
-            assertThat(file.imagesFor("INTRODUCTION", new ImageBudget(3, 1024))).isEmpty();
+            assertThat(file.imagesFor(selection("ordinary OCR text",-1), new ImageBudget(3, 1024))).isEmpty();
+            assertThat(file.imagesFor(selection("INTRODUCTION",0), new ImageBudget(3, 1024))).isEmpty();
         }
     }
 
@@ -70,7 +94,8 @@ class ScoringFileSessionTest {
         try(var file=new ScoringFileSession(1L,"hash",new LoadedBidFile.InMemory(bytes,"bid.pdf","application/pdf"),
                 text,images,deadline,()->{})) {
             file.extract();
-            assertThat(file.imagesFor(excerpt.text(),new ImageBudget(3,1024))).containsExactly(image);
+            assertThat(file.imagesFor(excerpt,new ImageBudget(3,1024))).containsExactly(image);
+            assertThat(file.imagesFor(excerpt,new ImageBudget(3,1024))).containsExactly(image);
         }
         verify(images).renderPages(same(bytes),eq("bid.pdf"),eq(Set.of(17)),eq(deadline));
         verifyNoMoreInteractions(images);
@@ -91,8 +116,8 @@ class ScoringFileSessionTest {
                 text,mock(SidecarImageExtractor.class),System.currentTimeMillis()+10000,releases::incrementAndGet)) {
             file.extract();
             // Both unrelated markers must result in no media decode (corrupt selected bytes would otherwise be read).
-            assertThat(file.imagesFor("[word/document.xml#p10 rId1]",new ImageBudget(3,1024))).isEmpty();
-            assertThat(file.imagesFor("[word/header1.xml#p1 rId1]",new ImageBudget(3,1024))).isEmpty();
+            assertThat(file.imagesFor(selection("[word/document.xml#p10 rId1]",0),new ImageBudget(3,1024))).isEmpty();
+            assertThat(file.imagesFor(selection("[word/header1.xml#p1 rId1]",0),new ImageBudget(3,1024))).isEmpty();
         }
         assertThat(releases).hasValue(1);
     }

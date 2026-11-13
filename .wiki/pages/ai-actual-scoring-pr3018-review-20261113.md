@@ -174,3 +174,9 @@ archive: true
 - 行为证据：新增 `ScoreScoringInputIdentityTest` 位于 `ScoreScoringVersionMysqlTest.java`。6 项内存 H2 真实事务用例在旧实现上全部 RED，修复后全部 GREEN。覆盖换 B 后超时、扫描器在提取中或 hash 返回后抢先置失败、同原件 A 超时、规则变化及更新任务抢先出现。换 B 时旧数据库行保留，接口单项分数为空、标记 `SOURCE_EXPIRED`、总分为 0；迟到成功结果不能覆盖旧行。
 - 最终验证：`JAVA_TOOL_OPTIONS=-javaagent:/Users/user/.m2/repository/net/bytebuddy/byte-buddy-agent/1.15.4/byte-buddy-agent-1.15.4.jar mvn -o -q -f backend/pom.xml -Dtest=ScoreScoringInputIdentityTest,ScoreScoringAppServiceTest,ScoreScoringResultsAssemblerTest,ScoringRunReportCodecTest test`，33 项通过，失败、错误、跳过均为 0。启动时加载既有 agent 用于避开沙箱禁止 JVM 自附加的限制，未修改测试配置或门禁。日志：`/private/tmp/scoring-fix-red.log`、`/private/tmp/scoring-fix-final.log`。
 - 验证边界：本阶段未监听端口或启动开发服务。`ScoreScoringVersionMysqlTest.changedOriginalTimeoutKeepsRowsButNeverPublishesOldOrLateScore` 的两种 MySQL 超时场景已补充，尚未执行，交主执行器 verify 阶段核验。真实模型及 DB、API、UI 业务验收仍未完成。本阶段没有提交、push、PR、部署或流程凭证写入。
+
+## PR3021 设计审查后收敛
+
+评分版本服务成为必需依赖，旧执行/读取路径及旧单项评分入口删除。摘录保持原文偏移，来源范围只构建一次；来源字段与marker集中到纯数据类型。文本校验后才决定是否补图，补图复用共享传输预算并再次校验。PDF页图与Word媒体仅在单次文件会话内按base64字节上限复用、淘汰和清理。
+
+回归覆盖重复文本按偏移选源、非法偏移拒绝、同页仅渲染一次、图片缓存淘汰、初次/补图引用校验、预算耗尽、网络失败保留文本评估、必需依赖及新执行主链。验收状态以 specs/087-actual-bid-scoring-recovery/tasks.md 为准，未部署及未完成真实业务验收。
