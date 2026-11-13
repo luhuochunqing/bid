@@ -30,6 +30,42 @@ public class ScoreAssessmentGuard {
                 && proof.unreadCannotChangeConclusion();
     }
 
+    public record QuoteProof(String quote,String reason) {
+        public boolean verified(){return quote!=null;}
+    }
+
+    /** Restore a source slice using the existing reversible layout normalizer. No semantic matching. */
+    public QuoteProof verifyQuote(String quote,String document,String excerpt) {
+        if(quote==null||quote.isBlank())return new QuoteProof(null,"MODEL_QUOTE_MISSING");
+        var normalized=EvidenceText.normalize(excerpt);
+        String candidate=quote.strip();
+        String target=EvidenceText.normalize(candidate).text();
+        int start=normalized.text().indexOf(target);
+        if(start<0) {
+            candidate=candidate.replaceFirst("^(?:第\\s*\\d+\\s*页|[pP]\\.?\\s*\\d+)\\s*[:：]\\s*", "");
+            target=EvidenceText.normalize(candidate).text();start=normalized.text().indexOf(target);
+        }
+        if(target.length()<8)return new QuoteProof(null,"QUOTE_TOO_SHORT");
+        if(start<0)return new QuoteProof(null,"QUOTE_NOT_IN_EXCERPT");
+        String source=excerpt.substring(normalized.offsets().get(start),
+                normalized.offsets().get(start+target.length()-1)+1);
+        return document.contains(source)?new QuoteProof(source,"VERIFIED")
+                :new QuoteProof(null,"QUOTE_NOT_IN_DOCUMENT");
+    }
+
+    /** Absence can prove zero only for an existing closed single-certificate rule and fully read input. */
+    public boolean verifiedAbsentCertificate(Input input,String dim,String detail,BigDecimal weight,ScoringDocument document) {
+        if(input.actualScore()==null||input.actualScore().signum()!=0||!Boolean.TRUE.equals(input.quoteMissing())
+                ||input.matchRatio()==null||input.matchRatio()!=0||input.quote()!=null&&!input.quote().isBlank()
+                ||!"COMPLETE".equals(document.extraction().coverageStatus())||document.extraction().emptyUnitCount()!=0)return false;
+        String normalized=CertificateScoreRule.normalize(detail);
+        if(normalized.contains("证明材料")||normalized.contains("证明文件"))return false;
+        var rule=CertificateScoreRule.parse(dim,detail,weight);
+        return rule.supported()&&rule.requirements().size()==1&&rule.scores().size()==1
+                &&rule.scores().containsKey(1)&&rule.scores().get(1).compareTo(weight)==0
+                &&!CertificateScoreRule.identifies(document.text(),rule.requirements().getFirst().identity());
+    }
+
     /** Only title-only rules are local proofs; parsing material requirements does not verify them. */
     public boolean closedPositiveCertificate(String dim,String detail,BigDecimal weight,BigDecimal score,String quote) {
         if(weight==null||score==null||quote==null||score.compareTo(weight)!=0)return false;

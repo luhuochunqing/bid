@@ -64,6 +64,13 @@ class ScoreParsePromptsTest {
     }
 
     @Test
+    void objectiveQuoteContractKeepsLocatorOutsideVerbatimField() {
+        String prompt=ScoreParsePrompts.buildObjectiveAssessmentPrompt("具有证书得10分",10,"原文证据",false);
+        assertThat(prompt).contains("逐字复制", "位置描述仅写在此字段", "不得仅给出 evidence 结论")
+                .doesNotContain("原文引用（含章节/页码）");
+    }
+
+    @Test
     void buildObjectiveAssessmentPrompt_templateLiteralPercentDoesNotThrow() {
         assertThatCode(() -> ScoreParsePrompts.buildObjectiveAssessmentPrompt(
                         TRICKY_TEXT, 30.0, "案例满足率100%\"的证明"))

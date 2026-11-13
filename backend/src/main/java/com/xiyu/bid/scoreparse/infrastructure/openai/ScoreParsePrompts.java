@@ -167,15 +167,16 @@ public final class ScoreParsePrompts {
                 输出 JSON 字段要求：
                 - actualScore: 投标文件实际可得分（0 到 %s 之间的数字）
                 - matchRatio: 满足度百分比（0-100 整数）
-                - evidence: 满足/部分满足的依据说明
-                - quote: 投标文件中的原文引用（含章节/页码）；无引用输出 null
-                - quoteMissing: 投标文件中找不到相关内容时为 true
+                - evidence: 满足/部分满足的依据说明；章节/页码等位置描述仅写在此字段
+                - quote: 从上述投标文件节选逐字复制的原文；不得摘要、改写或添加章节、页码、解释前缀；无引用输出 null
+                - quoteMissing: 节选中完全找不到相关内容时为 true；不能因为缺少章节/页码而设为 true
                 - missedReason: 未满足的具体原因；满足时输出 null
                 - suggestion: 针对缺口的改进建议（一句话）
 
                 硬性规则：
                 - 只依据投标文件节选判断，禁止假设文件中不存在的内容
-                - quoteMissing=true 时 quote 必须为 null
+                - quoteMissing=true 时 quote 必须为 null；已找到证据时必须返回逐字 quote，不得仅给出 evidence 结论
+                - 未找到相关证据时 actualScore=0、matchRatio=0；是否能发布0分仍由服务端依据完整覆盖与规则核验
                 """.formatted(weight, promptSafe(scoreItemDetail), promptSafe(bidDocExcerpt), imageGuidance, weight);
     }
 

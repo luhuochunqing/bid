@@ -95,24 +95,31 @@ final class ScoreItemAssessor {
     private ScoreResult validateScoring(ScoreParseTask task,ScoreItem item,
             com.xiyu.bid.scoreparse.domain.ScoringDocument document,String excerpt,
             ScoreAssessmentOutput output,boolean subjective) {
-        var guarded=assessmentGuard.guard(toGuardInput(output),item.getWeight(),item.getScoreType());
+        var input=toGuardInput(output);
+        var guarded=assessmentGuard.guard(input,item.getWeight(),item.getScoreType());
         BigDecimal score=resolveObjectiveScore(item,guarded,output);
-        String normalizedQuote=guarded.quote()==null?"":guarded.quote().replaceAll("\\s+","");
-        boolean quoteVerified=normalizedQuote.length()>=8 && document.text().contains(guarded.quote())
-                &&excerpt.replaceAll("\\s+","").contains(normalizedQuote);
+        var quoteProof=assessmentGuard.verifyQuote(subjective?null:output.quote,document.text(),excerpt);
+        String quote=quoteProof.quote();boolean quoteVerified=quoteProof.verified();
         boolean complete="COMPLETE".equals(document.extraction().coverageStatus());
         var credit=com.xiyu.bid.scoreparse.domain.CreditLimitScoreProof.assess(item.getDetail(),item.getWeight(),
-                guarded.actualScore(),score,quoteVerified?guarded.quote():null,document);
+                guarded.actualScore(),score,quote,document);
         if(credit.highestBandVerified())score=credit.score();
-        boolean localProof=credit.score()!=null || quoteVerified && document.verifiedQuoteSource(guarded.quote())
-                && assessmentGuard.closedPositiveCertificate(item.getDim(),item.getDetail(),item.getWeight(),score,guarded.quote());
-        if(!subjective && !assessmentGuard.canPublish(document.extraction().coverageStatus(),
+        boolean localProof=credit.score()!=null || quoteVerified && document.verifiedQuoteSource(quote)
+                && assessmentGuard.closedPositiveCertificate(item.getDim(),item.getDetail(),item.getWeight(),score,quote);
+        boolean absentZero=score!=null&&score.signum()==0&&assessmentGuard.verifiedAbsentCertificate(
+                input,item.getDim(),item.getDetail(),item.getWeight(),document);
+        if(!subjective && !absentZero && !assessmentGuard.canPublish(document.extraction().coverageStatus(),
                 new ScoreAssessmentGuard.CoverageProof(quoteVerified,item.getDetail()!=null&&!item.getDetail().isBlank(),
                         complete&&document.extraction().emptyUnitCount()==0 || localProof)))score=null;
+        String rejection=guarded.rangeInvalid()?"SCORE_OUT_OF_RANGE":!quoteVerified?quoteProof.reason():"COVERAGE_PROOF_INSUFFICIENT";
+        if(!subjective&&(score==null||Boolean.TRUE.equals(output.quoteMissing)&&quoteVerified))
+            log.info("评分引用诊断: itemId={}, rawScore={}, quoteMissing={}, quoteLength={}, documentRawMatch={}, reason={}",
+                    item.getId(),output.actualScore,output.quoteMissing,output.quote==null?0:output.quote.length(),
+                    output.quote!=null&&document.text().contains(output.quote),score==null?rejection:"VERIFIED_FLAG_CONFLICT");
         return ScoreResult.builder().scoreItemId(item.getId()).scoringTaskId(task.getId())
                 .actualScore(score).statusStage2(statusPolicy.evaluate(score,item.getWeight(),item.getScoreType(),false))
-                .evidence(guarded.evidence()).quote(quoteVerified?guarded.quote():null)
-                .missedReason(score==null&&!subjective?"可核验证据不足，请人工确认":guarded.missedReason())
+                .evidence(guarded.evidence()).quote(quote)
+                .missedReason(score==null&&!subjective?"可核验证据不足，请人工确认（"+rejection+"）":guarded.missedReason())
                 .suggestion(guarded.suggestion()).matchRatio(score==null?null:guarded.matchRatio())
                 .reuseKind(subjective?"SUBJECTIVE":"FRESH").build();
     }

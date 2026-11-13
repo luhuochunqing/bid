@@ -43,6 +43,46 @@ class ScoreItemAssessorTest {
                 .taskType("SCORING").status("PROCESSING").build();
     }
 
+    @ParameterizedTest @ValueSource(strings={"第1页：具备 CMMI 5 级认证证书", "具备 CMMI 5 级认\n证证书"})
+    void layoutAndPageLocatorRestoreVerbatimSource(String quote) {
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
+                .thenReturn(output(8d,quote));
+        var result=assess(item("OBJECTIVE"));
+        assertThat(result.getActualScore()).isEqualByComparingTo("8");
+        assertThat(result.getQuote()).isEqualTo(QUOTE);
+    }
+    @Test void verifiedSourceWinsOverContradictoryMissingFlag() {
+        var output=output(8d,QUOTE);output.quoteMissing=true;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class))).thenReturn(output);
+        assertThat(assess(item("OBJECTIVE")).getActualScore()).isEqualByComparingTo("8");
+    }
+    @Test void missingQuoteHasDistinctDiagnosticAndDoesNotTrustNarrative() {
+        var output=output(10d,null);output.evidence="证据充分，完全符合";
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class))).thenReturn(output);
+        var result=assess(item("OBJECTIVE"));
+        assertThat(result.getActualScore()).isNull();
+        assertThat(result.getMissedReason()).contains("MODEL_QUOTE_MISSING");
+    }
+    @Test void completeClosedCertificateAbsenceCanPublishZeroWithoutQuote() {
+        var output=output(0d,null);output.quoteMissing=true;output.matchRatio=0;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class))).thenReturn(output);
+        var certificate=item("OBJECTIVE");certificate.setDetail("具有ISO9001质量管理体系认证证书得10分");
+        var result=assess(certificate);
+        assertThat(result.getActualScore()).isEqualByComparingTo("0");
+        assertThat(result.getQuote()).isNull();
+    }
+    @ParameterizedTest @ValueSource(strings={"存在证书","提取不完整","空单元","未知规则","附加材料"})
+    void absenceZeroCannotBypassEvidenceAndRuleBoundaries(String boundary) {
+        var output=output(0d,null);output.quoteMissing=true;output.matchRatio=0;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class))).thenReturn(output);
+        var certificate=item("OBJECTIVE");certificate.setDetail("具有ISO9001质量管理体系认证证书得10分");
+        if("未知规则".equals(boundary))certificate.setDetail("提供有效OMS软件著作权登记证书得10分");
+        if("附加材料".equals(boundary))certificate.setDetail(certificate.getDetail()+"。证明材料：投标人须提供认证证书扫描件");
+        String text="存在证书".equals(boundary)?"已提供ISO9001质量管理体系认证证书":BID_TEXT;
+        var result=assess(certificate,text,"提取不完整".equals(boundary)?"PARTIAL":"COMPLETE","空单元".equals(boundary)?1:0);
+        assertThat(result.getActualScore()).isNull();
+        assertThat(result.getMissedReason()).contains("人工确认");
+    }
     @Test void verifiedObjectiveTextPublishesWithoutImageTransmission() {
         when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
                 .thenReturn(output(8d,QUOTE));
@@ -70,7 +110,7 @@ class ScoreItemAssessorTest {
         var result=assess(item("OBJECTIVE"));
         assertThat(result.getActualScore()).isNull();
         assertThat(result.getQuote()).isNull();
-        assertThat(result.getMissedReason()).contains("人工确认");
+        assertThat(result.getMissedReason()).contains("人工确认", "QUOTE_NOT_IN_EXCERPT");
     }
 
     @Test void subjectiveItemDiscardsNumbersAndNeverCallsObjectiveAnalyzer() {
@@ -81,6 +121,7 @@ class ScoreItemAssessorTest {
         assertThat(result.getMatchRatio()).isNull();
         assertThat(result.getReuseKind()).isEqualTo("SUBJECTIVE");
         assertThat(result.getSuggestion()).isEqualTo("建议补充");
+        assertThat(result.getQuote()).isNull();
         verify(analyzer).assessSubjective(anyString(),eq(BID_TEXT),any(OpenAiRequestBudget.class));
         verifyNoMoreInteractions(analyzer);
     }
@@ -128,10 +169,14 @@ class ScoreItemAssessorTest {
         verifyNoMoreInteractions(analyzer);
     }
 
-    private ScoreResult assess(ScoreItem item) {
+    private ScoreResult assess(ScoreItem item) {return assess(item,BID_TEXT,"COMPLETE",0);}
+    private ScoreResult assess(ScoreItem item,String text,String coverage,int emptyCount) {
         long deadline=System.currentTimeMillis()+10000;
-        var document=new ScoringDocument(BID_TEXT,List.of(),new ScoringExtractionReport(
-                1,"fixture","COMPLETE",1,1,0,0,0,0,List.of(),List.of(),List.of(),0));
+        int unread="PARTIAL".equals(coverage)?1:0;
+        var document=new ScoringDocument(text,List.of(),new ScoringExtractionReport(
+                1,"fixture",coverage,1,1-unread,0,unread,0,emptyCount,
+                unread==0?List.of():List.of(java.util.Map.of("pageNumber",1)),List.of(),
+                emptyCount==0?List.of():List.of(java.util.Map.of("pageNumber",1)),0));
         try(var session=new ScoringFileSession(1L,"hash",new LoadedBidFile.InMemory(new byte[]{1},"bid.docx","docx"),
                 mock(SidecarStreamTextExtractor.class),null,deadline,()->{})) {
             return new ScoreItemAssessor(analyzer,new ImageBudget(3,1024)).assessScoring(task,item,document,session,deadline,
