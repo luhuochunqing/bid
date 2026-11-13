@@ -225,3 +225,5 @@ backlinks:
 - [[scoreparse-1123-rowspan-and-prune-fix]] — 项目1123大跨度Rowspan与平级编号项评分表格解析失真及三阶收敛（网格跨行下沉/虚构大项剪枝/补漏幂等去重）。
 
 - [[scoreparse-1371-estimate-routing-20261112]] — 测试1371历史因素名字段错位、预计得分分类对照与PR边界
+
+- [[ai-actual-scoring-pr3018-review-20261113]] — 最新评分PR审查、1123生产空分、OCR覆盖、087反向审查及v2修订。

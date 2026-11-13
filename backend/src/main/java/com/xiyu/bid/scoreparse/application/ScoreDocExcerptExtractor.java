@@ -9,6 +9,7 @@ import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -21,6 +22,8 @@ import java.util.regex.Matcher;
  * <p>基于评分项维度与细则关键词对全文段落打分并提取最相关的段落片段，避免一刀切硬截断。
  */
 public final class ScoreDocExcerptExtractor {
+
+    private static final String EXCERPT_SEPARATOR = "\n\n---\n\n";
 
     private static final Pattern CONDITION_SCORE_PATTERN = Pattern.compile(
             "(?:满足|提供|具备|每|若|如|未提供|不满足|凡|符合|按|出现|配置)[^\\n。；;]{1,60}?(?:得|计|加|扣|减|按|给)\\s*\\d+(?:\\.\\d+)?\\s*分" +
@@ -106,13 +109,22 @@ public final class ScoreDocExcerptExtractor {
                 }
             }
         } else {
+            Set<Integer> prioritized = new LinkedHashSet<>();
+            topHits.forEach(hit -> prioritized.add(hit.index));
             for (ScoredParagraph sp : topHits) {
-                selectedIndices.add(sp.index);
                 if (sp.index > 0 && !isTocAnchor(paragraphs.get(sp.index - 1).text())) {
-                    selectedIndices.add(sp.index - 1);
+                    prioritized.add(sp.index - 1);
                 }
                 if (sp.index < paragraphs.size() - 1 && !isTocAnchor(paragraphs.get(sp.index + 1).text())) {
-                    selectedIndices.add(sp.index + 1);
+                    prioritized.add(sp.index + 1);
+                }
+            }
+            int used = 0;
+            for (int index : prioritized) {
+                int cost = paragraphs.get(index).text().length() + (selectedIndices.isEmpty() ? 0 : EXCERPT_SEPARATOR.length());
+                if (cost <= maxChars - used) {
+                    selectedIndices.add(index);
+                    used += cost;
                 }
             }
         }
@@ -121,11 +133,11 @@ public final class ScoreDocExcerptExtractor {
         List<Paragraph> selected = new ArrayList<>();
         for (int idx : selectedIndices) {
             Paragraph paragraph = paragraphs.get(idx);
-            if (sb.length() + paragraph.text().length() > maxChars) {
-                break;
+            if (sb.length() + paragraph.text().length() + (sb.isEmpty() ? 0 : EXCERPT_SEPARATOR.length()) > maxChars) {
+                continue;
             }
             if (!sb.isEmpty()) {
-                sb.append("\n\n---\n\n");
+                sb.append(EXCERPT_SEPARATOR);
             }
             sb.append(paragraph.text());
             selected.add(paragraph);
@@ -145,13 +157,19 @@ public final class ScoreDocExcerptExtractor {
         List<Paragraph> paragraphs = new ArrayList<>();
         Matcher separator = Pattern.compile("\n{2,}").matcher(fullText);
         int start = 0;
-        int index = 0;
         while (separator.find()) {
-            paragraphs.add(paragraph(index++, fullText, start, separator.start()));
+            appendParagraphs(paragraphs, fullText, start, separator.start());
             start = separator.end();
         }
-        paragraphs.add(paragraph(index, fullText, start, fullText.length()));
+        appendParagraphs(paragraphs, fullText, start, fullText.length());
         return paragraphs;
+    }
+
+    private static void appendParagraphs(List<Paragraph> paragraphs,String fullText,int start,int end) {
+        while(start<end) {
+            int next=Math.min(start+1000,end);
+            paragraphs.add(paragraph(paragraphs.size(),fullText,start,next));start=next;
+        }
     }
 
     private static Paragraph paragraph(int index, String fullText, int rawStart, int rawEnd) {

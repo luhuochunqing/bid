@@ -32,6 +32,8 @@ final class ScoreParseAutoPolicy {
         for (String type : List.of("PARSE", "SCORING")) {
             for (ScoreParseTask task : taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                     projectId, type, List.of("FAILED"))) {
+                if ("SCORING".equals(type) && java.util.Set.of("SCORING_REQUIRES_ALL","NO_VALID_OBJECTIVE_SCORE")
+                        .contains(java.util.Objects.toString(task.getErrorMessage(),"")))continue;
                 if ("AUTO".equals(task.getTriggerSource()) && AutoFailCircuit.inWindow(task.getCompletedAt(), now)) {
                     fails++;
                     latestAutoFail = later(latestAutoFail, task.getCompletedAt());

@@ -227,3 +227,45 @@ no production re-score or document replacement is performed by this change.
 Validation: from this directory run `python -m pytest tests/test_scanned_bid_ocr.py
  tests/test_convert_stream.py -q` (one line). The tests generate synthetic PDFs,
 exercise real local OCR and the HTTP/worker entry; customer originals stay outside Git.
+
+## Structured scoring v2 execution profile
+
+`POST /convert` accepts `X-Pdf-Ocr: true`, `X-Scoring-Report-Version: 1`,
+and the absolute `X-Scoring-Deadline-Epoch-Millis`. This path enumerates the
+complete input range and returns `extraction` plus `sourceRefs`; the legacy
+text-only endpoint above retains its existing behavior. Successful Word SAX
+extraction counts every native text unit as processed before image OCR starts.
+A later OCR deadline leaves only the unscheduled image references unread.
+
+The conservative default `SIDECAR_BID_OCR_WORKERS=1` can be raised to **4** for
+Word image OCR under the measured **4 GiB container / 8 CPU host** profile.
+Values above 4 are clamped. Each Tesseract subprocess uses
+`OMP_THREAD_LIMIT=1` on this v2 path, and at most the configured worker count
+is submitted or retained in flight. Results and references retain source order;
+request-local caches coalesce repeated media, encoded bytes and OCR inputs.
+PDF page rendering remains sequential because its document handle is not shared
+between threads.
+
+The profile keeps `SIDECAR_BID_OCR_TIMEOUT_SECONDS=1500` (hard maximum) and the
+existing 1800-second task deadline. It does not add a conversion queue or a
+process pool: OCR threads and their Tesseract children belong to the same
+request-owned process group and share its deadline and cleanup. Before enabling
+4 workers, measure process-tree peak RSS, coverage and whole-original elapsed
+time under the target memory limit. A small sample establishes throughput and
+memory observations; it does not establish complete customer-document coverage
+or scoring accuracy. No deployment or production re-score is implied.
+
+The per-image decoded-pixel default remains 16,000,000. The measured 4 GiB
+profile may explicitly set `SIDECAR_BID_OCR_MAX_IMAGE_PIXELS=24000000` for the
+original's 22,268,416-pixel scans; OCR input still uses the 2000-pixel long-edge
+limit. Verify whole-request process-tree RSS with this setting before release.
+
+For EMF media, v2 accepts only a validated Unicode-text subset of
+[MS-EMF EmrText](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-emf/dd585d0a-5d7c-4034-963a-1141af836972):
+record-aligned `EMR_EXTTEXTOUTW` with zero text options, known fixed graphics
+state records, source-free PATCOPY, and known state-only EMF+ Dual comments.
+The parser validates complete header/record/EOF boundaries and string offsets.
+Bitmap payloads, glyph indexes, unsupported text/drawing records and unknown
+comments remain explicit failed units (`PARTIAL`); this is not an EMF renderer.
+
+评分EMF支持边界：仅提取经结构校验的Unicode记录，不执行字体布局、裁剪或遮挡渲染；与既有Word/PDF原生文本提取一样，不保证所见即所得。COMPLETE只描述已执行源单元，无视觉可见性或业务正确性保证。独立审查的空裁剪合成反例可提取不可见文本，记录为Minor已接受：1123含合法裁剪状态，首轮不增加通用图形渲染/变换系统，也未证实其原件发生此误读；真实评分仍须按引用核验原件可见证据。未知文本/图形记录和嵌入位图仍明确PARTIAL。

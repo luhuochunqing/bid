@@ -1,11 +1,11 @@
 """Memory-guard tests for the sidecar OOM root-cause fix.
 
-Input:  synthetic noisy-JPEG docx (in-process) + mocked broken process pools.
+Input:  synthetic noisy-JPEG docx (in-process) + injected worker failures.
 Output: Assertions that (a) mammoth no longer inlines embedded images as
         base64 data URIs, (b) a dead conversion worker surfaces as HTTP 503
         on both /convert and /convert-stream (not swallowed into 422) and
-        the pool self-heals, (c) a real end-to-end conversion through the
-        worker pool still succeeds.
+        the next request can run, (c) a real end-to-end conversion through the
+        request worker still succeeds.
 Position: test suite; run with `pytest tests/test_memory_guard.py -v` from
         the sidecar directory.
 """
@@ -15,8 +15,7 @@ import io
 import os
 import sys
 import tempfile
-from concurrent.futures.process import BrokenProcessPool
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import mammoth
 import pytest
@@ -139,53 +138,32 @@ def test_docx_pre_process_memory_bench(app_module):
 
 
 # ---------------------------------------------------------------------------
-# Defense in depth: dead worker -> 503 + pool self-heal
+# Defense in depth: dead worker -> 503
 # ---------------------------------------------------------------------------
 
-def _broken_pool_mock() -> MagicMock:
-    fake_pool = MagicMock()
-    fake_pool.submit.side_effect = BrokenProcessPool("worker died")
-    return fake_pool
-
-
 @pytest.mark.asyncio
-async def test_broken_worker_returns_503_and_self_heals(app_module):
-    """A dead conversion worker must surface as 503 and recycle the pool."""
-    with patch.object(app_module, "_get_convert_pool", return_value=_broken_pool_mock()):
-        async with AsyncClient(
-            transport=ASGITransport(app=app_module.app), base_url="http://test"
-        ) as client:
-            response = await client.post(
-                "/convert",
-                files={"file": ("doc.pdf", io.BytesIO(b"data"), "application/pdf")},
-            )
+@pytest.mark.parametrize('endpoint', ['/convert', '/convert-stream'])
+async def test_dead_worker_returns_503(app_module, monkeypatch, endpoint):
+    """Both endpoint contracts propagate request-worker failure as 503."""
+    import conversion_execution
+    from fastapi import HTTPException
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr(conversion_execution, 'execute_conversion', AsyncMock(
+        side_effect=HTTPException(status_code=503, detail='文档转换服务繁忙，请稍后重试')))
+    async with AsyncClient(transport=ASGITransport(app=app_module.app), base_url='http://test') as client:
+        response = await client.post(endpoint, files={'file': ('doc.pdf', b'data')})
     assert response.status_code == 503
-    assert response.json()["detail"] == "文档转换服务繁忙，请稍后重试"
-    assert app_module._CONVERT_POOL is None
-
-
-@pytest.mark.asyncio
-async def test_stream_endpoint_passes_through_503(app_module):
-    """/convert-stream must propagate the 503 instead of masking it as 422."""
-    with patch.object(app_module, "_get_convert_pool", return_value=_broken_pool_mock()):
-        async with AsyncClient(
-            transport=ASGITransport(app=app_module.app), base_url="http://test"
-        ) as client:
-            response = await client.post(
-                "/convert-stream",
-                files={"file": ("doc.pdf", io.BytesIO(b"data"), "application/pdf")},
-            )
-    assert response.status_code == 503
+    assert response.json()['detail'] == '文档转换服务繁忙，请稍后重试'
 
 
 # ---------------------------------------------------------------------------
-# End-to-end: real conversion through the worker pool
+# End-to-end: real conversion through a request worker
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_real_conversion_through_pool_succeeds(app_module):
+async def test_real_conversion_through_worker_succeeds(app_module):
     """Full chain: upload -> worker process -> pickled ConvertResult -> 200."""
-    payload = "# Pool smoke test\n\nplain text body".encode()
+    payload = "# Worker smoke test\n\nplain text body".encode()
     async with AsyncClient(
         transport=ASGITransport(app=app_module.app), base_url="http://test"
     ) as client:

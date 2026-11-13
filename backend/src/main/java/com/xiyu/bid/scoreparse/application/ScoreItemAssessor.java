@@ -69,6 +69,62 @@ final class ScoreItemAssessor {
                 .matchRatio(assessment.matchRatio()).reuseKind("FRESH").build();
     }
 
+    ScoreResult assessScoring(ScoreParseTask task,ScoreItem item,
+            com.xiyu.bid.scoreparse.domain.ScoringDocument document,ScoringFileSession file,long deadline,
+            com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentRequestConfig configuration) {
+        if(item.getWeight()==null)return fallbackPending(task,List.of(item),"评分权重未知，无法计算").getFirst();
+        var budget=new com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiRequestBudget(deadline,configuration);
+        String excerpt=ScoreDocExcerptExtractor.extractRelevantExcerpt(document.text(),item,BID_DOC_EXCERPT_MAX_CHARS);
+        String creditRow=com.xiyu.bid.scoreparse.domain.CreditLimitScoreProof.evidenceRow(item.getDetail(),document);
+        if(creditRow!=null&&!excerpt.contains(creditRow)&&creditRow.length()<=BID_DOC_EXCERPT_MAX_CHARS) {
+            int remaining=BID_DOC_EXCERPT_MAX_CHARS-creditRow.length()-7;
+            excerpt=creditRow+(remaining>=0?"\n\n---\n\n"+excerpt.substring(0,Math.min(excerpt.length(),remaining)):"");
+        }
+        boolean subjective=ScoreAssessmentGuard.TYPE_SUBJECTIVE.equals(item.getScoreType());
+        ScoreAssessmentOutput output=null;
+        RuntimeException failure=null;
+        while(budget.available() && output==null) {
+            int before=budget.attempts();
+            try {
+                output=subjective?scoreAnalyzer.assessSubjective(item.getDetail(),excerpt,budget)
+                        :scoreAnalyzer.assessObjective(item.getDetail(),item.getWeight(),excerpt,List.of(),budget);
+            }catch(RuntimeException ex){failure=ex;if(budget.attempts()==before)throw ex;}
+        }
+        if(output==null)throw failure==null?new IllegalStateException("SCORING_EMPTY_OUTPUT"):failure;
+        if(!subjective && output.actualScore==null && budget.available()) {
+            try {
+                var associated=file.imagesFor(excerpt,imageBudget);
+                if(!associated.isEmpty())output=scoreAnalyzer.assessObjective(item.getDetail(),item.getWeight(),excerpt,associated,budget);
+            } catch(BadRequestException | IllegalStateException ex) {
+                ScoringDeadline.check(deadline);
+                // Text already succeeded; compatibility/schema fallback must not start a third transmission.
+                log.warn("按需补图不可用，保留文本评估: itemId={}, type={}, msg={}",
+                        item.getId(),ex.getClass().getSimpleName(),ex.getMessage());
+                Sentry.captureException(ex);
+            }
+        }
+        var guarded=assessmentGuard.guard(toGuardInput(output),item.getWeight(),item.getScoreType());
+        BigDecimal score=resolveObjectiveScore(item,guarded,output);
+        String normalizedQuote=guarded.quote()==null?"":guarded.quote().replaceAll("\\s+","");
+        boolean quoteVerified=normalizedQuote.length()>=8 && document.text().contains(guarded.quote())
+                &&excerpt.replaceAll("\\s+","").contains(normalizedQuote);
+        boolean complete="COMPLETE".equals(document.extraction().coverageStatus());
+        var credit=com.xiyu.bid.scoreparse.domain.CreditLimitScoreProof.assess(item.getDetail(),item.getWeight(),
+                guarded.actualScore(),score,quoteVerified?guarded.quote():null,document);
+        if(credit.highestBandVerified())score=credit.score();
+        boolean localProof=credit.score()!=null || quoteVerified && document.verifiedQuoteSource(guarded.quote())
+                && assessmentGuard.closedPositiveCertificate(item.getDim(),item.getDetail(),item.getWeight(),score,guarded.quote());
+        if(!subjective && !assessmentGuard.canPublish(document.extraction().coverageStatus(),
+                new ScoreAssessmentGuard.CoverageProof(quoteVerified,item.getDetail()!=null&&!item.getDetail().isBlank(),
+                        complete&&document.extraction().emptyUnitCount()==0 || localProof)))score=null;
+        return ScoreResult.builder().scoreItemId(item.getId()).scoringTaskId(task.getId())
+                .actualScore(score).statusStage2(statusPolicy.evaluate(score,item.getWeight(),item.getScoreType(),false))
+                .evidence(guarded.evidence()).quote(quoteVerified?guarded.quote():null)
+                .missedReason(score==null&&!subjective?"可核验证据不足，请人工确认":guarded.missedReason())
+                .suggestion(guarded.suggestion()).matchRatio(score==null?null:guarded.matchRatio())
+                .reuseKind(subjective?"SUBJECTIVE":"FRESH").build();
+    }
+
     /**
      * 客观项打分：配给后有图 → 多模态过载；多模态不被支持
      * （图片 part 被拒 BadRequestException / RESPONSES 风格 ISE）→ 纯文本重试恰好一次，

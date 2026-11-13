@@ -249,21 +249,20 @@ public class OpenAiScoreAnalyzer {
         }
     }
 
-    /**
-     * 阶段 2：客观项对标打分（每评分项一次 LLM 调用，契约 §4）。
-     */
     public ScoreAssessmentOutput assessObjective(
             String scoreItemDetail, java.math.BigDecimal weight, String bidDocExcerpt) {
         return assessObjective(scoreItemDetail, weight, bidDocExcerpt, List.of());
     }
 
-    /**
-     * 阶段 2：客观项对标打分多模态过载（spec 048 T017）。
-     */
     public ScoreAssessmentOutput assessObjective(
             String scoreItemDetail, java.math.BigDecimal weight, String bidDocExcerpt,
             List<DocumentImage> images) {
-        OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
+        return assessObjective(scoreItemDetail,weight,bidDocExcerpt,images,null);
+    }
+    public ScoreAssessmentOutput assessObjective(String scoreItemDetail,java.math.BigDecimal weight,String bidDocExcerpt,
+            List<DocumentImage> images,com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiRequestBudget budget) {
+        OpenAiBidAgentRequestConfig config = budget!=null&&budget.configuration()!=null?budget.configuration():configurationResolver.resolve(USE_CASE);
+        if(budget!=null)config=config.forScoring(budget);
         boolean withImages = images != null && !images.isEmpty();
         String prompt = ScoreParsePrompts.buildObjectiveAssessmentPrompt(
                 TenderIntakeTextProcessor.sanitizeUntrusted(scoreItemDetail),
@@ -278,11 +277,14 @@ public class OpenAiScoreAnalyzer {
                 "AI structured response did not include score assessment");
     }
 
-    /**
-     * 阶段 2：主观项建议（仅 suggestion，禁止数字得分，SC-003 零泄漏）。
-     */
+
     public ScoreAssessmentOutput assessSubjective(String scoreItemDetail, String bidDocExcerpt) {
-        OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
+        return assessSubjective(scoreItemDetail,bidDocExcerpt,null);
+    }
+    public ScoreAssessmentOutput assessSubjective(String scoreItemDetail,String bidDocExcerpt,
+            com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiRequestBudget budget) {
+        OpenAiBidAgentRequestConfig config = budget!=null&&budget.configuration()!=null?budget.configuration():configurationResolver.resolve(USE_CASE);
+        if(budget!=null)config=config.forScoring(budget);
         String prompt = ScoreParsePrompts.buildSubjectiveSuggestionPrompt(
                 TenderIntakeTextProcessor.sanitizeUntrusted(scoreItemDetail),
                 TenderIntakeTextProcessor.sanitizeUntrusted(bidDocExcerpt));
@@ -290,7 +292,7 @@ public class OpenAiScoreAnalyzer {
                 prompt, ScoreAssessmentOutput.class, config,
                 "AI structured response did not include subjective suggestion");
     }
-
+    public OpenAiBidAgentRequestConfig scoringConfiguration(){return configurationResolver.resolve(USE_CASE);}
     private static void report(ProgressReporter progress, int value, String stage) {
         if (progress != null) progress.accept(value, stage);
     }

@@ -76,6 +76,32 @@ public class BidFileLoadingCoordinator {
         this.multimodalEnabled = multimodalEnabled;
     }
 
+    public ScoringFileSession openScoring(Long projectId,String taskId,long deadline) {
+        ScoringDeadline.check(deadline);
+        var docs=findBidDocuments(projectId);
+        if(docs.isEmpty())throw new IllegalStateException("NO_BID_DOCUMENT");
+        var doc=docs.getFirst();
+        try {
+            LoadedBidFile file=newLookup().loadBidFile(doc,taskId,deadline);
+            ScoringDeadline.check(deadline);
+            String hash=scoringHash(file,deadline);
+            ScoringDeadline.check(deadline);
+            return new ScoringFileSession(doc.getId(),hash,file,streamTextExtractor,
+                    multimodalEnabled?imageExtractor:null,deadline,()->tempFileStore.release(taskId),textExtractor);
+        } catch(RuntimeException ex){tempFileStore.release(taskId);throw ex;}
+    }
+
+    private static String scoringHash(LoadedBidFile file,long deadline) {
+        try(var input=file instanceof LoadedBidFile.InMemory memory
+                ? new java.io.ByteArrayInputStream(memory.content())
+                : java.nio.file.Files.newInputStream(((LoadedBidFile.OnDisk)file).tempFile())) {
+            var digest=java.security.MessageDigest.getInstance("SHA-256");
+            byte[] buffer=new byte[8192];int n;
+            while((n=input.read(buffer))!=-1){ScoringDeadline.check(deadline);digest.update(buffer,0,n);}
+            return java.util.HexFormat.of().formatHex(digest.digest());
+        }catch(java.security.NoSuchAlgorithmException|IOException ex){throw new IllegalStateException("SCORING_HASH_FAILED",ex);}
+    }
+
     public LoadedBidDocument load(Long projectId, String taskId) {
         LoadedBidFile file = newLookup().loadBidFile(projectId, taskId);
         try {

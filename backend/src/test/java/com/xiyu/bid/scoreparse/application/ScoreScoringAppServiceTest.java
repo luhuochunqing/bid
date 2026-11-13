@@ -299,7 +299,7 @@ class ScoreScoringAppServiceTest {
     }
 
     @Test
-    void sameBidAndItemHash_skipsWithoutAnalyzer() {
+    void manualSameBidAndItemHash_createsRealReassessment() {
         mockNoActiveScoringTask();
         mockBidDocumentPresent();
         ScoreItem objective = item(10L, "资质", "具备 CMMI 5 级认证证书", "10", "OBJECTIVE");
@@ -316,14 +316,15 @@ class ScoreScoringAppServiceTest {
                         .taskType("SCORING").status("COMPLETED")
                         .fileUrl(BID_FILE_URL)
                         .bidContentHash(bidHash).itemSetHash(itemHash).build()));
-        when(stateService.createTask(anyString(), any(), anyString(), any(), any(), anyString()))
-                .thenReturn(scoringTask());
+        mockTaskAndBidDocumentText();
+        when(scoreAnalyzer.assessObjective(anyString(),any(),anyString()))
+                .thenReturn(assessment(5d,null,"evidence","quote",false,null,null));
 
         ScoreParseTriggerDTO dto = service.triggerScoring(PROJECT_ID);
 
-        assertThat(dto.outcome()).isEqualTo("SKIPPED");
-        assertThat(dto.hint()).contains("文件未变化");
-        verify(scoreAnalyzer, never()).assessObjective(anyString(), any(), anyString());
+        assertThat(dto.status()).isEqualTo("PENDING");
+        assertThat(dto.outcome()).isNull();
+        verify(scoreAnalyzer).assessObjective(anyString(), any(), anyString());
         verify(scoreAnalyzer, never()).assessSubjective(anyString(), anyString());
     }
 
@@ -372,6 +373,95 @@ class ScoreScoringAppServiceTest {
         verify(stateService).markProcessing(anyString());
         verify(stateService).failTask(anyString(), eq("打分失败，请重试"));
         verify(resultRepository, never()).saveAll(anyList());
+    }
+
+    @Test void statusWithoutTaskIsAnExplicitEmptyRead() {
+        assertThat(service.getStatus(PROJECT_ID)).isNull();
+        verify(stateService,never()).createTask(anyString(),any(),anyString(),any(),any(),anyString());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "BID_OCR_UNAVAILABLE,false", "SOURCE_DECODE_FAILED,false", "BID_OCR_TIMEOUT,false",
+            "BID_OCR_UNAVAILABLE,true", "SOURCE_DECODE_FAILED,true", "NONE,false"
+    })
+    void extractionTechnicalFailureFailsRunAndOnlyPublishesWithTrustedNewResult(String reason, boolean scored)
+            throws Exception {
+        var versions = org.mockito.Mockito.mock(ScoreScoringVersionService.class);
+        ReflectionTestUtils.setField(service, "versions", versions);
+        var task = scoringTask();
+        task.setStage("ITEMS");task.setTriggerSource("MANUAL");task.setItemSetHash("rules");
+        task.setCreatedAt(java.time.LocalDateTime.now());
+        var codec = new ScoringRunReportCodec();
+        task.setRunSummary(codec.request(new com.xiyu.bid.scoreparse.dto.ScoreScoringCommand("MANUAL", "ITEMS", List.of(10L,11L))));
+        var certificate = item(10L, "资质证书", "具有ISO9001质量管理体系认证证书得10分", "10", "OBJECTIVE");
+        var pending = item(11L, "业绩", "每提供一份合同得2分，最多10分", "10", "OBJECTIVE");
+        var retained = item(12L, "其他资质", "其他资质评分", "10", "OBJECTIVE");
+        var oldRow = ScoreResult.builder().scoreItemId(12L).scoringTaskId(4L).actualScore(new BigDecimal("7"))
+                .statusStage2("PENDING").quote("此前已核验的证据").build();
+        var configuration = new com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentRequestConfig(
+                "synthetic", "http://provider.invalid/v1", "synthetic", java.time.Duration.ofSeconds(1),
+                com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentApiStyle.CHAT_COMPLETIONS);
+        var identity = new com.xiyu.bid.scoreparse.domain.ScoreResultReusePolicy.Identity("file-hash", "rules", ScoringRunReportCodec.ENGINE,
+                com.xiyu.bid.scoreparse.infrastructure.openai.ScoringModelPolicy.fingerprint(configuration));
+        var source = new com.xiyu.bid.scoreparse.domain.ScoreResultReusePolicy.Source(identity, "COMPLETE", "SCORED", 4L);
+        var snapshot = new ScoreScoringVersionService.Snapshot(List.of(certificate, pending, retained), "rules",
+                java.util.Map.of(12L,oldRow), java.util.Map.of(12L,oldRow), java.util.Map.of(), java.util.Map.of(12L,source), java.util.Map.of());
+        var staleSnapshot = new ScoreScoringVersionService.Snapshot(List.of(certificate, pending, retained), "rules",
+                java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), java.util.Map.of());
+        when(versions.start(task.getTaskId())).thenReturn(staleSnapshot);
+        when(versions.capture(PROJECT_ID)).thenReturn(snapshot);
+        when(versions.recordInput(task,77L)).thenReturn(true);
+        when(taskRepository.findByTaskId(task.getTaskId())).thenReturn(Optional.of(task));
+        boolean technical = !"NONE".equals(reason), timeout = "BID_OCR_TIMEOUT".equals(reason);
+        var bad = List.<java.util.Map<String,Object>>of(java.util.Map.of("pageNumber", 2, "reason", reason));
+        var empty = List.<java.util.Map<String,Object>>of();
+        var report = new com.xiyu.bid.scoreparse.domain.ScoringExtractionReport(1, "scoring-ocr-v2",
+                technical ? "PARTIAL" : "COMPLETE", 2, timeout ? 1 : 2, 1, timeout ? 1 : 0,
+                technical && !timeout ? 1 : 0, technical ? 0 : 1,
+                timeout ? bad : empty, technical && !timeout ? bad : empty, technical ? empty : bad, 0);
+        var document = new com.xiyu.bid.scoreparse.domain.ScoringDocument("[第 1 页]\nISO9001质量管理体系认证证书",
+                List.of(java.util.Map.of("pageNumber", 1), java.util.Map.of("pageNumber", 2)), report);
+        var texts = org.mockito.Mockito.mock(SidecarStreamTextExtractor.class);
+        when(texts.extractScoringDocument(any(byte[].class), anyString(), org.mockito.ArgumentMatchers.anyLong())).thenReturn(document);
+        var released = new java.util.concurrent.atomic.AtomicBoolean();
+        var session = new ScoringFileSession(77L, "file-hash", new LoadedBidFile.InMemory(new byte[]{1}, "bid.pdf", "pdf"),
+                texts, null, System.currentTimeMillis()+30000, () -> released.set(true));
+        when(bidFileLoader.openScoring(eq(PROJECT_ID), eq(task.getTaskId()), org.mockito.ArgumentMatchers.anyLong())).thenReturn(session);
+        when(scoreAnalyzer.scoringConfiguration()).thenReturn(configuration);
+        when(scoreAnalyzer.assessObjective(anyString(), any(), anyString(), anyList(),
+                any(com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiRequestBudget.class))).thenAnswer(invocation ->
+                scored && certificate.getDetail().equals(invocation.getArgument(0))
+                        ? assessment(10d, null, "已核验证书", "ISO9001质量管理体系认证证书", false, null, null)
+                        : assessment(null, null, "依据不足", null, false, "需人工核验", null));
+
+        service.executeScoringAsync(task.getTaskId());
+
+        ArgumentCaptor<List<ScoreResult>> replacement = ArgumentCaptor.captor();
+        verify(versions).finish(eq(task), replacement.capture(), technical ? eq("SCORING_EXTRACTION_FAILED") : org.mockito.ArgumentMatchers.isNull());
+        if (technical && !scored) assertThat(replacement.getValue()).isNull();
+        else {
+            assertThat(replacement.getValue()).hasSize(3);
+            assertThat(replacement.getValue().get(2).getActualScore()).isEqualByComparingTo("7");
+            assertThat(replacement.getValue().get(2).getReuseKind()).isEqualTo("REUSED");
+            if (scored) assertThat(replacement.getValue().getFirst().getActualScore()).isEqualByComparingTo("10");
+        }
+        verify(versions).capture(PROJECT_ID);
+        var summary = codec.scoring(task.getRunSummary());
+        assertThat(summary.path("input").path("extraction").path("failedUnitCount").asLong()).isEqualTo(report.failedUnitCount());
+        assertThat(summary.path("items").get(1).path("outcome").asText()).isEqualTo(technical ? "FAILED" : "NEEDS_REVIEW");
+        assertThat(summary.path("items").get(1).path("reasonCode").asText()).isEqualTo(technical ? "SCORING_EXTRACTION_FAILED" : "EVIDENCE_INSUFFICIENT");
+        assertThat(summary.path("items").get(2).path("originTaskId").asLong()).isEqualTo(4L);
+        if (scored) {
+            var published = replacement.getValue().stream().collect(java.util.stream.Collectors.toMap(ScoreResult::getScoreItemId, row -> row));
+            var sources = snapshot.items().stream().collect(java.util.stream.Collectors.toMap(ScoreItem::getId, row -> codec.source(task, row.getId())));
+            var result = new ScoreScoringResultsAssembler().assemble(snapshot.items(), published, task, sources);
+            assertThat(result.failed()).isEqualTo(1);
+            assertThat(result.objectiveScored()).isEqualTo(2);
+            assertThat(result.qualityStatus()).isEqualTo("PARTIAL");
+        }
+        assertThat(released).isTrue();
+        verify(progressService).clearProgress(task.getTaskId());
     }
 
     private void mockNoActiveScoringTask() {

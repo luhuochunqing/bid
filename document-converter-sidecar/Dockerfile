@@ -18,7 +18,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
-COPY app.py converter.py docx_repair.py image_extractor.py table_extractor.py ./
+COPY app.py converter.py conversion_execution.py scoring_extraction.py docx_repair.py image_extractor.py table_extractor.py ./
 
 # Switch to non-root user
 USER sidecar

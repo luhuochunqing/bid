@@ -134,7 +134,8 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
 
     private OpenAIClient client(OpenAiBidAgentRequestConfig config) {
         var builder = OpenAIOkHttpClient.builder().apiKey(config.apiKey()).baseUrl(config.baseUrl())
-                .timeout(config.timeout()).maxRetries(config.maxRetries());
+                .timeout(config.requestBudget()==null?config.timeout():config.requestBudget().acquire(config.timeout()))
+                .maxRetries(config.maxRetries());
         if (config.maxRetries() == 0) {
             String requestId = UUID.randomUUID().toString();
             builder.putHeader("X-Request-Id", requestId);

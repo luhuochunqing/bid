@@ -140,7 +140,8 @@ if [[ -f "$SIDECAR_ARCHIVE" ]]; then
       # _SHARED_KEY 非 None，误启用鉴权导致 401（2026-09-12 解析降级根因）。
       SIDECAR_RUN_ARGS=(run -d --name xiyu-sidecar --restart=always -p 8000:8000 \
         --memory=4g --memory-swap=4g \
-        -e SIDECAR_HOST=0.0.0.0 -e SIDECAR_PORT=8000 -e SIDECAR_MAX_UPLOAD_MB=3072)
+        -e SIDECAR_HOST=0.0.0.0 -e SIDECAR_PORT=8000 -e SIDECAR_MAX_UPLOAD_MB=3072 \
+        -e SIDECAR_BID_OCR_WORKERS=4 -e SIDECAR_BID_OCR_MAX_IMAGE_PIXELS=24000000)
       if [[ -n "${SIDECAR_SHARED_KEY:-}" ]]; then
         SIDECAR_RUN_ARGS+=(-e "SIDECAR_SHARED_KEY=${SIDECAR_SHARED_KEY}")
       fi

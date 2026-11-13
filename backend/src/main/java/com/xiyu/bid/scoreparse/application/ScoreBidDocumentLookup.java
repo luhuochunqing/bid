@@ -70,6 +70,10 @@ final class ScoreBidDocumentLookup {
     }
 
     LoadedBidFile loadBidFile(ProjectDocument bidDoc, String taskId) {
+        return loadBidFile(bidDoc,taskId,Long.MAX_VALUE);
+    }
+    LoadedBidFile loadBidFile(ProjectDocument bidDoc, String taskId,long deadline) {
+        ScoringDeadline.check(deadline);
         String fileUrl = bidDoc.getFileUrl();
         if (fileUrl == null || fileUrl.isBlank()) {
             throw new IllegalStateException("投标文件 fileUrl 为空");
@@ -79,10 +83,17 @@ final class ScoreBidDocumentLookup {
             Optional<String> signedUrl = obsShareUrlSigner.trySign(fileUrl);
             if (signedUrl.isPresent()) {
                 try {
-                    return streamingFetcher.fetch(signedUrl.get(), taskId, bidDoc.getName(), bidDoc.getFileType());
+                    return deadline==Long.MAX_VALUE
+                            ? streamingFetcher.fetch(signedUrl.get(),taskId,bidDoc.getName(),bidDoc.getFileType())
+                            : streamingFetcher.fetchWithDeadline(signedUrl.get(),taskId,bidDoc.getName(),bidDoc.getFileType(),deadline);
                 } catch (BidFileQuotaException ex) {
                     throw ex;
                 } catch (IOException | InterruptedException | RuntimeException ex) {
+                    ScoringDeadline.check(deadline);
+                    if(deadline!=Long.MAX_VALUE) {
+                        if(ex instanceof InterruptedException)Thread.currentThread().interrupt();
+                        throw new IllegalStateException("SCORING_DOWNLOAD_FAILED",ex);
+                    }
                     log.warn("通过 OBS 签名链接下载投标文件失败: fileUrl={}, msg={}", fileUrl, ex.getMessage());
                     if (ex instanceof InterruptedException) {
                         Thread.currentThread().interrupt();

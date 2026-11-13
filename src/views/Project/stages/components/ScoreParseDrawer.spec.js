@@ -82,6 +82,34 @@ describe('ScoreParseDrawer.vue', () => {
     expect(wrapper.text()).toContain('表格文字识别 V2')
     expect(wrapper.text()).toContain('权限')
   })
+
+  it('shows all-pending quality and coverage without hiding completed diagnostics', async () => {
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: itemsFixture.map(item => ({
+      scoreItemId: item.id, scoreType: item.scoreType, actualScore: null, status: 'PENDING', outcome: 'NEEDS_REVIEW',
+    })), qualityStatus: 'NEEDS_REVIEW', coverage: { coverageStatus: 'PARTIAL' },
+    objectiveScored: 0, objectivePending: 1, subjectivePending: 1, failed: 0, diagnosticsKnown: true } })
+    const wrapper = mount(ScoreParseDrawer, { props: { projectId: 123 }, global: { stubs: {
+      'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true,
+    } } })
+    await wrapper.vm.open({ stage: 2, autoScore: false })
+    expect(wrapper.find('[data-test="scoring-quality"]').text()).toContain('客观已评分0项、待确认1项、主观待评1项、失败0项')
+    expect(wrapper.find('[data-test="scoring-quality"]').text()).toContain('部分覆盖')
+    expect(wrapper.findAllComponents({ name: 'ScoreParseTable' })).toHaveLength(2)
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('prompts manual scoring after rules change with placeholders=%s', async placeholders => {
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: placeholders ? itemsFixture.map(item => ({
+      scoreItemId: item.id, scoreType: item.scoreType, actualScore: null, status: 'PENDING',
+      missedReason: '当前规则尚未评分，请重新评分', outcome: 'UNKNOWN',
+    })) : [], diagnosticsKnown: false } })
+    const wrapper = mount(ScoreParseDrawer, { props: { projectId: 123 }, global: { stubs: {
+      'el-drawer': { template: '<div><slot /></div>' }, 'el-dialog': true,
+    } } })
+    await wrapper.vm.open({ stage: 2, autoScore: false })
+    expect(wrapper.find('[data-test="scoring-rules-unscored"]').text()).toContain('规则已更新，实际评分尚未执行')
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     scoreParseApi.getLatestExtraction.mockRejectedValue({ response: { status: 409, data: { msg: 'EXTRACTION_FEATURE_DISABLED' } } })
@@ -441,7 +469,7 @@ describe('ScoreParseDrawer.vue', () => {
     scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, meta: { bidFileName: '投标书.pdf' } } })
     scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
     let releaseStatus
-    scoreParseApi.getScoringStatus.mockReturnValue(new Promise((resolve) => { releaseStatus = resolve }))
+    scoreParseApi.getScoringStatus.mockResolvedValueOnce({ data: null }).mockReturnValue(new Promise((resolve) => { releaseStatus = resolve }))
 
     const wrapper = mount(ScoreParseDrawer, {
       props: { projectId: 123 },

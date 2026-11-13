@@ -60,6 +60,25 @@ public class SummaryAggregator {
                 objectiveWeight, subjectiveWeight, weightWarning);
     }
 
+    public record QualityItem(String scoreType,BigDecimal actualScore,BigDecimal weight,String outcome,boolean known) {}
+    public record Quality(String qualityStatus,int objectiveScored,int objectivePending,int subjectivePending,
+                          int failed,boolean diagnosticsKnown) {}
+    public Quality quality(List<QualityItem> items) {
+        int scored=0,pending=0,subjective=0,failed=0;
+        boolean known=!items.isEmpty();
+        for(var item:items) {
+            known&=item.known();
+            if("FAILED".equals(item.outcome()))failed++;
+            else if(TYPE_OBJECTIVE.equals(item.scoreType())) {
+                if(item.actualScore()!=null && item.weight()!=null && item.actualScore().signum()>=0
+                        && item.actualScore().compareTo(item.weight())<=0)scored++;
+                else pending++;
+            } else subjective++;
+        }
+        String status=!known?"UNKNOWN":failed>0?"PARTIAL":pending>0?"NEEDS_REVIEW":"COMPLETE";
+        return new Quality(status,scored,pending,subjective,failed,known);
+    }
+
     /** 聚合输入：评分项的汇总相关字段（与实体解耦，FP-Java 纯核心）。 */
     public record Item(BigDecimal weight, String scoreType, BigDecimal estScore, String statusStage1) {
     }

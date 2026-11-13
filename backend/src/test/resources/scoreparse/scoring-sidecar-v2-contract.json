@@ -1,0 +1,36 @@
+{
+  "documentId": "native-contract.docx",
+  "markdown": "NATIVE CONTRACT VALUE 72000000",
+  "sections": [],
+  "pages": [],
+  "tables": [],
+  "warnings": [
+    "low_text_density"
+  ],
+  "converter": "markitdown",
+  "contentHash": "3b6633be278698dd4c06b5ba8f837b05f1da9a651b8a8143505c86fb44cd2ca5",
+  "extraction": {
+    "schemaVersion": 1,
+    "engineVersion": "scoring-ocr-v2",
+    "coverageStatus": "COMPLETE",
+    "sourceUnitCount": 1,
+    "processedUnitCount": 1,
+    "uniqueOcrUnitCount": 0,
+    "unreadUnitCount": 0,
+    "failedUnitCount": 0,
+    "emptyUnitCount": 0,
+    "unreadUnits": [],
+    "failedUnits": [],
+    "emptyUnits": [],
+    "enumerationComplete": true,
+    "elapsedMillis": 0
+  },
+  "sourceRefs": [
+    {
+      "partName": "word/document.xml",
+      "anchor": "p1",
+      "text": "NATIVE CONTRACT VALUE 72000000",
+      "kind": "TEXT"
+    }
+  ]
+}

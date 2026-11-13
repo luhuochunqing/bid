@@ -307,6 +307,7 @@ describe('useScoreParseDrawer.js', () => {
   })
 
   it('runs stage 2 scoring via real async scoring API (trigger → poll → results)', async () => {
+    scoreParseApi.getScoringStatus.mockResolvedValueOnce({ data: null })
     scoreParseApi.getResults
       .mockResolvedValueOnce({ data: { results: [], summary: null } })
       .mockResolvedValueOnce({ data: { results: REAL_RESULTS, summary: null } })
@@ -475,7 +476,7 @@ describe('useScoreParseDrawer.js', () => {
       scope: 'ITEMS',
       itemIds: [1],
     }))
-    expect(scoreParseApi.getScoringStatus).not.toHaveBeenCalled()
+    expect(scoreParseApi.getScoringStatus).toHaveBeenCalledTimes(1) // 重开只读GET；SKIPPED不启动额外轮询
     expect(ElMessage.info).toHaveBeenCalledWith('文件未变化')
     expect(drawer.scoringHint.value).toBe('文件未变化')
     expect(drawer.scored.value).toBe(true)
@@ -688,4 +689,182 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.subjectiveWeight.value).toBe(57)
     expect(drawer.objectiveWeight.value + drawer.subjectiveWeight.value).toBe(100)
   })
+  it('shows needs-review completion without a green scoring-success toast', async () => {
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: REAL_RESULTS, qualityStatus: 'NEEDS_REVIEW',
+      coverage: { coverageStatus: 'COMPLETE' }, objectiveScored: 1, objectivePending: 1,
+      subjectivePending: 0, failed: 0, diagnosticsKnown: true } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2, autoScore: false })
+    await drawer.runScoring()
+    expect(ElMessage.success).not.toHaveBeenCalled()
+    expect(drawer.scoringQuality.value.text).toContain('待复核')
+    expect(drawer.actualTotalScore.value).toBe(6)
+  })
+
+  it('restores GET-only observation on reopen and stops polling locally when closed', async () => {
+    vi.useFakeTimers()
+    scoreParseApi.getScoringStatus.mockResolvedValue({ data: { taskId: 'ongoing', status: 'PROCESSING' } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2, autoScore: false })
+    expect(scoreParseApi.getScoringStatus).toHaveBeenCalled()
+    expect(drawer.scoringOverlayVisible.value).toBe(true)
+    drawer.visible.value = false
+    await vi.advanceTimersByTimeAsync(4000)
+    const calls = scoreParseApi.getScoringStatus.mock.calls.length
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(scoreParseApi.getScoringStatus).toHaveBeenCalledTimes(calls)
+    await drawer.open({ stage: 2, autoScore: false })
+    expect(scoreParseApi.getScoringStatus.mock.calls.length).toBeGreaterThan(calls)
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+    drawer.visible.value = false
+    await vi.advanceTimersByTimeAsync(0)
+    vi.useRealTimers()
+  })
+
+  it('shows a network observation interruption without inferring backend failure', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2, autoScore: false })
+    scoreParseApi.getScoringStatus.mockRejectedValue(new Error('Network Error'))
+    await drawer.runScoring()
+    expect(drawer.scoringHint.value).toContain('暂未获取结果，可稍后查看')
+    expect(ElMessage.success).not.toHaveBeenCalled()
+    expect(drawer.error.value).toBe('')
+  })
+
+  it('preserves scope on SCORING_REQUIRES_ALL and asks for explicit full scoring', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2, autoScore: false })
+    scoreParseApi.getScoringStatus.mockResolvedValue({ data: { taskId: 't-score', status: 'FAILED',
+      errorCode: 'SCORING_REQUIRES_ALL', errorMessage: 'SCORING_REQUIRES_ALL' } })
+    await drawer.runScoring({ scope: 'ITEMS', itemIds: [2] })
+    expect(scoreParseApi.triggerScoring).toHaveBeenCalledTimes(1)
+    expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(99, { source: 'MANUAL', scope: 'ITEMS', itemIds: [2] })
+    expect(drawer.scoringHint.value).toContain('全量重新评分')
+    expect(drawer.actualTotalScore.value).toBe(6)
+  })
+
+  it('treats current-rule PENDING UNKNOWN placeholders as unscored', async () => {
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: REAL_ITEMS.map(item => ({
+      scoreItemId: item.id, scoreType: item.scoreType, status: 'PENDING', actualScore: null,
+      evidence: null, quote: null, suggestion: null, reuseKind: null, outcome: 'UNKNOWN',
+      missedReason: '当前规则尚未评分，请重新评分',
+    })), qualityStatus: 'NEEDS_REVIEW', diagnosticsKnown: false } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2, autoScore: false })
+    expect(drawer.hasScoreResults.value).toBe(false)
+    expect(drawer.scored.value).toBe(false)
+    expect(drawer.actualTotalScore.value).toBeNull()
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+  })
+
+  it('keeps all-pending completed diagnostics visible and never auto-scores them again', async () => {
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: REAL_RESULTS.map(row => ({ ...row,
+      status: 'PENDING', actualScore: null, evidence: null, quote: null, suggestion: null, outcome: 'NEEDS_REVIEW' })),
+      qualityStatus: 'NEEDS_REVIEW', objectiveScored: 0, objectivePending: 1, subjectivePending: 1,
+      failed: 0, diagnosticsKnown: true } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2, autoScore: true })
+    expect(drawer.hasScoreResults.value).toBe(true)
+    expect(drawer.scoringQuality.value.text).toContain('待复核')
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+  })
+
+  it('does not resume an old trigger response after close and reopen', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2, autoScore: false })
+    let release
+    scoreParseApi.triggerScoring.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+    const running = drawer.runScoring()
+    drawer.visible.value = false
+    await drawer.open({ stage: 2, autoScore: false })
+    const calls = scoreParseApi.getScoringStatus.mock.calls.length
+    release({ data: { taskId: 'closed-session', status: 'PENDING' } })
+    await running
+    expect(scoreParseApi.getScoringStatus).toHaveBeenCalledTimes(calls)
+  })
+
+  it('checks existing scoring before an auto-score entry and never posts again on reopen', async () => {
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
+    scoreParseApi.getScoringStatus.mockResolvedValue({ data: { taskId: 'ongoing', status: 'PROCESSING' } })
+    const drawer = useScoreParseDrawer(props, emit)
+    const opening = drawer.open({ stage: 2, autoScore: true })
+    await vi.waitFor(() => expect(scoreParseApi.getScoringStatus).toHaveBeenCalled())
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+    drawer.visible.value = false
+    await opening
+  })
+
+  it.each(['COMPLETED', 'FAILED'])('does not auto-post when reopening with existing %s task', async status => {
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
+    scoreParseApi.getScoringStatus.mockResolvedValue({ data: { taskId: 'existing', status } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2, autoScore: true })
+    expect(scoreParseApi.getScoringStatus).toHaveBeenCalled()
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+  })
+
+  it('does not reuse an old complete summary as success when final results cannot be read', async () => {
+    scoreParseApi.getResults.mockResolvedValueOnce({ data: { results: REAL_RESULTS, qualityStatus: 'COMPLETE',
+      coverage: { coverageStatus: 'COMPLETE' }, objectiveScored: 1, objectivePending: 0,
+      subjectivePending: 1, failed: 0, diagnosticsKnown: true } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    scoreParseApi.getResults.mockRejectedValueOnce(new Error('Network Error'))
+    await drawer.runScoring()
+    expect(ElMessage.success).not.toHaveBeenCalled()
+    expect(drawer.scoringHint.value).toContain('暂未获取结果')
+  })
+
+  it('accepts an omitted data field from the real non-null serializer as no existing task', async () => {
+    scoreParseApi.getScoringStatus.mockResolvedValueOnce({ success: true, code: 200 })
+    scoreParseApi.getResults.mockResolvedValueOnce({ data: { results: [] } }).mockResolvedValueOnce({ data: { results: REAL_RESULTS } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2, autoScore: true })
+    expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(99, { source: 'AUTO', scope: 'ALL', itemIds: [] })
+    expect(drawer.actualTotalScore.value).toBe(6)
+  })
+
+  it('does not publish old terminal refresh results after a new drawer session has loaded', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    let releaseOld
+    scoreParseApi.getResults.mockReturnValueOnce(new Promise(resolve => { releaseOld = resolve }))
+    const oldRun = drawer.runScoring()
+    await vi.waitFor(() => expect(scoreParseApi.getResults).toHaveBeenCalledTimes(2))
+    drawer.visible.value = false
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: [{ ...REAL_ITEMS[1], id: 3, code: 'NEW' }] } })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [{ scoreItemId: 3, actualScore: 4, status: 'PENDING' }],
+      qualityStatus: 'NEEDS_REVIEW', objectiveScored: 1, objectivePending: 1, subjectivePending: 0, failed: 0, diagnosticsKnown: true } })
+    await drawer.open({ stage: 2 })
+    releaseOld({ data: { results: [{ scoreItemId: 2, actualScore: 1, status: 'OK' }], qualityStatus: 'COMPLETE' } })
+    await oldRun
+    expect(drawer.scoreItems.value.map(item => item.id)).toEqual([3])
+    expect(drawer.actualTotalScore.value).toBe(4)
+    expect(drawer.scoringQuality.value.qualityStatus).toBe('NEEDS_REVIEW')
+  })
+
+  it.each([400, 409])('preserves explicit POST %s rejection instead of suggesting a continuing task', async status => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    scoreParseApi.triggerScoring.mockRejectedValueOnce({ response: { status, data: { msg: '请等待招标文件解析完成后再进行打分' } } })
+    await drawer.runScoring()
+    expect(drawer.scoringHint.value).toContain('评分未提交')
+    expect(drawer.scoringHint.value).toContain('请等待招标文件解析完成后再进行打分')
+    expect(drawer.scoringHint.value).not.toContain('后台任务')
+    expect(ElMessage.success).not.toHaveBeenCalled()
+  })
+
+  it('releases local loading when a cancelled terminal refresh is the latest read', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    let release
+    scoreParseApi.getResults.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+    const running = drawer.runScoring()
+    await vi.waitFor(() => expect(scoreParseApi.getResults).toHaveBeenCalledTimes(2))
+    drawer.visible.value = false
+    release({ data: { results: REAL_RESULTS } })
+    await running
+    expect(drawer.loading.value).toBe(false)
+  })
+
 })

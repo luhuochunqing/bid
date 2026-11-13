@@ -227,6 +227,24 @@ class BidFileLoadingCoordinatorTest {
         verifyNoInteractions(imageExtractor);
     }
 
+    @Test void scoringScopeDownloadsOnceHashesBeforeOcrAndReleasesOnlyOnClose()throws Exception {
+        mockLocalStorageBidDocument();
+        long deadline=System.currentTimeMillis()+10000;
+        var coverage=new com.xiyu.bid.scoreparse.domain.ScoringExtractionReport(1,"v2","COMPLETE",1,1,0,0,0,0,List.of(),List.of(),List.of(),0);
+        when(streamTextExtractor.extractScoringDocument(any(byte[].class),eq(FILE_NAME),org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(new com.xiyu.bid.scoreparse.domain.ScoringDocument("native text",List.of(),coverage));
+        try(var file=coordinator.openScoring(PROJECT_ID,TASK_ID,deadline)) {
+            assertThat(file.contentHash()).isEqualTo(com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy.hashBytes("DOCX内容".getBytes(StandardCharsets.UTF_8)));
+            verifyNoInteractions(streamTextExtractor,imageExtractor,tempFileStore);
+            assertThat(file.extract().text()).isEqualTo("native text");
+            assertThat(file.extract().text()).isEqualTo("native text");
+            verifyNoInteractions(imageExtractor,tempFileStore);
+        }
+        verify(tempFileStore).release(TASK_ID);
+        verify(fileStorage).load("/storage/uploads/bid.docx");
+        verify(streamTextExtractor).extractScoringDocument(any(byte[].class),eq(FILE_NAME),org.mockito.ArgumentMatchers.anyLong());
+    }
+
     private void mockLocalStorageBidDocument() {
         String fileUrl = "/storage/uploads/bid.docx";
         mockBidDocument(fileUrl);

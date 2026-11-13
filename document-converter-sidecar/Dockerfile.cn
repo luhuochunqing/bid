@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple 'mark
 COPY requirements.txt .
 RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
-COPY app.py converter.py docx_repair.py image_extractor.py table_extractor.py ./
+COPY app.py converter.py conversion_execution.py scoring_extraction.py docx_repair.py image_extractor.py table_extractor.py ./
 
 USER sidecar
 

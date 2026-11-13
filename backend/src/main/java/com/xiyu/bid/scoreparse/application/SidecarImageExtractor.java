@@ -83,6 +83,17 @@ public class SidecarImageExtractor {
         return post(HttpRequest.BodyPublishers.ofFile(file), fileName, pageQuery(pages));
     }
 
+    public SidecarImageExtraction renderPages(byte[] content,String name,Set<Integer> pages,long deadline)
+            throws IOException,InterruptedException {
+        if(pages==null||pages.isEmpty())return SidecarImageExtraction.empty();
+        return post(HttpRequest.BodyPublishers.ofByteArray(content),name,pageQuery(pages),deadline);
+    }
+    public SidecarImageExtraction renderPages(Path content,String name,Set<Integer> pages,long deadline)
+            throws IOException,InterruptedException {
+        if(pages==null||pages.isEmpty())return SidecarImageExtraction.empty();
+        return post(HttpRequest.BodyPublishers.ofFile(content),name,pageQuery(pages),deadline);
+    }
+
     private SidecarImageExtraction post(HttpRequest.BodyPublisher fileBody, String fileName)
             throws IOException, InterruptedException {
         return post(fileBody, fileName, "");
@@ -90,11 +101,16 @@ public class SidecarImageExtractor {
 
     private SidecarImageExtraction post(HttpRequest.BodyPublisher fileBody, String fileName, String query)
             throws IOException, InterruptedException {
+        return post(fileBody,fileName,query,Long.MAX_VALUE);
+    }
+    private SidecarImageExtraction post(HttpRequest.BodyPublisher fileBody,String fileName,String query,long deadline)
+            throws IOException,InterruptedException {
         String boundary = "xiyu-score-parse-images-" + UUID.randomUUID().toString().replace("-", "");
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(sidecarUrl + "/convert-images" + query))
-                .timeout(Duration.ofSeconds(extractTimeoutSeconds))
+                .timeout(ScoringDeadline.remaining(deadline,extractTimeoutSeconds*1000))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary);
+        if(deadline!=Long.MAX_VALUE)requestBuilder.header("X-Scoring-Deadline-Epoch-Millis",Long.toString(deadline));
         if (!sharedKey.isBlank()) {
             requestBuilder.header(SidecarMultipart.SIDECAR_KEY_HEADER, sharedKey);
         }
@@ -106,15 +122,16 @@ public class SidecarImageExtractor {
                 .build();
         HttpResponse<InputStream> response =
                 httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        int status = response.statusCode();
-        if (status == 422) {
-            throw new IllegalStateException("投标文件图片无法解析：" + SidecarMultipart.readErrorSnippet(response.body()));
-        }
-        if (status < 200 || status >= 300) {
-            throw new IllegalStateException(
-                    "调用文档图片抽取服务失败 HTTP " + status + "：" + SidecarMultipart.readErrorSnippet(response.body()));
-        }
-        try (InputStream body = response.body()) {
+        try (InputStream body = ScoringDeadline.bounded(response.body(),Long.MAX_VALUE,
+                deadline==Long.MAX_VALUE?System.currentTimeMillis()+extractTimeoutSeconds*1000:deadline)) {
+            int status = response.statusCode();
+            if (status == 422) {
+                throw new IllegalStateException("投标文件图片无法解析：" + SidecarMultipart.readErrorSnippet(body));
+            }
+            if (status < 200 || status >= 300) {
+                throw new IllegalStateException(
+                        "调用文档图片抽取服务失败 HTTP " + status + "：" + SidecarMultipart.readErrorSnippet(body));
+            }
             return parseResponse(readBodyWithByteLimit(body));
         }
     }

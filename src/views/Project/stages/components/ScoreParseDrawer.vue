@@ -1,6 +1,6 @@
 <!--
   Input: projectId, open options (stage, autoScore, file)
-  Output: AI 评分标准解析 V3 抽屉（折叠外预判更新及本次统计/原因 + 阶段 2 投标文件实际打分）
+  Output: AI 评分标准解析 V3 抽屉（折叠外预判更新及本次统计/原因 + 阶段 2 评分质量/覆盖与投标文件实际打分）
   Pos: src/views/Project/stages/components/ScoreParseDrawer.vue
   注：保留解析重试与 E2E 钩子；打分或解析进行中只显示提示，不锁死抽屉和页面。候选支持复核采纳。
       方案资格按原文评分方案判定，清楚标识方案内、方案外与来源未验证事实；多方案需显式选择（2026-09-24）。
@@ -163,6 +163,8 @@
             <span class="doc-time">评分时间 {{ scoreTime }}</span>
           </div>
         </div>
+        <p v-if="currentStage === 2 && hasScoreResults" class="doc-tag" role="status" data-test="scoring-quality">{{ scoringQuality.text }}</p>
+        <p v-if="scoreItems.length && !hasScoreResults && !scoringOverlayVisible" class="doc-tag" data-test="scoring-rules-unscored">规则已更新，实际评分尚未执行</p>
         <div v-if="normalizationWarning" class="normalization-warning">
           <span class="warning-icon">⚠</span>
           <span class="warning-text">{{ normalizationWarning }}</span>
@@ -252,7 +254,7 @@ const emit = defineEmits(['parsed'])
 const {
   latestExtraction, activeParseTime, activeDeclaredTotal, extractionWarning, activationBlocked, activating, activateExtraction, refreshExtraction, hasScoreResults,
   visible, loading, error, errorPresentation, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
-  sourceFileName, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
+  sourceFileName, bidFileName, scoreTime, scoringQuality, scoringHint, circuitHint, normalizationWarning,
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,

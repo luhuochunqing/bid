@@ -54,9 +54,17 @@ public class StreamingBidFileFetcher {
     public LoadedBidFile fetch(String url, String taskId, String fileName, String contentType,
                                long ramBufferBytes, long maxFileBytes)
             throws IOException, InterruptedException {
+        return fetch(url,taskId,fileName,contentType,ramBufferBytes,maxFileBytes,Long.MAX_VALUE);
+    }
+    public LoadedBidFile fetchWithDeadline(String url,String taskId,String fileName,String contentType,long deadline)
+            throws IOException,InterruptedException {
+        return fetch(url,taskId,fileName,contentType,ramBufferBytes,maxFileBytes,deadline);
+    }
+    private LoadedBidFile fetch(String url,String taskId,String fileName,String contentType,
+            long ramBufferBytes,long maxFileBytes,long deadline)throws IOException,InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(downloadTimeoutSeconds))
+                .timeout(ScoringDeadline.remaining(deadline,downloadTimeoutSeconds*1000))
                 .GET()
                 .build();
         HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
@@ -64,7 +72,9 @@ public class StreamingBidFileFetcher {
             throw new IllegalStateException("下载投标文件失败 HTTP " + response.statusCode());
         }
         rejectIfDeclaredOverQuota(response.headers().firstValue("Content-Length"), maxFileBytes);
-        try (InputStream body = response.body()) {
+        // The spill reader owns the byte quota and its BidFileQuotaException; this wrapper owns only the deadline.
+        try (InputStream body = ScoringDeadline.bounded(response.body(),Long.MAX_VALUE,
+                deadline==Long.MAX_VALUE?System.currentTimeMillis()+downloadTimeoutSeconds*1000:deadline)) {
             return readWithAdaptiveSpill(body, taskId, fileName, contentType, ramBufferBytes, maxFileBytes);
         }
     }

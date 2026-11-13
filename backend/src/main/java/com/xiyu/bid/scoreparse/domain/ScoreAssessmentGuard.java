@@ -23,6 +23,26 @@ public class ScoreAssessmentGuard {
     public static final String TYPE_OBJECTIVE = "OBJECTIVE";
     public static final String TYPE_SUBJECTIVE = "SUBJECTIVE";
 
+    /** These are server-verified facts; no model-provided sufficiency flag is accepted. */
+    public record CoverageProof(boolean quoteVerified,boolean completeRuleVerified,boolean unreadCannotChangeConclusion) {}
+    public boolean canPublish(String coverageStatus,CoverageProof proof) {
+        return ("COMPLETE".equals(coverageStatus)||"PARTIAL".equals(coverageStatus)) && proof.quoteVerified() && proof.completeRuleVerified()
+                && proof.unreadCannotChangeConclusion();
+    }
+
+    /** Only title-only rules are local proofs; parsing material requirements does not verify them. */
+    public boolean closedPositiveCertificate(String dim,String detail,BigDecimal weight,BigDecimal score,String quote) {
+        if(weight==null||score==null||quote==null||score.compareTo(weight)!=0)return false;
+        String normalizedDetail=CertificateScoreRule.normalize(detail);
+        // The estimate parser removes proof-material clauses, including validity and seal conditions.
+        if(normalizedDetail.contains("证明材料")||normalizedDetail.contains("证明文件"))return false;
+        var rule=CertificateScoreRule.parse(dim,detail,weight);
+        return rule.supported() && rule.requirements().size()==1 && rule.scores().size()==1
+                && rule.scores().containsKey(1)
+                && CertificateScoreRule.normalize(quote).matches(CertificateScoreRule.isoCertificatePattern())
+                && CertificateScoreRule.identifies(quote,rule.requirements().getFirst().identity());
+    }
+
     /**
      * @param input      LLM 原始输出（actualScore 已由调用方从 Double 转 BigDecimal）
      * @param weight     权重上限

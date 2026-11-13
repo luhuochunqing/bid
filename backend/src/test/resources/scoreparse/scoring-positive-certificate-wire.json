@@ -1,0 +1,46 @@
+{
+  "markdown": "ISO9001质量管理体系认证证书\n\n[word/document.xml#p2 rId9]",
+  "pages": [],
+  "extraction": {
+    "schemaVersion": 1,
+    "engineVersion": "scoring-ocr-v2",
+    "coverageStatus": "COMPLETE",
+    "sourceUnitCount": 2,
+    "processedUnitCount": 2,
+    "uniqueOcrUnitCount": 1,
+    "unreadUnitCount": 0,
+    "failedUnitCount": 0,
+    "emptyUnitCount": 1,
+    "unreadUnits": [],
+    "failedUnits": [],
+    "emptyUnits": [
+      {
+        "partName": "word/document.xml",
+        "anchor": "p2",
+        "relationshipId": "rId9",
+        "kind": "IMAGE",
+        "marker": "【图片证据:word/document.xml#p2:i1】",
+        "mediaName": "word/media/image1.png"
+      }
+    ],
+    "enumerationComplete": true,
+    "elapsedMillis": 0
+  },
+  "sourceRefs": [
+    {
+      "partName": "word/document.xml",
+      "anchor": "p1",
+      "text": "ISO9001质量管理体系认证证书",
+      "kind": "TEXT"
+    },
+    {
+      "partName": "word/document.xml",
+      "anchor": "p2",
+      "relationshipId": "rId9",
+      "kind": "IMAGE",
+      "marker": "【图片证据:word/document.xml#p2:i1】",
+      "mediaName": "word/media/image1.png",
+      "text": ""
+    }
+  ]
+}

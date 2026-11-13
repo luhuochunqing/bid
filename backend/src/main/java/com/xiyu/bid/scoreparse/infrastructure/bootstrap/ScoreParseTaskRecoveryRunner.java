@@ -60,8 +60,13 @@ public class ScoreParseTaskRecoveryRunner implements ApplicationRunner {
     /** 执行恢复，返回恢复数量（时钟可注入便于测试） */
     int recover(LocalDateTime now) {
         LocalDateTime threshold = now.minusMinutes(stuckThresholdMinutes);
-        List<ScoreParseTask> stuckTasks = taskRepository
-                .findByStatusAndUpdatedAtBefore("PROCESSING", threshold);
+        var stuckTasks = new java.util.LinkedHashMap<String,ScoreParseTask>();
+        taskRepository.findByStatusAndUpdatedAtBefore("PROCESSING",threshold).stream()
+                .filter(t->!"SCORING".equals(t.getTaskType())).forEach(t->stuckTasks.put(t.getTaskId(),t));
+        taskRepository.findByTaskTypeAndStatusInAndCreatedAtBefore("SCORING",List.of("PROCESSING"),now.minusSeconds(1800))
+                .forEach(t->stuckTasks.put(t.getTaskId(),t));
+        taskRepository.findByTaskTypeAndStatusInAndCreatedAtBefore("SCORING",List.of("PENDING"),now.minusMinutes(10))
+                .forEach(t->stuckTasks.put(t.getTaskId(),t));
 
         if (stuckTasks.isEmpty()) {
             return 0;
@@ -71,7 +76,7 @@ public class ScoreParseTaskRecoveryRunner implements ApplicationRunner {
                 stuckTasks.size(), stuckThresholdMinutes);
 
         int recovered = 0;
-        for (ScoreParseTask task : stuckTasks) {
+        for (ScoreParseTask task : stuckTasks.values()) {
             String taskId = task.getTaskId();
             try {
                 stateService.failTask(taskId, "服务重启导致任务中断，请重新触发");
