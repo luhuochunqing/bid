@@ -31,6 +31,14 @@ class ScoreAssessmentGuardTest {
         assertThat(guard.verifyQuote("第1页："+source,source,source).quote()).isEqualTo(source);
         assertThat(guard.verifyQuote(source,"其他文档",source).reason()).isEqualTo("QUOTE_NOT_IN_DOCUMENT");
     }
+    @Test void quoteSpanningExcerptSeparatorIsVerifiedAgainstDocument() {
+        String first="证明一：质量管理体系认证证书 ISO9001，证书编号 00123Q45678R0M。";
+        String second="证明二：环境管理体系认证证书 ISO14001，证书编号 00123E45678R0M。";
+        String document=first+"\n"+second;
+        String excerpt=first+"\n\n---\n\n"+second;
+        assertThat(guard.verifyQuote(first+second,document,excerpt).verified()).isTrue();
+        assertThat(guard.verifyQuote(first+second,document,excerpt).quote()).isEqualTo(document);
+    }
     private ScoreAssessmentGuard.Input.InputBuilder objectiveInput() {
         return ScoreAssessmentGuard.Input.builder()
                 .actualScore(new BigDecimal("6"))

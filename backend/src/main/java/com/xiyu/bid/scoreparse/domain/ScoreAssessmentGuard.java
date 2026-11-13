@@ -46,11 +46,25 @@ public class ScoreAssessmentGuard {
             target=EvidenceText.normalize(candidate).text();start=normalized.text().indexOf(target);
         }
         if(target.length()<8)return new QuoteProof(null,"QUOTE_TOO_SHORT");
-        if(start<0)return new QuoteProof(null,"QUOTE_NOT_IN_EXCERPT");
-        String source=excerpt.substring(normalized.offsets().get(start),
-                normalized.offsets().get(start+target.length()-1)+1);
-        return document.contains(source)?new QuoteProof(source,"VERIFIED")
-                :new QuoteProof(null,"QUOTE_NOT_IN_DOCUMENT");
+        if(start>=0) {
+            String source=excerpt.substring(normalized.offsets().get(start),
+                    normalized.offsets().get(start+target.length()-1)+1);
+            return document.contains(source)?new QuoteProof(source,"VERIFIED")
+                    :new QuoteProof(null,"QUOTE_NOT_IN_DOCUMENT");
+        }
+        // 节选在多段落之间插入了分隔符，跨段引用无法连续命中；去掉分隔符后仍命中节选时才回退到全文定位。
+        if(!withoutExcerptSeparators(normalized.text()).contains(target))return new QuoteProof(null,"QUOTE_NOT_IN_EXCERPT");
+        var normalizedDocument=EvidenceText.normalize(document);
+        int documentStart=normalizedDocument.text().indexOf(target);
+        if(documentStart<0)return new QuoteProof(null,"QUOTE_NOT_IN_DOCUMENT");
+        String source=document.substring(normalizedDocument.offsets().get(documentStart),
+                normalizedDocument.offsets().get(documentStart+target.length()-1)+1);
+        return new QuoteProof(source,"VERIFIED");
+    }
+
+    /** ScoreDocExcerptExtractor 用 {@code \n\n---\n\n} 拼接非连续段落；归一化会在分隔符两侧补空格，比较引用前一并去掉。 */
+    private static String withoutExcerptSeparators(String normalized) {
+        return normalized.replaceAll("\\s*-{3,}\\s*", "");
     }
 
     /** Absence can prove zero only for an existing closed single-certificate rule and fully read input. */
