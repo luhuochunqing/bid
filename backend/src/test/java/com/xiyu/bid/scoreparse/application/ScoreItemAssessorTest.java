@@ -217,6 +217,20 @@ class ScoreItemAssessorTest {
         assertThat(result.getStatusStage2()).isEqualTo(expectedStatus);
     }
 
+    @ParameterizedTest
+    @CsvSource(value={"NULL,7,7,OK", "100,7,7,OK", "50,7,4,PENDING", "NULL,5,5,PENDING"}, nullValues="NULL")
+    void singleSubItemCapPreservesWholeItemWeight(Integer ratio,double rawScore,String expectedScore,String expectedStatus) {
+        var item=item("OBJECTIVE");
+        item.setWeight(new BigDecimal("7"));
+        item.setDetail("1）提供体系认证得2分；2）每提供一份业绩得1分，最高5分。");
+        var output=output(rawScore,QUOTE);output.matchRatio=ratio;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
+                .thenReturn(output);
+        var result=assess(item);
+        assertThat(result.getActualScore()).isEqualByComparingTo(expectedScore);
+        assertThat(result.getStatusStage2()).isEqualTo(expectedStatus);
+    }
+
     private ScoreResult assess(ScoreItem item) {return assess(item,BID_TEXT,"COMPLETE",0);}
     private ScoreResult assess(ScoreItem item,String text,String coverage,int emptyCount) {
         long deadline=System.currentTimeMillis()+10000;
