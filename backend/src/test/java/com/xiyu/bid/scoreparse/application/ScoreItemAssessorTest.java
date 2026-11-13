@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -167,6 +168,67 @@ class ScoreItemAssessorTest {
         assertThatThrownBy(()->assess(item("OBJECTIVE"))).hasMessage("invalid configuration");
         verify(analyzer).assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class));
         verifyNoMoreInteractions(analyzer);
+    }
+
+    @Test void declaredMaximumCapsScoreAndSatisfiesStatus() {
+        var item=item("OBJECTIVE");
+        item.setDetail("提供一项有效证明可加1分，满分5分。");
+        var output=output(10d,QUOTE);output.matchRatio=100;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
+                .thenReturn(output);
+        var result=assess(item);
+        assertThat(result.getActualScore()).isEqualByComparingTo("5");
+        assertThat(result.getStatusStage2()).isEqualTo("OK");
+    }
+
+    @Test void partialRatioUnderDeclaredMaximumStaysPending() {
+        var item=item("OBJECTIVE");
+        item.setDetail("提供一项有效证明可加1分，满分5分。");
+        var output=output(10d,QUOTE);output.matchRatio=60;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
+                .thenReturn(output);
+        var result=assess(item);
+        assertThat(result.getActualScore()).isEqualByComparingTo("3");
+        assertThat(result.getStatusStage2()).isEqualTo("PENDING");
+    }
+
+    @Test void subItemMaximumDoesNotCapWholeItem() {
+        var item=item("OBJECTIVE");
+        item.setWeight(new BigDecimal("25"));
+        item.setDetail("1) 提供指定六大地区各一个配送仓库，得15分；2) 每多一个仓库得1分，满分5分；3) 按仓储面积排序，第一名得5分。");
+        var output=output(25d,QUOTE);output.matchRatio=100;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
+                .thenReturn(output);
+        var result=assess(item);
+        assertThat(result.getActualScore()).isEqualByComparingTo("25");
+        assertThat(result.getStatusStage2()).isEqualTo("OK");
+    }
+
+    @ParameterizedTest
+    @CsvSource(value={"NULL,10,OK", "100,10,OK", "50,5,PENDING"}, nullValues="NULL")
+    void equalSubItemCapsPreserveWholeItemWeight(Integer ratio,String expectedScore,String expectedStatus) {
+        var item=item("OBJECTIVE");
+        item.setDetail("1）每提供一份业绩得1分，最高5分；2）每提供一名工程师得1分，最高5分。");
+        var output=output(10d,QUOTE);output.matchRatio=ratio;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
+                .thenReturn(output);
+        var result=assess(item);
+        assertThat(result.getActualScore()).isEqualByComparingTo(expectedScore);
+        assertThat(result.getStatusStage2()).isEqualTo(expectedStatus);
+    }
+
+    @ParameterizedTest
+    @CsvSource(value={"NULL,7,7,OK", "100,7,7,OK", "50,7,4,PENDING", "NULL,5,5,PENDING"}, nullValues="NULL")
+    void singleSubItemCapPreservesWholeItemWeight(Integer ratio,double rawScore,String expectedScore,String expectedStatus) {
+        var item=item("OBJECTIVE");
+        item.setWeight(new BigDecimal("7"));
+        item.setDetail("1）提供体系认证得2分；2）每提供一份业绩得1分，最高5分。");
+        var output=output(rawScore,QUOTE);output.matchRatio=ratio;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
+                .thenReturn(output);
+        var result=assess(item);
+        assertThat(result.getActualScore()).isEqualByComparingTo(expectedScore);
+        assertThat(result.getStatusStage2()).isEqualTo(expectedStatus);
     }
 
     private ScoreResult assess(ScoreItem item) {return assess(item,BID_TEXT,"COMPLETE",0);}

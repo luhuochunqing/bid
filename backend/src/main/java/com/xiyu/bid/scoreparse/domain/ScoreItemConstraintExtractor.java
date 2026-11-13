@@ -61,8 +61,8 @@ public final class ScoreItemConstraintExtractor {
         String number = "([0-9]+|[一二两三四五六七八九十])";
         Set<Integer> counts = new LinkedHashSet<>();
         var per = Pattern.compile("每(?:提供|增加)?\\s*" + number + "?\\s*(?:个|份|项|名|人|座|处)[^。；;\\n]{0,20}?(?:得|加)?\\s*([0-9]+(?:\\.[0-9]+)?)\\s*分").matcher(text);
-        var cap = Pattern.compile("(?:最高|最多|满分)[^。；;\\n]{0,8}?([0-9]+(?:\\.[0-9]+)?)\\s*分").matcher(text);
-        BigDecimal maximum = cap.find() ? new BigDecimal(cap.group(1)) : weight;
+        BigDecimal maximum = ScoreMaximumPolicy.declared(text);
+        if (maximum == null) maximum = weight;
         while (per.find()) {
             int units = per.group(1) == null ? 1 : IncrementalCountScorePolicy.parseCount(per.group(1)).orElse(0);
             BigDecimal points = new BigDecimal(per.group(2));

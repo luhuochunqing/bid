@@ -185,7 +185,8 @@ class ScoreScoringVersionMysqlTest extends AbstractTransactionBoundaryTest {
      scoring.triggerScoring(project);
      var failed=latestScoring();
      assertThat(failed.getStatus()).isEqualTo("FAILED");
-     assertThat(scoring.getResults(project).objectiveScored()).isEqualTo(1);
+     assertThat(scoring.getResults(project).objectiveScored()).isZero();
+     assertThat(scoring.getResults(project).objectivePending()).isEqualTo(1);
      assertThat(scoring.getResults(project).failed()).isEqualTo(1);
      when(analyzer.assessObjective(eq("B规则"),any(),anyString())).thenAnswer(inv->{var out=new ScoreAssessmentOutput();out.actualScore=5d;out.quote="完整投标内容用于证书核验";return out;});
      clearInvocations(analyzer);
@@ -234,7 +235,7 @@ class ScoreScoringVersionMysqlTest extends AbstractTransactionBoundaryTest {
          assertThat(r.getActualScore()).isEqualByComparingTo("5");
          assertThat(r.getScoringTaskId()).isEqualTo(retry.getId());
      });
-     assertThat(scoring.getResults(project).summary().totalActualScore()).isEqualByComparingTo("10");
+     assertThat(scoring.getResults(project).summary().totalActualScore()).isEqualByComparingTo("0");
      var origins=new ScoringRunReportCodec().scoring(retry.getRunSummary()).path("items");
      assertThat(java.util.stream.StreamSupport.stream(origins.spliterator(),false)
              .filter(n->n.path("scoreItemId").asLong()==unselected.getId()).findFirst().orElseThrow()

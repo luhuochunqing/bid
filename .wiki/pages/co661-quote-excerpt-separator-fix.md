@@ -63,3 +63,12 @@ backlinks:
 - 最小修复：空白回退复用 `withoutExcerptSeparators`，先移除节选分隔符再压缩空白；全文仍独立定位，原文 offset 映射不变。
 - 本轮先运行已有 21 项保护测试全部通过；新增组合正例（含句尾标点上下文和原文切片精确断言）、全文不连续反例，修复前均失败，修复后 `cd backend && mvn -o -q -Dtest=ScoreAssessmentGuardTest test` 共 23 项通过（失败/错误/跳过均为 0）。
 - 本轮仅为离线纯核心验证，未重跑现场打分，不据此声明现场恢复。
+
+## 补充四：分数上限与合计口径（同批修复）
+
+- **文本满分封顶**：新增 `ScoreMaximumPolicy.overall(detail)`（最高/最多/满分 X 分），`ScoreItemAssessor.resolveObjectiveScore` 取 `min(得分, 文本满分)`；满足状态用 `effectiveWeight = min(权重, 文本满分)`，避免封顶后误判为部分得分。A1（权重 10、文本满分 5）由 10 分改为 5 分且状态 OK。
+- **合计只计 OK**：`ScoreScoringResultsAssembler` 仅将 `statusStage2=OK` 的客观项得分传入汇总；`SummaryAggregator.quality` 改为按 `statusStage2` 区分已评分（OK/DANGER）与待确认。TMS 3/6 保持待确认且不计入合计，横幅计数与行状态一致。
+- **作用域保护**：`ScoreMaximumPolicy.overall` 排除多个明确编号子项后，仅在满分声明唯一且不小于其余所有分值时才封顶；多个声明即使同值，也无法确认整项作用域，保留原权重。例如两个子项各最高5分不能把整项10分压成5分；比例计分与状态判定统一用有效满分。
+- **复用身份**：`ScoringRunReportCodec.ENGINE` 与 `ScoringModelPolicy` 指纹升级为 `actual-score-v3`，旧 `v2` 结果不再被 AUTO 跳过或局部复用。
+- **同值子项回归**：两个子项各最高5分、整项权重10分，直接得分和100%比例均保留10分/OK，50%比例为5分/PENDING。新增3例修复前均失败；修复后运行 `ScoreItemAssessorTest,ScoreScoringResultsAssemblerTest,ScoreAssessmentGuardTest,SummaryAggregatorTest` 共59项通过（无失败、错误或跳过）。沙箱内通过 `JAVA_TOOL_OPTIONS` 预加载 Byte Buddy agent 避免动态附加受限；未启动服务，监听及MySQL集成验证留给主执行器 verify 阶段。
+- **单个子项上限回归（fix 第1轮）**：权重7分、规则“1）提供体系认证得2分；2）每提供一份业绩得1分，最高5分。”的唯一上限仍属于子项，不能用来封顶整项。新增4例在修复前均断言失败：直接7分、100%比例保留7分/OK；50%按现有取整规则为4分/PENDING；直接5分保持5分/PENDING。修复后上述4类测试共63项通过（失败、错误、跳过均为0）；首轮未预加载代理时Mockito动态附加被沙箱阻止，预加载本地Byte Buddy agent后完成保护测试及RED/GREEN验证。未执行监听或MySQL集成测试。

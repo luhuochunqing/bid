@@ -4,6 +4,7 @@
 // 维护声明: 维护者按项目SOP；2026-08-19 自 ScoreScoringAppService 拆出以满足 300 行预算（SRP：编排与装配分离）
 package com.xiyu.bid.scoreparse.application;
 
+import com.xiyu.bid.scoreparse.domain.ScoreStatusPolicy;
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
 import com.xiyu.bid.scoreparse.domain.ScoreResultReusePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoringExtractionReport;
@@ -33,15 +34,21 @@ class ScoreScoringResultsAssembler {
         List<ScoreScoringResultsDTO.ScoreResultDTO> resultDTOs = items.stream()
                 .map(item -> toResultDTO(item, resultMap.get(item.getId()),sources.get(item.getId()))).toList();
         SummaryAggregator.Result summary = summaryAggregator.aggregate(items.stream()
-                .map(item -> new SummaryAggregator.Item(item.getWeight(), item.getScoreType(),
-                        valueOrNull(resultMap.get(item.getId()), r -> "LEGACY_UNVERIFIED".equals(r.getReuseKind()) ? null : r.getActualScore()),
-                        valueOrNull(resultMap.get(item.getId()), ScoreResult::getStatusStage2)))
+                .map(item -> {
+                    var row=resultMap.get(item.getId());
+                    String status=row==null?null:row.getStatusStage2();
+                    BigDecimal actualScore = row != null && ScoreStatusPolicy.OK.equals(status)
+                            && !"LEGACY_UNVERIFIED".equals(row.getReuseKind()) ? row.getActualScore() : null;
+                    return new SummaryAggregator.Item(item.getWeight(), item.getScoreType(),
+                            actualScore, status);
+                })
                 .toList());
         var quality=summaryAggregator.quality(items.stream().map(item->{
             var row=resultMap.get(item.getId());var source=sources.get(item.getId());
             String outcome=row==null?"NEEDS_REVIEW":ScoringRunReportCodec.outcome(row);
             return new SummaryAggregator.QualityItem(item.getScoreType(),row==null?null:row.getActualScore(),
-                    item.getWeight(),source==null?outcome:source.outcome(),source!=null);
+                    item.getWeight(),source==null?outcome:source.outcome(),source!=null,
+                    row==null?null:row.getStatusStage2());
         }).toList());
         ScoringExtractionReport coverage=null;
         if(latest!=null) {
@@ -76,7 +83,4 @@ class ScoreScoringResultsAssembler {
                 BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, false);
     }
 
-    private static <T> T valueOrNull(ScoreResult result, java.util.function.Function<ScoreResult, T> getter) {
-        return result == null ? null : getter.apply(result);
-    }
 }
