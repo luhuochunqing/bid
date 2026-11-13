@@ -20,7 +20,7 @@ public class ScoreAssessmentOutput {
     /** 满足/部分满足的依据说明 */
     public String evidence;
 
-    /** 投标文件原文引用（含章节页码）；quoteMissing=true 时必须 null */
+    /** 投标文件节选逐字原文（不混入位置说明）；quoteMissing=true 时必须 null */
     public String quote;
 
     /** 投标文件中找不到相关内容时 true */

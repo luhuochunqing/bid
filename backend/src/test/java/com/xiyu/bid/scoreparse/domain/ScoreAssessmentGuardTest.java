@@ -17,6 +17,20 @@ class ScoreAssessmentGuardTest {
 
     private final ScoreAssessmentGuard guard = new ScoreAssessmentGuard();
 
+    @Test void quotePresentOnlyOutsideActualExcerptHasDistinctReason() {
+        String quote="已建设并上线运行OMS订单管理系统";
+        assertThat(guard.verifyQuote(quote,"企业说明："+quote,"其他投标内容").reason()).isEqualTo("QUOTE_NOT_IN_EXCERPT");
+        assertThat(guard.verifyQuote(null,quote,quote).reason()).isEqualTo("MODEL_QUOTE_MISSING");
+    }
+    @Test void locatorAlreadyInSourceIsPreserved() {
+        String source="第1页：已建设并上线运行OMS订单管理系统";
+        assertThat(guard.verifyQuote(source,source,source).quote()).isEqualTo(source);
+    }
+    @Test void returnedQuoteIsOriginalSourceAndForgedExcerptCannotPublish() {
+        String source="已建设并上线运行OMS订单管理系统";
+        assertThat(guard.verifyQuote("第1页："+source,source,source).quote()).isEqualTo(source);
+        assertThat(guard.verifyQuote(source,"其他文档",source).reason()).isEqualTo("QUOTE_NOT_IN_DOCUMENT");
+    }
     private ScoreAssessmentGuard.Input.InputBuilder objectiveInput() {
         return ScoreAssessmentGuard.Input.builder()
                 .actualScore(new BigDecimal("6"))
