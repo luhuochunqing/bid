@@ -67,6 +67,13 @@ class ScoreAssessmentGuardTest {
         assertThat(proof.quote()).isNull();
         assertThat(proof.reason()).isEqualTo("QUOTE_NOT_IN_DOCUMENT");
     }
+    @Test void rawQuoteEndingWithDigitPeriodSurvivesContextSensitiveNormalization() {
+        String quote="证明五：供应链安全管理体系认证证书，证书编号 SCS-2024-0912，有效期至 2027-12-31。";
+        String document=quote+"\n第四章 服务方案";
+        var proof=guard.verifyQuote(quote,document,document);
+        assertThat(proof.verified()).isTrue();
+        assertThat(proof.quote()).isEqualTo(quote);
+    }
     private ScoreAssessmentGuard.Input.InputBuilder objectiveInput() {
         return ScoreAssessmentGuard.Input.builder()
                 .actualScore(new BigDecimal("6"))
