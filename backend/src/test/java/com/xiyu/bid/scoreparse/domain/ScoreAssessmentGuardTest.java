@@ -36,8 +36,36 @@ class ScoreAssessmentGuardTest {
         String second="证明二：环境管理体系认证证书 ISO14001，证书编号 00123E45678R0M。";
         String document=first+"\n"+second;
         String excerpt=first+"\n\n---\n\n"+second;
-        assertThat(guard.verifyQuote(first+second,document,excerpt).verified()).isTrue();
-        assertThat(guard.verifyQuote(first+second,document,excerpt).quote()).isEqualTo(document);
+        var proof=guard.verifyQuote(first+second,document,excerpt);
+        assertThat(proof.verified()).isTrue();
+        assertThat(proof.quote()).isEqualTo(document);
+    }
+    @Test void englishQuoteSpanningExcerptSeparatorPreservesWordBoundaryAndOriginalSource() {
+        String first="Quality Management Certificate ISO9001";
+        String second="Environmental Management Certificate ISO14001";
+        String document=first+"\n\n"+second;
+        String excerpt=first+"\n\n---\n\n"+second;
+        var proof=guard.verifyQuote(document,"Company credentials:\n"+document+"\nEnd of credentials.",excerpt);
+        assertThat(proof.verified()).isTrue();
+        assertThat(proof.quote()).isEqualTo(document);
+    }
+    @Test void englishExcerptSeparatorCannotProveQuoteMissingFromDocument() {
+        String first="Quality Management Certificate ISO9001";
+        String second="Environmental Management Certificate ISO14001";
+        var proof=guard.verifyQuote(first+"\n\n"+second,first+" Other credentials. "+second,
+                first+"\n\n---\n\n"+second);
+        assertThat(proof.verified()).isFalse();
+        assertThat(proof.quote()).isNull();
+        assertThat(proof.reason()).isEqualTo("QUOTE_NOT_IN_DOCUMENT");
+    }
+    @Test void excerptSeparatorCannotProveQuoteMissingFromDocument() {
+        String first="已建设并上线运行OMS订单管理系统。";
+        String second="已建设并上线运行WMS仓储管理系统。";
+        String excerpt=first+"\n\n---\n\n"+second;
+        var proof=guard.verifyQuote(first+second,first+"其他投标内容。"+second,excerpt);
+        assertThat(proof.verified()).isFalse();
+        assertThat(proof.quote()).isNull();
+        assertThat(proof.reason()).isEqualTo("QUOTE_NOT_IN_DOCUMENT");
     }
     private ScoreAssessmentGuard.Input.InputBuilder objectiveInput() {
         return ScoreAssessmentGuard.Input.builder()

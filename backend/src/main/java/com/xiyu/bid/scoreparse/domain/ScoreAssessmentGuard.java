@@ -62,9 +62,9 @@ public class ScoreAssessmentGuard {
         return new QuoteProof(source,"VERIFIED");
     }
 
-    /** ScoreDocExcerptExtractor 用 {@code \n\n---\n\n} 拼接非连续段落；归一化会在分隔符两侧补空格，比较引用前一并去掉。 */
+    /** ScoreDocExcerptExtractor 用 {@code \n\n---\n\n} 拼接非连续段落；移除分隔符后复用版式归一化保留词间空格。 */
     private static String withoutExcerptSeparators(String normalized) {
-        return normalized.replaceAll("\\s*-{3,}\\s*", "");
+        return EvidenceText.normalize(normalized.replaceAll("\\s*-{3,}\\s*", " ")).text();
     }
 
     /** Absence can prove zero only for an existing closed single-certificate rule and fully read input. */
