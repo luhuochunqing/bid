@@ -74,6 +74,54 @@ class ScoreAssessmentGuardTest {
         assertThat(proof.verified()).isTrue();
         assertThat(proof.quote()).isEqualTo(quote);
     }
+    @Test void quoteJoinedAcrossLineWrappedIdentifierIsVerified() {
+        String document="已取得OMS订单管理系统软件著作权登记证书，登记号 2022S\nR0445566，有效期至 2027-06-30。";
+        String quote="已取得OMS订单管理系统软件著作权登记证书，登记号 2022SR0445566，有效期至 2027-06-30。";
+        var proof=guard.verifyQuote(quote,document,document);
+        assertThat(proof.verified()).isTrue();
+        assertThat(proof.quote()).isEqualTo(document);
+    }
+    @Test void joinedQuoteWithDigitPeriodTailIsVerified() {
+        String source="已取得OMS订单管理系统软件著作权登记证书，登记号 2022S\nR0445566，有效期至 2027-12-31。";
+        String document=source+"\n第四章 服务方案";
+        String quote="已取得OMS订单管理系统软件著作权登记证书，登记号 2022SR0445566，有效期至 2027-12-31。";
+        var proof=guard.verifyQuote(quote,document,document);
+        assertThat(proof.verified()).isTrue();
+        assertThat(proof.quote()).isEqualTo(source);
+    }
+    @Test void joinedQuoteCannotBypassExcerptMembership() {
+        String document="已取得OMS订单管理系统软件著作权登记证书，登记号 2022S\nR0445566。";
+        String quote="已取得OMS订单管理系统软件著作权登记证书，登记号 2022SR0445566。";
+        var proof=guard.verifyQuote(quote,document,"其他投标内容");
+        assertThat(proof.quote()).isNull();
+        assertThat(proof.reason()).isEqualTo("QUOTE_NOT_IN_EXCERPT");
+    }
+    @Test void joinedQuoteCannotBypassDocumentMembership() {
+        String excerpt="已取得OMS订单管理系统软件著作权登记证书，登记号 2022S\nR0445566。";
+        String quote="已取得OMS订单管理系统软件著作权登记证书，登记号 2022SR0445566。";
+        var proof=guard.verifyQuote(quote,"其他投标内容",excerpt);
+        assertThat(proof.quote()).isNull();
+        assertThat(proof.reason()).isEqualTo("QUOTE_NOT_IN_DOCUMENT");
+    }
+    @Test void joinedQuoteAcrossExcerptSeparatorRestoresOriginalSource() {
+        String first="已取得OMS订单管理系统软件著作权登记证书，登记号 2022S\nR0445566，";
+        String second="有效期至 2027-12-31。";
+        String source=first+"\n"+second;
+        String excerpt=first+"\n\n---\n\n"+second+"\n第四章 服务方案";
+        String quote="已取得OMS订单管理系统软件著作权登记证书，登记号 2022SR0445566，"+second;
+        var proof=guard.verifyQuote(quote,"企业资质：\n"+source+"\n第四章 服务方案",excerpt);
+        assertThat(proof.verified()).isTrue();
+        assertThat(proof.quote()).isEqualTo(source);
+    }
+    @Test void joinedQuoteAcrossExcerptSeparatorStillRequiresContinuousDocumentSource() {
+        String first="已取得OMS订单管理系统软件著作权登记证书，登记号 2022S\nR0445566，";
+        String second="有效期至 2027-12-31。";
+        String excerpt=first+"\n\n---\n\n"+second;
+        String quote="已取得OMS订单管理系统软件著作权登记证书，登记号 2022SR0445566，"+second;
+        var proof=guard.verifyQuote(quote,first+"其他投标内容。"+second,excerpt);
+        assertThat(proof.quote()).isNull();
+        assertThat(proof.reason()).isEqualTo("QUOTE_NOT_IN_DOCUMENT");
+    }
     private ScoreAssessmentGuard.Input.InputBuilder objectiveInput() {
         return ScoreAssessmentGuard.Input.builder()
                 .actualScore(new BigDecimal("6"))
