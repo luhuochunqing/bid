@@ -57,14 +57,17 @@ backlinks:
 - 修复：`verifyQuote` 在分隔符回退之后增加空白无关回退——去掉全部空白匹配；句尾再试一次补汉字哨兵后的归一化结果；命中后用 offset 映射回原文切片。仍要求命中节选。
 - 验证：真实 A1 文本（joined 289 字）离线验证 `verified=true`，返回原件 298 字切片；`ScoreAssessmentGuardTest` 19/19。
 
-## 补充三：分数上限与合计口径（同批修复）
-
-- **文本满分封顶**：新增 `ScoreItemConstraintExtractor.declaredMaximum(detail)`（最高/最多/满分 X 分），`ScoreItemAssessor.resolveObjectiveScore` 取 `min(得分, 文本满分)`；满足状态用 `effectiveWeight = min(权重, 文本满分)`，避免封顶后误判为部分得分。A1（权重 10、文本满分 5）由 10 分改为 5 分且状态 OK。
-- **合计只计 OK**：`ScoreScoringResultsAssembler` 仅将 `statusStage2=OK` 的客观项得分传入汇总；`SummaryAggregator.quality` 改为按 `statusStage2` 区分已评分（OK/DANGER）与待确认。TMS 3/6 保持待确认且不计入合计，横幅计数与行状态一致。
-
 ## 补充三：编号换行与节选分隔符组合
 
 - 审查发现：编号 `2022S\nR0445566` 与跨段 `\n\n---\n\n` 同时存在时，分隔符回退保留编号空格，空白回退保留分隔符，两条路径都无法命中模型连接后的引用。
 - 最小修复：空白回退复用 `withoutExcerptSeparators`，先移除节选分隔符再压缩空白；全文仍独立定位，原文 offset 映射不变。
 - 本轮先运行已有 21 项保护测试全部通过；新增组合正例（含句尾标点上下文和原文切片精确断言）、全文不连续反例，修复前均失败，修复后 `cd backend && mvn -o -q -Dtest=ScoreAssessmentGuardTest test` 共 23 项通过（失败/错误/跳过均为 0）。
 - 本轮仅为离线纯核心验证，未重跑现场打分，不据此声明现场恢复。
+
+## 补充四：分数上限与合计口径（同批修复）
+
+- **文本满分封顶**：新增 `ScoreItemConstraintExtractor.overallDeclaredMaximum(detail)`（最高/最多/满分 X 分），`ScoreItemAssessor.resolveObjectiveScore` 取 `min(得分, 文本满分)`；满足状态用 `effectiveWeight = min(权重, 文本满分)`，避免封顶后误判为部分得分。A1（权重 10、文本满分 5）由 10 分改为 5 分且状态 OK。
+- **合计只计 OK**：`ScoreScoringResultsAssembler` 仅将 `statusStage2=OK` 的客观项得分传入汇总；`SummaryAggregator.quality` 改为按 `statusStage2` 区分已评分（OK/DANGER）与待确认。TMS 3/6 保持待确认且不计入合计，横幅计数与行状态一致。
+- **作用域保护**：`overallDeclaredMaximum` 仅在满分声明唯一且不小于其余所有分值时才封顶；多个声明即使同值，也无法确认整项作用域，保留原权重。例如两个子项各最高5分不能把整项10分压成5分；比例计分与状态判定统一用有效满分。
+- **复用身份**：`ScoringRunReportCodec.ENGINE` 与 `ScoringModelPolicy` 指纹升级为 `actual-score-v3`，旧 `v2` 结果不再被 AUTO 跳过或局部复用。
+- **同值子项回归**：两个子项各最高5分、整项权重10分，直接得分和100%比例均保留10分/OK，50%比例为5分/PENDING。新增3例修复前均失败；修复后运行 `ScoreItemAssessorTest,ScoreScoringResultsAssemblerTest,ScoreAssessmentGuardTest,SummaryAggregatorTest` 共59项通过（无失败、错误或跳过）。沙箱内通过 `JAVA_TOOL_OPTIONS` 预加载 Byte Buddy agent 避免动态附加受限；未启动服务，监听及MySQL集成验证留给主执行器 verify 阶段。

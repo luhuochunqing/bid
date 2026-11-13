@@ -37,10 +37,10 @@ class ScoreScoringResultsAssembler {
                 .map(item -> {
                     var row=resultMap.get(item.getId());
                     String status=row==null?null:row.getStatusStage2();
-                    BigDecimal est="LEGACY_UNVERIFIED".equals(row==null?null:row.getReuseKind())?null
-                            :valueOrNull(row, ScoreResult::getActualScore);
+                    BigDecimal actualScore = row != null && ScoreStatusPolicy.OK.equals(status)
+                            && !"LEGACY_UNVERIFIED".equals(row.getReuseKind()) ? row.getActualScore() : null;
                     return new SummaryAggregator.Item(item.getWeight(), item.getScoreType(),
-                            ScoreStatusPolicy.OK.equals(status)?est:null, status);
+                            actualScore, status);
                 })
                 .toList());
         var quality=summaryAggregator.quality(items.stream().map(item->{
@@ -83,7 +83,4 @@ class ScoreScoringResultsAssembler {
                 BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, false);
     }
 
-    private static <T> T valueOrNull(ScoreResult result, java.util.function.Function<ScoreResult, T> getter) {
-        return result == null ? null : getter.apply(result);
-    }
 }

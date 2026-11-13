@@ -4,7 +4,7 @@ import com.xiyu.bid.scoreparse.domain.ImageBudget;
 import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
 import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreAssessmentGuard;
-import com.xiyu.bid.scoreparse.domain.ScoreItemConstraintExtractor;
+import com.xiyu.bid.scoreparse.domain.ScoreMaximumPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreStatusPolicy;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
@@ -145,22 +145,19 @@ final class ScoreItemAssessor {
         if (!ScoreAssessmentGuard.TYPE_OBJECTIVE.equals(item.getScoreType()) || assessment.rangeInvalid()) {
             return null;
         }
+        BigDecimal effectiveWeight = effectiveWeight(item);
         Integer matchRatio = assessment.matchRatio() != null ? assessment.matchRatio()
                 : (output != null ? output.matchRatio : null);
-        BigDecimal score;
         if (matchRatio != null) {
             String category = categoryPolicy.categorize(item.getDim(), item.getDetail());
-            score = partialScorePolicy.computeStage2Score(item.getWeight(), category, matchRatio, item.getScoreType());
-        } else {
-            score = assessment.actualScore();
+            return partialScorePolicy.computeStage2Score(effectiveWeight, category, matchRatio, item.getScoreType());
         }
-        BigDecimal declaredMaximum = ScoreItemConstraintExtractor.declaredMaximum(item.getDetail());
-        return score == null || declaredMaximum == null ? score : score.min(declaredMaximum);
+        return assessment.actualScore() == null ? null : assessment.actualScore().min(effectiveWeight);
     }
 
-    /** 规则文本声明的满分低于表格权重时，以文本满分为准判定满足状态。 */
+    /** 规则文本声明的整项满分低于表格权重时，以文本满分为准计分与判定状态。 */
     private static BigDecimal effectiveWeight(ScoreItem item) {
-        BigDecimal declaredMaximum = ScoreItemConstraintExtractor.declaredMaximum(item.getDetail());
+        BigDecimal declaredMaximum = ScoreMaximumPolicy.overall(item.getDetail());
         if (declaredMaximum == null || item.getWeight() == null || declaredMaximum.signum() <= 0) return item.getWeight();
         return declaredMaximum.min(item.getWeight());
     }
