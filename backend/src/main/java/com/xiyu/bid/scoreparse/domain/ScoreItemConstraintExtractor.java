@@ -52,7 +52,17 @@ public final class ScoreItemConstraintExtractor {
     private static final Pattern NEAR_YEARS_PATTERN = Pattern.compile(
             "近\\s*([一二三两四五12345])\\s*年");
 
+    private static final Pattern DECLARED_MAX_PATTERN = Pattern.compile(
+            "(?:最高|最多|满分)[^。；;\\n]{0,8}?([0-9]+(?:\\.[0-9]+)?)\\s*分");
+
     public record EstimateCount(int count, boolean explicit) {}
+
+    /** 规则文本显式声明的满分（「最高/最多/满分 X 分」）；无声明返回 null。 */
+    public static BigDecimal declaredMaximum(String text) {
+        if (text == null) return null;
+        Matcher matcher = DECLARED_MAX_PATTERN.matcher(text);
+        return matcher.find() ? new BigDecimal(matcher.group(1)) : null;
+    }
 
     /** Only unambiguous resource counts are used; dates, amounts and incidental digits are not counts. */
     public static EstimateCount requiredForEstimate(String text, String category, BigDecimal weight) {
@@ -61,7 +71,7 @@ public final class ScoreItemConstraintExtractor {
         String number = "([0-9]+|[一二两三四五六七八九十])";
         Set<Integer> counts = new LinkedHashSet<>();
         var per = Pattern.compile("每(?:提供|增加)?\\s*" + number + "?\\s*(?:个|份|项|名|人|座|处)[^。；;\\n]{0,20}?(?:得|加)?\\s*([0-9]+(?:\\.[0-9]+)?)\\s*分").matcher(text);
-        var cap = Pattern.compile("(?:最高|最多|满分)[^。；;\\n]{0,8}?([0-9]+(?:\\.[0-9]+)?)\\s*分").matcher(text);
+        var cap = DECLARED_MAX_PATTERN.matcher(text);
         BigDecimal maximum = cap.find() ? new BigDecimal(cap.group(1)) : weight;
         while (per.find()) {
             int units = per.group(1) == null ? 1 : IncrementalCountScorePolicy.parseCount(per.group(1)).orElse(0);

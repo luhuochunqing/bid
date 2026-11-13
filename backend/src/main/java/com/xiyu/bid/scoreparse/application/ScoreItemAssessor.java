@@ -4,6 +4,7 @@ import com.xiyu.bid.scoreparse.domain.ImageBudget;
 import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
 import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreAssessmentGuard;
+import com.xiyu.bid.scoreparse.domain.ScoreItemConstraintExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreStatusPolicy;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
@@ -117,7 +118,7 @@ final class ScoreItemAssessor {
                     item.getId(),output.actualScore,output.quoteMissing,output.quote==null?0:output.quote.length(),
                     output.quote!=null&&document.text().contains(output.quote),score==null?rejection:"VERIFIED_FLAG_CONFLICT");
         return ScoreResult.builder().scoreItemId(item.getId()).scoringTaskId(task.getId())
-                .actualScore(score).statusStage2(statusPolicy.evaluate(score,item.getWeight(),item.getScoreType(),false))
+                .actualScore(score).statusStage2(statusPolicy.evaluate(score,effectiveWeight(item),item.getScoreType(),false))
                 .evidence(guarded.evidence()).quote(quote)
                 .missedReason(score==null&&!subjective?"可核验证据不足，请人工确认（"+rejection+"）":guarded.missedReason())
                 .suggestion(guarded.suggestion()).matchRatio(score==null?null:guarded.matchRatio())
@@ -146,11 +147,22 @@ final class ScoreItemAssessor {
         }
         Integer matchRatio = assessment.matchRatio() != null ? assessment.matchRatio()
                 : (output != null ? output.matchRatio : null);
+        BigDecimal score;
         if (matchRatio != null) {
             String category = categoryPolicy.categorize(item.getDim(), item.getDetail());
-            return partialScorePolicy.computeStage2Score(item.getWeight(), category, matchRatio, item.getScoreType());
+            score = partialScorePolicy.computeStage2Score(item.getWeight(), category, matchRatio, item.getScoreType());
+        } else {
+            score = assessment.actualScore();
         }
-        return assessment.actualScore();
+        BigDecimal declaredMaximum = ScoreItemConstraintExtractor.declaredMaximum(item.getDetail());
+        return score == null || declaredMaximum == null ? score : score.min(declaredMaximum);
+    }
+
+    /** 规则文本声明的满分低于表格权重时，以文本满分为准判定满足状态。 */
+    private static BigDecimal effectiveWeight(ScoreItem item) {
+        BigDecimal declaredMaximum = ScoreItemConstraintExtractor.declaredMaximum(item.getDetail());
+        if (declaredMaximum == null || item.getWeight() == null || declaredMaximum.signum() <= 0) return item.getWeight();
+        return declaredMaximum.min(item.getWeight());
     }
 
     private static ScoreAssessmentGuard.Input toGuardInput(ScoreAssessmentOutput output) {

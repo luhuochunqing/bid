@@ -60,7 +60,7 @@ public class SummaryAggregator {
                 objectiveWeight, subjectiveWeight, weightWarning);
     }
 
-    public record QualityItem(String scoreType,BigDecimal actualScore,BigDecimal weight,String outcome,boolean known) {}
+    public record QualityItem(String scoreType,BigDecimal actualScore,BigDecimal weight,String outcome,boolean known,String status) {}
     public record Quality(String qualityStatus,int objectiveScored,int objectivePending,int subjectivePending,
                           int failed,boolean diagnosticsKnown) {}
     public Quality quality(List<QualityItem> items) {
@@ -70,8 +70,9 @@ public class SummaryAggregator {
             known&=item.known();
             if("FAILED".equals(item.outcome()))failed++;
             else if(TYPE_OBJECTIVE.equals(item.scoreType())) {
-                if(item.actualScore()!=null && item.weight()!=null && item.actualScore().signum()>=0
-                        && item.actualScore().compareTo(item.weight())<=0)scored++;
+                boolean determined=ScoreStatusPolicy.OK.equals(item.status())||ScoreStatusPolicy.DANGER.equals(item.status());
+                if(determined&&item.actualScore()!=null&&item.weight()!=null&&item.actualScore().signum()>=0
+                        &&item.actualScore().compareTo(item.weight())<=0)scored++;
                 else pending++;
             } else subjective++;
         }

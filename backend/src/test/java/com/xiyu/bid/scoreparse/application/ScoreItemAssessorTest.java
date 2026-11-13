@@ -169,6 +169,17 @@ class ScoreItemAssessorTest {
         verifyNoMoreInteractions(analyzer);
     }
 
+    @Test void declaredMaximumCapsScoreAndSatisfiesStatus() {
+        var item=item("OBJECTIVE");
+        item.setDetail("提供一项有效证明可加1分，满分5分。");
+        var output=output(10d,QUOTE);output.matchRatio=100;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
+                .thenReturn(output);
+        var result=assess(item);
+        assertThat(result.getActualScore()).isEqualByComparingTo("5");
+        assertThat(result.getStatusStage2()).isEqualTo("OK");
+    }
+
     private ScoreResult assess(ScoreItem item) {return assess(item,BID_TEXT,"COMPLETE",0);}
     private ScoreResult assess(ScoreItem item,String text,String coverage,int emptyCount) {
         long deadline=System.currentTimeMillis()+10000;

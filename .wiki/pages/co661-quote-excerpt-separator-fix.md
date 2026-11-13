@@ -57,6 +57,11 @@ backlinks:
 - 修复：`verifyQuote` 在分隔符回退之后增加空白无关回退——去掉全部空白匹配；句尾再试一次补汉字哨兵后的归一化结果；命中后用 offset 映射回原文切片。仍要求命中节选。
 - 验证：真实 A1 文本（joined 289 字）离线验证 `verified=true`，返回原件 298 字切片；`ScoreAssessmentGuardTest` 19/19。
 
+## 补充三：分数上限与合计口径（同批修复）
+
+- **文本满分封顶**：新增 `ScoreItemConstraintExtractor.declaredMaximum(detail)`（最高/最多/满分 X 分），`ScoreItemAssessor.resolveObjectiveScore` 取 `min(得分, 文本满分)`；满足状态用 `effectiveWeight = min(权重, 文本满分)`，避免封顶后误判为部分得分。A1（权重 10、文本满分 5）由 10 分改为 5 分且状态 OK。
+- **合计只计 OK**：`ScoreScoringResultsAssembler` 仅将 `statusStage2=OK` 的客观项得分传入汇总；`SummaryAggregator.quality` 改为按 `statusStage2` 区分已评分（OK/DANGER）与待确认。TMS 3/6 保持待确认且不计入合计，横幅计数与行状态一致。
+
 ## 补充三：编号换行与节选分隔符组合
 
 - 审查发现：编号 `2022S\nR0445566` 与跨段 `\n\n---\n\n` 同时存在时，分隔符回退保留编号空格，空白回退保留分隔符，两条路径都无法命中模型连接后的引用。

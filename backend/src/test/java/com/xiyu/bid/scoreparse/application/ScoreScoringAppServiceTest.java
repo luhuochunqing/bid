@@ -462,7 +462,8 @@ class ScoreScoringAppServiceTest {
             var sources = snapshot.items().stream().collect(java.util.stream.Collectors.toMap(ScoreItem::getId, row -> codec.source(task, row.getId())));
             var result = new ScoreScoringResultsAssembler().assemble(snapshot.items(), published, task, sources);
             assertThat(result.failed()).isEqualTo(1);
-            assertThat(result.objectiveScored()).isEqualTo(2);
+            assertThat(result.objectiveScored()).isEqualTo(1);
+            assertThat(result.objectivePending()).isEqualTo(1);
             assertThat(result.qualityStatus()).isEqualTo("PARTIAL");
         }
         assertThat(released).isTrue();
