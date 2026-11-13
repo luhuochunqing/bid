@@ -1,6 +1,6 @@
 <!--
   Input: items (评分项列表), results (实际打分结果), mode ('est' | 'actual'), statistics
-  Output: 生效评分项表格；声明总分同源比较，历史评分不计当前总分；AI 评分标准 8 列结构化表格（完全对齐 PRD / 原型 V3 双阶段设计）
+  Output: 生效评分项表格；声明总分同源比较，历史/来源过期评分不计当前总分；失败与主观待评分别显示；AI 评分标准 8 列结构化表格（完全对齐 PRD / 原型 V3 双阶段设计）
   Pos: src/views/Project/stages/components/ScoreParseTable.vue
 -->
 <template>
@@ -40,6 +40,7 @@
           <td class="score-cell" :class="getScoreClass(item)" :title="mode === 'est' ? item.estBasis : undefined">
             {{ getScoreText(item) }}
             <span v-if="mode === 'actual' && resultOf(item)?.reuseKind === 'LEGACY_UNVERIFIED'" class="history-label">历史评分，需重新评分</span>
+            <span v-if="mode === 'actual' && resultOf(item)?.reuseKind === 'SOURCE_EXPIRED'" class="history-label">原件已变化，需重新评分</span>
             <span v-if="mode === 'actual' && resultOf(item)?.reuseKind === 'REUSED'" class="pill neutral">沿用</span>
           </td>
           <td style="text-align: center">
@@ -110,6 +111,7 @@ function getItemStatus(item) {
 
 function getItemStatusText(item) {
   const status = getItemStatus(item)
+  if (props.mode === 'actual' && resultOf(item)?.outcome === 'FAILED') return '评分失败'
   if (status === 'ok') return '满足'
   if (status === 'danger') return '不满足'
   return props.mode === 'est' ? pendingEstimateText(item) : '待确认'
@@ -118,9 +120,11 @@ function getItemStatusText(item) {
 function getScoreText(item) {
   if (props.mode === 'actual') {
     const res = resultOf(item)
+    if (res?.outcome === 'FAILED') return '评分失败'
+    if (item.scoreType === '主观项') return res ? '待专家评审' : '待确认'
     if (!res) return '待确认'
     const actual = res.actualScore ?? res.score
-    if (res.status === 'subjective' || item.scoreType === '主观项' || actual === null || actual === undefined) return '待确认'
+    if (res.status === 'subjective' || actual === null || actual === undefined) return '待确认'
     return actual
   }
   if (typeof item.estScore === 'number') {
@@ -176,7 +180,7 @@ const currentHighlightScore = computed(() => {
       if (item.scoreType === '客观项') {
         const res = resultOf(item)
         const val = res?.actualScore ?? res?.score
-        if (res?.reuseKind !== 'LEGACY_UNVERIFIED' && typeof val === 'number') {
+        if (!['LEGACY_UNVERIFIED', 'SOURCE_EXPIRED'].includes(res?.reuseKind) && typeof val === 'number') {
           known = true
           score += val
         }

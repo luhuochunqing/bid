@@ -116,6 +116,7 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
 
   // QA-TC02: 阶段 2 (投标文件打分) 真实后端 API 驱动计分与主观项隔离
   it('QA-TC02: [阶段2] 真实打分展示、客观项得分合计与主观项专家评审', async () => {
+    scoreParseApi.getScoringStatus.mockResolvedValueOnce({ data: null }) // 先确认无任务，才接受显式AUTO入口
     scoreParseApi.getResults
       .mockResolvedValueOnce({ data: { results: [], summary: null } })
       .mockResolvedValueOnce({ data: qaResultsFixture })

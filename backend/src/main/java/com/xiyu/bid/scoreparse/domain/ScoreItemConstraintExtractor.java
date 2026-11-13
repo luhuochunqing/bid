@@ -122,18 +122,20 @@ public final class ScoreItemConstraintExtractor {
                 return null;
             }
         }
-        BigDecimal value;
-        try {
-            value = new BigDecimal(matcher.group(1).replace(",", ""));
-        } catch (NumberFormatException exception) {
-            return null;
-        }
-        if ("万".equals(matcher.group(2))) {
-            value = value.multiply(new BigDecimal("10000"));
-        } else if ("亿".equals(matcher.group(2))) {
-            value = value.multiply(new BigDecimal("100000000"));
-        }
-        return value.compareTo(BigDecimal.ZERO) > 0 ? value : null;
+        BigDecimal value = currencyAmount(matcher.group(1),matcher.group(2));
+        return value != null && value.signum() > 0 ? value : null;
+    }
+
+    /** Explicit yuan denominations shared by bounded numeric scoring rules. */
+    static BigDecimal currencyAmount(String number,String unit) {
+        if(number==null||!number.matches("(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\\.[0-9]+)?"))return null;
+        BigDecimal value=new BigDecimal(number.replace(",",""));
+        return switch(unit==null?"元":unit) {
+            case "元" -> value;
+            case "万","万元" -> value.multiply(new BigDecimal("10000"));
+            case "亿","亿元" -> value.multiply(new BigDecimal("100000000"));
+            default -> null;
+        };
     }
 
     /** 判断条款是否明确提出合同金额门槛，用于区分"没有金额要求"和"有要求但解析失败"。 */

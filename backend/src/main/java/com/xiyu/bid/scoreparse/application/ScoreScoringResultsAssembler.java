@@ -5,10 +5,14 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
+import com.xiyu.bid.scoreparse.domain.ScoreResultReusePolicy;
+import com.xiyu.bid.scoreparse.domain.ScoringExtractionReport;
+import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.dto.ScoreScoringResultsDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreResult;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -19,29 +23,52 @@ class ScoreScoringResultsAssembler {
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
 
     ScoreScoringResultsDTO assemble(List<ScoreItem> items, Map<Long, ScoreResult> resultMap) {
+        return assemble(items,resultMap,null,Map.of());
+    }
+    ScoreScoringResultsDTO assemble(List<ScoreItem> items,Map<Long,ScoreResult> resultMap,
+            ScoreParseTask latest,Map<Long,ScoreResultReusePolicy.Source> sources) {
         if (items.isEmpty()) {
             return new ScoreScoringResultsDTO(List.of(), emptySummary());
         }
         List<ScoreScoringResultsDTO.ScoreResultDTO> resultDTOs = items.stream()
-                .map(item -> toResultDTO(item, resultMap.get(item.getId()))).toList();
+                .map(item -> toResultDTO(item, resultMap.get(item.getId()),sources.get(item.getId()))).toList();
         SummaryAggregator.Result summary = summaryAggregator.aggregate(items.stream()
                 .map(item -> new SummaryAggregator.Item(item.getWeight(), item.getScoreType(),
                         valueOrNull(resultMap.get(item.getId()), r -> "LEGACY_UNVERIFIED".equals(r.getReuseKind()) ? null : r.getActualScore()),
                         valueOrNull(resultMap.get(item.getId()), ScoreResult::getStatusStage2)))
                 .toList());
+        var quality=summaryAggregator.quality(items.stream().map(item->{
+            var row=resultMap.get(item.getId());var source=sources.get(item.getId());
+            String outcome=row==null?"NEEDS_REVIEW":ScoringRunReportCodec.outcome(row);
+            return new SummaryAggregator.QualityItem(item.getScoreType(),row==null?null:row.getActualScore(),
+                    item.getWeight(),source==null?outcome:source.outcome(),source!=null);
+        }).toList());
+        ScoringExtractionReport coverage=null;
+        if(latest!=null) {
+            var node=new ScoringRunReportCodec().scoring(latest.getRunSummary()).path("input").path("extraction");
+            try{if(node.isObject())coverage=new com.fasterxml.jackson.databind.ObjectMapper().treeToValue(node,ScoringExtractionReport.class);}
+            catch(JsonProcessingException ignored) { /* Legacy diagnostics remain unknown. */ }
+        }
         return new ScoreScoringResultsDTO(resultDTOs, new ScoreScoringResultsDTO.Summary(
                 summary.totalWeight(), summary.totalEstScore(),
                 summary.okCount(), summary.dangerCount(), summary.pendingCount(),
-                summary.objectiveWeight(), summary.subjectiveWeight(), summary.weightWarning()));
+                summary.objectiveWeight(), summary.subjectiveWeight(), summary.weightWarning()),
+                quality.qualityStatus(),coverage,quality.objectiveScored(),quality.objectivePending(),
+                quality.subjectivePending(),quality.failed(),quality.diagnosticsKnown());
     }
 
-    private ScoreScoringResultsDTO.ScoreResultDTO toResultDTO(ScoreItem item, ScoreResult result) {
+    private ScoreScoringResultsDTO.ScoreResultDTO toResultDTO(ScoreItem item, ScoreResult result,ScoreResultReusePolicy.Source source) {
         return new ScoreScoringResultsDTO.ScoreResultDTO(
                 item.getId(), item.getCode(), item.getDim(), item.getDetail(), item.getWeight(), item.getScoreType(),
                 result == null ? null : result.getStatusStage2(), result == null ? null : result.getActualScore(),
                 result == null ? null : result.getEvidence(), result == null ? null : result.getQuote(),
                 result == null ? null : result.getMissedReason(), result == null ? null : result.getSuggestion(),
-                result == null ? null : result.getMatchRatio(), result == null ? null : result.getReuseKind());
+                result == null ? null : result.getMatchRatio(), result == null ? null : result.getReuseKind(),
+                result!=null&&"SOURCE_EXPIRED".equals(result.getReuseKind())?"NEEDS_REVIEW":source==null?"UNKNOWN":source.outcome(),
+                result!=null&&"SOURCE_EXPIRED".equals(result.getReuseKind())?"SOURCE_DOCUMENT_CHANGED":null,
+                source==null?null:source.originTaskId(),source==null?null:source.identity().fileHash(),
+                source==null?null:source.identity().ruleFingerprint(),source==null?null:source.identity().engineVersion(),
+                source==null?null:source.coverageStatus());
     }
 
     private ScoreScoringResultsDTO.Summary emptySummary() {

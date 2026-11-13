@@ -67,11 +67,16 @@ public class ScoreParseTimeoutScanJob {
     /** 执行扫描，返回标记数量（时钟可注入便于测试） */
     int processScan(LocalDateTime now) {
         LocalDateTime threshold = now.minusMinutes(timeoutMinutes);
-        List<ScoreParseTask> timedOut = taskRepository
-                .findByStatusAndUpdatedAtBefore("PROCESSING", threshold);
+        var timedOut = new java.util.LinkedHashMap<String,ScoreParseTask>();
+        taskRepository.findByStatusAndUpdatedAtBefore("PROCESSING",threshold).stream()
+                .filter(t->!"SCORING".equals(t.getTaskType())).forEach(t->timedOut.put(t.getTaskId(),t));
+        taskRepository.findByTaskTypeAndStatusInAndCreatedAtBefore("SCORING",List.of("PROCESSING"),now.minusSeconds(1800))
+                .forEach(t->timedOut.put(t.getTaskId(),t));
+        taskRepository.findByTaskTypeAndStatusInAndCreatedAtBefore("SCORING",List.of("PENDING"),now.minusMinutes(10))
+                .forEach(t->timedOut.put(t.getTaskId(),t));
 
         int marked = 0;
-        for (ScoreParseTask task : timedOut) {
+        for (ScoreParseTask task : timedOut.values()) {
             try {
                 stateService.markTimeout(task.getTaskId());
                 progressService.clearProgress(task.getTaskId());

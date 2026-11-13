@@ -1284,14 +1284,17 @@ def _prepare_ocr_png(rgb) -> bytes:
     return out.getvalue()
 
 
-def _run_scoring_ocr(image: bytes, deadline: float) -> str:
+def _run_scoring_ocr(image: bytes, deadline: float, *, omp_thread_limit: int | None = None) -> str:
     """Run the shared scoring OCR engine and map process failures to boundary errors."""
     import time
 
+    options = {}
+    if omp_thread_limit is not None:
+        options["env"] = {**os.environ, "OMP_THREAD_LIMIT": str(omp_thread_limit)}
     try:
         process = subprocess.run(
             ["tesseract", "stdin", "stdout", "-l", "chi_sim+eng", "--psm", "3"],
-            input=image, capture_output=True,
+            input=image, capture_output=True, **options,
             timeout=max(0.001, min(30, deadline - time.monotonic())), check=False,
         )
     except subprocess.TimeoutExpired as exc:

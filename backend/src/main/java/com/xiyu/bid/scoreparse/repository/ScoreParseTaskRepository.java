@@ -37,5 +37,7 @@ public interface ScoreParseTaskRepository extends JpaRepository<ScoreParseTask, 
      * 超时扫描：状态为 PROCESSING 且 updated_at 早于阈值时间。
      * <p>默认阈值 30min（app.score-parse.timeout-minutes），置 FAILED + timeout_marked=1。
      */
+    List<ScoreParseTask> findByTaskTypeAndStatusInAndCreatedAtBefore(String taskType,List<String> statuses,LocalDateTime threshold);
+
     List<ScoreParseTask> findByStatusAndUpdatedAtBefore(String status, LocalDateTime threshold);
 }

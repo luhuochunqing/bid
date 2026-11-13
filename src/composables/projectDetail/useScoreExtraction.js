@@ -29,7 +29,7 @@ export function useScoreExtraction(props, refresh) {
     return scheme?.declaredTotalStatus === 'KNOWN' ? scheme.declaredTotal : null
   })
 
-  async function readBundle() {
+  async function readBundle(isCurrent = () => true) {
     activationBlocked.value = true
     for (let attempt = 0; attempt < 3; attempt++) {
       let before
@@ -40,9 +40,11 @@ export function useScoreExtraction(props, refresh) {
         const itemsResponse = await scoreParseApi.getItems(props.projectId)
         return { itemsResponse, resultsData: { results: [] }, readError: messageOf(error) }
       }
+      if (!isCurrent()) return
       const [itemsResponse, resultsResponse] = await Promise.all([
         scoreParseApi.getItems(props.projectId), scoreParseApi.getResults(props.projectId),
       ])
+      if (!isCurrent()) return
       if (!before) {
         latestExtraction.value = null
         activeSource.value = null
@@ -60,6 +62,7 @@ export function useScoreExtraction(props, refresh) {
         }
       }
       const after = await latest(props.projectId)
+      if (!isCurrent()) return
       if (before.active?.fingerprint !== after?.active?.fingerprint || before.taskId !== after?.taskId
         || (source && source.active?.fingerprint !== before.active?.fingerprint)) continue
       latestExtraction.value = after
@@ -68,6 +71,7 @@ export function useScoreExtraction(props, refresh) {
       activationBlocked.value = Boolean(readError) || !after.active?.fingerprint || after.snapshotStatus !== 'FROZEN' || after.taskStatus !== 'COMPLETED' || after.payloadVersion === 0
       return { itemsResponse, resultsData: resultsResponse?.data, readError }
     }
+    if (!isCurrent()) return
     extractionWarning.value = '生效版本正在变化，已保留上次一致结果。请刷新后再切换。'
     throw new Error(extractionWarning.value)
   }

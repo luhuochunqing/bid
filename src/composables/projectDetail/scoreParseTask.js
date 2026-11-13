@@ -1,5 +1,5 @@
-// Input: statusFetcher（返回 { data: { status, errorMessage, completedAt } } 的函数）
-// Output: pollTask / formatTime / STATUS_MAP / TYPE_MAP — spec 041 状态映射与任务轮询纯函数
+// Input: statusFetcher（返回 { data: { taskId, status, errorMessage, completedAt } } 的函数、可选taskId/AbortSignal）
+// Output: pollTask / formatTime / STATUS_MAP / TYPE_MAP — spec 041 状态映射与可取消、绑定任务身份的轮询
 //         normalizeScoreItem：未知 weight/客观项空 estScore 保留 null（展示层渲染"待确认"，spec 044 FR-001）
 //         mapScoreResults / lookupScoreResult：按 scoreItemId 建表，有 id 时不得回退 code
 //         getDecisionBadgeType / getDecisionBadgeText: 评分决策状态徽标映射纯函数
@@ -31,19 +31,45 @@ export function formatTime(value) {
   return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString('zh-CN', { hour12: false })
 }
 
-/** 轮询异步任务直到 COMPLETED/FAILED（spec 041 US5 语义） */
-export async function pollTask(statusFetcher, taskType = '解析') {
+/** 轮询指定任务；最新任务变化时明确切换观察，取消只停止本地等待。 */
+export async function pollTask(statusFetcher, taskType = '解析', options = {}) {
+  const { signal, onTaskChanged } = options
+  let taskId = options.taskId, observedReplacement = false
   for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
+    signal?.throwIfAborted()
     const res = await statusFetcher()
+    signal?.throwIfAborted()
     const task = res?.data || {}
-    if (task.status === 'COMPLETED') return task
-    if (task.status === 'FAILED') {
-      throw new Error(task.errorMessage || '任务执行失败')
+    if (taskId != null && task.taskId != null && String(taskId) !== String(task.taskId)) {
+      onTaskChanged?.(task.taskId, taskId)
+      observedReplacement = true
+      taskId = task.taskId
     }
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+    const matching = taskId == null || (task.taskId != null && String(taskId) === String(task.taskId))
+    if (matching && task.status === 'COMPLETED') return observedReplacement ? { ...task, observedReplacement } : task
+    if (matching && task.status === 'FAILED') {
+      throw Object.assign(new Error(task.errorMessage || '任务执行失败'), { task, backendFailed: true })
+    }
+    await waitForPoll(signal)
   }
   const verb = taskType === '打分' ? '打分' : '解析'
   throw new Error(`${verb}超时，请检查文件大小或稍后重试`)
+}
+
+function waitForPoll(signal) {
+  return new Promise((resolve, reject) => {
+    let timer
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal.reason)
+    }
+    timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, POLL_INTERVAL_MS)
+    signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort()
+  })
 }
 
 function safeParseJson(val, fallback) {
@@ -163,6 +189,9 @@ export function normalizeScoreResult(r) {
   const isSubj = r.scoreType === 'SUBJECTIVE' || r.scoreType === '主观项'
   const isPending = r.status === 'PENDING' || r.statusStage2 === 'PENDING' || Boolean(r.missedReason)
   return {
+    outcome: r.outcome || null,
+    reasonCode: r.reasonCode || null,
+    originTaskId: r.originTaskId ?? null,
     status: STATUS_MAP[r.status] || (r.actualScore != null ? 'ok' : 'neutral'),
     score: isSubj ? null : (r.actualScore != null ? Number(r.actualScore) : null),
     actualScore: isSubj ? null : (r.actualScore != null ? Number(r.actualScore) : null),

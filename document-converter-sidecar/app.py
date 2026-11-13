@@ -10,7 +10,6 @@ Position: Standalone FastAPI process; consumed by the Java backend MarkItDownSid
 """
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import logging
 import os
@@ -19,17 +18,16 @@ import secrets
 import subprocess
 import tempfile
 import time
-from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures.process import BrokenProcessPool
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException, UploadFile
+from fastapi import FastAPI, Header, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from markitdown import MarkItDown
 
 import mammoth
 
 from converter import extract_headings, extract_pdf_tables_artifact
+from conversion_execution import ConversionAdmission
 from image_extractor import extract_images
 from table_extractor import extract_tables, extract_tables_artifact, SCHEMA_VERSION
 
@@ -160,27 +158,8 @@ def _suppress_docx_pre_process() -> None:
         pass
 
 # ---------------------------------------------------------------------------
-# Conversion isolation pool (defense in depth)
+# Conversion isolation (request-owned process groups)
 # ---------------------------------------------------------------------------
-
-# Each conversion runs in a single worker process so residual memory blow-ups
-# (pptx/pdf converters, malformed files) are absorbed by the worker instead of
-# PID 1: cgroup OOM recycles the worker, not the service. max_tasks_per_child
-# bounds per-worker growth and returns memory to the OS periodically.
-_MAX_CONVERSIONS_PER_WORKER: int = int(
-    os.environ.get("SIDECAR_MAX_CONVERSIONS_PER_WORKER", "16")
-)
-_CONVERT_POOL: ProcessPoolExecutor | None = None
-
-
-def _get_convert_pool() -> ProcessPoolExecutor:
-    global _CONVERT_POOL
-    if _CONVERT_POOL is None:
-        _CONVERT_POOL = ProcessPoolExecutor(
-            max_workers=1, max_tasks_per_child=_MAX_CONVERSIONS_PER_WORKER
-        )
-    return _CONVERT_POOL
-
 
 def _is_large_docx(docx_path: str, threshold_bytes: int = 10 * 1024 * 1024) -> bool:
     """Check whether a .docx file's word/document.xml exceeds the given uncompressed size threshold."""
@@ -194,7 +173,9 @@ def _is_large_docx(docx_path: str, threshold_bytes: int = 10 * 1024 * 1024) -> b
         return False
 
 
-def _extract_docx_streaming_sax(docx_path: str) -> str:
+def _extract_docx_streaming_sax(docx_path: str, source_refs: list | None = None,
+                                deadline: float | None = None,
+                                part_name: str = "word/document.xml") -> str:
     """Memory-efficient streaming SAX extractor for .docx documents.
 
     Bypasses python-docx and mammoth DOM generation by streaming `word/document.xml`
@@ -206,21 +187,31 @@ def _extract_docx_streaming_sax(docx_path: str) -> str:
 
     try:
         with zipfile.ZipFile(docx_path) as z:
-            if "word/document.xml" not in z.namelist():
+            if part_name not in z.namelist():
+                if source_refs is not None:
+                    raise ValueError("SOURCE_PART_MISSING")
                 return ""
-            with z.open("word/document.xml") as f:
+            with z.open(part_name) as f:
                 chunks = []
                 current_p = []
                 current_cell = []
                 current_row = []
                 table_rows = []
+                table_stack = []
                 in_cell = False
                 heading_level = 0
+                paragraph_number = 0
+                paragraph_images = []
+                linked_part_ids = set()
+                note_parts = set()
+                text_characters = 0
 
                 context = ET.iterparse(f, events=("start", "end"))
                 _, root = next(context)
 
                 for event, elem in context:
+                    if deadline is not None and time.monotonic() >= deadline:
+                        raise TimeoutError("BID_OCR_TIMEOUT")
                     tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
 
                     if event == "start":
@@ -230,9 +221,19 @@ def _extract_docx_streaming_sax(docx_path: str) -> str:
                         elif tag == "tr":
                             current_row = []
                         elif tag == "tbl":
+                            table_stack.append((current_cell, current_row, table_rows, in_cell))
+                            current_cell, current_row = [], []
                             table_rows = []
+                            in_cell = False
                         elif tag == "p":
+                            paragraph_number += 1
+                            paragraph_images = []
                             heading_level = 0
+                        elif tag in ("headerReference", "footerReference"):
+                            linked_part_ids.update(value for key, value in elem.attrib.items()
+                                                   if key.split("}")[-1] == "id")
+                        elif tag in ("footnoteReference", "endnoteReference"):
+                            note_parts.add("word/" + tag.replace("Reference", "s") + ".xml")
                         elif tag == "pStyle":
                             val = elem.attrib.get(
                                 "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val",
@@ -250,7 +251,13 @@ def _extract_docx_streaming_sax(docx_path: str) -> str:
                         if tag == "t" and elem.text:
                             current_p.append(elem.text)
                         elif tag in ("blip", "imagedata") or tag.lower().endswith("blip"):
-                            if not current_p or current_p[-1] != "【已附图片】":
+                            if source_refs is not None:
+                                relationship_id = next((value for key, value in elem.attrib.items()
+                                                        if key.split("}")[-1] in ("embed", "id", "link")), None)
+                                marker = f"【图片证据:{part_name}#p{paragraph_number}:i{len(paragraph_images) + 1}】"
+                                paragraph_images.append((relationship_id, marker))
+                                current_p.append(marker)
+                            elif not current_p or current_p[-1] != "【已附图片】":
                                 current_p.append("【已附图片】")
                         elif tag == "tab":
                             current_p.append("\t")
@@ -258,6 +265,19 @@ def _extract_docx_streaming_sax(docx_path: str) -> str:
                             current_p.append("\n")
                         elif tag == "p":
                             p_text = "".join(current_p).strip()
+                            if source_refs is not None:
+                                text_characters += len(p_text)
+                                if text_characters > 5_000_000:
+                                    raise ValueError("SCORING_TEXT_TOO_LARGE")
+                                anchor = f"p{paragraph_number}"
+                                native = re.sub(r"【图片证据:[^】]+】", "", p_text).strip()
+                                if native:
+                                    source_refs.append({"partName": part_name, "anchor": anchor,
+                                                        "text": native, "kind": "TEXT"})
+                                for relationship_id, marker in paragraph_images:
+                                    source_refs.append({"partName": part_name, "anchor": anchor,
+                                                        "relationshipId": relationship_id, "kind": "IMAGE",
+                                                        "marker": marker})
                             current_p = []
                             if in_cell:
                                 if p_text:
@@ -280,21 +300,37 @@ def _extract_docx_streaming_sax(docx_path: str) -> str:
                                 table_rows.append(current_row)
                                 current_row = []
                         elif tag == "tbl":
+                            rendered = []
                             if table_rows:
                                 max_cols = max(len(r) for r in table_rows)
                                 if max_cols > 0:
                                     normalized = [r + [""] * (max_cols - len(r)) for r in table_rows]
-                                    chunks.append("| " + " | ".join(normalized[0]) + " |\n")
-                                    chunks.append("| " + " | ".join(["---"] * max_cols) + " |\n")
+                                    rendered.append("| " + " | ".join(normalized[0]) + " |\n")
+                                    rendered.append("| " + " | ".join(["---"] * max_cols) + " |\n")
                                     for r in normalized[1:]:
-                                        chunks.append("| " + " | ".join(r) + " |\n")
-                                    chunks.append("\n")
-                            table_rows = []
+                                        rendered.append("| " + " | ".join(r) + " |\n")
+                                    rendered.append("\n")
+                            current_cell, current_row, table_rows, in_cell = table_stack.pop()
+                            if in_cell:
+                                current_cell.append("".join(rendered))
+                            else:
+                                chunks.extend(rendered)
 
                         elem.clear()
                 root.clear()
+                if source_refs is not None and part_name == "word/document.xml":
+                    from scoring_extraction import _relationships
+                    relationships = _relationships(z, part_name, deadline if deadline is not None else float("inf"))
+                    extras = note_parts | {relationships[key] for key in linked_part_ids
+                                          if relationships.get(key)}
+                    for extra in sorted(extras):
+                        extra_text = _extract_docx_streaming_sax(docx_path, source_refs, deadline, extra)
+                        if extra_text:
+                            chunks.append("\n\n" + extra_text)
                 return "".join(chunks).strip()
     except Exception as e:
+        if source_refs is not None:
+            raise
         logger.warning("Streaming SAX extraction failed for %s: %s", docx_path, e)
         return ""
 
@@ -307,8 +343,18 @@ def _with_scoring_docx_ocr(path: str, text: str, pdf_ocr: bool) -> str:
     return append_docx_image_ocr(path, text or "")
 
 
-def _convert_worker(path: str, pdf_ocr: bool = False) -> Any:
+def _convert_worker(path: str, pdf_ocr: bool = False, scoring_report: bool = False,
+                    deadline: float | None = None) -> Any:
     from types import SimpleNamespace
+
+    if scoring_report:
+        from docx_repair import auto_repaired_docx
+        from scoring_extraction import extract_scoring_document
+        with auto_repaired_docx(path) as target_path:
+            result = extract_scoring_document(target_path, _extract_docx_streaming_sax, deadline)
+        return SimpleNamespace(text_content=result["markdown"], markdown=result["markdown"],
+                               pages=result["pages"], extraction=result["extraction"],
+                               source_refs=result["sourceRefs"])
 
     if pdf_ocr and path.lower().endswith(".pdf"):
         from converter import convert_scoring_pdf_document
@@ -373,15 +419,18 @@ def _convert_worker(path: str, pdf_ocr: bool = False) -> Any:
     )
 
 
-def _safe_convert_worker(path: str, pdf_ocr: bool = False) -> Any:
+def _safe_convert_worker(path: str, pdf_ocr: bool = False, scoring_report: bool = False,
+                         deadline: float | None = None) -> Any:
     """Wrapper around _convert_worker ensuring no unpicklable exceptions cross processes.
 
     Python 3.11 multiprocessing fails to pickle certain chained exceptions (like
     markitdown.FileConversionException with nested tracebacks), throwing:
     TypeError: cannot pickle 'traceback' object.
-    Catching and packing error details as a dictionary avoids crashing the worker pool.
+    Catching and packing error details avoids unpicklable worker exceptions.
     """
     try:
+        if scoring_report:
+            return _convert_worker(path, pdf_ocr, scoring_report, deadline)
         return _convert_worker(path, pdf_ocr) if pdf_ocr else _convert_worker(path)
     except Exception as exc:
         from converter import ScoringPdfOcrError
@@ -391,22 +440,20 @@ def _safe_convert_worker(path: str, pdf_ocr: bool = False) -> Any:
         return {"error": f"{type(exc).__name__}: {str(exc)}"}
 
 
-async def _convert_document(path: str, pdf_ocr: bool = False) -> Any:
-    """Run md.convert in the isolated worker pool (async seam; tests patch this)."""
-    global _CONVERT_POOL
-    loop = asyncio.get_running_loop()
-    try:
-        args = (path, True) if pdf_ocr else (path,)
-        res = await loop.run_in_executor(_get_convert_pool(), _safe_convert_worker, *args)
-        if isinstance(res, dict) and "error" in res:
-            if res.get("code") in ("BID_OCR_TIMEOUT", "BID_OCR_UNAVAILABLE", "BID_OCR_EMPTY"):
-                raise HTTPException(status_code=422, detail=res["code"])
-            raise RuntimeError(res["error"])
-        return res
-    except BrokenProcessPool:
-        logger.error("Conversion worker died (likely OOM); recycling pool")
-        _CONVERT_POOL = None
-        raise HTTPException(status_code=503, detail="文档转换服务繁忙，请稍后重试")
+async def _convert_document(path: str, pdf_ocr: bool = False, scoring_report: bool = False,
+                            deadline: float | None = None, request: Request | None = None) -> Any:
+    """The single isolated execution, error-mapping and cleanup boundary."""
+    from conversion_execution import execute_conversion
+
+    deadline = deadline if deadline is not None else time.monotonic() + 1800
+    args = (path, pdf_ocr, scoring_report, deadline)
+    result = await execute_conversion(_safe_convert_worker, args, deadline, request)
+    if isinstance(result, dict) and "error" in result:
+        if result.get("code") in ("BID_OCR_TIMEOUT", "BID_OCR_UNAVAILABLE", "BID_OCR_EMPTY",
+                                  "SCORING_TEXT_TOO_LARGE"):
+            raise HTTPException(status_code=422, detail=result["code"])
+        raise RuntimeError(result["error"])
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +461,7 @@ async def _convert_document(path: str, pdf_ocr: bool = False) -> Any:
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="Document Converter Sidecar")
+app.add_middleware(ConversionAdmission, shared_key=_SHARED_KEY)
 md = MarkItDown()
 
 
@@ -441,7 +489,10 @@ async def _check_auth(x_sidecar_key: str | None = Header(default=None)) -> None:
 @app.post("/convert")
 async def convert_document(
     file: UploadFile,
+    request: Request,
     x_sidecar_key: str | None = Header(default=None),
+    x_pdf_ocr: bool = Header(default=False),
+    x_scoring_report_version: int | None = Header(default=None),
 ) -> dict[str, Any]:
     """Convert an uploaded document to markdown and return structured metadata."""
     # Auth check
@@ -462,6 +513,8 @@ async def convert_document(
             total_read: int = 0
             chunk_size: int = 64 * 1024  # 64 KB
             while True:
+                if time.monotonic() >= request.state.conversion_deadline:
+                    raise HTTPException(status_code=504, detail="BID_OCR_TIMEOUT")
                 chunk = await file.read(chunk_size)
                 if not chunk:
                     break
@@ -482,13 +535,19 @@ async def convert_document(
                     ["textutil", "-convert", "docx", tmp_path, "-output", converted_path],
                     check=True,
                     capture_output=True,
+                    timeout=max(0.001, request.state.conversion_deadline - time.monotonic()),
                 )
                 processing_path = converted_path
             except Exception:
                 logger.warning("textutil .doc→.docx conversion failed; falling back to original")
 
         started_at = time.perf_counter()
-        result = await _convert_document(processing_path)
+        if x_scoring_report_version is not None:
+            result = await _convert_document(processing_path, pdf_ocr=x_pdf_ocr, scoring_report=True,
+                                             deadline=request.state.conversion_deadline, request=request)
+        else:
+            result = await _convert_document(processing_path,
+                                             deadline=request.state.conversion_deadline, request=request)
         markdown_text: str = result.text_content
 
         sections = extract_headings(markdown_text)
@@ -509,7 +568,7 @@ async def convert_document(
             warnings,
         )
 
-        return {
+        response = {
             "documentId": file.filename,
             "markdown": markdown_text,
             "sections": sections,
@@ -519,6 +578,14 @@ async def convert_document(
             "converter": "markitdown",
             "contentHash": content_hash,
         }
+        if x_scoring_report_version is not None:
+            response["extraction"] = getattr(result, "extraction", None)
+            response["sourceRefs"] = getattr(result, "source_refs", [])
+            encoded = JSONResponse(content=response)
+            if len(encoded.body) > 64 * 1024 * 1024:
+                raise HTTPException(status_code=422, detail="SCORING_RESPONSE_TOO_LARGE")
+            return encoded
+        return response
 
     except HTTPException:
         raise
@@ -535,6 +602,7 @@ async def convert_document(
 @app.post("/convert-stream")
 async def convert_document_stream(
     file: UploadFile,
+    request: Request,
     x_sidecar_key: str | None = Header(default=None),
     x_pdf_ocr: bool = Header(default=False),
 ) -> StreamingResponse:
@@ -561,6 +629,8 @@ async def convert_document_stream(
             total_read: int = 0
             chunk_size: int = 64 * 1024  # 64 KB
             while True:
+                if time.monotonic() >= request.state.conversion_deadline:
+                    raise HTTPException(status_code=504, detail="BID_OCR_TIMEOUT")
                 chunk = await file.read(chunk_size)
                 if not chunk:
                     break
@@ -579,6 +649,7 @@ async def convert_document_stream(
                     ["textutil", "-convert", "docx", tmp_path, "-output", converted_path],
                     check=True,
                     capture_output=True,
+                    timeout=max(0.001, request.state.conversion_deadline - time.monotonic()),
                 )
                 processing_path = converted_path
             except Exception:
@@ -586,10 +657,8 @@ async def convert_document_stream(
 
         started_at = time.perf_counter()
         try:
-            if x_pdf_ocr:
-                result = await _convert_document(processing_path, pdf_ocr=True)
-            else:
-                result = await _convert_document(processing_path)
+            result = await _convert_document(processing_path, pdf_ocr=x_pdf_ocr,
+                                             deadline=request.state.conversion_deadline, request=request)
         except HTTPException:
             raise
         except Exception:
@@ -622,9 +691,18 @@ async def convert_document_stream(
             os.remove(converted_path)
 
 
+def _safe_extract_images_worker(path, render_pages, page_numbers):
+    try:
+        return extract_images(path, render_pages=render_pages, page_numbers=page_numbers)
+    except Exception:
+        logger.exception("Image extraction failed in request worker")
+        return {"error": "文档无法解析：格式不支持或已损坏"}
+
+
 @app.post("/convert-images")
 async def convert_document_images(
     file: UploadFile,
+    request: Request,
     x_sidecar_key: str | None = Header(default=None),
     renderPages: bool = False,
     pages: str | None = None,
@@ -653,6 +731,8 @@ async def convert_document_images(
             total_read: int = 0
             chunk_size: int = 64 * 1024  # 64 KB
             while True:
+                if time.monotonic() >= request.state.conversion_deadline:
+                    raise HTTPException(status_code=504, detail="BID_OCR_TIMEOUT")
                 chunk = await file.read(chunk_size)
                 if not chunk:
                     break
@@ -666,9 +746,16 @@ async def convert_document_images(
             if pages:
                 try:
                     page_numbers = {int(value) for value in pages.split(",") if value.strip()}
-                except ValueError as error:
-                    raise HTTPException(status_code=400, detail="pages 必须是逗号分隔的正整数") from error
-            return extract_images(tmp_path, render_pages=renderPages, page_numbers=page_numbers)
+                except ValueError:
+                    return JSONResponse(status_code=422, content={"error": "文档无法解析：格式不支持或已损坏"})
+            from conversion_execution import execute_conversion
+            result = await execute_conversion(_safe_extract_images_worker,
+                    (tmp_path, renderPages, page_numbers), request.state.conversion_deadline, request)
+            if "error" in result:
+                return JSONResponse(status_code=422, content={"error": result["error"]})
+            return result
+        except HTTPException:
+            raise
         except Exception:
             logger.exception("Image extraction failed for file %s", file.filename)
             return JSONResponse(status_code=422, content={"error": "文档无法解析：格式不支持或已损坏"})

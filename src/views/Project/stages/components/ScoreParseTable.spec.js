@@ -250,3 +250,25 @@ it('does not label unverified active candidate text as original source', () => {
   expect(w.findAll('thead th')[1].text()).toBe('当前规则文本')
   expect(w.text()).toContain('来源未核验')
 })
+
+
+it('keeps zero and partial scores visible beside a failed item and subjective review', () => {
+  const items = [1, 2, 3, 4].map(id => ({ id, weight: 5, scoreType: id === 4 ? '主观项' : '客观项' }))
+  const results = mapScoreResults([
+    { scoreItemId: 1, actualScore: 0, status: 'DANGER', outcome: 'SCORED' },
+    { scoreItemId: 2, actualScore: 3, status: 'PENDING', outcome: 'SCORED' },
+    { scoreItemId: 3, actualScore: null, status: 'PENDING', outcome: 'FAILED', reasonCode: 'MODEL_TIMEOUT' },
+    { scoreItemId: 4, actualScore: null, status: 'PENDING', scoreType: 'SUBJECTIVE' },
+  ])
+  const wrapper = mount(ScoreParseTable, { props: { mode: 'actual', items, results } })
+  expect(wrapper.findAll('tbody .score-cell').map(cell => cell.text())).toEqual(['0', '3', '评分失败', '待专家评审'])
+  expect(wrapper.find('.highlight-score-box').text()).toBe('3')
+  expect(wrapper.find('.stat-tag.danger').text()).toBe('1 不满足') // 技术失败不伪装为不满足规则
+})
+
+it('labels stale original results and excludes them from current totals', () => {
+  const wrapper = mount(ScoreParseTable, { props: { mode: 'actual', items: [{ id: 1, weight: 5, scoreType: '客观项' }],
+    results: mapScoreResults([{ scoreItemId: 1, actualScore: null, reuseKind: 'SOURCE_EXPIRED', outcome: 'NEEDS_REVIEW' }]) } })
+  expect(wrapper.text()).toContain('原件已变化，需重新评分')
+  expect(wrapper.find('.highlight-score-box').text()).toBe('待确认')
+})

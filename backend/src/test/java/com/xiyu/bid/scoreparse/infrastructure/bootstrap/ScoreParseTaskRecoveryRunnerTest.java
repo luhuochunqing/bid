@@ -98,6 +98,8 @@ class ScoreParseTaskRecoveryRunnerTest {
         doThrow(new RuntimeException("DB down"))
                 .when(stateService).failTask(eq("task-a"), anyString());
 
+        when(taskRepository.findByTaskTypeAndStatusInAndCreatedAtBefore("SCORING",List.of("PROCESSING"),NOW.minusSeconds(1800)))
+                .thenReturn(List.of(second));
         int recovered = runner.recover(NOW);
 
         assertThat(recovered).isEqualTo(1);

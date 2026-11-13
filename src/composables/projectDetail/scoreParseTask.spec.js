@@ -328,3 +328,24 @@ describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () 
 it('preserves unknown active weight instead of inventing zero', () => {
   expect(normalizeScoreItem({ id: 9, weight: null, scoreType: 'OBJECTIVE' }).weight).toBeNull()
 })
+
+it('binds polling to the requested task and explicitly observes a replacement', async () => {
+  const changed = vi.fn()
+  const fetcher = vi.fn().mockResolvedValue({ data: { taskId: 'new', status: 'COMPLETED' } })
+  await expect(pollTask(fetcher, '打分', { taskId: 'old', onTaskChanged: changed })).resolves.toMatchObject({ taskId: 'new', observedReplacement: true })
+  expect(changed).toHaveBeenCalledWith('new', 'old')
+})
+
+it('cancels local polling immediately without waiting or requesting another status', async () => {
+  vi.useFakeTimers()
+  const controller = new AbortController()
+  const fetcher = vi.fn().mockResolvedValue({ data: { taskId: 't', status: 'PROCESSING' } })
+  const promise = pollTask(fetcher, '打分', { taskId: 't', signal: controller.signal })
+  const stopped = expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+  await Promise.resolve()
+  controller.abort()
+  await stopped
+  await vi.advanceTimersByTimeAsync(4000)
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  vi.useRealTimers()
+})

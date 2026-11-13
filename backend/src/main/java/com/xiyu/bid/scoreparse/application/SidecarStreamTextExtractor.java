@@ -79,6 +79,35 @@ public class SidecarStreamTextExtractor {
         return extract(HttpRequest.BodyPublishers.ofByteArray(content), fileName, maxTextChars, true);
     }
 
+    public com.xiyu.bid.scoreparse.domain.ScoringDocument extractScoringDocument(Path file,String fileName,long deadline)
+            throws IOException,InterruptedException {
+        return extractScoringDocument(HttpRequest.BodyPublishers.ofFile(file),fileName,deadline);
+    }
+    public com.xiyu.bid.scoreparse.domain.ScoringDocument extractScoringDocument(byte[] file,String fileName,long deadline)
+            throws IOException,InterruptedException {
+        return extractScoringDocument(HttpRequest.BodyPublishers.ofByteArray(file),fileName,deadline);
+    }
+    private com.xiyu.bid.scoreparse.domain.ScoringDocument extractScoringDocument(
+            HttpRequest.BodyPublisher file,String fileName,long deadline) throws IOException,InterruptedException {
+        String boundary="xiyu-scoring-"+UUID.randomUUID();
+        var builder=HttpRequest.newBuilder().uri(URI.create(sidecarUrl+"/convert"))
+                .timeout(ScoringDeadline.remaining(deadline,scoringTimeoutSeconds*1000))
+                .header("Content-Type","multipart/form-data; boundary="+boundary)
+                .header("X-Pdf-Ocr","true").header("X-Scoring-Report-Version","1")
+                .header("X-Scoring-Deadline-Epoch-Millis",Long.toString(deadline));
+        if(!sharedKey.isBlank())builder.header(SidecarMultipart.SIDECAR_KEY_HEADER,sharedKey);
+        var request=builder.POST(HttpRequest.BodyPublishers.concat(
+                HttpRequest.BodyPublishers.ofByteArray(SidecarMultipart.prefix(boundary,fileName)),file,
+                HttpRequest.BodyPublishers.ofByteArray(SidecarMultipart.suffix(boundary)))).build();
+        var response=httpClient.send(request,HttpResponse.BodyHandlers.ofInputStream());
+        if(response.statusCode()<200 || response.statusCode()>=300) {
+            try(var body=ScoringDeadline.bounded(response.body(),4096,deadline)) {
+                throw new IOException("SCORING_EXTRACTION_HTTP_"+response.statusCode()+": "+readErrorSnippet(body));
+            }
+        }
+        return new ScoringSidecarResponseReader().read(response.body(),maxTextChars,deadline);
+    }
+
     private String extract(HttpRequest.BodyPublisher content, String fileName, long maxTextChars,
                            boolean pdfOcr) throws IOException, InterruptedException {
         String boundary = "xiyu-score-parse-" + UUID.randomUUID().toString().replace("-", "");

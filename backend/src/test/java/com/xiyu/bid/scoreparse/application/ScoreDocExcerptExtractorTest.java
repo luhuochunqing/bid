@@ -145,4 +145,31 @@ class ScoreDocExcerptExtractorTest {
         // 无正文可提取时返回空（诚实：无可用摘录），而非把目录锚点当证据
         assertThat(result).isEmpty();
     }
+
+    @Test void tailCertificateInsideLongSingleParagraphIsNotReplacedByDocumentPrefix() {
+        String text="无关正文".repeat(6000)+"\n[第 41 页]\n资质证书 CMMI5 ABC999 最后附页";
+        var excerpt=ScoreDocExcerptExtractor.extractRelevantExcerptWithSegments(text,"资质证书","CMMI5",12000);
+        assertThat(excerpt.text()).contains("ABC999").contains("[第 41 页]");
+        assertThat(excerpt.text().length()).isLessThanOrEqualTo(12000);
+        assertThat(excerpt.segments()).allSatisfy(segment->assertThat(text.substring(segment.sourceStartOffset(),
+                segment.sourceStartOffset()+segment.text().length())).isEqualTo(segment.text()));
+    }
+    @Test void strongestTailEvidenceKeepsBudgetPriorityOverEarlierWeakMatchesAndTheirNeighbors() {
+        var paragraphs=new java.util.ArrayList<String>();
+        String context="我们按照项目进度组织交付、记录过程并安排质量检查。实施团队每周沟通现场问题，形成记录后落实责任和完成时间。".repeat(30);
+        for(int i=0;i<9;i++) {
+            paragraphs.add(("第"+(i+1)+"节 项目背景及实施安排。"+context).substring(0,900));
+            paragraphs.add(("第"+(i+1)+"节 资质证书目录与管理说明。"+context).substring(0,900));
+            paragraphs.add(("第"+(i+1)+"节 通用交付管理流程。"+context).substring(0,900));
+        }
+        paragraphs.add(("[第 1740 页] 资质证书 ISO9001 质量管理体系认证证书 编号 CERT-TAIL-1740。"+context).substring(0,900));
+        String original=String.join("\n\n",paragraphs);
+        var excerpt=ScoreDocExcerptExtractor.extractRelevantExcerptWithSegments(original,"资质证书","ISO9001 质量管理体系认证证书",12000);
+        assertThat(excerpt.text()).contains("CERT-TAIL-1740");
+        assertThat(excerpt.text().length()).isLessThanOrEqualTo(12000);
+        assertThat(excerpt.segments()).extracting(ScoreDocExcerptExtractor.Segment::sourceStartOffset).isSorted();
+        assertThat(excerpt.segments()).allSatisfy(segment->assertThat(original.substring(segment.sourceStartOffset(),
+                segment.sourceStartOffset()+segment.text().length())).isEqualTo(segment.text()));
+    }
+
 }

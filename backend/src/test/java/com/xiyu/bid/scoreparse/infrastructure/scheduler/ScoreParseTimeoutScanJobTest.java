@@ -122,6 +122,16 @@ class ScoreParseTimeoutScanJobTest {
         verify(progressService, never()).clearProgress(anyString());
     }
 
+    @Test
+    void scoringDeadlineIncludesQueueEvenWhenProgressWasUpdatedRecently() {
+        var scoring=ScoreParseTask.builder().taskId("scoring-old").taskType("SCORING").status("PROCESSING")
+                .createdAt(NOW.minusSeconds(1801)).updatedAt(NOW).build();
+        when(taskRepository.findByTaskTypeAndStatusInAndCreatedAtBefore("SCORING",List.of("PROCESSING"),NOW.minusSeconds(1800)))
+                .thenReturn(List.of(scoring));
+        assertThat(job.processScan(NOW)).isEqualTo(1);
+        verify(stateService).markTimeout("scoring-old");
+    }
+
     private ScoreParseTask task(String taskId) {
         return ScoreParseTask.builder()
                 .id(1L)
