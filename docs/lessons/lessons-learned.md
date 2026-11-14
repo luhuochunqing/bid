@@ -8420,3 +8420,10 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - 最小修复：quote仅复制节选原文，位置写入evidence；复用EvidenceText的可回溯版式归一，恢复并保存真正原文片段；引用仍必须在节选和正文存在。记录无引用、未命中节选、未命中正文等原因，日志只写标志/长度和匹配结果，不输出文档正文。主观项继续剥离引用和数字。
 - 无引用0分不按模型结论直接放行：仅现有单证书闭合规则、完整无空单元输入、模型明确缺失且0分/0满足度、全文没有对应身份时可确定为0；存在身份、额外材料要求、未知规则、PARTIAL或空单元继续待确认。
 - 本地证据：新增目标用例在原实现6失败；修复及相邻/架构9类122项通过；反向恢复旧评分校验后19项中相同6项再次失败。真实模型/数据库/API/UI验收未执行，不能用此记录把现场缺陷关闭。
+
+## 505. 第 42 次生产部署与真实项目 E2E 验收（2026-11-14）
+
+- **锚点分支阻断部署脚本**：`deploy-prod.sh` 在 `agent/*-init` 上执行时，`source dev-env.sh` 内部的 session-gate 在锚点分支 `return 1`；`set -e` 会在此刻终止脚本，外层的 `source ... || true` 拦不住 source 内部的失败。现场表现为只打印环境横幅就退出，且 `| tee` 会吞掉真实退出码（EXIT=0 假象）。生产部署需显式 `XYYU_SYNC_ENV_ACTIVE=1 XIYU_DEV_CONFIRMED=1`。
+- **发布包带入 macOS 元数据**：`package-release.sh` 主归档 `tar -C "$OUTPUT_DIR" -czf ...`（第 213 行）未设 `COPYFILE_DISABLE=1`，本次将 198 个 `._*` 文件带进 `/srv/www/xiyu-bid`。属于打包缺陷而非服务故障；SOP 的 `find /srv/www/xiyu-bid -name "._*" -delete` 可清理，根治应给主归档补 `--exclude '._*'`。
+- **586MB 原件评分时延归因**：投标文件 585.72MB，端到端 19m11s。进度长期停在「读取投标原件 5%」不等于卡死：`ss -tni` 显示本机 8000 端口 `bytes_received=586MiB` 已传完，`docker stats` 显示 sidecar 400% CPU 持续转换约 15 分钟。判活要看 sidecar CPU 与本地 socket 字节数，而不是只看任务进度。
+- **生产可观测证据**：新增日志「评分引用诊断: itemId=…, rawScore=…, quoteMissing=false, quoteLength=…, documentRawMatch=false, reason=QUOTE_NOT_IN_EXCERPT」可直接证明 CO-661 引用门禁在真实原件上生效（同项重试后 `documentRawMatch=true`）；`reason=COVERAGE_PROOF_INSUFFICIENT` 表明证据守卫把客观项转人工复核而不是虚高给分。Mac 直连生产 `:8080` 会出现空响应，外部验收统一走域名。
