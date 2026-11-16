@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * 解析后的标书文档结构化内容（含物理分页与全文哈希）.
+ * 解析后的标书文档内容；检索ID与原件物理页、来源文件身份分离。
  *
  * <p>分页来源优先级：Sidecar 结构化 pages（PDF 物理页）→ {@code \f} 分页符切分 →
  * {@link #virtualPages(String)} 虚拟分页兜底（docx 等无分页符场景）.
@@ -35,7 +35,11 @@ public record DocumentContent(
         if (pages == null) {
             pages = Collections.emptyList();
         } else {
-            pages = Collections.unmodifiableList(new ArrayList<>(pages));
+            final String name = fileName == null ? "" : fileName;
+            final String hash = fileHash == null ? "" : fileHash;
+            pages = pages.stream().map(p -> new PageContent(p.pageNumber(), p.text(), p.headings(),
+                    p.sourcePageNumber(), p.sourceFileName() == null || p.sourceFileName().isBlank() ? name : p.sourceFileName(),
+                    p.sourceFileHash() == null || p.sourceFileHash().isBlank() ? hash : p.sourceFileHash())).toList();
         }
         if (fullText == null) {
             fullText = "";
@@ -54,13 +58,20 @@ public record DocumentContent(
     }
 
     /**
-     * 单页物理切片内容.
+     * 文档检索切片：pageNumber 是内部ID，sourcePageNumber 才是可展示原件页码。
      */
     public record PageContent(
             int pageNumber,
             String text,
-            List<String> headings
+            List<String> headings,
+            Integer sourcePageNumber,
+            String sourceFileName,
+            String sourceFileHash
     ) implements Serializable {
+        /** 显式分页输入；解析器的无分页文本必须使用 sourcePageNumber=null。 */
+        public PageContent(int pageNumber, String text, List<String> headings) {
+            this(pageNumber, text, headings, pageNumber, "", "");
+        }
         public PageContent {
             if (text == null) {
                 text = "";
@@ -100,19 +111,16 @@ public record DocumentContent(
     /**
      * 将多册投标文件（价格册/商务册/技术册等）合并为单个逻辑文档（纯函数）.
      *
-     * <p>多文件质量核查的最小实现：合并在 Loader 边界完成，25 项引擎、证据链、
-     * 报告链路继续消费单个 DocumentContent，零改动. 合并语义：
+     * <p>Loader 合并后，核查引擎继续消费单个 DocumentContent。合并语义：
      * <ul>
-     *   <li>页码跨册连续重编号（证据 pageNumber 契约不变，quote 仍是主锚点）；</li>
+     *   <li>检索ID跨册连续重编号，保留原件页与文件身份；图像映射到合并后的检索ID；</li>
      *   <li>全文按册序以空行分隔拼接（不注入文件名，避免文件名误触正则规则）；</li>
      *   <li>文件名按册序以顿号连接，超长按 {@link #capMergedFileName} 截断；</li>
-     *   <li>fileHash 为各册哈希按册序聚合的 SHA-256——同序确定性保证缓存命中稳定，
-     *       任一册变化（重传/增删）即聚合哈希变化、缓存自然失效；</li>
+     *   <li>fileHash 为各册哈希按册序聚合的 SHA-256，任一册变化即缓存失效；</li>
      *   <li>单册原样返回（保持既有单文件项目的缓存哈希兼容）；空列表返回空文档.</li>
      * </ul>
      *
-     * <p>元素非空不变量：documents 不得含 null 元素（生产链路由 Sidecar 适配器
-     * 全路径非 null 返回保证）；多元素含 null 时本方法在拼接阶段抛 NPE.
+     * <p>documents 不得含 null 元素；生产链路由 Sidecar 适配器保证。
      *
      * @param documents 按册序（上传顺序）排列的解析结果列表
      * @return 合并后的单个逻辑文档
@@ -133,17 +141,19 @@ public record DocumentContent(
                 .collect(Collectors.joining("\n\n"));
         List<PageContent> mergedPages = new ArrayList<>();
         List<PageImage> mergedImages = new ArrayList<>();
-        int pageOffset = 0;
         for (DocumentContent document : documents) {
+            var sourceToMerged = new java.util.HashMap<Integer, Integer>();
             for (PageContent page : document.pages()) {
-                mergedPages.add(new PageContent(mergedPages.size() + 1, page.text(), page.headings()));
+                sourceToMerged.merge(page.pageNumber(), mergedPages.size() + 1, (a, b) -> 0);
+                mergedPages.add(new PageContent(mergedPages.size() + 1, page.text(), page.headings(),
+                        page.sourcePageNumber(), page.sourceFileName(), page.sourceFileHash()));
             }
             for (PageImage image : document.images()) {
-                Integer pageHint = image.pageHint() == null ? null : image.pageHint() + pageOffset;
+                Integer pageHint = image.pageHint() == null ? null : sourceToMerged.get(image.pageHint());
+                if (pageHint != null && pageHint <= 0) pageHint = null;
                 mergedImages.add(new PageImage(image.index(), image.mimeType(), image.section(), pageHint,
                         image.width(), image.height(), image.base64()));
             }
-            pageOffset += document.pages().size();
         }
         return new DocumentContent(
                 capMergedFileName(joinedNames, documents.size()),
@@ -189,7 +199,8 @@ public record DocumentContent(
         String[] splitPages = text.split("\f");
         List<PageContent> pageList = new ArrayList<>();
         for (int i = 0; i < splitPages.length; i++) {
-            pageList.add(new PageContent(i + 1, splitPages[i], Collections.emptyList()));
+            pageList.add(new PageContent(i + 1, splitPages[i], Collections.emptyList(),
+                    text.contains("\f") ? i + 1 : null, fileName, fileHash));
         }
         return new DocumentContent(fileName, fileHash, text, pageList);
     }
@@ -216,7 +227,7 @@ public record DocumentContent(
             return Collections.emptyList();
         }
         if (fullText.length() <= VIRTUAL_PAGE_MIN_TEXT_LENGTH) {
-            return List.of(new PageContent(1, fullText, Collections.emptyList()));
+            return List.of(new PageContent(1, fullText, Collections.emptyList(), null, "", ""));
         }
         List<String> chunks = new ArrayList<>();
         for (String block : splitByHeadings(fullText)) {
@@ -231,7 +242,7 @@ public record DocumentContent(
             if (chunk.isBlank()) {
                 continue;
             }
-            pages.add(new PageContent(pages.size() + 1, chunk, Collections.emptyList()));
+            pages.add(new PageContent(pages.size() + 1, chunk, Collections.emptyList(), null, "", ""));
         }
         return pages;
     }

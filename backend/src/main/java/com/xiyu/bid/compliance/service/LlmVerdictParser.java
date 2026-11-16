@@ -150,7 +150,10 @@ public final class LlmVerdictParser {
                     default -> "";
                 };
             }
-            return new LlmVerdict(status, text(node, "reasonCode"), conclusion, text(node, "suggestion"))
+            return new LlmVerdict(status, text(node, "reasonCode"), conclusion, text(node, "suggestion"),
+                    node.path("evidenceChunk").isIntegralNumber() && node.path("evidenceChunk").canConvertToInt()
+                            ? node.path("evidenceChunk").intValue() : null,
+                    node.path("evidenceQuote").isTextual() ? text(node, "evidenceQuote") : "")
                     .validated();
         } catch (JsonProcessingException e) {
             return Optional.empty();

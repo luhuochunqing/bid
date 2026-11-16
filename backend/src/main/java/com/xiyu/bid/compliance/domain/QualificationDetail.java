@@ -20,8 +20,14 @@ public record QualificationDetail(
         String bidQuote,
         Integer remainingDays,
         String remark,
-        Finding finding
+        Finding finding,
+        String bidSourceFileName
 ) implements Serializable {
+
+    public QualificationDetail(String requirement, String matchedCertName, String status, Integer bidPageNumber,
+            String bidQuote, Integer remainingDays, String remark, Finding finding) {
+        this(requirement, matchedCertName, status, bidPageNumber, bidQuote, remainingDays, remark, finding, "");
+    }
 
     public enum Finding { LOOKUP_MISS, EVIDENCE_INCOMPLETE, MATCHED_REFERENCE, EXPIRED, GRADE_INSUFFICIENT, UNKNOWN }
 
@@ -51,6 +57,6 @@ public record QualificationDetail(
 
     public QualificationDetail pendingReview() {
         return new QualificationDetail(requirement, matchedCertName, "ATTENTION", bidPageNumber, bidQuote,
-                remainingDays, remark, finding);
+                remainingDays, remark, finding, bidSourceFileName);
     }
 }

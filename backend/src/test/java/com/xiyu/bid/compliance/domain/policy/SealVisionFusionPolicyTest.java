@@ -57,7 +57,7 @@ class SealVisionFusionPolicyTest {
         var result = SealVisionFusionPolicy.merge(textResult, vision);
 
         assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
-        assertThat(result.conclusion()).contains("第9页");
+        assertThat(result.conclusion()).contains("部分目标盖章内容").doesNotContain("第9页");
     }
 
     @Test

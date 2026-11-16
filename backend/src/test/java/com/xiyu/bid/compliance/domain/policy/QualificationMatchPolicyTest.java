@@ -294,7 +294,7 @@ class QualificationMatchPolicyTest {
         QualificationDetail d = details.get(0);
         assertThat(d.status()).isEqualTo("ATTENTION");
         assertThat(d.bidPageNumber()).isEqualTo(12);
-        assertThat(d.remark()).contains("资质库未维护该证书，但在标书第 12 页检索到证明材料，请人工核查有效性");
+        assertThat(d.remark()).contains("资质库未维护该证书，但在标书原文检索到证明材料，请人工核查有效性");
     }
 
     @Test

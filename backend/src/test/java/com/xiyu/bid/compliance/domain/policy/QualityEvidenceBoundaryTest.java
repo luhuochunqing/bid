@@ -92,7 +92,7 @@ class QualityEvidenceBoundaryTest {
 
     @Test
     void explicitlyLocatedUnfilledAuthorizationFieldStillFails() {
-        var result = failVerdict(BidQualityCheckItem.AUTHORIZATION_LETTER,
+        var result = locatedFailVerdict(BidQualityCheckItem.AUTHORIZATION_LETTER,
                 document(page(11, "授权委托书 委托人：甲公司 受托人：乙 授权期限：______")),
                 "授权委托书的授权期限字段保留未填写下划线");
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
@@ -180,7 +180,7 @@ class QualityEvidenceBoundaryTest {
 
     @Test
     void locatedBidderAdmissionOfFinancialNonSubmissionStillFails() {
-        var result = failVerdict(BidQualityCheckItem.QUALIFICATION_REVIEW,
+        var result = locatedFailVerdict(BidQualityCheckItem.QUALIFICATION_REVIEW,
                 document(page(10, "财务材料说明：我司未提供财务报表。")), "投标人明确未提供财务报表");
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
     }
@@ -223,7 +223,7 @@ class QualityEvidenceBoundaryTest {
     @Test
     void locatedFinancialContradictionStillFails() {
         var doc = document(page(10, "财务审计报告 资产总计100 负债合计200 所有者权益50"));
-        var result = failVerdict(BidQualityCheckItem.QUALIFICATION_REVIEW, doc,
+        var result = locatedFailVerdict(BidQualityCheckItem.QUALIFICATION_REVIEW, doc,
                 "财务报表资产总计100与负债200及权益50不平衡");
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
     }
@@ -284,6 +284,14 @@ class QualityEvidenceBoundaryTest {
                             || item == BidQualityCheckItem.ID_AUTH_LETTER
                             ? QualityCheckStatus.MANUAL_REVIEW : QualityCheckStatus.PASS);
         }
+    }
+
+    private static QualityCheckItemResult locatedFailVerdict(
+            final BidQualityCheckItem item, final DocumentContent doc, final String conclusion) {
+        var trigger = doc.pages().getFirst();
+        var llm = new LlmAdjudicator(prompt -> LlmVerdict.success(new LlmVerdict(
+                "FAIL", "", conclusion, "请复核对应材料", trigger.pageNumber(), trigger.text())));
+        return llm.adjudicateItem(item, doc, DocumentContent.empty(), TenderRequirements.empty(), List.of(), List.of());
     }
 
     private static QualityCheckItemResult failVerdict(

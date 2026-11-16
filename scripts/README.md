@@ -90,3 +90,8 @@ verdict 为 PASS / NEEDS_FIXES / ESCALATE。finding 必须包含 severity（Crit
 受保护基准允许现有镜像脚本的 `origin/main:main` 等表达式，但其 SHA 必须等于已知本地/跟踪基准；任务新提交改目标为 main 仍阻断。历史/force-push 保护仍由原 hook 执行。
 
 `agent/<name>-init` 仅允许同步已知 origin/main SHA，不作为任务交付，也不能凭此跳过创建 PR 的检查。分流单测只截取参数/分支策略；三技能门禁由真实 Git 回归独立覆盖。
+
+
+### 质量核查页码来源行为门禁
+
+`node scripts/check-pages-contract.mjs` 在原Python/Java pages字段检查之后运行Maven根因子集（原件页来源、模型quote/chunk绑定、历史缓存、实际报告输出）。失败、超时或Maven无法启动均阻断，不能仅凭字段存在判定修复有效。复用现有pre-push pages-contract入口；需Java21及Maven，进程默认堆上限1GB。

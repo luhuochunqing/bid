@@ -58,15 +58,18 @@ export function stripReasonCode(conclusion) {
   return conclusion.replace(REASON_CODE_PREFIX_RE, '')
 }
 
-/** BID 类证据页码去重聚合 → "第 12 / 56 / 78 页"；无可定位页码返回 ''. */
+/** 按原件身份聚合物理页；不同分册相同页号不得合并。 */
 export function extractBidPages(evidences) {
-  const pages = [...new Set(
-    (evidences || [])
-      .filter(ev => ev?.sourceType === 'BID' && Number.isInteger(ev.pageNumber))
-      .map(ev => ev.pageNumber)
-  )]
-  if (pages.length === 0) return ''
-  return `第 ${pages.join(' / ')} 页`
+  const groups = new Map()
+  for (const ev of evidences || []) {
+    if (!['BID', 'BID_IMAGE'].includes(ev?.sourceType) || !Number.isInteger(ev.pageNumber) || ev.pageNumber <= 0) continue
+    const name = ev.sourceFileName || ''
+    const key = JSON.stringify([ev.sourceFileHash || '', name])
+    if (!groups.has(key)) groups.set(key, { name, pages: new Set() })
+    groups.get(key).pages.add(ev.pageNumber)
+  }
+  return [...groups.values()].map(({ name, pages }) =>
+    `${name ? `${name}：` : ''}第 ${[...pages].join(' / ')} 页`).join('；')
 }
 
 /** BID 类证据原文摘录（取第一条非空）；无摘录返回 ''. */

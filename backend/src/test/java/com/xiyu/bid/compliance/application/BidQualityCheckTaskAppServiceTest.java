@@ -46,6 +46,16 @@ class BidQualityCheckTaskAppServiceTest {
 
     private BidQualityCheckTaskAppService taskAppService;
 
+    @Test
+    void historicalReportMustNotExposeUnverifiedPage() {
+        String json = "[{\"itemCode\":\"RESPONSIVENESS_REVIEW\",\"status\":\"FAIL\",\"evidences\":[{\"sourceType\":\"BID\",\"pageNumber\":32,\"quote\":\"原始引文\"}]}]";
+        var entity = ComplianceCheckResult.builder().projectId(1360L).bidFileName("bid.docx").checkDetails(json).build();
+        var dto = BidQualityCheckTaskAppService.toReportDTO(entity);
+        assertThat(dto.getItems()).hasSize(1);
+        assertThat(dto.getItems().getFirst().evidences().getFirst().pageNumber()).isNull();
+        assertThat(dto.getItems().getFirst().evidences().getFirst().quote()).isEqualTo("原始引文");
+    }
+
     @BeforeEach
     void setUp() {
         taskAppService = new BidQualityCheckTaskAppService(
@@ -206,7 +216,8 @@ class BidQualityCheckTaskAppServiceTest {
         assertThat(detail.requirement()).isEqualTo("ISO9001");
         assertThat(detail.matchedCertName()).isEqualTo("ISO9001质量认证");
         assertThat(detail.status()).isEqualTo("MATCHED");
-        assertThat(detail.bidPageNumber()).isEqualTo(15);
+        assertThat(detail.bidPageNumber()).isNull();
+        assertThat(report.isRequiresRecheck()).isTrue();
         assertThat(detail.remainingDays()).isEqualTo(300);
     }
 

@@ -333,11 +333,16 @@ public class FullDocumentSemanticRetrievalAcceptanceTest {
                     (progress, step) -> progressTrail.add(progress)
             );
 
-            // 1. 验证 7 项语义条款全部产生裁决结果（60页真实标书含完整证书编号/有效期与多维资格实证，全部闭环 PASS）
+            // 1. 验证7项均产出结果；资格评审按既有策略人工确认，模型PASS不能替代完整资格核验。
             assertThat(outcomes).hasSize(7);
             assertThat(outcomes.values()).allSatisfy(result -> {
-                assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
-                assertThat(result.conclusion()).contains("全标书语义裁决通过");
+                if (result.itemCode().equals(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode())) {
+                    assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+                    assertThat(result.conclusion()).contains("资格材料尚需人工确认");
+                } else {
+                    assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+                    assertThat(result.conclusion()).contains("全标书语义裁决通过");
+                }
             });
 
             // 2. 验证传递给 LLM 的 7 次 Prompt 全部包含真实的 --- [第 X 页] --- 页码标识

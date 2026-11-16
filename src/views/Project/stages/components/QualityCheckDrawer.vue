@@ -34,6 +34,13 @@
 
     <!-- 报告内容主体 -->
     <div v-else-if="report" class="report-main-content">
+      <el-alert
+        v-if="report.requiresRecheck"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="这是历史核查报告，问题页码尚未校验。请点击重新核查获取当前定位结果。"
+      />
       <!-- 汇总平铺卡：左上受检信息，右上操作按钮 -->
       <div class="summary-card">
         <div class="summary-left">

@@ -109,7 +109,7 @@
                   </div>
                 </td>
                 <td class="col-page">
-                  <span v-if="detail.bidPageNumber" class="qual-page-badge">第 {{ detail.bidPageNumber }} 页</span>
+                  <span v-if="detail.bidPageNumber" class="qual-page-badge">{{ detail.bidSourceFileName ? `${detail.bidSourceFileName}：` : '' }}第 {{ detail.bidPageNumber }} 页</span>
                   <span v-else class="qual-page-none">未定位</span>
                 </td>
                 <td class="col-status">
@@ -125,11 +125,10 @@
       </div>
 
       <!-- 问题定位：页码（仅非通过且可定位时显示） -->
-      <div v-if="showLocationRows && pagesText" class="dt-row">
+      <div v-if="showLocationRows && (pagesText || quoteText)" class="dt-row">
         <div class="dt-label">问题定位</div>
         <div class="dt-location-wrapper">
-          <span class="dt-location">{{ pagesText }}</span>
-          <span class="dt-location-tip">（排版页码可能因阅读器缩放或文档转换略有差异，请结合下方原文摘录核对）</span>
+          <span class="dt-location">{{ pagesText || '未取得原文件页码，请按原文摘录检索' }}</span>
         </div>
       </div>
 

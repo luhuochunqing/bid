@@ -102,7 +102,7 @@ public final class LlmAdjudicator {
         LlmVerdict.ChatOutcome<LlmVerdict> outcome =
                 port.chat(buildPrompt(item, bidDoc, tenderDoc, requirements, kbMatches));
         if (outcome instanceof LlmVerdict.Success<LlmVerdict> success) {
-            return toResult(item, success.verdict(), evidences);
+            return toResult(item, success.verdict(), bindModelEvidence(success.verdict(), bidDoc, evidences));
         }
         if (outcome instanceof LlmVerdict.Noop<LlmVerdict>) {
             return ManualReasons.manual(item,
@@ -117,6 +117,21 @@ public final class LlmAdjudicator {
         return ManualReasons.manual(item,
                 ManualReasons.LOW_CONFIDENCE, FALLBACK_INVALID_CONCLUSION,
                 FALLBACK_MANUAL_SUGGESTION, evidences);
+    }
+
+    /** 模型没有给出可验证的触发摘录时，不用通用关键词首命中冒充问题位置。 */
+    private static List<QualityEvidence> bindModelEvidence(LlmVerdict verdict, DocumentContent bid,
+            List<QualityEvidence> fallback) {
+        var result = new java.util.ArrayList<>(fallback.stream().filter(e -> !"BID".equals(e.sourceType())).toList());
+        if (verdict == null || bid == null || verdict.evidenceChunk() == null
+                || verdict.evidenceQuote() == null || verdict.evidenceQuote().isBlank()) return result;
+        var hits = bid.pages().stream().filter(p -> p.pageNumber() == verdict.evidenceChunk())
+                .filter(p -> p.text().contains(verdict.evidenceQuote()))
+                .filter(p -> !BidLetterCheckPolicy.isCatalogOrOutlinePage(p.text())).toList();
+        if (hits.size() == 1) {
+            result.add(QualityEvidence.bid("核查触发原文", hits.getFirst().pageNumber(), verdict.evidenceQuote()));
+        }
+        return result;
     }
 
     /**
@@ -151,7 +166,9 @@ public final class LlmAdjudicator {
         StringBuilder sb = new StringBuilder();
         sb.append("你是投标文件质量核查专家。请仅依据下列材料裁决检查项「").append(item.getTitle())
                 .append("」，输出且仅输出单个合法闭合的 JSON 对象：{\"status\":\"PASS|FAIL|MANUAL\",\"conclusion\":\"...\","
-                        + "\"suggestion\":\"...\",\"reasonCode\":\"\"}（conclusion 请精炼在 200 字内禁止冗长输出；status=MANUAL 时 reasonCode 必填，原因码为LOW_CONFIDENCE、AMBIGUOUS、EVIDENCE_INSUFFICIENT、REFERENCE_MISSING或MANUAL_REVIEW_REQUIRED）。\n");
+                        + "\"suggestion\":\"...\",\"reasonCode\":\"\",\"evidenceChunk\":null,\"evidenceQuote\":\"\"}（conclusion 请精炼在 200 字内禁止冗长输出；status=MANUAL 时 reasonCode 必填，原因码为LOW_CONFIDENCE、AMBIGUOUS、EVIDENCE_INSUFFICIENT、REFERENCE_MISSING或MANUAL_REVIEW_REQUIRED）。\n");
+        sb.append("定位须引用投标文件中的逐字原文到evidenceQuote，并填写其内容块ID到evidenceChunk；无法定位时分别为空字符串和null。"
+                + "仅标明物理页且未额外标内容块ID的片段，其内容块ID等于该页编号。内容块不是原件页码，不得在结论或建议中将内容块序号称为页码。\n");
         sb.append(AdjudicationGuidelines.allGuidelines());
         sb.append("【招标要求（LLM 结构化提取）】\n").append(summarizeRequirements(requirements)).append("\n\n");
         sb.append("【企业知识库真实记录】\n").append(summarizeKbMatches(kbMatches)).append("\n\n");

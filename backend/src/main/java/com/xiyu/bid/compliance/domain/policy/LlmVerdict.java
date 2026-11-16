@@ -12,7 +12,12 @@ import java.util.Optional;
  * <p>status ∈ PASS/FAIL/MANUAL；MANUAL 必附 reasonCode ∈ PRD §3.5 五值集合.
  * JSON 解析属于边界 IO 行为，由 service 层适配器完成；纯核心只消费本 record.
  */
-public record LlmVerdict(String status, String reasonCode, String conclusion, String suggestion) {
+public record LlmVerdict(String status, String reasonCode, String conclusion, String suggestion,
+        Integer evidenceChunk, String evidenceQuote) {
+
+    public LlmVerdict(String status, String reasonCode, String conclusion, String suggestion) {
+        this(status, reasonCode, conclusion, suggestion, null, "");
+    }
 
     /** 通道调用结果：成功携带结论 / 响应不可解析 / Noop（AI 未启用）/ 失败明细. */
     public sealed interface ChatOutcome<T> permits Success, Invalid, Noop, Failure {

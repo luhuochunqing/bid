@@ -632,7 +632,7 @@ class BidDocumentQualityEngineTest {
             if (prompt.contains("裁决检查项「" + BidQualityCheckItem.ID_AUTH_LETTER.getTitle() + "」")) {
                 llmIdCallCount.incrementAndGet();
             }
-            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", "", 1, idPage.trim()));
         });
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
