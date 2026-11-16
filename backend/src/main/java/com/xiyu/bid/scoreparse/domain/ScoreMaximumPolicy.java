@@ -51,11 +51,10 @@ public final class ScoreMaximumPolicy {
     public static BigDecimal fixedAward(String text) {
         if (text == null || text.contains("每")) return null;
         if (DECLARED.matcher(text).find()) return null;
-        Matcher mention = MENTION.matcher(text);
-        if (!mention.find()) return null;
-        BigDecimal value = new BigDecimal(mention.group(1));
-        if (mention.find()) return null;
         Matcher award = FIXED_AWARD.matcher(text);
-        return award.find() && new BigDecimal(award.group(1)).compareTo(value) == 0 ? value : null;
+        if (!award.find()) return null;
+        Matcher mention = MENTION.matcher(text);
+        if (!mention.find() || mention.find()) return null;
+        return new BigDecimal(award.group(1));
     }
 }
