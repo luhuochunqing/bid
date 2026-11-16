@@ -1876,3 +1876,5 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-11-16] compound | 项目1360页码复发：报告154只读复核与当前解析器隔离实验；回填quality1360-diagnosis，未修复或重算。
 
 ## [2026-11-16] compound | 项目1360页码来源本地修复：原件页与分块分离、版本化快照、模型引用绑定及门禁；未部署，审查状态见私有凭证。
+
+## [2026-11-16] compound | [[scoreparse-fixed-award-weight-cap]]：规则「得3分」未识别为上限，OMS/WMS 随 matchRatio 在 6分/3分间翻转；新增 fixedAward 并接入 effectiveWeight，本地验证通过，未合入/未部署。
