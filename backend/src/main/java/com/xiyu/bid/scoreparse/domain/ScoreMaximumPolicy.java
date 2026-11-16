@@ -14,6 +14,7 @@ public final class ScoreMaximumPolicy {
     private static final Pattern DECLARED = Pattern.compile(
             "(?:最高|最多|满分)[^。；;\\n]{0,8}?([0-9]+(?:\\.[0-9]+)?)\\s*分");
     private static final Pattern MENTION = Pattern.compile("([0-9]+(?:\\.[0-9]+)?)\\s*分");
+    private static final Pattern FIXED_AWARD = Pattern.compile("得\\s*([0-9]+(?:\\.[0-9]+)?)\\s*分");
     private static final Pattern NUMBERED_CLAUSE = Pattern.compile(
             "(?:^|[。；;\\n])\\s*[（(]?[0-9一二三四五六七八九十]+[）).、]");
 
@@ -40,5 +41,21 @@ public final class ScoreMaximumPolicy {
             if (new BigDecimal(scores.group(1)).compareTo(maximum) > 0) return null;
         }
         return maximum;
+    }
+
+    /**
+     * 单次固定得分：规则未声明最高/最多/满分，且全文只有一个「得X分」分值时，该分值即本项上限。
+     *
+     * <p>逐项累计规则（含「每」）和多子项规则不在此列，仍按表格权重计分。
+     */
+    public static BigDecimal fixedAward(String text) {
+        if (text == null || text.contains("每")) return null;
+        if (DECLARED.matcher(text).find()) return null;
+        Matcher mention = MENTION.matcher(text);
+        if (!mention.find()) return null;
+        BigDecimal value = new BigDecimal(mention.group(1));
+        if (mention.find()) return null;
+        Matcher award = FIXED_AWARD.matcher(text);
+        return award.find() && new BigDecimal(award.group(1)).compareTo(value) == 0 ? value : null;
     }
 }
