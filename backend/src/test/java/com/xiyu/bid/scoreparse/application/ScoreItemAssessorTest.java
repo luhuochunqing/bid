@@ -245,39 +245,21 @@ class ScoreItemAssessorTest {
         assertThat(result.getStatusStage2()).isEqualTo(expectedStatus);
     }
 
-    @Test void fixedAwardWithIncrementalClauseKeepsDeclaredMaximum() {
+    @ParameterizedTest
+    @CsvSource({
+        "具备OMS订单管理系统得3分，每增加1个加1分，满分5分。,5",
+        "1）具备OMS订单管理系统得3分；2）具备WMS仓储管理系统得3分。,6",
+        "具备OMS订单管理系统。,6"
+    })
+    void rulesWithoutSingleFixedAwardKeepExistingMaximum(String detail,String expectedScore) {
         var item=item("OBJECTIVE");
         item.setWeight(new BigDecimal("6"));
-        item.setDetail("具备OMS订单管理系统得3分，每增加1个加1分，满分5分。");
+        item.setDetail(detail);
         var output=output(6d,QUOTE);output.matchRatio=100;
         when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
                 .thenReturn(output);
         var result=assess(item);
-        assertThat(result.getActualScore()).isEqualByComparingTo("5");
-        assertThat(result.getStatusStage2()).isEqualTo("OK");
-    }
-
-    @Test void multipleNumberedAwardsKeepTableWeight() {
-        var item=item("OBJECTIVE");
-        item.setWeight(new BigDecimal("6"));
-        item.setDetail("1）具备OMS订单管理系统得3分；2）具备WMS仓储管理系统得3分。");
-        var output=output(6d,QUOTE);output.matchRatio=100;
-        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
-                .thenReturn(output);
-        var result=assess(item);
-        assertThat(result.getActualScore()).isEqualByComparingTo("6");
-        assertThat(result.getStatusStage2()).isEqualTo("OK");
-    }
-
-    @Test void ruleWithoutFixedAwardKeepsTableWeight() {
-        var item=item("OBJECTIVE");
-        item.setWeight(new BigDecimal("6"));
-        item.setDetail("具备OMS订单管理系统。");
-        var output=output(6d,QUOTE);output.matchRatio=100;
-        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
-                .thenReturn(output);
-        var result=assess(item);
-        assertThat(result.getActualScore()).isEqualByComparingTo("6");
+        assertThat(result.getActualScore()).isEqualByComparingTo(expectedScore);
         assertThat(result.getStatusStage2()).isEqualTo("OK");
     }
 
