@@ -231,6 +231,38 @@ class ScoreItemAssessorTest {
         assertThat(result.getStatusStage2()).isEqualTo(expectedStatus);
     }
 
+    @ParameterizedTest
+    @CsvSource(value={"NULL,3,OK", "100,3,OK", "50,2,PENDING"}, nullValues="NULL")
+    void singleFixedAwardCapsTableWeight(Integer ratio,String expectedScore,String expectedStatus) {
+        var item=item("OBJECTIVE");
+        item.setWeight(new BigDecimal("6"));
+        item.setDetail("2.具备OMS订单管理系统的，得3分，否则不得分；");
+        var output=output(6d,QUOTE);output.matchRatio=ratio;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
+                .thenReturn(output);
+        var result=assess(item);
+        assertThat(result.getActualScore()).isEqualByComparingTo(expectedScore);
+        assertThat(result.getStatusStage2()).isEqualTo(expectedStatus);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "具备OMS订单管理系统得3分，每增加1个加1分，满分5分。,5",
+        "1）具备OMS订单管理系统得3分；2）具备WMS仓储管理系统得3分。,6",
+        "具备OMS订单管理系统。,6"
+    })
+    void rulesWithoutSingleFixedAwardKeepExistingMaximum(String detail,String expectedScore) {
+        var item=item("OBJECTIVE");
+        item.setWeight(new BigDecimal("6"));
+        item.setDetail(detail);
+        var output=output(6d,QUOTE);output.matchRatio=100;
+        when(analyzer.assessObjective(anyString(),any(),anyString(),anyList(),any(OpenAiRequestBudget.class)))
+                .thenReturn(output);
+        var result=assess(item);
+        assertThat(result.getActualScore()).isEqualByComparingTo(expectedScore);
+        assertThat(result.getStatusStage2()).isEqualTo("OK");
+    }
+
     private ScoreResult assess(ScoreItem item) {return assess(item,BID_TEXT,"COMPLETE",0);}
     private ScoreResult assess(ScoreItem item,String text,String coverage,int emptyCount) {
         long deadline=System.currentTimeMillis()+10000;

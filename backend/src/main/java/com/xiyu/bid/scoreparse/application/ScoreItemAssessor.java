@@ -158,9 +158,10 @@ final class ScoreItemAssessor {
         return assessment.actualScore() == null ? null : assessment.actualScore().min(effectiveWeight);
     }
 
-    /** 规则文本声明的整项满分低于表格权重时，以文本满分为准计分与判定状态。 */
+    /** 规则文本声明的整项满分或单次固定得分低于表格权重时，以文本分值为准计分与判定状态。 */
     private static BigDecimal effectiveWeight(ScoreItem item) {
         BigDecimal declaredMaximum = ScoreMaximumPolicy.overall(item.getDetail());
+        if (declaredMaximum == null) declaredMaximum = ScoreMaximumPolicy.fixedAward(item.getDetail());
         if (declaredMaximum == null || item.getWeight() == null || declaredMaximum.signum() <= 0) return item.getWeight();
         return declaredMaximum.min(item.getWeight());
     }

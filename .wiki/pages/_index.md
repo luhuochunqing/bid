@@ -124,6 +124,7 @@ backlinks:
 - [[score-parse-service]] — AI 评分标准解析后端服务
 - [[score-parse-drawer-scoring-overlay]] — 评分抽屉打分中吸顶提示，不再用白遮罩锁死页面
 - [[scoreparse-certificate-estimate-staleness-rca]] — 证书评分历史漏认、预判残留与组合证书任一命中假满分根因（只读诊断，未修复）
+- [[scoreparse-fixed-award-weight-cap]] — 单次「得X分」未识别为上限导致 OMS/WMS 随 matchRatio 在 6分/3分间翻转（fixedAward + effectiveWeight）
 - [[scoreparse-cross-chapter-qualification-performance]] — 评分项跨章节穿透资格项业绩检索与基础分递增计分规范
 - [[scoreparse-performance-evidence-clarity]] — 业绩预计得分证据可信度、保守计分与中文解释契约
 - [[scoreparse-1371-docx-merged-closure-rca]] — 项目 1371 DOCX 嵌套纵向合并打分表行闭合与标书原文回填根因
