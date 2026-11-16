@@ -8453,3 +8453,16 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - 既有JSON列保存version/items快照；旧报告仅只读展示并提示重查，旧页码不作为已验证位置返回；完整当前版本才可复用缓存。无需数据迁移或改写历史记录。
 - 现有pages-contract门禁执行纯核心及实际异步出口行为测试。compliance回归1382项0失败/错误、1跳过，前端38项通过；根因反证与独立审查状态见specs/20261116-quality-page-provenance/validation.md及Git私有review-gate元数据。
 - 无Word渲染服务，不承诺Word精确页码；需准确物理页时应使用固定PDF。本次无推送、合并、部署或测试站重算。
+
+## 2026-11-16 AI 智能案例推荐「商品管理方案」误排物流仓储前列：语料 IDF + BM25 长度归一 + 情境加成门禁根治
+
+- **现场证据（生产项目 580 `天山材料2026-2028年度MRO`）**：选择评分项 `3 商品管理方案` 时，推荐前列出现大量物流配送与仓储能力案例（`#314 商品管理能力 54%` → `#12 服务方案 53%` → `#316 物流配送及仓储能力 52%` → `#305 仓储物流及配送服务 45%` → `#205 最后一公里物流配送方案 43%`），而案例库内实际存在的价格/定价案例（`#209 42%`、`#185 40%`、`#157 38%`、`#45 37%`、`#129 27%`）均排在后面。
+- **四层根因（七大根因之「追症状不追根因」+「测试不测根因」）**：
+  1. `ScoreItemCaseMatchPolicy.calculateDetailOverlap` 未剥离评分表行前缀（`3 | 商品管理方案 | 10 | ...`）和档位模板噪声（`优秀得8-10分；一般得4-7分；较差得0-3分`），`#305` 仅凭命中 `一般/较差/0分/3分/机制` 等 9 个噪声词即得 `detailScore = 25/25`。
+  2. 缺少语料级 IDF 权重与长度归一化，且按 `hitCount * 3` 保底，`#316`/`#12` 仅凭 `10/sku/机制/措施` 等泛词与长篇幅即拿满 25 分。
+  3. 维度 5~10 情境加成（类别一致 10 + 央企 3 + 中标 `WON` 5）无主题相关性门禁，物流案例多数 `WON` + `技术/实施服务`，凭情境加成直接领先 `FAILED` 的价格制度案例 8~13 分。
+  4. `CaseSubTopicPolicy.SubTopic` 覆盖了物流/售后/应急等 10 个子主题，独缺商品管理与定价主题，`商品管理方案` 回落 `OTHER`（0 分）。
+- **根治方案**：
+  - `ScoreItemCaseMatchPolicy` 新增 `evaluateAll(candidates, context)`：候选数 `>= 5` 时计算语料 IDF 与 BM25 长度因子（`k1=1.2, b=0.75`）；`requirementTokens` 剥离表头前缀与评分档位模板；移除 `hitCount * 3` 保底；标题引入 `titleCoverage`；存在评分项要求时，情境加成按主题相关度 `min(1.0, relevance / 8.0)` 等比折算。
+  - `CaseSubTopicPolicy` 新增 `PRODUCT_PRICING("商品管理与定价机制", ...)`；`ScoreItemCaseRecommendAppService` 接入 `evaluateAll`。
+- **本地验证**：以生产 349 条 `ACTIVE` 案例回放项目 580 `商品管理方案`，Top 4 转为 `#185 西域价格管理制度 (55%)`、`#314 商品管理能力 (55%)`、`#157 西域自营产品定价机制 (54%)`、`#45 与友商价格对标分析 (51%)`，物流/仓储案例退出前 12；`ScoreItemCaseMatchPolicyTest`（49）、`CaseSubTopicPolicyTest`（20）、`ScoreItemCaseRecommendAppServiceTest`（12）全部通过。

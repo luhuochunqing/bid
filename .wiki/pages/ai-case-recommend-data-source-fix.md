@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [案例推荐, score_item, spec041, 裸响应, 二次解包, caseRecommendationApi]
 created: 2026-08-21
-updated: 2026-10-30
-health_checked: 2026-10-30
+updated: 2026-11-16
+health_checked: 2026-11-16
 sources:
   - src/api/modules/caseRecommendation.js
   - src/views/Project/stages/components/AiRecommendDrawer.vue
@@ -322,3 +322,16 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
    - `ScoreItemCaseRecommendResponse` 扩展 `matchedCertificates: List<CertificateItem>`，包含 `id, name, certificateNo, issuer, expiryDate, status, certScope, fileUrl, fileName, matchScore, matchReasons`；
 4. **前端组件化交互**：
    - 抽离 `EnterpriseCertRecommendList.vue`，渲染证书卡片网格、原件图片缩略图、点击放大预览、有效期标签、一键复制证书信息与一键复制图片链接。
+
+---
+
+## 语料 IDF + BM25 长度归一 + 情境加成门禁与 `PRODUCT_PRICING` 子主题（2026-11-16）
+
+### 1. 现象与根因（生产项目 580）
+- 项目 580 选择「商品管理方案」时，物流配送/仓储能力案例排在价格/定价案例之前。
+- 根因：评分档位模板（`优秀得8-10分...`）与表头前缀未剥离；`calculateDetailOverlap` 无 IDF 与长度归一且按 `hitCount * 3` 保底，长文本和泛词（`机制`/`措施`/`10`/`sku`）直接拿满 25 分；类别/央企/中标 `WON` 等情境加成无主题相关性门禁；`CaseSubTopicPolicy` 缺失商品管理与定价子主题。
+
+### 2. 修复要点
+- `ScoreItemCaseMatchPolicy.evaluateAll(candidates, context)`：候选数 `>= 5` 时计算语料 IDF 权重与 BM25 长度因子（`k1=1.2, b=0.75`）；`requirementTokens` 剥离表头前缀与评分档位模板；标题补充 `titleCoverage`；存在评分项要求时，情境加成按主题相关度 `min(1.0, relevance / 8.0)` 等比折算。
+- `CaseSubTopicPolicy.SubTopic` 新增 `PRODUCT_PRICING`（商品管理与定价机制）。
+- `ScoreItemCaseRecommendAppService` 改为调用 `matchPolicy.evaluateAll(candidateCases, context)`。

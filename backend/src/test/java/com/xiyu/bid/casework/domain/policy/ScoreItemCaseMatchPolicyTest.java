@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 
@@ -956,5 +957,84 @@ class ScoreItemCaseMatchPolicyTest {
         assertThat(result.score()).isEqualTo(0);
         assertThat(result.matchLabel()).isEqualTo("一般");
         assertThat(result.matchReasons()).contains("大类冲突一票否决");
+    }
+
+    @Test
+    @DisplayName("根因回归：商品管理方案不得被物流仓储长文本凭泛词和评分档位模板反超定价/商品案例")
+    void testProductPricingOutranksLongLogisticsCaseUnderCorpusIdf() {
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                655L, "3", "商品管理方案",
+                "3 | 商品管理方案 | 10 | SKU数量、商品的定价机制、价格管控机制、商品管理机制、及与竞争对手价格对标分析、竞争性定价方案与保障措施等。优秀得8-10分；一般得4-7分；较差得0-3分。",
+                "工业品", "央企", null, "天山材料2026-2028年度MRO", "天山材料股份有限公司"
+        );
+
+        StubCandidate pricingCase = new StubCandidate(
+                2001L, "西域自营产品定价机制", "技术",
+                "商品定价与价格管控要求",
+                "西域建立科学的产品定价机制与价格管控机制，围绕SKU成本、竞争对手价格对标分析制定竞争性定价方案。",
+                "工业品", "地方国企", "FAILED"
+        );
+        StubCandidate logisticsCase = new StubCandidate(
+                2002L, "物流配送及仓储能力", "物流配送及仓储能力",
+                "3 | 仓储物流要求 | 10 | 优秀得8-10分；一般得4-7分；较差得0-3分。",
+                "在供应保障方面构建中心仓、前置仓、配送站三级仓配体系，保障SKU数量与保障措施机制落实。" + "全国仓储物流配送网络覆盖与车辆调配体系建设。".repeat(30),
+                "工业品", "央企", "WON"
+        );
+        List<StubCandidate> corpus = List.of(
+                pricingCase,
+                logisticsCase,
+                new StubCandidate(2003L, "售后服务承诺", "技术", "售后保障", "7x24小时响应机制与保障措施", "工业品", "央企", "WON"),
+                new StubCandidate(2004L, "应急预案", "技术", "应急响应", "突发事件保障措施与处置机制", "工业品", "央企", "WON"),
+                new StubCandidate(2005L, "质量保证", "技术", "质量管控", "正品保障措施与验收机制", "工业品", "央企", "WON")
+        );
+
+        List<ScoreItemCaseMatchPolicy.MatchResult> results = policy.evaluateAll(corpus, context);
+
+        assertThat(results.get(0).score()).isGreaterThan(results.get(1).score());
+        assertThat(results.get(0).matchReasons()).anyMatch(r -> r.contains("商品管理与定价机制"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "3 | 商品管理方案 | 10 | 竞争性定价、价格对标分析",
+            "| 3 | 商品管理方案 | 10 | 竞争性定价、价格对标分析 |",
+            "3 | 商品管理方案 | 竞争性定价、价格对标分析 | 10.0 | 否",
+            "商务技术（80） | 3 | 商品管理方案 | 10 | 竞争性定价、价格对标分析 |"
+    })
+    @DisplayName("表格条款保留正文：兼容尾部竖线及分值在正文之后的评分行")
+    void testTableRequirementPreservesBodyForDetailOverlap(String detail) {
+        assertThat(ScoreItemCaseTextMatchPolicy.calculateDetailOverlap(
+                detail, "竞争性定价、价格对标分析", ScoreItemCaseTextMatchPolicy.Corpus.EMPTY))
+                .isEqualTo(25);
+        assertThat(ScoreItemCaseTextMatchPolicy.calculateDetailOverlap(
+                detail, "商品管理方案", ScoreItemCaseTextMatchPolicy.Corpus.EMPTY))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("非评分表行的竖线分隔正文不能被当前缀剥离")
+    void testPlainPipeSeparatedRequirementPreservesAllClauses() {
+        assertThat(ScoreItemCaseTextMatchPolicy.calculateDetailOverlap(
+                "竞争性定价 | 价格对标分析", "竞争性定价", ScoreItemCaseTextMatchPolicy.Corpus.EMPTY))
+                .isPositive();
+    }
+
+    @Test
+    @DisplayName("根因回归：主题完全不相关的案例不得仅凭类别/央企/中标等情境加成刷出高分")
+    void testOffTopicCaseDoesNotGetFullContextBonus() {
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                655L, "3", "商品管理方案",
+                "SKU数量、商品的定价机制、价格管控机制及竞争性定价方案。",
+                "工业品", "央企", null, null, null
+        );
+        StubCandidate unrelated = new StubCandidate(
+                2006L, "车辆调度能力", "技术",
+                "车辆调度与运输路线", "自有新能源运输车队覆盖华东区域干线配送。",
+                "工业品", "央企", "WON", "LOGISTICS_WAREHOUSE", 90
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(unrelated, context);
+
+        assertThat(result.score()).isLessThan(15);
     }
 }

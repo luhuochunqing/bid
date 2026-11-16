@@ -160,12 +160,18 @@ public class ScoreItemCaseRecommendAppService {
         Map<Long, ScoreItemCaseSourceMetaLoader.SourceMeta> sourceMetaByProjectId =
                 sourceMetaLoader.load(sourceProjectIds);
 
-        List<ScoreItemCaseRecommendResponse.Item> evaluatedItems = candidateCases.stream()
-                .map(candidate -> {
-                    ScoreItemCaseMatchPolicy.MatchResult result = matchPolicy.evaluate(candidate, context);
-                    return toResponseItem(candidate, result, sourceMetaByProjectId.get(candidate.getSourceProjectId()));
-                })
-                .filter(item -> item.getMatchScore() > 0)
+        List<ScoreItemCaseMatchPolicy.MatchResult> results = matchPolicy.evaluateAll(candidateCases, context);
+        List<ScoreItemCaseRecommendResponse.Item> evaluatedItems = new java.util.ArrayList<>(candidateCases.size());
+        for (int i = 0; i < candidateCases.size(); i++) {
+            KnowledgeCaseReadModel candidate = candidateCases.get(i);
+            ScoreItemCaseMatchPolicy.MatchResult result = results.get(i);
+            ScoreItemCaseRecommendResponse.Item item = toResponseItem(
+                    candidate, result, sourceMetaByProjectId.get(candidate.getSourceProjectId()));
+            if (item.getMatchScore() > 0) {
+                evaluatedItems.add(item);
+            }
+        }
+        evaluatedItems = evaluatedItems.stream()
                 .sorted(Comparator.comparing(ScoreItemCaseRecommendResponse.Item::getIsPinned, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(ScoreItemCaseRecommendResponse.Item::getMatchScore, Comparator.reverseOrder())
                         .thenComparing(ScoreItemCaseRecommendResponse.Item::getReuseCount, Comparator.nullsLast(Comparator.reverseOrder())))
