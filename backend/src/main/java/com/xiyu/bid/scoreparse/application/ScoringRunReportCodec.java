@@ -103,7 +103,9 @@ public final class ScoringRunReportCodec {
             items.add(data);
         }
         report.put("items",items);
-        report.put("taskQuality",failure!=null?"PARTIAL":rows.stream().anyMatch(r->"NEEDS_REVIEW".equals(outcome(r)))?"NEEDS_REVIEW":"COMPLETE");
+        boolean failedRow=rows.stream().anyMatch(r->"FAILED".equals(outcome(r)));
+        report.put("taskQuality",failure!=null||failedRow?"PARTIAL"
+                :rows.stream().anyMatch(r->"NEEDS_REVIEW".equals(outcome(r)))?"NEEDS_REVIEW":"COMPLETE");
         if(failure!=null) report.put("reasonCode",failure);
         var timing=new LinkedHashMap<String,Object>();
         if(task.getCreatedAt()!=null) {

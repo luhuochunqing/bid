@@ -74,8 +74,10 @@ final class ScoreScoringExecution {
             long assessmentStart=System.nanoTime();
             if("UNKNOWN".equals(document.extraction().coverageStatus())){reject(task,file,"SCORING_COVERAGE_UNKNOWN");return;}
             var assessor=new ScoreItemAssessor(analyzer,imageBudget);
-            boolean extractionFailure=document.extraction().failedUnitCount()>0 || document.extraction().unreadUnitCount()>0;
-            List<ScoreResult> rows=new ArrayList<>();boolean technicalFailure=extractionFailure;
+            var extraction=document.extraction();
+            boolean coverageGap=extraction.failedUnitCount()>0 || extraction.unreadUnitCount()>0;
+            String coverageNote=coverageGap?extractionCoverageNote(extraction):"";
+            List<ScoreResult> rows=new ArrayList<>();boolean technicalFailure=false;
             boolean trustedNewResult=false;
             for(int i=0;i<snapshot.items().size();i++) {
                 var item=snapshot.items().get(i);
@@ -91,9 +93,9 @@ final class ScoreScoringExecution {
                     boolean trusted=assessed.getActualScore()!=null || "SUBJECTIVE".equals(assessed.getReuseKind())
                             && assessed.getSuggestion()!=null && !assessed.getSuggestion().isBlank();
                     trustedNewResult|=trusted;
-                    if(extractionFailure && !trusted) {
+                    if(coverageGap && !trusted) {
                         assessed.setReuseKind("EXTRACT_FAILED");
-                        assessed.setMissedReason("原件提取技术故障，证据未完整读取，请重试本项；"
+                        assessed.setMissedReason(coverageNote+"，相关评分项证据未完整读取，请重试本项；"
                                 +Objects.toString(assessed.getMissedReason(),"可核验证据不足"));
                     }
                     rows.add(assessed);
@@ -105,18 +107,42 @@ final class ScoreScoringExecution {
             }
             task.setStage("FULL");
             task.setChapterHashes(BidChapterHashCodec.encode(BidChapterDirtySet.toHashMap(BidChapterDirtySet.split(document.text()))));
-            String failure=extractionFailure?"SCORING_EXTRACTION_FAILED":technicalFailure?"SCORING_ITEM_FAILED":null;
+            String failure=technicalFailure?"SCORING_ITEM_FAILED"
+                    :coverageGap&&!trustedNewResult?coverageNote+"，评分证据无法核验，本次未生成评分结果；"
+                            +"建议将文件中图片转换为 PNG/JPG 或导出 PDF 后重新上传再打分":null;
             var encoded=reports.complete(task,file.documentId(),document.extraction(),rows,snapshot.sources(),
                     failure,extractionMillis,(System.nanoTime()-assessmentStart)/1_000_000);
             task.setRunSummary(encoded.json());
             if(System.currentTimeMillis()<deadline)progress.accept(95,"打分结果落库");
-            versions.finish(task,encoded.tooLarge() || extractionFailure&&!trustedNewResult?null:rows,
+            versions.finish(task,encoded.tooLarge() || coverageGap&&!trustedNewResult?null:rows,
                     encoded.tooLarge()?"REPORT_TOO_LARGE":failure);
         } catch(RuntimeException ex) {
             var encoded=reports.rejection(task,documentId,ScoringExtractionReport.unknown(),
                     ex.getMessage()==null?"SCORING_EXTRACTION_FAILED":ex.getMessage());
             task.setRunSummary(encoded.json());versions.finish(task,null,ex.getMessage()==null?"SCORING_FAILED":ex.getMessage());
         }
+    }
+    private static String extractionCoverageNote(ScoringExtractionReport report) {
+        long gap=report.failedUnitCount()+report.unreadUnitCount();
+        var byReason=new java.util.LinkedHashMap<String,Long>();
+        report.failedUnits().forEach(unit->byReason.merge(extractionReasonLabel(unit.get("reason")),1L,Long::sum));
+        report.unreadUnits().forEach(unit->byReason.merge(extractionReasonLabel(unit.get("reason")),1L,Long::sum));
+        long unlabeled=report.unreadUnitCount()-report.unreadUnits().size();
+        if(unlabeled>0)byReason.merge("未读取内容",unlabeled,Long::sum);
+        String detail=byReason.entrySet().stream().map(e->e.getValue()+" 处"+e.getKey())
+                .collect(Collectors.joining("、"));
+        return "投标原件有 "+gap+" 处内容无法解析"+(detail.isEmpty()?"":"（"+detail+"）");
+    }
+    private static String extractionReasonLabel(Object reason) {
+        String code=reason==null?"":String.valueOf(reason);
+        return switch(code) {
+            case "EMF_UNSUPPORTED_RECORD","EMF_UNSUPPORTED_CONTENT" -> "EMF 矢量图";
+            case "IMAGE_REFERENCE_UNRESOLVED" -> "图片引用无法定位";
+            case "SOURCE_DECODE_FAILED" -> "源文件解码失败";
+            case "BID_OCR_UNAVAILABLE" -> "OCR 识别不可用";
+            case "BID_OCR_TIMEOUT" -> "OCR 识别超时";
+            default -> code.isBlank()?"未知原因":code;
+        };
     }
     private void reject(ScoreParseTask task,ScoringFileSession file,String reason) {
         task.setRunSummary(reports.rejection(task,file.documentId(),ScoringExtractionReport.unknown(),reason).json());
