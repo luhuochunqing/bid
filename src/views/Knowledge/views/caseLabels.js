@@ -31,6 +31,7 @@ export const SUB_TOPIC_LABELS = {
   INTEGRATION: '系统对接',
   SECURITY_COMPLIANCE: '网络安全',
   LOGISTICS_WAREHOUSE: '仓储物流',
+  PRODUCT_PRICING: '商品管理与定价机制',
   QUALITY_CONTROL: '质量保证',
   DELIVERY_PROGRESS: '项目进度',
   SYS_ARCH: '系统架构',

@@ -96,4 +96,13 @@ class CaseSubTopicPolicyTest {
         assertThat(mismatchResult.score()).isEqualTo(0);
         assertThat(mismatchResult.reason()).isNull();
     }
+
+    @Test
+    @DisplayName("商品管理方案与定价机制推断为 PRODUCT_PRICING 子主题")
+    void testInferSubTopic_ProductPricing() {
+        assertThat(CaseSubTopicPolicy.inferSubTopic("商品管理方案", "SKU数量、商品的定价机制、价格管控机制"))
+                .isEqualTo(CaseSubTopicPolicy.SubTopic.PRODUCT_PRICING);
+        assertThat(CaseSubTopicPolicy.inferSubTopic("技术部分", "包含商品管理、定价机制与价格对标分析"))
+                .isEqualTo(CaseSubTopicPolicy.SubTopic.PRODUCT_PRICING);
+    }
 }
