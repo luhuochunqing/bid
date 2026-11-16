@@ -121,11 +121,17 @@ final class ScoreParseReviewFactMapper {
                 .filter(fact -> fact.schemeId() != null && !fact.schemeId().isBlank())
                 .collect(Collectors.groupingBy(ScoreParseReviewDTO.Fact::schemeId, java.util.LinkedHashMap::new,
                         Collectors.toList()));
-        return grouped.entrySet().stream().map(entry -> {
+        boolean hasInSchemeFacts = grouped.values().stream()
+                .anyMatch(group -> group.stream().anyMatch(f -> "IN_SCHEME".equals(f.scopeStatus())));
+        var activeEntries = grouped.entrySet().stream()
+                .filter(entry -> !hasInSchemeFacts || entry.getValue().stream()
+                        .anyMatch(f -> !"OUT_OF_SCHEME".equals(f.scopeStatus())))
+                .toList();
+        return activeEntries.stream().map(entry -> {
             ScoreParseReviewDTO.Fact fact = entry.getValue().get(0);
             return new ScoreParseReviewDTO.Scheme(entry.getKey(), fact.schemeTitle(), fact.tableIds(),
                     fact.layoutStatus(), fact.totalEvidenceStatus(), fact.declaredTotal(), fact.totalQuote(),
-                    fact.totalLocator(), grouped.size() > 1);
+                    fact.totalLocator(), activeEntries.size() > 1);
         }).toList();
     }
 

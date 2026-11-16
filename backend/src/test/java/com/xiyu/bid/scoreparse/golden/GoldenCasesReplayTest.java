@@ -516,6 +516,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-1392-single-digit-ordinal"),
                 Arguments.of("case-1392-token-boundary"),
                 Arguments.of("case-1392-tree-aware"),
+                Arguments.of("case-1124-scheme-colon-normalization"),
                 Arguments.of("case-code-primary-completeness"),
                 Arguments.of("case-page-split-parent-child"),
                 Arguments.of("case-long-text-scoring-table"),
@@ -622,6 +623,17 @@ class GoldenCasesReplayTest {
                     new DocumentArtifact.ArtifactMeta("synthetic-1392", "sha-1392", "pdf", "2.0"),
                     List.of(), List.of(), List.of(), "2.0"), markdown);
             assertEquals(expected.path("declaredTotal").decimalValue(), context.total().value());
+            assertTrue(context.scheme().contains(expected.path("schemeTitle").asText()), context.scheme());
+            return; // Source-contract case; no extraction PRF claim.
+        }
+        if (caseName.equals("case-1124-scheme-colon-normalization")) {
+            var expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json"));
+            var markdown = GoldenCasesReplaySupport.readFixture(caseName + ".md");
+            var context = OriginalScoringContext.resolve(new DocumentArtifact(
+                    new DocumentArtifact.ArtifactMeta("synthetic-1124", "sha-1124", "pdf", "2.0"),
+                    List.of(), List.of(), List.of(), "2.0"), markdown);
+            assertEquals(expected.path("declaredTotal").decimalValue(), context.total().value());
+            assertTrue(context.problems().isEmpty(), () -> context.problems().toString());
             assertTrue(context.scheme().contains(expected.path("schemeTitle").asText()), context.scheme());
             return; // Source-contract case; no extraction PRF claim.
         }

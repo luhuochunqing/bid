@@ -1,0 +1,7 @@
+{
+  "synthetic": true,
+  "desensitization": "全部标题与规则均合成，仅保留目录列举无冒号、初步评审行与正式章节全角冒号版式特征",
+  "focus": "第四章谈判及评审方法与第四章：谈判及评审方法必须归并同一方案，初步评审标准行不得引发 ORIGINAL_SCHEME_AMBIGUOUS",
+  "declaredTotal": 100,
+  "schemeTitle": "第四章：谈判及评审方法"
+}

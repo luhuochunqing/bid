@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { ElMessage } from 'element-plus'
 import ScoreCandidateReviewCard from './ScoreCandidateReviewCard.vue'
 
 describe('ScoreCandidateReviewCard.vue', () => {
@@ -430,4 +431,40 @@ it('distinguishes extracted records from zero candidates in the selected scheme'
   expect(wrapper.findAll('.candidate-table tbody tr')).toHaveLength(0)
   expect(wrapper.findAll('.audit-fact-row')).toHaveLength(4)
   expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+})
+
+it('warns and refuses silent mutation when clicking include while schemeSelectionRequired and no scheme is selected', async ({ onTestFinished }) => {
+  const warning = vi.spyOn(ElMessage, 'warning')
+  onTestFinished(() => warning.mockRestore())
+  const facts = [
+    { factId: 'f1', code: '1', dimension: '商务部分', weight: 20, sourceText: '商务规则', schemeId: 'scheme-pseudo', candidateEligible: false, scopeStatus: 'OUT_OF_SCHEME' },
+  ]
+  const wrapper = mount(ScoreCandidateReviewCard, {
+    props: {
+      candidateFacts: facts,
+      schemes: [
+        { schemeId: 'scheme-1', title: '第四章：谈判及评审方法' },
+        { schemeId: 'scheme-2', title: '第二评分方案' },
+      ],
+      selectedSchemeId: null,
+      schemeSelectionRequired: true,
+      candidateTotalWeight: 0,
+    },
+    global: {
+      stubs: {
+        'el-alert': true,
+        'el-select': true,
+        'el-option': true,
+        'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
+      },
+    },
+  })
+
+  await wrapper.get('[data-test="btn-include-fact"]').trigger('click')
+  expect(warning).toHaveBeenCalledTimes(1)
+  expect(warning).toHaveBeenCalledWith('请先在上方选择一个评分方案，再纳入评分项')
+  expect(wrapper.emitted('scheme-change')).toBeUndefined()
+  expect(wrapper.emitted('fact-change')).toBeUndefined()
+  expect(facts[0].manualIncluded).toBeUndefined()
+  expect(facts[0].candidateEligible).toBe(false)
 })

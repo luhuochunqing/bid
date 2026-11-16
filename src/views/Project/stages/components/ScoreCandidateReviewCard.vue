@@ -147,6 +147,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import { isManualScoreCandidate } from '@/composables/projectDetail/manualScoreCandidate.js'
 import {
   exclusionLabel,
@@ -206,6 +207,10 @@ const emit = defineEmits(['adopt', 'reparse', 'scheme-change', 'fact-change'])
 
 function toggleFactEligibility(fact, eligible) {
   if (props.readonly) return
+  if (eligible && props.schemeSelectionRequired && !props.selectedSchemeId) {
+    ElMessage.warning('请先在上方选择一个评分方案，再纳入评分项')
+    return
+  }
   fact.manualExcluded = !eligible
   fact.manualIncluded = eligible
   fact.candidateEligible = eligible

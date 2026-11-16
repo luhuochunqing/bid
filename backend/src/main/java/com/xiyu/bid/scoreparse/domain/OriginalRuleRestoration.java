@@ -76,8 +76,11 @@ public final class OriginalRuleRestoration {
                 .map(OriginalRuleRestoration::unit).toList());
         boolean hasChildren = facts.stream().anyMatch(other -> parentOf != null ? parentOf.apply(other) == fact
                 : !fact.code().isBlank() && fact.code().equals(other.parentCode()) && fact.schemeId().equals(other.schemeId()));
+        boolean directlyCitedRuleCell = !spans.isEmpty() && spans.stream()
+                .allMatch(span -> !span.sourceId().isBlank() && fact.sourceCellIds().contains(span.sourceId()));
         if (rule.isBlank() && structural.applicable() && structural.closed() && validPeers.size() == 1
-                && !hasChildren && LogicalRuleSourceUnit.isExactNamedRowAnchor(artifact, fact)) {
+                && !hasChildren && (LogicalRuleSourceUnit.isExactNamedRowAnchor(artifact, fact)
+                        || (!ambiguousCellShare && !raw.isBlank() && directlyCitedRuleCell))) {
             rule = raw.strip();
         }
         boolean erased = !structural.applicable() && erasesNumberedMaterials(rule, modelRule);

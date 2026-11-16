@@ -26,13 +26,13 @@ public final class SourceFactIdentity {
         var firstDocuments = documents(first);
         var secondDocuments = documents(second);
         if (!firstDocuments.equals(secondDocuments)) return false;
-        String quote = quote(first);
-        if (quote.isBlank() || !quote.equals(quote(second))) return false;
-        // An anchor may cover several independently scored subrules. Never let the expanded
-        // whole-row quotation erase distinct model quotations or distinct located rule text.
+        String quoteA = quote(first), quoteB = quote(second);
+        if (quoteA.isBlank() || quoteB.isBlank()) return false;
         String firstRule = normalize(first.ruleText()), secondRule = normalize(second.ruleText());
         if (!firstRule.isBlank() && firstRule.equals(secondRule)) return true;
-        return wholeRowClaim(first, artifact) && wholeRowClaim(second, artifact);
+        // Equal or overlapping quotations can cover independently scored subrules;
+        // only identical whole-row claims prove identity when the rule texts differ.
+        return quoteA.equals(quoteB) && wholeRowClaim(first, artifact) && wholeRowClaim(second, artifact);
     }
 
     public static boolean sameWeight(MultimodalScoreFact first, MultimodalScoreFact second) {

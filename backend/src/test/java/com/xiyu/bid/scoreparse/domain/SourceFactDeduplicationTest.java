@@ -1,5 +1,6 @@
 package com.xiyu.bid.scoreparse.domain;
 
+import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,54 @@ class SourceFactDeduplicationTest {
         var parent = fact("parent", "", "证书得5分", "证书得5分", "doc");
         var child = fact("child", "parent", "证书得5分", "证书得5分", "doc");
         assertThat(SourceFactDeduplication.merge(List.of(parent, child))).containsExactly(parent, child);
+    }
+
+    @Test void sameCellChunkClonesWithMinorFormattingOrPrefixDifferencesAreMerged() {
+        String cellRaw = "提供无息账期响应承诺书。\n无息账期≥120天得1分；\n无息账期<120天得0分；\n未提供不得分。";
+        var cells = List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r0_c0", 0, 0, "序号", "序号", 1, 1, false, "", 28, "t-r0"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r0_c1", 0, 1, "评分项目", "评分项目", 1, 1, false, "", 28, "t-r0"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r0_c2", 0, 2, "分值", "分值", 1, 1, false, "", 28, "t-r0"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r0_c3", 0, 3, "评分标准", "评分标准", 1, 1, false, "", 28, "t-r0"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r1_c0", 1, 0, "1", "1", 1, 1, false, "", 28, "t-r1"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r1_c1", 1, 1, "无息账期", "无息账期", 1, 1, false, "", 28, "t-r1"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r1_c2", 1, 2, "1", "1", 1, 1, false, "", 28, "t-r1"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto("t_r1_c3", 1, 3, cellRaw, cellRaw, 1, 1, false, "", 28, "t-r1"));
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("doc", "sha", "PDF", "2.2"),
+                List.of(new DocumentArtifact.CanonicalTable("t", 28, "第四章：谈判及评审方法", 2, 4, List.of(), cells, true, "PDF")),
+                List.of());
+        var span = new SourceSpan("doc", "sha", "PDF", "scheme", 28, "t", "t_r1_c3", 0, cellRaw.length(), cellRaw, "pdf:page=28");
+        String quoteA = "提供无息账期响应承诺书。\n无息账期\n1 无息账期＜120天得0分；";
+        String quoteB = cellRaw.replace("\n", "<br>");
+        var first = new MultimodalScoreFact("商务", "wu_xi_zhang_qi", "parent_a", "无息账期", new BigDecimal("1"),
+                cellRaw, "OBJECTIVE", 28, "t", List.of("t_r1_c3"),
+                quoteA, .9, ChildAggregation.UNKNOWN,
+                "scheme", "IN_SCHEME", new ScoreSourceMetadata(cellRaw, quoteA, List.of(span), List.of()));
+        var second = new MultimodalScoreFact("商务", "f_clone", "", "无息账期", new BigDecimal("1"),
+                quoteB, "OBJECTIVE", 28, "t", List.of("t_r1_c3"),
+                quoteB, .9, ChildAggregation.UNKNOWN,
+                "scheme", "IN_SCHEME", new ScoreSourceMetadata(quoteB, quoteB, List.of(span), List.of()));
+
+        var merged = SourceFactDeduplication.merge(List.of(first, second), artifact);
+        assertThat(merged).hasSize(1);
+    }
+
+    @Test void independentSubItemsSurviveWhenOneQuoteContainsTheOtherInTheSameCell() {
+        String projectRule = "项目负责人具有高级工程师职称且提供有效的职称证书及劳动合同证明材料的，得5分。";
+        String technicalRule = "技术负责人具有注册工程师资格且提供有效的注册证书及劳动合同证明材料的，得5分。";
+        String cellText = projectRule + "\n" + technicalRule;
+        var project = fact("project", "", projectRule, projectRule, "doc");
+        var technical = fact("technical", "", technicalRule, cellText, "doc");
+
+        assertThat(SourceFactIdentity.sameUnit(project, technical)).isFalse();
+        assertThat(SourceFactIdentity.sameUnit(technical, project)).isFalse();
+        for (var input : List.of(List.of(project, technical), List.of(technical, project))) {
+            var merged = SourceFactDeduplication.merge(input);
+            assertThat(merged).containsExactlyElementsOf(input);
+            assertThat(merged.stream().map(MultimodalScoreFact::weight).reduce(BigDecimal.ZERO, BigDecimal::add))
+                    .isEqualByComparingTo("10");
+            assertThat(SourceFactDeduplication.merge(merged)).containsExactlyElementsOf(input);
+        }
     }
 
     private static MultimodalScoreFact fact(String code, String parent, String rule, String quote, String document) {
