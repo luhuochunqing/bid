@@ -19,3 +19,8 @@
 
 ## Measured and unmeasured
 既有53项OCR测试及41页反例属于前序证据，本轮只修订文档。586MB原件字节/图数/耗时/RSS/模型准确率待Task1测量，完整恢复由Task8验收。v1工期估算作废，基线测完再排期。MemU连接失败，依据本会话现有证据与源码。
+
+
+## 2026-11-16 PDF并行与empty页审查
+Decision：PDF仍单线程调用PyMuPDF，只将渲染后PNG交给有界Tesseract线程任务；不在线程共享Document/Page对象。Rationale：官方multiprocessing文档明确不支持PyMuPDF多线程；既有Word已用1..4有界窗口。Alternatives：全流程多线程有崩溃风险，多进程PDF会扩大进程内存及去重复杂度，当前无必要。Source：https://pymupdf.readthedocs.io/en/latest/recipes-multiprocessing.html 。
+证据：生产8核、Sidecar4GiB无CPU硬配额，仅是资源快照，不是并行速度证明；真实回放后决定默认并发。empty4不等于真实白页；既有最高档信用证明只支持四档Word表格，不能套用项目580的三档PDF承诺函。

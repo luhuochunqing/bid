@@ -326,3 +326,20 @@ Task1 → Task2/3接口与资源作用域 → Task4/5 → Task6/7验证 → Task
 - 真实652固定模型工程回放先证明来源与服务端阈值均成立，但通用12k摘录漏掉末尾原生响应行，仍被quote-in-excerpt守卫置空。按T019“有反例才定向修正”：完整消费额度规则后，只在该项找到唯一、连续来源绑定的同指标原生响应行时，将原文纳入既有12k预算；不改通用摘录器、不增加检索系统，仍校验引用确实出现在实际模型输入内。
 
 - 用户随后明确确认第652项预期9分，作为真实评分对照；固定模型工程回放与真实模型/DB/API/UI验收仍分开，其他金标尚未完成。
+
+
+## 2026-11-16 项目580增量实现计划
+
+基线eddf17831，目标working_tree。使用writing-plans方法，根Agent顺序执行，controller:none，不开启第二套工作流。纯核心为已有domain证据策略；Sidecar文件/进程、ScoreItemAssessor模型调用为外壳。
+
+1. 先补真实OCR输出一致/并行上限/时限失败/顺序保真回归并证明RED；PDF渲染在原调用线程，只有Tesseract任务并发，沿用SIDECAR_BID_OCR_WORKERS（1..4）和1500秒总预算。只持有有界窗口，不一次解码1225页。
+2. 核对54/75/445/749页；识别为空时做有界识别复核，纯图页不能凭空当白页。只有实际充分证据可改变出分资格，保持原全局守卫的保守默认。
+3. 比较真实评分规则、原文页、12000字符节选及补图，证明引用首次丢失位置后补回归修复；不预设页码错位。
+4. 保留细项失败原因并在既有质量摘要显示未读/失败/识别空单元；不新建UI流程。
+5. 同原件回放并记录覆盖、耗时与RSS；补相邻回归、架构、Vitest、build，再清理及独立审查。客户工件不入Git。
+
+验证命令：Sidecar venv Python -m pytest document-converter-sidecar/tests/test_scoring_extraction_v2.py及新增PDF测试；mvn -f backend/pom.xml -Dtest=ScoreItemAssessorTest,ScoringEvidenceCoverageTest,ScoringCreditLimitProofTest,ScoreScoringAppServiceTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest test；npx vitest run（具体新增测试）与npm run build。红/绿日志存/tmp/xiyu-580-scoring-diagnose-20261116。
+
+
+### 同原件进一步定位
+第6页完整响应已满足免运费最高档文字条件；新增FreeDeliveryScoreProof，仅闭合二分支规则、原始/最终模型分等于最高档、两个无限制条件与全程免费同时出现、来源已验证时适用。0元起送单独不放行。第818页并非唯一有效来源，补图验收要求保留足够证据的响应页（同原件第6页），不硬编码页码。信用额度OCR不足仍保留待确认，不把肉/财猜成赊销。

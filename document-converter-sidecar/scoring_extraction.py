@@ -108,46 +108,65 @@ class _Coverage:
 def _pdf(path, coverage):
     import pymupdf
 
-    pages = []
-    with pymupdf.open(path) as document:
+    # PyMuPDF stays on the caller thread. Only independent OCR subprocesses run
+    # concurrently; at most one window of encoded pages is retained.
+    workers = min(4, max(1, _env_int('SIDECAR_BID_OCR_WORKERS', 2)))
+    pages = {}
+    with pymupdf.open(path) as document, ThreadPoolExecutor(
+            max_workers=workers, thread_name_prefix='pdf-ocr') as executor:
         coverage.refs = [{'pageNumber': number + 1} for number in range(len(document))]
-        for index, ref in enumerate(coverage.refs):
-            if coverage.expired():
-                coverage.unread.extend({**item, 'reason': 'BID_OCR_TIMEOUT'}
-                                       for item in coverage.refs[index:])
-                break
-            page = document.load_page(index)
-            text = ''
-            error = None
-            blank = False
-            try:
-                text = page.get_text().strip()
-                # Include inline image operators as well as image XObjects.
-                if not text or page.get_image_info():
-                    zoom = _pixmap_zoom(page.rect.width, page.rect.height)
-                    pixmap = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
-                    with Image.frombytes('RGB', (pixmap.width, pixmap.height), pixmap.samples) as image:
-                        del pixmap
-                        blank = image.getextrema() == ((255, 255),) * 3
-                        if not blank:
-                            ocr_text, error = coverage.recognize(_prepare_ocr_png(image))
-                            if ocr_text:
-                                compact_native = ''.join(text.split())
-                                text = ocr_text if compact_native in ''.join(ocr_text.split()) else text + '\n' + ocr_text
-                            elif not error and text.strip():
-                                # Native text must not hide an empty recognition of the rendered page.
-                                # Pages without native text are already recorded by finish_unit.
-                                coverage.empty.append(ref.copy())
-            except Exception as exc:
-                error = 'BID_OCR_TIMEOUT' if isinstance(exc, TimeoutError) else 'SOURCE_DECODE_FAILED'
+        pending = {}
+
+        def finish(ref, text, error=None, blank=False):
             text = coverage.finish_unit(ref, text.strip(), error, blank)
-            pages.append({**ref, 'text': text})
-    # Keep the full physical range even when some units were not executed.
-    pages.extend({**ref, 'text': ''} for ref in coverage.refs[len(pages):])
-    markdown = '\n\n'.join(f"[第 {page['pageNumber']} 页]\n{page['text']}" for page in pages if page['text'])
+            pages[ref['pageNumber']] = {**ref, 'text': text}
+
+        def drain():
+            done, _ = wait(pending, return_when=FIRST_COMPLETED)
+            for future in done:
+                ref, native = pending.pop(future)
+                ocr_text, error = future.result()
+                text = native
+                if ocr_text:
+                    text = ocr_text if ''.join(native.split()) in ''.join(ocr_text.split()) else native + '\n' + ocr_text
+                elif not error and native.strip():
+                    coverage.empty.append(ref.copy())
+                finish(ref, text, error)
+
+        for ref in coverage.refs:
+            if coverage.expired():
+                break
+            if len(pending) >= workers:
+                drain()
+                if coverage.expired():
+                    break
+            try:
+                page = document.load_page(ref['pageNumber'] - 1)
+                text = page.get_text().strip()
+                if text and not page.get_image_info():
+                    finish(ref, text)
+                    continue
+                zoom = _pixmap_zoom(page.rect.width, page.rect.height)
+                pixmap = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+                with Image.frombytes('RGB', (pixmap.width, pixmap.height), pixmap.samples) as image:
+                    del pixmap
+                    blank = image.getextrema() == ((255, 255),) * 3
+                    if blank:
+                        finish(ref, text, blank=True)
+                        continue
+                    payload = _prepare_ocr_png(image)
+                pending[executor.submit(coverage.recognize, payload)] = (ref, text)
+            except Exception as exc:
+                finish(ref, '', 'BID_OCR_TIMEOUT' if isinstance(exc, TimeoutError) else 'SOURCE_DECODE_FAILED')
+        while pending:
+            drain()
+    coverage.unread.extend({**ref, 'reason': 'BID_OCR_TIMEOUT'}
+                           for ref in coverage.refs if ref['pageNumber'] not in pages)
+    ordered = [pages.get(ref['pageNumber'], {**ref, 'text': ''}) for ref in coverage.refs]
+    markdown = '\n\n'.join(f"[第 {page['pageNumber']} 页]\n{page['text']}" for page in ordered if page['text'])
     if len(markdown) > 5_000_000:
         raise ScoringPdfOcrError('SCORING_TEXT_TOO_LARGE')
-    return coverage.result(markdown, pages)
+    return coverage.result(markdown, ordered)
 
 
 def _relationships(archive, part_name, deadline):

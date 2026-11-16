@@ -93,7 +93,8 @@ final class ScoreScoringExecution {
                     trustedNewResult|=trusted;
                     if(extractionFailure && !trusted) {
                         assessed.setReuseKind("EXTRACT_FAILED");
-                        assessed.setMissedReason("原件提取技术故障，证据未完整读取，请重试本项");
+                        assessed.setMissedReason("原件提取技术故障，证据未完整读取，请重试本项；"
+                                +Objects.toString(assessed.getMissedReason(),"可核验证据不足"));
                     }
                     rows.add(assessed);
                 } catch(RuntimeException ex) {

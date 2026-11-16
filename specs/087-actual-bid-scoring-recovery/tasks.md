@@ -91,3 +91,17 @@ US1证据可回查且正常原件正确出分；US2局部真重评/成功项不�
 - T009：ScoringSourceRef 统一已知来源字段、marker和来源身份；旧wire来源列表在读取边界转换，协议兼容。
 - T015/T022：版本服务改为必需构造依赖，删除旧评分执行及读取分支；测试迁移到实际新主链。
 - 主干 Wiki 冲突通过 merge 解决，保留双方条目。T030–T034 的未完成状态保持，代码回归不替代真实 MySQL、模型及现场验收。
+
+
+## 项目580增量任务（2026-11-16）
+
+- [ ] T036 [US5] 固定原件/生产失败回执、核验empty4页，原件存/tmp，基线记录至本地evidence.json。
+- [ ] T037 [US5] 在document-converter-sidecar/tests/test_scoring_pdf.py先写并执行RED回归，再实现有界并行/顺序/去重/截止处理。
+- [ ] T038 [US6] 查明empty页及逐项引用首次丢失点，在对应Sidecar/ScoreItemAssessorTest补RED后修复，未知保持明确。
+- [ ] T039 [US6] 在ScoreScoringExecution保留具体拒绝原因；scoringQualityPresentation显示覆盖计数，补对应回归。
+- [ ] T040 [US5] 同1225页原件测量覆盖/耗时/RSS，运行相邻回归/架构/构建；未完成部分不得勾选。
+- [ ] T041 清理、Spec一致性分析、独立审查并沉淀wiki/lessons；不push、不建PR、不部署、不线上重评。
+
+顺序：T036→T037→T038→T039→T040→T041。使用现有087，不另建feature或重置历史未验收清单。
+
+- [ ] T042 [US6] 在ScoringSupplementSelectionTest复现末页承诺被前三页截断，复用ScoreDocExcerptExtractor相关度对ScoringSourceIndex候选排序，并保留ScoringFileSession的字节/张数/缓存预算。

@@ -63,11 +63,15 @@ public final class ScoringFileSession implements AutoCloseable {
         catch(IOException ex){throw new IllegalStateException("SCORING_EXTRACTION_FAILED",ex);}
     }
     public List<DocumentImage> imagesFor(ScoreDocExcerptExtractor.Excerpt excerpt,ImageBudget budget) {
+        return imagesFor(excerpt, budget, null, null);
+    }
+    public List<DocumentImage> imagesFor(ScoreDocExcerptExtractor.Excerpt excerpt,ImageBudget budget,
+                                        String dim,String detail) {
         ScoringDeadline.check(deadline);
         if(images==null || document==null || budget.maxImagesPerItem()<=0)return List.of();
         if(sourceIndex==null)sourceIndex=new ScoringSourceIndex(document);
-        var refs=sourceIndex.select(excerpt);
-        Set<Integer> pages=new TreeSet<>();List<String> media=new ArrayList<>();
+        var refs=sourceIndex.select(excerpt,dim,detail);
+        Set<Integer> pages=new java.util.LinkedHashSet<>();List<String> media=new ArrayList<>();
         for(var ref:refs) {
             if(ref.pageNumber()!=null)pages.add(ref.pageNumber());
             else if(ref.mediaName()!=null)media.add(ref.mediaName());
@@ -85,12 +89,14 @@ public final class ScoringFileSession implements AutoCloseable {
                     var result=file instanceof LoadedBidFile.InMemory memory
                             ?images.renderPages(memory.content(),file.fileName(),missing,deadline)
                             :images.renderPages(((LoadedBidFile.OnDisk)file).tempFile(),file.fileName(),missing,deadline);
-                    for(var image:withinBudget(result.images(),budget)) {
+                    for(var image:result.images()) {
                         if(image.pageHint()==null||!missing.contains(image.pageHint()))continue;
-                        resolved.put(image.pageHint(),image);cache("page:"+image.pageHint(),image,budget);
+                        resolved.put(image.pageHint(),image);
                     }
                 }
-                return withinBudget(selected.stream().map(resolved::get).filter(Objects::nonNull).toList(),budget);
+                var accepted=withinBudget(selected.stream().map(resolved::get).filter(Objects::nonNull).toList(),budget);
+                accepted.forEach(image -> cache("page:"+image.pageHint(),image,budget));
+                return accepted;
             }
             return readMedia(media,budget);
         } catch(InterruptedException ex){Thread.currentThread().interrupt();throw new IllegalStateException("SCORING_INTERRUPTED",ex);}

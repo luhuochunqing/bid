@@ -1867,3 +1867,9 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-11-13] compound | 用户确认1123第652项预期9分；真实模型及生产验收仍未执行。
 
 ## [2026-11-13] compound | CO-661 根因：节选分隔符误杀跨段引用（A1 项 documentRawMatch=true 仍 QUOTE_NOT_IN_EXCERPT），回填 [[co661-quote-excerpt-separator-fix]]。
+
+## [2026-11-16] compound | [[score580-scanned-bid-scoring]]：生产1225页评分OCR在25分钟预算耗尽，843页处超时、382页未读；记录逐项引用/覆盖拒绝，未修复、部署或重算。
+
+## [2026-11-16] compound | [[score580-scanned-bid-scoring]] MCP方案反向审查：补充empty页阻断、信用规则适配缺口和同原件性能验收；原方案尚不能证明恢复。
+
+## [2026-11-16] compound | [[score580-scanned-bid-scoring]] 本地有界并行OCR原件1225页444秒，保留empty5；销售额最高档离线15分、补图相关度及拒绝原因修复，未部署/重评。

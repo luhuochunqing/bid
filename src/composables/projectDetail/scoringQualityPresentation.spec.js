@@ -34,3 +34,14 @@ describe('actual scoring quality presentation', () => {
     expect(view.text).toContain('客观已评分2项')
   })
 })
+
+it('shows actual unread, failed and empty source units instead of hiding coverage diagnostics', () => {
+  const view = scoringQualityPresentation({qualityStatus: 'PARTIAL',coverage: {
+    coverageStatus: 'PARTIAL', sourceUnitCount: 1225, processedUnitCount: 843,
+    unreadUnitCount: 382, failedUnitCount: 1, emptyUnitCount: 4,
+  }})
+  expect(view.text).toContain('已处理843/1225页/单元')
+  expect(view.text).toContain('未读取382')
+  expect(view.text).toContain('处理失败1')
+  expect(view.text).toContain('识别为空4')
+})
