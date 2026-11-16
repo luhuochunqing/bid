@@ -215,3 +215,13 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 业务/HTML/JSON契约默认运行；`SemanticHeuristicCorpusTest`加`heuristic-corpus`标签，Surefire默认排除，显式传`-DexcludedGroups=`可运行历史观察。完整清单与证据见`specs/083-semantic-boundary-debt/`。
 
 2026-11-10 Minor收敛：证书策略复用完整分句字符类，移除换页空分支与find冗余；语料已按收口后的静态期望校正，显式685项可全绿。旧59条差异保留为已关闭历史记录，业务契约大类本轮不裁剪。
+
+
+## 页码来源与报告版本（2026-11-16）
+
+- `DocumentContent.PageContent.pageNumber`：仅内部检索ID；`sourcePageNumber`/`sourceFileName`/`sourceFileHash`：原件位置。无分页文本（含短DOCX）只能有内容块，不存在默认真实第1页。
+- `ReportEvidenceLocationPolicy`：异步所有融合结束后投影一次；原件页码与引用须来自同一切片，未知来源保留摘录、页码为空。合并分册保留册内页及文件身份；转写、预算截断不得丢失来源。
+- `LlmVerdict.evidenceChunk/evidenceQuote`：模型定位须与对应内容块原文逐字匹配；缺失或不匹配不以通用关键词首命中替代。旧四字段模型响应仍可裁决，但不能凭空定位。
+- `QualityReportSnapshot`：既有checkDetails列保存version/items对象；旧array只读兼容，DTO标记requiresRecheck并移除未验证页；仅当前版本完整25项允许缓存复用。不改写历史存储。
+- `scripts/check-pages-contract.mjs`：除Python/Java字段契约，还执行来源投影、历史快照、模型绑定及真实异步出口行为测试，已由现有pre-push调用。
+- 边界：未引入DOCX排版服务；Word精确页码需同一固定渲染产物，当前提供原文检索。

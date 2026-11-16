@@ -121,7 +121,7 @@ public final class IdAuthLetterCheckPolicy {
             String snippet = extractSnippet(placeholderMatchPage.text(), "身份证", 150);
             return QualityCheckItemResult.manualReview(item,
                     "检测到身份证明/身份证章节包含未填占位符模板，疑似未实际附扫描件",
-                    "请检查标书第 " + placeholderMatchPage.pageNumber() + " 页是否按要求粘贴清晰有效的身份证扫描件",
+                    "请按原文摘录检查对应位置是否按要求粘贴清晰有效的身份证扫描件",
                     List.of(QualityEvidence.bid("占位符模板疑似页", placeholderMatchPage.pageNumber(), snippet)));
         }
 

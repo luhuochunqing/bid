@@ -159,9 +159,9 @@ public final class QualificationMatchPolicy {
         return locateInBid(bidDoc, QualificationDetailReconciler.buildBidSearchCues(req)).map(h ->
                 SemanticEvidenceBoundary.hasSubstantiveCertificateFacts(bidDoc, h.pageNumber())
                         ? new QualificationDetail(req, req, "MATCHED", h.pageNumber(), h.quote(), null,
-                                "已在标书第 " + h.pageNumber() + " 页核验到证书编号及有效期限证明", Finding.MATCHED_REFERENCE)
+                                "已在标书原文核验到证书编号及有效期限证明", Finding.MATCHED_REFERENCE)
                         : new QualificationDetail(req, "", "ATTENTION", h.pageNumber(), h.quote(), null,
-                                "资质库未维护该证书，但在标书第 " + h.pageNumber() + " 页检索到证明材料，请人工核查有效性", Finding.EVIDENCE_INCOMPLETE))
+                                "资质库未维护该证书，但在标书原文检索到证明材料，请人工核查有效性", Finding.EVIDENCE_INCOMPLETE))
                 .orElseGet(() -> new QualificationDetail(
                         req, "", "UNMATCHED", null, "", null,
                         "企业资质库及投标文本未检索到对应证明，需核验原始材料；未命中不证明缺失", Finding.LOOKUP_MISS));

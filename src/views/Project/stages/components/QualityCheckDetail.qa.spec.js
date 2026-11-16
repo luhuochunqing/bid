@@ -97,6 +97,13 @@ describe('质量核查详情纯函数', () => {
     expect(extractBidPages([])).toBe('')
   })
 
+  it('物理页按来源文件区分，不能把多册相同页号去重成一个位置', () => {
+    expect(extractBidPages([
+      { sourceType: 'BID', sourceFileName: '商务.pdf', sourceFileHash: 'a', pageNumber: 2 },
+      { sourceType: 'BID', sourceFileName: '技术.pdf', sourceFileHash: 'b', pageNumber: 2 }
+    ])).toBe('商务.pdf：第 2 页；技术.pdf：第 2 页')
+  })
+
   it('extractBidQuote：取第一条非空 BID 摘录', () => {
     expect(extractBidQuote([
       { sourceType: 'TENDER', quote: '招标原文' },
@@ -247,6 +254,14 @@ describe('质量核查详情弹窗字段对照表', () => {
     expect(text).toContain('请投标负责人复核后确认是否需要修订。')
     expect(text).not.toContain('问题定位')
     expect(text).not.toContain('原文摘录')
+  })
+
+  it('无物理分页但有摘录时显示原文检索说明，不能暗示阅读器误差', () => {
+    const wrapper = mountDialog({ item: { status: 'MANUAL_REVIEW', title: '检查',
+      evidences: [{ sourceType: 'BID', pageNumber: null, quote: '真实触发摘录' }] } })
+    expect(wrapper.text()).toContain('未取得原文件页码，请按原文摘录检索')
+    expect(wrapper.text()).not.toContain('阅读器缩放')
+    expect(wrapper.text()).toContain('真实触发摘录')
   })
 
   it('scoring_response 有客观项得分：结论前显示得分链接，点击通知跳转评分', async () => {

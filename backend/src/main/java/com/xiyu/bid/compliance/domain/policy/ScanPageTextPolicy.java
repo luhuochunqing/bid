@@ -52,7 +52,7 @@ public final class ScanPageTextPolicy {
             var found = accepted.get(page.pageNumber());
             if (found == null || found.size() != 1) return page;
             return new DocumentContent.PageContent(page.pageNumber(), page.text() + "\n" + TRANSCRIPTION_MARKER + "\n"
-                    + found.getFirst().text(), page.headings());
+                    + found.getFirst().text(), page.headings(), page.sourcePageNumber(), page.sourceFileName(), page.sourceFileHash());
         }).toList();
         if (pages.equals(document.pages())) return document;
         return new DocumentContent(document.fileName(), document.fileHash(),

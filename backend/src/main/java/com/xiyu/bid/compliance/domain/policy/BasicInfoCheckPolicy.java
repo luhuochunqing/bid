@@ -167,8 +167,8 @@ public final class BasicInfoCheckPolicy {
 
     static String snippet(final String text, final int maxChars) {
         if (text == null) return "";
-        String clean = text.replaceAll("\\s+", " ").trim();
-        return clean.length() <= maxChars ? clean : clean.substring(0, maxChars) + "...";
+        String clean = text.trim();
+        return clean.length() <= maxChars ? clean : clean.substring(0, maxChars);
     }
 
     /** 围绕关键词命中位置摘录证据上下文. */

@@ -18,6 +18,7 @@
 // 用法: node scripts/check-pages-contract.mjs
 
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -81,6 +82,22 @@ const consumerMissing = checkSide(
 
 if (producerMissing.length === 0 && consumerMissing.length === 0) {
   console.log("[pages-contract] PASS — pages/pageNumber/text 契约两端同现");
+  // 字段同现只能证明接线存在，必须执行真实报告出口，阻断虚拟页再次外泄。
+  const tests = [
+    "ReportEvidenceLocationPolicyTest", "QualityReportSnapshotTest", "LlmEvidenceBindingTest",
+    "BidQualityCheckAsyncExecutorTest#unpaginatedDocxMustNotPublishChunkNumbersAsPages+unversionedCacheMustNotBeReused",
+    "BidQualityCheckTaskAppServiceTest#historicalReportMustNotExposeUnverifiedPage",
+  ];
+  const result = spawnSync("mvn", ["-q", "-f", join(ROOT, "backend/pom.xml"), "test",
+    "-Dmaven.test.skip=false", "-DskipTests=false", `-Dtest=${tests.join(",")}`], {
+    cwd: ROOT, stdio: "inherit", timeout: 240000,
+    env: { ...process.env, MAVEN_OPTS: process.env.MAVEN_OPTS || "-Xmx1g" },
+  });
+  if (result.error || result.status !== 0) {
+    console.error("[pages-contract] FAIL — 页码来源/历史缓存/真实报告出口行为回归未通过", result.error?.message || "");
+    process.exit(1);
+  }
+  console.log("[pages-contract] PASS — 原件页来源与报告出口行为回归通过");
   process.exit(0);
 }
 

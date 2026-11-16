@@ -1,10 +1,9 @@
 // Input: 检查结果ID、项目ID、任务UUID、force参数
-// Output: 异步执行25项质量核查，进度持久化到DB
+// Output: 异步执行25项质量核查，最终定位投影与版本化快照持久化到DB
 // Pos: compliance/application/ - 标书质量核查后台异步执行器
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.application;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.ai.client.AiProvider;
 import com.xiyu.bid.common.util.StringUtils;
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
@@ -53,7 +52,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class BidQualityCheckAsyncExecutor {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
      * LLM 裁决单项 max_tokens（正文约 200 token，余量给 thinking——thinking 系
@@ -114,7 +112,8 @@ public class BidQualityCheckAsyncExecutor {
                         .findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
                                 bidDoc.fileHash(), tenderDoc.fileHash(), ComplianceCheckResult.TaskStatus.COMPLETED);
 
-                if (cachedOpt.isPresent() && !cachedOpt.get().getId().equals(resultId)) {
+                if (cachedOpt.isPresent() && !cachedOpt.get().getId().equals(resultId)
+                        && QualityReportSnapshot.reusable(cachedOpt.get().getCheckDetails())) {
                     ComplianceCheckResult cached = cachedOpt.get();
                     log.info("Hit SHA-256 cache for quality check, reusing result from task: {}", cached.getTaskId());
                     progressUpdater.applyCachedResult(resultId, cached);
@@ -195,7 +194,9 @@ public class BidQualityCheckAsyncExecutor {
                     : manual > 0 ? ComplianceCheckResult.Status.PARTIAL_COMPLIANT : ComplianceCheckResult.Status.COMPLIANT;
 
             int riskScore = Math.min(100, failed * 20 + manual * 5);
-            String checkDetailsJson = OBJECT_MAPPER.writeValueAsString(itemResults);
+            itemResults = itemResults.stream().map(item ->
+                    com.xiyu.bid.compliance.domain.policy.ReportEvidenceLocationPolicy.project(item, bidDoc, tenderDoc)).toList();
+            String checkDetailsJson = QualityReportSnapshot.write(itemResults);
             progressUpdater.completeTask(resultId, overallStatus, riskScore, checkDetailsJson, passed, failed, manual, itemResults.size());
 
             int parseFailures = parseFailureCounter.get();

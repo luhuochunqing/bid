@@ -104,7 +104,7 @@ class BidQualityCheckAsyncExecutorTest {
 
     @Test
     @DisplayName("force=false 且 SHA-256 命中缓存时复用缓存结果")
-    void testExecuteAsync_CacheHit() {
+    void testExecuteAsync_CacheHit() throws Exception {
         Long resultId = 1L;
         Long projectId = 100L;
         String taskId = "task-001";
@@ -118,6 +118,9 @@ class BidQualityCheckAsyncExecutorTest {
         ComplianceCheckResult cached = ComplianceCheckResult.builder()
                 .id(99L)
                 .taskId("cached-task-99")
+                .checkDetails(QualityReportSnapshot.write(java.util.Arrays.stream(
+                        com.xiyu.bid.compliance.domain.BidQualityCheckItem.values())
+                        .map(i -> com.xiyu.bid.compliance.domain.QualityCheckItemResult.pass(i, "已检查", List.of())).toList()))
                 .status(ComplianceCheckResult.TaskStatus.COMPLETED)
                 .build();
         when(resultRepository.findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
@@ -130,6 +133,44 @@ class BidQualityCheckAsyncExecutorTest {
         verify(progressUpdater).updateFileMetadata(eq(resultId), eq("bid.pdf"), eq("hash_bid"), eq("hash_tender"));
         verify(progressUpdater).applyCachedResult(eq(resultId), eq(cached));
         verify(progressUpdater, never()).markFailed(any(), anyString());
+    }
+
+    @Test
+    void unpaginatedDocxMustNotPublishChunkNumbersAsPages() throws Exception {
+        var bid = com.xiyu.bid.compliance.service.SidecarPayloadParser.buildDocumentContent(
+                "bid.docx", "h", "资格声明\n失信被执行人核查结果：_____。\n" + "正文".repeat(4000));
+        when(targetLoader.loadBidDocument(1360L)).thenReturn(bid);
+        var tender = DocumentContent.empty();
+        when(tenderDocumentLoader.loadTenderDocument(1360L)).thenReturn(tender);
+        when(requirementsExtractor.extract(tender)).thenReturn(TenderRequirements.empty());
+        when(kbLoader.queryKnowledgeBases(any(), any())).thenReturn(KnowledgeQueryOutcome.empty());
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
+                .thenReturn("{\"status\":\"MANUAL\",\"conclusion\":\"需要复核\",\"reasonCode\":\"AMBIGUOUS\"}");
+        asyncExecutor.executeAsync(1L, 1360L, "page-root", true);
+        var json = ArgumentCaptor.forClass(String.class);
+        verify(progressUpdater).completeTask(eq(1L), any(), anyInt(), json.capture(), anyInt(), anyInt(), anyInt(), anyInt());
+        var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json.getValue());
+        var veto = root.findValues("itemCode");
+        assertThat(veto).isNotEmpty();
+        assertThat(root.findValues("pageNumber")).isNotEmpty().allSatisfy(n -> assertThat(n.isNull()).isTrue());
+    }
+
+    @Test
+    void unversionedCacheMustNotBeReused() {
+        var bid = DocumentContent.fromText("bid.pdf", "h", "正文");
+        when(targetLoader.loadBidDocument(1360L)).thenReturn(bid);
+        when(tenderDocumentLoader.loadTenderDocument(1360L)).thenReturn(DocumentContent.empty());
+        var cached = ComplianceCheckResult.builder().id(99L).checkDetails("[]")
+                .status(ComplianceCheckResult.TaskStatus.COMPLETED).build();
+        when(resultRepository.findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
+                eq("h"), eq(""), eq(ComplianceCheckResult.TaskStatus.COMPLETED))).thenReturn(Optional.of(cached));
+        when(requirementsExtractor.extract(any())).thenReturn(TenderRequirements.empty());
+        when(kbLoader.queryKnowledgeBases(any(), any())).thenReturn(KnowledgeQueryOutcome.empty());
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt())).thenReturn("{\"status\":\"PASS\",\"conclusion\":\"已检查\"}");
+        asyncExecutor.executeAsync(1L, 1360L, "stale-cache", false);
+        verify(progressUpdater, never()).applyCachedResult(any(), any());
+        verify(requirementsExtractor).extract(any());
+        verify(progressUpdater).completeTask(eq(1L), any(), anyInt(), anyString(), anyInt(), anyInt(), anyInt(), anyInt());
     }
 
     @Test
@@ -422,7 +463,7 @@ class BidQualityCheckAsyncExecutorTest {
 
         // 解析实际落库JSON中的资质单项，不以其他检查项的FAIL字符串替代断言。
         String json = detailsJsonCaptor.getValue();
-        var items = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json);
+        var items = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json).path("items");
         var qualification = java.util.stream.StreamSupport.stream(items.spliterator(), false)
                 .filter(n -> n.path("itemCode").asText().equals("QUALIFICATION_MATCH")).findFirst().orElseThrow();
         assertThat(qualification.path("status").asText()).isEqualTo("MANUAL_REVIEW");
@@ -453,11 +494,11 @@ class BidQualityCheckAsyncExecutorTest {
         var captor = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(progressUpdater).completeTask(eq(resultId), any(ComplianceCheckResult.Status.class), anyInt(),
                 captor.capture(), anyInt(), anyInt(), anyInt(), anyInt());
-        var items = new com.fasterxml.jackson.databind.ObjectMapper().readTree(captor.getValue());
+        var items = new com.fasterxml.jackson.databind.ObjectMapper().readTree(captor.getValue()).path("items");
         var item = java.util.stream.StreamSupport.stream(items.spliterator(), false)
                 .filter(n -> n.path("itemCode").asText().equals("RESPONSIVENESS_REVIEW")).findFirst().orElseThrow();
         assertThat(item.path("status").asText()).isEqualTo("MANUAL_REVIEW");
-        assertThat(item.path("evidences").get(0).path("pageNumber").asInt()).isEqualTo(1);
+        assertThat(item.path("evidences").get(0).path("pageNumber").isNull()).isTrue();
         assertThat(item.path("evidences").get(0).path("quote").asText()).contains("我方实际收入未达到4亿元");
     }
 }

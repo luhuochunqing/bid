@@ -286,7 +286,7 @@ class SemanticPageRetrieverAdversarialChallengeTest {
                     legacyDoc,
                     1000);
 
-            assertThat(result).contains("--- [第 1 页] ---");
+            assertThat(result).contains("--- [内容块 1；原件页码未知] ---");
             assertThat(result).contains("……（已截断）");
             assertThat(result.length()).isLessThanOrEqualTo(1100);
         }

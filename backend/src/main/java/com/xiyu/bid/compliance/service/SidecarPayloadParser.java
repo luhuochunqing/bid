@@ -1,5 +1,5 @@
 // Input: Sidecar /convert JSON 负载 + 文件名 + 内容哈希；本地纯文本降级读取
-// Output: DocumentContent（pages→\f→虚拟分页优先级）、warnings、SHA-256 工具
+// Output: DocumentContent（物理分页来源与内部检索块分离）、warnings、SHA-256 工具
 // Pos: compliance/service/ - Sidecar 负载解析与本地降级（Jackson 依赖留在 Shell 层）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.service;
@@ -52,8 +52,12 @@ public final class SidecarPayloadParser {
                 if (pageText.isBlank()) {
                     continue;
                 }
-                int pageNumber = Math.max(1, pageNode.path("pageNumber").asInt(pages.size() + 1));
-                pages.add(new DocumentContent.PageContent(pageNumber, pageText, Collections.emptyList()));
+                JsonNode number = pageNode.path("pageNumber");
+                Integer sourcePage = number.isIntegralNumber() && number.canConvertToInt() && number.intValue() > 0
+                        ? number.intValue() : null;
+                int pageNumber = sourcePage == null ? i + 1 : sourcePage;
+                pages.add(new DocumentContent.PageContent(pageNumber, pageText, Collections.emptyList(),
+                        sourcePage, fileName, contentHash));
             }
             if (!pages.isEmpty()) {
                 return new DocumentContent(fileName, contentHash, markdown, pages);
@@ -71,7 +75,11 @@ public final class SidecarPayloadParser {
             return new DocumentContent(fileName, fileHash, "", Collections.emptyList());
         }
 
-        // 识别物理分页符 \f
+        // 无分页信息的短文本同样没有真实第1页，保留检索块但不制造物理页。
+        if (!fullText.contains("\f")) {
+            return new DocumentContent(fileName, fileHash, fullText, DocumentContent.virtualPages(fullText));
+        }
+        // 识别显式分页符 \f
         String[] rawPages = fullText.split("\f");
         List<DocumentContent.PageContent> pages = new ArrayList<>();
         for (int i = 0; i < rawPages.length; i++) {
@@ -82,11 +90,6 @@ public final class SidecarPayloadParser {
         }
         if (pages.isEmpty()) {
             pages.add(new DocumentContent.PageContent(1, fullText, Collections.emptyList()));
-        }
-        // 分页缺失兜底：markitdown 输出无 \f 时整篇退化为单页，
-        // 长文本按标题/段落虚拟分页，恢复页数判断、证据定位与检索预算的有效性
-        if (pages.size() == 1 && fullText.length() > DocumentContent.VIRTUAL_PAGE_MIN_TEXT_LENGTH) {
-            pages = DocumentContent.virtualPages(fullText);
         }
         return new DocumentContent(fileName, fileHash, fullText, pages);
     }

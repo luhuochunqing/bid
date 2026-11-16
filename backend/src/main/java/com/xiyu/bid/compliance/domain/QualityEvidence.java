@@ -1,5 +1,5 @@
 // Input: 证据来源类型/页码/原文摘录/知识库匹配字段
-// Output: 标书质量核查证据模型（knowledgeSource 四值白名单校验、KNOWLEDGE_BASE 类 recordId/matched 必填）
+// Output: 标书质量核查证据模型（原件页码与来源文件身份）（knowledgeSource 四值白名单校验、KNOWLEDGE_BASE 类 recordId/matched 必填）
 // Pos: compliance/domain/ - 核查证据模型（spec 049 US4 / T041，data-model.md §2.1 向后兼容扩展）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain;
@@ -25,8 +25,15 @@ public record QualityEvidence(
         String sourceRecordId,
         Double confidence,
         String knowledgeSource,
-        Boolean matched
+        Boolean matched,
+        String sourceFileName,
+        String sourceFileHash
 ) implements Serializable {
+
+    public QualityEvidence(String sourceType, String sourceTitle, Integer pageNumber, String quote,
+            String sourceRecordId, Double confidence, String knowledgeSource, Boolean matched) {
+        this(sourceType, sourceTitle, pageNumber, quote, sourceRecordId, confidence, knowledgeSource, matched, "", "");
+    }
 
     /** knowledgeSource 允许的四库枚举值（data-model.md §2.1）. */
     private static final Set<String> KNOWLEDGE_SOURCES = Set.of(

@@ -1,5 +1,5 @@
 // Input: 检查项 + 招标要求 + 标书文档 + 字符预算
-// Output: 格式化后的相关页面上下文（含真实页码 --- [第 X 页] ---），预算内全文透传，超预算 TOP-N 相关页；单页即超预算时硬截断并标注
+// Output: 格式化后的相关上下文（内部内容块与已知原件物理页分开标注），预算内全文透传，超预算 TOP-N 相关页；单页即超预算时硬截断并标注
 // Pos: compliance/domain/policy/ - 标书语义页面检索器（纯核心，spec 049 R1）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -15,15 +15,12 @@ import java.util.Set;
 
 /** 按检查项相关性挑选预算内页面，保留真实页码并显式声明抽样边界（FP-Java）。 */
 public final class SemanticPageRetriever {
-
     public static final int DEFAULT_BID_BUDGET = 60_000;
     public static final int DEFAULT_TENDER_BUDGET = 30_000;
-
     private static final int SCORE_HEADING_MATCH = 50;
     private static final int SCORE_KEYWORD_MATCH = 10;
     private static final int SCORE_FREQUENCY_UNIT = 2;
     private static final int MAX_FREQUENCY_COUNT = 20;
-
     private static final String PAGE_HEADER_PREFIX = "--- [第 ";
     private static final String PAGE_HEADER_SUFFIX = " 页] ---";
     private static final String NO_CONTENT = "（无内容）";
@@ -53,7 +50,6 @@ public final class SemanticPageRetriever {
             }
             return NO_CONTENT;
         }
-
         List<DocumentContent.PageContent> pages = document.pages();
         int totalDocLength = 0;
         for (DocumentContent.PageContent p : pages) {
@@ -61,19 +57,16 @@ public final class SemanticPageRetriever {
                 totalDocLength += p.text().length();
             }
         }
-
         // 1. 若文档总字符量在预算内，100% 全文无损透传
         if (totalDocLength <= charBudget) {
             return formatPages(pages);
         }
-
         // 2. 超出预算：计算每页相关性得分，挑选 TOP-N 页面
         Set<String> queryCues = collectQueryCues(item, tenderReqs);
         List<ScoredPage> scoredPages = new ArrayList<>(pages.size());
         for (DocumentContent.PageContent p : pages) {
             scoredPages.add(new ScoredPage(p, scorePage(p, queryCues)));
         }
-
         scoredPages.sort(Comparator.comparingInt(ScoredPage::score).reversed()
                 .thenComparingInt(sp -> sp.page().pageNumber()));
 
@@ -276,14 +269,22 @@ public final class SemanticPageRetriever {
         for (DocumentContent.PageContent page : pages) {
             if (page.text() == null || page.text().isBlank()) continue;
             if (sb.length() > 0) sb.append("\n\n");
-            sb.append(PAGE_HEADER_PREFIX).append(page.pageNumber()).append(PAGE_HEADER_SUFFIX).append('\n').append(page.text().trim());
+            sb.append(pageHeader(page)).append('\n').append(page.text().trim());
         }
         return sb.length() == 0 ? NO_CONTENT : sb.toString();
     }
 
+    private static String pageHeader(DocumentContent.PageContent page) {
+        String chunk = "内容块 " + page.pageNumber();
+        if (page.sourcePageNumber() == null) return "--- [" + chunk + "；原件页码未知] ---";
+        String physical = PAGE_HEADER_PREFIX + page.sourcePageNumber() + PAGE_HEADER_SUFFIX;
+        return page.sourcePageNumber() == page.pageNumber() ? physical
+                : physical + "\n[" + chunk + "；来源：" + page.sourceFileName() + "]";
+    }
+
     private static String formatSinglePage(final int pageNumber, final String text, final int budget) {
         return (text.length() > budget ? SAMPLED_NOTICE : "")
-                + PAGE_HEADER_PREFIX + pageNumber + PAGE_HEADER_SUFFIX + "\n"
+                + "--- [内容块 " + pageNumber + "；原件页码未知] ---\n"
                 + (text.length() <= budget ? text : text.substring(0, budget) + "……（已截断）").trim();
     }
 
@@ -292,7 +293,7 @@ public final class SemanticPageRetriever {
             final DocumentContent.PageContent page, final int charBudget) {
         String text = page.text() == null ? "" : page.text();
         if (charBudget <= 0 || text.length() <= charBudget) return page;
-        return new DocumentContent.PageContent(page.pageNumber(), text.substring(0, charBudget) + "……（已截断）", page.headings());
+        return new DocumentContent.PageContent(page.pageNumber(), text.substring(0, charBudget) + "……（已截断）", page.headings(), page.sourcePageNumber(), page.sourceFileName(), page.sourceFileHash());
     }
 
     private record ScoredPage(DocumentContent.PageContent page, int score) {}

@@ -498,7 +498,7 @@ class SemanticPageRetrieverTest {
             String result = SemanticPageRetriever.retrieveContext(
                     BidQualityCheckItem.QUALIFICATION_MATCH, TenderRequirements.empty(), legacyDoc, 1000);
 
-            assertThat(result).isEqualTo("--- [第 1 页] ---\n这是全文单文本内容");
+            assertThat(result).isEqualTo("--- [内容块 1；原件页码未知] ---\n这是全文单文本内容");
         }
 
         @Test

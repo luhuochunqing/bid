@@ -34,5 +34,6 @@ public class QualityCheckReportDTO {
     private String tenderFileHash;
     private LocalDateTime checkedAt;
     private String errorMessage;
+    private boolean requiresRecheck;
     private List<QualityCheckItemResult> items;
 }

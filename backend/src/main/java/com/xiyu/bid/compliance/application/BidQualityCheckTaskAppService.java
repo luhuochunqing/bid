@@ -4,8 +4,6 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.application;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.dto.QualityCheckReportDTO;
@@ -37,8 +35,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class BidQualityCheckTaskAppService {
-
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final ComplianceCheckResultRepository resultRepository;
     private final ComplianceTargetLoader targetLoader;
@@ -190,11 +186,13 @@ public class BidQualityCheckTaskAppService {
 
     public static QualityCheckReportDTO toReportDTO(final ComplianceCheckResult entity) {
         List<QualityCheckItemResult> items = Collections.emptyList();
+        boolean requiresRecheck = true;
         if (entity.getCheckDetails() != null && !entity.getCheckDetails().isBlank()) {
             try {
                 // 按 itemCode 回填标准名称与检查项说明：历史快照（旧名称/无 description）展示口径对齐 PRD 2.3
-                items = OBJECT_MAPPER.readValue(entity.getCheckDetails(), new TypeReference<List<QualityCheckItemResult>>() {})
-                        .stream()
+                var snapshot = QualityReportSnapshot.read(entity.getCheckDetails());
+                requiresRecheck = !QualityReportSnapshot.CURRENT_VERSION.equals(snapshot.version());
+                items = snapshot.items().stream()
                         .map(QualityCheckItemResult::withCanonicalDefinition)
                         .toList();
             } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
@@ -217,6 +215,7 @@ public class BidQualityCheckTaskAppService {
                 .tenderFileHash(entity.getTenderFileHash())
                 .checkedAt(entity.getCheckedAt())
                 .errorMessage(entity.getErrorMessage())
+                .requiresRecheck(requiresRecheck)
                 .items(items)
                 .build();
     }

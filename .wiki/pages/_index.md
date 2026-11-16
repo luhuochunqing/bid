@@ -229,3 +229,5 @@ backlinks:
 - [[scoreparse-1124-scheme-colon-and-recheck-dedup]] — 项目1124评分项假多方案、纳入按钮无响应与复核同格克隆根因及修复
 
 - [[ai-actual-scoring-pr3018-review-20261113]] — 最新评分PR审查、1123生产空分、OCR覆盖、087反向审查及v2修订。
+
+- [[quality1360-diagnosis]] — 2026-11-16页码复发诊断与本地修复：原件页来源、历史报告及缓存版本边界；未部署。

@@ -52,13 +52,10 @@ public final class SealVisionFusionPolicy {
                     "请人工核对需盖章页面，确认图片清晰且实际完成签章", evidences);
         }
 
-        List<Integer> missingPages = vision.targetPages().stream()
-                .filter(page -> !detectedPages.contains(page))
-                .toList();
-        if (!missingPages.isEmpty()) {
+        if (vision.targetPages().stream().anyMatch(page -> !detectedPages.contains(page))) {
             return QualityCheckItemResult.manualReview(
                     com.xiyu.bid.compliance.domain.BidQualityCheckItem.SIGNATURE_SEAL,
-                    "视觉检测未在目标盖章页发现印章：" + formatPages(missingPages),
+                    "视觉检测未在部分目标盖章内容发现印章，请结合原文核对",
                     "请人工核对目标页是否实际盖章，必要时重新上传清晰扫描件", evidences);
         }
 
@@ -101,9 +98,5 @@ public final class SealVisionFusionPolicy {
                 + " width=" + observation.width() + " height=" + observation.height();
         return new QualityEvidence("BID_IMAGE", "页面印章视觉识别", observation.pageNumber(), quote,
                 null, observation.confidence(), null, null);
-    }
-
-    private static String formatPages(final List<Integer> pages) {
-        return pages.stream().map(page -> "第" + page + "页").collect(Collectors.joining("、"));
     }
 }
