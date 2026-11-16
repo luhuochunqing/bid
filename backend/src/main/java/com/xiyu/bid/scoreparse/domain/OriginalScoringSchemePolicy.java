@@ -20,10 +20,13 @@ final class OriginalScoringSchemePolicy {
             Pattern.DOTALL);
     private static final Pattern OTHER = Pattern.compile(".*(?:其他标包|其它标包|示例|样例|参考).*", Pattern.DOTALL);
     private static final Pattern CONTRACT_AUDIT = Pattern.compile(".*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*", Pattern.DOTALL);
+    private static final Pattern PRELIMINARY_REVIEW = Pattern.compile(
+            ".*(?:形式评审标准|资格评审标准|响应性评审标准|符合性评审标准|初步评审标准|形式审查标准|资格审查标准|响应性审查标准).*",
+            Pattern.DOTALL);
     private static final Pattern GENERIC_SECTION = Pattern.compile(".*(?:商务|技术|价格|报价|服务|资信|资格|响应|综合|评分|评标|分值).*", Pattern.DOTALL);
     private static final Pattern CATEGORY = Pattern.compile(".*(?:商务|技术|报价|价格|小计).*", Pattern.DOTALL);
     private static final Pattern PACKAGE = Pattern.compile("(?:第[一二三四五六七八九十百0-9]+标包|标包[一二三四五六七八九十百0-9]+|第[一二三四五六七八九十百0-9]+包)");
-    private static final Pattern CHAPTER = Pattern.compile("^(第[一二三四五六七八九十百0-9]+章)\\s*(.*)$");
+    private static final Pattern CHAPTER = Pattern.compile("^(第[一二三四五六七八九十百0-9]+章)[\\s　：:、.\\-—]*(.*)$");
     private static final Pattern TABLE_SUFFIX = Pattern.compile("(?:前附表|后附表|附表)$");
 
     private OriginalScoringSchemePolicy() {}
@@ -97,9 +100,8 @@ final class OriginalScoringSchemePolicy {
     }
 
     static String schemeFrom(DocumentArtifact artifact, String text) {
-        for (OriginalScoringTextScopePolicy.Heading heading : OriginalScoringTextScopePolicy
-                .headings(text == null ? new String[0] : text.split("\\R", -1)))
-            if (isValidSchemeRoot(heading.title())) return heading.title();
+        for (var scope : textScopes(text))
+            if ("IN_SCHEME".equals(scope.scopeStatus()) && isValidSchemeRoot(scope.title())) return scope.title();
         for (var table : artifact.tables()) {
             if (table != null && table.sourceSection() != null) {
                 String root = table.sourceSection().split("[/＞>]", 2)[0].trim();
@@ -209,7 +211,8 @@ final class OriginalScoringSchemePolicy {
         if (title == null || title.isBlank()) return false;
         String compactTitle = compact(title);
         return SCHEME.matcher(compactTitle).matches() && !isOtherSection(compactTitle)
-                && !CONTRACT_AUDIT.matcher(compactTitle).matches();
+                && !CONTRACT_AUDIT.matcher(compactTitle).matches()
+                && !PRELIMINARY_REVIEW.matcher(compactTitle).matches();
     }
 
     static boolean isContractAuditTitle(String title) {

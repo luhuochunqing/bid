@@ -56,8 +56,9 @@ final class OriginalScoringTextScopePolicy {
                         && OriginalScoringSchemePolicy.sameScheme(roots.get(roots.size() - 1).title(), heading.title());
                 if (!sameRoot) roots.add(heading);
                 // A chapter-name list in prose must not displace its later explicit body heading.
-                else if (lines[heading.line()].stripLeading().startsWith("#")
-                        && !lines[roots.getLast().line()].stripLeading().startsWith("#"))
+                else if ((isMarkdownHeading(lines[heading.line()])
+                        && !isMarkdownHeading(lines[roots.getLast().line()]))
+                        || isPlaceholderChapterListEntry(headings, roots.getLast(), lines))
                     roots.set(roots.size() - 1, heading);
                 activeRootLevel = heading.level();
             }
@@ -223,6 +224,16 @@ final class OriginalScoringTextScopePolicy {
 
     private static boolean isMarkdownHeading(String line) {
         return line != null && line.stripLeading().startsWith("#");
+    }
+
+    private static boolean isPlaceholderChapterListEntry(List<Heading> headings, Heading root, String[] lines) {
+        if (isMarkdownHeading(lines[root.line()]) || !root.title().startsWith("第")) return false;
+        Heading next = headings.stream().filter(h -> h.line() > root.line()).findFirst().orElse(null);
+        if (next == null || next.level() != root.level() || !next.title().startsWith("第")) return false;
+        for (int i = root.line() + 1; i < next.line(); i++) {
+            if (!lines[i].isBlank()) return false;
+        }
+        return true;
     }
 
     private static void addScope(List<OriginalScoringContext.TextScope> scopes, String[] lines, String title,

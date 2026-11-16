@@ -142,4 +142,34 @@ class OriginalRuleRestorationTest {
         assertThat(result.text()).isEqualTo(modelRule);
         assertThat(result.closed()).isFalse();
     }
+
+    @Test
+    @DisplayName("单格闭合规则因 OCR 单字符差异未命中引文时，应回退保留闭合单元格原文而非返回空串")
+    void restoresClosedSingleRowRuleFromCellTextWhenModelQuoteHasMinorOcrDifference() {
+        String tableId = "doc0-baidu_tbl_28_0";
+        String cellRule = "营业总收入：根据供应商2023年-2025年三年平均营业总收入进行评分：营业收入≥80亿元，得3分；";
+        var cells = List.of(
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r0_c0", 0, 0, "序号", "序号", 1, 1, false, "", 28, tableId + "-r0"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r0_c1", 0, 1, "评分项目", "评分项目", 1, 1, false, "", 28, tableId + "-r0"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r0_c2", 0, 2, "分值", "分值", 1, 1, false, "", 28, tableId + "-r0"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r0_c3", 0, 3, "评分标准", "评分标准", 1, 1, false, "", 28, tableId + "-r0"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r1_c0", 1, 0, "1", "1", 1, 1, false, "", 28, tableId + "-r1"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r1_c1", 1, 1, "营业总收入", "营业总收入", 1, 1, false, "", 28, tableId + "-r1"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r1_c2", 1, 2, "3", "3", 1, 1, false, "", 28, tableId + "-r1"),
+                new DocumentArtifact.CanonicalTable.CanonicalCellDto(tableId + "_r1_c3", 1, 3, cellRule, cellRule, 1, 1, false, "", 28, tableId + "-r1")
+        );
+        var table = new DocumentArtifact.CanonicalTable(tableId, 28, "第四章：谈判及评审方法", 2, 4, List.of(), cells, true, "PDF");
+        var artifact = new DocumentArtifact(new ArtifactMeta("doc0", "hash", "PDF", "2.2"), List.of(table), List.of());
+
+        var fact = new MultimodalScoreFact("第四章：谈判及评审方法", "ying_ye_zong_shou_ru", "", "商务",
+                new BigDecimal("3"), cellRule, "OBJECTIVE", 28, tableId, List.of(tableId + "_r1_c3"),
+                // OCR/文本层细微差异（多一个空格或标点不同）导致 uniqueSpan 未命中
+                "营业总收入：根据供应商2023年-2025年三年平均营业总收入进行评分：营业收入>=80亿元，得3分；",
+                0.95, ChildAggregation.UNKNOWN, "scheme-1", "IN_SCHEME");
+
+        var result = OriginalRuleRestoration.restore(fact, artifact, List.of(fact));
+
+        assertThat(result.closed()).isTrue();
+        assertThat(result.text()).isEqualTo(cellRule);
+    }
 }

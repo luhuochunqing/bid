@@ -161,6 +161,80 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
+    void getReviewSnapshotFiltersOutOutOfSchemeOnlyPseudoSchemeWhenInSchemeExists() {
+        mockLatestTask();
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                fact("real-fact", "100"),
+                fact("pseudo-fact", "0")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                schemeQualification("real-fact", "scheme-main", "IN_SCHEME", true, null,
+                        "第四章：谈判及评审方法", "100", "VERIFIED", "text:line[1]", "SINGLE_TABLE", List.of("t1")),
+                schemeQualification("pseudo-fact", "scheme-pseudo", "OUT_OF_SCHEME", false, "ITEM_SCHEME_SCOPE_MISMATCH",
+                        "第四章谈判及评审方法", null, "UNKNOWN", "", "TEXT_ONLY", List.of())));
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+
+        ScoreParseReviewDTO dto = service.getReviewSnapshot(PROJECT_ID);
+
+        assertThat(dto.schemeSelectionRequired()).isFalse();
+        assertThat(dto.selectedSchemeId()).isEqualTo("scheme-main");
+        assertThat(dto.schemes()).extracting(ScoreParseReviewDTO.Scheme::schemeId)
+                .containsExactly("scheme-main");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void getReviewSnapshotRetainsUnverifiedSchemeAlongsideVerifiedScheme(boolean unverifiedFirst) {
+        mockLatestTask();
+        var verified = fact("verified", "100");
+        var unverified = fact("unverified", "150");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(unverifiedFirst
+                ? List.of(unverified, verified) : List.of(verified, unverified));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                schemeQualification("verified", "scheme-a", "IN_SCHEME", true, null,
+                        "第一评分方案", "100", "VERIFIED", "text:line[1]", "SINGLE_TABLE", List.of("a1")),
+                schemeQualification("unverified", "scheme-b", "SOURCE_UNVERIFIED", false, "SOURCE_SCHEME_NOT_VERIFIED",
+                        "第二评分方案", "150", "VERIFIED", "text:line[5]", "SINGLE_TABLE", List.of("b1"))));
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+
+        ScoreParseReviewDTO dto = service.getReviewSnapshot(PROJECT_ID);
+
+        assertThat(dto.schemes()).extracting(ScoreParseReviewDTO.Scheme::schemeId)
+                .containsExactlyElementsOf(unverifiedFirst
+                        ? List.of("scheme-b", "scheme-a") : List.of("scheme-a", "scheme-b"));
+        assertThat(dto.schemeSelectionRequired()).isTrue();
+        assertThat(dto.selectedSchemeId()).isNull();
+        assertThat(dto.declaredTotal()).isNull();
+        var unverifiedScheme = dto.schemes().stream().filter(s -> "scheme-b".equals(s.schemeId())).findFirst().orElseThrow();
+        assertThat(unverifiedScheme.title()).isEqualTo("第二评分方案");
+        assertThat(unverifiedScheme.tableIds()).containsExactly("b1");
+        assertThat(unverifiedScheme.declaredTotal()).isEqualByComparingTo("150");
+        var unverifiedFact = dto.facts().stream().filter(f -> "unverified".equals(f.factId())).findFirst().orElseThrow();
+        assertThat(unverifiedFact.schemeId()).isEqualTo("scheme-b");
+        assertThat(unverifiedFact.scopeStatus()).isEqualTo("SOURCE_UNVERIFIED");
+        assertThat(unverifiedFact.candidateEligible()).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"OUT_OF_SCHEME", "SOURCE_UNVERIFIED"})
+    void getReviewSnapshotRetainsSchemeOrderWhenNoFactsAreInScheme(String scopeStatus) {
+        mockLatestTask();
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("first", "10"), fact("second", "20")));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(List.of(
+                schemeQualification("first", "scheme-b", scopeStatus, false, null,
+                        "方案乙", null, "UNKNOWN", "", "TEXT_ONLY", List.of()),
+                schemeQualification("second", "scheme-a", scopeStatus, false, null,
+                        "方案甲", null, "UNKNOWN", "", "TEXT_ONLY", List.of())));
+        when(reviewRepository.findByParseTaskId(9L)).thenReturn(List.of());
+
+        ScoreParseReviewDTO dto = service.getReviewSnapshot(PROJECT_ID);
+
+        assertThat(dto.schemes()).extracting(ScoreParseReviewDTO.Scheme::schemeId)
+                .containsExactly("scheme-b", "scheme-a");
+        assertThat(dto.schemeSelectionRequired()).isTrue();
+        assertThat(dto.selectedSchemeId()).isNull();
+    }
+
+    @Test
     void submitReview_savesAuditOnlyAndReturnsSnapshot() {
         mockLatestTask();
         when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("fact-1", "10")));

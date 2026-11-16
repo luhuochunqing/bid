@@ -91,6 +91,35 @@ class OriginalScoreFactIdentityTest {
     }
 
     @Test
+    void chapterTitleWithChineseColonMatchesPlainChapterTitleAndReplacesChapterListPlaceholder() {
+        assertTrue(OriginalScoringSchemePolicy.sameScheme("第四章谈判及评审方法", "第四章：谈判及评审方法"));
+        String text = String.join("\n",
+                "第一章谈判公告",
+                "第二章谈判采购须知",
+                "第三章技术服务要求",
+                "第四章谈判及评审方法",
+                "第五章合同样本",
+                "第四章：谈判及评审方法",
+                "三、评分标准",
+                "总分100分");
+        var scopes = OriginalScoringTextScopePolicy.textScopes(text);
+        var inSchemeTitles = scopes.stream()
+                .filter(s -> "IN_SCHEME".equals(s.scopeStatus()))
+                .map(OriginalScoringContext.TextScope::title)
+                .distinct()
+                .toList();
+        assertEquals(List.of("第四章：谈判及评审方法"), inSchemeTitles);
+    }
+
+    @Test
+    void preliminaryReviewTableHeadingsNeverBecomeIndependentSchemeRoots() {
+        assertFalse(OriginalScoringSchemePolicy.isValidSchemeRoot("3 形式评审标准 法定代表人身份证明"));
+        assertFalse(OriginalScoringSchemePolicy.isValidSchemeRoot("8 资格评审标准 业绩要求"));
+        assertFalse(OriginalScoringSchemePolicy.isValidSchemeRoot("11 响应性评审标准 响应性审查"));
+        assertFalse(OriginalScoringSchemePolicy.isValidSchemeRoot("2.1 初步评审标准"));
+    }
+
+    @Test
     void blankCodeSiblingFactsGetDistinctModelFactIds() {
         var first = tableFact("供应商业绩", "7", "A");
         var second = tableFact("财务状况", "3", "B");
