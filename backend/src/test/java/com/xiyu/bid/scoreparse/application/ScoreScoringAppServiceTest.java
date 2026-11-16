@@ -389,10 +389,15 @@ class ScoreScoringAppServiceTest {
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.CsvSource({
-            "BID_OCR_UNAVAILABLE,false", "SOURCE_DECODE_FAILED,false", "BID_OCR_TIMEOUT,false",
-            "BID_OCR_UNAVAILABLE,true", "SOURCE_DECODE_FAILED,true", "NONE,false"
+            "BID_OCR_UNAVAILABLE,false,OCR 识别不可用",
+            "SOURCE_DECODE_FAILED,false,源文件解码失败",
+            "BID_OCR_TIMEOUT,false,OCR 识别超时",
+            "EMF_UNSUPPORTED_RECORD,false,EMF 矢量图",
+            "BID_OCR_UNAVAILABLE,true,OCR 识别不可用",
+            "SOURCE_DECODE_FAILED,true,源文件解码失败",
+            "NONE,false,无提取故障"
     })
-    void extractionTechnicalFailureFailsRunAndOnlyPublishesWithTrustedNewResult(String reason, boolean scored)
+    void coverageGapFailsRunOnlyWithoutTrustedNewResult(String reason, boolean scored, String expectedReason)
             throws Exception {
         var task = scoringTask();
         task.setStage("ITEMS");task.setTriggerSource("MANUAL");task.setItemSetHash("rules");
@@ -443,9 +448,13 @@ class ScoreScoringAppServiceTest {
         service.executeScoringAsync(task.getTaskId());
 
         ArgumentCaptor<List<ScoreResult>> replacement = ArgumentCaptor.captor();
-        verify(versions).finish(eq(task), replacement.capture(), technical ? eq("SCORING_EXTRACTION_FAILED") : org.mockito.ArgumentMatchers.isNull());
-        if (technical && !scored) assertThat(replacement.getValue()).isNull();
-        else {
+        ArgumentCaptor<String> failure = ArgumentCaptor.captor();
+        verify(versions).finish(eq(task), replacement.capture(), failure.capture());
+        if (technical && !scored) {
+            assertThat(failure.getValue()).contains("处内容无法解析").contains(expectedReason);
+            assertThat(replacement.getValue()).isNull();
+        } else {
+            assertThat(failure.getValue()).isNull();
             assertThat(replacement.getValue()).hasSize(3);
             assertThat(replacement.getValue().get(2).getActualScore()).isEqualByComparingTo("7");
             assertThat(replacement.getValue().get(2).getReuseKind()).isEqualTo("REUSED");
@@ -455,6 +464,7 @@ class ScoreScoringAppServiceTest {
         verify(versions).capture(PROJECT_ID);
         var summary = codec.scoring(task.getRunSummary());
         assertThat(summary.path("input").path("extraction").path("failedUnitCount").asLong()).isEqualTo(report.failedUnitCount());
+        assertThat(summary.path("taskQuality").asText()).isEqualTo(technical ? "PARTIAL" : "NEEDS_REVIEW");
         assertThat(summary.path("items").get(1).path("outcome").asText()).isEqualTo(technical ? "FAILED" : "NEEDS_REVIEW");
         assertThat(summary.path("items").get(1).path("reasonCode").asText()).isEqualTo(technical ? "SCORING_EXTRACTION_FAILED" : "EVIDENCE_INSUFFICIENT");
         assertThat(summary.path("items").get(2).path("originTaskId").asLong()).isEqualTo(4L);
