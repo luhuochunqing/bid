@@ -36,12 +36,20 @@ final class ScoringSourceIndex {
         }
     }
     List<ScoringSourceRef> select(ScoreDocExcerptExtractor.Excerpt excerpt) {
-        var selected=new java.util.LinkedHashSet<ScoringSourceRef>();
+        return select(excerpt, null, null);
+    }
+    List<ScoringSourceRef> select(ScoreDocExcerptExtractor.Excerpt excerpt, String dim, String detail) {
+        var relevance = ScoreDocExcerptExtractor.relevance(dim, detail);
+        var ranks = new java.util.LinkedHashMap<ScoringSourceRef, Integer>();
         for(var segment:excerpt.segments()) {
             int start=segment.sourceStartOffset(),end=start+segment.text().length();
             if(start<0||end>document.text().length()||!document.text().startsWith(segment.text(),start))continue;
-            for(var span:spans)if(start<span.end&&end>span.start)selected.add(span.source);
+            for(var span:spans)if(start<span.end&&end>span.start) {
+                String overlap=document.text().substring(Math.max(start,span.start),Math.min(end,span.end));
+                ranks.merge(span.source,relevance.score(overlap),Math::max);
+            }
         }
-        return List.copyOf(selected);
+        return ranks.keySet().stream().sorted(java.util.Comparator.comparingInt(
+                (ScoringSourceRef ref) -> ranks.get(ref)).reversed()).toList();
     }
 }

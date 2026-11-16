@@ -13,9 +13,17 @@ export function scoringQualityPresentation(data = {}) {
   const summary = diagnosticsKnown
     ? `客观已评分${objectiveScored}项、待确认${objectivePending}项、主观待评${subjectivePending}项、失败${failed}项`
     : '旧版或诊断未知，请核对逐项结果'
+  const coverage = data.coverage || {}
+  const coverageCounts = ['sourceUnitCount', 'processedUnitCount', 'unreadUnitCount', 'failedUnitCount', 'emptyUnitCount']
+    .map(key => coverage[key])
+  const knownCoverage = coverageCounts.every(value => Number.isSafeInteger(value) && value >= 0)
+    && coverage.processedUnitCount <= coverage.sourceUnitCount
+  const coverageDetail = knownCoverage
+    ? `；已处理${coverage.processedUnitCount}/${coverage.sourceUnitCount}页/单元，未读取${coverage.unreadUnitCount}、处理失败${coverage.failedUnitCount}、识别为空${coverage.emptyUnitCount}`
+    : ''
   return {
     qualityStatus, diagnosticsKnown,
-    text: `${QUALITY_LABELS[qualityStatus]}；${summary}；${COVERAGE_LABELS[coverageStatus] || COVERAGE_LABELS.UNKNOWN}`,
+    text: `${QUALITY_LABELS[qualityStatus]}；${summary}；${COVERAGE_LABELS[coverageStatus] || COVERAGE_LABELS.UNKNOWN}${coverageDetail}`,
     success: qualityStatus === 'COMPLETE' && coverageStatus === 'COMPLETE' && diagnosticsKnown && failed === 0 && objectivePending === 0,
   }
 }

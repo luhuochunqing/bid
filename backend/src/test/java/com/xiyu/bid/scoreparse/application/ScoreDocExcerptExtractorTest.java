@@ -10,6 +10,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ScoreDocExcerptExtractorTest {
 
+    @Test void longChineseDimensionCanRecallShortCommitmentHeading() {
+        String filler=String.join("\n\n",java.util.Collections.nCopies(12,"公司介绍与业务说明。".repeat(10)));
+        String source="最小起订量: 0 元起送。不受计单从站 ... 配送。";
+        String text=filler+"\n\n"+source+"\n\n"+filler;
+        var excerpt=ScoreDocExcerptExtractor.extractRelevantExcerptWithSegments(text,
+                "免费配送最小起订额度","不受订单金额、配送范围限制全部免运费配送得10分",200);
+        assertThat(excerpt.text()).contains(source);
+        for(var part:excerpt.segments())assertThat(text.substring(part.sourceStartOffset(),part.sourceStartOffset()+part.text().length())).isEqualTo(part.text());
+    }
+
     @Test
     void shortText_returnsAsIs() {
         String text = "简短文本";

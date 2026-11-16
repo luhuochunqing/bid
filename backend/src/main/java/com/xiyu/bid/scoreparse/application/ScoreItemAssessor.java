@@ -57,7 +57,7 @@ final class ScoreItemAssessor {
         ScoreResult validated=validateScoring(task,item,document,excerpt,output,subjective);
         if(!subjective && validated.getActualScore()==null && budget.available()) {
             try {
-                var associated=file.imagesFor(sourceExcerpt,imageBudget);
+                var associated=file.imagesFor(sourceExcerpt,imageBudget,item.getDim(),item.getDetail());
                 if(!associated.isEmpty()) {
                     var supplemented=scoreAnalyzer.assessObjective(item.getDetail(),item.getWeight(),excerpt,associated,budget);
                     validated=validateScoring(task,item,document,excerpt,supplemented,false);
@@ -105,7 +105,10 @@ final class ScoreItemAssessor {
         var credit=com.xiyu.bid.scoreparse.domain.CreditLimitScoreProof.assess(item.getDetail(),item.getWeight(),
                 guarded.actualScore(),score,quote,document);
         if(credit.highestBandVerified())score=credit.score();
-        boolean localProof=credit.score()!=null || quoteVerified && document.verifiedQuoteSource(quote)
+        boolean localProof=credit.score()!=null || com.xiyu.bid.scoreparse.domain.SalesRevenueScoreProof.highestBand(
+                item.getDetail(),item.getWeight(),guarded.actualScore(),score,quote,document)
+                || com.xiyu.bid.scoreparse.domain.FreeDeliveryScoreProof.highestBand(
+                item.getDetail(),item.getWeight(),guarded.actualScore(),score,quote,document) || quoteVerified && document.verifiedQuoteSource(quote)
                 && assessmentGuard.closedPositiveCertificate(item.getDim(),item.getDetail(),item.getWeight(),score,quote);
         boolean absentZero=score!=null&&score.signum()==0&&assessmentGuard.verifiedAbsentCertificate(
                 input,item.getDim(),item.getDetail(),item.getWeight(),document);

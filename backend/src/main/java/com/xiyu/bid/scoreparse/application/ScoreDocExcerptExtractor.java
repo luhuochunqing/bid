@@ -24,6 +24,7 @@ import java.util.regex.Matcher;
 public final class ScoreDocExcerptExtractor {
 
     private static final String EXCERPT_SEPARATOR = "\n\n---\n\n";
+    private static final Pattern COMPOUND_DIMENSION_PATTERN = Pattern.compile("[\\p{IsHan}]{5,}");
 
     private static final Pattern CONDITION_SCORE_PATTERN = Pattern.compile(
             "(?:满足|提供|具备|每|若|如|未提供|不满足|凡|符合|按|出现|配置)[^\\n。；;]{1,60}?(?:得|计|加|扣|减|按|给)\\s*\\d+(?:\\.\\d+)?\\s*分" +
@@ -59,30 +60,14 @@ public final class ScoreDocExcerptExtractor {
                     .toList()));
         }
 
-        List<String> keywords = new ArrayList<>();
-        if (dim != null && !dim.isBlank()) {
-            keywords.add(dim);
-        }
-        if (detail != null) {
-            for (String token : detail.split("[^\\p{IsHan}a-zA-Z0-9]+")) {
-                if (token.length() >= 2 && !token.matches("\\d+")) {
-                    keywords.add(token);
-                }
-            }
-        }
-
+        Relevance relevance = relevance(dim, detail);
         List<ScoredParagraph> scoredList = new ArrayList<>();
         for (int i = 0; i < paragraphs.size(); i++) {
             String p = paragraphs.get(i).text();
             if (p.isEmpty() || isTocAnchor(p)) {
                 continue;
             }
-            int score = 0;
-            for (String kw : keywords) {
-                if (p.contains(kw)) {
-                    score += kw.length();
-                }
-            }
+            int score = relevance.score(p);
             scoredList.add(new ScoredParagraph(i, p, score));
         }
 
@@ -151,6 +136,41 @@ public final class ScoreDocExcerptExtractor {
         }
         String fallback = fullText.substring(0, Math.min(fullText.length(), maxChars));
         return new Excerpt(fallback, List.of(new Segment("segment-0", fallback, 0)));
+    }
+
+    static Relevance relevance(String dim, String detail) {
+        List<String> keywords = new ArrayList<>();
+        if (dim != null && !dim.isBlank()) {
+            keywords.add(dim);
+        }
+        if (detail != null) {
+            for (String token : detail.split("[^\\p{IsHan}a-zA-Z0-9]+")) {
+                if (token.length() >= 2 && !token.matches("\\d+")) {
+                    keywords.add(token);
+                }
+            }
+        }
+
+        // Fragments affect retrieval only; they never establish a scoring fact.
+        Set<String> dimensionFragments = new LinkedHashSet<>();
+        Matcher chineseDimension = COMPOUND_DIMENSION_PATTERN.matcher(dim == null ? "" : dim);
+        while (chineseDimension.find()) {
+            String phrase = chineseDimension.group();
+            for (int offset = 0; offset + 4 <= phrase.length(); offset++) {
+                dimensionFragments.add(phrase.substring(offset, offset + 4));
+            }
+        }
+        return new Relevance(List.copyOf(keywords), Set.copyOf(dimensionFragments));
+    }
+
+    record Relevance(List<String> keywords, Set<String> dimensionFragments) {
+        int score(String text) {
+            int score = 0;
+            for (String keyword : keywords) {
+                if (text.contains(keyword)) score += keyword.length();
+            }
+            return score + (int) dimensionFragments.stream().filter(text::contains).limit(4).count();
+        }
     }
 
     private static List<Paragraph> scanParagraphs(String fullText) {

@@ -449,6 +449,7 @@ class ScoreScoringAppServiceTest {
             assertThat(replacement.getValue()).hasSize(3);
             assertThat(replacement.getValue().get(2).getActualScore()).isEqualByComparingTo("7");
             assertThat(replacement.getValue().get(2).getReuseKind()).isEqualTo("REUSED");
+            if (technical) assertThat(replacement.getValue().get(1).getMissedReason()).contains("MODEL_QUOTE_MISSING");
             if (scored) assertThat(replacement.getValue().getFirst().getActualScore()).isEqualByComparingTo("10");
         }
         verify(versions).capture(PROJECT_ID);

@@ -8427,3 +8427,8 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - **发布包带入 macOS 元数据**：`package-release.sh` 主归档 `tar -C "$OUTPUT_DIR" -czf ...`（第 213 行）未设 `COPYFILE_DISABLE=1`，本次将 198 个 `._*` 文件带进 `/srv/www/xiyu-bid`。属于打包缺陷而非服务故障；SOP 的 `find /srv/www/xiyu-bid -name "._*" -delete` 可清理，根治应给主归档补 `--exclude '._*'`。
 - **586MB 原件评分时延归因**：投标文件 585.72MB，端到端 19m11s。进度长期停在「读取投标原件 5%」不等于卡死：`ss -tni` 显示本机 8000 端口 `bytes_received=586MiB` 已传完，`docker stats` 显示 sidecar 400% CPU 持续转换约 15 分钟。判活要看 sidecar CPU 与本地 socket 字节数，而不是只看任务进度。
 - **生产可观测证据**：新增日志「评分引用诊断: itemId=…, rawScore=…, quoteMissing=false, quoteLength=…, documentRawMatch=false, reason=QUOTE_NOT_IN_EXCERPT」可直接证明 CO-661 引用门禁在真实原件上生效（同项重试后 `documentRawMatch=true`）；`reason=COVERAGE_PROOF_INSUFFICIENT` 表明证据守卫把客观项转人工复核而不是虚高给分。Mac 直连生产 `:8080` 会出现空响应，外部验收统一走域名。
+
+
+## 2026-11-16 项目580：完整OCR与按项证据不可互相替代
+
+1225页扫描标书在25分钟串行OCR预算下仅处理843页，后续模型仍运行，但四项客观分因覆盖/引用校验被拒。PDF读取/渲染必须遵循PyMuPDF线程限制，只将独立OCR进程纳入有界并发，保持完整页码和失败范围。同原件本地回放确认1225页444秒、未读/失败为0，但仍有5个图片页OCR为空；另一模式输出噪声不能作为清除empty的依据。最高档正向评分仅在服务端证明完整闭合规则及来源后生效；不能把完整处理或模型15分当作证据充分。长中文维度召回与图片预算也要联合核对：节选命中晚页，不等于按页码取前三张的补图会发送晚页。新补图复用相关度排序，既有引用/字节/请求预算保留。证据回放、真实模型、部署和线上恢复分别报告。
