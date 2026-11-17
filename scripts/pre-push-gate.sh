@@ -168,6 +168,26 @@ else
   fi
 fi
 
+# ── 0.7 案例推荐根因行为回归 ───────────────────────────────
+# 同客户实体不得代替评分项内容相关性；防止只测空项目/客户上下文后再次漏放无关案例。
+echo "── 案例推荐内容相关性 ──"
+if [ "$EXPLICIT_SKIP_TESTS" = "true" ]; then
+  skip "案例推荐根因回归 (--skip-tests)"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ] && ! git diff --name-only "$GATE_BASE"..HEAD | grep -E '^scripts/(extract-historical-case-features\.py|pre-push-gate\.sh)$' >/dev/null; then
+  skip "案例推荐根因回归（无 backend/ 或关联脚本变更）"
+else
+  if (cd "$ROOT_DIR/backend" && mvn test -Dtest=ScoreItemCaseRelevanceRegressionTest,ScoreItemCaseRecommendAppServiceTest -q); then
+    pass "案例内容相关性与置顶准入回归"
+  else
+    fail "案例推荐根因行为回归 — 同客户背景/置顶不得让无关内容入选"
+  fi
+  if python3 "$ROOT_DIR/scripts/extract-historical-case-features.py" --self-test; then
+    pass "案例离线特征抽取自测"
+  else
+    fail "案例离线特征抽取自测"
+  fi
+fi
+
 # ── 1. 架构检查 ──────────────────────────────────────────
 echo "── 架构合规 ──"
 if [ ! -d "$ROOT_DIR/backend" ]; then

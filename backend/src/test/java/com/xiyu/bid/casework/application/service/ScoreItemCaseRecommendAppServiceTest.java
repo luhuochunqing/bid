@@ -648,4 +648,49 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(response.getMatchedCertificates()).isEmpty();
         assertThat(response.getTotal()).isEqualTo(0);
     }
+
+    @Test
+    void pinnedSameCustomerCertificateCannotEnterDeliveryRecommendations() {
+        Project project = new Project();
+        project.setId(100L);
+        project.setName("三峡集团采购项目");
+        project.setCustomer("三峡集团");
+        project.setIndustry("综合");
+        project.setCustomerType("央企");
+        ScoreItem item = ScoreItem.builder().id(45L).projectId(100L).code("45")
+                .dim("配送能力评价").detail("对配送响应速度及配送网点情况进行评价。")
+                .itemIndex(1).build();
+        KnowledgeCase certificate = new KnowledgeCase();
+        certificate.setId(901L);
+        certificate.setSourceProjectId(100L);
+        certificate.setScoringPointTitle("网站安全等级防护证书");
+        certificate.setScoringCategory("技术方案");
+        certificate.setResponseText("具有公安部信息系统安全等级保护三级备案证明证书。");
+        certificate.setSourceProjectName("三峡集团历史采购项目");
+        certificate.setProjectType("综合");
+        certificate.setCustomerType("央企");
+        certificate.setBidResult("WON");
+        certificate.setQualityScore(90);
+        certificate.setIsPinned(true);
+        certificate.setReuseCount(1000);
+        KnowledgeCase delivery = new KnowledgeCase();
+        delivery.setId(902L);
+        delivery.setSourceProjectId(101L);
+        delivery.setScoringPointTitle("配送能力评价");
+        delivery.setScoringCategory("配送方案");
+        delivery.setResponseText("全国配送网点提供物流配送服务，并承诺配送时效。");
+        delivery.setSourceProjectName("其他客户采购项目");
+        when(projectRepository.findById(100L)).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(45L)).thenReturn(Optional.of(item));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(certificate, delivery));
+        when(sourceMetaLoader.load(eq(java.util.Set.of(100L, 101L)))).thenReturn(Map.of());
+
+        var response = recommendAppService.recommend(100L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(45L).size(20).build());
+
+        assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getItems()).extracting(ScoreItemCaseRecommendResponse.Item::getId)
+                .containsExactly(902L);
+    }
+
 }

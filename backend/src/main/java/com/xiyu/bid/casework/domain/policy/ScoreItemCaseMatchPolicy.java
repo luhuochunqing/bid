@@ -81,17 +81,8 @@ public class ScoreItemCaseMatchPolicy {
         String candidateText = ScoreItemCaseTextMatchPolicy.candidateFullText(candidate);
         int score = 0;
         List<String> reasons = new ArrayList<>();
-        Set<String> projectEntityHits = new LinkedHashSet<>();
 
-        // 1. 项目专属核心实体匹配（最高 20 分）
-        EntityMatchResult entityResult = calculateEntityScore(context, candidate, candidateText);
-        score += entityResult.score();
-        if (!entityResult.hitEntities().isEmpty()) {
-            projectEntityHits.addAll(entityResult.hitEntities());
-            reasons.add("命中项目专属实体(" + String.join("、", entityResult.hitEntities().stream().limit(2).toList()) + ")");
-        }
-
-        // 2. 业务子主题对齐匹配（最高 25 分）
+        // 1. 业务子主题对齐匹配（最高 25 分）
         CaseSubTopicPolicy.SubTopic inferredTopic = CaseSubTopicPolicy.inferSubTopic(context.dim(), context.detail());
         CaseSubTopicPolicy.SubTopicMatchResult subTopicResult = CaseSubTopicPolicy.calculateSubTopicScore(
                 inferredTopic, candidate.getSubTopic(), candidateText);
@@ -102,7 +93,7 @@ public class ScoreItemCaseMatchPolicy {
             }
         }
 
-        // 3. 条款重叠度（若存在资格项业绩实质要求，则择优计算条款重叠）
+        // 2. 条款重叠度（若存在资格项业绩实质要求，则择优计算条款重叠）
         int detailScore = Math.max(
                 ScoreItemCaseTextMatchPolicy.calculateDetailOverlap(context.detail(), candidateText, corpus),
                 ScoreItemCaseTextMatchPolicy.calculateDetailOverlap(
@@ -112,7 +103,7 @@ public class ScoreItemCaseMatchPolicy {
             reasons.add(detailScore >= 12 ? "评分项条款高度契合" : "条款部分契合");
         }
 
-        // 3.1 资格项业绩实质要求加权（穿透资格项业绩提取，针对品类/企业层级/金额发票佐证加分）
+        // 2.1 资格项业绩实质要求加权（穿透资格项业绩提取，针对品类/企业层级/金额发票佐证加分）
         var qualPerfBonus = QualificationPerformanceRetriever.calculatePerformanceBonus(
                 context.qualificationRequirementText(), context.qualificationKeywords(), candidateText);
         if (qualPerfBonus.score() > 0) {
@@ -120,11 +111,26 @@ public class ScoreItemCaseMatchPolicy {
             reasons.addAll(qualPerfBonus.reasons());
         }
 
-        // 4. 标题/正文跨层相似度
+        // 3. 标题/正文跨层相似度
         int titleScore = ScoreItemCaseTextMatchPolicy.calculateTitleSimilarity(context, candidate, candidateText);
         if (titleScore > 0) {
             score += titleScore;
             reasons.add(titleScore >= 15 ? "评分点匹配" : "评分点部分匹配");
+        }
+
+        // 内容适用性独立于客户/项目背景。背景、置顶和搜索词不能把无关案例变成评分项案例。
+        int relevanceScore = score;
+        boolean hasItemRequirement = hasText(context.dim()) || hasText(context.detail())
+                || hasText(context.qualificationRequirementText());
+        if (hasItemRequirement && relevanceScore == 0) {
+            return new MatchResult(candidate.getId(), 0, "一般", List.of("与评分项内容不相关"), List.of());
+        }
+
+        // 4. 项目专属核心实体匹配（最高 20 分）
+        EntityMatchResult entityResult = calculateEntityScore(context, candidate, candidateText);
+        score += entityResult.score();
+        if (!entityResult.hitEntities().isEmpty()) {
+            reasons.add("命中项目专属实体(" + String.join("、", entityResult.hitEntities().stream().limit(2).toList()) + ")");
         }
 
         // 4.5 搜索词命中：用户显式输入的关键词属于直接查询相关性
@@ -159,16 +165,14 @@ public class ScoreItemCaseMatchPolicy {
         if (candidate.getQualityScore() != null && candidate.getQualityScore() >= 80) {
             bonus += QUALITY_SCORE_BONUS;
         }
-        boolean hasItemRequirement = hasText(context.dim()) || hasText(context.detail())
-                || hasText(context.qualificationRequirementText());
         if (hasItemRequirement) {
-            score += (int) Math.round(bonus * Math.min(1.0, (double) score / RELEVANCE_FOR_FULL_BONUS));
+            score += (int) Math.round(bonus * Math.min(1.0, (double) relevanceScore / RELEVANCE_FOR_FULL_BONUS));
         } else {
             score += bonus;
         }
 
         // 11. 优先级重排与精炼展示关键词
-        List<String> prioritizedKeywords = assemblePrioritizedKeywords(context, candidateText, projectEntityHits);
+        List<String> prioritizedKeywords = assemblePrioritizedKeywords(context, candidateText, entityResult.hitEntities());
         score = Math.min(score, 100);
         String label = score >= HIGH_QUALITY_THRESHOLD ? "优质" : (score >= GOOD_THRESHOLD ? "良好" : "一般");
 
@@ -176,7 +180,7 @@ public class ScoreItemCaseMatchPolicy {
     }
 
     private List<String> assemblePrioritizedKeywords(
-            ScoreItemContext context, String candidateText, Set<String> projectEntityHits) {
+            ScoreItemContext context, String candidateText, List<String> projectEntityHits) {
         Set<String> result = new LinkedHashSet<>();
         if (projectEntityHits != null) {
             for (String entity : projectEntityHits) {
