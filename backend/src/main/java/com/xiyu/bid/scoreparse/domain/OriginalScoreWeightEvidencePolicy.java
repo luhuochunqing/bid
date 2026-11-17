@@ -69,7 +69,7 @@ final class OriginalScoreWeightEvidencePolicy {
                     .reduce((a, b) -> a + " " + b).orElse("");
             String rowText = directRowText + " " + inheritedCategoryText(table, anchor.row());
             boolean anchoredScoreColumn = anchor.rawText() != null && SCORE_CELL.matcher(anchor.rawText()).matches()
-                    && ScoreWeightSourceEvidence.scoreColumn(anchor, table);
+                    && SourceTableHeaderPolicy.scoreColumn(artifact, table, anchor.column());
             String ruleText = ScoreWeightSourceEvidence.ruleText(claim.ruleUnit(), directRowText);
             boolean quotedSubtotal = !claim.quotedText().isBlank() && contains(rowText, claim.quotedText())
                     && declaredDimensionSubtotal(claim.dimension(), claim.quotedText(), claim.weight());
@@ -87,7 +87,7 @@ final class OriginalScoreWeightEvidencePolicy {
                 }
                 String raw = cell.rawText() == null ? "" : cell.rawText();
                 Matcher numeric = SCORE_CELL.matcher(raw);
-                boolean scoreColumn = ScoreWeightSourceEvidence.scoreColumn(cell, table);
+                boolean scoreColumn = SourceTableHeaderPolicy.scoreColumn(artifact, table, cell.column());
                 if (cell.column() != null && cell.column() > 0 && numeric.matches()
                         && (raw.contains("分") || scoreColumn)) {
                     explicit.add(new BigDecimal(numeric.group(1)));

@@ -80,7 +80,8 @@ public final class OriginalRuleRestoration {
                 .allMatch(span -> !span.sourceId().isBlank() && fact.sourceCellIds().contains(span.sourceId()));
         if (rule.isBlank() && structural.applicable() && structural.closed() && validPeers.size() == 1
                 && !hasChildren && (LogicalRuleSourceUnit.isExactNamedRowAnchor(artifact, fact)
-                        || (!ambiguousCellShare && !raw.isBlank() && directlyCitedRuleCell))) {
+                        || (!ambiguousCellShare && !raw.isBlank() && directlyCitedRuleCell)
+                        || SourceFactIdentity.wholeRowClaim(fact, artifact))) {
             rule = raw.strip();
         }
         boolean erased = !structural.applicable() && erasesNumberedMaterials(rule, modelRule);

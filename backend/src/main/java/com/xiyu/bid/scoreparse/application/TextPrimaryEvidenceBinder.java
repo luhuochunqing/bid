@@ -63,6 +63,11 @@ final class TextPrimaryEvidenceBinder {
                     .or(() -> PdfRowEvidenceBinder.bindMisplacedOrdinal(fact, artifact, schemes))
                     .or(() -> LogicalRowEvidenceBinder.bind(fact, artifact, schemes));
             if (bound.isPresent()) return withOriginalMetadata(fact, addLogicalItemName(fact, bound.get(), artifact));
+            if (artifact != null) {
+                var fullRule = PdfFullRuleQuoteBinder.bindLabel(fact, artifact, schemes)
+                        .or(() -> PdfFullRuleQuoteBinder.bind(fact, artifact, schemes));
+                if (fullRule.isPresent()) return withOriginalMetadata(fact, fullRule.get());
+            }
             if (exactCells.isEmpty() && artifact != null) {
                 var ocrBound = textBlockEvidence(fact, artifact);
                 if (ocrBound.isPresent()) return withOriginalMetadata(fact, ocrBound.get());
@@ -79,6 +84,8 @@ final class TextPrimaryEvidenceBinder {
         String tableSchemeId = schemes.stream().filter(scheme -> scheme.tableIds().contains(table.tableId()))
                 .map(OriginalScoringContext.SchemeEvidence::schemeId).findFirst()
                 .orElseGet(() -> tableScheme.isBlank() ? "" : OriginalScoringContext.schemeId(tableScheme));
+        if (!fact.schemeId().isBlank() && schemes.stream().anyMatch(s -> s.schemeId().equals(fact.schemeId()))
+                && !fact.schemeId().equals(tableSchemeId)) return false;
         if ("IN_SCHEME".equals(fact.scopeStatus()) && !fact.schemeId().isBlank()
                 && !tableSchemeId.isBlank() && !fact.schemeId().equals(tableSchemeId)) return false;
         if ("OUT_OF_SCHEME".equals(fact.scopeStatus())) {

@@ -1,5 +1,4 @@
 package com.xiyu.bid.scoreparse.domain;
-
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.domain.grid.HeuristicTableColumnMapper;
 import com.xiyu.bid.scoreparse.domain.grid.TableColumnMapping;
@@ -12,7 +11,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 /** Source-level scheme evidence, resolved independently of any candidate extraction. */
 public record OriginalScoringContext(String documentId, String scheme, OriginalScoreEvidencePolicy.Total total,
                                      Map<String, Subtotal> subtotals,
@@ -136,6 +134,8 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
             Subtotal only = subtotals.values().iterator().next();
             totals.add(new Evidence(only.value(), "TABLE_SUMMARY", scheme, only.locator(), only.quote()));
         }
+        if (totals.isEmpty() && localProblems.isEmpty()) GroupedScoreTotalPolicy.resolve(artifact, scheme).ifPresent(grouped -> totals.add(
+                new Evidence(grouped.value(), "GROUPED_SOURCE_CLOSURE", scheme, grouped.locator(), grouped.quote())));
         OriginalScoreEvidencePolicy.Total resolved = total(totals, scheme);
         if (totals.isEmpty() && !localProblems.isEmpty()) {
             var first = localProblems.get(0);

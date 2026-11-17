@@ -38,6 +38,7 @@ final class MultimodalExtractionReviewPolicy {
         List<MultimodalScoreFact> prunedFacts = pruneSyntheticParents(extraction.facts());
         List<MultimodalScoreFact> scopedFacts = com.xiyu.bid.scoreparse.domain.SourceFactDeduplication.merge(prunedFacts.stream()
                 .map(fact -> assignScope(fact, context, artifact, tenderText, schemes)).toList(), artifact);
+        scopedFacts = com.xiyu.bid.scoreparse.domain.SourceScoreHierarchyPolicy.restore(scopedFacts, artifact);
         var baseFacts = ZeroDeductionUnitEvidence.resolve(SingletonScoreUnitEvidence.resolve(
                 MultimodalFactParentCodeNormalizer.normalize(scopedFacts), artifact), artifact);
         var recoveredFacts = MultimodalFactParentCodeNormalizer.normalize(

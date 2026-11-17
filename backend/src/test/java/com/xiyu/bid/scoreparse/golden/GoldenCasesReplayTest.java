@@ -483,6 +483,7 @@ class GoldenCasesReplayTest {
         return Stream.of(
                 Arguments.of("case-standalone-maximum-total"),
                 Arguments.of("case-source-alias-double-count"),
+                Arguments.of("case-crosspage-source-closure"),
                 Arguments.of("case-owned-headerless-continuation"),
                 Arguments.of("case-score-unit-authority"),
                 Arguments.of("case-score-weight-source-boundaries"),
@@ -539,6 +540,12 @@ class GoldenCasesReplayTest {
     void replayGoldenCase(String caseName) throws Exception {
         if (caseName.equals("case-standalone-maximum-total")) {
             com.xiyu.bid.scoreparse.domain.StandaloneMaximumSummaryTest.verifyGolden(
+                    GoldenCasesReplaySupport.readFixture(caseName + ".md"),
+                    GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json")));
+            return;
+        }
+        if (caseName.equals("case-crosspage-source-closure")) {
+            com.xiyu.bid.scoreparse.application.SourceClosureGoldenReplay.verify(
                     GoldenCasesReplaySupport.readFixture(caseName + ".md"),
                     GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json")));
             return;

@@ -18,8 +18,9 @@ public final class SourceFactIdentity {
 
     public static boolean sameUnit(MultimodalScoreFact first, MultimodalScoreFact second, DocumentArtifact artifact) {
         if (!first.schemeId().equals(second.schemeId()) || !first.scopeStatus().equals(second.scopeStatus())
-                || !first.tableId().equals(second.tableId()) || first.sourceCellIds().isEmpty()
-                || !new HashSet<>(first.sourceCellIds()).equals(new HashSet<>(second.sourceCellIds()))) return false;
+                || !first.tableId().equals(second.tableId()) || first.sourceCellIds().isEmpty()) return false;
+        boolean sameCells = new HashSet<>(first.sourceCellIds()).equals(new HashSet<>(second.sourceCellIds()));
+        if (!sameCells && !LogicalRuleSourceUnit.sharesLogicalRow(artifact, first, second)) return false;
         // A parent and its child can legitimately quote the same cell, including unary score units.
         if ((!first.code().isBlank() && first.code().equals(second.parentCode()))
                 || (!second.code().isBlank() && second.code().equals(first.parentCode()))) return false;
@@ -29,10 +30,10 @@ public final class SourceFactIdentity {
         String quoteA = quote(first), quoteB = quote(second);
         if (quoteA.isBlank() || quoteB.isBlank()) return false;
         String firstRule = normalize(first.ruleText()), secondRule = normalize(second.ruleText());
-        if (!firstRule.isBlank() && firstRule.equals(secondRule)) return true;
+        if (sameCells && !firstRule.isBlank() && firstRule.equals(secondRule)) return true;
         // Equal or overlapping quotations can cover independently scored subrules;
         // only identical whole-row claims prove identity when the rule texts differ.
-        return quoteA.equals(quoteB) && wholeRowClaim(first, artifact) && wholeRowClaim(second, artifact);
+        return wholeRowClaim(first, artifact) && wholeRowClaim(second, artifact);
     }
 
     public static boolean sameWeight(MultimodalScoreFact first, MultimodalScoreFact second) {
@@ -78,15 +79,30 @@ public final class SourceFactIdentity {
 
     /** An incomplete model rule is not an identity. Only the original row name, explicit
      * maximum column, and complete closed rule can prove it denotes that whole scoring row. */
-    private static boolean wholeRowClaim(MultimodalScoreFact fact, DocumentArtifact artifact) {
+    public static boolean wholeRowClaim(MultimodalScoreFact fact, DocumentArtifact artifact) {
         if (artifact == null || fact.weight() == null) return false;
         var unit = LogicalRuleSourceUnit.resolve(artifact, fact);
         if (!unit.closed() || unit.spans().isEmpty()) return false;
-        String rule = normalize(unit.spans().stream().map(SourceSpan::rawText)
-                .collect(Collectors.joining("\n")));
-        if (!rule.equals(quote(fact))) return false;
-        if (!fact.ruleText().isBlank()) return rule.equals(normalize(fact.ruleText()));
-        boolean named = false;
+        // An unnumbered logical row includes its name and score. Identity is owned by
+        // the complete original rule, never by a model summary or a short subrule quote.
+        var ruleSpans = unit.spans().stream().filter(span -> artifact.tables().stream()
+                .filter(table -> table.tableId().equals(span.tableId())).anyMatch(table -> table.cells().stream()
+                        .filter(cell -> cell.cellId().equals(span.sourceId())).anyMatch(cell ->
+                                SourceTableHeaderPolicy.headers(artifact, table).getOrDefault(cell.column(), "")
+                                        .matches("(?:评分|评审)(?:标准|细则)|规则|评分要求")))).toList();
+        String rule = normalize((ruleSpans.isEmpty() ? unit.spans() : ruleSpans).stream()
+                .map(SourceSpan::rawText).collect(Collectors.joining("\n")));
+        String modelRule = normalize(fact.sourceMetadata().modelRuleText().isBlank()
+                ? fact.ruleText() : fact.sourceMetadata().modelRuleText());
+        boolean citedRule = ruleSpans.stream().anyMatch(span -> fact.sourceCellIds().contains(span.sourceId()));
+        if (rule.isBlank() || (!citedRule && !LogicalRuleSourceUnit.isExactNamedRowAnchor(artifact, fact))) return false;
+        // A closed row with one explicit maximum is one score unit. Two separately
+        // stated awards of that maximum still leave an ambiguous shared-cell split.
+        var award = java.util.regex.Pattern.compile("(?<![\\d.])" + java.util.regex.Pattern.quote(
+                fact.weight().stripTrailingZeros().toPlainString()) + "分").matcher(rule);
+        int maximumMentions = 0;
+        while (award.find()) maximumMentions++;
+        if (maximumMentions > 1 && !rule.equals(modelRule)) return false;
         int matchingMaxima = 0;
         var sourceTables = unit.spans().stream().map(SourceSpan::tableId).collect(Collectors.toSet());
         for (var table : artifact.tables()) {
@@ -94,16 +110,15 @@ public final class SourceFactIdentity {
             for (var cell : table.cells()) {
                 var source = atCell(fact, table.tableId(), cell.cellId(), cell.rawText());
                 if (!LogicalRuleSourceUnit.sharesLogicalRow(artifact, fact, source)) continue;
-                if (normalize(cell.rawText() == null ? "" : cell.rawText()).equals(normalize(fact.dimension()))
-                        && LogicalRuleSourceUnit.isExactNamedRowAnchor(artifact, source)) named = true;
                 String value = cell.rawText() == null ? "" : cell.rawText().strip();
-                if (ScoreWeightSourceEvidence.scoreColumn(cell, table) && value.matches("\\d+(?:\\.\\d+)?\\s*分?")) {
+                if (SourceTableHeaderPolicy.scoreColumn(artifact, table, cell.column())
+                        && value.matches("\\d+(?:\\.\\d+)?\\s*分?")) {
                     if (new BigDecimal(value.replace("分", "").strip()).compareTo(fact.weight()) != 0) return false;
                     matchingMaxima++;
                 }
             }
         }
-        return named && matchingMaxima == 1;
+        return matchingMaxima == 1;
     }
 
     private static MultimodalScoreFact atCell(MultimodalScoreFact fact, String table, String cell, String text) {
