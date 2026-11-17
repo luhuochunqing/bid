@@ -29,6 +29,8 @@ public class ResultDTO {
     private BigDecimal servicePeriodYears;
     /** CO-590: 服务周期截止时间。 */
     private LocalDate servicePeriodEndDate;
+    /** 中标时间。 */
+    private LocalDate winDate;
     private List<Long> evidenceFileIds;
     private String summary;
     /** 凭证标签，由后端根据 resultType 自动推导回显（如"中标通知书"），不单独持久化。 */

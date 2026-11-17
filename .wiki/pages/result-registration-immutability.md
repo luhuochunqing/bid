@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [结果确认, 竞争对手, 二次确认, 不可变性, 幂等, ResultConfirmStage]
 created: 2026-08-27
-updated: 2026-08-27
-health_checked: 2026-10-25
+updated: 2026-11-17
+health_checked: 2026-11-17
 sources:
   - src/views/Project/stages/ResultConfirmStage.vue
   - backend/src/main/java/com/xiyu/bid/project/service/ProjectResultRegistrationService.java
@@ -43,6 +43,16 @@ backlinks:
 走 `projectStore.updateProject` 直写 `resultData.competitors`，**无锁定、可反复覆盖**。但其入口
 `handleRecordResult` 已不被任何模板引用（不可达 UI）。改动竞品/结果逻辑时不要把它当第二真相源；
 后续任务应清理。
+
+## 合同信息模块与中标时间（2026-11-17）
+
+- **中标时间 (`win_date`)**：位于「合同信息」卡片内「服务周期截止时间」字段之后，采用同款日期选择器（`YYYY-MM-DD`）。
+- **校验边界（方案 A）**：仅在投标结果为【中标】(`WON`) 时显示并必填；非中标结果（未中标/流标/弃标）不展示亦不校验。
+- **外部隔离**：中标时间为投标管理平台内部流转与归档字段，**不回传 CRM 系统**（不在 `ProjectResultPayloadAssembler` / `bidInfoSync` 回调载荷中包含）。
+- **持久化与规则**：
+  - 前端：`ResultConfirmStage.vue` 表单 `winDate`（`v-if="form.resultType === 'WON'"`）；
+  - 纯规则层：`ResultRegistrationFieldPolicy` 中当 `rt == WON` 时校验 `winDate` 非空；
+  - 数据模型：`project_result.win_date DATE NULL`（Flyway V1226，回滚 U1226）。
 
 ## 关联
 

@@ -194,6 +194,7 @@ describe('ResultConfirmStage 结果登记二次确认（登记后竞品不可再
     const vm = wrapper.vm
     vm.form.servicePeriodYears = 2
     vm.form.servicePeriodEndDate = '2026-12-31'
+    vm.form.winDate = '2026-05-20'
     vm.form.evidenceFileIds.push(9001)
     if (competitorRows > 0) vm.form.competitors[0].name = '华为'
     return wrapper
@@ -247,6 +248,7 @@ describe('ResultConfirmStage 结果登记二次确认（登记后竞品不可再
     expect(projectId).toBe(1)
     expect(payload.resultType).toBe('WON')
     expect(payload.servicePeriodYears).toBe(2)
+    expect(payload.winDate).toBe('2026-05-20')
     expect(payload.competitors).toHaveLength(1)
     expect(payload.competitors[0].name).toBe('华为')
 
@@ -274,5 +276,57 @@ describe('ResultConfirmStage 结果登记二次确认（登记后竞品不可再
 
     expect(elMessageBoxConfirmMock).not.toHaveBeenCalled()
     expect(registerResultMock).not.toHaveBeenCalled()
+  })
+
+  it('中标结果下未填写中标时间拦截并提示', async () => {
+    getResultMock.mockImplementation(() => Promise.resolve({
+      data: { resultType: 'WON', evidenceFileIds: [], competitors: [] },
+    }))
+    const { default: ResultConfirmStage } = await import('./ResultConfirmStage.vue')
+    const wrapper = mount(ResultConfirmStage, {
+      props: { projectId: 1 },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+
+    wrapper.vm.form.servicePeriodYears = 2
+    wrapper.vm.form.servicePeriodEndDate = '2026-12-31'
+    wrapper.vm.form.winDate = null
+    wrapper.vm.form.evidenceFileIds.push(9001)
+
+    await findRegisterButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(elMessageBoxConfirmMock).not.toHaveBeenCalled()
+    expect(registerResultMock).not.toHaveBeenCalled()
+  })
+
+  it('非中标结果下不校验中标时间且 payload 中 winDate 为 null', async () => {
+    getResultMock.mockImplementation(() => Promise.resolve({
+      data: { resultType: 'LOST', evidenceFileIds: [], competitors: [] },
+    }))
+    elMessageBoxConfirmMock.mockResolvedValueOnce('confirm')
+    registerResultMock.mockResolvedValueOnce({ data: {} })
+    const { default: ResultConfirmStage } = await import('./ResultConfirmStage.vue')
+    const wrapper = mount(ResultConfirmStage, {
+      props: { projectId: 1 },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+
+    wrapper.vm.form.resultType = 'LOST'
+    wrapper.vm.form.summary = '丢标原因'
+    wrapper.vm.form.servicePeriodYears = 2
+    wrapper.vm.form.servicePeriodEndDate = '2026-12-31'
+    wrapper.vm.form.winDate = null
+    wrapper.vm.form.evidenceFileIds.push(9001)
+
+    await findRegisterButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(registerResultMock).toHaveBeenCalledTimes(1)
+    const [, payload] = registerResultMock.mock.calls[0]
+    expect(payload.resultType).toBe('LOST')
+    expect(payload.winDate).toBeNull()
   })
 })

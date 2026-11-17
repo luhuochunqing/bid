@@ -24,6 +24,7 @@ class ResultRegistrationFieldPolicyTest {
     void won_complete_allowed() {
         var input = ResultRegistrationFieldPolicy.ResultInput.builder()
                 .resultType(BidResultType.WON)
+                .winDate(LocalDate.of(2026, 5, 20))
                 .awardAmount(new BigDecimal("100000"))
                 .contractStartDate(LocalDate.of(2026, 6, 1))
                 .contractEndDate(LocalDate.of(2027, 6, 1))
@@ -34,6 +35,19 @@ class ResultRegistrationFieldPolicyTest {
                 .build();
         var d = ResultRegistrationFieldPolicy.validate(input);
         assertTrue(d.allowed());
+    }
+
+    @Test
+    void won_missingWinDate_denied() {
+        var input = ResultRegistrationFieldPolicy.ResultInput.builder()
+                .resultType(BidResultType.WON)
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
+                .evidenceFileIds(List.of(101L))
+                .build();
+        var d = ResultRegistrationFieldPolicy.validate(input);
+        var deny = assertInstanceOf(ResultRegistrationFieldPolicy.Decision.Deny.class, d);
+        assertTrue(deny.missing().contains("winDate"), "中标时中标时间必填");
     }
 
     @Test
@@ -182,11 +196,12 @@ class ResultRegistrationFieldPolicyTest {
                 .resultType(BidResultType.WON).build();
         var d = ResultRegistrationFieldPolicy.validate(input);
         var deny = assertInstanceOf(ResultRegistrationFieldPolicy.Decision.Deny.class, d);
-        // CO-320: WON 必填 evidenceFileIds；CO-590: 所有结果类型必填 servicePeriodYears + servicePeriodEndDate
-        assertEquals(3, deny.missing().size(), "expected evidenceFileIds + 合同信息两字段");
+        // CO-320: WON 必填 evidenceFileIds；CO-590: 所有结果类型必填 servicePeriodYears + servicePeriodEndDate；WON 必填 winDate
+        assertEquals(4, deny.missing().size(), "expected evidenceFileIds + 合同信息两字段 + winDate");
         assertTrue(deny.missing().contains("evidenceFileIds"));
         assertTrue(deny.missing().contains("servicePeriodYears"));
         assertTrue(deny.missing().contains("servicePeriodEndDate"));
+        assertTrue(deny.missing().contains("winDate"));
     }
 
     // ===== CO-590: 合同信息模块必填校验 =====

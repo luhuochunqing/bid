@@ -84,6 +84,7 @@ public class ProjectResultRegistrationService {
         }
         var input = ResultRegistrationFieldPolicy.ResultInput.builder()
                 .resultType(req.getResultType())
+                .winDate(req.getWinDate())
                 .awardAmount(req.getAwardAmount())
                 .contractStartDate(req.getContractStartDate())
                 .contractEndDate(req.getContractEndDate())
@@ -100,6 +101,7 @@ public class ProjectResultRegistrationService {
         ProjectResult entity = ProjectResult.builder()
                 .projectId(project.getId())
                 .resultType(req.getResultType().name())
+                .winDate(req.getResultType() == BidResultType.WON ? req.getWinDate() : null)
                 .awardAmount(req.getAwardAmount())
                 .contractStartDate(req.getContractStartDate())
                 .contractEndDate(req.getContractEndDate())
@@ -201,15 +203,9 @@ public class ProjectResultRegistrationService {
         for (int i = 0; i < rows.size(); i++) {
             ResultRegistrationRequest.CompetitorRow row = rows.get(i);
             if (isBlankRow(row)) continue;
-            ProjectResultCompetitor entity = ProjectResultCompetitor.builder()
-                    .resultId(resultId)
-                    .name(row.name())
-                    .discount(row.discount())
-                    .paymentTerm(row.paymentTerm())
-                    .notes(row.notes())
-                    .sortOrder(i)
-                    .build();
-            competitorRepository.save(entity);
+            competitorRepository.save(ProjectResultCompetitor.builder()
+                    .resultId(resultId).name(row.name()).discount(row.discount())
+                    .paymentTerm(row.paymentTerm()).notes(row.notes()).sortOrder(i).build());
         }
     }
 
@@ -235,20 +231,11 @@ public class ProjectResultRegistrationService {
     }
 
     private static String formatOperatorName(User user) {
-        if (user == null) {
-            return "unknown";
-        }
+        if (user == null) return "unknown";
         String fullName = user.getFullName();
-        // CO-300: employeeNumber 为空时回退到 username（getDisplayEmployeeNumber 已封装此逻辑），
-        // 确保操作人始终为"姓名（工号）"格式，与 AuditLogItemMapper 保持一致。
         String employeeId = user.getDisplayEmployeeNumber();
-        if (isStrBlank(fullName)) {
-            return isStrBlank(employeeId) ? "unknown" : employeeId;
-        }
-        if (!isStrBlank(employeeId)) {
-            return "%s（%s）".formatted(fullName, employeeId);
-        }
-        return fullName;
+        if (isStrBlank(fullName)) return isStrBlank(employeeId) ? "unknown" : employeeId;
+        return !isStrBlank(employeeId) ? "%s（%s）".formatted(fullName, employeeId) : fullName;
     }
 
     private List<ResultDTO.CompetitorRow> loadCompetitors(Long resultId) {
@@ -281,6 +268,7 @@ public class ProjectResultRegistrationService {
                 .id(e.getId())
                 .projectId(e.getProjectId())
                 .resultType(e.getResultType())
+                .winDate(e.getWinDate())
                 .awardAmount(e.getAwardAmount())
                 .contractStartDate(e.getContractStartDate())
                 .contractEndDate(e.getContractEndDate())

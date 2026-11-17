@@ -33,6 +33,8 @@ public class ResultRegistrationRequest {
     /** CO-590: 服务周期截止时间，合同信息模块必填。 */
     @NotNull
     private LocalDate servicePeriodEndDate;
+    /** 中标时间，中标时必填（由 ResultRegistrationFieldPolicy 校验，不回传 CRM 系统）。 */
+    private LocalDate winDate;
     private List<Long> evidenceFileIds;
     private String summary;
     /** 凭证标签，如"中标通知书"、"流标公告"等，由前端根据结果类型传入。 */
