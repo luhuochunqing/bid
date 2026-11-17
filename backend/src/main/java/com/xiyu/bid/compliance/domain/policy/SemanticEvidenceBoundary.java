@@ -124,8 +124,8 @@ final class SemanticEvidenceBoundary {
                 || !(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode().equals(result.itemCode())
                         || BidQualityCheckItem.QUALIFICATION_VETO.getCode().equals(result.itemCode()))) return result;
         boolean veto = BidQualityCheckItem.QUALIFICATION_VETO.getCode().equals(result.itemCode());
-        if (veto && (hasSamePageSubstantiveCertificateFacts(bidDoc)
-                        || hasValidKbEvidenceCoveringBid(result, bidDoc))) return result;
+        // A certificate proves one fact, never the entire qualification checklist.
+
         return new QualityCheckItemResult(result.itemCode(), result.category(), result.title(), result.description(),
                 QualityCheckStatus.MANUAL_REVIEW, result.severity(), result.order(), veto
                         ? "完整资格条件及证明材料尚需逐项核验，证书名称或资料库匹配不能证明资格全部满足"
@@ -143,30 +143,6 @@ final class SemanticEvidenceBoundary {
     static boolean hasSubstantiveCertificateFacts(final String text) {
         return text != null && !text.isBlank() && CERT_NUMBER_FACT.matcher(text).find()
                 && CERT_VALIDITY_FACT.matcher(text).find();
-    }
-
-    private static boolean hasSamePageSubstantiveCertificateFacts(final DocumentContent bidDoc) {
-        return bidDoc != null && bidDoc.pages() != null && bidDoc.pages().stream().filter(p ->
-                                        p.text() != null && !BidLetterCheckPolicy.isCatalogOrOutlinePage(p.text()))
-                        .anyMatch(p -> hasSubstantiveCertificateFacts(p.text()));
-    }
-
-    private static boolean hasValidKbEvidenceCoveringBid(
-            final QualityCheckItemResult result, final DocumentContent bidDoc) {
-        if (result == null || result.evidences() == null || bidDoc == null || bidDoc.pages() == null) return false;
-        List<QualityEvidence> kbEvidences =
-                result.evidences().stream().filter(e ->
-                                        "KNOWLEDGE_BASE".equals(e.sourceType())
-                                                && KnowledgeMatch.SOURCE_QUALIFICATION.equals(e.knowledgeSource())
-                                                && Boolean.TRUE.equals(e.matched()) && e.quote() != null
-                                                && !e.quote().isBlank()).toList();
-        String bodyText =
-                bidDoc.pages().stream().filter(p ->
-                                        p.text() != null && !BidLetterCheckPolicy.isCatalogOrOutlinePage(p.text()))
-                        .map(DocumentContent.PageContent::text).collect(java.util.stream.Collectors.joining("\n\f\n"));
-        return !kbEvidences.isEmpty() && kbEvidences.stream().allMatch(kb ->
-                                        hasPositiveCertificateStatement(bodyText, CertificateEvidenceContextPolicy
-                                                        .certificateIdentity(kb.quote())));
     }
 
     static boolean hasPositiveCertificateStatement(final String text, final String certificate) {

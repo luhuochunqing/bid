@@ -24,7 +24,7 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
             "ISO45001", "职业健康(?:安全)?管理(?:体系)?");
     private static final Map<String, String> HONORS = Map.of(
             "品牌信誉", "(?:中国)?品牌信誉评价", "质量信用", "企业质量信用等级评价",
-            "售后服务", "商品售后(?:服务)?", "标准化", "企业标准化管理体系");
+            "售后服务", "商品售后(?:服务)?(?:评价)?", "标准化", "企业标准化管理体系");
     private static final String[] HONOR_ORDER = {"品牌信誉", "质量信用", "售后服务", "标准化"};
     private static final String CERT_END = "(?:认证(?:证书)?|证书)?";
     private static final String SEPARATOR = "[、,及和]";
@@ -57,6 +57,15 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
             }
         }
         return List.copyOf(identities);
+    }
+
+    static Requirement estimateRequirement(String identity, String detail) {
+        String text = normalize(detail);
+        String base = honorBase(identity);
+        if (base == null) return new Requirement(identity, "");
+        var match = Pattern.compile(base + "[^;。|]{0,15}?(五星|5星|3A|AAA)").matcher(text);
+        if (!match.find()) return new Requirement(identity, "");
+        return new Requirement(identity, match.group(1).matches("五星|5星") ? "五星" : "3A");
     }
 
     static boolean matchesEstimateIdentity(String name, String identity) {

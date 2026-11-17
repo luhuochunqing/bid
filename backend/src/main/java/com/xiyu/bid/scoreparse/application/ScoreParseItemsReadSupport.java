@@ -12,7 +12,7 @@ import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import java.time.LocalDate;
 
-/** Read projection hides unverifiable certificate estimates without altering stored history. */
+/** Read projection hides unverifiable knowledge estimates without altering stored history. */
 final class ScoreParseItemsReadSupport {
     private final ScoreItemRepository items;
     private final ScoreParseTaskRepository tasks;
@@ -49,12 +49,12 @@ final class ScoreParseItemsReadSupport {
                         new ScoreBidDocumentLookup(documents,null,null,null,null)).build(projectId,latest,scoring));
     }
     private ScoreItemDTO project(ScoreItem i) {
-        String state=!CertificateScoreEstimateSupport.applies(i)?"NOT_APPLICABLE":
+        String state=!(CertificateScoreEstimateSupport.applies(i)||EstimateEvidenceSupport.applies(i))?"NOT_APPLICABLE":
                 freshness==null?"STALE":freshness.status(i,LocalDate.now());
         boolean stale="STALE".equals(state);
         return new ScoreItemDTO(i.getId(),i.getCode(),i.getDim(),i.getDetail(),i.getWeight(),i.getScoreType(),
                 stale?"PENDING":i.getStatusStage1(),stale?null:i.getEstScore(),
-                stale?"知识库预判已过期或缺少计算记录，请更新知识库预判":i.getEstBasis(),
+                stale && i.getEstScore()!=null?"知识库预判已过期或缺少计算记录，请更新知识库预判":i.getEstBasis(),
                 stale?Boolean.FALSE:i.getKbHit(),i.getLocation(),i.getSourceCellIds(),i.getWeightEvidence(),
                 i.getExtractionMethod(),i.getConfidence(),i.getValidationStatus(),i.getParentScoreItemId(),
                 state,i.getEstimatedAt());

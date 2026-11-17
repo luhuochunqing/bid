@@ -19,7 +19,7 @@ import java.util.Set;
 
 /** Bounded diagnostics, never a second copy of evidence text or signed URLs. */
 public final class ScoringRunReportCodec {
-    public static final String ENGINE = "actual-score-v3";
+    public static final String ENGINE = "actual-score-v4";
     private static final int MAX_BYTES = 61440;
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     public record Encoded(String json, boolean tooLarge) {}

@@ -48,11 +48,11 @@ public class CertMatchService {
     public ScoreEstimate estimateSimpleScore(String dim, String detail, BigDecimal weight, LocalDate asOf) {
         var facts = scoreFacts();
         return new ScoreEstimate(CertificateScorePolicy.assessSimple(dim, detail, weight, asOf, facts),
-                fingerprint("simple-estimate-v1:" + dim, detail, weight, asOf, facts));
+                fingerprint("simple-estimate-v2:" + dim, detail, weight, asOf, facts));
     }
 
     public String simpleFingerprintForScore(String dim, String detail, BigDecimal weight, LocalDate asOf) {
-        return fingerprint("simple-estimate-v1:" + dim, detail, weight, asOf, scoreFacts());
+        return fingerprint("simple-estimate-v2:" + dim, detail, weight, asOf, scoreFacts());
     }
 
     public String fingerprintForScore(String dim, String detail, BigDecimal weight, LocalDate asOf) {

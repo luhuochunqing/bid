@@ -44,11 +44,11 @@ class EstimatedScoreServiceTest {
     WarehouseMatchedItem warehouse(long id) { return new WarehouseMatchedItem(id,"现有仓"+id,"华北",BigDecimal.TEN,"IN_USE"); }
     void refresh(ScoreItem row) { when(items.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(row));service.refreshItemsForProject(1L); }
 
-    @Test void simpleWarehouseEstimateCountsAvailableWarehousesEvenWithComplexWording() {
+    @Test void provinceRequirementDoesNotCountWarehouseWithMissingProvince() {
         var row=item("仓储能力","技术","山西区域仓库及服务网点，承诺提供相关材料","10","OBJECTIVE");
         when(warehouses.findActiveWarehouses()).thenReturn(List.of(warehouse(1)));
         refresh(row);
-        assertThat(row.getEstScore()).isEqualByComparingTo("10");
+        assertThat(row.getEstScore()).isZero();
         assertThat(row.getEstBasis()).contains("知识库粗估","按有无","未核验");
         assertThat(row.getCode()).isEqualTo("仓储能力");assertThat(row.getDim()).isEqualTo("技术");
         verify(warehouses,never()).match(any());
@@ -72,7 +72,7 @@ class EstimatedScoreServiceTest {
         var brand=item("品牌及货源渠道管控及佐证材料","技术","每份品牌授权1分，最多20分","20","OBJECTIVE");
         when(items.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(project,brand));
         when(projects.findEstimateCandidates()).thenReturn(List.of(new ProjectMatchedItem(1L,"合同","工业品",null,BigDecimal.TEN)));
-        when(brands.findEstimateCandidates(any())).thenReturn(List.of(new BrandMatchedItem(2L,"品牌A","厂家","INDUSTRIAL",null,false)));
+        when(brands.findEstimateCandidates(any(), any())).thenReturn(List.of(new BrandMatchedItem(2L,"品牌A","厂家","INDUSTRIAL",null,false)));
         service.refreshItemsForProject(1L);
         assertThat(project.getEstScore()).isEqualByComparingTo("20");assertThat(project.getEstBasis()).contains("未核验");
         assertThat(brand.getEstScore()).isEqualByComparingTo("1");assertThat(brand.getEstBasis()).contains("要求20项");
@@ -108,5 +108,17 @@ class EstimatedScoreServiceTest {
         when(people.findEstimateCandidates()).thenReturn(List.of(new PersonMatchedItem(1L,"张三","1","工程师",List.of())));
         refresh(row);assertThat(row.getEstScore()).isEqualByComparingTo("5");
         verify(people,never()).match(any());
+    }
+    @Test void invoiceAndContractThresholdsRemainDistinctWhenBothAppear() {
+        var row=item("供应商业绩","商务","需提供1项工业品业绩，提供单张金额不低于20万元的发票，合同金额不少于100万元","10","OBJECTIVE");
+        when(projects.findEstimateCandidates()).thenReturn(List.of(new ProjectMatchedItem(1L,"合成合同","工业品",
+                java.time.LocalDate.of(2024,1,1),new BigDecimal("500000"))));
+        refresh(row);assertThat(row.getEstScore()).isZero();
+        assertThat(row.getEstBasis()).contains("合同金额不少于1000000元");
+    }
+    @Test void unresolvedQuotedDeadlineRemainsAHardGapForFormalScoring() {
+        var constraints=com.xiyu.bid.scoreparse.domain.KnowledgeEvidenceConstraints.parse("PROJECT",
+                "2023年1月1日至首次报价截止日，以合同签订时间为准",java.time.LocalDate.of(2026,11,17));
+        assertThat(constraints.quoteFailure("供货合同签订日期2026年9月1日，合同金额100万元")).contains("截止");
     }
 }

@@ -106,10 +106,10 @@ class ProductionCrossChapterPerformanceGoldenReplayTest {
     @ParameterizedTest(name = "命中业绩数量 {0} 篇 -> 预计折算分 {1}")
     @CsvSource({
             "0, 0.00",
-            "1, 1.00",
-            "2, 2.00",
-            "3, 3.00",
-            "4, 4.00"
+            "1, 1.67",
+            "2, 3.33",
+            "3, 5.00",
+            "4, 5.00"
     })
     @DisplayName("黄金样本：端到端预计得分回放（0~4份业绩计分折算）")
     void endToEndEstimatedScoreReplay(int matchCount, String expectedScore) {
@@ -159,19 +159,16 @@ class ProductionCrossChapterPerformanceGoldenReplayTest {
 
         if (matchCount == 0) {
             assertThat(item.getEstScore()).isEqualByComparingTo("0.00");
-            assertThat(item.getStatusStage1()).isEqualTo("DANGER");
+            assertThat(item.getStatusStage1()).isEqualTo("PENDING");
             assertThat(item.getKbHit()).isFalse();
         } else {
             assertThat(item.getEstScore()).isEqualByComparingTo(expectedScore);
             assertThat(item.getKbHit()).isTrue();
-            if (matchCount >= 5) {
-                assertThat(item.getStatusStage1()).isEqualTo("OK");
-            } else {
-                assertThat(item.getStatusStage1()).isEqualTo("PENDING");
-            }
+            // The first-quotation deadline and qualification conditions are not available to the rough estimate.
+            assertThat(item.getStatusStage1()).isEqualTo("PENDING");
             assertThat(item.getEstBasis()).contains("知识库粗估", "未核验");
             assertThat(item.getEstBasis()).contains("工业品");
-            assertThat(item.getEstBasis()).contains("要求5项");
+            assertThat(item.getEstBasis()).contains("要求3项");
         }
     }
 }

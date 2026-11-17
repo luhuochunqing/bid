@@ -481,6 +481,7 @@ class GoldenCasesReplayTest {
 
     static Stream<Arguments> cases() {
         return Stream.of(
+                Arguments.of("case-evidence-hard-conditions"),
                 Arguments.of("case-standalone-maximum-total"),
                 Arguments.of("case-source-alias-double-count"),
                 Arguments.of("case-crosspage-source-closure"),
