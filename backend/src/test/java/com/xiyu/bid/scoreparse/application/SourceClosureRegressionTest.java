@@ -82,6 +82,7 @@ class SourceClosureRegressionTest {
                         new DocumentArtifact.SourceDocument("price", artifact.artifact())));
         assertThat(OriginalScoringContext.resolve(sameSourceBundle, "# " + SECTION).total().value())
                 .isEqualByComparingTo("100");
+        assertSchemeTotal(sameSourceBundle, "VERIFIED", new BigDecimal("100"));
     }
 
     @Test void groupedTotalCannotBeInferredFromIncompleteCategorySet() {
@@ -117,6 +118,51 @@ class SourceClosureRegressionTest {
                 null, List.of(a, b), "synthetic", 0), context, artifact, "").facts();
         assertThat(facts).hasSize(1);
         assertThat(OriginalRuleRestoration.restore(facts.getFirst(), artifact, facts).text()).contains(RULE);
+    }
+
+    @Test void flatScoringRowsRemainIndependentRegardlessOfCitedColumn() {
+        String deliveryRule = "配送方案优秀得6分，未提供不得分。";
+        var artifact = artifact(table("t", 1, List.of(
+                cell("settlement-name", 1, 0, "结算方式（1分）", 1),
+                cell("settlement-weight", 1, 1, "1", 1), cell("settlement-rule", 1, 2, RULE, 1),
+                cell("delivery-name", 2, 0, "配送方案", 1), cell("delivery-weight", 2, 1, "6", 1),
+                cell("delivery-rule", 2, 2, deliveryRule, 1))));
+        for (var deliveryIds : List.of(List.of("delivery-rule"), List.of("delivery-name", "delivery-rule"))) {
+            var settlement = fact("settlement", "", "结算方式", RULE, "结算方式（1分）", List.of("settlement-name"), 1);
+            var delivery = fact("delivery", "", "配送方案", deliveryRule, deliveryRule, deliveryIds, 6);
+            var bound = TextPrimaryEvidenceBinder.bind(List.of(settlement, delivery), artifact, "");
+            var normalized = MultimodalExtractionReviewPolicy.normalized(
+                    new MultimodalScoreFactExtractor.ExtractionResult(null, bound, "synthetic", 0),
+                    OriginalScoringContext.resolve(artifact, "# " + SECTION), artifact, "").facts();
+            assertThat(normalized).hasSize(2).allSatisfy(f -> assertThat(f.parentCode()).isEmpty());
+            assertThat(normalized.stream().map(MultimodalScoreFact::weight).reduce(BigDecimal.ZERO, BigDecimal::add))
+                    .isEqualByComparingTo("7");
+        }
+    }
+
+    @Test void ordinaryNameCellEndsPreviousMergedGroupScope() {
+        var artifact = artifact(table("t", 1, List.of(
+                cell("group", 1, 0, "运营服务（6分）", 1), cell("first-weight", 1, 1, "4", 1),
+                cell("first-rule", 1, 2, "属地服务优秀得4分。", 1),
+                cell("continued-name", 2, 0, "", 1), cell("second-weight", 2, 1, "2", 1),
+                cell("second-rule", 2, 2, "履约方案优秀得2分。", 1),
+                cell("delivery-name", 3, 0, "配送方案", 1), cell("delivery-weight", 3, 1, "5", 1),
+                cell("delivery-rule", 3, 2, "配送方案优秀得5分。", 1))));
+        var group = fact("operations", "", "运营服务", "", "运营服务（6分）", List.of("group"), 6);
+        var first = fact("local", "", "属地服务", "属地服务优秀得4分。", "属地服务优秀得4分。", List.of("first-rule"), 4);
+        var second = fact("performance", "", "履约方案", "履约方案优秀得2分。", "履约方案优秀得2分。", List.of("second-rule"), 2);
+        var delivery = fact("delivery", "", "配送方案", "配送方案优秀得5分。", "配送方案优秀得5分。", List.of("delivery-rule"), 5);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(group, first, second, delivery), artifact, "");
+        var normalized = MultimodalExtractionReviewPolicy.normalized(
+                new MultimodalScoreFactExtractor.ExtractionResult(null, bound, "synthetic", 0),
+                OriginalScoringContext.resolve(artifact, "# " + SECTION), artifact, "").facts();
+        assertThat(normalized).hasSize(4);
+        assertThat(normalized.stream().filter(f -> List.of("local", "performance").contains(f.code())))
+                .allSatisfy(f -> assertThat(f.parentCode()).isEqualTo("operations"));
+        assertThat(normalized.stream().filter(f -> List.of("operations", "delivery").contains(f.code())))
+                .allSatisfy(f -> assertThat(f.parentCode()).isEmpty());
+        assertThat(normalized.stream().filter(f -> !f.code().equals("operations")).map(MultimodalScoreFact::weight)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("11");
     }
 
     @Test void originalGroupBoundaryOverridesWrongModelParentAfterAliasMerge() {
@@ -182,6 +228,7 @@ class SourceClosureRegressionTest {
             var total = OriginalScoringContext.resolve(bundle, "# " + SECTION).total();
             assertThat(total.value()).as("source documents %s", identities).isNull();
             assertThat(total.source()).isEqualTo("UNKNOWN");
+            assertSchemeTotal(bundle, "UNKNOWN", null);
             assertThat(total.problems()).extracting(OriginalScoreEvidencePolicy.Problem::code)
                     .contains("ORIGINAL_TOTAL_UNKNOWN");
         }
@@ -226,6 +273,24 @@ class SourceClosureRegressionTest {
         var input = fact("settlement", "", "商务", RULE, RULE, List.of(), 1).withScope(
                 OriginalScoringContext.schemeId(SECTION), "");
         assertThat(TextPrimaryEvidenceBinder.bind(List.of(input), artifact, "").getFirst().tableId()).isEqualTo("t");
+    }
+
+    private static void assertSchemeTotal(DocumentArtifact artifact, String status, BigDecimal expected) {
+        var schemes = OriginalScoringContext.schemes(artifact, "# " + SECTION);
+        assertThat(schemes).singleElement().satisfies(scheme -> {
+            assertThat(scheme.totalEvidenceStatus()).isEqualTo(status);
+            assertThat(scheme.declaredTotal()).isEqualTo(expected);
+        });
+        var claim = new MultimodalScoreFact(SECTION, "commercial", "", "商务细则", new BigDecimal("20"),
+                "商务细则，满分20分。", "SUBJECTIVE", 1, "commercial", List.of("commercialr"),
+                "商务细则，满分20分。", .9, ChildAggregation.UNKNOWN, OriginalScoringContext.schemeId(SECTION), "IN_SCHEME");
+        var verified = OriginalScoreEvidencePolicy.verifyModel(
+                OriginalScoringContext.resolve(artifact, "# " + SECTION), artifact, List.of(claim), null);
+        assertThat(verified.qualifications()).singleElement().satisfies(qualification -> {
+            assertThat(qualification.candidateEligible()).isTrue();
+            assertThat(qualification.totalEvidenceStatus()).isEqualTo(status);
+            assertThat(qualification.declaredTotal()).isEqualTo(expected);
+        });
     }
 
     static CanonicalTable groupTable(String id, int page, String group, String weight, String rule) {

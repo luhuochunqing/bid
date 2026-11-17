@@ -15,6 +15,7 @@ import java.util.TreeMap;
 public final class SourceScoreHierarchyPolicy {
     private SourceScoreHierarchyPolicy() {}
     private record Located(CanonicalTable table, CanonicalCellDto cell, int position, String scope) {}
+    private static final String NAME_HEADER = "评审项目|评分项目|评分项|评分因素|评审因素";
     private static final java.util.regex.Pattern GROUP = java.util.regex.Pattern.compile("^(.+?)[(](\\d+(?:\\.\\d+)?)分?[)]$");
 
     public static List<MultimodalScoreFact> restore(List<MultimodalScoreFact> facts, DocumentArtifact artifact) {
@@ -30,26 +31,47 @@ public final class SourceScoreHierarchyPolicy {
                             .sorted(Comparator.comparing(CanonicalCellDto::row).thenComparing(CanonicalCellDto::column))
                             .forEach(c -> located.add(new Located(t, c, located.size(), scope)));
                 });
-        var groups = located.stream().filter(l -> SourceTableHeaderPolicy.headers(artifact, l.table())
-                        .getOrDefault(l.cell().column(), "").matches("评审项目|评分项目|评分项|评分因素|评审因素"))
-                .filter(l -> !Boolean.TRUE.equals(l.cell().isMergedContinue()) && GROUP.matcher(clean(l.cell().rawText())).matches()).toList();
-        return facts.stream().map(f -> restoreOne(f, facts, located, groups)).toList();
+        var labels = located.stream().filter(l -> nameColumn(artifact, l))
+                .filter(l -> !Boolean.TRUE.equals(l.cell().isMergedContinue()) && !clean(l.cell().rawText()).isBlank()
+                        && !clean(l.cell().rawText()).matches(NAME_HEADER)).toList();
+        var groups = labels.stream().filter(l -> GROUP.matcher(clean(l.cell().rawText())).matches())
+                .filter(l -> hasGroupStructure(artifact, l, located)).toList();
+        return facts.stream().map(f -> restoreOne(f, facts, located, labels, groups)).toList();
+    }
+
+    private static boolean nameColumn(DocumentArtifact artifact, Located located) {
+        return SourceTableHeaderPolicy.headers(artifact, located.table())
+                .getOrDefault(located.cell().column(), "").matches(NAME_HEADER);
+    }
+
+    private static boolean hasGroupStructure(DocumentArtifact artifact, Located label, List<Located> located) {
+        // A score suffix alone also occurs on ordinary leaves. Require a hierarchy layout
+        // or a vertically continued name cell before treating it as a parent container.
+        if (SourceTableHeaderPolicy.headers(artifact, label.table()).values().stream()
+                .filter(h -> h.matches(NAME_HEADER)).count() > 1
+                || label.cell().rowspan() != null && label.cell().rowspan() > 1) return true;
+        return located.stream().filter(l -> l.position() > label.position() && l.scope().equals(label.scope())
+                        && l.table().columns() == label.table().columns()
+                        && l.cell().column().equals(label.cell().column()) && nameColumn(artifact, l)
+                        && !clean(l.cell().rawText()).matches(NAME_HEADER))
+                .findFirst().filter(l -> clean(l.cell().rawText()).isBlank()
+                        || Boolean.TRUE.equals(l.cell().isMergedContinue())).isPresent();
     }
 
     private static MultimodalScoreFact restoreOne(MultimodalScoreFact fact, List<MultimodalScoreFact> facts,
-                                                   List<Located> located, List<Located> groups) {
+                                                   List<Located> located, List<Located> labels, List<Located> groups) {
         if (!"IN_SCHEME".equals(fact.scopeStatus())) return fact;
         var ownGroups = groups.stream().filter(g -> owns(fact, g)).toList();
         var anchors = ownGroups.isEmpty() ? located.stream().filter(l -> fact.sourceCellIds().contains(l.cell().cellId())).toList() : ownGroups;
         if (anchors.isEmpty() || anchors.stream().map(Located::scope).distinct().count() != 1) return fact;
         var anchor = anchors.getFirst();
         var active = new TreeMap<Integer, Located>();
-        groups.stream().filter(g -> g.scope().equals(anchor.scope()) && g.position() <= anchor.position()
+        labels.stream().filter(g -> g.scope().equals(anchor.scope()) && g.position() <= anchor.position()
                         && g.cell().column() < anchor.cell().column())
                 .forEach(g -> {
-                    // An outer label ends every nested group's scope, including across pages.
+                    // Every new name ends the old group at this level, even an ordinary leaf without a score suffix.
                     active.tailMap(g.cell().column(), true).clear();
-                    active.put(g.cell().column(), g);
+                    if (groups.contains(g)) active.put(g.cell().column(), g);
                 });
         // A group owns subsequent rows until the next label in its column or an outer column.
         for (var group : active.descendingMap().values()) {
