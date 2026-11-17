@@ -17,8 +17,8 @@ backlinks:
   - _index
   - score-parse-service
 created: 2026-11-11
-updated: 2026-11-16
-health_checked: 2026-11-16
+updated: 2026-11-17
+health_checked: 2026-11-17
 ---
 # 项目580扫描投标PDF实际评分与预估边界
 
@@ -72,3 +72,30 @@ health_checked: 2026-11-16
 - 信用额度/免运费第818页盖章遮挡导致OCR文字不可靠，折扣率所需报价附件是否齐全未验证；这些项目不得因为技术任务可结束就被强制填数字。需要真实模型/实际证据验收后才能宣称四项恢复。
 
 - 第6页原件OCR还包含针对所有订单无最低起订金额限制、无配送区域限制、全程免费配送的完整响应。新增FreeDeliveryScoreProof只覆盖该闭合规则的最高档正向证明；新选图优先保留相关响应，第818页不再作为唯一验收页。免费配送10分的固定输出原件回放仅证明服务端核验路径，不能冒充原生产模型已返回10分。
+
+
+## 2026-11-17 10:48 只读复核：历史失败与新任务分开
+
+- 已证实：PARSE233（508b7d42）2026-11-12 20:12:28完成。SCORING243（b5252e88）2026-11-16 13:55:23失败，error_message=SCORING_EXTRACTION_FAILED。其覆盖回执仍为1225页/843已处理/382未读/1超时，日志trace bd75818a0cf445eab64fcaa3f4fb816c证实覆盖和引用拒绝。因此该错误属于实际评分，而非评分标准解析失败。
+- 当前生产：release 5cbbf4925，2026-11-17 08:31:49 CST激活。容器/app/scoring_extraction.py SHA256=403ba9d576013e00bf2cd9043454ba653f5c8991b4141b0724862ea8f103af28，与该版本源码一致。容器快照可见4个Tesseract进程；仅证明执行活动，不证明完整读取或评分成功。
+- 新任务SCORING245（c3bf4a83-13f7-49e7-b38a-7a897a6b84b0）10:39:19开始，10:47:57状态PROCESSING/5%/读取投标原件，尚未结束；原件哈希与旧任务一致。该请求早于本轮取证，由MANUAL请求启动，本轮未触发解析或打分。
+- 跨模块影响：新任务未完成期间，results仍可返回originTaskId=243的旧结果；不能把这些历史EXTRACT_FAILED行判为245再次失败，也不能因新代码已部署便宣布恢复。
+- 待验证：245终态、完整覆盖与四客观项数据库/API/UI一致性；本轮不改生产数据、不部署、不重评分。证据留在Git外 /tmp/xiyu-580-diagnose-20261117/（SQL、API、日志、诊断记录）。
+
+
+## 2026-11-17 重开抽屉重复弹错与技术码暴露
+
+- 直接路径：useScoreParseDrawer.open → useActualScoring.restoreObservation → 读取历史FAILED → showFailure → notifyErrorUnlessRateLimit → ElMessage.error。恢复历史状态和当前操作失败共用弹错函数，故每次重开都会重新通知，并不代表每次打开都执行了新评分。
+- 文案漏洞：notifyErrorUnlessRateLimit优先采用error.message，只有没有message时才用中文fallback。SCORING_EXTRACTION_FAILED既不为空，又未映射，所以原样进入toast及scoringHint（含任务UUID）。
+- 已有getAiDocumentErrorPresentation只用于drawer.error等展示，实际评分失败走独立弹窗路径，未调用该映射；其未知错误分支也会返回raw，不能构成统一兜底。
+- 逃逸证据：现有重开FAILED测试只断言不POST，没有断言不重复toast、不暴露技术码；扫描件友好文案测试只覆盖扫描关键词及普通中文，未覆盖未知技术错误码。近期8b1b5696a只改后端覆盖缺口汇总及相邻后端测试，未改上述前端历史恢复路径。
+- 隔离执行：保留当前useActualScoring和error-utils函数体，仅替换Vue/网络/消息依赖，注入同一历史FAILED响应，连续调用restoreObservation两次，实际收集两次SCORING_EXTRACTION_FAILED通知；未请求生产写接口。证据 /tmp/xiyu-580-diagnose-20261117/page-reentry-replay.json。该实验验证函数链，不冒充真实浏览器新任务复现。
+- 修复边界（尚未实施）：历史失败仅在对应实际打分区域展示带时间的状态；用户本次操作失败才做即时反馈；评分状态、轮询终态、提交拒绝和未知技术错误经过一致的用户语义映射，原码及UUID留诊断详情；补齐重开、首次失败、刷新及未知码回归。不能通过删除历史任务或只替换某条后端文案关闭问题。
+
+
+## 2026-11-17 本地交互修复（未部署）
+
+- useActualScoring恢复历史状态及恢复中的任务终态失败只更新页内提示；主动打分/提交失败才即时通知；评分读写请求的HTTP错误由抽屉统一处理，限流也只在主动操作时给一次中文反馈。
+- aiDocumentError统一实际评分错误映射；未知技术错误中文兜底；保留可理解的中文业务拒绝原因，OCR超时不再被解释为不支持扫描件。UUID保留后端诊断，不进入评分用户提示。
+- 后续COMPLETED/无任务读取清理上次失败提示；评分状态使用role=status，通知消失后解释仍可阅读。
+- 代码位于隔离分支；测试与独立审查结果以本轮执行证据为准，尚不宣称全部通过。不删除生产历史记录、不触发重评、不宣称现场恢复。

@@ -1,10 +1,12 @@
 // Input: drawer state and refresh callback, actual-scoring API
-// Output: explicit scoring requests and cancellable GET-only task observation
+// Output: explicit scoring requests, silent historical observation and readable operation feedback
 // Pos: src/composables/projectDetail/ - Presentation domain composable
 import { watch, getCurrentScope, onScopeDispose } from 'vue'
 import { ElMessage } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
-import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
+import { isRateLimitError } from '@/api/error-utils.js'
+import { resolveRateLimitMessage } from '@/api/rate-limit-message-resolver.js'
+import { getActualScoringFailureMessage } from '@/utils/aiDocumentError.js'
 import { formatTime, pollTask } from './scoreParseTask.js'
 import { scoringBody, scoringSkipHint } from './scoreParseSpendGuard.js'
 
@@ -15,22 +17,31 @@ export function useActualScoring({ props, visible, loading, currentStage, scored
   watch(() => props.projectId, stop, { flush: 'sync' })
   if (getCurrentScope()) onScopeDispose(stop)
 
-  function showFailure(error, { submission = false } = {}) {
+  function showFailure(error, { submission = false, notify = true, historical = false } = {}) {
     if (error?.name === 'AbortError') return
-    const message = error?.task?.errorMessage || error?.response?.data?.msg || error?.message || ''
-    if (error?.task?.errorCode === 'SCORING_REQUIRES_ALL' || message.includes('SCORING_REQUIRES_ALL')) {
-      scoringHint.value = '原件已变化或来源未知，请点击「重新打分」全量重新评分；本次局部请求未扩大范围'
-      ElMessage.warning(scoringHint.value)
+    const raw = error?.task?.errorMessage || error?.response?.data?.msg || error?.message || ''
+    const message = getActualScoringFailureMessage(error)
+    let level = 'info'
+    if (isRateLimitError(error)) {
+      scoringHint.value = resolveRateLimitMessage({ status: 429, headers: error.response.headers }).message
+      level = 'warning'
+    } else if (error?.task?.errorCode === 'SCORING_REQUIRES_ALL' || raw.includes('SCORING_REQUIRES_ALL')) {
+      scoringHint.value = getActualScoringFailureMessage({ task: { errorCode: 'SCORING_REQUIRES_ALL' } })
+      level = 'warning'
     } else if (error?.backendFailed) {
-      scoringHint.value = error?.task?.taskId ? `评分任务 ${error.task.taskId}：${message || '后台评分失败'}` : (message || '后台评分失败')
-      notifyErrorUnlessRateLimit(error, '后台评分失败')
+      const time = historical && error.task?.completedAt ? `（${formatTime(error.task.completedAt)}）` : ''
+      scoringHint.value = `${historical ? `上次打分未完成${time}：` : ''}${message}`
+      level = 'error'
     } else if (submission && [400, 409].includes(error?.response?.status)) {
-      scoringHint.value = `评分未提交：${message || '请求被拒绝，请检查评分前提'}`
-      ElMessage.warning(scoringHint.value)
+      scoringHint.value = `评分未提交：${message}`
+      level = 'warning'
+    } else if (submission && error?.response) {
+      scoringHint.value = message
+      level = 'error'
     } else {
       scoringHint.value = '暂未获取结果，可稍后查看；关闭抽屉不影响后台任务'
-      ElMessage.info(scoringHint.value)
     }
+    if (notify) ElMessage[level](scoringHint.value)
   }
 
   async function observe(taskId, { notify = false } = {}) {
@@ -40,7 +51,7 @@ export function useActualScoring({ props, visible, loading, currentStage, scored
     try {
       done = await pollTask(() => scoreParseApi.getScoringStatus(props.projectId), '打分', {
         taskId, signal: active.signal,
-        onTaskChanged: next => { scoringHint.value = `已切换观察最新评分任务 ${next}，原请求完成情况请稍后核对` },
+        onTaskChanged: () => { scoringHint.value = '已切换查看最新打分任务，上次打分情况请稍后核对' },
       })
     } catch (error) { failure = error }
     if (active.signal.aborted) return
@@ -48,12 +59,15 @@ export function useActualScoring({ props, visible, loading, currentStage, scored
       if (done?.completedAt) scoreTime.value = formatTime(done.completedAt)
       await refresh({ isCurrent: () => controller === active && !active.signal.aborted })
       if (active.signal.aborted) return
-      if (done?.observedReplacement) scoringHint.value = `已切换观察最新评分任务 ${done.taskId}，原请求完成情况请稍后核对`
-      if (failure) showFailure(failure)
-      else if (readError.value) showFailure(new Error('评分结果读取失败'))
-      else if (notify && !done?.observedReplacement) {
-        if (scoringQuality.value.success) ElMessage.success('AI 实际打分完成')
-        else ElMessage.info(scoringQuality.value.text)
+      if (done?.observedReplacement) scoringHint.value = '已切换查看最新打分任务，上次打分情况请稍后核对'
+      if (failure) showFailure(failure, { notify, historical: !notify })
+      else if (readError.value) showFailure(new Error('评分结果读取失败'), { notify })
+      else if (!done?.observedReplacement) {
+        scoringHint.value = ''
+        if (notify) {
+          if (scoringQuality.value.success) ElMessage.success('AI 实际打分完成')
+          else ElMessage.info(scoringQuality.value.text)
+        }
       }
     } finally {
       if (controller === active) { controller = null; scoringOverlayVisible.value = false }
@@ -67,11 +81,13 @@ export function useActualScoring({ props, visible, loading, currentStage, scored
       const task = (await scoreParseApi.getScoringStatus(projectId))?.data
       if (!visible.value || session !== generation || scoringOverlayVisible.value) return true
       if (task?.status === 'PENDING' || task?.status === 'PROCESSING') {
-        scoringHint.value = `正在观察评分任务 ${task.taskId}`
-        void observe(task.taskId).catch(showFailure)
-      } else if (task?.status === 'FAILED') showFailure({ task, backendFailed: true, message: task.errorMessage })
+        scoringHint.value = '正在读取投标文件并打分，关闭抽屉不影响后台任务'
+        void observe(task.taskId).catch(error => showFailure(error, { notify: false, historical: true }))
+      } else if (task?.status === 'FAILED') {
+        showFailure({ task, backendFailed: true }, { notify: false, historical: true })
+      } else scoringHint.value = ''
       return task != null
-    } catch (error) { if (session === generation && visible.value) showFailure(error); return true }
+    } catch (error) { if (session === generation && visible.value) showFailure(error, { notify: false }); return true }
   }
 
   async function runScoring(options = {}) {
