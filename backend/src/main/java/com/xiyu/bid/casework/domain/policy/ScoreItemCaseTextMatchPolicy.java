@@ -28,9 +28,11 @@ final class ScoreItemCaseTextMatchPolicy {
     private static final double BM25_K1 = 1.2;
     private static final double BM25_B = 0.75;
 
-    /** 评分细则档位（优秀得8-10分/一般得4-7分…）是模板噪声，与评分项业务主题无关。 */
+    private static final Set<String> GENERIC_SCORING_TOKENS = Set.of("能力", "评价", "评分", "得分");
+
+    /** 评分档位和“得N分”是评分模板，不是业务主题（例如证书和配送都会出现“得0分”）。 */
     private static final Pattern RUBRIC_BAND_PATTERN = Pattern.compile(
-            "(?:优秀|良好|较好|一般|较差|差)的?得\\s*[0-9.]+(?:\\s*[-~～至]\\s*[0-9.]+)?\\s*分");
+            "(?:优秀|良好|较好|一般|较差|差)?的?得\\s*[0-9.]+(?:\\s*[-~～至]\\s*[0-9.]+)?\\s*分");
     /** 仅剥离可识别的分类（可选）、数字序号、标题及前置分值，保留正文及其后的单元格。 */
     private static final Pattern TABLE_ROW_PREFIX_PATTERN = Pattern.compile(
             "^(?:\\|\\h*)?(?:[^|\\r\\n]+\\|\\h*)?\\d+(?:\\.\\d+)*\\h*\\|\\h*"
@@ -102,7 +104,9 @@ final class ScoreItemCaseTextMatchPolicy {
         Set<String> tokens = new LinkedHashSet<>();
         for (String token : extractTokens(body)) {
             String lower = token.toLowerCase(Locale.ROOT);
-            if (lower.length() >= 2 && !TextSimilarityPolicy.STOP_WORDS.contains(lower)) tokens.add(lower);
+            if (lower.length() >= 2 && !TextSimilarityPolicy.STOP_WORDS.contains(lower)
+                    && !GENERIC_SCORING_TOKENS.contains(lower)
+                    && !lower.codePoints().allMatch(Character::isDigit)) tokens.add(lower);
         }
         return tokens;
     }
@@ -117,7 +121,9 @@ final class ScoreItemCaseTextMatchPolicy {
         String cleanCode = cleanTitle(context.code());
 
         if (!hasText(cleanDim) && !hasText(context.dim())) {
-            if (hasText(context.projectName()) && hasText(candidate.getSourceProjectName())) {
+            // 仅完全无评分要求的默认推荐允许用项目名相似度；有条款时它不是内容证据。
+            if (!hasText(context.detail()) && !hasText(context.qualificationRequirementText())
+                    && hasText(context.projectName()) && hasText(candidate.getSourceProjectName())) {
                 double jaccard = TextSimilarityPolicy.jaccardSimilarityOfText(
                         context.projectName(), candidate.getSourceProjectName());
                 return (int) Math.round(jaccard * MAX_TITLE_SIMILARITY_SCORE);
@@ -125,13 +131,15 @@ final class ScoreItemCaseTextMatchPolicy {
             return 0;
         }
 
-        if (hasText(cleanDim) && cleanDim.length() >= 2 && hasText(candidateTitle)
+        Set<String> targetTokens = requirementTokens(candidateTitle);
+        if (!requirementTokens(cleanDim).isEmpty() && !targetTokens.isEmpty()
+                && hasText(cleanDim) && cleanDim.length() >= 2
                 && (candidateTitle.equalsIgnoreCase(cleanDim)
                 || candidateTitle.contains(cleanDim) || cleanDim.contains(candidateTitle))) {
             return MAX_TITLE_SIMILARITY_SCORE;
         }
 
-        if (hasText(candidateTitle)) {
+        if (!targetTokens.isEmpty()) {
             String lowerCandTitle = candidateTitle.trim().toLowerCase(Locale.ROOT);
             if ((hasText(context.detail()) && context.detail().toLowerCase(Locale.ROOT).contains(lowerCandTitle))
                     || (hasText(context.dim()) && context.dim().toLowerCase(Locale.ROOT).contains(lowerCandTitle))) {
@@ -140,34 +148,27 @@ final class ScoreItemCaseTextMatchPolicy {
         }
 
         // 案例标题（案例"讲的是什么"）被评分项条款覆盖的比例：标题主题落在条款要求内才算评分点匹配
-        int score = (int) Math.round(titleCoverage(candidateTitle, context.dim(), context.detail()) * MAX_TITLE_SIMILARITY_SCORE);
+        int score = (int) Math.round(titleCoverage(targetTokens, context.dim(), context.detail()) * MAX_TITLE_SIMILARITY_SCORE);
 
         String queryTitle = String.join(" ",
-                Stream.of(cleanDim, cleanCode, context.keyword()).filter(TextSimilarityPolicy::hasText).toList());
+                Stream.of(cleanDim, cleanCode).filter(TextSimilarityPolicy::hasText).toList());
         if (!hasText(queryTitle)) return score;
 
-        Set<String> queryTokens = extractTokens(queryTitle);
-        Set<String> targetTokens = extractTokens(candidateTitle);
+        Set<String> queryTokens = requirementTokens(queryTitle);
         if (queryTokens.isEmpty()) return score;
 
         double jaccard = TextSimilarityPolicy.jaccardSimilarity(queryTokens, targetTokens);
         score = Math.max(score, (int) Math.round(jaccard * MAX_TITLE_SIMILARITY_SCORE));
-        // 停用词（管理/方案/服务…）不计入正文覆盖，避免任何长文本都"部分匹配"评分点
-        List<String> meaningful = queryTokens.stream()
-                .filter(t -> t.length() >= 2)
-                .map(t -> t.toLowerCase(Locale.ROOT))
-                .filter(t -> !TextSimilarityPolicy.STOP_WORDS.contains(t))
-                .toList();
-        long hitsInCandidate = meaningful.stream().filter(candText::contains).count();
+        // 标题重叠和正文覆盖共用实质词，避免“能力/评价”仅在某条计算路径被过滤。
+        long hitsInCandidate = queryTokens.stream().filter(candText::contains).count();
         if (hitsInCandidate > 0) {
-            double textCoverage = (double) hitsInCandidate / meaningful.size();
+            double textCoverage = (double) hitsInCandidate / queryTokens.size();
             score = Math.max(score, (int) Math.round(textCoverage * (MAX_TITLE_SIMILARITY_SCORE - 2)));
         }
         return score;
     }
 
-    private static double titleCoverage(String candidateTitle, String dim, String detail) {
-        Set<String> titleTokens = requirementTokens(candidateTitle);
+    private static double titleCoverage(Set<String> titleTokens, String dim, String detail) {
         if (titleTokens.isEmpty()) return 0;
         String requirement = (Objects.toString(dim, "") + " " + Objects.toString(detail, ""))
                 .toLowerCase(Locale.ROOT);

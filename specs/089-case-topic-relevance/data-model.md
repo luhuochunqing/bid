@@ -1,0 +1,2 @@
+# Data model
+沿用ScoreItemContext、KnowledgeCaseReadModel和MatchResult，无字段或数据库变更。内容分为局部纯计算值；实体分与情境加分单独计算。
