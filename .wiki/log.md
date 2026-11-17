@@ -1902,3 +1902,7 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-11-17] compound | [[scoreparse-performance-evidence-clarity]] fix第1轮：补齐资料库标准项目类型筛选及民营企业别名归一，保留RED反例；监听类验证交主执行器。
 
 ## [2026-11-17] compound | [[scoreparse-performance-evidence-clarity]] 审查修复：分离正式评分与知识库粗估的材料待核验提示，补合同关键页等完整证据正例，保留日期金额、引用和未知截止日阻断；未部署。
+
+## [2026-11-17] compound | [[ai-case-recommend-data-source-fix]]：修复前诊断补录（历史状态）：配送能力误召回等保证书只读诊断；源码隔离实验确认子主题漏识别、非对称分类门禁与实体激活背景加成，现场40分构成待核实，未改业务代码。
+
+## [2026-11-17] compound | [[ai-case-recommend-data-source-fix]]：修复前诊断补录（历史状态）：按工程纪律七大根因与历史源码双版本实验复核，确认1+4，独立审查一致；不将旧路径遗漏误判为新修复回归，现场证据仍待取得。
