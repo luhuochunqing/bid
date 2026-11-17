@@ -71,7 +71,8 @@ public class EstimatedScoreService {
             } catch (RuntimeException exception) {
                 log.warn("知识库粗估失败: itemId={}, code={}", item.getId(), item.getCode(), exception);
                 item.setEstimateInputFingerprint(null); item.setEstimatedAt(null);
-                pending(item, "预计得分计算失败，未沿用历史匹配结果，待人工确认");
+                pending(item, exception instanceof IllegalArgumentException ? exception.getMessage()
+                        : "预计得分计算失败，未沿用历史匹配结果，待人工确认");
             }
         }
         if (versions != null) {
@@ -103,19 +104,24 @@ public class EstimatedScoreService {
             return;
         }
         var target = ScoreItemConstraintExtractor.requiredForEstimate(item.getDetail(), category, item.getWeight());
+        var constraints = com.xiyu.bid.scoreparse.domain.KnowledgeEvidenceConstraints.parse(category, item.getDetail(), LocalDate.now());
+        var brandConditions = EstimateEvidenceSupport.brandConditions(constraints, item.getDetail());
         List<?> candidates = switch (category) {
             case "WAREHOUSE" -> warehouseMatchService.findActiveWarehouses();
             case "PROJECT" -> projectMatchService.findEstimateCandidates();
-            case "BRAND" -> brandMatchService.findEstimateCandidates(LocalDate.now());
+            case "BRAND" -> brandMatchService.findEstimateCandidates(LocalDate.now(), brandConditions);
             case "PERSON" -> personMatchService.findEstimateCandidates();
             default -> throw new IllegalStateException("未支持的预判类别: " + category);
         };
+        candidates = EstimateEvidenceSupport.filter(candidates, constraints, brandConditions);
         candidates = candidates.stream().distinct().toList();
         var score = scores.estimateByCount(item.getWeight(), candidates.size(), target.count());
         item.setEstScore(score);
         item.setKbHit(!candidates.isEmpty());
         item.setStatusStage1(statuses.evaluate(score, item.getWeight(), "OBJECTIVE", false));
-        item.setEstBasis(basis.simple(category, candidates, target, score, item.getWeight()));
+        item.setEstBasis(basis.simple(category, candidates, target, score, item.getWeight()) + "；" + constraints.description());
+        if (!constraints.pendingChecks().isEmpty()) item.setStatusStage1(ScoreStatusPolicy.PENDING);
+        EstimateEvidenceSupport.seal(item, LocalDate.now());
     }
 
     private void pending(ScoreItem item, String reason) {

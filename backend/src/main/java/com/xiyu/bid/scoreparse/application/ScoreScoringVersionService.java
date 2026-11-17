@@ -167,7 +167,7 @@ public class ScoreScoringVersionService {
         lock(projectId);var current=lockedSnapshot(projectId);
         if(!current.fingerprint().equals(expected))return false;
         if(estimateFreshness!=null && calculated.stream().anyMatch(i ->
-                CertificateScoreEstimateSupport.applies(i) && !clearedFailure(i)
+                (CertificateScoreEstimateSupport.applies(i) || EstimateEvidenceSupport.applies(i)) && !clearedFailure(i)
                         && !"FRESH".equals(estimateFreshness.status(i,java.time.LocalDate.now())))) return false;
         Map<Long,ScoreItem> byId=new HashMap<>();current.items().forEach(i->byId.put(i.getId(),i));
         for(var value:calculated) {

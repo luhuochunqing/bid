@@ -57,6 +57,8 @@ public final class ScoreItemConstraintExtractor {
     /** Only unambiguous resource counts are used; dates, amounts and incidental digits are not counts. */
     public static EstimateCount requiredForEstimate(String text, String category, BigDecimal weight) {
         if (text == null) return new EstimateCount(1, false);
+        var incremental = IncrementalCountScorePolicy.parse(text);
+        if (incremental.isPresent()) return new EstimateCount(incremental.get().requiredCountForMaximumScore(), true);
         text = text.replaceAll("[（(][^）)]*[）)]", "");
         String number = "([0-9]+|[一二两三四五六七八九十])";
         Set<Integer> counts = new LinkedHashSet<>();
@@ -73,11 +75,12 @@ public final class ScoreItemConstraintExtractor {
         }
         String resource = switch (category) {
             case "CERT" -> "证书|认证|资质"; case "WAREHOUSE" -> "仓库|仓储|库房";
-            case "BRAND" -> "品牌|授权"; case "PERSON" -> "人员|员工|项目经理|工程师";
+            case "BRAND" -> "品牌|授权"; case "PERSON" -> "人员|员工|项目经理|工程师|建造师";
             default -> "业绩|合同|案例";
         };
         var direct = Pattern.compile("(?:需(?:要)?|要求|至少|不少于|提供|具有|具备)\\s*(?:提供|拥有)?\\s*" + number
-                + "\\s*(?:个|份|项|名|人|座|处)\\s*(?:有效|可用|独立|在用|自建或租赁)?\\s*(?:" + resource + ")").matcher(text);
+                + "\\s*(?:个|份|项|名|人|座|处)\\s*(?:有效|可用|独立|在用|自建或租赁)?\\s*"
+                + "[\\p{IsHan}A-Za-z]{0,16}?\\s*(?:" + resource + ")").matcher(text);
         while (direct.find()) {
             if (!text.substring(0, direct.start()).stripTrailing().endsWith("每"))
                 IncrementalCountScorePolicy.parseCount(direct.group(1)).filter(n -> n > 0).ifPresent(counts::add);
@@ -112,18 +115,21 @@ public final class ScoreItemConstraintExtractor {
 
     /** 提取业绩合同金额下限，统一换算为元；未识别到明确下限时返回 null。 */
     public static BigDecimal extractMinContractAmount(String text) {
-        if (text == null || text.isBlank()) {
-            return null;
-        }
-        Matcher matcher = CONTRACT_AMOUNT_PATTERN.matcher(text);
-        if (!matcher.find()) {
-            matcher = CONTRACT_AMOUNT_PREFIX_PATTERN.matcher(text);
-            if (!matcher.find()) {
-                return null;
+        return extractMinContractAmount(text, false);
+    }
+
+    /** Hard-condition proofs require the matched amount itself to name the contract, not an invoice. */
+    public static BigDecimal extractMinContractAmount(String text, boolean requireContractLabel) {
+        if (text == null || text.isBlank()) return null;
+        for (var pattern : List.of(CONTRACT_AMOUNT_PATTERN, CONTRACT_AMOUNT_PREFIX_PATTERN)) {
+            Matcher matcher = pattern.matcher(text);
+            while (matcher.find()) {
+                if (requireContractLabel && !matcher.group().startsWith("合同") && !matcher.group().startsWith("协议")) continue;
+                BigDecimal value = currencyAmount(matcher.group(1),matcher.group(2));
+                return value != null && value.signum() > 0 ? value : null;
             }
         }
-        BigDecimal value = currencyAmount(matcher.group(1),matcher.group(2));
-        return value != null && value.signum() > 0 ? value : null;
+        return null;
     }
 
     /** Explicit yuan denominations shared by bounded numeric scoring rules. */
@@ -202,6 +208,10 @@ public final class ScoreItemConstraintExtractor {
 
     /** 提取业绩签约时间下限：如 "时间为2022年1月至今" 或 "近三年"。 */
     public static LocalDate extractSignedAfter(String text) {
+        return extractSignedAfter(text, LocalDate.now());
+    }
+
+    public static LocalDate extractSignedAfter(String text, LocalDate asOf) {
         if (text == null || text.isBlank()) {
             return null;
         }
@@ -226,7 +236,7 @@ public final class ScoreItemConstraintExtractor {
                 case "五", "5" -> 5;
                 default -> 3;
             };
-            return LocalDate.now().minusYears(years);
+            return asOf.minusYears(years);
         }
         return null;
     }

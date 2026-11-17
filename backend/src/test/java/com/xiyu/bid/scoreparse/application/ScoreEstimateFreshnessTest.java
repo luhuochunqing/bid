@@ -11,6 +11,18 @@ import static org.mockito.Mockito.*;
 
 class ScoreEstimateFreshnessTest {
 
+    @Test void legacyProjectEstimateMustBeHiddenUntilRecalculatedUnderNewRules() {
+        var row=ScoreItem.builder().code("供应商业绩").dim("商务").detail("2023年1月1日至今业绩")
+                .scoreType("OBJECTIVE").weight(BigDecimal.TEN).estScore(BigDecimal.TEN).statusStage1("OK").build();
+        var day=LocalDate.of(2026,11,17);
+        var freshness=new ScoreEstimateFreshness(mock(CertMatchService.class));
+        assertThat(freshness.status(row,day)).isEqualTo("STALE");
+        EstimateEvidenceSupport.seal(row,day);
+        assertThat(freshness.status(row,day)).isEqualTo("FRESH");
+        row.setDetail("2024年1月1日至今业绩");
+        assertThat(freshness.status(row,day)).isEqualTo("STALE");
+    }
+
     @Test
     void legacyCertificateNameUsesSameFactorForCalculationAndReadFingerprint() {
         var certificates = mock(CertMatchService.class);

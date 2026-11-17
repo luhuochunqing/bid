@@ -37,15 +37,21 @@ public class BrandMatchService {
 
     /** Count usable brands once each; future, expired and retired authorizations cannot satisfy an estimate. */
     public List<BrandMatchedItem> findEstimateCandidates(LocalDate day) {
+        return findEstimateCandidates(day, row -> true);
+    }
+
+    /** Select qualifying authorization facts before reducing multiple authorizations to one brand. */
+    public List<BrandMatchedItem> findEstimateCandidates(LocalDate day, java.util.function.Predicate<BrandMatchedItem> conditions) {
         var request = new BrandMatchRequest(null, null, null, day);
         return List.copyOf(repository.findAll(specificationOf(request, null)).stream()
                 .filter(row -> row.getStatus() == AuthStatus.ACTIVE || row.getStatus() == AuthStatus.EXPIRING_SOON)
                 .filter(row -> row.getAuthStartDate() != null && !row.getAuthStartDate().isAfter(day))
                 .filter(row -> row.getAuthEndDate() != null && !row.getAuthEndDate().isBefore(day))
                 .filter(row -> StringUtils.hasText(row.getBrandId()))
-                .collect(java.util.stream.Collectors.toMap(ManufacturerAuthorizationEntity::getBrandId,
-                        row -> new BrandMatchedItem(row.getId(), row.getBrandName(), row.getManufacturerName(),
-                                row.getProductLine() == null ? null : row.getProductLine().name(), row.getAuthEndDate(), isExpireSoon(row.getAuthEndDate(), day)),
+                .map(row -> java.util.Map.entry(row.getBrandId(), new BrandMatchedItem(row.getId(), row.getBrandName(), row.getManufacturerName(),
+                        row.getProductLine() == null ? null : row.getProductLine().name(), row.getAuthEndDate(), isExpireSoon(row.getAuthEndDate(), day))))
+                .filter(entry -> conditions.test(entry.getValue()))
+                .collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue,
                         (first, duplicate) -> first, java.util.LinkedHashMap::new)).values());
     }
 

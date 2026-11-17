@@ -50,7 +50,7 @@ public class WarehouseMatchService {
         List<WarehouseMatchedItem> matched = repository.findAll(specificationOf(cleanKeywords, request.region(), request.minArea())).stream()
                 .filter(row -> !degraded || facilityHit(row.getRemarks(), request.facilityKeywords()))
                 .map(row -> new WarehouseMatchedItem(row.getId(), row.getName(), row.getRegion(),
-                        row.getArea(), row.getStatus() == null ? null : row.getStatus().name()))
+                        row.getArea(), row.getStatus() == null ? null : row.getStatus().name(), row.getProvince()))
                 .toList();
         MatchTierPolicy.Outcome outcome = MatchTierPolicy.evaluate(
                 matched.size(), null, false, degraded);
@@ -62,7 +62,7 @@ public class WarehouseMatchService {
         return repository.findAll((root, query, cb) ->
                 root.get("status").in(WarehouseStatus.IN_USE, WarehouseStatus.EXPIRING)).stream()
                 .map(row -> new WarehouseMatchedItem(row.getId(), row.getName(), row.getRegion(),
-                        row.getArea(), row.getStatus() == null ? null : row.getStatus().name()))
+                        row.getArea(), row.getStatus() == null ? null : row.getStatus().name(), row.getProvince()))
                 .toList();
     }
 

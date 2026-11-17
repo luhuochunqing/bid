@@ -115,7 +115,16 @@ final class ScoreItemAssessor {
         if(!subjective && !absentZero && !assessmentGuard.canPublish(document.extraction().coverageStatus(),
                 new ScoreAssessmentGuard.CoverageProof(quoteVerified,item.getDetail()!=null&&!item.getDetail().isBlank(),
                         complete&&document.extraction().emptyUnitCount()==0 || localProof)))score=null;
-        String rejection=guarded.rangeInvalid()?"SCORE_OUT_OF_RANGE":!quoteVerified?quoteProof.reason():"COVERAGE_PROOF_INSUFFICIENT";
+        String constraintFailure="";
+        if (!subjective && score!=null && score.signum()>0
+                && "PROJECT".equals(categoryPolicy.categorize(categoryPolicy.factorName(item.getCode(),item.getDim()),item.getDetail()))) {
+            try {
+                var constraints=com.xiyu.bid.scoreparse.domain.KnowledgeEvidenceConstraints.parseForScoring(item.getDetail(),java.time.LocalDate.now());
+                constraintFailure=constraints.quoteFailure(quote);
+            } catch(IllegalArgumentException exception) { constraintFailure=exception.getMessage(); }
+            if(!constraintFailure.isEmpty())score=null;
+        }
+        String rejection=!constraintFailure.isEmpty()?constraintFailure:guarded.rangeInvalid()?"SCORE_OUT_OF_RANGE":!quoteVerified?quoteProof.reason():"COVERAGE_PROOF_INSUFFICIENT";
         if(!subjective&&(score==null||Boolean.TRUE.equals(output.quoteMissing)&&quoteVerified))
             log.info("评分引用诊断: itemId={}, rawScore={}, quoteMissing={}, quoteLength={}, documentRawMatch={}, reason={}",
                     item.getId(),output.actualScore,output.quoteMissing,output.quote==null?0:output.quote.length(),
