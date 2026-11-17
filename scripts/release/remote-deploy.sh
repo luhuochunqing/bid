@@ -300,6 +300,10 @@ if [[ -n "${RETAIN_RELEASE_DIRS:-}" ]]; then
   done <<< "$RETAIN_RELEASE_DIRS"
 fi
 
+# 历史 assets 保留会把旧 release 里的 macOS AppleDouble（._*）逐版本复刻到新前端目录，
+# 清理放在公开目录切换前，确保保留链路不再传播元数据残留。
+find "$PENDING_FRONTEND_DIR" -name '._*' -delete 2>/dev/null || true
+
 rm -rf "$FRONTEND_PUBLIC_DIR"
 mv "$PENDING_FRONTEND_DIR" "$FRONTEND_PUBLIC_DIR"
 # 仅在真实公开目录切换后记录；预检失败留下的 release 没有此标记。
