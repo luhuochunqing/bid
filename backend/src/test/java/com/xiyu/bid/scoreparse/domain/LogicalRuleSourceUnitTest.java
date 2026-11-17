@@ -143,4 +143,25 @@ class LogicalRuleSourceUnitTest {
                 .as("表末行无后续行或跨表未冲突，应判定已闭合")
                 .isTrue();
     }
+    @Test
+    void project1133SummaryWithBlankOuterCellsDoesNotContinueWarehouseRule() {
+        var cells = new java.util.ArrayList<CanonicalCellDto>();
+        String[][] rows = {{"分项", "评分因素", "分值", "说明"},
+                {"", "仓储情况", "5", "按仓储中心布点排名，最多得5分，每名递减1分。"},
+                {"", "合计", "100", ""}};
+        for (int r = 0; r < rows.length; r++) for (int c = 0; c < 4; c++) {
+            cells.add(new CanonicalCellDto("t-r" + r + "-c" + c, r, c, rows[r][c], rows[r][c],
+                    1, 1, false, "pdf:p57", 57, "t-r" + r));
+        }
+        var table = new CanonicalTable("t", 57, "第七章 评分标准", 3, 4, List.of(), cells, true, "PDF");
+        var artifact = new DocumentArtifact(new ArtifactMeta("synthetic.pdf", "sha", "PDF", "2.2"), List.of(table), List.of());
+        var fact = new MultimodalScoreFact("第七章 评分标准", "warehouse", "", "仓储情况", new BigDecimal("5"),
+                "按仓储中心布点排名，最多得5分，每名递减1分。", "OBJECTIVE", 57, "t", List.of("t-r1-c1"),
+                "仓储情况", 1.0);
+        var resolution = LogicalRuleSourceUnit.resolve(artifact, fact);
+        assertThat(resolution.closed()).isTrue();
+        assertThat(resolution.spans()).extracting(SourceSpan::sourceId).doesNotContain("t-r2-c1", "t-r2-c2");
+        assertThat(OriginalRuleRestoration.restore(fact, artifact, List.of(fact)).text()).doesNotContain("合计", "100");
+    }
+
 }

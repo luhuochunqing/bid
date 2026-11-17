@@ -614,4 +614,47 @@ class TextPrimaryEvidenceBinderTest {
         assertThat(bound.sourceCellIds()).containsExactly("r16-c3", "r17-c3");
         assertThat(bound.pageNumber()).isEqualTo(38);
     }
+    @Test
+    void project1133UniqueMaterialListLabelIsNotScoringEvidence() {
+        String text = "# 第六章 投标文件格式\n1、总体组织实施方案（格式自拟）；\n"
+                + "# 第七章 评分标准\n总分10分。\n服务方案详细完整得10分。";
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("synthetic", "sha", "PDF", "2.2"),
+                List.of(), List.of());
+        var fact = new MultimodalScoreFact("第七章 评分标准", "service", "", "技术", BigDecimal.TEN,
+                "服务方案详细完整得10分。", "SUBJECTIVE", 55, "", List.of(), "总体组织实施方案", .9);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, text).getFirst();
+        assertThat(bound.sourceCellIds()).isEmpty();
+        assertThat(bound.sourceMetadata().sourceSpans()).isEmpty();
+    }
+
+    @Test
+    void uniqueTextRuleInsideScoringChapterStillBinds() {
+        String text = "# 第七章 评分标准\n总分10分。\n服务方案详细完整得10分。";
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("synthetic", "sha", "PDF", "2.2"),
+                List.of(), List.of());
+        var fact = new MultimodalScoreFact("第七章 评分标准", "service", "", "服务方案", BigDecimal.TEN,
+                "服务方案详细完整得10分。", "SUBJECTIVE", 55, "", List.of(), "服务方案详细完整得10分。", .9);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, text).getFirst();
+        assertThat(bound.sourceCellIds()).containsExactly("text:line[2]");
+    }
+
+    @Test
+    void outsideContractRuleKeepsLocatorForExplicitExclusion() {
+        String text = "# 第三章 评审办法\n总分100分。\n# 第五章 合同条款及格式\n"
+                + "协议商品动销率 考核规则：动销率排名第1名的得满分，其余按基准计算。";
+        String quote = "协议商品动销率 考核规则：动销率排名第1名的得满分";
+        var artifact = new DocumentArtifact(new DocumentArtifact.ArtifactMeta("synthetic", "sha", "PDF", "2.2"),
+                List.of(), List.of());
+        var fact = new MultimodalScoreFact("第三章 评审办法", "turnover", "", "协议商品动销率", BigDecimal.ZERO,
+                "考核规则", "OBJECTIVE", 5, "", List.of(), quote, .9);
+        var bound = TextPrimaryEvidenceBinder.bind(List.of(fact), artifact, text).getFirst();
+        assertThat(bound.sourceCellIds()).containsExactly("text:line[3]");
+        var report = new com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator()
+                .validate(List.of(bound), artifact, text, BigDecimal.valueOf(100));
+        assertThat(report.sourceVerification().qualifications()).singleElement().satisfies(q -> {
+            assertThat(q.scopeStatus()).isEqualTo("OUT_OF_SCHEME");
+            assertThat(q.candidateEligible()).isFalse();
+        });
+    }
+
 }

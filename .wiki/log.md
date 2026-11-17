@@ -1890,3 +1890,9 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-11-17] compound | [[scoreparse-1124-scheme-colon-and-recheck-dedup]]：保留显式最高分列识别，修复方案投影丢失来源映射，回归覆盖方案/资格入口；同步主干文档冲突，未部署。
 
 ## [2026-11-17] compound | [[scoreparse-1124-scheme-colon-and-recheck-dedup]]：写入第1轮补充分组结构判据及普通名称作用域终止，平级误挂两条RED→GREEN，16项最小回归通过；未部署。
+
+## [2026-11-17] compound | scoreparse-1133-toc-hyphen-page-rca 复合查询回填（诊断，未修复）
+
+## [2026-11-17] compound | 项目1133生产SQL、历史/当前日志与原始PDF对照；补录任务248分类及汇总行污染
+
+## [2026-11-17] compound | 项目1133修复计划：真实输入RED/GREEN、关键修复撤销反证及日志/SQL/API/UI验收

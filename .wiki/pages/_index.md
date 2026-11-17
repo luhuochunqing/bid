@@ -232,3 +232,5 @@ backlinks:
 - [[ai-actual-scoring-pr3018-review-20261113]] — 最新评分PR审查、1123生产空分、OCR覆盖、087反向审查及v2修订。
 
 - [[quality1360-diagnosis]] — 2026-11-16页码复发诊断与本地修复：原件页来源、历史报告及缓存版本边界；未部署。
+
+- [[scoreparse-1133-toc-hyphen-page-rca]] — 项目1133目录横线页码漏检、伪方案及正文候选资格阻塞
