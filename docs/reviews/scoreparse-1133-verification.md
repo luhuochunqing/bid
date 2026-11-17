@@ -69,3 +69,21 @@
 - 清理前、后六类Java测试均退出0；清理后140项，失败/错误/跳过均0，包含真实PDF12项100分回放。命令沿用上方六类测试及真实输入参数，覆盖率destFile/dataFile分别使用`/tmp/scoreparse-1133-slop-protect.exec`和`/tmp/scoreparse-1133-slop-after.exec`；日志为同名前缀的`.log`。JaCoCo报告阶段未报错。
 - `/Users/user/xiyu/worktrees/trae/document-converter-sidecar/.venv/bin/python -m pytest -q document-converter-sidecar/tests/test_pdf_table_artifact.py`退出0，64项通过，5条依赖弃用告警；`git diff --check`通过。
 - 需要监听端口的测试、全仓回归及生产验收未在本阶段执行；没有生成审查凭证，后续verify及独立审查仍由主执行器负责。
+
+## 真实PDF离线贯通验收
+
+用户要求的补证完成，未继续修改业务实现。新增Project1133OfflineAcceptanceMysqlTest及专用进程/原文辅助Project1133OfflineFixture，使用同一真实PDF（SHA见上文）。流程为：真实本地存储上传→真实ProjectDocument记录→实际Sidecar /convert HTTP→InitiationTenderTextResolver→ScoreParseAppService.executeParseAsync→实际Sidecar /extract-tables HTTP→既有路由与来源核验→MySQL 8 Testcontainers→实际review Service/Controller经MockMvc DispatcherServlet响应。没有注入评分候选、没有Mockito替代解析/持久化/读取。任务创建与Worker同步调度用于确定性验收，未验收异步执行器调度。
+
+采用任务248已观察的非版本化EVIDENCE_PIPELINE_V1路径，未装配VersionedScoreParseCompletion；Redis自动配置隔离，使用既有DB回退。没有使用百度增强器，历史百度原始响应仍为UNVERIFIED。访问身份采用现有ROLE_EXTERNAL_API授权路径；MockMvc只验证review端点真实映射和序列化，不验收浏览器、网关或OSS权限。数据库按既有MySQL测试模式由Hibernate建表，本用例不声明生产Flyway全迁移验证。
+
+2026-11-17实际执行：1项、0失败、0错误、0跳过、Maven exit0。解析任务COMPLETED、AUTO_APPROVED；review仅「第七章 评分标准」一个方案、12项100分、六主观六客观、12项candidateEligible=true；同一任务的fact与正式score_item各12条。每个名称/权重/类型与用户确认清单匹配；接口sourceText/sourceCellIds与数据库一致；每项完整规则（只忽略排版空白及表格分隔符）覆盖由独立pdfplumber读取物理55—57页说明列及续行组成的完整原文，且引用单元格实际存在并覆盖该原文。材料占位和合计均未混入；商品覆盖与售后续文由全文对照覆盖。
+
+初次运行的唯一错误为测试请求未指定Accept，Spring默认协商XML导致JSON读取失败；补JSON请求头后贯通通过，未修改业务代码。修复撤销对照：在独立classpath以基线92d522f8的五个Java类覆盖当前实现，保持新测试、PDF、Sidecar及其余代码相同；同一用例因期望AUTO_APPROVED、实际REVIEW_REQUIRED而失败（exit1），不是依赖/编译失败。
+
+复现：`env SIDECAR_PYTHON=<已有完整Sidecar venv>/bin/python mvn -q -f backend/pom.xml test -Dtest=Project1133OfflineAcceptanceMysqlTest -Dscoreparse.realPdf=<本地真实PDF路径> -Djacoco.destFile=/tmp/1133-offline.exec -Djacoco.dataFile=/tmp/1133-offline.exec`。必须显式提供realPdf才能执行；不提供时按JUnit条件跳过，不可把跳过作为验收通过。客户文件、原始规则和完整review响应不入Git：日志、输入/输出哈希及反证保存在任务Git私有scoreparse-1133-evidence/offline-acceptance-20261117；最新运行输出在backend/target/project1133-offline-evidence（Git忽略）。
+
+停止条件已达到：本轮只补测试及证据到PR，不修改解析业务代码，不处理11项无关基线失败、不部署、不新建或采纳生产任务。最终审查与推送门禁结果仍由Git私有review-gate记录。
+
+主干集成：补证期间main新增案例推荐修复，PR出现Spec指针、Wiki日志与教训文档三处冲突。保留双方知识记录，Spec指针保持1133任务；合并主干26e0c1da3后重新验收。六个既有生产修改文件逐字节与PR提交68e19583e一致，本轮未添加业务修改。先前启动的审查因基线将改变而主动终止，不复用其未完成结果。
+
+集成提交dd9f62d8d已完成，最终审查merge-base为26e0c1da3。未完成合并提交时工具曾把主干案例改动纳入清理，已停止该次流程，并将其一处未提交的冗余条件清理恢复为主干原字节；未提交或保留任何案例业务修改。最终验证增加六个原生产文件对68e19583e的字节一致性断言，约束本轮仅补测试和证据。

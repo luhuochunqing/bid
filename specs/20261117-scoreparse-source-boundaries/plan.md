@@ -18,3 +18,7 @@ FP-Java纯核心；真实API，无运行时Mock；先测试后实现；不在锚
 ## PR独立审查补充范围
 
 西域审查发现Java目录行过滤与Python转换器的同步契约漂移。补充修改document-converter-sidecar/converter.py及tests/test_pdf_table_artifact.py，仅同步带横线尾页码的目录判据，覆盖章节和文本两个入口及后续真实章节。新增三例在旧实现均断言失败，修复后PDF表格及转换回归68项通过；不扩展评分引擎、数据库或生产操作。
+
+## 离线贯通验收补证
+
+按用户确认方案，保持业务实现不变。新增仅针对1133的实际PDF→实际Sidecar→ScoreParseAppService Worker→隔离MySQL→review Controller贯通测试。采用任务248已观察的EVIDENCE_PIPELINE_V1路径，相关开关明确记录。独立读取PDF物理55—57页的规则列作为全文断言依据；不手填解析候选。通过则停止业务优化，只补测试与证据到PR；失败才定位目标内的首次错误。

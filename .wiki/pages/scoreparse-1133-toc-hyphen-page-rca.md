@@ -79,3 +79,7 @@ health_checked: 2026-11-17
 - 评分全域+架构首次2179项，96失败、13跳过；不得记为全绿。其中83项的显式失败为缺少docx/lxml的Python运行环境，已核实开发宿主Python可用并重跑。
 - Project1382两个回归由新文本来源约束过严引入，HEAD五类字节码覆盖可通过；已补RED→GREEN：保留合同方案外条款定位，让既有资格门明确OUT_OF_SCHEME且candidateEligible=false，而不是丢失定位后变SOURCE_UNVERIFIED。材料清单短标题仍不能绑定为评分证据。
 - 其余失败分别按旧实现隔离对照，不能因文件未改就判基线问题，也不改测试预期制造全绿。最终结果另见独立验证收据。
+
+## 离线贯通补证（2026-11-17）
+
+新增Project1133OfflineAcceptanceMysqlTest从同一真实PDF经实际Sidecar HTTP、生产Worker及非版本化EVIDENCE_PIPELINE_V1持久化到隔离MySQL，再由review Controller经MockMvc读取；1项执行通过、无跳过。逐项验证12项100分、6主观6客观、单方案、fact/正式项/API一致、独立PDF说明列完整原文及来源单元格。回退五处Java修复后同一用例因整体REVIEW_REQUIRED失败。没有新增业务实现；历史百度响应、生产Flyway迁移、异步调度、网关/浏览器/OSS授权不属于此离线证据。客户完整输入输出只保留Git私有取证区。详见docs/reviews/scoreparse-1133-verification.md「真实PDF离线贯通验收」。

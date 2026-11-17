@@ -19,3 +19,6 @@
 最终清理、验证、独立审查的执行/完成状态由仓库review-workflow在Git元数据review-gate/state.json中独立保存，不以本任务清单自批代替。
 
 - [x] T011 PR独立审查：同步Python目录判据，两入口三例先RED，PDF表格与转换68项GREEN；新完整门禁覆盖Python回归。
+
+- [x] T012 真实PDF经实际转换、Worker、MySQL与review接口贯通验收；逐项比对完整规则与数据库。
+- [x] T013 贯通用例的修复撤销反证已失败于目标业务断言；最终门禁与PR更新结果由review-gate和远端PR记录确认，不部署。
