@@ -1891,6 +1891,10 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 
 ## [2026-11-17] compound | [[scoreparse-1124-scheme-colon-and-recheck-dedup]]：写入第1轮补充分组结构判据及普通名称作用域终止，平级误挂两条RED→GREEN，16项最小回归通过；未部署。
 
+## [2026-11-17] compound | [[ai-case-recommend-data-source-fix]]：案例内容适用性修复中；根因行为测试先RED，收敛实体/搜索词/空标题项目名回退三条背景冒充内容路径，等待最终回归与现场取证。
+
+## [2026-11-17] compound | [[ai-case-recommend-data-source-fix]]：生产项目44/评分571/案例331完整349候选重放旧40分第一→新0分；110聚焦与635案例模块回归通过（模块1跳过），模板/泛词独立缺陷恢复均RED；全仓12217初跑94失败，补Sidecar后子集剩11与基线同现；自动审查因沙箱附加限制ESCALATE，未推送/部署。
+
 ## [2026-11-17] compound | scoreparse-1133-toc-hyphen-page-rca 复合查询回填（诊断，未修复）
 
 ## [2026-11-17] compound | 项目1133生产SQL、历史/当前日志与原始PDF对照；补录任务248分类及汇总行污染

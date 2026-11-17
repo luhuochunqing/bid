@@ -33,6 +33,7 @@ public final class CaseSubTopicPolicy {
         }),
         LOGISTICS_WAREHOUSE("仓储管理与物流配送", new String[]{
                 "仓储管理", "物流配送", "仓储布局", "配送方案", "配送时效", "运输保障",
+                "配送能力", "配送响应速度", "配送网点",
                 "车辆调配", "库存管理", "供应链保障", "库房管理", "最后一公里"
         }),
         PRODUCT_PRICING("商品管理与定价机制", new String[]{

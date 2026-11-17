@@ -177,8 +177,8 @@ class ScoreItemCaseMatchPolicyTest {
     }
 
     @Test
-    @DisplayName("部分匹配：仅类别一致与中标加成，detail不重合")
-    void testPartialMatch() {
+    @DisplayName("同属商务类别也不能把财务审计案例推荐给纳税信用要求")
+    void testOffTopicCommercialCaseNotAdmitted() {
         StubCandidate candidate = new StubCandidate(
                 2L,
                 "财务审计报告",
@@ -203,9 +203,9 @@ class ScoreItemCaseMatchPolicyTest {
         ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(candidate, context);
 
         assertThat(result.caseId()).isEqualTo(2L);
-        assertThat(result.score()).isLessThan(60);
+        assertThat(result.score()).isZero();
         assertThat(result.matchLabel()).isEqualTo("一般");
-        assertThat(result.matchReasons()).contains("类别一致", "历史中标案例");
+        assertThat(result.matchReasons()).containsExactly("与评分项内容不相关");
     }
 
     @ParameterizedTest

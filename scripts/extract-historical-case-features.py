@@ -91,6 +91,7 @@ SUB_TOPIC_RULES = [
         '仓储管理与物流配送',
         [
             '仓储管理', '物流配送', '仓储布局', '配送方案', '配送时效', '运输保障',
+            '配送能力', '配送响应速度', '配送网点',
             '车辆调配', '库存管理', '供应链保障', '库房管理', '最后一公里', '绿色包装'
         ]
     ),
@@ -390,6 +391,8 @@ def run_self_test():
 
     s5, _ = classify_sub_topic("仓储网点布局与干线物流配送方案", "建立全国中心仓")
     assert s5 == "LOGISTICS_WAREHOUSE"
+    assert classify_sub_topic("45 配送能力评价", "订单配送响应速度及配送网点情况")[0] == "LOGISTICS_WAREHOUSE"
+    assert classify_sub_topic("技术部分", "评价配送响应速度与全国配送网点情况")[0] == "LOGISTICS_WAREHOUSE"
 
     s6, _ = classify_sub_topic("质量控制与抽样检验验收标准", "出厂检验把关，假一赔十")
     assert s6 == "QUALITY_CONTROL"

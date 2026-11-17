@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [工程纪律, 根因分析, bug修复, 反复修复, 开发规范, 经验积累, 预防, SOP]
 created: 2026-07-10
-updated: 2026-10-10
+updated: 2026-11-17
 health_checked: 2026-10-25
 sources:
   - .wiki/pages/lessons-learned.md
@@ -383,6 +383,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 仓库 Word 合订本附件内容丢失（macOS SSV + 绝对路径默认值） | 1 次 | 环境差异掩盖 + 框架理解偏差：`@Value("${warehouse.attachment.root:/data/attachments/warehouse}")` 默认值是绝对路径，macOS Catalina+ SSV 保护使根目录 `/` 只读，`mkdir /data` 失败（`Read-only file system`）。上传时 `Files.createDirectories` 抛 IOException → HTTP 400，但用户用历史同步数据未感知；Word 生成时 `Files.exists` 返回 false → 所有三级标题下显示"（文件缺失）"。@Async 超时（PR !2110 修复前）掩盖了 Word 生成失败，超时修复后才暴露此 bug。全局收敛发现 6 处同类（warehouse 4 + performance 2）。修复：默认值改为相对路径 `data/warehouse-attachments` / `data/performance-attachments`（对齐 personnel/qualification 模块约定），新增 `scripts/check-attachment-root-path.mjs` pre-push 拦截 | `WarehouseWordBundleBuilder.java#L49`、`WarehouseFileService.java#L38`、`WarehouseExportZipBuilder.java#L41`、`WarehouseImportAttachmentProcessor.java#L47`、`PerformanceAttachmentStorageAppService.java#L44`、`PerformanceImportAttachmentProcessor.java#L36`，PR !2112 |
 | PR 合入带编译错误阻断 main（!2328 Feature 047） | 2 次（同类第 2 次，前次 !2329 compliance.js 漏声明） | 合并前未验证编译：gitee-pr-helper auto-merge 与人工点合并都缺「合入前 mvn compile 全绿」这道闸。!2328 两处纯编译错误（multi-catch 父子类 `InvalidPathException|RuntimeException` 非法；无参构造器 `this(null×5)` 与 4 参构造器不匹配）直接进 main，全仓 3000+ 源文件无法编译，阻断所有 agent 的 TDD 流程。修复：本分支顺手修（独立 commit 4b262fa9a）。预防方向：PR 合并 checklist 加「本地 `mvn test-compile` 全绿」，或 gitee-pr-helper 在 merge 前跑编译探测 | `ComplianceTargetLoader.java#L187`、`KnowledgeBaseOnDemandLoader.java#L43`，PR !2328，hotfix commit 4b262fa9a |
 | gitee-pr-helper 405 误报 + 失败响应体静默丢失 | 1 次 | 外部 API 非幂等响应码直接判成败（把"已合并"的 405 报成失败）+ 失败诊断语句重定向顺序错误使 fd1 指向 /dev/null，响应体从未输出 | `scripts/gitee-pr-helper.sh` merge/create 两条失败路径；docs/references/engineering-discipline.md §8；契约测试 9 场景 / 33 断言；PR !2818 |
+| 案例推荐把等保证书排到配送能力第一 | 多轮修复后再次暴露 | 追症状不追根因 + 测试不测根因：用客户实体累计分解锁背景加分；标题“能力”和“得N分”评分模板仍制造假内容分；反例清空客户/项目或丢失真实记录形状 | [[ai-case-recommend-data-source-fix]]；生产349候选旧245结果/证书40分第一，修后证书0分；独立恢复模板/泛词污染会使根因测试重新失败；本地验证，未部署 |
 
 ### 6.4 pre-push 拦截脚本索引
 
@@ -481,3 +482,8 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 ### 重复 bug：证据来源范围必须跨载体一致
 
 评分解析曾对表格候选执行评分方案归属验证，却把所有 `text:line[...]` 纯文本定位器无条件视为方案内，导致其他章节的履约考核分数并入评分总分。重复修复应沿证据绑定、locator、范围校验和发布判定追完整链路；“全文能找到引文”不等于“引文属于当前方案”。必须有同方案正例、异方案反例，并用自动门禁阻止文本证据重新绕过归属校验。
+
+
+### 重复 bug：反例必须保留真实上下文与记录形状
+
+案例推荐曾用项目名、客户名均为空的反例，验证“背景不能制造相关性”，却未覆盖服务实际装配的同客户输入；随后只用标题为“证书”、没有评分模板的夹具，仍漏掉现场“能力”标题和“得N分”原文。修复反复错配时，应先固定现场输入并复现原结果数、排序与分值，再将真实记录形状脱敏成最小反例。仅移动加分顺序、补词表或一次测试全绿，都不能替代这个对照；可分别恢复致错条件，确认同一行为断言重新失败。
