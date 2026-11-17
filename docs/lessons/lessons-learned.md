@@ -8466,3 +8466,10 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
   - `ScoreItemCaseMatchPolicy` 新增 `evaluateAll(candidates, context)`：候选数 `>= 5` 时计算语料 IDF 与 BM25 长度因子（`k1=1.2, b=0.75`）；`requirementTokens` 剥离表头前缀与评分档位模板；移除 `hitCount * 3` 保底；标题引入 `titleCoverage`；存在评分项要求时，情境加成按主题相关度 `min(1.0, relevance / 8.0)` 等比折算。
   - `CaseSubTopicPolicy` 新增 `PRODUCT_PRICING("商品管理与定价机制", ...)`；`ScoreItemCaseRecommendAppService` 接入 `evaluateAll`。
 - **本地验证**：以生产 349 条 `ACTIVE` 案例回放项目 580 `商品管理方案`，Top 4 转为 `#185 西域价格管理制度 (55%)`、`#314 商品管理能力 (55%)`、`#157 西域自营产品定价机制 (54%)`、`#45 与友商价格对标分析 (51%)`，物流/仓储案例退出前 12；`ScoreItemCaseMatchPolicyTest`（49）、`CaseSubTopicPolicyTest`（20）、`ScoreItemCaseRecommendAppServiceTest`（12）全部通过。
+
+
+## 2026-11-17 项目580：历史任务恢复不能复用即时失败通知
+
+- **根因**：抽屉open读取历史FAILED后直接showFailure，重开即再次toast；实际评分路径绕过已有AI文档错误转换，notifyErrorUnlessRateLimit优先error.message，原始技术码与任务UUID进入用户界面。
+- **修复边界**：恢复观察只更新页内状态；主动请求失败按原因给中文提示，仍保留页内解释；未知技术消息安全兜底；评分读写请求关闭全局HTTP错误弹窗，由抽屉统一处理（含限流），避免全局先弹原码；后端原始诊断和历史结果不删除。成功/无任务重新读取清理旧失败提示。
+- **防回归**：同时断言重开不POST、不toast，当前失败可理解，恢复观察终态失败静默，未知码不泄露，限流不重复通知；不能只验证未重复提交或替换单条后端文案。生产部署及线上验收另行核实。
