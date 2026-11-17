@@ -80,7 +80,8 @@ public final class CertificateScorePolicy {
                     var known = CertificateScoreRule.identitiesForEstimate(f.name(), "");
                     return (known.isEmpty() ? List.of(CertificateScoreRule.normalize(f.name())) : known).stream();
                 }).distinct().toList()
-                : identities.stream().filter(id -> usable.stream().anyMatch(f -> CertificateScoreRule.matchesEstimateIdentity(f.name(), id))).toList();
+                : identities.stream().filter(id -> usable.stream().anyMatch(f -> CertificateScoreRule.matchesEstimateIdentity(f.name(), id)
+                        && grade(f, CertificateScoreRule.estimateRequirement(id, detail)) == Evidence.PASS)).toList();
         int count = hits.size();
         BigDecimal score = new PartialScorePolicy().estimateByCount(weight, count, target.count());
         String status = new ScoreStatusPolicy().evaluate(score, weight, "OBJECTIVE", false);

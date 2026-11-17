@@ -10,6 +10,10 @@ public record WarehouseMatchedItem(
         String name,
         String region,
         BigDecimal area,
-        String status
+        String status,
+        String province
 ) {
+    public WarehouseMatchedItem(Long id,String name,String region,BigDecimal area,String status) {
+        this(id,name,region,area,status,null);
+    }
 }

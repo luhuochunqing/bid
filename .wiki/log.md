@@ -1895,6 +1895,14 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 
 ## [2026-11-17] compound | [[ai-case-recommend-data-source-fix]]：生产项目44/评分571/案例331完整349候选重放旧40分第一→新0分；110聚焦与635案例模块回归通过（模块1跳过），模板/泛词独立缺陷恢复均RED；全仓12217初跑94失败，补Sidecar后子集剩11与基线同现；自动审查因沙箱附加限制ESCALATE，未推送/部署。
 
+## [2026-11-17] compound | scoreparse-performance-evidence-clarity 项目1120日期过滤与数量口径只读诊断回填
+
+## [2026-11-17] compound | 项目1120硬条件传递修复与预判五类来源、阶段二、资格整体核查回归；本地验证，未部署
+
+## [2026-11-17] compound | [[scoreparse-performance-evidence-clarity]] fix第1轮：补齐资料库标准项目类型筛选及民营企业别名归一，保留RED反例；监听类验证交主执行器。
+
+## [2026-11-17] compound | [[scoreparse-performance-evidence-clarity]] 审查修复：分离正式评分与知识库粗估的材料待核验提示，补合同关键页等完整证据正例，保留日期金额、引用和未知截止日阻断；未部署。
+
 ## [2026-11-17] compound | scoreparse-1133-toc-hyphen-page-rca 复合查询回填（诊断，未修复）
 
 ## [2026-11-17] compound | 项目1133生产SQL、历史/当前日志与原始PDF对照；补录任务248分类及汇总行污染

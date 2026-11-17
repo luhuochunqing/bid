@@ -1,0 +1,25 @@
+{
+  "synthetic": true,
+  "threshold": 0.95,
+  "expectTotal": 100,
+  "strictDim": true,
+  "laneHints": [
+    "table"
+  ],
+  "items": [
+    {
+      "code": "1",
+      "dim": "供应商业绩",
+      "detail": "提供2023年1月1日至2025年12月31日签订的工业品业绩，合同金额不少于100万元。每提供一个合格业绩得1分，满分5分。",
+      "weight": 5,
+      "sourceText": "合同金额不少于100万元"
+    },
+    {
+      "code": "2",
+      "dim": "报价",
+      "detail": "报价满分95分。",
+      "weight": 95,
+      "sourceText": "报价满分95分"
+    }
+  ]
+}

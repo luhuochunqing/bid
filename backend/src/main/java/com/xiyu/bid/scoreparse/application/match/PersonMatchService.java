@@ -39,7 +39,7 @@ public class PersonMatchService {
     public List<PersonMatchedItem> findEstimateCandidates() {
         var request = new PersonMatchRequest(null, null, 1);
         return personnelRepository.findAll(specificationOf(request, false, false)).stream()
-                .map(row -> new PersonMatchedItem(row.getId(), row.getName(), row.getEmployeeNumber(), row.getTechnicalTitle(), List.of()))
+                .map(row -> new PersonMatchedItem(row.getId(), row.getName(), row.getEmployeeNumber(), row.getTechnicalTitle(), hitCertificates(row.getId(), List.of(), LocalDate.now())))
                 .distinct().toList();
     }
 

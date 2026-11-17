@@ -415,7 +415,7 @@ class Quality1360BusinessContractTest {
     }
 
     @Test
-    @DisplayName("标书正文已提供证书编号与有效期限实证时，资质匹配与一票否决直接闭环 PASS")
+    @DisplayName("证书实证可满足单证匹配，但不能替代完整资格核验")
     void substantiveCertificateFactsInBidAllowPassForQualificationMatchAndVeto() {
         String bidPage = """
                 四、西域具有有效的中华人民共和国增值电信业务经营许可证（EDI和ICP）
@@ -433,7 +433,7 @@ class Quality1360BusinessContractTest {
         assertThat(vetoResult).isPresent();
         assertThat(vetoResult.orElseThrow().status()).isEqualTo(QualityCheckStatus.PASS);
         assertThat(SemanticEvidenceBoundary.reconcile(vetoResult.orElseThrow(), bidDoc).status())
-                .isEqualTo(QualityCheckStatus.PASS);
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
 
         List<QualificationDetail> details = QualificationMatchPolicy.buildDetails(
                 req.certificateRequirements(), List.of(), bidDoc, LocalDate.of(2026, 11, 7));
@@ -859,7 +859,7 @@ class Quality1360BusinessContractTest {
     }
 
     @Test
-    void unrelatedStandardCodesElsewhereInBidDoNotDemoteMatchedVetoPass() {
+    void individualCertificateMatchCannotProveWholeQualification() {
         var p1 = "第二章 资格证明\n本公司具有增值电信业务经营许可证（EDI和ICP）。";
         var p2 = "第三章 技术参数\n产品符合GB/T19001及GB/T24001标准。";
         var bid = new DocumentContent("bid.pdf", "hash", p1 + "\n" + p2,
@@ -870,7 +870,7 @@ class Quality1360BusinessContractTest {
         var pass = QualityCheckItemResult.pass(BidQualityCheckItem.QUALIFICATION_VETO,
                 "符合要求", List.of(evidence));
         assertThat(SemanticEvidenceBoundary.reconcile(pass, bid).status())
-                .isEqualTo(QualityCheckStatus.PASS);
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 
     @Test

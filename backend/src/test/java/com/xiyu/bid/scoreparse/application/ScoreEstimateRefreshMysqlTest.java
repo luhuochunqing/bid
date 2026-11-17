@@ -262,7 +262,8 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
   assertThat(read(cert.getId()).getEstScore()).isEqualByComparingTo("10");
   assertThat(freshness.status(read(cert.getId()),LocalDate.now())).isEqualTo("FRESH");
   assertThat(read(ranked.getId()).getEstScore()).isZero();
-  assertThat(read(compound.getId()).getEstScore()).isEqualByComparingTo("10");
+  // An Shanghai warehouse cannot satisfy the explicit Shanxi province requirement.
+  assertThat(read(compound.getId()).getEstScore()).isZero();
   assertThat(read(brand.getId()).getEstScore()).isZero();
   for(var row:List.of(ranked,compound,brand)) {
    assertThat(read(row.getId()).getEstBasis()).contains("知识库粗估", "未核验").doesNotContain("未识别", "计算失败");

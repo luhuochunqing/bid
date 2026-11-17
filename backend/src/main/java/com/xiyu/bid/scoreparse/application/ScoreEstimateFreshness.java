@@ -12,6 +12,10 @@ public class ScoreEstimateFreshness {
     public ScoreEstimateFreshness(CertMatchService certificates) { this.certificates = certificates; }
 
     public String status(ScoreItem item, LocalDate day) {
+        if (EstimateEvidenceSupport.applies(item)) {
+            return item.getEstimatedAt()!=null && EstimateEvidenceSupport.fingerprint(item,day).equals(item.getEstimateInputFingerprint())
+                    ? "FRESH" : "STALE";
+        }
         if (!CertificateScoreEstimateSupport.applies(item)) return "NOT_APPLICABLE";
         if (item.getEstimatedAt() == null || item.getEstimateInputFingerprint() == null) return "STALE";
         String factorName = CertificateScoreEstimateSupport.factorName(item);

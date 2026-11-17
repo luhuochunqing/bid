@@ -126,7 +126,7 @@ backlinks:
 - [[scoreparse-certificate-estimate-staleness-rca]] — 证书评分历史漏认、预判残留与组合证书任一命中假满分根因（只读诊断，未修复）
 - [[scoreparse-fixed-award-weight-cap]] — 单次「得X分」未识别为上限导致 OMS/WMS 随 matchRatio 在 6分/3分间翻转（fixedAward + effectiveWeight）
 - [[scoreparse-cross-chapter-qualification-performance]] — 评分项跨章节穿透资格项业绩检索与基础分递增计分规范
-- [[scoreparse-performance-evidence-clarity]] — 业绩预计得分证据可信度、保守计分与中文解释契约
+- [[scoreparse-performance-evidence-clarity]] — 业绩预计得分证据可信度、项目1120硬条件传递与标书核查同类缺陷
 - [[scoreparse-1371-docx-merged-closure-rca]] — 项目 1371 DOCX 嵌套纵向合并打分表行闭合与标书原文回填根因
 - [[scoreparse-1384-docx-scheme-contract-rca]] — 项目 1384 DOCX 评分方案资格失效根因（PR #2757 真实输入契约）
 - [[scoreparse-1382-live-publish-gate]] — 项目1382线上100分被0分指引和空模型总分否决
