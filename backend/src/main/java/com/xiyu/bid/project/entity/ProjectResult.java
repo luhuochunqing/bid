@@ -57,6 +57,10 @@ public class ProjectResult {
     @Column(name = "service_period_end_date")
     private LocalDate servicePeriodEndDate;
 
+    /** 中标时间，结果确认中标时必填（不回传 CRM 系统）。 */
+    @Column(name = "win_date")
+    private LocalDate winDate;
+
     /** 单附件 id 兼容 V99 schema 的 evidence_attachment_id 列；多附件以逗号分隔扩展存放（不破坏列）。 */
     @Column(name = "evidence_attachment_id")
     private Long evidenceAttachmentId;

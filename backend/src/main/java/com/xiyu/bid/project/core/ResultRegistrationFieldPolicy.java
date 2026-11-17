@@ -16,7 +16,7 @@ import java.util.List;
  * <p>必填映射：
  * <ul>
  *   <li>所有结果类型: evidenceFileIds, servicePeriodYears(服务周期), servicePeriodEndDate(服务周期截止时间) — CO-590 合同信息模块</li>
- *   <li>WON: evidenceFileIds(中标通知书)</li>
+ *   <li>WON: evidenceFileIds(中标通知书), winDate(中标时间)</li>
  *   <li>LOST: evidenceFileIds(中标公告), summary(丢标原因)</li>
  *   <li>FAILED: evidenceFileIds(流标公告/说明), summary(流标原因)</li>
  *   <li>ABANDONED: evidenceFileIds(弃标说明), summary(弃标决策依据)</li>
@@ -53,7 +53,10 @@ public final class ResultRegistrationFieldPolicy {
         }
         switch (rt) {
             case WON -> {
-                // CO-320: 移除 awardAmount/合同日期必填（前端已删字段），WON 仅要求证据（已在前面统一校验）
+                // 中标结果下，中标时间必填（不回传 CRM 系统）
+                if (input.winDate() == null) {
+                    missing.add("winDate");
+                }
             }
             case LOST, FAILED, ABANDONED -> {
                 // CO-322: 丢标原因/流标原因/弃标原因(summary)必填
@@ -83,6 +86,7 @@ public final class ResultRegistrationFieldPolicy {
             LocalDate contractEndDate,
             BigDecimal servicePeriodYears,
             LocalDate servicePeriodEndDate,
+            LocalDate winDate,
             List<Long> evidenceFileIds,
             String summary) {
 
@@ -97,6 +101,7 @@ public final class ResultRegistrationFieldPolicy {
             private LocalDate contractEndDate;
             private BigDecimal servicePeriodYears;
             private LocalDate servicePeriodEndDate;
+            private LocalDate winDate;
             private List<Long> evidenceFileIds;
             private String summary;
 
@@ -106,13 +111,14 @@ public final class ResultRegistrationFieldPolicy {
             public Builder contractEndDate(LocalDate v) { this.contractEndDate = v; return this; }
             public Builder servicePeriodYears(BigDecimal v) { this.servicePeriodYears = v; return this; }
             public Builder servicePeriodEndDate(LocalDate v) { this.servicePeriodEndDate = v; return this; }
+            public Builder winDate(LocalDate v) { this.winDate = v; return this; }
             public Builder evidenceFileIds(List<Long> v) { this.evidenceFileIds = v; return this; }
             public Builder summary(String v) { this.summary = v; return this; }
 
             public ResultInput build() {
                 return new ResultInput(resultType, awardAmount, contractStartDate,
                         contractEndDate, servicePeriodYears, servicePeriodEndDate,
-                        evidenceFileIds, summary);
+                        winDate, evidenceFileIds, summary);
             }
         }
     }

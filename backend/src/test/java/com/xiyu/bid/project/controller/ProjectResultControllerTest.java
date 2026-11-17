@@ -5,6 +5,7 @@
 package com.xiyu.bid.project.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.dto.ResultDTO;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
@@ -43,7 +45,9 @@ class ProjectResultControllerTest {
     private ProjectResultRegistrationService service;
     private AuthService authService;
     private MockMvc mockMvc;
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     @BeforeEach
     void setup() {
@@ -54,6 +58,7 @@ class ProjectResultControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
                 .build();
         UserDetails principal = User.withUsername("manager").password("x").roles("MANAGER").build();
         SecurityContextHolder.getContext().setAuthentication(
@@ -70,6 +75,7 @@ class ProjectResultControllerTest {
         // 缺失会在 Bean Validation 阶段 400，走不到 service 层
         return ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
+                .winDate(java.time.LocalDate.of(2026, 6, 1))
                 .awardAmount(new BigDecimal("100000"))
                 .servicePeriodYears(new BigDecimal("3.0"))
                 .servicePeriodEndDate(java.time.LocalDate.now().plusYears(3))
@@ -82,6 +88,7 @@ class ProjectResultControllerTest {
     void post_register_happy_returns201() throws Exception {
         ResultDTO dto = ResultDTO.builder()
                 .id(10L).projectId(1L).resultType("WON")
+                .winDate(java.time.LocalDate.of(2026, 6, 1))
                 .awardAmount(new BigDecimal("100000"))
                 .evidenceFileIds(List.of(101L))
                 .summary("中标").build();
@@ -91,6 +98,7 @@ class ProjectResultControllerTest {
                         .content(objectMapper.writeValueAsString(wonReq())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.resultType").value("WON"))
+                .andExpect(jsonPath("$.data.winDate").value("2026-06-01"))
                 .andExpect(jsonPath("$.data.evidenceFileIds[0]").value(101));
     }
 

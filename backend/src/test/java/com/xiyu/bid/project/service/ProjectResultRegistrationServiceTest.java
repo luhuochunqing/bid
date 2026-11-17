@@ -91,6 +91,7 @@ class ProjectResultRegistrationServiceTest {
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
                 .awardAmount(new BigDecimal("88888"))
+                .winDate(LocalDate.of(2026, 6, 1))
                 .servicePeriodYears(SAMPLE_PERIOD_YEARS)
                 .servicePeriodEndDate(SAMPLE_PERIOD_END)
                 .evidenceFileIds(List.of(11L, 12L))
@@ -98,6 +99,7 @@ class ProjectResultRegistrationServiceTest {
                 .build();
         var dto = service.register(1L, req, 7L);
         assertEquals("WON", dto.getResultType());
+        assertEquals(LocalDate.of(2026, 6, 1), dto.getWinDate());
         assertEquals(0, new BigDecimal("88888").compareTo(dto.getAwardAmount()));
         assertEquals(List.of(11L, 12L), dto.getEvidenceFileIds());
         assertEquals(0, SAMPLE_PERIOD_YEARS.compareTo(dto.getServicePeriodYears()));
@@ -118,6 +120,7 @@ class ProjectResultRegistrationServiceTest {
         when(stageService.currentStage(1L)).thenReturn(ProjectStage.RESULT_PENDING);
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
+                .winDate(LocalDate.of(2026, 6, 1))
                 .awardAmount(new BigDecimal("100"))
                 .servicePeriodYears(SAMPLE_PERIOD_YEARS)
                 .servicePeriodEndDate(SAMPLE_PERIOD_END)
@@ -164,6 +167,7 @@ class ProjectResultRegistrationServiceTest {
         when(stageService.currentStage(1L)).thenReturn(ProjectStage.RETROSPECTIVE);
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
+                .winDate(LocalDate.of(2026, 6, 1))
                 .awardAmount(new BigDecimal("100"))
                 .servicePeriodYears(SAMPLE_PERIOD_YEARS)
                 .servicePeriodEndDate(SAMPLE_PERIOD_END)
@@ -178,6 +182,7 @@ class ProjectResultRegistrationServiceTest {
         when(stageService.currentStage(1L)).thenReturn(ProjectStage.CLOSED);
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
+                .winDate(LocalDate.of(2026, 6, 1))
                 .awardAmount(new BigDecimal("100"))
                 .servicePeriodYears(SAMPLE_PERIOD_YEARS)
                 .servicePeriodEndDate(SAMPLE_PERIOD_END)
@@ -227,6 +232,7 @@ class ProjectResultRegistrationServiceTest {
         when(repo.findByProjectId(1L)).thenReturn(Optional.of(existing));
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
+                .winDate(LocalDate.of(2026, 6, 1))
                 .awardAmount(new BigDecimal("100"))
                 .servicePeriodYears(SAMPLE_PERIOD_YEARS)
                 .servicePeriodEndDate(SAMPLE_PERIOD_END)
@@ -252,6 +258,7 @@ class ProjectResultRegistrationServiceTest {
         when(userRepo.findById(7L)).thenReturn(Optional.of(user));
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
+                .winDate(LocalDate.of(2026, 6, 1))
                 .awardAmount(new BigDecimal("88888"))
                 .servicePeriodYears(SAMPLE_PERIOD_YEARS)
                 .servicePeriodEndDate(SAMPLE_PERIOD_END)
@@ -281,6 +288,7 @@ class ProjectResultRegistrationServiceTest {
         when(userRepo.findById(7L)).thenReturn(Optional.of(user));
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
+                .winDate(LocalDate.of(2026, 6, 1))
                 .awardAmount(new BigDecimal("88888"))
                 .servicePeriodYears(SAMPLE_PERIOD_YEARS)
                 .servicePeriodEndDate(SAMPLE_PERIOD_END)
@@ -291,6 +299,25 @@ class ProjectResultRegistrationServiceTest {
         ArgumentCaptor<ProjectResultConfirmedEvent> captor = ArgumentCaptor.forClass(ProjectResultConfirmedEvent.class);
         verify(eventPublisher, times(1)).publishEvent(captor.capture());
         assertEquals("郑蓉蓉（06234）", captor.getValue().operatorName());
+    }
+
+    @Test
+    void register_won_missingWinDate_returns422() {
+        when(repo.findByProjectId(1L)).thenReturn(Optional.empty());
+        var req = ResultRegistrationRequest.builder()
+                .resultType(BidResultType.WON)
+                .awardAmount(new BigDecimal("88888"))
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
+                .evidenceFileIds(List.of(11L))
+                .summary("中标通知书已上传")
+                .build();
+        var ex = assertThrows(ResponseStatusException.class,
+                () -> service.register(1L, req, 7L));
+        assertEquals(422, ex.getStatusCode().value());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("winDate"),
+                "中标结果缺失 winDate 必须返回 422 且包含 winDate");
+        verify(repo, never()).save(any());
     }
 
     @Test

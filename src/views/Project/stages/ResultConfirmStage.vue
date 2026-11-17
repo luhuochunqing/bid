@@ -51,6 +51,18 @@
             class="contract-input"
           />
         </div>
+        <div v-if="form.resultType === 'WON'" class="contract-field">
+          <label class="field-label">中标时间<span class="required-mark">*</span></label>
+          <el-date-picker
+            v-model="form.winDate"
+            type="date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            :disabled="!canOperate"
+            placeholder="选择日期"
+            class="contract-input"
+          />
+        </div>
       </div>
     </el-card>
 
@@ -291,6 +303,8 @@ const form = reactive({
   // CO-590: 合同信息模块两字段（所有结果类型必填）
   servicePeriodYears: null,
   servicePeriodEndDate: null,
+  // 中标时间：结果确认中标时必填（不回传 CRM 系统）
+  winDate: null,
 })
 
 function selectResult(value) {
@@ -394,6 +408,7 @@ async function load() {
       // CO-590: 回填合同信息两字段
       if (data.servicePeriodYears != null) form.servicePeriodYears = Number(data.servicePeriodYears)
       if (data.servicePeriodEndDate) form.servicePeriodEndDate = data.servicePeriodEndDate
+      if (data.winDate) form.winDate = data.winDate
       // 已登记的结果不可再编辑
       if (data.registeredAt) {
         resultDone.value = true
@@ -454,6 +469,7 @@ async function submit() {
   // CO-590: 合同信息两字段必填校验
   if (form.servicePeriodYears == null || form.servicePeriodYears === '') return ElMessage.warning('请填写项目服务周期（年）')
   if (!form.servicePeriodEndDate) return ElMessage.warning('请选择服务周期截止时间')
+  if (form.resultType === 'WON' && !form.winDate) return ElMessage.warning('请选择中标时间')
   if (!form.evidenceFileIds.length) return ElMessage.warning('请上传凭证文件')
   // 过滤全空竞品行（用户点了「添加一行」但未填写任何字段），避免脏数据进后端
   // 判空统一：字符串字段用 trim() 检查非空，数字字段用 != null 检查（0 也算有值）
@@ -482,6 +498,7 @@ async function submit() {
       // CO-590: 合同信息两字段
       servicePeriodYears: form.servicePeriodYears,
       servicePeriodEndDate: form.servicePeriodEndDate,
+      winDate: form.resultType === 'WON' ? form.winDate : null,
     }
     await projectLifecycleApi.registerResult(props.projectId, payload)
     resultDone.value = true
