@@ -1,0 +1,4 @@
+# Validation
+从backend运行 `mvn test -Dtest=ScoreTypeClassificationPolicyTest,LogicalRuleSourceUnitTest,OriginalScoringContextThreeDefectsTest,TextPrimaryEvidenceBinderTest`。新增用例先RED，修复后GREEN。
+然后运行 `mvn test -Dtest=GoldenCasesReplayTest,Project1387PublicationRegressionTest,Project1391ScopeWeightClosureTest,OriginalSourcePublicationGuardTest,SchemeScopePublicationTest`。新增1133真实回放由本地外部资产路径启用，不提交客户文件。
+总验收：单一方案、12项100分、六主观六客观、正确原文来源及完整跨页。保存基线、输入SHA和执行输出。线上验收后续另行授权。

@@ -533,12 +533,19 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-price-markdown-star"),
                 Arguments.of("case-markdown-whole-rule"),
                 Arguments.of("case-chapter-heading-inter-spaces"),
-                Arguments.of("case-markdown-inner-row"));
+                Arguments.of("case-markdown-inner-row"),
+                Arguments.of("case-source-boundaries"));
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
     void replayGoldenCase(String caseName) throws Exception {
+        if (caseName.equals("case-source-boundaries")) {
+            com.xiyu.bid.scoreparse.application.SourceBoundaryGoldenReplay.verify(
+                    GoldenCasesReplaySupport.readFixture(caseName + ".md"),
+                    GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json")));
+            return;
+        }
         if (caseName.equals("case-standalone-maximum-total")) {
             com.xiyu.bid.scoreparse.domain.StandaloneMaximumSummaryTest.verifyGolden(
                     GoldenCasesReplaySupport.readFixture(caseName + ".md"),

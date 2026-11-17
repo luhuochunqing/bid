@@ -11,12 +11,11 @@ import java.util.regex.Pattern;
  * 客观/主观判定策略（spec 041 FR-003）。
  * <p>判定优先级（保守原则：无法判定按主观，避免虚假高分）：
  * <ol>
- *   <li>报价类（评标基准价/偏离率公式计算）→ SUBJECTIVE</li>
- *   <li>描述性要求（方案先进/合理/酌情给分）→ SUBJECTIVE</li>
- *   <li>量化条件（证书/数量/年限/面积门槛）→ OBJECTIVE</li>
+ *   <li>描述性要求或定性分档评价 → SUBJECTIVE</li>
+ *   <li>可计算报价公式、数量递增、证书或量化门槛 → OBJECTIVE</li>
  *   <li>默认 → SUBJECTIVE</li>
  * </ol>
- * <p>注意顺序：报价判定最优先（报价文本常含数字+分，易被量化规则误判）。
+ * <p>定性评价优先，数字区间本身不能证明客观条件。
  */
 public class ScoreTypeClassificationPolicy {
 
@@ -43,6 +42,12 @@ public class ScoreTypeClassificationPolicy {
             + "|综合评价|综合评审|针对性|合理性|可行性|充分性|可操作性"
     );
 
+    /** Qualitative grade language plus a score interval denotes an evaluator's judgment, not a numeric threshold. */
+    private static final Pattern DESCRIPTIVE_GRADE_PATTERN = Pattern.compile(
+            "(?:更为优越|基本满足|经验(?:比较)?丰富|实力强大)[^。；;]{0,180}(?:得|评分)\\s*"
+                    + "[0-9０-９]+(?:[.．][0-9０-９]+)?\\s*[-—–~～至]\\s*[0-9０-９]+(?:[.．][0-9０-９]+)?\\s*分"
+    );
+
     public String classify(String detail) {
         return classify(detail, null);
     }
@@ -52,7 +57,7 @@ public class ScoreTypeClassificationPolicy {
             return "SUBJECTIVE";
         }
         // 明确主观评价措辞优先，数字区间本身不能把横向评价改判为客观。
-        if (DESCRIPTIVE_PATTERN.matcher(detail).find()) {
+        if (DESCRIPTIVE_PATTERN.matcher(detail).find() || DESCRIPTIVE_GRADE_PATTERN.matcher(detail).find()) {
             return "SUBJECTIVE";
         }
         if (IncrementalCountScorePolicy.parse(detail).isPresent()) {

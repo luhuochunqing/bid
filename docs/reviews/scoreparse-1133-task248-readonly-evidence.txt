@@ -1,0 +1,188 @@
+{
+  "project": 1133,
+  "parseTask": 248,
+  "completedAt": "2026-11-17 15:27:48 +08:00",
+  "formalScoreItemCount": 0,
+  "facts": [
+    {
+      "id": 3603,
+      "dimension": "投标报价",
+      "weight": 30.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r1_c0",
+        "baidu_tbl_55_0_r1_c1",
+        "baidu_tbl_55_0_r1_c2",
+        "baidu_tbl_55_0_r1_c3"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "4915640c03f42bea4516abb74bbc48e174597bf1d7dcf67b9461bb55fc3e495a",
+      "sourceTextChars": 262
+    },
+    {
+      "id": 3604,
+      "dimension": "类似业绩",
+      "weight": 10.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r2_c0",
+        "baidu_tbl_55_0_r2_c1",
+        "baidu_tbl_55_0_r2_c2",
+        "baidu_tbl_55_0_r2_c3"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "965f88c1fea7ac078d78753c3dbae10e7d92b285f4924cb03f28c5baee7b9cfc",
+      "sourceTextChars": 188
+    },
+    {
+      "id": 3605,
+      "dimension": "体系认证",
+      "weight": 6.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r3_c1",
+        "baidu_tbl_55_0_r3_c2",
+        "baidu_tbl_55_0_r3_c3",
+        "baidu_tbl_55_0_r3_c0"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "14130cb72de906a97a6005e07e25bf60ff16671bd6d3e753a4952c70773ce320",
+      "sourceTextChars": 111
+    },
+    {
+      "id": 3606,
+      "dimension": "总体组织实 施方案",
+      "weight": 10.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r4_c0",
+        "baidu_tbl_55_0_r4_c1",
+        "baidu_tbl_55_0_r4_c2",
+        "baidu_tbl_55_0_r4_c3"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "04cb5aa47190900ab6246696ff8c20d0e54dfedb8054179c70bdfe79f7d56c8c",
+      "sourceTextChars": 321
+    },
+    {
+      "id": 3607,
+      "dimension": "商品覆盖程 度",
+      "weight": 12.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r5_c1",
+        "baidu_tbl_55_0_r5_c2",
+        "baidu_tbl_55_0_r5_c3",
+        "baidu_tbl_55_0_r5_c0",
+        "baidu_tbl_55_0_r6_c0",
+        "baidu_tbl_55_0_r6_c1",
+        "baidu_tbl_55_0_r6_c2",
+        "baidu_tbl_55_0_r6_c3"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "724c8e5c1aafc7e03538bc817eba955c37cc329d5e709cf353acdf1686482ad7",
+      "sourceTextChars": 197
+    },
+    {
+      "id": 3608,
+      "dimension": "货物配送能 力",
+      "weight": 10.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r7_c1",
+        "baidu_tbl_55_0_r7_c2",
+        "baidu_tbl_55_0_r7_c3",
+        "baidu_tbl_55_0_r7_c0"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "6ff22a9c93fb8aa68d50a352395cebcb5935435445b145a6ee9755c084a559e2",
+      "sourceTextChars": 268
+    },
+    {
+      "id": 3609,
+      "dimension": "电商平台便 捷性",
+      "weight": 3.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r8_c1",
+        "baidu_tbl_55_0_r8_c2",
+        "baidu_tbl_55_0_r8_c3",
+        "baidu_tbl_55_0_r8_c0"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "0d7f50435009388079d2cd6d8bab28c78d5c4d483b83ac396358fa21468a58a0",
+      "sourceTextChars": 256
+    },
+    {
+      "id": 3610,
+      "dimension": "商品质量保 障",
+      "weight": 3.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r9_c1",
+        "baidu_tbl_55_0_r9_c2",
+        "baidu_tbl_55_0_r9_c3",
+        "baidu_tbl_55_0_r9_c0"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "123fd983c622308bb6b2c5693aacefe8a273c5849732e620e3f52e794958c1a0",
+      "sourceTextChars": 201
+    },
+    {
+      "id": 3611,
+      "dimension": "售后服务方 案",
+      "weight": 3.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r10_c1",
+        "baidu_tbl_55_0_r10_c2",
+        "baidu_tbl_55_0_r10_c3",
+        "baidu_tbl_55_0_r10_c0",
+        "baidu_tbl_55_0_r11_c0",
+        "baidu_tbl_55_0_r11_c1",
+        "baidu_tbl_55_0_r11_c2",
+        "baidu_tbl_55_0_r11_c3"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "f9a57ce5bc6bafdf1a614cd561ae0f3adb01416a6a72cebe21784b94bef58ba7",
+      "sourceTextChars": 336
+    },
+    {
+      "id": 3612,
+      "dimension": "项目团队",
+      "weight": 3.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r12_c1",
+        "baidu_tbl_55_0_r12_c2",
+        "baidu_tbl_55_0_r12_c3",
+        "baidu_tbl_55_0_r12_c0"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "019993c7441e280c0700981c51fdbbc3317b9153f2240932ec16c589ae42d291",
+      "sourceTextChars": 227
+    },
+    {
+      "id": 3613,
+      "dimension": "专属采购服 务平台建设",
+      "weight": 5.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r13_c1",
+        "baidu_tbl_55_0_r13_c2",
+        "baidu_tbl_55_0_r13_c3",
+        "baidu_tbl_55_0_r13_c0"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "dbc9f95aacb0ef334e17385e2ac790a0a2ee9e7e93ddce86b61587b7668ece22",
+      "sourceTextChars": 176
+    },
+    {
+      "id": 3614,
+      "dimension": "仓储情况",
+      "weight": 5.0,
+      "sourceCells": [
+        "baidu_tbl_55_0_r14_c1",
+        "baidu_tbl_55_0_r14_c2",
+        "baidu_tbl_55_0_r14_c3",
+        "baidu_tbl_55_0_r14_c0",
+        "baidu_tbl_55_0_r15_c0",
+        "baidu_tbl_55_0_r15_c1",
+        "baidu_tbl_55_0_r15_c2",
+        "baidu_tbl_55_0_r15_c3"
+      ],
+      "validation": "REVIEW_REQUIRED",
+      "sourceTextSha256": "77d2c7cd9a058f2b0dd7357106237e22234eef28eef1501bef8af4dffd872584",
+      "sourceTextChars": 209
+    }
+  ]
+}

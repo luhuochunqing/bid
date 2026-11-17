@@ -354,6 +354,17 @@ def test_pdf_chapter_heading_rejects_toc_dot_leader_lines():
     assert _pdf_chapter_heading("") == ""
 
 
+@pytest.mark.parametrize("line", [
+    "第七章 评分标准 " + "." * 28 + "- 52 -",
+    "第七章 评分标准………— 52 —",
+    "第七章 评分标准 - 52 -",
+])
+def test_pdf_headings_reject_toc_hyphen_page_numbers(line):
+    assert _pdf_chapter_heading(line) == ""
+    assert _pdf_section_heading(line) == ""
+    assert _pdf_section_heading(line + "\n第七章 评分标准") == "第七章 评分标准"
+
+
 def test_pdf_chapter_heading_rejects_wide_dot_leader_characters():
     for leader in "…·•‥∙．⋯⋮⋱․‧":
         assert _pdf_chapter_heading("第三章 评审办法" + leader * 3 + "27") == "", leader

@@ -28,8 +28,9 @@ PDF_OCR_MIN_CONFIDENCE = 70.0
 # （该章表格转为人工复核），也不让目录行成为方案根（会造成文档级方案歧义，正是本次修复的目标）。
 # 字符集需与 backend OriginalScoringTextScopePolicy.TOC_ENTRY 保持同构，两处修改必须同步。
 _PDF_TOC_LEADER = re.compile(
-    r"(?:[.…·•‥∙．⋯⋮⋱․‧]\s*){2,}\d{0,4}\s*$"
+    r"(?:[.…·•‥∙．⋯⋮⋱․‧]\s*){2,}(?:[-—–－]\s*)?\d{0,4}\s*(?:[-—–－]\s*)?$"
     r"|\s\d{1,3}\s*$"
+    r"|\s[-—–－]\s*\d{1,4}\s*[-—–－]\s*$"
 )
 # 只认「第X章」，且标题必须非空：与 backend SOURCE_HEADING / CHAPTER 保持一致。
 # 不认「第X节」「第X部分」（后端不消费，会变成必然被拒的锚点）；

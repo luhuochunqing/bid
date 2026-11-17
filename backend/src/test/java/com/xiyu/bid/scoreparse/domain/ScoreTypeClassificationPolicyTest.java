@@ -209,4 +209,30 @@ class ScoreTypeClassificationPolicyTest {
                 + "本项满分100分。 | 6%";
         assertThat(policy.classify(financial)).isEqualTo("OBJECTIVE");
     }
+    @Test
+    void project1133QualitativeGradesDoNotBecomeNumericConditions() {
+        assertThat(policy.classify("总体组织实施方案详细完整，完全满足招标人使用需求且更为优越，得10-7.1分；基本满足得7-4.1分；未提供得0分。"))
+                .isEqualTo("SUBJECTIVE");
+        assertThat(policy.classify("商品品目丰富、覆盖面广，完全满足需求且更为优越，得12-9.1分；基本满足需求，得9-4.1分。"))
+                .isEqualTo("SUBJECTIVE");
+        assertThat(policy.classify("项目团队工作经验丰富，客服规模实力强大，得3-2.1分；工作经验比较丰富，基本满足需求，得2-1.1分；未提供得0分。"))
+                .isEqualTo("SUBJECTIVE");
+    }
+
+    @Test
+    void project1133FixedConditionsRemainObjective() {
+        assertThat(policy.classify("自有快递公司并能次日到货得10分；与其他快递公司有配送服务并能次日到货得7分；未提供得0分。"))
+                .isEqualTo("OBJECTIVE");
+        assertThat(policy.classify("有专属采购操作系统得3分，提供截图；支持API接口数据交互，提供承诺函得2分。"))
+                .isEqualTo("OBJECTIVE");
+        assertThat(policy.classify("根据仓储中心布点由高到低排序，最多的得5分，每个排名名次递减1分，最低0分。"))
+                .isEqualTo("OBJECTIVE");
+    }
+
+    @Test
+    void quantifiedThresholdWithSatisfactionWordingRemainsObjective() {
+        assertThat(policy.classify("配送数量基本满足3项条件，每项得2分，最高6分。"))
+                .isEqualTo("OBJECTIVE");
+    }
+
 }

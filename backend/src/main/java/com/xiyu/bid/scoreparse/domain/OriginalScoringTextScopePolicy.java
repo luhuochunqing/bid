@@ -24,7 +24,7 @@ final class OriginalScoringTextScopePolicy {
      * <p>This is the form {@link OriginalScoringSchemePolicy} strips before comparing two titles,
      * so it deliberately stays narrower than {@link #TOC_ENTRY}: only dot leaders are removed.
      */
-    static final Pattern TOC_TRAILER = Pattern.compile("(?:[.…·•‥∙．⋯⋮⋱․‧]\\s*){2,}\\d{0,4}\\s*$");
+    static final Pattern TOC_TRAILER = Pattern.compile("(?:[.…·•‥∙．⋯⋮⋱․‧]\\s*){2,}(?:[-—–－]\\s*)?\\d{0,4}\\s*(?:[-—–－]\\s*)?$");
     /**
      * A line that is a table-of-contents entry: a dot-leader trailer, or a title with a page
      * number to its right and no leaders at all — a shape at least as common as dot leaders.
@@ -38,7 +38,7 @@ final class OriginalScoringTextScopePolicy {
      * exactly the ambiguity this class exists to prevent. Concatenation makes that structural.
      */
     private static final Pattern TOC_ENTRY = Pattern.compile(
-            TOC_TRAILER.pattern() + "|\\s\\d{1,3}\\s*$");
+            TOC_TRAILER.pattern() + "|\\s\\d{1,3}\\s*$|\\s[-—–－]\\s*\\d{1,4}\\s*[-—–－]\\s*$");
 
     private OriginalScoringTextScopePolicy() {}
 

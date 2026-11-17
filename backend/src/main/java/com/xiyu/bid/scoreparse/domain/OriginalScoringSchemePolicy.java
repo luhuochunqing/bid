@@ -18,6 +18,11 @@ final class OriginalScoringSchemePolicy {
     private static final Pattern SCHEME = Pattern.compile(
             ".*(?:评\\s*分\\s*办\\s*法|评\\s*审\\s*办\\s*法|评\\s*分\\s*方\\s*案|评\\s*标\\s*办\\s*法|评\\s*标\\s*方\\s*法|评\\s*审\\s*方\\s*法|评\\s*分\\s*规\\s*则|评\\s*分\\s*标\\s*准|评\\s*审\\s*标\\s*准|综\\s*合\\s*评\\s*分\\s*法).*",
             Pattern.DOTALL);
+    /** A numbered method field declares how evaluation works; it is not a second scoring chapter. */
+    private static final Pattern METHOD_DECLARATION = Pattern.compile(
+            "^(?:[0-9]{1,2}[.、]?)(?:评标|评审|评分)(?:方法|办法)[:：](?:采用|使用|为)?"
+                    + "(?:综合评分法|综合评估法|最低评标价法|经评审的最低投标价法)(?:[（(].*[）)])?[。；;]?$"
+    );
     private static final Pattern OTHER = Pattern.compile(".*(?:其他标包|其它标包|示例|样例|参考).*", Pattern.DOTALL);
     private static final Pattern CONTRACT_AUDIT = Pattern.compile(".*(?:合同履约考核|履约考核|合同绩效考核|服务考核).*", Pattern.DOTALL);
     private static final Pattern PRELIMINARY_REVIEW = Pattern.compile(
@@ -211,7 +216,8 @@ final class OriginalScoringSchemePolicy {
     static boolean isValidSchemeRoot(String title) {
         if (title == null || title.isBlank()) return false;
         String compactTitle = compact(title);
-        return SCHEME.matcher(compactTitle).matches() && !isOtherSection(compactTitle)
+        return SCHEME.matcher(compactTitle).matches() && !METHOD_DECLARATION.matcher(compactTitle).matches()
+                && !isOtherSection(compactTitle)
                 && !CONTRACT_AUDIT.matcher(compactTitle).matches()
                 && !PRELIMINARY_REVIEW.matcher(compactTitle).matches();
     }

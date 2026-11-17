@@ -7,9 +7,13 @@ import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /** Builds post-extraction Sidecar evidence and binds text facts back to source cells. */
 final class TextPrimaryEvidenceBinder {
+    private static final Pattern UNSCOPED_SCORING_RULE = Pattern.compile(
+            "(?s).*(?:得|扣|加|满分|分值)[^。；;]{0,40}[0-9]+(?:\\.[0-9]+)?分.*");
+
     private TextPrimaryEvidenceBinder() {
     }
 
@@ -129,6 +133,15 @@ final class TextPrimaryEvidenceBinder {
         if (offset < 0 || normalizedText.text().indexOf(normalizedQuote, offset + 1) >= 0) return java.util.Optional.empty();
         int sourceOffset = normalizedText.offsets().get(offset);
         int line = lineOfOffset(tenderText, sourceOffset);
+        var scope = OriginalScoringContext.textScopeAt(tenderText, line);
+        // A unique title in a material list is not source evidence for a scoring rule.
+        // Keep outside-rule provenance so qualification can explicitly exclude it, rather than lose its scope.
+        if (scope == null || (scope.scopeStatus().isBlank()
+                && !UNSCOPED_SCORING_RULE.matcher(normalizedQuote).matches())
+                || ("IN_SCHEME".equals(scope.scopeStatus()) && !fact.schemeId().isBlank()
+                    && !fact.schemeId().equals(scope.schemeId()))) {
+            return java.util.Optional.empty();
+        }
         int sourceEnd = normalizedText.offsets().get(offset + normalizedQuote.length() - 1) + 1;
         String raw = tenderText.substring(sourceOffset, sourceEnd);
         String locator = "text:line[" + line + "]";
