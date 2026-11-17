@@ -8,8 +8,11 @@ import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 public final class SourceTableHeaderPolicy {
+    private static final Pattern SCORE_HEADER = Pattern.compile("分值|分数|得分|权重|满分|最高分|评分分值");
+    private static final Pattern RULE_HEADER = Pattern.compile("(?:评分|评审)(?:标准|细则)|规则|评分要求");
     private SourceTableHeaderPolicy() {}
 
     public static Map<Integer, String> headers(DocumentArtifact artifact, CanonicalTable table) {
@@ -29,24 +32,27 @@ public final class SourceTableHeaderPolicy {
         // Headerless continuations are often not flagged isScoreTable by the converter.
         // Require actual numeric data in the inherited score column and a nonempty rule.
         boolean data = table.cells().stream().anyMatch(c -> c.rawText() != null && c.column() != null
-                && inherited.getOrDefault(c.column(), "").matches("分值|分数|得分|权重|满分|最高分|评分分值")
+                && SCORE_HEADER.matcher(inherited.getOrDefault(c.column(), "")).matches()
                 && c.rawText().strip().matches("\\d+(?:\\.\\d+)?") && table.cells().stream().anyMatch(rule ->
                 Objects.equals(rule.row(), c.row()) && rule.rawText() != null && !rule.rawText().isBlank()
-                        && inherited.getOrDefault(rule.column(), "").matches("(?:评分|评审)(?:标准|细则)|规则|评分要求")));
+                        && RULE_HEADER.matcher(inherited.getOrDefault(rule.column(), "")).matches()));
         return data ? inherited : Map.of();
     }
 
     public static boolean scoreColumn(DocumentArtifact artifact, CanonicalTable table, Integer column) {
-        return column != null && headers(artifact, table).getOrDefault(column, "")
-                .matches("分值|分数|得分|权重|满分|最高分|评分分值");
+        if (column == null) return false;
+        // Explicit maxima remain valid even when the rule header uses a different label.
+        return table.cells().stream().anyMatch(c -> Integer.valueOf(0).equals(c.row())
+                && column.equals(c.column()) && ScoreWeightSourceEvidence.scoreColumn(c, table))
+                || SCORE_HEADER.matcher(headers(artifact, table).getOrDefault(column, "")).matches();
     }
 
     private static Map<Integer, String> explicit(CanonicalTable table) {
         var roles = new LinkedHashMap<Integer, String>();
         table.cells().stream().filter(c -> Integer.valueOf(0).equals(c.row()) && c.column() != null
                 && c.rawText() != null).forEach(c -> roles.put(c.column(), c.rawText().replaceAll("\\s+", "")));
-        boolean score = roles.values().stream().anyMatch(h -> h.matches("分值|分数|得分|权重|满分|最高分|评分分值"));
-        boolean rule = roles.values().stream().anyMatch(h -> h.matches("(?:评分|评审)(?:标准|细则)|规则|评分要求"));
+        boolean score = roles.values().stream().anyMatch(h -> SCORE_HEADER.matcher(h).matches());
+        boolean rule = roles.values().stream().anyMatch(h -> RULE_HEADER.matcher(h).matches());
         return score && rule ? Map.copyOf(roles) : Map.of();
     }
 }

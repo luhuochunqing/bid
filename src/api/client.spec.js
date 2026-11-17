@@ -94,6 +94,23 @@ describe('httpClient response errors', () => {
     expect(mocks.httpClient.get.mock.calls[0][0]).toBe('/api/projects/9/score-parse/extraction/latest')
   })
 
+  it.each([
+    ['getScoringStatus', [580]], ['triggerScoring', [580, { source: 'MANUAL', scope: 'ALL' }]],
+    ['getResults', [580]], ['getItems', [580]], ['getExtraction', [580, 'task-233']],
+  ])('leaves %s HTTP failures to the drawer without an earlier raw-code notification', async (method, args) => {
+    await import('./client.js')
+    const { scoreParseApi } = await import('./modules/scoreParse.js')
+    const error = { response: { status: 500, data: { msg: 'SCORING_EXTRACTION_FAILED' } } }
+    const adapter = (url, bodyOrConfig, postConfig) => {
+      error.config = { ...(method === 'triggerScoring' ? postConfig : bodyOrConfig), url }
+      return mocks.responseHandlers.rejected(error)
+    }
+    mocks.httpClient[method === 'triggerScoring' ? 'post' : 'get'].mockImplementationOnce(adapter)
+    await expect(scoreParseApi[method](...args)).rejects.toBe(error)
+    expect(mocks.error).not.toHaveBeenCalled()
+    expect(mocks.warning).not.toHaveBeenCalled()
+  })
+
   it('keeps extraction activation conflicts globally visible', async () => {
     await import('./client.js')
     const { scoreParseApi } = await import('./modules/scoreParse.js')

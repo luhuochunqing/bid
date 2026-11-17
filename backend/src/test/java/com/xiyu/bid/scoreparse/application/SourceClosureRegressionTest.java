@@ -22,6 +22,29 @@ class SourceClosureRegressionTest {
     static final String SECTION = "第四章：评审方法";
     static final String RULE = "提供结算响应承诺书。接受六个月承兑结算得1分；三个月得0.5分；未提供不得分。";
 
+    @Test void explicitMaximumColumnDoesNotRequireStandardRuleHeader() {
+        String rule = "每提供一项证书加1分。";
+        for (String scoreHeader : List.of("最高分", "最高分（分）", "评分分值")) {
+            var table = new CanonicalTable("t", 1, SECTION, 2, 3, List.of(), List.of(
+                    cell("h-name", 0, 0, "评审项目", 1), cell("h-rule", 0, 1, "评审内容", 1),
+                    cell("h-weight", 0, 2, scoreHeader, 1), cell("name", 1, 0, "认证情况", 1),
+                    cell("rule", 1, 1, rule, 1), cell("weight", 1, 2, "10", 1)), true, "PDF");
+            var artifact = artifact(table);
+            var context = OriginalScoringContext.resolve(artifact, "# " + SECTION);
+            var correct = fact("certificate", "", "认证情况", rule, rule, List.of("rule", "weight"), 10);
+            assertThat(OriginalScoreEvidencePolicy.verifyModel(context, artifact, List.of(correct), null).problems())
+                    .as("explicit %s must override per-certificate award", scoreHeader)
+                    .noneMatch(problem -> problem.field().equals("weight"));
+            var incorrect = fact("certificate", "", "认证情况", rule, rule, List.of("rule", "weight"), 1);
+            assertThat(OriginalScoreEvidencePolicy.verifyModel(context, artifact, List.of(incorrect), null).problems())
+                    .anySatisfy(problem -> {
+                        assertThat(problem.code()).isEqualTo("ITEM_WEIGHT_SOURCE_MISMATCH");
+                        assertThat((BigDecimal) problem.expected()).isEqualByComparingTo("10");
+                        assertThat((BigDecimal) problem.actual()).isEqualByComparingTo("1");
+                    });
+        }
+    }
+
     @Test void aliasesCitingNameAndRuleOrRuleAloneDenoteOneWholeScoringRow() {
         var artifact = artifact(table("t", 1, List.of(
                 cell("name", 1, 0, "结算方式（1分）", 1), cell("weight", 1, 1, "1", 1), cell("rule", 1, 2, RULE, 1))));

@@ -1,5 +1,5 @@
 // Input: httpClient and score-parse backend endpoints (spec 041, PR !2293)
-// Output: scoreParseApi - optional snapshot errors handled by drawer; active items, independent estimate refresh, CAS activation and scoring
+// Output: scoreParseApi - drawer-owned read/scoring errors; independent estimate refresh and CAS activation
 // Pos: src/api/modules/ - Frontend API module layer
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -16,7 +16,7 @@ export const scoreParseApi = {
     return httpClient.get(`/api/projects/${projectId}/score-parse/extraction/latest`, { skipGlobalErrorMessage: true })
   },
   async getExtraction(projectId, taskId) {
-    return httpClient.get(`/api/projects/${projectId}/score-parse/extraction/${encodeURIComponent(taskId)}`)
+    return httpClient.get(`/api/projects/${projectId}/score-parse/extraction/${encodeURIComponent(taskId)}`, { skipGlobalErrorMessage: true })
   },
   /** selectedItemIds 为完整替换集合，expectedActiveFingerprint 为读取时的 CAS 值 */
   async activateExtraction(projectId, taskId, body) {
@@ -25,7 +25,7 @@ export const scoreParseApi = {
 
   /** 阶段 1 评分项清单（含 estScore/estBasis/kbHit 与 summary 统计） */
   async getItems(projectId) {
-    return httpClient.get(`/api/projects/${projectId}/score-parse/items`)
+    return httpClient.get(`/api/projects/${projectId}/score-parse/items`, { skipGlobalErrorMessage: true })
   },
 
   /** 仅更新已生效评分项的知识库预判，不触发解析或实际打分 */
@@ -55,16 +55,16 @@ export const scoreParseApi = {
 
   /** 触发阶段 2 实际打分（异步任务，返回 { taskId, status }） */
   async triggerScoring(projectId, body = {}) {
-    return httpClient.post(`/api/projects/${projectId}/score-parse/scoring`, body)
+    return httpClient.post(`/api/projects/${projectId}/score-parse/scoring`, body, { skipGlobalErrorMessage: true })
   },
 
   /** 阶段 2 打分进度轮询（PENDING/PROCESSING/COMPLETED/FAILED） */
   async getScoringStatus(projectId) {
-    return httpClient.get(`/api/projects/${projectId}/score-parse/scoring/status`)
+    return httpClient.get(`/api/projects/${projectId}/score-parse/scoring/status`, { skipGlobalErrorMessage: true })
   },
 
   /** 阶段 2 打分结果（actualScore/evidence/quote/missedReason/suggestion） */
   async getResults(projectId) {
-    return httpClient.get(`/api/projects/${projectId}/score-parse/results`)
+    return httpClient.get(`/api/projects/${projectId}/score-parse/results`, { skipGlobalErrorMessage: true })
   },
 }

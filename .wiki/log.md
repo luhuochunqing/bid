@@ -1882,3 +1882,6 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 ## [2026-11-17] compound | [[scoreparse-1124-scheme-colon-and-recheck-dedup]]：116=100+重复22-物流6；本地来源闭合、双层表头/无表头续页、规则与父项恢复，未部署或线上采纳。
 
 ## [2026-11-17] compound | [[scoreparse-1124-scheme-colon-and-recheck-dedup]]：第1轮修复外层切换残留内层标签、同标题跨文档伪总分；新增来源身份边界及同源跨页回归，未部署。
+## [2026-11-17] compound | score580-scanned-bid-scoring 历史失败243与运行中245分开，核对生产版本及OCR覆盖
+
+## [2026-11-17] compound | score580-scanned-bid-scoring 补证历史FAILED恢复重复toast、文案映射旁路与测试缺口

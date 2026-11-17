@@ -30,3 +30,5 @@
 ### 案例生成失败提示
 
 结果登记与结项阶段通过 `useCasePrecipitationTask` 恢复最新任务；FAILED 时持续显示服务端 `message`，按钮退出忙碌态后提示仍保留。新任务受理后清除旧失败原因。结果登记后的自动触发和前置条件不变。
+
+- 2026-11-17：实际评分历史FAILED仅恢复页内状态，不重复toast；主动评分失败统一中文提示并保留页内原因，任务UUID不进入用户提示；未知技术码使用安全兜底。评分提示区域通过role=status可访问；e2e/score-parse-candidate-review.spec.js提供真实历史FAILED项目的只读重开验收，不制造失败或拦截业务响应。

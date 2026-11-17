@@ -349,6 +349,114 @@ describe('useScoreParseDrawer.js', () => {
     // (scoreTime gets overwritten by pollTask completedAt, that's expected)
   })
 
+  it('restores historical scoring failure silently on every reopen with readable text', async () => {
+    scoreParseApi.getScoringStatus.mockResolvedValue({ data: { taskId: 'old-task-243', status: 'FAILED',
+      errorMessage: 'SCORING_EXTRACTION_FAILED', completedAt: '2026-11-16T13:55:23' } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    drawer.visible.value = false
+    await drawer.open({ stage: 2 })
+    expect(ElMessage.error).not.toHaveBeenCalled()
+    expect(ElMessage.warning).not.toHaveBeenCalled()
+    expect(ElMessage.info).not.toHaveBeenCalled()
+    expect(drawer.scoringHint.value).toContain('上次打分未完成')
+    expect(drawer.scoringHint.value).toContain('投标文件')
+    expect(drawer.scoringHint.value).not.toMatch(/SCORING_|old-task-243/)
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+    expect(drawer.error.value).toBe('')
+  })
+
+  it('notifies a current scoring failure with a readable message instead of a raw code', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    scoreParseApi.getScoringStatus.mockResolvedValue({ data: { taskId: 't-score', status: 'FAILED',
+      errorMessage: 'SCORING_EXTRACTION_FAILED' } })
+    await drawer.runScoring()
+    expect(ElMessage.error).toHaveBeenCalledTimes(1)
+    expect(ElMessage.error.mock.calls[0][0]).toContain('投标文件')
+    expect(ElMessage.error.mock.calls[0][0]).not.toMatch(/SCORING_|t-score/)
+    expect(drawer.scoringHint.value).not.toMatch(/SCORING_|t-score/)
+    expect(drawer.actualTotalScore.value).toBe(6)
+  })
+
+  it('keeps a resumed task failure inline without a new error notification', async () => {
+    scoreParseApi.getScoringStatus
+      .mockResolvedValueOnce({ data: { taskId: 'running-task', status: 'PROCESSING' } })
+      .mockResolvedValue({ data: { taskId: 'running-task', status: 'FAILED', errorMessage: 'UNKNOWN_INTERNAL_FAILURE' } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    await vi.waitFor(() => expect(drawer.scoringOverlayVisible.value).toBe(false))
+    expect(ElMessage.error).not.toHaveBeenCalled()
+    expect(drawer.scoringHint.value).toContain('打分未完成')
+    expect(drawer.scoringHint.value).not.toMatch(/UNKNOWN_INTERNAL_FAILURE|running-task/)
+  })
+
+  it('clears historical failure when a later read is completed or has no task', async () => {
+    scoreParseApi.getScoringStatus.mockResolvedValueOnce({ data: { taskId: 'old', status: 'FAILED', errorMessage: 'SCORING_EXTRACTION_FAILED' } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    expect(drawer.scoringHint.value).not.toBe('')
+    await drawer.open({ stage: 2 })
+    expect(drawer.scoringHint.value).toBe('')
+    scoreParseApi.getScoringStatus.mockResolvedValue({ data: null })
+    await drawer.open({ stage: 2 })
+    expect(drawer.scoringHint.value).toBe('')
+  })
+
+  it('silently handles a status read failure when opening the drawer', async () => {
+    scoreParseApi.getScoringStatus.mockRejectedValue(new Error('Network Error'))
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    expect(drawer.scoringHint.value).toContain('暂未获取结果')
+    expect(ElMessage.info).not.toHaveBeenCalled()
+    expect(ElMessage.error).not.toHaveBeenCalled()
+    expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
+  })
+
+  it('maps an unknown submission failure and keeps its explanation inline', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    scoreParseApi.triggerScoring.mockRejectedValue({ response: { status: 500, data: { msg: 'NEW_INTERNAL_FAILURE' } } })
+    await drawer.runScoring()
+    expect(ElMessage.error).toHaveBeenCalledWith(drawer.scoringHint.value)
+    expect(drawer.scoringHint.value).toContain('本次打分未完成')
+    expect(drawer.scoringHint.value).not.toContain('NEW_INTERNAL_FAILURE')
+  })
+
+  it('owns one readable rate-limit notification for an explicit scoring request', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    scoreParseApi.triggerScoring.mockRejectedValue({ response: { status: 429, data: { msg: 'RATE_LIMIT' } } })
+    await drawer.runScoring()
+    expect(ElMessage.error).not.toHaveBeenCalled()
+    expect(ElMessage.warning).toHaveBeenCalledTimes(1)
+    expect(ElMessage.warning).toHaveBeenCalledWith('操作太快了，请稍等几秒再试')
+    expect(drawer.scoringHint.value).not.toContain('RATE_LIMIT')
+  })
+
+  it('clears a historical failure after a successful explicit retry', async () => {
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: REAL_RESULTS, qualityStatus: 'COMPLETE',
+      coverage: { coverageStatus: 'COMPLETE' }, objectiveScored: 1, objectivePending: 0,
+      subjectivePending: 1, failed: 0, diagnosticsKnown: true } })
+    scoreParseApi.getScoringStatus.mockResolvedValueOnce({ data: { taskId: 'old', status: 'FAILED', errorMessage: 'SCORING_EXTRACTION_FAILED' } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    expect(drawer.scoringHint.value).toContain('上次打分未完成')
+    await drawer.runScoring()
+    expect(drawer.scoringHint.value).toBe('')
+    expect(ElMessage.success).toHaveBeenCalled()
+  })
+
+  it('clears the running hint after a resumed task completes', async () => {
+    scoreParseApi.getScoringStatus.mockResolvedValueOnce({ data: { taskId: 't-score', status: 'PROCESSING' } })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    await vi.waitFor(() => expect(drawer.scoringOverlayVisible.value).toBe(false))
+    expect(drawer.scoringHint.value).toBe('')
+    expect(ElMessage.success).not.toHaveBeenCalled()
+    expect(ElMessage.error).not.toHaveBeenCalled()
+  })
+
   it('surfaces backend FAILED status as scoring error', async () => {
     scoreParseApi.getResults.mockResolvedValue({ data: { results: [], summary: null } })
     scoreParseApi.getScoringStatus.mockResolvedValue({

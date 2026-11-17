@@ -158,7 +158,7 @@
         <div class="toolbar">
           <div class="toolbar-info">
             <span class="doc-tag">📦 投标文件：{{ bidFileName }}</span>
-            <span v-if="scoringHint" class="doc-tag">{{ scoringHint }}</span>
+            <span v-if="scoringHint" class="doc-tag" role="status" data-test="scoring-hint">{{ scoringHint }}</span>
             <span v-if="circuitHint" class="doc-tag">{{ circuitHint }}</span>
             <span class="doc-time">评分时间 {{ scoreTime }}</span>
           </div>
