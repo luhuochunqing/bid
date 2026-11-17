@@ -87,7 +87,8 @@ final class OriginalScoringSchemePolicy {
                     .filter(scope -> entry.getKey().equals(scope.schemeId()) && "IN_SCHEME".equals(scope.scopeStatus())).toList();
             String scopedText = scopes.isEmpty() ? (titles.size() == 1 ? text : "")
                     : OriginalScoringTextScopePolicy.textWithinScopes(text, scopes);
-            DocumentArtifact scopedArtifact = new DocumentArtifact(artifact.artifact(), owned, artifact.warnings());
+            DocumentArtifact scopedArtifact = new DocumentArtifact(artifact.artifact(), owned, artifact.warnings(),
+                    List.of(), artifact.schemaVersion(), artifact.documents());
             OriginalScoringContext context = OriginalScoringContext.resolve(scopedArtifact, scopedText);
             OriginalScoreEvidencePolicy.Total total = context.total();
             String state = total.value() != null ? "VERIFIED" : "CONFLICT".equals(total.source()) ? "CONFLICT" : "UNKNOWN";

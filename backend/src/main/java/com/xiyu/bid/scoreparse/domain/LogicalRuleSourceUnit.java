@@ -61,7 +61,7 @@ public final class LogicalRuleSourceUnit {
                 : row.stream().allMatch(c -> c.cell().sourcePage() != null || c.table().sourcePage() != null)
                 && OriginalScoreQualificationPolicy.resolveReferencedCells(artifact, row.getFirst().table().tableId(), ids).size() == row.size();
         if (!proven) return new Resolution(true, false, List.of());
-        var headers = rowHeaders(row);
+        var headers = rowHeaders(artifact, row);
         int minCitedCol = cited.stream().map(c -> c.cell().column()).filter(Objects::nonNull).mapToInt(Integer::intValue).min().orElse(0);
         // Remove structural identity/value columns, retaining rule AND material/notes columns in document order.
         var rules = row.stream().filter(c -> !text(c.cell().rawText()).isBlank() && !Boolean.TRUE.equals(c.cell().isMergedContinue()))
@@ -98,7 +98,7 @@ public final class LogicalRuleSourceUnit {
         int lastRow = row.stream().filter(c -> c.table().equals(lastTable)).map(Cell::cell).map(CanonicalCellDto::row)
                 .filter(Objects::nonNull).mapToInt(Integer::intValue).max().orElse(-1);
         if (lastRow < 0 || lastTable.rows() <= 0) return false;
-        var headers = rowHeaders(row);
+        var headers = rowHeaders(artifact, row);
         if (lastRow < lastTable.rows() - 1) return independent(lastTable, lastRow + 1, headers, type);
         var next = artifact.tables().subList(artifact.tables().indexOf(lastTable) + 1, artifact.tables().size()).stream()
                 .filter(t -> Objects.equals(document, artifact.documentFor(t.tableId()))).findFirst();
@@ -188,9 +188,11 @@ public final class LogicalRuleSourceUnit {
     private static List<Cell> cells(DocumentArtifact artifact) {
         return artifact.tables().stream().flatMap(t -> t.cells().stream().map(c -> new Cell(t, c))).toList();
     }
-    private static Map<Integer, String> rowHeaders(List<Cell> row) {
-        return row.stream().map(Cell::table).distinct().map(t -> titles(t.cells().stream()
-                        .filter(c -> Integer.valueOf(0).equals(c.row())).toList()))
+    private static Map<Integer, String> rowHeaders(DocumentArtifact artifact, List<Cell> row) {
+        return row.stream().map(Cell::table).distinct().map(t -> {
+                    var inherited = SourceTableHeaderPolicy.headers(artifact, t);
+                    return inherited.isEmpty() ? titles(t.cells().stream().filter(c -> Integer.valueOf(0).equals(c.row())).toList()) : inherited;
+                })
                 .filter(LogicalRuleSourceUnit::independentColumns).findFirst().orElse(Map.of());
     }
     private static Map<Integer, String> titles(List<CanonicalCellDto> cells) {
@@ -237,7 +239,7 @@ public final class LogicalRuleSourceUnit {
         if (titles.values().stream().anyMatch(LogicalRuleSourceUnit::isId)) return false;
         var names = titles.entrySet().stream().filter(e -> isName(e.getValue())).map(Map.Entry::getKey).toList();
         var scores = titles.entrySet().stream().filter(e -> isScore(e.getValue())).map(Map.Entry::getKey).toList();
-        return names.size() == 1 && scores.size() == 1 && !names.getFirst().equals(scores.getFirst());
+        return !names.isEmpty() && scores.size() == 1 && !names.contains(scores.getFirst());
     }
     private static String cleanRole(String role) {
         return role == null ? "" : role.replaceAll("\\s+", "");

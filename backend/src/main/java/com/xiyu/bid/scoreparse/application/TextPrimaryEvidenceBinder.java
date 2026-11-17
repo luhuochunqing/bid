@@ -1,18 +1,15 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
+import com.xiyu.bid.scoreparse.domain.EvidenceText;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
 import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.regex.Pattern;
 
 /** Builds post-extraction Sidecar evidence and binds text facts back to source cells. */
 final class TextPrimaryEvidenceBinder {
-    private static final Pattern SCORE_COLUMN = Pattern.compile("(?:分值|分数|得分)");
-    private static final Pattern ID_COLUMN = Pattern.compile("(?:序号|编号)");
-
     private TextPrimaryEvidenceBinder() {
     }
 
@@ -29,8 +26,8 @@ final class TextPrimaryEvidenceBinder {
     static List<MultimodalScoreFact> bind(List<MultimodalScoreFact> facts, DocumentArtifact artifact,
                                           String tenderText) {
         if (facts == null || facts.isEmpty()) return List.of();
-        NormalizedEvidence normalizedText = tenderText == null || tenderText.isBlank()
-                ? null : normalizeWithOffsets(tenderText);
+        EvidenceText normalizedText = tenderText == null || tenderText.isBlank()
+                ? null : EvidenceText.normalize(tenderText);
         List<OriginalScoringContext.SchemeEvidence> schemes = OriginalScoringContext.schemes(artifact, tenderText);
         List<MultimodalScoreFact> boundFacts = facts.stream().map(fact -> {
             if (!fact.sourceMetadata().sourceSpans().isEmpty()) return fact;
@@ -63,9 +60,14 @@ final class TextPrimaryEvidenceBinder {
                     .or(() -> PdfRowEvidenceBinder.bindMisplacedOrdinal(fact, artifact, schemes))
                     .or(() -> LogicalRowEvidenceBinder.bind(fact, artifact, schemes));
             if (bound.isPresent()) return withOriginalMetadata(fact, addLogicalItemName(fact, bound.get(), artifact));
-            if (exactCells.isEmpty() && artifact != null) {
-                var ocrBound = textBlockEvidence(fact, artifact);
-                if (ocrBound.isPresent()) return withOriginalMetadata(fact, ocrBound.get());
+            if (artifact != null) {
+                var fullRule = PdfFullRuleQuoteBinder.bindLabel(fact, artifact, schemes)
+                        .or(() -> PdfFullRuleQuoteBinder.bind(fact, artifact, schemes));
+                if (fullRule.isPresent()) return withOriginalMetadata(fact, fullRule.get());
+                if (exactCells.isEmpty()) {
+                    var ocrBound = textBlockEvidence(fact, artifact);
+                    if (ocrBound.isPresent()) return withOriginalMetadata(fact, ocrBound.get());
+                }
             }
             return textEvidence(fact, tenderText, normalizedText).map(value -> withOriginalMetadata(fact, value)).orElse(fact);
         }).toList();
@@ -79,6 +81,8 @@ final class TextPrimaryEvidenceBinder {
         String tableSchemeId = schemes.stream().filter(scheme -> scheme.tableIds().contains(table.tableId()))
                 .map(OriginalScoringContext.SchemeEvidence::schemeId).findFirst()
                 .orElseGet(() -> tableScheme.isBlank() ? "" : OriginalScoringContext.schemeId(tableScheme));
+        if (!fact.schemeId().isBlank() && schemes.stream().anyMatch(s -> s.schemeId().equals(fact.schemeId()))
+                && !fact.schemeId().equals(tableSchemeId)) return false;
         if ("IN_SCHEME".equals(fact.scopeStatus()) && !fact.schemeId().isBlank()
                 && !tableSchemeId.isBlank() && !fact.schemeId().equals(tableSchemeId)) return false;
         if ("OUT_OF_SCHEME".equals(fact.scopeStatus())) {
@@ -114,7 +118,7 @@ final class TextPrimaryEvidenceBinder {
     }
 
     private static java.util.Optional<MultimodalScoreFact> textEvidence(MultimodalScoreFact fact, String tenderText,
-                                                                         NormalizedEvidence normalizedText) {
+                                                                         EvidenceText normalizedText) {
         if (tenderText == null || tenderText.isBlank() || fact.quotedText().isBlank() || normalizedText == null) {
             return java.util.Optional.empty();
         }
@@ -123,9 +127,9 @@ final class TextPrimaryEvidenceBinder {
         if (normalizedQuote.isBlank()) return java.util.Optional.empty();
         int offset = normalizedText.text().indexOf(normalizedQuote);
         if (offset < 0 || normalizedText.text().indexOf(normalizedQuote, offset + 1) >= 0) return java.util.Optional.empty();
-        int sourceOffset = normalizedText.sourceOffsets().get(offset);
+        int sourceOffset = normalizedText.offsets().get(offset);
         int line = lineOfOffset(tenderText, sourceOffset);
-        int sourceEnd = normalizedText.sourceOffsets().get(offset + normalizedQuote.length() - 1) + 1;
+        int sourceEnd = normalizedText.offsets().get(offset + normalizedQuote.length() - 1) + 1;
         String raw = tenderText.substring(sourceOffset, sourceEnd);
         String locator = "text:line[" + line + "]";
         var span = new com.xiyu.bid.scoreparse.domain.SourceSpan("", "", "TEXT", fact.schemeId(), null,
@@ -150,20 +154,6 @@ final class TextPrimaryEvidenceBinder {
         int line = 0;
         for (int i = 0; i < offset; i++) if (source.charAt(i) == '\n') line++;
         return line;
-    }
-
-    private static NormalizedEvidence normalizeWithOffsets(String source) {
-        var normalized = com.xiyu.bid.scoreparse.domain.EvidenceText.normalize(source);
-        return new NormalizedEvidence(normalized.text(), normalized.offsets());
-    }
-
-    private static boolean isMarkdownEmphasis(String source, int index) {
-        return index + 1 < source.length()
-                && ((source.charAt(index) == '*' && source.charAt(index + 1) == '*')
-                || (source.charAt(index) == '_' && source.charAt(index + 1) == '_'));
-    }
-
-    private record NormalizedEvidence(String text, List<Integer> sourceOffsets) {
     }
 
     private static boolean matchesExact(MultimodalScoreFact fact, Object[] pair,
@@ -255,12 +245,4 @@ final class TextPrimaryEvidenceBinder {
                 .map(span -> raw.substring(span.start(), span.end())).orElse(quote);
     }
 
-    private static DocumentArtifact extract(LoadedBidFile loaded, String fileName,
-                                            SidecarDocumentArtifactExtractor extractor)
-            throws IOException, InterruptedException {
-        return switch (loaded) {
-            case LoadedBidFile.InMemory inMem -> extractor.extract(inMem.content(), fileName);
-            case LoadedBidFile.OnDisk onDisk -> extractor.extract(onDisk.tempFile(), fileName);
-        };
-    }
 }

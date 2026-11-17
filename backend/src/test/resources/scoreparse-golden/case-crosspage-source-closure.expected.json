@@ -1,0 +1,12 @@
+{
+  "synthetic": true,
+  "focus": "跨页双层名称列、无表头续页与不同摘要别名不能重复计分",
+  "declaredTotal": 100,
+  "totalSource": "GROUPED_SOURCE_CLOSURE",
+  "expectedFactCount": 3,
+  "items": [
+    { "category": "商务评分（20分）", "dimension": "商务细则", "weight": 20, "detail": "商务响应完整得20分，未提供不得分。" },
+    { "category": "技术评分（50分）", "dimension": "技术细则", "weight": 50, "detail": "技术方案可执行得50分，未提供不得分。" },
+    { "category": "价格评分（30分）", "dimension": "价格细则", "weight": 30, "detail": "价格响应完整得30分，未提供不得分。" }
+  ]
+}

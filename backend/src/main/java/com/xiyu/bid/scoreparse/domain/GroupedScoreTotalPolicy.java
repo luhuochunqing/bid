@@ -11,9 +11,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 final class GroupedScoreTotalPolicy {
     private static final Set<String> GROUPS = Set.of("商务部分", "技术部分", "价格部分");
+    private static final Pattern CATEGORY_LABEL = Pattern.compile("^(商务|技术|价格|报价)(?:评分|部分)[（(](\\d+(?:\\.\\d+)?)分?[）)]$");
     private GroupedScoreTotalPolicy() {}
     record Total(BigDecimal value, String locator, String quote) {}
 
@@ -61,6 +63,56 @@ final class GroupedScoreTotalPolicy {
         if (!groups.equals(GROUPS)
                 || !closes(group, groupWeight, children, childTotal)) return Optional.empty();
         return Optional.of(new Total(total, table.tableId() + ":" + String.join(",", locators), String.join("; ", quotes)));
+    }
+
+    /** Category scores are declarations too, but only a complete source-level
+     * business/technical/price partition with independently closing detail rows is accepted. */
+    static Optional<Total> resolve(com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact artifact, String scheme) {
+        var groups = new java.util.LinkedHashMap<String, BigDecimal>();
+        var sums = new java.util.LinkedHashMap<String, BigDecimal>();
+        var quotes = new ArrayList<String>();
+        var locators = new ArrayList<String>();
+        String current = "";
+        var tables = artifact.tables().stream().filter(table -> !SourceTableHeaderPolicy.headers(artifact, table).isEmpty()
+                        && OriginalScoringSchemePolicy.owns(scheme, table))
+                .sorted(java.util.Comparator.comparing(table -> table.sourcePage() == null ? 0 : table.sourcePage())).toList();
+        // A shared scheme title is not evidence that different source documents form one partition.
+        // Keep all category declarations, detail sums and continuation state within one source.
+        if (tables.stream().map(table -> artifact.documentFor(table.tableId())).distinct().count() != 1)
+            return Optional.empty();
+        for (var table : tables) {
+            var headers = SourceTableHeaderPolicy.headers(artifact, table);
+            var weightColumns = headers.entrySet().stream().filter(e -> e.getValue().matches("分值|评分分值|最高分|满分"))
+                    .map(java.util.Map.Entry::getKey).toList();
+            if (weightColumns.size() != 1) continue;
+            int weightColumn = weightColumns.getFirst();
+            for (int row = 0; row < table.rows(); row++) {
+                int r = row;
+                for (var cell : table.cells().stream().filter(c -> Integer.valueOf(r).equals(c.row())
+                        && !Boolean.TRUE.equals(c.isMergedContinue())).toList()) {
+                    String text = cell.rawText() == null ? "" : cell.rawText().replaceAll("(?i)<br\\s*/?>|\\s+", "");
+                    var label = CATEGORY_LABEL.matcher(text);
+                    if (!label.matches()) continue;
+                    String category = label.group(1).replace("报价", "价格");
+                    BigDecimal value = new BigDecimal(label.group(2));
+                    if (value.signum() <= 0 || groups.containsKey(category)) return Optional.empty();
+                    groups.put(category, value);
+                    sums.put(category, BigDecimal.ZERO);
+                    quotes.add(cell.rawText());
+                    locators.add(table.tableId() + ":" + cell.cellId());
+                    current = category;
+                }
+                var weight = cell(table, row, weightColumn);
+                if (current.isBlank() || weight == null || weight.rawText() == null) continue;
+                var number = ScoreSubtotalColumnPolicy.NUMBER.matcher(weight.rawText());
+                if (!number.matches()) continue;
+                sums.merge(current, new BigDecimal(number.group(1)), BigDecimal::add);
+            }
+        }
+        if (!groups.keySet().equals(Set.of("商务", "技术", "价格"))
+                || groups.entrySet().stream().anyMatch(e -> e.getValue().compareTo(sums.get(e.getKey())) != 0)) return Optional.empty();
+        return Optional.of(new Total(groups.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add),
+                String.join(",", locators), String.join("; ", quotes)));
     }
 
     private static boolean closes(String group, BigDecimal weight, int children, BigDecimal sum) {
