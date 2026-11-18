@@ -49,6 +49,30 @@ class ScoreItemTitleExtractorTest {
     }
 
     @Test
+    void extractsTitleFromNonColonFirstLineWhenBodyFollows() {
+        String detail = "能够提供最长\n账期\n最长账期6个月（含）以上的，得5分；最长账期3个月(含)~6个月的，得3分；其余不得分。";
+        assertThat(ScoreItemTitleExtractor.extract(detail)).contains("能够提供最长账期");
+
+        String detail2 = "能否接受承兑\n接受银行/商业承兑的，得3分，否则不得分。";
+        assertThat(ScoreItemTitleExtractor.extract(detail2)).contains("能否接受承兑");
+
+        String detail3 = "仓储体系\n根据各投标人的仓储情况进行评分。\n(1)湖北省内设有仓库且仓储面积总和大于50000m及以上，得4分";
+        assertThat(ScoreItemTitleExtractor.extract(detail3)).contains("仓储体系");
+
+        String detail4 = "1.交货期限承诺(3分)\n送货地点属于县市城区范围的，投标人承诺自采购人下单起48小时内送达得3分";
+        assertThat(ScoreItemTitleExtractor.extract(detail4)).contains("交货期限承诺");
+
+        String detail5 = "2.物流体系(2分)\n根据各投标人物流体系进行评分。";
+        assertThat(ScoreItemTitleExtractor.extract(detail5)).contains("物流体系");
+    }
+
+    @Test
+    void colonWithNewlineBody() {
+        assertThat(ScoreItemTitleExtractor.extract("人员配置：\n具备相关经验。"))
+                .contains("人员配置");
+    }
+
+    @Test
     void oversizedPrefix_returnsEmpty() {
         String longPrefix = "A".repeat(45) + "：细则内容";
         assertThat(ScoreItemTitleExtractor.extract(longPrefix)).isEmpty();
