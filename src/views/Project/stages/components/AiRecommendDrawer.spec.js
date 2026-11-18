@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import AiRecommendDrawer from './AiRecommendDrawer.vue'
 import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
+import ScoreItemSelect from '@/components/common/ScoreItemSelect.vue'
 
 vi.mock('@/api/modules/caseRecommendation', () => ({
   caseRecommendationApi: {
@@ -131,6 +132,66 @@ describe('AiRecommendDrawer.vue', () => {
     return wrapper
   }
 
+  const evidenceResponse = { total: 0, items: [], matchedCertificates: [], evidenceReviewRequired: true }
+  const evidenceScoreItem = { id: 739, code: '1', dim: '自营 SKU 数量', detail: '按数量评分，提供系统截图' }
+
+  it('requests manual verification without showing the ordinary case empty state for proof-only items', async () => {
+    caseRecommendationApi.getScoreItems.mockResolvedValue([evidenceScoreItem])
+    caseRecommendationApi.recommendCases.mockResolvedValue(evidenceResponse)
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(wrapper.find('.el-alert-mock').text()).toMatch(/缺少可核验.*人工核验/)
+    expect(wrapper.find('.cases-container').exists()).toBe(false)
+  })
+
+  it('presents compound clause cases separately as historical references alongside the evidence warning', async () => {
+    caseRecommendationApi.getScoreItems.mockResolvedValue([
+      { ...evidenceScoreItem, detail: '按数量评分，提供系统截图；另按实施方案评分' },
+    ])
+    caseRecommendationApi.recommendCases.mockResolvedValue({
+      ...evidenceResponse,
+      total: 1,
+      items: [recommendItem],
+      matchedCertificates: [{ id: 7, name: '质量管理体系认证' }],
+    })
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(wrapper.find('.el-alert-mock').text()).toMatch(/人工核验/)
+    const headings = wrapper.findAll('.section-label-row').map(row => row.text())
+    expect(headings).toEqual(expect.arrayContaining([expect.stringContaining('历史案例参考')]))
+    expect(wrapper.find('.recommend-grid .case-card').text()).toContain('技术方案实施细则')
+    expect(wrapper.find('.cert-recommend-section').text()).toContain('质量管理体系认证')
+  })
+
+  it('keeps the latest recommendation when an earlier proof response arrives after switching back to a plan', async () => {
+    const planResponse = { total: 1, items: [recommendItem], matchedCertificates: [], evidenceReviewRequired: false }
+    let completeProofRequest
+    const pendingProof = new Promise(resolve => { completeProofRequest = resolve })
+    caseRecommendationApi.getScoreItems.mockResolvedValue([
+      { id: 1, code: '3.1', dim: '技术评分', detail: LONG_DETAIL },
+      evidenceScoreItem,
+    ])
+    caseRecommendationApi.recommendCases.mockImplementation(
+      (_projectId, { scoreItemId }) => scoreItemId === evidenceScoreItem.id ? pendingProof : Promise.resolve(planResponse),
+    )
+    const wrapper = mountDrawer()
+    await flushPromises()
+    const select = wrapper.findComponent(ScoreItemSelect)
+    select.vm.$emit('update:modelValue', evidenceScoreItem.id)
+    select.vm.$emit('change', evidenceScoreItem.id)
+    await wrapper.vm.$nextTick()
+    select.vm.$emit('update:modelValue', 1)
+    select.vm.$emit('change', 1)
+    await flushPromises()
+    completeProofRequest(evidenceResponse)
+    await flushPromises()
+
+    expect(wrapper.find('.el-alert-mock').exists()).toBe(false)
+    expect(wrapper.find('.recommend-grid .case-card').text()).toContain('技术方案实施细则')
+  })
+
   it('loads score items and triggers preliminary recommendations on open', async () => {
     const wrapper = await mockOpenWithCases([recommendItem])
 
@@ -142,6 +203,7 @@ describe('AiRecommendDrawer.vue', () => {
       size: 20,
     })
     expect(wrapper.text()).toContain('技术方案实施细则')
+    expect(wrapper.find('.section-label-row').text()).toContain('历史案例参考')
   })
 
   it('shows only serial and score item name in options, original text in tooltip and preview', async () => {

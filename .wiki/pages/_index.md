@@ -36,7 +36,7 @@ backlinks:
 - [[baidu-table-ocr-pipeline]] — 百度表格文字识别 (Table OCR) APIHub 中转契约、旁路对照管线与原文行归属核验
   - 2026-11-02：固定真实文件对照，记录来源页、非评分续表和无编号续文的局部改善及剩余验收差异。
 - [[pr2948-scoreparse-scope-and-fallback-risk]] — PR2948评分前序漏扫修复范围与fallback证据退化复审记录
-- [[ai-case-recommend-data-source-fix]] — AI 智能案例推荐契约与陷阱（数据源、裸响应、前端分数门禁、资质提示边界、配送误召回诊断）
+- [[ai-case-recommend-data-source-fix]] — AI 智能案例推荐契约与陷阱（数据源、裸响应、前端分数门禁、资质提示边界、配送误召回诊断、评分证据准入）
 - [[case-331-qualification-category-veto]] — 项目44等保评分项漏荐案例331，含 !3043 前后重放及原件验收口径
 - [[knowledge-case-feature-writers]] — 案例子主题与质量分由谁写入；结项现写，存量回填默认关闭
 - [[ai-case-precipitation-concurrency]] — AI 案例沉淀并发任务与大文件隔离契约（projectId 门禁 + UUID 临时文件 + 前端状态）

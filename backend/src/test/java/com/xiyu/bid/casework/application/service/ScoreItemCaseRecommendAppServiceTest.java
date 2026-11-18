@@ -1,9 +1,13 @@
 package com.xiyu.bid.casework.application.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.casework.application.port.TenderQualificationQueryPort.TenderQualificationInfo;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendRequest;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendResponse;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
@@ -11,20 +15,27 @@ import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -893,5 +904,157 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(response.getItems().getFirst().getId()).isEqualTo(901L);
         assertThat(response.getMatchedCertificates()).hasSize(1);
         assertThat(response.getMatchedCertificates().getFirst().getName()).isEqualTo("ISO9001质量管理体系认证");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"739, 2, 商品丰富性", "750, product_richness, 商务"})
+    void project38RequiresTheSourcedSkuCountBeforeConsideringCases(long itemId, String code, String dim) {
+        String detail = """
+                根据自本项目招标公告发布以来，投标人提供的面向B端
+                用户（企业用户或商家用户）电商平台自营商品SKU数
+                量由多到少进行排序，第一名得4分，每低1名扣1分，
+                扣完为止。
+                注：(1)提供包含时间的面向B端用户（企业用户或商家
+                用户)电商平台系统数据截图。提供的数据须真实有效且
+                时间在本项目招标公告发布以后，否则不计分，招标人保
+                留核查截图数据真实性的权利。(2)自营商品SKU是指
+                库存量单位，即可售卖的货品、仓库管理的最小颗粒度和
+                一串数字编码。
+                """;
+        var item = ScoreItem.builder().id(itemId).projectId(38L).code(code)
+                .dim(dim).detail(detail).scoreType("SUBJECTIVE").build();
+
+        when(scoreItemRepository.findById(itemId)).thenReturn(Optional.of(item));
+
+        var response = recommendAppService.recommend(38L, ScoreItemCaseRecommendRequest.builder()
+                .scoreItemId(itemId).keyword("SKU").build());
+
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getTotal()).isZero();
+        assertThat(response.isEvidenceReviewRequired()).isTrue();
+        assertThat(response.getMatchedCertificates()).isEmpty();
+        verifyNoInteractions(knowledgeCaseQueryPort, vectorSemanticQueryPort,
+                enterpriseQualificationQueryPort, tenderQualificationQueryPort);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void refusesEvidenceLookupForAMissingOrForeignItem(boolean existsInAnotherProject) {
+        var scoreItem = existsInAnotherProject
+                ? Optional.of(ScoreItem.builder().id(309L).projectId(39L).build())
+                : Optional.<ScoreItem>empty();
+        when(scoreItemRepository.findById(309L)).thenReturn(scoreItem);
+
+        assertThatThrownBy(() -> recommendAppService.recommend(38L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(309L).build()))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verifyNoInteractions(knowledgeCaseQueryPort, vectorSemanticQueryPort,
+                enterpriseQualificationQueryPort, tenderQualificationQueryPort);
+    }
+
+    @Test
+    void preservesThePlanReferenceForAClauseAlsoRequiringProof() {
+        var item = ScoreItem.builder().id(600L).projectId(38L).code("3").dim("仓储配送方案")
+                .detail("编制仓储配送方案；自营网点数量由多到少排名，提供盖章证明材料。").build();
+        var reference = new KnowledgeCase();
+        reference.setId(51L);
+        reference.setScoringPointTitle("仓储配送方案");
+        reference.setScoringCategory("技术方案");
+        reference.setResponseText("按区域规划仓储设施和配送网点，建立配送时效与异常响应机制。");
+        when(scoreItemRepository.findById(600L)).thenReturn(Optional.of(item));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(reference));
+
+        var response = recommendAppService.recommend(38L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(600L).build());
+
+        assertThat(response.isEvidenceReviewRequired()).isTrue();
+        assertThat(response.getItems()).extracting(ScoreItemCaseRecommendResponse.Item::getId).containsExactly(51L);
+        assertThat(response.getMatchedCertificates()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"运营能力及业绩, 商务", "1, 运营能力及业绩（20分）"})
+    void project1371KeepsPlanReferencesAndPerformanceAdmissionWithManualReview(String code, String dim) throws IOException {
+        var item = project1371Clause("运营能力及业绩（20分）", 1L);
+        item.setCode(code);
+        item.setDim(dim);
+        var plan = new KnowledgeCase();
+        plan.setId(51L);
+        plan.setScoringPointTitle("自营电子商城运营方案");
+        plan.setScoringCategory("技术方案");
+        plan.setResponseText("自营电子商城运营方案按商品上架、订单处理和用户运营分工，并设置客服响应流程。");
+        var admittedPerformance = new KnowledgeCase();
+        admittedPerformance.setId(52L);
+        admittedPerformance.setScoringPointTitle("运营能力及业绩");
+        admittedPerformance.setScoringCategory("业绩");
+        admittedPerformance.setResponseText("电子商城运营业绩包含大型集团办公用品年度供应，累计发票金额2600万元。");
+        var rejectedPerformance = new KnowledgeCase();
+        rejectedPerformance.setId(53L);
+        rejectedPerformance.setScoringPointTitle("运营能力及业绩");
+        rejectedPerformance.setScoringCategory("业绩");
+        rejectedPerformance.setResponseText("电子商城运营业绩包含大型集团办公用品年度供应，累计发票金额800万元。");
+        var technicalPerformance = new KnowledgeCase();
+        technicalPerformance.setId(54L);
+        technicalPerformance.setScoringPointTitle("电子商城运营能力");
+        technicalPerformance.setScoringCategory("技术部分");
+        technicalPerformance.setResponseText("电子商城运营包含大型集团办公用品年度供应，累计发票金额800万元。");
+        var planWithBelowThresholdPerformance = new KnowledgeCase();
+        planWithBelowThresholdPerformance.setId(55L);
+        planWithBelowThresholdPerformance.setScoringPointTitle("自营电子商城运营方案");
+        planWithBelowThresholdPerformance.setScoringCategory("技术方案");
+        planWithBelowThresholdPerformance.setResponseText("电子商城运营方案包含大型集团办公用品年度供应，累计发票金额800万元。");
+        when(scoreItemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+        when(tenderQualificationQueryPort.findByProjectId(1371L)).thenReturn(Optional.of(
+                new TenderQualificationInfo(List.of("供应商应具有集团级企业年度供应业绩，办公用品累计金额不低于2000万元。"), null)));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(
+                plan, admittedPerformance, rejectedPerformance, technicalPerformance, planWithBelowThresholdPerformance));
+
+        var response = recommendAppService.recommend(1371L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(item.getId()).build());
+
+        assertSoftly(softly -> {
+            softly.assertThat(response.isEvidenceReviewRequired()).isTrue();
+            softly.assertThat(response.getItems()).extracting(ScoreItemCaseRecommendResponse.Item::getId)
+                    .containsExactlyInAnyOrder(51L, 52L);
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "财务状况及抗风险能力（10分）",
+            "服务案例及业绩（20分）",
+            "品牌及货源渠道管控及佐证材料（20分）",
+            "仓储能力（4分）"
+    })
+    void project1371RequiresOriginalEvidenceBeforeConsideringCases(String title) throws IOException {
+        var item = project1371Clause(title, 2L);
+        when(scoreItemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+
+        var response = recommendAppService.recommend(1371L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(item.getId()).build());
+
+        assertThat(response.isEvidenceReviewRequired()).isTrue();
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getTotal()).isZero();
+        assertThat(response.getMatchedCertificates()).isEmpty();
+        verifyNoInteractions(knowledgeCaseQueryPort, vectorSemanticQueryPort,
+                enterpriseQualificationQueryPort, tenderQualificationQueryPort);
+    }
+
+    private static ScoreItem project1371Clause(String title, long id) throws IOException {
+        try (var input = ScoreItemCaseRecommendAppServiceTest.class.getResourceAsStream(
+                "/scoreparse-golden/1371_tables_v1.json")) {
+            for (JsonNode table : new ObjectMapper().readTree(input).path("tables")) {
+                for (JsonNode row : table.path("rows")) {
+                    for (int i = 0; i + 2 < row.size(); i++) {
+                        if (title.equals(row.get(i).path("text").asText())) {
+                            String detail = row.get(i + 1).path("text").asText() + "\n" + row.get(i + 2).path("text").asText();
+                            return ScoreItem.builder().id(id).projectId(1371L).dim(title).detail(detail).build();
+                        }
+                    }
+                }
+            }
+        }
+        throw new AssertionError("项目 1371 金标缺少条款 " + title);
     }
 }
