@@ -3,6 +3,7 @@
 // Pos: scoreparse/application — legacy review candidate fact mapping
 package com.xiyu.bid.scoreparse.application;
 
+import com.xiyu.bid.scoreparse.domain.ScoreCategoryClassifier;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
@@ -54,20 +55,23 @@ final class ScoreReviewCandidateFactMapper {
 
     private static String resolveDim(ScoreCandidate candidate) {
         String trimmedDim = candidate.dim() == null ? "" : candidate.dim().trim();
-        if (candidate.isParentOnlyDim() && candidate.detail() != null && !candidate.detail().isBlank()) {
+        boolean categoryDim = ScoreCategoryClassifier.isTopLevelCategory(trimmedDim) || candidate.isParentOnlyDim();
+        if (candidate.detail() != null && !candidate.detail().isBlank()) {
             String title = ScoreItemTitleExtractor.extract(candidate.detail()).orElse("");
-            if (!title.isBlank()) {
-                return title.length() > 200 ? title.substring(0, 200) : title;
-            }
+            if (!title.isBlank()) return title.length() > 200 ? title.substring(0, 200) : title;
         }
-        if (!trimmedDim.isBlank()) {
+        if (!trimmedDim.isBlank() && !categoryDim) {
             return trimmedDim.length() > 200 ? trimmedDim.substring(0, 200) : trimmedDim;
         }
         if (candidate.detail() != null && !candidate.detail().isBlank()) {
             String trimmed = candidate.detail().trim();
-            return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
+            if (!ScoreCategoryClassifier.isTopLevelCategory(trimmed)) {
+                int newline = trimmed.indexOf('\n');
+                String firstLine = newline > 0 ? trimmed.substring(0, newline).trim() : trimmed;
+                return firstLine.length() > 50 ? firstLine.substring(0, 50) : firstLine;
+            }
         }
-        return "评分项";
+        return !trimmedDim.isBlank() ? trimmedDim : "评分项";
     }
 
     private static String firstNonBlank(String... values) {

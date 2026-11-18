@@ -1,0 +1,19 @@
+{
+  "synthetic": true,
+  "focus": "项目38账期标题提取与客观识别及项目39交货期限承诺去重",
+  "items": [
+    {
+      "code": "1",
+      "dimension": "能够提供最长账期",
+      "scoreType": "OBJECTIVE",
+      "weight": 5
+    },
+    {
+      "code": "2",
+      "dimension": "交货期限承诺",
+      "scoreType": "OBJECTIVE",
+      "weight": 5
+    }
+  ],
+  "expectedLeafTotal": 10
+}

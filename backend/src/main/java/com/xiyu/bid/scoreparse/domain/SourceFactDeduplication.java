@@ -59,10 +59,16 @@ public final class SourceFactDeduplication {
         var metadata = new ScoreSourceMetadata(old.modelRuleText(), old.modelQuotedText(),
                 Stream.concat(old.sourceSpans().stream(), other.sourceSpans().stream()).distinct().toList(), notes,
                 old.modelCategory(), old.modelScoreType(), old.modelSourceClaim());
-        return new MultimodalScoreFact(first.sectionTitle(), first.code(),
-                first.parentCode().isBlank() ? alias.parentCode() : first.parentCode(), first.dimension(), first.weight(),
-                first.ruleText().isBlank() ? alias.ruleText() : first.ruleText(), first.scoreType(), first.pageNumber(),
-                first.tableId(), first.sourceCellIds(), first.quotedText(), Math.max(first.confidence(), alias.confidence()),
+        boolean firstIsCategory = ScoreCategoryClassifier.isTopLevelCategory(first.dimension());
+        boolean aliasIsCategory = ScoreCategoryClassifier.isTopLevelCategory(alias.dimension());
+        String code = firstIsCategory && !aliasIsCategory ? alias.code() : first.code();
+        String dimension = firstIsCategory && !aliasIsCategory ? alias.dimension() : first.dimension();
+        String ruleText = first.ruleText().isBlank() ? alias.ruleText() : first.ruleText();
+        String quotedText = first.quotedText().isBlank() ? alias.quotedText() : first.quotedText();
+        return new MultimodalScoreFact(first.sectionTitle(), code,
+                first.parentCode().isBlank() ? alias.parentCode() : first.parentCode(), dimension, first.weight(),
+                ruleText, first.scoreType(), first.pageNumber(),
+                first.tableId(), first.sourceCellIds(), quotedText, Math.max(first.confidence(), alias.confidence()),
                 first.childAggregation(), first.schemeId(), first.scopeStatus(), metadata);
     }
 }

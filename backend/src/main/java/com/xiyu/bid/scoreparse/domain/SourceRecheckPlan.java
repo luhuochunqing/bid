@@ -103,8 +103,37 @@ public record SourceRecheckPlan(DocumentArtifact artifact, String text, List<Str
                 }
                 int index = merged.indexOf(old);
                 if (index >= 0) merged.set(index, annotate(replacement, notes));
-            } else if (previous.isEmpty() && first.stream().noneMatch(f -> f.equals(candidate))) {
-                merged.add(verified ? candidate : annotate(candidate, List.of("SOURCE_RECHECK_UNVERIFIED")));
+            } else if (previous.isEmpty()) {
+                var coveredFact = first.stream()
+                        .filter(f -> !SourceFactIdentity.related(f, candidate, graph)
+                                && (SourceFactIdentity.sameUnit(f, candidate, artifact)
+                                || (!candidate.sourceCellIds().isEmpty()
+                                        && f.tableId().equals(candidate.tableId())
+                                        && new java.util.HashSet<>(f.sourceCellIds()).equals(new java.util.HashSet<>(candidate.sourceCellIds()))
+                                        && SourceFactIdentity.sameWeight(f, candidate))))
+                        .findFirst();
+                if (coveredFact.isPresent()) {
+                    var old = coveredFact.get();
+                    if (ScoreCategoryClassifier.isTopLevelCategory(old.dimension())
+                            && !ScoreCategoryClassifier.isTopLevelCategory(candidate.dimension())) {
+                        int index = -1;
+                        for (int i = 0; i < merged.size(); i++) {
+                            if (merged.get(i).equals(old) || (merged.get(i).tableId().equals(old.tableId())
+                                    && merged.get(i).sourceCellIds().equals(old.sourceCellIds()))) {
+                                index = i;
+                                break;
+                            }
+                        }
+                        if (index >= 0) {
+                            var notes = new ArrayList<>(old.sourceMetadata().diagnostics());
+                            notes.addAll(candidate.sourceMetadata().diagnostics());
+                            notes.add("SOURCE_RECHECK_UPGRADED_NAME:" + candidate.dimension());
+                            merged.set(index, annotate(candidate, notes));
+                        }
+                    }
+                } else if (first.stream().noneMatch(f -> f.equals(candidate))) {
+                    merged.add(verified ? candidate : annotate(candidate, List.of("SOURCE_RECHECK_UNVERIFIED")));
+                }
             } else if (previous.size() == 1) {
                 int index = merged.indexOf(previous.getFirst());
                 if (index >= 0) merged.set(index, annotate(merged.get(index),

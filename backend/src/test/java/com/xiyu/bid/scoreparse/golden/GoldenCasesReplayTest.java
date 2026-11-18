@@ -87,6 +87,22 @@ class GoldenCasesReplayTest {
     }
 
     @Test
+    void subjectiveAndPaymentPeriodNamingFixtureRetainsLeafTitleAndAvoidsDedupInflation() throws Exception {
+        JsonNode expected = GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(
+                "case-subjective-naming-and-recheck-dedup.expected.json"));
+        String text = GoldenCasesReplaySupport.readFixture("case-subjective-naming-and-recheck-dedup.md");
+        assertTrue(text.contains("能够提供最长<br>账期"));
+        assertEquals(expected.path("expectedLeafTotal").decimalValue(), new BigDecimal("10"));
+        assertEquals("能够提供最长账期", expected.path("items").get(0).path("dimension").asText());
+        assertEquals("交货期限承诺", expected.path("items").get(1).path("dimension").asText());
+
+        // Also verify that policy recognizes them as OBJECTIVE
+        var policy = new com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy();
+        assertEquals("OBJECTIVE", policy.classify("最长账期6个月（含）以上的，得5分；最长账期3个月(含)~6个月的，得3分；其余不得分。"));
+        assertEquals("OBJECTIVE", policy.classify("交货期限承诺：按时交付得5分，未按时交付不得分。"));
+    }
+
+    @Test
     void priceMarkdownStarQuoteRetainsItsOriginalSourceSpan() throws Exception {
         String source = GoldenCasesReplaySupport.readFixture("case-price-markdown-star.md");
         JsonNode expected = GoldenCasesReplaySupport.parseExpected(

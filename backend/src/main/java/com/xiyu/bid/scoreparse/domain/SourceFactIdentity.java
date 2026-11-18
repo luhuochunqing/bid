@@ -31,6 +31,16 @@ public final class SourceFactIdentity {
         if (quoteA.isBlank() || quoteB.isBlank()) return false;
         String firstRule = normalize(first.ruleText()), secondRule = normalize(second.ruleText());
         if (sameCells && !firstRule.isBlank() && firstRule.equals(secondRule)) return true;
+        if ((sameCells || LogicalRuleSourceUnit.sharesLogicalRow(artifact, first, second)) && sameWeight(first, second)) {
+            if (ScoreCategoryClassifier.isTopLevelCategory(first.dimension())
+                    || ScoreCategoryClassifier.isTopLevelCategory(second.dimension())) {
+                return true;
+            }
+            if (!firstRule.isBlank() && !secondRule.isBlank()
+                    && (firstRule.contains(secondRule) || secondRule.contains(firstRule))) {
+                return true;
+            }
+        }
         // Equal or overlapping quotations can cover independently scored subrules;
         // only identical whole-row claims prove identity when the rule texts differ.
         return wholeRowClaim(first, artifact) && wholeRowClaim(second, artifact);

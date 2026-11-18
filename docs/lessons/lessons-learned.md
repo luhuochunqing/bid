@@ -8600,3 +8600,27 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
   - `ScoreItemCaseMatchPolicyTest` 验证策略层兜底拦截与 0 分断言；
   - `ScoreItemCaseRecommendAppServiceTest` 验证推荐服务前置过滤低质切片，仅保留高质实质方案；
   - 全量 70 项单测（含 `FPJavaArchitectureTest`）与前端抽屉 15 项测试全绿通过。
+
+## 2026-11-18 评分解析系统性缺陷修复：主客观跨行识别、大类降级叶子命名与重试去重防膨胀（项目 38 / 39）
+
+- **业务痛点与技术致错根因**：
+  1. **主客观判断失效（项目 38 账期/承兑/仓库）**：标书表格经 OCR/文本提取后单元格包含大量换行符 `\n`。`QUALIFIED_NUMERIC_PATTERN` 缺少 `Pattern.DOTALL` 标志，导致跨换行的客观量化判定失败；且词库遗漏高频客观硬指标（账期、承兑、仓储面积、送达时限）。
+  2. **评分项名称被大类吞噬（项目 38 商务大类）**：当表格无子项名列时，多模态提取模型倾向将表格大类填入 `dimension`。`resolveDim` 遇到非冒号陈述句时未能从 `detail` 提取具体短标题，导致整表评分项名称均被覆盖为大类名“商务”。
+  3. **重试结果重复追加与分数虚高膨胀（项目 39 膨胀至 135 分）**：`SourceRecheckPlan.build` 仅将违规失败项加入 `targets`。重试模型重新扫描文本时再次输出正常项（如“交货期限承诺”），`merge` 因目标过滤认定其 `previous.isEmpty()` 并误判为新项追加；且同一单元格被模型赋予“技术”与“交货期限承诺”不同代号时，未能合并并升级细则名。
+- **系统性治本策略（FP-Java 纯核心）**：
+  1. **主客观正则强化（`ScoreTypeClassificationPolicy`）**：
+     - 正则增加 `Pattern.DOTALL`，支持跨换行文本匹配；
+     - 扩充“账期”、“月/个月（含）以上”、“承兑”、“承诺”、“小时（含本数）内”、“仓库/仓储面积/㎡/m2/m²”、“大于/小于”等硬性量化指标。
+  2. **首行细则标题提取与大类识别解耦（`ScoreItemTitleExtractor` & `ScoreCategoryClassifier`）**：
+     - `ScoreItemTitleExtractor` 强化冒号后换行识别、首行短标题提取（去除序号前缀与满分后缀）、跨换行短词折行拼接（如“能够提供最长”+“账期”）；
+     - 新建领域层纯核心分类器 `ScoreCategoryClassifier.isTopLevelCategory`，集中识别“商务/技术/价格/综合”等大类；
+     - `ScoreItemPersistenceService` 与 `ScoreReviewCandidateFactMapper` 在维度落库与审核映射时，若维度为顶层大类且细则可提取具体标题，强制使用细则标题覆盖大类名称。
+  3. **重试覆盖与名称升级机制（`SourceRecheckPlan` & `SourceFactIdentity`）**：
+     - `SourceFactIdentity.sameUnit` 增加同单元格大类维度与具体细则同义判定；
+     - `SourceRecheckPlan.merge` 引入覆盖检测：非目标单元格在重试中重新出现时不重复追加；若原有项为泛大类（如“技术”）而重试输出了具体名称（如“交货期限承诺”），则原位升级名称并保留证据链，杜绝重复追加与分数膨胀。
+- **本地验证与防回归**：
+  - `ScoreTypeClassificationPolicyTest`（33 项）新增账期、承兑、仓库及交货承诺客观用例，全绿；
+  - `ScoreItemTitleExtractorTest`（9 项）与 `ScoreItemPersistenceServiceTest`（12 项）覆盖首行无冒号提取与大类降级测试；
+  - `ScoreCategoryClassifierTest`（31 项）全量覆盖常见大类与叶子标题；
+  - `SourceRecheckPlanTest`（12 项）与 `SourceFactDeduplicationTest`（9 项）覆盖重试不重复追加及大类名称升级验证；
+  - `ScoreParseArchitectureTest` 架构单测验证纯核心无跨层依赖，106 项单测全部 100% 通过。
