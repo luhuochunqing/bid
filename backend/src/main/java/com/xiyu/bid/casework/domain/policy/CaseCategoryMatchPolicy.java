@@ -1,6 +1,7 @@
 package com.xiyu.bid.casework.domain.policy;
 
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 import static com.xiyu.bid.casework.domain.policy.TextSimilarityPolicy.hasText;
 
@@ -36,6 +37,15 @@ public final class CaseCategoryMatchPolicy {
             "技术", "方案", "系统", "对接", "能力", "运维", "架构", "安全", "开发", "功能", "接口", "部署", "硬件", "软件", "网络", "测试", "云平台", "数据库", "集成", "实施", "服务", "售后", "响应", "保障", "质保", "应急", "培训", "交付", "微服务", "容灾", "等级保护"
     };
 
+    private static final String SECURITY_FILING_WITH_GRADE =
+            "等级保护\\h*备案证明(?:\\h*证书)?\\h*第?\\h*([一二三四1234])\\h*级";
+    private static final Pattern REQUIRED_SECURITY_FILING = Pattern.compile(SECURITY_FILING_WITH_GRADE);
+    // 存量案例可能沿用评分维度作分类。仅接受独立的持证应答，排除方案正文中的要求引用或承诺。
+    private static final Pattern HELD_SECURITY_FILING = Pattern.compile(
+            "[^。！？；，、：:;,.!?\\r\\n]*?(?<!不|未|无|不再|拟|将|曾|应|应当|须|需|若|承诺|计划|要求)"
+                    + "(?:具有|持有|已获得|已取得)\\h*(?:公安部)?(?:信息系统安全|网络安全)?"
+                    + SECURITY_FILING_WITH_GRADE + "(?:\\h*证书)?[。.]?");
+
     private CaseCategoryMatchPolicy() {}
 
     /**
@@ -43,18 +53,34 @@ public final class CaseCategoryMatchPolicy {
      * <p>
      * 1. 评分项为纯资质证书类（QUALIFICATION）时，纯技术方案（TECHNICAL）与纯商务（COMMERCIAL）案例均一票否决（方案不能替代证书）；
      * 2. 纯技术（TECHNICAL）与纯商务（COMMERCIAL）案例双向互斥否决。
+     * 旧技术标签的等保案例若以独立应答明确持有同类且满足等级的备案证明，可以进入相关性评分。
      */
     public static boolean isCategoryConflict(
             String itemDim, String itemDetail,
-            String candidateCategory, String candidateTitle) {
+            String candidateCategory, String candidateTitle, String candidateResponse) {
         MacroCategory itemCat = classifyMacroCategory(itemDim, itemDetail);
         MacroCategory candCat = classifyMacroCategory(candidateCategory, candidateTitle);
         // 1. 评分项为纯资质证书类（QUALIFICATION）时，方案类（TECHNICAL）、商务类（COMMERCIAL）、业绩类（PERFORMANCE）案例均一票否决
         if (itemCat == MacroCategory.QUALIFICATION
                 && (candCat == MacroCategory.TECHNICAL || candCat == MacroCategory.COMMERCIAL || candCat == MacroCategory.PERFORMANCE)) {
-            return true;
+            return candCat != MacroCategory.TECHNICAL
+                    || !hasMatchingSecurityFiling(itemDetail, candidateResponse);
         }
         return isMutuallyExclusive(itemCat, candCat);
+    }
+
+    private static boolean hasMatchingSecurityFiling(String requirement, String response) {
+        if (!hasText(requirement) || !hasText(response)) {
+            return false;
+        }
+        var required = REQUIRED_SECURITY_FILING.matcher(requirement);
+        var held = HELD_SECURITY_FILING.matcher(response.strip());
+        return required.find() && held.matches() && filingGrade(held.group(1)) >= filingGrade(required.group(1));
+    }
+
+    private static int filingGrade(String level) {
+        int numeric = Character.digit(level.charAt(0), 10);
+        return numeric >= 0 ? numeric : "一二三四".indexOf(level) + 1;
     }
 
     /**
