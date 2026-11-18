@@ -1,0 +1,110 @@
+# Implementation Plan: 评分项意图确定性路由与推荐打分公式重构（Phase 1 止血）
+
+**Branch**: `agent/zcode/090-case-recommend-intent-routing` | **Date**: 2026-11-18 | **Spec**: [specs/090-case-recommend-intent-routing/spec.md](file:///Users/user/xiyu/worktrees/zcode/specs/090-case-recommend-intent-routing/spec.md)
+
+**Input**: Feature specification from `specs/090-case-recommend-intent-routing/spec.md`
+
+## Summary
+
+实现案例推荐 Phase 1 止血重构：
+1. **意图路由（`ScoreItemIntentRouter`）**：在纯核心策略中新增确定性意图路由器，将评分项划分为 TECHNICAL, QUALIFICATION, PERFORMANCE, PERSONNEL, COMMERCIAL；
+2. **物理阻断**：当评分项为 `QUALIFICATION` 时，编排层直接短路 `knowledge_case` 切片推荐，专精装配企业资质原件扫描件；
+3. **打分模型乘法先验门禁**：重构 `ScoreItemCaseMatchPolicy`，将内容相关度作为门禁基准，背景加成作为比例放大因子，彻底斩断无内容相关性案例凭借同客户实体反客为主的数学路径。
+
+## Technical Context
+
+**Language/Version**: Java 21, Spring Boot 3.2, Vue 3, Vite 5  
+**Primary Dependencies**: Lombok, JUnit 5, AssertJ, Element Plus  
+**Storage**: MySQL 8.0, JPA  
+**Testing**: Maven Surefire (`mvn test`), Vitest (`npm test`)  
+**Target Platform**: Linux server / macOS local dev  
+**Project Type**: Web service (Spring Boot backend + Vue 3 frontend)  
+**Performance Goals**: 单次打分 300+ 条案例 $\le 50\text{ms}$  
+**Constraints**: 遵循 FP-Java 规范（纯函数、无副作用、无 Spring/DB 依赖、单文件 $\le 300$ 行）  
+
+## Constitution Check
+
+- [x] **FP-Java 契约**：核心路由与算分策略全部放在 `com.xiyu.bid.casework.domain.policy`，100% 可脱离 Spring 容器运行单测。
+- [x] **禁止 Mock 政策**：不引入任何 Mock 假数据，集成测试直连真实实体映射。
+- [x] **向后兼容**：保持现有 `ScoreItemCaseRecommendResponse` 契约结构不变。
+- [x] **原子提交与测试先行**：先写失败的回归测试（反证等保排第一的缺陷），再写实现，最后验证全绿。
+
+## Project Structure
+
+### Documentation (this feature)
+
+```text
+specs/090-case-recommend-intent-routing/
+├── spec.md              # 需求规格
+├── plan.md              # 架构与技术设计方案（本文件）
+└── tasks.md             # 任务清单（TDD 拆解）
+```
+
+### Source Code
+
+```text
+backend/src/main/java/com/xiyu/bid/casework/
+├── domain/
+│   └── policy/
+│       ├── ScoreItemIntentRouter.java          # [新增] 评分项意图确定性路由器
+│       ├── ScoreItemCaseMatchPolicy.java        # [修改] 乘法门禁算分重构
+│       └── CaseCategoryMatchPolicy.java         # [修改] 大类判定与互斥对齐
+└── application/
+    └── service/
+        └── ScoreItemCaseRecommendAppService.java # [修改] 资质项彻底阻断文本切片，专精返回证书
+
+backend/src/test/java/com/xiyu/bid/casework/
+├── domain/policy/
+│   ├── ScoreItemIntentRouterTest.java          # [新增] 意图路由全覆盖测试
+│   └── ScoreItemCaseMatchPolicyTest.java       # [修改] 验证乘法门禁与等保0分反证
+└── application/service/
+    └── ScoreItemCaseRecommendAppServiceTest.java # [修改] 资质项切片阻断与证书装配测试
+```
+
+## Architecture & Algorithm Design
+
+### 1. 意图路由器（ScoreItemIntentRouter）
+
+输入：`dim`（维度）、`detail`（细则）  
+输出：`ScoreItemIntent` 枚举（`TECHNICAL`, `QUALIFICATION`, `PERFORMANCE`, `PERSONNEL`, `COMMERCIAL`, `OTHER`）
+
+规则判定顺序：
+1. **穿透分析**：当 `dim` 为宽泛章节名（“详细评审/综合能力/技术部分”）时，以 `detail` 实质内容为准；
+2. **QUALIFICATION**：命中资质、资格、证书、认证、管理体系、许可、执照、ISO、AAA、资信等；
+3. **PERFORMANCE**：命中同类业绩、合同业绩、供货业绩、类似项目、业绩证明等；
+4. **PERSONNEL**：命中项目经理、团队配置、建造师、架构师、社保、职称等；
+5. **COMMERCIAL**：命中报价、付款、结算、账期、保函、偏离等；
+6. **TECHNICAL**：命中技术、方案、系统、对接、实施、运维、服务、应急、仓储等。
+
+### 2. 乘法先验打分公式重构（ScoreItemCaseMatchPolicy）
+
+**旧公式（加法代偿陷阱）**：
+$$Total = SubTopic(25) + Detail(25) + Title(20) + Entity(20) + ContextBonuses(18)$$
+当同客户无关案例拿到 8 分弱内容相关时，加成 28 分全额爆发，$8 + 20 + 28 = 56$ 分，形成逆淘汰。
+
+**新公式（乘法先验门禁）**：
+1. **基础内容相关分（Content Relevance Score, 0~100）**：
+   $$ContentScore = \min(100, SubTopicScore + DetailOverlapScore + TitleSimilarityScore)$$
+   - 若 $ContentScore == 0$，直接短路返回：$FinalScore = 0$（一票否决，任何背景分均不得释放）。
+2. **背景放大系数（Context Bonus Multiplier, $1.0 \sim 1.5$）**：
+   $$BonusFactor = \frac{EntityScore(0 \sim 20) + CategoryScore(0 \sim 10) + TypeScore(0 \sim 5) + WonScore(0 \sim 5) + QualityScore(0 \sim 5)}{100.0}$$
+   $$FinalScore = \min(100, \text{round}(ContentScore \times (1.0 + BonusFactor)))$$
+- **数学证明**：
+  - 若内容相关度为 0（如等保与配送不相关），$0 \times (1.0 + BonusFactor) \equiv 0$ 分，**绝对不可能排在前列**；
+  - 若内容相关度高（如 60 分），同客户、央企背景可将其放大到 $60 \times 1.4 = 84$ 分（优质），合理体现标杆客户的优先复用价值。
+
+### 3. 应用服务层（ScoreItemCaseRecommendAppService）物理切分
+
+```java
+ScoreItemIntent intent = ScoreItemIntentRouter.route(context.dim(), context.detail());
+if (intent == ScoreItemIntent.QUALIFICATION) {
+    // 资质证书项：彻底阻断文本切片，仅查企业资质库
+    List<CertificateItem> certs = enterpriseQualificationQueryPort.findMatchingCertificates(...);
+    return ScoreItemCaseRecommendResponse.builder()
+            .total(certs.size())
+            .items(List.of()) // 文本切片严格为空
+            .matchedCertificates(certs)
+            .build();
+}
+// 方案类：正常执行文本切片匹配与乘法门禁算分
+```

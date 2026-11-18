@@ -614,6 +614,8 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(matched.getFileUrl()).isEqualTo("https://oss.ehsy.com/certs/iso9001.jpg");
         assertThat(matched.getStatus()).isEqualTo("VALID");
         assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getItems()).isEmpty();
+        verify(knowledgeCaseQueryPort, never()).findAllActive();
     }
 
     @Test
@@ -647,6 +649,8 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getMatchedCertificates()).isEmpty();
         assertThat(response.getTotal()).isEqualTo(0);
+        assertThat(response.getItems()).isEmpty();
+        verify(knowledgeCaseQueryPort, never()).findAllActive();
     }
 
     @Test

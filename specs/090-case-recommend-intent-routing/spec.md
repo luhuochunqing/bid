@@ -1,0 +1,97 @@
+# Feature Specification: 评分项意图确定性路由与推荐打分公式重构（Phase 1 止血）
+
+**Feature Branch**: `agent/zcode/090-case-recommend-intent-routing`
+
+**Created**: 2026-11-18
+
+**Status**: Draft
+
+**Input**: User description: "案例推荐一直不准，实施 Phase 1 方案：评分项大类确定性路由分流，资质证书项彻底阻断文本切片直连资质库，打分公式改用乘法先验门禁彻底解决背景代偿反客为主。"
+
+## User Scenarios & Testing *(mandatory)*
+
+### User Story 1 - 评分项意图确定性路由与物理阻断 (Priority: P1)
+
+投标人员在项目详情页打开“AI 智能案例推荐”抽屉，选择某个评分项时，系统首先对评分项的业务意图进行确定性分类识别（TECHNICAL, QUALIFICATION, PERFORMANCE, PERSONNEL, COMMERCIAL）。
+当用户选择【资质证书类】（如“ISO9001认证”、“AAA资信等级”）评分项时，后端推荐服务彻底阻断 `knowledge_case` 表文本切片的模糊推荐，零返回文本切片案例；系统直接从企业资质库（`business_qualifications`）装配权威证书原件扫描件及到期日信息返回。
+
+**Why this priority**:
+消除“用户选资质证书却推大段技术管理作文方案”的最直接业务痛点，阻断知识库文本切片对证书评分项的假阳性污染。
+
+**Independent Test**:
+选择任一包含“ISO9001/体系认证/资质证书”的评分项，调用 `POST /api/projects/{id}/cases/recommend`：
+- `items` 列表必须严格为空（`size == 0`）；
+- `matchedCertificates` 返回精准匹配的有效证书实体；
+- 绝不出现任何文字方案切片。
+
+**Acceptance Scenarios**:
+1. **Given** 评分项为“5 质量管理体系认证（ISO9001）”，**When** 执行案例推荐，**Then** 文本切片 `items` 为空，`matchedCertificates` 返回 ISO9001 证书原件及有效期限。
+2. **Given** 评分项为“4.2 财务审计报告与资信”，**When** 执行案例推荐，**Then** 技术方案类案例全部被大类互斥门禁拦截（0分），不进入推荐列表。
+
+---
+
+### User Story 2 - 乘法先验门禁打分模型（彻底根除背景特征反客为主） (Priority: P1)
+
+在纯技术与服务方案（TECHNICAL）的案例推荐中，重构 `ScoreItemCaseMatchPolicy` 的加权算分机制。
+彻底废除“内容分 + 背景分”的线性加法逻辑，改为“内容实质相关度作为门禁基准，背景作为相对比例加成（Multiplicative Bonus）”：
+$$\text{FinalScore} = \text{ContentScore} \times \left(1.0 + \text{BonusFactor}\right)$$
+当案例内容实质与评分项不相关时（$ContentScore = 0$），哪怕该案例命中专属同客户实体（三峡/建行）、同为央企、且为历史中标案例，其最终综合得分恒为 0，坚决不进入推荐前台。
+
+**Why this priority**:
+彻底拔除导致“配送能力评分项将等保证书排第一”、“商品管理方案将物流仓储排第一”的数学根本诱因，恢复内容主题相关度的一票否决权。
+
+**Independent Test**:
+构造与“配送能力/时效”完全无关的“等保证书”或“办公设备”案例，将其客户和项目名称硬编码设为与当前项目完全一致的“三峡集团”：
+- 旧算法因实体加分与背景全额解锁得到 40~56 分（优质/良好）；
+- 新算法计算 $ContentScore = 0$，最终 $FinalScore \equiv 0$，测试断言通过。
+
+**Acceptance Scenarios**:
+1. **Given** 评分项为技术方案“45 配送能力评价”，候选案例为同客户的“等保三级证明”，**When** 执行打分，**Then** 因业务主题完全无关，$ContentScore = 0$，最终得分为 0，被完全过滤。
+2. **Given** 评分项为“系统接口对接与集成”，候选案例 A 为跨客户但正文高度吻合的方案（ContentScore=22），候选案例 B 为同客户但内容完全无关的合同（ContentScore=0），**When** 执行推荐，**Then** 案例 A 正常上浮并获得高分推荐，案例 B 得分 0 被拦截。
+
+---
+
+### User Story 3 - 前端抽屉形态自适应切换与证书装配 (Priority: P2)
+
+在项目编制“AI 智能案例推荐”抽屉（`AiRecommendDrawer.vue`）中，当用户切换不同评分项时：
+- 若切换到【资质证书项】，自动清空方案列表骨架屏，展示专用的 `EnterpriseCertRecommendList.vue` 证书卡片网格；
+- 提供证书有效状态（绿色正常/黄色临期/红色过期）、一键复制证书编号与一键预览大图能力；
+- 提示栏清晰注明“当前评分项已直连企业资质库”。
+
+**Why this priority**:
+让用户感知到系统具有明确的意图理解能力，避免在同一个界面中给用户造成“这是文章还是证书”的认知混乱。
+
+**Independent Test**:
+在浏览器打开 AI 推荐抽屉，点击资质项，抽屉自适应渲染证书缩略图列表；点击技术项，抽屉恢复渲染方案切片列表。
+
+**Acceptance Scenarios**:
+1. **Given** 抽屉处于打开状态，**When** 用户点击评分项“ISO14001环境体系认证”，**Then** 界面呈现证书原件卡片，不显示“应答片段摘要/复用”按钮。
+
+---
+
+## Edge Cases
+
+- 评分项无详情内容（`detail` 为空，仅有泛化章节标题如“第三章 详细评审”）：
+  - 系统降级依靠 `dim` 识别，若均为泛标题，则标记为 `OTHER`，不触发过度一票否决，并给出“请补充评分细则以获得精准推荐”的提示。
+- 评分项混合了“资质与方案”（如“具备CMMI3以上资质并提供详细开发方案”）：
+  - 路由器识别为 `HYBRID` 或优先放行技术方案，同时在证书区域呈现 CMMI3 凭证，两翼齐飞，不发生误杀。
+- 企业资质库中暂无匹配的证书原件：
+  - 抽屉展示优雅空态（“企业资质库暂未收录该证书”），并提供直达「资质中心」录入的快捷跳转链接，严禁回退乱推文本作文。
+
+---
+
+## Requirements *(mandatory)*
+
+### Functional Requirements
+
+- **FR-001**: 必须在 `casework/domain/policy/` 建立纯核心 `ScoreItemIntentRouter`，将评分项确定性划分为 `TECHNICAL`, `QUALIFICATION`, `PERFORMANCE`, `PERSONNEL`, `COMMERCIAL`, `OTHER`。
+- **FR-002**: 当且仅当评分项大类为 `QUALIFICATION` 时，`ScoreItemCaseRecommendAppService` 必须将 `evaluatedItems` 置空，仅装配 `matchedCertificates`。
+- **FR-003**: `ScoreItemCaseMatchPolicy` 必须实现乘法先验门禁：背景特征加成作为乘法系数，严禁无门禁的加法累加；当且仅当内容实质相关度 $ContentScore \ge 1$ 时，才允许背景因子生效。
+- **FR-004**: 彻底移除 `calculateDetailOverlap` 与 `calculateTitleSimilarity` 中将泛词/无区分度碎片反向膨胀为高分的漏洞，保证纯核心策略 100% 具备单测反证用例。
+- **FR-005**: 响应体 DTO `ScoreItemCaseRecommendResponse` 保持向后兼容，确保旧调用方不崩溃。
+
+### Non-Functional Requirements
+
+- **NFR-001 (FP-Java)**: 所有核心路由与打分逻辑必须位于 `domain/policy/`，必须为无状态纯函数，无 Spring 注解，无数据库与外部 IO 依赖，100% 可独立运行单测。
+- **NFR-002 (性能)**: 单次打分全量候选（300+ 案例）执行耗时在 JVM 内存中必须 $\le 50\text{ms}$。
+- **NFR-003 (零 Mock 政策)**: 涉及的真实数据库调用（通过 Adapter）必须使用真实 JPA 映射与 MySQL 容器测试，禁止在业务路径使用伪造假数据。

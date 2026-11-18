@@ -394,3 +394,30 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 - 提交 PR 前已重新执行正式三技能流程，清理、验证、独立 google-code-review 与 xiyu-code-review 均 PASS，取得 MERGE_READY 凭证；PR 远端 head 与本地源提交一致。上节 ESCALATE 及“未创建 PR / 未合并”描述记录的是早期阶段，后续状态以本节为准。
 - 修复前诊断正文和索引已随该 PR 合入；本次补录两条初诊日志，并明确标记历史状态，保留初诊到生产快照重放、修复验证的证据顺序。
 - 本任务未执行部署，合入后的真实线上接口/UI 验收未重新执行；本地快照重放结果不等于部署验收。
+
+---
+
+## Feature 090: 评分项意图确定性路由与乘法门禁打分重构（2026-11-18 Phase 1 止血）
+
+### 1. 业务死结与设计背景
+经过 Swarm 四维并行深度审计，明确了案例推荐长期无法根治的本质死结：
+1. **分类错置**：资质证书是客观履约证明文件（证书名、编号、有效期、扫描件），技术方案是主观方案阐述。以往系统强行将资质证书作为文本切片塞入 `knowledge_case` 候选池，企图用文本匹配算法召回，造成不可避免的方案与证书错配（如“配送能力推等保证书”）。
+2. **加性评分的代偿性谬误**：加法打分公式使得无关案例只要命中专属客户名（+20~25 分）或中标状态（+5 分），就能越过门槛，反客为主。
+
+### 2. 核心架构改进（FP-Java 纯核心）
+1. **意图确定性路由器 (`ScoreItemIntentRouter`)**：
+   - 入口前置分析评分项标题与详情，路由至 5 种核心业务意图：`QUALIFICATION`（资质证书）、`TECHNICAL`（技术方案）、`COMMERCIAL`（商务财务）、`PERFORMANCE`（同类业绩）、`PERSONNEL`（人员团队）。
+   - 包含多层级编号清洗与标书泛名前缀剥离（“技术部分评分项”、“评分标准”等）。
+   - 规则优先级固化：解决“技术负责人”优先归人员团队、纯“资质证书”归资质的优先级排序。
+2. **应用服务层物理阻断 (`ScoreItemCaseRecommendAppService`)**：
+   - 当意图判定为 `QUALIFICATION` 时，直接查询企业资质库并返回 `matchedCertificates`，将切片推荐列表物理置空（`items = List.of()`），彻底杜绝文本方案切片混入资质项。
+3. **乘法先验门禁与实体分折算归一 (`ScoreItemCaseMatchPolicy`)**：
+   - 彻底废除实体分直接累加的绕过漏洞；
+   - 客户/项目专属实体分统一纳入 `bonus` 计算，并严格受主题内容相关度 `relevanceRatio = min(1.0, relevanceScore / 8.0)` 比例折算；
+   - 存在评分项要求且内容相关度为 0 时，一票否决返回 0 分；
+   - 搜索词加成调整至 `relevanceScore == 0` 判定之后，确保搜索词无法复活无关案例。
+
+### 3. 验证与测试
+- 单元测试覆盖：`ScoreItemIntentRouterTest` (22)、`ScoreItemCaseMatchPolicyTest` (54)、`ScoreItemCaseRelevanceRegressionTest` (23)、`ScoreItemCaseRecommendAppServiceTest` (13)；
+- 前端测试：`AiRecommendDrawer.spec.js` (15 项全部通过)；
+- 契约验证：`specs/090-case-recommend-intent-routing/tasks.md` 全部勾选完成。

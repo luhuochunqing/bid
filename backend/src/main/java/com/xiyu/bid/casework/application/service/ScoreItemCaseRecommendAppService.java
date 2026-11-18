@@ -13,6 +13,7 @@ import com.xiyu.bid.casework.domain.policy.CaseCategoryMatchPolicy;
 import com.xiyu.bid.casework.domain.policy.PerformanceCaseAdmissionPolicy;
 import com.xiyu.bid.casework.domain.policy.QualificationPerformanceRetriever;
 import com.xiyu.bid.casework.domain.policy.ScoreItemCaseMatchPolicy;
+import com.xiyu.bid.casework.domain.policy.ScoreItemIntentRouter;
 import com.xiyu.bid.casework.application.util.SummaryTruncator;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendRequest;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendResponse;
@@ -149,6 +150,25 @@ public class ScoreItemCaseRecommendAppService {
                 qualKeywords
         );
 
+        // 关键判定：通过路由器确定评分项业务意图
+        ScoreItemIntentRouter.Intent intent = ScoreItemIntentRouter.route(context.dim(), context.detail());
+        if (intent.isQualification()) {
+            List<ScoreItemCaseRecommendResponse.CertificateItem> matchedCertificates = List.of();
+            if (enterpriseQualificationQueryPort != null) {
+                try {
+                    matchedCertificates = enterpriseQualificationQueryPort.findMatchingCertificates(
+                            context.dim(), context.detail(), request.getKeyword());
+                } catch (RuntimeException e) {
+                    log.warn("查询企业资质证书失败，优雅降级：{}", e.getMessage());
+                }
+            }
+            return ScoreItemCaseRecommendResponse.builder()
+                    .total(matchedCertificates.size())
+                    .items(List.of())
+                    .matchedCertificates(matchedCertificates)
+                    .build();
+        }
+
         // 通过端口获取已激活案例（ACTIVE 过滤已下沉至 adapter）
         List<KnowledgeCaseReadModel> allActiveCases = knowledgeCaseQueryPort.findAllActive();
         List<KnowledgeCaseReadModel> candidateCases =
@@ -184,28 +204,10 @@ public class ScoreItemCaseRecommendAppService {
 
         List<ScoreItemCaseRecommendResponse.Item> pageItems = evaluatedItems.subList(fromIndex, toIndex);
 
-        // 关键判定：该评分项是否为资质证书类（若是，则直连企业资质库返回证书原件图片及信息）
-        CaseCategoryMatchPolicy.MacroCategory macroCategory =
-                CaseCategoryMatchPolicy.classifyMacroCategory(context.dim(), context.detail());
-        boolean isQualificationItem = macroCategory == CaseCategoryMatchPolicy.MacroCategory.QUALIFICATION;
-
-        List<ScoreItemCaseRecommendResponse.CertificateItem> matchedCertificates = List.of();
-        if (isQualificationItem && enterpriseQualificationQueryPort != null) {
-            try {
-                matchedCertificates = enterpriseQualificationQueryPort.findMatchingCertificates(
-                        context.dim(), context.detail(), request.getKeyword());
-            } catch (RuntimeException e) {
-                log.warn("查询企业资质证书失败，优雅降级：{}", e.getMessage());
-                matchedCertificates = List.of();
-            }
-        }
-
-        long totalCount = isQualificationItem ? matchedCertificates.size() : evaluatedItems.size();
-
         return ScoreItemCaseRecommendResponse.builder()
-                .total(totalCount)
+                .total(evaluatedItems.size())
                 .items(pageItems)
-                .matchedCertificates(matchedCertificates)
+                .matchedCertificates(List.of())
                 .build();
     }
 

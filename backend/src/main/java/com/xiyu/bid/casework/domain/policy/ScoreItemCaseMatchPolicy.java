@@ -118,7 +118,7 @@ public class ScoreItemCaseMatchPolicy {
             reasons.add(titleScore >= 15 ? "评分点匹配" : "评分点部分匹配");
         }
 
-        // 内容适用性独立于客户/项目背景。背景、置顶和搜索词不能把无关案例变成评分项案例。
+        // 内容适用性独立于客户/项目背景。背景、置顶和非内容因素不能把无关案例变成评分项案例。
         int relevanceScore = score;
         boolean hasItemRequirement = hasText(context.dim()) || hasText(context.detail())
                 || hasText(context.qualificationRequirementText());
@@ -126,22 +126,22 @@ public class ScoreItemCaseMatchPolicy {
             return new MatchResult(candidate.getId(), 0, "一般", List.of("与评分项内容不相关"), List.of());
         }
 
+        // 3.5 搜索词命中：在主题相关的前提下，额外命中用户显式输入的搜索词
+        if (hasText(context.keyword()) && candidateText.contains(context.keyword().trim().toLowerCase(Locale.ROOT))) {
+            score += KEYWORD_HIT_BONUS;
+            relevanceScore += KEYWORD_HIT_BONUS;
+            reasons.add("搜索词命中");
+        }
+
         // 4. 项目专属核心实体匹配（最高 20 分）
         EntityMatchResult entityResult = calculateEntityScore(context, candidate, candidateText);
-        score += entityResult.score();
         if (!entityResult.hitEntities().isEmpty()) {
             reasons.add("命中项目专属实体(" + String.join("、", entityResult.hitEntities().stream().limit(2).toList()) + ")");
         }
 
-        // 4.5 搜索词命中：用户显式输入的关键词属于直接查询相关性
-        if (hasText(context.keyword()) && candidateText.contains(context.keyword().trim().toLowerCase(Locale.ROOT))) {
-            score += KEYWORD_HIT_BONUS;
-            reasons.add("搜索词命中");
-        }
-
-        // 5~10. 情境加成（类别/项目类型/客户类型/中标/质量）与业务主题无关，
-        // 只能在主题相关的案例之间拉开差距：存在评分项要求时，主题相关度不足按比例折算
-        int bonus = 0;
+        // 5~10. 情境加成（实体/类别/项目类型/客户类型/中标/质量）与业务主题无关，
+        // 只能在主题相关的案例之间拉开差距：存在评分项要求时，实体与背景加成必须严格受内容相关度比例门禁约束
+        int bonus = entityResult.score();
         int categoryScore = CaseCategoryMatchPolicy.calculateCategoryScore(
                 context.dim(), context.detail(), candidate.getScoringCategory());
         if (categoryScore > 0) {
@@ -166,7 +166,8 @@ public class ScoreItemCaseMatchPolicy {
             bonus += QUALITY_SCORE_BONUS;
         }
         if (hasItemRequirement) {
-            score += (int) Math.round(bonus * Math.min(1.0, (double) relevanceScore / RELEVANCE_FOR_FULL_BONUS));
+            double relevanceRatio = Math.min(1.0, (double) relevanceScore / RELEVANCE_FOR_FULL_BONUS);
+            score += (int) Math.round(bonus * relevanceRatio);
         } else {
             score += bonus;
         }
