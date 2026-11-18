@@ -122,6 +122,51 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
   refresh.refresh(project);var missing=read(old.getId());assertThat(missing.getEstScore()).isEqualByComparingTo("6.67");
   assertThat(missing.getStatusStage1()).isEqualTo("PENDING");assertThat(freshness.status(missing,LocalDate.now())).isEqualTo("FRESH");
  }
+ @Test
+ void refreshPersistsIndependentCertificateAwardsAndRecalculatesAfterRetirement() {
+  var item = items.saveAndFlush(ScoreItem.builder().projectId(project).parseTaskId(1L).itemIndex(1)
+          .code("").dim("体系认证").detail("""
+                  投标人具有有效期内的质量管理体系认证证书得1分；具有有效期内的环境管理体系认证证书得1分；
+                  具有有效期内的职业健康安全管理体系认证证书得1分；具有有效期内的信息安全管理体系认证证书得3分；
+                  满分6分。
+                  """).weight(new BigDecimal("6")).scoreType("OBJECTIVE").statusStage1("DANGER")
+          .estScore(BigDecimal.ZERO).build());
+  allCertificates();
+  var security = certificates.saveAndFlush(BusinessQualificationEntity.builder()
+          .name("ISO/IEC 27001信息安全管理体系认证证书").subjectName("isolated fixture")
+          .subjectType(QualificationSubjectType.values()[0]).category(QualificationCategory.values()[0])
+          .status(QualificationStatus.IN_STOCK).expiryDate(LocalDate.now().plusYears(1)).build());
+
+  authorizeExternalApi();
+  refresh.refresh(project);
+  var full = read(item.getId());
+  assertThat(full.getEstScore()).isEqualByComparingTo("6");
+  assertThat(full.getEstBasis()).contains("ISO27001 +3分", "投标人持证主体待核验");
+  assertThat(freshness.status(full, LocalDate.now())).isEqualTo("FRESH");
+
+  security.setRetired(true);
+  certificates.saveAndFlush(security);
+  assertThat(freshness.status(read(item.getId()), LocalDate.now())).isEqualTo("STALE");
+  refresh.refresh(project);
+  var partial = read(item.getId());
+  assertThat(partial.getEstScore()).isEqualByComparingTo("3");
+  assertThat(partial.getEstBasis()).contains("ISO27001 无有效记录");
+  assertThat(freshness.status(partial, LocalDate.now())).isEqualTo("FRESH");
+ }
+ @Test
+ void fractionalIndependentCertificateAwardStaysFreshAfterDatabaseRead() {
+  var item = items.saveAndFlush(ScoreItem.builder().projectId(project).parseTaskId(1L).itemIndex(1)
+          .code("").dim("体系认证").detail("具有ISO9001得0.125分；具有ISO27001得0.375分；满分0.50分。")
+          .weight(new BigDecimal("0.50")).scoreType("OBJECTIVE").statusStage1("PENDING").build());
+  allCertificates();
+
+  authorizeExternalApi();
+  refresh.refresh(project);
+  var stored = read(item.getId());
+  assertThat(stored.getEstScore()).isEqualByComparingTo("0.13");
+  assertThat(freshness.status(stored, LocalDate.now())).isEqualTo("FRESH");
+  assertThat(stored.getEstBasis()).contains("预计0.13/0.50分", "ISO9001 +0.125分");
+ }
  @Test void refreshPreservesCandidateRowsAndStageTwoBytes(){
   var old=item();allCertificates();
   objective(2,"业务业绩","近三年办公用品业绩，具有1份合同得10分");

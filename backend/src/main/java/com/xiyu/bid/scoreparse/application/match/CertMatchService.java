@@ -35,6 +35,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CertMatchService {
 
+    private static final String SIMPLE_ESTIMATE_VERSION = "simple-estimate-v3:";
     private final BusinessQualificationJpaRepository repository;
 
     public record ScoreEstimate(CertificateScorePolicy.Assessment assessment, String inputFingerprint) {}
@@ -48,11 +49,11 @@ public class CertMatchService {
     public ScoreEstimate estimateSimpleScore(String dim, String detail, BigDecimal weight, LocalDate asOf) {
         var facts = scoreFacts();
         return new ScoreEstimate(CertificateScorePolicy.assessSimple(dim, detail, weight, asOf, facts),
-                fingerprint("simple-estimate-v2:" + dim, detail, weight, asOf, facts));
+                fingerprint(SIMPLE_ESTIMATE_VERSION + dim, detail, weight, asOf, facts));
     }
 
     public String simpleFingerprintForScore(String dim, String detail, BigDecimal weight, LocalDate asOf) {
-        return fingerprint("simple-estimate-v2:" + dim, detail, weight, asOf, scoreFacts());
+        return fingerprint(SIMPLE_ESTIMATE_VERSION + dim, detail, weight, asOf, scoreFacts());
     }
 
     public String fingerprintForScore(String dim, String detail, BigDecimal weight, LocalDate asOf) {
