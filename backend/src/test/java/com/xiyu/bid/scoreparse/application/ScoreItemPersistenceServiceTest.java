@@ -190,6 +190,20 @@ class ScoreItemPersistenceServiceTest {
     }
 
     @Test
+    void categoryDim_withExtractableTitle_resolvesToSpecificItemName() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
+                .thenReturn(List.of());
+
+        String detail = "能够提供最长\n账期\n最长账期6个月（含）以上的，得5分；最长账期3个月(含)~6个月的，得3分；其余不得分。";
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
+                new ScoreCandidate("longest_payment_period", "商务", detail,
+                        new BigDecimal("5"), "OBJECTIVE", null, detail, "P1", "TABLE_GRID")));
+
+        ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
+        assertThat(saved.getValue().get(0).getDim()).isEqualTo("能够提供最长账期");
+    }
+
+    @Test
     void parentOnlyDim_extractsTitleFromDetailWhenAvailable() {
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
                 .thenReturn(List.of());

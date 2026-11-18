@@ -26,6 +26,7 @@ backlinks:
 
 ## Engineering Space
 
+- [[scoreparse-subjective-naming-and-recheck-dedup-rca]] — 项目38/39主客观跨行识别失效、大类覆盖具体细则与重试重复解析根因与修复
 - [[scoreparse-1119-multiple-package-review]] — 项目1119多标包重解析与旧100分来源诊断
 - [[test-env-obs-upload-and-bidfile-cleanup]] — 测试环境 OBS 直传必须用域名、投标文件删除残留与 sidecar OCR 直测手法
 - [[_index]] — 西域投标管理平台知识库

@@ -95,6 +95,33 @@ class ScoreTypeClassificationPolicyTest {
     }
 
     @Test
+    void classify_project38PaymentPeriod_objective() {
+        String detail = "能够提供最长\n账期\n最长账期6个月（含）以上的，得5分；最长账期3个月\n(含)~6个月的，得3分；其余不得分。";
+        assertThat(policy.classify(detail)).isEqualTo("OBJECTIVE");
+    }
+
+    @Test
+    void classify_project38AcceptanceBill_objective() {
+        String detail = "能否接受承兑\n接受银行/商业承兑的，得3分，否则不得分。";
+        assertThat(policy.classify(detail)).isEqualTo("OBJECTIVE");
+    }
+
+    @Test
+    void classify_project38WarehouseArea_objective() {
+        String detail = "仓储体系\n根据各投标人的仓储情况进行评分。\n(1)湖北省内设有仓库且仓储面积总和大于50000m及以\n上的，得4分：\n"
+                + "(2)湖北省内设有仓库的且仓储面积总和大于30000m2及\n以上的，得3分；\n(3)湖北省内设有仓库的且仓储面积大于10000m2及以上\n的，得1分；\n"
+                + "(4)湖北省内无仓库的，此项不得分。";
+        assertThat(policy.classify(detail)).isEqualTo("OBJECTIVE");
+    }
+
+    @Test
+    void classify_project39DeliveryCommitment_objective() {
+        String detail = "1.交货期限承诺(3分)\n送货地点属于县市城区范围的，投标人承诺自采购人下单\n起48小时（含本数）内送达用户指定地点的的得3分；"
+                + "承诺72小\n时（含本数）内送达用户指定地点的得2分；72小时以上内送达\n用户指定地点的本项不得分。";
+        assertThat(policy.classify(detail)).isEqualTo("OBJECTIVE");
+    }
+
+    @Test
     void classify_explicitObjectiveEvidence_overridesWrongAiGuess() {
         assertThat(policy.classify("投标报价得分按公式计算", "SUBJECTIVE")).isEqualTo("OBJECTIVE");
         assertThat(policy.classify("提供有效期内的认证证书", "SUBJECTIVE")).isEqualTo("OBJECTIVE");

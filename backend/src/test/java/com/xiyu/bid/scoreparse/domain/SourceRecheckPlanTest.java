@@ -126,6 +126,44 @@ class SourceRecheckPlanTest {
         assertThat(ScoreUnitPolicy.hasUnknownRelation(nodes)).isTrue();
     }
 
+    @Test
+    void nonTargetedExistingFactIsNotDuplicatedWhenRecheckRepeatsIt() {
+        var logisticsFirst = fact("WLTX", "tbl1", "tbl1-c2", "物流体系2分", 2);
+        var logisticsRetry = new MultimodalScoreFact("评分办法", "logistics", "", "物流体系",
+                BigDecimal.valueOf(2), "物流体系2分", "OBJECTIVE", 1, "tbl1", List.of("tbl1-c2"),
+                "物流体系2分", .95, ChildAggregation.SUM);
+
+        var failed = fact("OTHER", "tbl1", "tbl1-c3", "其他错误", 3);
+        var target = new SourceRecheckPlan.RetryTarget(OriginalScoreEvidencePolicy.modelFactId(failed), failed.sourceCellIds());
+
+        var plan = new SourceRecheckPlan(null, "text", List.of(), List.of(target));
+        var merged = plan.merge(List.of(logisticsFirst, failed), List.of(logisticsRetry),
+                List.of(OriginalScoreEvidencePolicy.modelFactId(logisticsRetry)));
+
+        assertThat(merged).extracting(MultimodalScoreFact::weight)
+                .containsExactly(BigDecimal.valueOf(2), BigDecimal.valueOf(3));
+        assertThat(merged).hasSize(2);
+    }
+
+    @Test
+    void recheckWithSpecificNameUpgradesCategoryDimWithoutDuplication() {
+        // Project 39 case: first pass had dim="技术", retry pass produced specific dim="交货期限承诺"
+        var initialCategoryFact = new MultimodalScoreFact("评分办法", "JS", "", "技术",
+                BigDecimal.valueOf(5), "交货期限承诺：按时交付得5分", "OBJECTIVE", 1, "tbl1", List.of("tbl1-c1"),
+                "交货期限承诺：按时交付得5分", .9, ChildAggregation.SUM);
+        var retrySpecificFact = new MultimodalScoreFact("评分办法", "JHQXCN", "", "交货期限承诺",
+                BigDecimal.valueOf(5), "交货期限承诺：按时交付得5分", "OBJECTIVE", 1, "tbl1", List.of("tbl1-c1"),
+                "交货期限承诺：按时交付得5分", .95, ChildAggregation.SUM);
+
+        var plan = new SourceRecheckPlan(null, "text", List.of(), List.of());
+        var merged = plan.merge(List.of(initialCategoryFact), List.of(retrySpecificFact),
+                List.of(OriginalScoreEvidencePolicy.modelFactId(retrySpecificFact)));
+
+        assertThat(merged).hasSize(1);
+        assertThat(merged.getFirst().dimension()).isEqualTo("交货期限承诺");
+        assertThat(merged.getFirst().weight()).isEqualByComparingTo("5");
+    }
+
     private static DocumentArtifact.CanonicalTable table(String id,String raw) {
         return new DocumentArtifact.CanonicalTable(id,1,"评分办法",1,1,List.of(),List.of(
                 new DocumentArtifact.CanonicalTable.CanonicalCellDto(id+"-cell",0,0,raw,raw,1,1,false,"pdf:page=1",1)),true);
