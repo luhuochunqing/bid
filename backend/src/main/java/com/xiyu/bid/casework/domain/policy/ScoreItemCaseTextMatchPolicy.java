@@ -70,7 +70,14 @@ final class ScoreItemCaseTextMatchPolicy {
         for (String token : vocabulary) {
             long df = texts.stream().filter(text -> text.contains(token)).count();
             // 只保留语料中出现过的词；出现在全部案例中的词 IDF=0，不具区分度
-            if (df > 0) idf.put(token, Math.log((texts.size() + 1.0) / (df + 1.0)));
+            if (df > 0) {
+                double rawIdf = Math.log((texts.size() + 1.0) / (df + 1.0));
+                // 领域词库词保持完整权重；边缘生僻词不因 df=1 产生虚高峰值压倒核心业务词
+                double smoothedIdf = (df == 1 && !BiddingDomainLexicon.contains(token))
+                        ? Math.min(rawIdf, Math.log((texts.size() + 1.0) / 4.0))
+                        : rawIdf;
+                idf.put(token, smoothedIdf);
+            }
         }
         double averageLength = texts.stream().mapToInt(String::length).average().orElse(0);
         return new Corpus(idf, averageLength);

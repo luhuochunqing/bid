@@ -8553,3 +8553,27 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
   - `ScoreItemCaseMatchPolicyTest`（54 项）+ `ScoreItemCaseRelevanceRegressionTest`（23 项）全绿通过，同客户无关案例稳固得 0 分；
   - `ScoreItemCaseRecommendAppServiceTest`（13 项）覆盖物理阻断与资质直连；
   - 前端抽屉 `AiRecommendDrawer.spec.js`（15 项）全部通过。
+
+## 2026-11-18 案例推荐系统性根因治本：分词规范化与向量语义双轨融合（Feature 090 Phase 2）
+
+- **业务痛点与技术致错根因**：
+  - **机械 2-gram/3-gram 跨词假词与逆向 IDF 陷阱**：在没有语义分词的情况下，机械滑窗产生大量无意义跨词碎片（如“人员须具备较高业务水平”产生“员须”、“备较”、“高业”）。在语料库中，此类生造假词文档频率 $DF=1$，导致其 IDF 暴增 7~10 倍。无意义碎片词反向支配了 25 分条款分。
+  - **纯字面重叠语义盲区**：当评分项与候选案例表达同一语义但用词不同（例如“接口打通” vs “系统协同”、“冷链仓储” vs “智能语音交互”），词法匹配无交集得 0 分，直接被一票否决门禁误杀。
+- **Phase 2 治理策略（FP-Java 纯核心 + 六边形架构）**：
+  1. **正向最大匹配（FMM）与领域词典保护（`BiddingDomainLexicon` & `TextSimilarityPolicy`）**：
+     - 构建纯静态领域词典 `BiddingDomainLexicon`，收录招投标核心专有名词；
+     - 采用正向最大匹配算法，长词优先匹配；针对 4 字以上复合词自动解构为合法二元子词；
+     - 增加助词与连词边界守卫（'须', '应', '需', '较', '并', '且', '及', '与', '或', '等' 绝不进入首尾）；
+     - 在语料库 IDF 计算中，针对 $DF=1$ 且非领域词的孤立词进行平滑抑制。
+  2. **向量语义检索端口与双轨融合（`CaseVectorSemanticQueryPort` & `ScoreItemCaseMatchPolicy`）**：
+     - Application 层定义 `CaseVectorSemanticQueryPort` 驱动端口，Infrastructure 层通过 `CaseVectorSemanticQueryAdapter` 接入 `BidCaseSliceVectorCache` 与 `AiProvider`；
+     - 策略层在 `ScoreItemContext` 中传入可选向量语义分：当余弦相似度 $\ge 0.5$ 时，折算 $cosSim \times 30$ 分作为语义基准分，突破零字面重叠门禁，实现语义智能召回；
+     - 零依赖优雅降级：向量服务未启动或异常时自动降级为空 Map，保证 100% 零异常中断。
+  3. **行预算重构与协作类剥离（`ScoreItemCaseRecommendEvaluator`）**：
+     - 将排序、分页、置顶重排与 DTO 组装逻辑抽离至包级协作类 `ScoreItemCaseRecommendEvaluator`（114 行）；
+     - `ScoreItemCaseRecommendAppService` 行数从 298 行成功降至 268 行，消除行预算门禁告警风险。
+- **本地验证与防回归**：
+  - `TextSimilarityPolicyTest` 验证长文本分词不再产生跨连词碎片；
+  - `ScoreItemCaseMatchPolicyTest` 验证零词法重叠但具备高向量相似度时的破局召回与优雅降级；
+  - `ScoreItemCaseRecommendAppServiceTest` 验证端口对接与异常降级；
+  - 全量 220 项单测（含 `FPJavaArchitectureTest`）与前端测试 100% 绿灯通过。

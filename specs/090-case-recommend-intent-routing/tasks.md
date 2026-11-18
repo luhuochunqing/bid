@@ -43,8 +43,40 @@ Tasks are grouped by user story to enable independent implementation and testing
 
 ---
 
-## Phase 5: Verification & Gate
+## Phase 5: Verification & Gate (Phase 1)
 
 - [x] T012 运行 casework 模块全量回归测试：`mvn test -Dtest="com.xiyu.bid.casework.**.*Test"`。
 - [x] T013 使用 `speckit-analyze` 检验 spec.md, plan.md, tasks.md 三位一体一致性。
 - [x] T014 产出验证通过证据。
+
+---
+
+## Phase 6: User Story 4 (分词规范化与假词逆向 IDF 权重消除)
+
+- [x] T015 [P] [US4] 在 `backend/src/test/java/com/xiyu/bid/casework/domain/policy/TextSimilarityPolicyTest.java` 增加分词规范化测试：断言“人员须具备较高业务水平”等长文本不产生跨助词/连词假词（“员须”、“备较”、“高业”），保留真正业务词汇。
+- [x] T016 [US4] 重构 `backend/src/main/java/com/xiyu/bid/casework/domain/policy/TextSimilarityPolicy.java`：废弃无边界 3-gram 滑窗，加入助词/连词边界守卫和核心招投标词汇保护。
+- [x] T017 [US4] 在 `backend/src/main/java/com/xiyu/bid/casework/domain/policy/ScoreItemCaseTextMatchPolicy.java` 中引入低频假词过滤与 IDF 权重平滑，防止冷僻假词反向霸占条款分。
+- [x] T018 [US4] 运行 `mvn test -Dtest=TextSimilarityPolicyTest,ScoreItemCaseTextMatchPolicyTest,ScoreItemCaseMatchPolicyTest` 验证纯核心分词与算分策略 100% 绿灯。
+
+---
+
+## Phase 7: User Story 6 (行预算重构与编排解耦)
+
+- [x] T019 [US6] 创建协作类 `backend/src/main/java/com/xiyu/bid/casework/application/service/ScoreItemCaseRecommendEvaluator.java`，将候选切片的分页、置顶排序与 DTO 组装逻辑剥离至该类，控制在 150 行以内。
+- [x] T020 [US6] 重构 `backend/src/main/java/com/xiyu/bid/casework/application/service/ScoreItemCaseRecommendAppService.java`，行数降至 200 行以下，运行 `mvn test -Dtest=ScoreItemCaseRecommendAppServiceTest` 确保契约零回归。
+
+---
+
+## Phase 8: User Story 5 (向量语义检索打通与优雅降级)
+
+- [x] T021 [P] [US5] 在 `backend/src/test/java/com/xiyu/bid/casework/domain/policy/ScoreItemCaseMatchPolicyTest.java` 增加向量语义融合测试：验证当字面无公共词但具备向量余弦相似度时，案例突破一票否决门禁获得合理推荐；验证当向量为 null 时优雅降级。
+- [x] T022 [US5] 在 `backend/src/main/java/com/xiyu/bid/casework/domain/policy/ScoreItemCaseMatchPolicy.java` 中引入向量语义相似度打分逻辑，将语义相似度与词法相关度融合为 `ContentScore`。
+- [x] T023 [US5] 在 `backend/src/main/java/com/xiyu/bid/casework/application/service/ScoreItemCaseRecommendAppService.java` 接入向量语义查询逻辑（支持注入 `BidCaseSliceVectorCache` 或语义计算），支持从上下文透传向量语义分并处理降级。
+- [x] T024 [US5] 运行 `mvn test -Dtest=ScoreItemCaseMatchPolicyTest,ScoreItemCaseRecommendAppServiceTest` 验证向量双轨融合与优雅降级全绿。
+
+---
+
+## Phase 9: Verification & Gate (Phase 2 全量验收)
+
+- [x] T025 运行全量单元测试与架构门禁：`mvn test -Dtest="ScoreItemIntentRouterTest,ScoreItemCaseMatchPolicyTest,ScoreItemCaseRelevanceRegressionTest,ScoreItemCaseRecommendAppServiceTest,CaseSubTopicPolicyTest,EnterpriseQualificationMatchPolicyTest,QualificationPerformanceRetrieverTest,TextSimilarityPolicyTest,FPJavaArchitectureTest"`。
+- [ ] T026 运行 `scripts/review-workflow.py` 自动化审查生成凭证并执行 pre-push 门禁。

@@ -51,6 +51,9 @@ class ScoreItemCaseRecommendAppServiceTest {
     @Mock
     private com.xiyu.bid.casework.application.port.EnterpriseQualificationQueryPort enterpriseQualificationQueryPort;
 
+    @Mock
+    private com.xiyu.bid.casework.application.port.CaseVectorSemanticQueryPort vectorSemanticQueryPort;
+
     @InjectMocks
     private ScoreItemCaseRecommendAppService recommendAppService;
 
@@ -697,4 +700,90 @@ class ScoreItemCaseRecommendAppServiceTest {
                 .containsExactly(902L);
     }
 
+    @Test
+    @DisplayName("US5 向量双轨融合：当向量端口提供高相似度时，评分项与案例无公共字词仍可通过语义召回")
+    void testRecommend_WithVectorSemanticQueryPort_IntegratesVectorSimilarities() {
+        Project project = new Project();
+        project.setId(200L);
+        project.setIndustry("工业品");
+        project.setCustomerType("央企");
+
+        ScoreItem item = ScoreItem.builder()
+                .id(50L)
+                .projectId(200L)
+                .code("3.1")
+                .dim("智能语音交互")
+                .detail("语义理解与多轮会话应答")
+                .itemIndex(1)
+                .build();
+
+        KnowledgeCase coldChainCase = new KnowledgeCase();
+        coldChainCase.setId(888L);
+        coldChainCase.setSourceProjectId(200L);
+        coldChainCase.setScoringPointTitle("冷链恒温监控仓储说明");
+        coldChainCase.setScoringCategory("技术方案");
+        coldChainCase.setResponseText("温湿度超限报警与喷淋降温");
+        coldChainCase.setProjectType("工业品");
+        coldChainCase.setCustomerType("央企");
+        coldChainCase.setBidResult("WON");
+        coldChainCase.setStatus("ACTIVE");
+
+        when(projectRepository.findById(200L)).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(50L)).thenReturn(Optional.of(item));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(coldChainCase));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+        when(vectorSemanticQueryPort.querySimilarities(org.mockito.ArgumentMatchers.contains("智能语音交互")))
+                .thenReturn(Map.of(888L, 0.85));
+
+        var response = recommendAppService.recommend(200L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(50L).size(10).build());
+
+        assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getItems().getFirst().getId()).isEqualTo(888L);
+        assertThat(response.getItems().getFirst().getMatchScore()).isGreaterThanOrEqualTo(30);
+        assertThat(response.getItems().getFirst().getMatchReasons())
+                .anyMatch(r -> r.contains("语义相似度匹配") && r.contains("85%"));
+    }
+
+    @Test
+    @DisplayName("US5 向量优雅降级：当向量端口异常抛错时，服务安全降级回退至纯词法评估，零异常中断")
+    void testRecommend_WhenVectorSemanticQueryPortThrows_GracefullyDegrades() {
+        Project project = new Project();
+        project.setId(201L);
+        project.setIndustry("工业品");
+        project.setCustomerType("央企");
+
+        ScoreItem item = ScoreItem.builder()
+                .id(51L)
+                .projectId(201L)
+                .code("1.1")
+                .dim("技术方案")
+                .detail("微服务架构与容灾备份方案")
+                .itemIndex(1)
+                .build();
+
+        KnowledgeCase microserviceCase = new KnowledgeCase();
+        microserviceCase.setId(777L);
+        microserviceCase.setSourceProjectId(201L);
+        microserviceCase.setScoringPointTitle("微服务架构与容灾备份方案");
+        microserviceCase.setScoringCategory("技术方案");
+        microserviceCase.setResponseText("具备微服务容灾备份体系");
+        microserviceCase.setProjectType("工业品");
+        microserviceCase.setCustomerType("央企");
+        microserviceCase.setStatus("ACTIVE");
+
+        when(projectRepository.findById(201L)).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(51L)).thenReturn(Optional.of(item));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(microserviceCase));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+        when(vectorSemanticQueryPort.querySimilarities(org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new RuntimeException("Vector Service Unavailable"));
+
+        var response = recommendAppService.recommend(201L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(51L).size(10).build());
+
+        assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getItems().getFirst().getId()).isEqualTo(777L);
+    }
 }

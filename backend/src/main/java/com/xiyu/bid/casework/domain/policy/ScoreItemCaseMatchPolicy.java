@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -29,13 +30,21 @@ public class ScoreItemCaseMatchPolicy {
             Long scoreItemId, String code, String dim, String detail,
             String projectType, String customerType, String keyword,
             String projectName, String customerName,
-            String qualificationRequirementText, List<String> qualificationKeywords
+            String qualificationRequirementText, List<String> qualificationKeywords,
+            Map<Long, Double> vectorSimilarities
     ) {
+        public ScoreItemContext {
+            qualificationKeywords = qualificationKeywords != null ? qualificationKeywords : List.of();
+            vectorSimilarities = vectorSimilarities != null ? vectorSimilarities : Map.of();
+        }
         public ScoreItemContext(Long scoreItemId, String code, String dim, String detail, String projectType, String customerType, String keyword) {
-            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, null, null, null, List.of());
+            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, null, null, null, List.of(), Map.of());
         }
         public ScoreItemContext(Long scoreItemId, String code, String dim, String detail, String projectType, String customerType, String keyword, String projectName, String customerName) {
-            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, projectName, customerName, null, List.of());
+            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, projectName, customerName, null, List.of(), Map.of());
+        }
+        public ScoreItemContext(Long scoreItemId, String code, String dim, String detail, String projectType, String customerType, String keyword, String projectName, String customerName, String qualificationRequirementText, List<String> qualificationKeywords) {
+            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, projectName, customerName, qualificationRequirementText, qualificationKeywords, Map.of());
         }
     }
 
@@ -116,6 +125,16 @@ public class ScoreItemCaseMatchPolicy {
         if (titleScore > 0) {
             score += titleScore;
             reasons.add(titleScore >= 15 ? "评分点匹配" : "评分点部分匹配");
+        }
+
+        // 3.2 向量语义相似度通道（当存在向量分时，与词法重叠形成双轨融合）
+        if (context.vectorSimilarities() != null && candidate.getId() != null) {
+            Double cosSim = context.vectorSimilarities().get(candidate.getId());
+            if (cosSim != null && cosSim >= 0.5) {
+                int semanticScore = (int) Math.round(cosSim * 30);
+                score += semanticScore;
+                reasons.add("语义相似度匹配(" + Math.round(cosSim * 100) + "%)");
+            }
         }
 
         // 内容适用性独立于客户/项目背景。背景、置顶和非内容因素不能把无关案例变成评分项案例。

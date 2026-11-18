@@ -559,6 +559,90 @@ class ScoreItemCaseMatchPolicyTest {
     }
 
     @Test
+    @DisplayName("US5 向量语义通道：当评分项与案例无公共字词但具备高向量余弦相似度时，突破一票否决门禁被召回")
+    void testVectorSemanticSimilarity_BreaksThroughZeroLexicalOverlap() {
+        StubCandidate candidate = new StubCandidate(
+                999L,
+                "冷链恒温监控仓储",
+                "技术方案",
+                "冷链恒温监控仓储说明",
+                "温湿度超限报警与喷淋降温",
+                "工业品",
+                "央企",
+                "WON"
+        );
+
+        // 字面无交集无子主题匹配
+        ScoreItemCaseMatchPolicy.ScoreItemContext contextWithoutVector = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                999L,
+                "3.1",
+                "智能语音交互",
+                "语义理解与多轮会话应答",
+                "工业品",
+                "央企",
+                null
+        );
+
+        // 无向量相似度时，字面完全无关应得 0 分
+        ScoreItemCaseMatchPolicy.MatchResult resultLexical = policy.evaluate(candidate, contextWithoutVector);
+        assertThat(resultLexical.score()).isEqualTo(0);
+
+        // 注入向量余弦相似度 0.82
+        ScoreItemCaseMatchPolicy.ScoreItemContext contextWithVector = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                999L,
+                "3.1",
+                "智能语音交互",
+                "语义理解与多轮会话应答",
+                "工业品",
+                "央企",
+                null,
+                null,
+                null,
+                null,
+                java.util.List.of(),
+                java.util.Map.of(999L, 0.82)
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult resultVector = policy.evaluate(candidate, contextWithVector);
+        assertThat(resultVector.score()).isGreaterThanOrEqualTo(30);
+        assertThat(resultVector.matchReasons()).anyMatch(r -> r.contains("语义相似度匹配") && r.contains("82%"));
+    }
+
+    @Test
+    @DisplayName("US5 向量优雅降级：向量集合为 null 或为空时，安全回退到纯词法评估，零异常")
+    void testVectorSemanticSimilarity_GracefullyDegradesWhenVectorAbsent() {
+        StubCandidate candidate = new StubCandidate(
+                1000L,
+                "系统架构高可用设计",
+                "技术方案",
+                "系统架构高可用设计要求",
+                "提供双活容灾与动态扩容能力",
+                "工业品",
+                "央企",
+                "WON"
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext contextWithNullVectors = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                1000L,
+                "1.1",
+                "高可用设计",
+                "双活容灾方案",
+                "工业品",
+                "央企",
+                null,
+                null,
+                null,
+                null,
+                java.util.List.of(),
+                null
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(candidate, contextWithNullVectors);
+        assertThat(result).isNotNull();
+        assertThat(result.score()).isGreaterThan(0);
+    }
+
+    @Test
     @DisplayName("顿号分层解析与展示关键词优先级：纯净标题与顿号实体优先入选，绝无碎片切词污染")
     void testPrioritizedKeywords_CleanTitleAndPunctuationEntitiesWithoutFragments() {
         StubCandidate candidate = new StubCandidate(
