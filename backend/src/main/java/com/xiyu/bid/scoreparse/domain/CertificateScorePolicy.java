@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /** Pure certificate scoring with explicit corporate kind, grade and validity evidence. */
@@ -65,13 +66,17 @@ public final class CertificateScorePolicy {
     /** Stage-1 rough estimate only; the strict assess method and its proof semantics stay unchanged. */
     public static Assessment assessSimple(String dim, String detail, BigDecimal weight, LocalDate asOf, List<Fact> facts) {
         if (weight == null || asOf == null) return new Assessment(null, "PENDING", false, "粗估输入不完整，未计算");
-        List<Fact> usable = facts.stream().filter(f -> f.name() != null && !f.name().isBlank())
+        List<Fact> eligible = facts.stream().filter(f -> f.name() != null && !f.name().isBlank())
                 .filter(f -> !f.retired() && List.of("IN_STOCK", "EXPIRING", "VALID").contains(f.status() == null ? "" : f.status()))
-                .filter(f -> f.expiryDate() != null && !f.expiryDate().isBefore(asOf))
                 .filter(f -> f.issueDate() == null || !f.issueDate().isAfter(asOf))
                 .filter(f -> !List.of("PERSONNEL", "PRODUCT").contains(f.category() == null ? "" : f.category()))
                 .filter(f -> !CertificateScoreRule.normalize(f.name()).matches(".*(内审员|审核员|培训|人员|合格证|资格证).*"))
                 .toList();
+        var awards = CertificateScoreRule.independentAwards(dim, detail, weight);
+        if (!awards.isEmpty()) return assessIndependentAwards(weight, asOf, eligible, awards);
+
+        List<Fact> usable = eligible.stream()
+                .filter(f -> f.expiryDate() != null && !f.expiryDate().isBefore(asOf)).toList();
         var identities = CertificateScoreRule.identitiesForEstimate(dim, detail);
         var target = identities.isEmpty() ? ScoreItemConstraintExtractor.requiredForEstimate(detail, "CERT", weight)
                 : new ScoreItemConstraintExtractor.EstimateCount(identities.size(), true);
@@ -91,6 +96,39 @@ public final class CertificateScorePolicy {
                 + "；命中资料：" + (hits.isEmpty() ? "无" : String.join("、", hits))
                 + "；仅计有效且未退役的企业证书，有效期不明不计入；未核验正式评审附加条件";
         return new Assessment(score, status, count > 0, basis);
+    }
+
+    private static Assessment assessIndependentAwards(
+            BigDecimal weight, LocalDate asOf, List<Fact> eligible, Map<String, BigDecimal> awards) {
+        BigDecimal score = BigDecimal.ZERO;
+        int hits = 0;
+        boolean unknownExpiry = false;
+        List<String> proofs = new ArrayList<>();
+        for (var award : awards.entrySet()) {
+            String identity = award.getKey();
+            var candidates = eligible.stream()
+                    .filter(fact -> identity.equals(CertificateScoreRule.estimateSystemIdentity(fact.name()))).toList();
+            var match = candidates.stream()
+                    .filter(fact -> fact.expiryDate() != null && !fact.expiryDate().isBefore(asOf)).findFirst();
+            if (match.isPresent()) {
+                Fact fact = match.get();
+                hits++;
+                score = score.add(award.getValue());
+                proofs.add(identity + " +" + award.getValue() + "分（"
+                        + (fact.id() == null ? "" : "#" + fact.id() + " ") + fact.name()
+                        + "，有效至 " + fact.expiryDate() + "）");
+            } else if (candidates.stream().anyMatch(fact -> fact.expiryDate() == null)) {
+                unknownExpiry = true;
+                proofs.add(identity + " 有效期待核验");
+            } else {
+                proofs.add(identity + " 无有效记录");
+            }
+        }
+        String status = new ScoreStatusPolicy().evaluate(score, weight, "OBJECTIVE", unknownExpiry);
+        String basis = "知识库粗估（资质证书）：要求" + awards.size() + "项，命中" + hits
+                + "项，按证书分值预计" + score + "/" + weight + "分；"
+                + String.join("；", proofs) + "；核验日 " + asOf + "；投标人持证主体待核验";
+        return new Assessment(score, status, hits > 0, basis);
     }
 
     private static Evidence corporateKind(Fact fact, String identity) {

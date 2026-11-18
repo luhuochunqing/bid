@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,6 +28,9 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
             "售后服务", "商品售后(?:服务)?(?:评价)?", "标准化", "企业标准化管理体系");
     private static final String[] HONOR_ORDER = {"品牌信誉", "质量信用", "售后服务", "标准化"};
     private static final String CERT_END = "(?:认证(?:证书)?|证书)?";
+    private static final Pattern INDEPENDENT_AWARD = Pattern.compile(
+            "(?:投标人)?(?:具有|具备|持有)(?:在?有效期内的)?(.+?)的?得" + POINTS + "分");
+    private static final Pattern DECLARED_MAXIMUM = Pattern.compile("(?:满分|合计|共)" + POINTS + "分");
     private static final String SEPARATOR = "[、,及和]";
 
     public static String normalize(String value) {
@@ -48,7 +52,7 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
             String before = text.substring(0, named.start());
             if (STANDARDS.values().stream().anyMatch(alias -> before.matches("(?s).*" + alias + "$"))
                     || before.matches("(?s).*(?:ISO[0-9]{4,5}|CMMI[1-5]?)$")) continue;
-            String label = named.group().replaceFirst("^(?:(?:投标人|供应商|应当|应|须|需|具有|具备|持有|提供|取得|获得|有效的|有效|相关|相应|以及|和|及))+", "");
+            String label = named.group().replaceFirst("^(?:(?:投标人|供应商|应当|应|须|需|具有|具备|持有|提供|取得|获得|在有效期内的|有效期内的|有效的|有效|相关|相应|以及|和|及))+", "");
             if (!Set.of("证书", "认证证书", "资质证书").contains(label)
                     && !label.matches("[一二两三四五六七八九十]+(?:项|份)?(?:认证)?证书")) {
                 String canonical = java.util.stream.Stream.concat(STANDARDS.keySet().stream(), java.util.Arrays.stream(HONOR_ORDER))
@@ -57,6 +61,47 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
             }
         }
         return List.copyOf(identities);
+    }
+
+    /** Closed additive rule for separate management-system certificate awards in stage 1. */
+    static Map<String, BigDecimal> independentAwards(String dim, String detail, BigDecimal weight) {
+        String clause = scoringClause(detail, false);
+        if (clause == null) return Map.of();
+        var header = Pattern.compile("^(?:商务|技术)?" + Pattern.quote(normalize(dim))
+                + POINTS + "(?=(?:投标人)?(?:具有|具备|持有))").matcher(clause);
+        if (header.find() && new BigDecimal(header.group(1)).compareTo(weight) == 0) {
+            clause = clause.substring(header.end());
+        }
+        var awards = new LinkedHashMap<String, BigDecimal>();
+        BigDecimal total = BigDecimal.ZERO;
+        String[] sentences = clause.replaceFirst("[;。]$", "").split("[;。]", -1);
+        for (int i = 0; i < sentences.length; i++) {
+            var maximum = DECLARED_MAXIMUM.matcher(sentences[i]);
+            if (i == sentences.length - 1 && maximum.matches()) {
+                if (new BigDecimal(maximum.group(1)).compareTo(weight) != 0) return Map.of();
+                break;
+            }
+            var award = INDEPENDENT_AWARD.matcher(sentences[i]);
+            if (!award.matches()) return Map.of();
+            String identity = estimateSystemIdentity(award.group(1));
+            BigDecimal points = new BigDecimal(award.group(2));
+            if (identity == null || points.signum() <= 0 || awards.putIfAbsent(identity, points) != null) return Map.of();
+            total = total.add(points);
+        }
+        return awards.size() >= 2 && total.compareTo(weight) == 0 ? awards : Map.of();
+    }
+
+    static String estimateSystemIdentity(String name) {
+        String text = normalize(name);
+        for (String identity : List.of("ISO9001", "ISO14001", "ISO45001", "ISO27001")) {
+            String alias = STANDARDS.getOrDefault(identity, "(?:ISO(?:/IEC)?27001)");
+            String description = DESCRIPTIONS.getOrDefault(identity, "信息安全管理体系");
+            String label = "(?:" + description + ")(?:认证(?:证书)?|证书)";
+            String standard = alias + "(?::[0-9]{4})?";
+            if (text.matches("(?:" + standard + "(?:" + label + "|" + CERT_END + ")|"
+                    + label + "(?:\\(" + standard + "\\))?)")) return identity;
+        }
+        return null;
     }
 
     static Requirement estimateRequirement(String identity, String detail) {

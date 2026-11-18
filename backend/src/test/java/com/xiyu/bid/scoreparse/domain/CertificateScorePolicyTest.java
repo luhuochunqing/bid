@@ -59,6 +59,53 @@ class CertificateScorePolicyTest {
                 new CertificateScorePolicy.Fact(4L,"ISO9001","",null,"IN_STOCK",false,null,"MANAGEMENT"));
         assertThat(CertificateScorePolicy.assessSimple("资质","ISO9001证书",BigDecimal.TEN,day,facts).score()).isZero();
     }
+    private static final String PROJECT_1133 = """
+            商务
+            体系认证
+            6
+            投标人具有有效期内的质量管理体系认证证书得1分；具有
+            有效期内的环境管理体系认证证书得1分；具有有效期内的
+            职业健康安全管理体系认证证书得1分；具有有效期内的信
+            息安全管理体系认证证书得3分；满分6分。
+            """;
+    private static final LocalDate REPLAY_DAY = LocalDate.of(2026, 11, 18);
+
+    @Test
+    void estimatesProject1133ByStandardIdentityAndSeparatelyAwardedPoints() {
+        var quality = simpleFact(1L, "ISO9001质量管理体系认证证书", REPLAY_DAY);
+        var environment = simpleFact(45L, "ISO14001环境管理体系认证", REPLAY_DAY);
+        var occupational = simpleFact(44L, "ISO 45001职业健康管理认证证书", REPLAY_DAY);
+        var security = simpleFact(4L, "ISO/IEC27001信息安全管理体系认证证书", REPLAY_DAY);
+        var cloudSecurity = simpleFact(17L, "ISO/IEC 27017云服务信息安全管理评价证书", REPLAY_DAY);
+
+        var full = estimate1133(List.of(quality, environment, occupational, security, cloudSecurity));
+        assertThat(full.score()).isEqualByComparingTo("6");
+        assertThat(full.basis()).contains("按证书分值", "#1", "#45", "#44", "#4 ",
+                "投标人持证主体待核验");
+        assertThat(estimate1133(List.of(quality, security)).score()).isEqualByComparingTo("4");
+        assertThat(estimate1133(List.of(quality, environment, occupational, cloudSecurity)).score())
+                .isEqualByComparingTo("3");
+    }
+
+    @Test
+    void project1133ExcludesIneligibleRecordsAndIdentifiesMissingExpiry() {
+        var expired = new CertificateScorePolicy.Fact(2L, "ISO14001环境管理体系认证", "",
+                REPLAY_DAY.minusDays(1), "EXPIRED", false, REPLAY_DAY.minusYears(3), "OTHER");
+        var unknown = new CertificateScorePolicy.Fact(4L, "ISO/IEC27001信息安全管理体系认证证书", "",
+                null, "IN_STOCK", false, REPLAY_DAY.minusYears(1), "OTHER");
+        var conflictingCode = simpleFact(17L, "ISO/IEC 27017信息安全管理体系认证证书", REPLAY_DAY);
+        var future = new CertificateScorePolicy.Fact(44L, "ISO 45001职业健康管理认证证书", "",
+                REPLAY_DAY.plusYears(1), "IN_STOCK", false, REPLAY_DAY.plusDays(1), "OTHER");
+        var result = estimate1133(List.of(expired, unknown, conflictingCode, future));
+        assertThat(result.score()).isZero();
+        assertThat(result.status()).isEqualTo("PENDING");
+        assertThat(result.basis()).contains("ISO27001 有效期待核验");
+    }
+
+    private static CertificateScorePolicy.Assessment estimate1133(List<CertificateScorePolicy.Fact> facts) {
+        return CertificateScorePolicy.assessSimple("体系认证", PROJECT_1133, new BigDecimal("6"), REPLAY_DAY, facts);
+    }
+
     private static CertificateScorePolicy.Fact simpleFact(Long id,String name,LocalDate day) {
         return new CertificateScorePolicy.Fact(id,name,"",day.plusYears(1),"IN_STOCK",false,day.minusYears(1),"MANAGEMENT");
     }
