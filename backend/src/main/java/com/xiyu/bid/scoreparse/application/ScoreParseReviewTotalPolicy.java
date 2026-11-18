@@ -11,6 +11,37 @@ final class ScoreParseReviewTotalPolicy {
     private ScoreParseReviewTotalPolicy() {
     }
 
+    static void requirePublishable(ScoreParseTask task, String schemeId,
+                                   java.util.Collection<ScoreParseReviewFactMapper.Qualification> qualifications,
+                                   java.math.BigDecimal selectedTotal) {
+        var selected = qualifications.stream().filter(q -> schemeId.equals(q.schemeId())).toList();
+        String issue = task.getFallbackReason();
+        if (task.getRunSummary() != null && !task.getRunSummary().isBlank()) {
+            try {
+                issue = JSON.readTree(task.getRunSummary()).path("fallbackReason").asText(issue);
+            } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) {
+                // Keep the task-level diagnosis for historical summaries.
+            }
+        }
+        if ("ORIGINAL_TOTAL_CONFLICT".equals(issue)
+                || selected.stream().anyMatch(q -> "CONFLICT".equals(q.totalEvidenceStatus()))) {
+            throw new IllegalArgumentException("所选评分方案的原文总分存在冲突，请核验后重新解析");
+        }
+        if ("ORIGINAL_SCHEME_AMBIGUOUS".equals(issue) && selected.stream()
+                .noneMatch(q -> "VERIFIED".equals(q.totalEvidenceStatus()))) {
+            throw new IllegalArgumentException("评分方案尚未核实，请核对标书后重新解析");
+        }
+        if (hasUncoveredRows(task)) {
+            throw new IllegalArgumentException("原文评分表仍有未识别行，请重新解析后再采纳");
+        }
+        var declared = selected.stream().filter(q -> "VERIFIED".equals(q.totalEvidenceStatus()))
+                .map(ScoreParseReviewFactMapper.Qualification::declaredTotal).filter(java.util.Objects::nonNull)
+                .min(java.math.BigDecimal::compareTo).orElseGet(() -> ScoreParseReviewFactMapper.declaredTotal(task));
+        if (declared != null && selectedTotal.compareTo(declared) > 0) {
+            throw new IllegalArgumentException("候选评分项合计不能超过原文总分 " + declared.toPlainString() + " 分");
+        }
+    }
+
     static boolean hasUncoveredRows(ScoreParseTask task) {
         if (task == null || task.getRunSummary() == null) return false;
         try {

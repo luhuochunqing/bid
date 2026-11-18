@@ -11,6 +11,21 @@ import java.util.List;
 final class BaiduRepeatedHeaderPolicy {
     private BaiduRepeatedHeaderPolicy() {}
 
+    static boolean hasEvaluationCriteriaHeader(CanonicalTable table) {
+        return com.xiyu.bid.scoreparse.domain.grid.TableColumnMapping.isEvaluationCriteriaHeader(
+                java.util.stream.IntStream.range(0, table.columns()).mapToObj(col -> text(table, 0, col)).toList());
+    }
+
+    static boolean continuesEvaluationCriteria(CanonicalTable previous, CanonicalTable current) {
+        return hasEvaluationCriteriaHeader(previous) && current.rows() > 1
+                && previous.sourceSection() != null && !previous.sourceSection().isBlank()
+                && previous.sourceSection().equals(current.sourceSection())
+                && !hasDeclaredTotal(previous)
+                && java.util.stream.IntStream.range(0, 4).allMatch(col -> text(current, 1, col).isBlank())
+                && !text(current, 1, 4).isBlank()
+                && !com.xiyu.bid.scoreparse.domain.ScoreTableSummaryPolicy.isReviewerInstruction(text(current, 1, 4));
+    }
+
     static boolean isContinuation(CanonicalTable previous, CanonicalTable current) {
         if (previous.columns() != current.columns() || current.rows() < 3 || previous.rows() < 2
                 || previous.sourceSection() == null || previous.sourceSection().isBlank()

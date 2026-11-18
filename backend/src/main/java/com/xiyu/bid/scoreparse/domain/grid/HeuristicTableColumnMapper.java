@@ -29,11 +29,11 @@ public final class HeuristicTableColumnMapper {
             "评分因素|评分标准|评审因素|评审标准|评标办法|分值构成|商务评分|技术评分|报价评分"
     );
 
-    private HeuristicTableColumnMapper() {
-    }
+    private HeuristicTableColumnMapper() {}
 
     public static boolean hasExplicitScoreHeaders(TableGrid grid) {
         if (grid == null || grid.isEmpty()) return false;
+        if (TableColumnMapping.isEvaluationCriteriaHeader(grid.row(0))) return true;
         TableColumnMapping mapping = infer(grid);
         if (mapping.headerRows() <= 0) {
             return false;
@@ -51,6 +51,7 @@ public final class HeuristicTableColumnMapper {
             return TableColumnMapping.ofStandard(0, 1, 2, 3);
         }
 
+        if (TableColumnMapping.isEvaluationCriteriaHeader(grid.row(0))) return new TableColumnMapping(0, 1, 2, 4, 3, 1, false);
         int headerRowIndex = 0;
         int maxHeaderMatches = countHeaderMatches(grid.row(0));
 

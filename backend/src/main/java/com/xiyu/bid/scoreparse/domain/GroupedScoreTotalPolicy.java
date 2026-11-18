@@ -24,7 +24,9 @@ final class GroupedScoreTotalPolicy {
         int nameColumn = headerColumn(table, "评审项目|评分因素|评分项|评审因素");
         int weightColumn = headerColumn(table, "分值|评分分值|最高分|满分");
         int ruleColumn = headerColumn(table, "评审标准|评分标准|评分细则");
-        if (nameColumn < 0 || weightColumn < 0 || ruleColumn < 0) return Optional.empty();
+        if (nameColumn < 0 || weightColumn < 0 || ruleColumn < 0) {
+            return GroupedCriteriaScoreTable.extract(table).map(group -> new Total(group.total(), group.locator(), group.quote()));
+        }
         Set<String> groups = new HashSet<>();
         List<String> quotes = new ArrayList<>();
         List<String> locators = new ArrayList<>();

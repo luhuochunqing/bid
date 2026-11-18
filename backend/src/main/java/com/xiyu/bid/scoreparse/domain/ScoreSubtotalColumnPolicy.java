@@ -44,7 +44,7 @@ public final class ScoreSubtotalColumnPolicy {
     public static Selection select(CanonicalTable table, int headerRows, List<CanonicalCellDto> summary) {
         var headers = table.cells().stream().filter(cell -> cell.row() != null && cell.row() == headerRows - 1
                 && !Boolean.TRUE.equals(cell.isMergedContinue())).toList();
-        int column = select(headers, summary);
+        int column = SourceTableHeaderPolicy.isEvaluationCriteriaTable(table) ? 3 : select(headers, summary);
         boolean verified = column >= 0 && summary.stream().anyMatch(cell -> java.util.Objects.equals(cell.column(), column)
                 && hasValue(cell.rawText()));
         return new Selection(column, !verified);

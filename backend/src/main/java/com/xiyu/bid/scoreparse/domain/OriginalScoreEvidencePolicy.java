@@ -102,7 +102,7 @@ public final class OriginalScoreEvidencePolicy {
         List<ScoreEvidenceClaim> claims = facts.stream().map(f -> new ScoreEvidenceClaim(f.factId(), f.factId(), f.sourceTableId(),
                 f.dimension(), qualificationSourceCells(f, factsById), f.weightEvidence() == null ? f.sourceCellIds()
                 : List.of(f.weightEvidence().cellId()), f.weight(), parentIds.contains(f.factId()),
-                units.contains(f.factId()), f.dimension(), null, "", "", f.childAggregation(), ruleUnits.get(f))).toList();
+                units.contains(f.factId()), GroupedCriteriaScoreTable.evidenceQuote(f), null, "", "", f.childAggregation(), ruleUnits.get(f))).toList();
         return verify(context, artifact, claims, null, false);
     }
 

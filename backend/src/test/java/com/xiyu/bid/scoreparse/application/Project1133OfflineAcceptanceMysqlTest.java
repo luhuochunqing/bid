@@ -72,7 +72,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Real private PDF -> actual Sidecar HTTP -> production worker -> MySQL -> real review Controller. */
 @Testcontainers
-@EnabledIfSystemProperty(named = "scoreparse.realPdf", matches = ".+")
+@org.junit.jupiter.api.condition.EnabledIf("hasPrivateInput")
 @SpringBootTest(classes = Project1133OfflineAcceptanceMysqlTest.Config.class, properties = {
         "spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false", "spring.jpa.open-in-view=false"})
 @org.springframework.test.annotation.DirtiesContext(classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS)
@@ -125,7 +125,13 @@ class Project1133OfflineAcceptanceMysqlTest {
     @Autowired ScoreParseReviewAppService reviews;
     @TempDir(cleanup = org.junit.jupiter.api.io.CleanupMode.ON_SUCCESS) Path temporary;
 
-    @Test void actualPdfThroughWorkerDatabaseAndReviewRetainsEveryOriginalRule() throws Exception {
+    static boolean hasPrivateInput() {
+        return System.getProperty("scoreparse.realPdf") != null || System.getProperty("scoreparse.realOcrEvidence") != null;
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "scoreparse.realPdf", matches = ".+")
+    void actualPdfThroughWorkerDatabaseAndReviewRetainsEveryOriginalRule() throws Exception {
         try (var fixture = new Project1133OfflineFixture(temporary)) {
             long project = 1133L;
             jdbc.execute("CREATE TABLE IF NOT EXISTS projects(id BIGINT PRIMARY KEY)");
@@ -152,7 +158,7 @@ class Project1133OfflineAcceptanceMysqlTest {
             assertThat(task.getDecisionStatus()).isEqualTo("AUTO_APPROVED");
             assertThat(task.getPipelineVersion()).isEqualTo("EVIDENCE_PIPELINE_V1");
             assertThat(task.getFallbackReason()).isNull();
-            assertThat(tasks.count()).isEqualTo(1);
+            assertThat(tasks.findByProjectIdAndTaskTypeAndStatusIn(project, "PARSE", List.of("COMPLETED"))).hasSize(1);
             var originalRules = fixture.originalRules();
             var artifact = artifactExtractor.extract(pdf, "project1133.pdf");
             var sourceCells = artifact.tables().stream().flatMap(t -> t.cells().stream())
@@ -178,6 +184,58 @@ class Project1133OfflineAcceptanceMysqlTest {
                         + "\ndatabase=" + MYSQL.getJdbcUrl() + "\nhistoricalBaiduResponse=UNVERIFIED\n");
             } finally { SecurityContextHolder.clearContext(); }
         }
+    }
+
+    @Test
+    @org.junit.jupiter.api.condition.EnabledIfSystemProperty(named = "scoreparse.realOcrEvidence", matches = ".+")
+    void recordedBaiduEvidencePublishesExactlyTheOriginalItemsInMysql() throws Exception {
+        Path root = Path.of(System.getProperty("scoreparse.realOcrEvidence"));
+        Path source = Path.of(System.getProperty("scoreparse.realOcrSource"));
+        var expected = mapper.readTree(source.resolve("original-expectations.json").toFile());
+        var artifacts = mapper.copy().disable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        jdbc.execute("CREATE TABLE IF NOT EXISTS projects(id BIGINT PRIMARY KEY)");
+        for (long project : new long[]{38, 39}) {
+            jdbc.update("INSERT INTO projects(id) VALUES(?)", project);
+            var artifact = artifacts.readValue(root.resolve(project + "-artifact.json").toFile(),
+                    com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.class);
+            String filename = project + ".pdf";
+            var extracted = StructuredArtifactScoreExtraction.extract(artifact, filename,
+                    Files.readString(source.resolve(project + ".txt")));
+            assertThat(extracted.originalVerified()).as(extracted.completeness().defects().toString()).isTrue();
+            String taskId = UUID.randomUUID().toString();
+            state.createTask(taskId, project, "PARSE", filename, "fixture://" + filename);
+            state.markProcessing(taskId);
+            var task = tasks.findByTaskId(taskId).orElseThrow();
+            StructuredTableExtractionHandler.markEvidencePipelineCompleted(task, taskId, extracted,
+                    tasks, state, progress, persistence, estimator);
+            var actual = items.findByProjectIdOrderByItemIndexAsc(project);
+            var oracle = expected.path(Long.toString(project)).path("items");
+            assertThat(actual).hasSize(oracle.size()).allSatisfy(item -> {
+                assertThat(item.getParseTaskId()).isEqualTo(task.getId());
+                assertThat(item.getDetail()).isNotBlank().isNotEqualTo("—");
+            });
+            for (var row : oracle) {
+                String name = row.get(1).asText();
+                assertThat(actual).filteredOn(item -> compactRule(item.getDim()).equals(compactRule(name)))
+                        .singleElement().satisfies(item -> {
+                            assertThat(item.getWeight()).isEqualByComparingTo(row.get(2).asText());
+                            assertThat(compactRule(item.getDetail())).contains(compactRule(row.get(4).asText()));
+                        });
+            }
+            if (project == 39) {
+                assertThat(actual).filteredOn(item -> compactRule(item.getDim()).equals("交货期限承诺"))
+                        .singleElement().satisfies(item -> assertThat(item.getScoreType()).isEqualTo("OBJECTIVE"));
+            }
+            assertThat(actual.stream().map(com.xiyu.bid.scoreparse.entity.ScoreItem::getWeight)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("100");
+            var completed = tasks.findByTaskId(taskId).orElseThrow();
+            assertThat(completed.getStatus()).isEqualTo("COMPLETED");
+            assertThat(completed.getDecisionStatus()).isEqualTo("AUTO_APPROVED");
+        }
+    }
+
+    private static String compactRule(String input) {
+        return java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFKC).replaceAll("\\s+", "");
     }
 
     private void assertReview(ScoreParseReviewDTO review, ScoreParseTask task, JsonNode oracle, java.util.Map<String, String> cells) throws Exception {

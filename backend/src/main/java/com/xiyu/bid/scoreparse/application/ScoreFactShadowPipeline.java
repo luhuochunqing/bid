@@ -4,6 +4,7 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.DeterministicScoreFactExtractor;
+import com.xiyu.bid.scoreparse.domain.GroupedCriteriaScoreTable;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreFactValidator;
@@ -60,6 +61,7 @@ public final class ScoreFactShadowPipeline {
                     List.of());
         }
         List<TableOutcome> outcomes = new ArrayList<>();
+        var groupedTotals = new ArrayList<ScoreTableSummaryPolicy.DeclaredTotalEvidence>();
         int skipped = 0;
         for (DocumentArtifact.CanonicalTable table : artifact.tables()) {
             if (table == null || !Boolean.TRUE.equals(table.isScoreTable())) {
@@ -68,12 +70,19 @@ public final class ScoreFactShadowPipeline {
             }
             CanonicalTableGrid grid = CanonicalTableGridFactory.fromSidecarTable(table);
             TableColumnMapping mapping = HeuristicTableColumnMapper.infer(toLegacyGrid(grid));
-            List<ScoreFact> facts = grid.isStructurallyValid()
-                    ? ShadowLogicalRowRestoration.restore(artifact, DeterministicScoreFactExtractor.extract(grid, mapping))
-                    : List.of();
-            outcomes.add(new TableOutcome(grid, mapping, facts, grid.isStructurallyValid()));
+            if (!grid.isStructurallyValid()) {
+                outcomes.add(new TableOutcome(grid, mapping, List.of(), false));
+                continue;
+            }
+            var grouped = GroupedCriteriaScoreTable.extract(table);
+            grouped.ifPresent(result -> groupedTotals.add(new ScoreTableSummaryPolicy.DeclaredTotalEvidence(
+                    result.total(), table.tableId(), 0, result.locator(), result.quote())));
+            List<ScoreFact> facts = grouped.map(GroupedCriteriaScoreTable.Result::facts).orElseGet(() ->
+                    ShadowLogicalRowRestoration.restore(artifact, DeterministicScoreFactExtractor.extract(grid, mapping)));
+            outcomes.add(new TableOutcome(grid, mapping, facts, true));
         }
-        List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> declaredTotals = collectDeclaredTotals(outcomes);
+        var declaredTotals = new ArrayList<>(collectDeclaredTotals(outcomes));
+        declaredTotals.addAll(groupedTotals);
         TableSplitResult split = splitOutcomes(outcomes, declaredTotals, tenderSectionText);
         List<ScoreFact> allFacts = outcomes.stream()
                 .flatMap(outcome -> outcome.facts().stream())

@@ -4,6 +4,7 @@
 // 维护声明: 维护者按项目SOP；从 ScoreParseAppService 拆出（300 行预算 + 单一职责）
 package com.xiyu.bid.scoreparse.application;
 
+import com.xiyu.bid.scoreparse.domain.DeterministicScoreFactExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreCategoryClassifier;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemOrderPolicy;
@@ -105,7 +106,8 @@ public class ScoreItemPersistenceService {
         List<ScoreItem> items = new ArrayList<>();
         for (int i = 0; i < ordered.size(); i++) {
             ScoreCandidate candidate = ordered.get(i);
-            String scoreType = classificationPolicy.classify(candidate.detail(), candidate.scoreTypeGuess());
+            String scoreType = com.xiyu.bid.scoreparse.domain.GroupedCriteriaScoreTable.METHOD.equals(candidate.location())
+                    ? candidate.scoreTypeGuess() : classificationPolicy.classify(candidate.detail(), candidate.scoreTypeGuess());
             String code = resolveCode(candidate.code());
             String dim = resolveDim(candidate);
             String detail = candidate.detail() == null || candidate.detail().isBlank()
@@ -220,14 +222,18 @@ public class ScoreItemPersistenceService {
         return ScoreCategoryClassifier.isTopLevelCategory(dim);
     }
 
-    private String resolveDim(ScoreCandidate candidate) {
+    static String resolveDim(ScoreCandidate candidate) {
         String trimmedDim = candidate.dim() == null ? "" : candidate.dim().trim();
+        boolean explicitName = !trimmedDim.isBlank() && "EVIDENCE_PIPELINE".equals(candidate.semanticPattern())
+                && DeterministicScoreFactExtractor.EVALUATION_CRITERIA_METHOD.equals(candidate.location());
         boolean categoryDim = isTopLevelCategory(trimmedDim) || candidate.isParentOnlyDim();
-        if (candidate.detail() != null && !candidate.detail().isBlank()) {
+        if (!explicitName && candidate.detail() != null && !candidate.detail().isBlank()) {
             String title = ScoreItemTitleExtractor.extract(candidate.detail()).orElse("");
             if (!title.isBlank()) return title.length() > 200 ? title.substring(0, 200) : title;
         }
-        if (!trimmedDim.isBlank() && !categoryDim) return trimmedDim.length() > 200 ? trimmedDim.substring(0, 200) : trimmedDim;
+        if (!trimmedDim.isBlank() && (explicitName || !categoryDim)) {
+            return trimmedDim.length() > 200 ? trimmedDim.substring(0, 200) : trimmedDim;
+        }
         if (candidate.detail() != null && !candidate.detail().isBlank()) {
             String trimmed = candidate.detail().trim();
             if (!isTopLevelCategory(trimmed)) {

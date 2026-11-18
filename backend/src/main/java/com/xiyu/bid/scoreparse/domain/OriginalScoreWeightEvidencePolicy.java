@@ -52,6 +52,7 @@ final class OriginalScoreWeightEvidencePolicy {
         }
         for (var table : artifact.tables()) {
             if (!table.tableId().equals(claim.tableId())) continue;
+            if (GroupedCriteriaScoreTable.verifiesMaximum(table, claim)) return;
             var cited = table.cells().stream().filter(c -> claim.weightCellIds().contains(c.cellId())).toList();
             var anchor = ScoreWeightSourceEvidence.anchor(cited, claim.sourceCellIds(), claim.quotedText(), table);
             if (anchor == null || anchor.row() == null) {

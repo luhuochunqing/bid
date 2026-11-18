@@ -19,9 +19,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 /** Extracts evidence-bound score facts without inventing weights. */
 public final class DeterministicScoreFactExtractor {
+    public static final String EVALUATION_CRITERIA_METHOD = "STRUCTURED_EVALUATION_CRITERIA";
     private static final Pattern NUMERIC_WEIGHT = Pattern.compile(
             "^[~≈]?\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*(?:分|分值|%)?\\s*$");
     private static final Pattern TITLE_WEIGHT = Pattern.compile(
@@ -30,14 +32,17 @@ public final class DeterministicScoreFactExtractor {
     private static final Pattern DEDUCTION_RULE = Pattern.compile("(?:扣|减少|扣除)\\s*\\d{1,3}(?:\\.\\d+)?\\s*分");
     private static final String METHOD = "STRUCTURED_TABLE_DETERMINISTIC";
 
-    private DeterministicScoreFactExtractor() {
-    }
+    private DeterministicScoreFactExtractor() {}
 
     public static List<ScoreFact> extract(CanonicalTableGrid grid, TableColumnMapping mapping) {
         if (grid == null || mapping == null || !grid.isStructurallyValid()) {
             return List.of();
         }
         int startRow = Math.min(Math.max(mapping.headerRows(), 0), grid.rows());
+        var header = grid.cellsInRow(0);
+        String method = TableColumnMapping.isEvaluationCriteriaHeader(IntStream.range(0, grid.columns())
+                .mapToObj(col -> cellAt(header, col).filter(CanonicalCell::isUsableOrigin).map(CanonicalCell::rawText)
+                        .orElse("")).toList()) ? EVALUATION_CRITERIA_METHOD : METHOD;
 
         Map<Integer, ScoreFact> factByRow = new LinkedHashMap<>();
         Map<Integer, ScoreFact> parentFactByOriginRow = new HashMap<>();
@@ -56,7 +61,10 @@ public final class DeterministicScoreFactExtractor {
             if (sourceText.isBlank()) continue;
             if (rowCells.stream().anyMatch(cell -> cell.isUsableOrigin()
                     && cell.column() == 0 && cell.colspan() == grid.columns())
-                    && ScoreTableSummaryPolicy.isReviewerInstruction(sourceText)) continue;
+                    && (ScoreTableSummaryPolicy.isReviewerInstruction(sourceText)
+                    || (mapping.parentDimCol() == 1 && mapping.dimCol() == 2 && mapping.weightCol() == 3
+                        && mapping.detailCol() == 4 && sourceText.matches("(?s)^注[：:]相关承诺内容[，,].*")
+                        && !sourceText.matches("(?s).*(?:得分|扣分|[0-9]+\\s*分|否决|废标).*")))) continue;
             if (ScoreTableSummaryPolicy.isSummaryRow(code, dimension)
                     || ScoreTableSummaryPolicy.isSummaryRow(rowCells)) {
                 continue;
@@ -78,10 +86,10 @@ public final class DeterministicScoreFactExtractor {
                 String parentId = factId(grid.tableId(), row, "", dimension, "parent");
                 parentFactByOriginRow.put(row, fact(parentId, grid.tableId(), List.of(dimCell.cellId()),
                         dimCell.rawText(), "", dimension, titleWeight, ScoreRule.MAX_SCORE, "",
-                        ScoreFact.ValidationStatus.REVIEW_REQUIRED));
+                        method, ScoreFact.ValidationStatus.REVIEW_REQUIRED));
                 factByRow.put(row, fact(factId(grid.tableId(), row, code, dimension, "leaf"),
                         grid.tableId(), sourceCellIds, sourceText, code, dimension, explicitWeight,
-                        classifyRule(detail), parentId, ScoreFact.ValidationStatus.AUTO_APPROVED));
+                        classifyRule(detail), parentId, method, ScoreFact.ValidationStatus.AUTO_APPROVED));
                 continue;
             }
             WeightResolution weight = resolveWeight(rowCells, dimCell, detailCell, mapping);
@@ -106,7 +114,7 @@ public final class DeterministicScoreFactExtractor {
                     ? ScoreFact.ValidationStatus.REVIEW_REQUIRED
                     : ScoreFact.ValidationStatus.AUTO_APPROVED;
             factByRow.put(row, fact(factId, grid.tableId(), sourceCellIds, sourceText, code,
-                    dimension, weight, classifyRule(detail), "", status));
+                    dimension, weight, classifyRule(detail), "", method, status));
         }
 
         Map<Integer, String> dimensionOriginCellIdByRow = new HashMap<>();
@@ -150,7 +158,6 @@ public final class DeterministicScoreFactExtractor {
     }
 
     private static final Pattern CATEGORY_TITLE_PATTERN = Pattern.compile("(?s).*(?:部分|大类|标包|分包|类别|评审大项|合计|总计|小计).*");
-
     private static boolean isCategoryTitle(String text) {
         return text != null && !text.isBlank() && CATEGORY_TITLE_PATTERN.matcher(text.trim()).matches();
     }
@@ -226,9 +233,9 @@ public final class DeterministicScoreFactExtractor {
 
     private static ScoreFact fact(String factId, String tableId, List<String> sourceCellIds, String sourceText,
                                   String code, String dimension, WeightResolution weight, ScoreRule rule,
-                                  String parentFactId, ScoreFact.ValidationStatus status) {
+                                  String parentFactId, String method, ScoreFact.ValidationStatus status) {
         return new ScoreFact(factId, tableId, sourceCellIds, sourceText, code, dimension,
-                weight.weight(), weight.evidence(), rule, parentFactId, METHOD,
+                weight.weight(), weight.evidence(), rule, parentFactId, method,
                 status == ScoreFact.ValidationStatus.AUTO_APPROVED ? 1.0 : 0.0, status);
     }
 
@@ -289,7 +296,5 @@ public final class DeterministicScoreFactExtractor {
         return factId(tableId, row, code, dimension + "|" + role);
     }
 
-    private record WeightResolution(BigDecimal weight, ScoreEvidence evidence, boolean ambiguous) {
-    }
+    private record WeightResolution(BigDecimal weight, ScoreEvidence evidence, boolean ambiguous) {}
 }
-

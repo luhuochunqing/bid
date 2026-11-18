@@ -127,7 +127,8 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
         if (totals.isEmpty() && localProblems.isEmpty()) artifact.tables().stream().filter(table -> OriginalScoringSchemePolicy.owns(scheme, table))
                 .forEach(table -> GroupedScoreTotalPolicy.resolve(table).ifPresent(grouped -> totals.add(
                         new Evidence(grouped.value(), "TABLE_SUMMARY", scheme, grouped.locator(), grouped.quote()))));
-        if (totals.isEmpty() && detailTables == 1 && subtotals.size() == 1 && localProblems.isEmpty()
+        if (totals.isEmpty() && subtotals.size() == 1 && localProblems.isEmpty() && (detailTables == 1
+                || artifact.tables().stream().anyMatch(t -> subtotals.containsKey(t.tableId()) && SourceTableHeaderPolicy.isEvaluationCriteriaTable(t)))
                 && (!scheme.isBlank() || artifact.tables().stream().allMatch(t -> t == null || t.sourceSection() == null || t.sourceSection().isBlank()))
                 && artifact.tables().stream().filter(t -> t != null && subtotals.containsKey(t.tableId()))
                 .noneMatch(t -> OriginalScoringSchemePolicy.category(t.sourceSection()))) {
@@ -147,8 +148,7 @@ public record OriginalScoringContext(String documentId, String scheme, OriginalS
                 subtotals, localProblems);
     }
 
-    private static void recordSubtotal(Map<String, Subtotal> values,
-                                       List<OriginalScoreEvidencePolicy.Problem> problems,
+    private static void recordSubtotal(Map<String, Subtotal> values, List<OriginalScoreEvidencePolicy.Problem> problems,
                                        String tableId, BigDecimal value, String locator, String quote) {
         Subtotal previous = values.putIfAbsent(tableId, new Subtotal(value, locator, quote));
         if (previous != null && previous.value().compareTo(value) != 0)

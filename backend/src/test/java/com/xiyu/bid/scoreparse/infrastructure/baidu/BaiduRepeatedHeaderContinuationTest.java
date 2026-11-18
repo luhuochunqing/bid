@@ -9,6 +9,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class BaiduRepeatedHeaderContinuationTest {
 
+    @Test void evaluationScheduleStartsAfterPrefaceAndKeepsRuleOnlyContinuation() {
+        var header = new String[]{"序号", "评议类别", "评价事项", "", "评价要素及分值"};
+        var preface = table("preface", 8, "评分规则",
+                new String[]{"条款", "", "内容", "", "见评分明细"});
+        var details = table("detail", 9, "评分规则", header,
+                new String[]{"1", "技术评议（10分）", "服务", "5", "按下列规则评定。"});
+        var next = table("next", 10, "评分规则", header,
+                new String[]{"", "", "", "", "同时提交有效承诺。"},
+                new String[]{"", "", "配送", "5", "按响应时限评定。"});
+        var result = BaiduCrossPageTableLinker.mergeCrossPageScoreTables(List.of(preface, details, next));
+        assertThat(result).extracting(CanonicalTable::tableId).containsExactly("preface", "detail");
+        assertThat(result.getLast().cells()).filteredOn(c -> "同时提交有效承诺。".equals(c.rawText()))
+                .singleElement().satisfies(c -> assertThat(c.logicalRowId()).isEqualTo("detail-r1"));
+    }
+
     @Test void reviewerInstructionInRuleColumnIsNotAnItemContinuation() {
         var first = table("first", 9, "评分规则", new String[]{"类别", "评分项", "分值", "评分标准"},
                 new String[]{"技术", "服务", "5", "提供完整方案得5分"});
@@ -131,6 +146,6 @@ public class BaiduRepeatedHeaderContinuationTest {
             cells.add(new CanonicalCellDto(id + "_r" + row + "_c" + col, row, col, value, value,
                     1, 1, false, "pdf:page=" + page + ";row=" + row + ";col=" + col, page, id + "-r" + row));
         }
-        return new CanonicalTable(id, page, section, rows.length, 4, List.of(), cells, true, "PDF");
+        return new CanonicalTable(id, page, section, rows.length, rows[0].length, List.of(), cells, true, "PDF");
     }
 }

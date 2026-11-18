@@ -35,4 +35,12 @@ public record TableColumnMapping(
     public static TableColumnMapping ofStandard(int codeCol, int dimCol, int detailCol, int weightCol) {
         return new TableColumnMapping(codeCol, -1, dimCol, detailCol, weightCol, 1, false);
     }
+    public static boolean isEvaluationCriteriaHeader(java.util.List<String> row) {
+        if (row.size() != 5) return false;
+        var header = row.stream().map(s -> s.replaceAll("\\s+", "")).toList();
+        return "序号".equals(header.get(0)) && "评议类别".equals(header.get(1))
+                && "评价事项".equals(header.get(2)) && (header.get(3).isEmpty() || "分值".equals(header.get(3)))
+                && "评价要素及分值".equals(header.get(4));
+    }
+
 }
