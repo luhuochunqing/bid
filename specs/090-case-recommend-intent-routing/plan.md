@@ -155,3 +155,35 @@ $$\text{IDF}(t) = \ln\left(\frac{N + 1}{\text{DF}(t) + 1}\right)$$
 抽离 `ScoreItemCaseRecommendEvaluator.java`（包级私有协作类，纯计算与组装）：
 - 负责 `candidateCases` 批量算分、大类过滤、置顶重排与 DTO 装配；
 - 将 `ScoreItemCaseRecommendAppService` 行数降至约 160 行，彻底解除行预算风险。
+
+---
+
+## Phase 3 架构与技术设计方案（候选池数据清洗与低质废料切片过滤）
+
+### 1. 废料切片与模板污染根因
+历史积累的切片池（`knowledge_case` / `bid_case_slice`）包含数千条历史文本，其中存在大量低质噪声：
+1. **纯格式模板（Boilerplate Form Templates）**：如授权委托书格式、投标承诺函格式、投标保函格式、包含大量空白填空符号（`______`、`（盖章）：________`、`日期：____年__月__日`）；
+2. **纯占位符/敷衍文本（Placeholders）**：如“详见附件”、“见附表”、“完全响应招标文件要求，特此承诺”等缺少实质应答方案的极短文本；
+3. **目录与排版残片（TOC & Page Artifacts）**：含有大段点号、破折号及页码的目录提取残留（如`第一节 ... 1`）；
+4. **低信息熵文本（Low Information Entropy）**：大量重复符号或字符种类极低的数据。
+
+这些废料切片不仅会在前台刷屏影响用户体验，还会因为包含通用词或实体词在 TF-IDF 语料构建时产生噪声。
+
+### 2. 治本设计：纯核心 `CaseContentQualityPolicy` (FP-Java)
+在 `casework/domain/policy/` 建立纯无状态策略 `CaseContentQualityPolicy`：
+- **短文本拦截**：文本清理后有效长度 $< 30$ 字符直接判定为低质；
+- **纯模板识别**：匹配格式声明与签名盖章下划线特征（如“格式如下”、“格式自拟”、“法定代表人（签字或盖章）”、“特此委托”等）；
+- **占位符识别**：匹配“详见附件”、“见附表”、“完全满足要求”等敷衍无实质应答模式；
+- **排版与目录残片识别**：符号/空白占比 $> 35\%$ 且含有点号、破折号或连续下划线；
+- **低信息熵检测**：不重复字符占比 $< 0.20$；
+- **综合质量分门禁**：结合文本长度与结构，不达标者（质量分 $< 40$）一票否决；
+- **零误杀保护**：具有完整结构、充实方案论述的技术与商务方案 100% 正常放行。
+
+### 3. 双层门禁防御（Defense in Depth）
+1. **应用编排层前置过滤**：
+   在 `ScoreItemCaseRecommendAppService` 召回候选集后，立即执行 `CaseContentQualityPolicy.filterAdmissible(candidateCases)`：
+   - 低质废料切片不参与 `ScoreItemCaseTextMatchPolicy.buildCorpus`（保护 IDF 纯度）；
+   - 避免无谓的算分与向量查询开销；
+2. **纯核心策略层兜底防御**：
+   在 `ScoreItemCaseMatchPolicy.evaluate` 中作为第 0 级门禁检查：
+   - 若传入低质切片，直接返回 0 分并标记“低质废料切片/纯模板过滤”。

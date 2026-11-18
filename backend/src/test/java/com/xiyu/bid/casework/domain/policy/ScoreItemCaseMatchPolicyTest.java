@@ -1121,4 +1121,24 @@ class ScoreItemCaseMatchPolicyTest {
 
         assertThat(result.score()).isLessThan(15);
     }
+
+    @Test
+    @DisplayName("低质废料切片与纯模板案例在打分层必须被一票否决门禁拦截")
+    void testLowQualityTemplateCaseIsFilteredByDefenseInDepth() {
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                101L, "1", "技术方案",
+                "请提供技术保障与售后服务方案",
+                "工业品", "央企", null, "三峡项目", "三峡集团"
+        );
+        StubCandidate templateCase = new StubCandidate(
+                9999L, "法定代表人授权委托书格式", "技术",
+                "授权书模板", "法定代表人授权委托书格式如下：本授权委托书声明：我______系三峡集团法定代表人，现授权张三参加三峡项目投标。特此委托。法定代表人（签字或盖章）：______ 代理人（签字）：______ 日期：____年__月__日",
+                "工业品", "央企", "WON", "OTHER", 60
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(templateCase, context);
+
+        assertThat(result.score()).isZero();
+        assertThat(result.matchReasons()).contains("低质废料切片/纯模板过滤");
+    }
 }

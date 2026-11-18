@@ -121,6 +121,37 @@ $$\text{FinalScore} = \text{ContentScore} \times \left(1.0 + \text{BonusFactor}\
 
 ---
 
+### User Story 7 - 纯模板声明与低质切片准入门禁 (Phase 3, Priority: P1)
+
+系统在案例候选召回与打分全链路中，建立严格的数据质量准入门禁：
+- 识别纯空白格式声明（如“法定代表人授权委托书格式”、“投标承诺函格式如下”、“格式自拟”、“签字：______”、“（盖章）：________”、“日期：____年__月__日”等纯填空模板）；
+- 识别敷衍占位符切片（如“详见附件”、“见附表”、“见技术标”、“完全满足要求特此承诺”等缺少实质应答方案的极短文本）；
+- 在编排层及打分层实施物理拦截：判定为低质废料切片的案例，不计入推荐候选池，不参与 TF-IDF 语料构建，避免污染正常打分分布。
+
+**Why this priority**:
+消除“用户在推荐结果中经常被无意义的授权书格式、空白承诺函模板刷屏”的脏数据痛点。
+
+**Independent Test**:
+构造“法定代表人授权委托书模板格式如下：我______系______法定代表人，现授权张三代表我方参加三峡集团项目投标...（盖章）：______”等模板文本：
+- 即使命中“三峡集团”实体与“项目”关键词，`CaseContentQualityPolicy.isLowQuality(...)` 判定为 true；
+- 打分或准入直接拦截（0分，理由包含“纯格式模板/非实质方案”），不进入推荐列表；
+- 真实技术方案（如仓储物流、系统对接方案）100% 正常放行（零误杀）。
+
+**Acceptance Scenarios**:
+1. **Given** 候选案例为授权书/承诺书空白模板切片，**When** 执行案例推荐，**Then** 被质量门禁彻底拦截，前台不出现该模板。
+2. **Given** 候选案例为真实高质技术方案（如三峡电商化接口对接方案），**When** 执行案例推荐，**Then** 质量门禁顺利放行，不发生误杀。
+
+---
+
+### User Story 8 - 排版残片与低信息熵垃圾清洗 (Phase 3, Priority: P2)
+
+系统在处理历史切片时，识别并过滤非实质性的排版残片与低信息熵乱码：
+- 识别由点号、下划线、破折号及页码组成的纯目录切片（如“第一节 总体方案 .......... 1 \n 第二节 实施步骤 .......... 5”）；
+- 识别符号重复率极高或字符种类极少的低信息熵文本（如单一字符重复、大量标点下划线占比超标）；
+- 综合文本质量评分（`qualityScore < 40`）与文本特征综合判定，防止残片混入。
+
+---
+
 ## Edge Cases
 
 - 评分项无详情内容（`detail` 为空，仅有泛化章节标题如“第三章 详细评审”）：
@@ -141,6 +172,8 @@ $$\text{FinalScore} = \text{ContentScore} \times \left(1.0 + \text{BonusFactor}\
 - **FR-003**: `ScoreItemCaseMatchPolicy` 必须实现乘法先验门禁：背景特征加成作为乘法系数，严禁无门禁的加法累加；当且仅当内容实质相关度 $ContentScore \ge 1$ 时，才允许背景因子生效。
 - **FR-004**: 彻底移除 `calculateDetailOverlap` 与 `calculateTitleSimilarity` 中将泛词/无区分度碎片反向膨胀为高分的漏洞，保证纯核心策略 100% 具备单测反证用例。
 - **FR-005**: 响应体 DTO `ScoreItemCaseRecommendResponse` 保持向后兼容，确保旧调用方不崩溃。
+- **FR-006**: 必须在 `casework/domain/policy/` 建立纯核心 `CaseContentQualityPolicy`，识别纯格式模板、敷衍占位符、目录排版残片及低信息熵垃圾切片。
+- **FR-007**: `ScoreItemCaseRecommendAppService` 与 `ScoreItemCaseMatchPolicy` 必须接入数据质量准入门禁，低质废料切片一票否决不予推荐。
 
 ### Non-Functional Requirements
 

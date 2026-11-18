@@ -11,6 +11,7 @@ import com.xiyu.bid.casework.application.port.KnowledgeCaseQueryPort;
 import com.xiyu.bid.casework.application.port.TenderQualificationQueryPort;
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 import com.xiyu.bid.casework.domain.policy.CaseCategoryMatchPolicy;
+import com.xiyu.bid.casework.domain.policy.CaseContentQualityPolicy;
 import com.xiyu.bid.casework.domain.policy.PerformanceCaseAdmissionPolicy;
 import com.xiyu.bid.casework.domain.policy.QualificationPerformanceRetriever;
 import com.xiyu.bid.casework.domain.policy.ScoreItemCaseMatchPolicy;
@@ -189,6 +190,7 @@ public class ScoreItemCaseRecommendAppService {
         List<KnowledgeCaseReadModel> allActiveCases = knowledgeCaseQueryPort.findAllActive();
         List<KnowledgeCaseReadModel> candidateCases =
                 applyAdmissionIfNeeded(allActiveCases, applyAdmission, perfRequirement);
+        candidateCases = CaseContentQualityPolicy.filterAdmissible(candidateCases);
         Set<Long> sourceProjectIds = allActiveCases.stream()
                 .map(KnowledgeCaseReadModel::getSourceProjectId)
                 .filter(Objects::nonNull)

@@ -87,6 +87,11 @@ public class ScoreItemCaseMatchPolicy {
             return new MatchResult(candidate.getId(), 0, "一般", List.of("大类冲突一票否决"), List.of());
         }
 
+        // 0.1 纯模板与低质废料切片一票否决门禁
+        if (candidate.getResponseText() != null && CaseContentQualityPolicy.isLowQuality(candidate)) {
+            return new MatchResult(candidate.getId(), 0, "一般", List.of("低质废料切片/纯模板过滤"), List.of());
+        }
+
         String candidateText = ScoreItemCaseTextMatchPolicy.candidateFullText(candidate);
         int score = 0;
         List<String> reasons = new ArrayList<>();

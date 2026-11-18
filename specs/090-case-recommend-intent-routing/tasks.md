@@ -79,4 +79,22 @@ Tasks are grouped by user story to enable independent implementation and testing
 ## Phase 9: Verification & Gate (Phase 2 全量验收)
 
 - [x] T025 运行全量单元测试与架构门禁：`mvn test -Dtest="ScoreItemIntentRouterTest,ScoreItemCaseMatchPolicyTest,ScoreItemCaseRelevanceRegressionTest,ScoreItemCaseRecommendAppServiceTest,CaseSubTopicPolicyTest,EnterpriseQualificationMatchPolicyTest,QualificationPerformanceRetrieverTest,TextSimilarityPolicyTest,FPJavaArchitectureTest"`。
-- [ ] T026 运行 `scripts/review-workflow.py` 自动化审查生成凭证并执行 pre-push 门禁。
+- [x] T026 运行 `scripts/review-workflow.py` 自动化审查生成凭证并执行 pre-push 门禁。
+
+---
+
+## Phase 10: User Story 7 & 8 (纯模板声明与低质切片准入门禁)
+
+- [x] T027 [P] [US7] 编写低质切片与纯模板过滤策略测试 `backend/src/test/java/com/xiyu/bid/casework/domain/policy/CaseContentQualityPolicyTest.java`，覆盖格式模板（授权书/承诺函/保函空白表格）、敷衍占位符（详见附件/完全响应）、目录残片、低信息熵重复文本以及真实高质技术方案的零误杀反证用例。
+- [x] T028 [US7] 实现纯核心数据质量准入策略 `backend/src/main/java/com/xiyu/bid/casework/domain/policy/CaseContentQualityPolicy.java`，支持 `isLowQuality`、`evaluate` 与 `filterAdmissible` 判定，严格保持 FP-Java 规范。
+- [x] T029 [US7] 在 `backend/src/main/java/com/xiyu/bid/casework/domain/policy/ScoreItemCaseMatchPolicy.java` 中增加兜底防御门禁，拦截低质废料切片。
+- [x] T030 [US7] 在 `backend/src/main/java/com/xiyu/bid/casework/application/service/ScoreItemCaseRecommendAppService.java` 中引入前置准入过滤，在构建语料库及推荐算分前排除低质切片。
+- [x] T031 [US7] 在 `backend/src/test/java/com/xiyu/bid/casework/domain/policy/ScoreItemCaseMatchPolicyTest.java` 与 `ScoreItemCaseRecommendAppServiceTest.java` 中增补低质模板案例过滤用例并验证全部测试通过。
+
+---
+
+## Phase 11: Verification & Gate (Phase 3 全量验收)
+
+- [x] T032 运行全部 casework 模块及架构门禁测试：`mvn test -Dtest="*CaseQuality*,*CaseMatch*,*CaseRecommend*,*TextSimilarity*,FPJavaArchitectureTest"`。
+- [ ] T033 运行 `scripts/review-workflow.py` 自动化审查流程生成新凭证。
+- [ ] T034 运行 `scripts/pre-push-gate.sh` 门禁并提交推送更新 PR !3050。

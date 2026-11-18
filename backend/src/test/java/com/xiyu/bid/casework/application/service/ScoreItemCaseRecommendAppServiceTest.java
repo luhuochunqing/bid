@@ -786,4 +786,63 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(response.getTotal()).isEqualTo(1);
         assertThat(response.getItems().getFirst().getId()).isEqualTo(777L);
     }
+
+    @Test
+    @DisplayName("US7/US8 质量门禁：推荐服务自动过滤纯模板与低质废料切片，仅推荐高质实质方案")
+    void testRecommend_FiltersOutLowQualityTemplates() {
+        Project project = new Project();
+        project.setId(301L);
+        project.setIndustry("工业品");
+        project.setCustomerType("央企");
+
+        ScoreItem item = ScoreItem.builder()
+                .id(61L)
+                .projectId(301L)
+                .code("2.1")
+                .dim("技术方案")
+                .detail("微服务架构与容灾备份方案")
+                .itemIndex(1)
+                .build();
+
+        KnowledgeCase genuineCase = new KnowledgeCase();
+        genuineCase.setId(801L);
+        genuineCase.setSourceProjectId(301L);
+        genuineCase.setScoringPointTitle("微服务架构与容灾备份方案");
+        genuineCase.setScoringCategory("技术方案");
+        genuineCase.setResponseText("具备完整的微服务高可用容灾备份体系与灾备演练机制。");
+        genuineCase.setProjectType("工业品");
+        genuineCase.setCustomerType("央企");
+        genuineCase.setStatus("ACTIVE");
+
+        KnowledgeCase templateCase = new KnowledgeCase();
+        templateCase.setId(802L);
+        templateCase.setSourceProjectId(301L);
+        templateCase.setScoringPointTitle("法定代表人授权委托书格式");
+        templateCase.setScoringCategory("技术方案");
+        templateCase.setResponseText("法定代表人授权委托书格式如下：我______系法定代表人，特此委托。签字：______ 日期：____年__月__日");
+        templateCase.setProjectType("工业品");
+        templateCase.setCustomerType("央企");
+        templateCase.setStatus("ACTIVE");
+
+        KnowledgeCase placeholderCase = new KnowledgeCase();
+        placeholderCase.setId(803L);
+        placeholderCase.setSourceProjectId(301L);
+        placeholderCase.setScoringPointTitle("容灾方案附件");
+        placeholderCase.setScoringCategory("技术方案");
+        placeholderCase.setResponseText("详见技术标附件。");
+        placeholderCase.setProjectType("工业品");
+        placeholderCase.setCustomerType("央企");
+        placeholderCase.setStatus("ACTIVE");
+
+        when(projectRepository.findById(301L)).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(61L)).thenReturn(Optional.of(item));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(genuineCase, templateCase, placeholderCase));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+
+        var response = recommendAppService.recommend(301L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(61L).size(10).build());
+
+        assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getItems().getFirst().getId()).isEqualTo(801L);
+    }
 }
