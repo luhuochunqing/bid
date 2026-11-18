@@ -153,6 +153,20 @@ class ScoreEstimateRefreshMysqlTest extends AbstractTransactionBoundaryTest {
   assertThat(partial.getEstBasis()).contains("ISO27001 无有效记录");
   assertThat(freshness.status(partial, LocalDate.now())).isEqualTo("FRESH");
  }
+ @Test
+ void fractionalIndependentCertificateAwardStaysFreshAfterDatabaseRead() {
+  var item = items.saveAndFlush(ScoreItem.builder().projectId(project).parseTaskId(1L).itemIndex(1)
+          .code("").dim("体系认证").detail("具有ISO9001得0.125分；具有ISO27001得0.375分；满分0.50分。")
+          .weight(new BigDecimal("0.50")).scoreType("OBJECTIVE").statusStage1("PENDING").build());
+  allCertificates();
+
+  authorizeExternalApi();
+  refresh.refresh(project);
+  var stored = read(item.getId());
+  assertThat(stored.getEstScore()).isEqualByComparingTo("0.13");
+  assertThat(freshness.status(stored, LocalDate.now())).isEqualTo("FRESH");
+  assertThat(stored.getEstBasis()).contains("预计0.13/0.50分", "ISO9001 +0.125分");
+ }
  @Test void refreshPreservesCandidateRowsAndStageTwoBytes(){
   var old=item();allCertificates();
   objective(2,"业务业绩","近三年办公用品业绩，具有1份合同得10分");

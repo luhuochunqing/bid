@@ -27,9 +27,11 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
             "品牌信誉", "(?:中国)?品牌信誉评价", "质量信用", "企业质量信用等级评价",
             "售后服务", "商品售后(?:服务)?(?:评价)?", "标准化", "企业标准化管理体系");
     private static final String[] HONOR_ORDER = {"品牌信誉", "质量信用", "售后服务", "标准化"};
-    private static final String CERT_END = "(?:认证(?:证书)?|证书)?";
+    private static final String CERT_SUFFIX = "(?:认证(?:证书)?|证书)";
+    private static final String CERT_END = CERT_SUFFIX + "?";
+    private static final String AWARD_SUBJECT = "(?:投标人)?(?:具有|具备|持有)";
     private static final Pattern INDEPENDENT_AWARD = Pattern.compile(
-            "(?:投标人)?(?:具有|具备|持有)(?:在?有效期内的)?(.+?)的?得" + POINTS + "分");
+            AWARD_SUBJECT + "(?:在?有效期内的)?(.+?)的?得" + POINTS + "分");
     private static final Pattern DECLARED_MAXIMUM = Pattern.compile("(?:满分|合计|共)" + POINTS + "分");
     private static final String SEPARATOR = "[、,及和]";
 
@@ -68,7 +70,7 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
         String clause = scoringClause(detail, false);
         if (clause == null) return Map.of();
         var header = Pattern.compile("^(?:商务|技术)?" + Pattern.quote(normalize(dim))
-                + POINTS + "(?=(?:投标人)?(?:具有|具备|持有))").matcher(clause);
+                + POINTS + "(?=" + AWARD_SUBJECT + ")").matcher(clause);
         if (header.find() && new BigDecimal(header.group(1)).compareTo(weight) == 0) {
             clause = clause.substring(header.end());
         }
@@ -96,9 +98,10 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
         for (String identity : List.of("ISO9001", "ISO14001", "ISO45001", "ISO27001")) {
             String alias = STANDARDS.getOrDefault(identity, "(?:ISO(?:/IEC)?27001)");
             String description = DESCRIPTIONS.getOrDefault(identity, "信息安全管理体系");
-            String label = "(?:" + description + ")(?:认证(?:证书)?|证书)";
+            String label = "(?:" + description + ")" + CERT_SUFFIX;
+            String labelWithStandard = "ISO27001".equals(identity) ? label + "|信息安全认证(?:证书)?" : label;
             String standard = alias + "(?::[0-9]{4})?";
-            if (text.matches("(?:" + standard + "(?:" + label + "|" + CERT_END + ")|"
+            if (text.matches("(?:" + standard + "(?:" + labelWithStandard + "|" + CERT_END + ")|"
                     + label + "(?:\\(" + standard + "\\))?)")) return identity;
         }
         return null;
