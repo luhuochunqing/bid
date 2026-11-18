@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [案例推荐, score_item, spec041, 裸响应, 二次解包, caseRecommendationApi]
 created: 2026-08-21
-updated: 2026-11-17
+updated: 2026-11-18
 health_checked: 2026-11-17
 sources:
   - src/api/modules/caseRecommendation.js
@@ -469,3 +469,9 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 - 单元测试：`CaseContentQualityPolicyTest` (10)、`ScoreItemCaseMatchPolicyTest` (14)、`ScoreItemCaseRecommendAppServiceTest` (6)；
 - 全量 70 项单测与前端抽屉 15 项测试 100% 绿灯通过；
 - 单文件行数全面符合 $\le 300$ 行硬门禁约束。
+
+## 评分项要求可核验证明时先判断证据准入
+
+项目 38 的「电商平台自营商品 SKU 数量」要求带日期的系统截图。历史「商品管理能力」方案与主题相关，但没有数量证明。案例推荐应先检查评分项要求的交付物，再排序候选。纯证明条款缺少可信来源时，接口返回 `evidenceReviewRequired=true` 和空结果。纯证明条款也可能属于业绩类。若条款需要合同、订单截图与发票相互印证，仍在查询历史案例前返回待核验。复合条款显式要求方案时可展示历史参考，同时提示核验证据。
+
+实现和验收见 [Spec 091](../../specs/091-case-recommend-evidence-admission/spec.md)。真实接口抽屉回归使用包含两种条款的测试项目，需要配置 `XIYU_E2E_EVIDENCE_PROJECT_ID`、`XIYU_E2E_EVIDENCE_PROOF_ITEM_ID`、`XIYU_E2E_EVIDENCE_REFERENCE_ITEM_ID`。

@@ -34,13 +34,14 @@
         </el-alert>
       </div>
 
-      <!-- 资质证书匹配结果展示区域（含证书原件图片直连与预览） -->
-      <EnterpriseCertRecommendList v-if="isQualificationScoreItem" :certificates="matchedCertificates" />
-
-      <div class="drawer-section">
+      <EnterpriseCertRecommendList v-if="isQualificationScoreItem || matchedCertificates.length > 0" :certificates="matchedCertificates" />
+      <el-alert v-if="evidenceReviewRequired" type="warning" :closable="false" show-icon>
+        <template #title>当前推荐缺少可核验的证明材料，请人工核验原始材料。</template>
+      </el-alert>
+      <div v-if="!evidenceReviewRequired || cases.length > 0" class="drawer-section">
         <div class="section-label-row">
           <label class="section-label">
-            匹配案例
+            历史案例参考
             <el-tag v-if="selectedItemId" size="small" type="info">{{ recommendTotal }} 个结果</el-tag>
           </label>
           <el-tooltip placement="top" :show-after="100">
@@ -118,8 +119,10 @@ const keywordFilter = ref('')
 const cases = ref([])
 const matchedCertificates = ref([])
 const recommendTotal = ref(0)
+const evidenceReviewRequired = ref(false)
 const loadingCases = ref(false)
 const defaultCases = ref([])
+let recommendationRequestId = 0
 
 const detailVisible = ref(false)
 const detailLoading = ref(false)
@@ -127,7 +130,7 @@ const detailCase = ref(null)
 
 const currentScoreItem = computed(() => scoreItems.value.find(item => item.id === selectedItemId.value))
 const isQualificationScoreItem = computed(() => {
-  if (!currentScoreItem.value) return false
+  if (!currentScoreItem.value || loadingCases.value || evidenceReviewRequired.value) return false
   const { dim: title = '', detail = '' } = currentScoreItem.value
   return /(资质|资格|证书|体系认证|管理体系|iso|许可|执照)/i.test(title)
     || /(资质证书|资格证书|体系认证|iso|许可证|执照|证书复印件|证书扫描件)/i.test(detail)
@@ -152,53 +155,53 @@ async function handleOpen() {
     const res = await caseRecommendationApi.getScoreItems(props.projectId)
     const items = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : [])
     scoreItems.value = items
-    if (items.length > 0) { selectedItemId.value = items[0].id; await handleItemChange() }
-    else { await loadDefaultProjectCases() }
   } catch (err) {
-    scoreItems.value = []; notifyErrorUnlessRateLimit(err, '获取评分项失败'); await loadDefaultProjectCases()
+    scoreItems.value = []
+    notifyErrorUnlessRateLimit(err, '获取评分项失败')
   } finally {
     scoreItemsLoading.value = false
   }
-}
-
-async function loadDefaultProjectCases() {
-  if (defaultCases.value.length > 0) { cases.value = defaultCases.value; return }
-  try {
-    const res = await caseRecommendationApi.recommendCases(props.projectId, { keyword: '', page: 0, size: 20 })
-    defaultCases.value = (res?.items || []).map(normalizeRecommendCase)
-    if (!selectedItemId.value) cases.value = defaultCases.value
-  } catch (err) {
-    defaultCases.value = []
-    notifyErrorUnlessRateLimit(err, '获取推荐案例失败')
-  }
+  selectedItemId.value = scoreItems.value[0]?.id ?? null
+  await handleItemChange()
 }
 
 async function handleItemChange() {
-  if (!selectedItemId.value) {
-    recommendTotal.value = 0
-    matchedCertificates.value = []
-    cases.value = defaultCases.value.length === 0 ? (await loadDefaultProjectCases(), cases.value) : [...defaultCases.value]
-    return
-  }
+  const requestId = ++recommendationRequestId
+  const scoreItemId = selectedItemId.value
+  evidenceReviewRequired.value = false
+  matchedCertificates.value = []
+  recommendTotal.value = 0
+  cases.value = []
   loadingCases.value = true
   try {
-    const res = await caseRecommendationApi.recommendCases(props.projectId, {
-      scoreItemId: selectedItemId.value, keyword: keywordFilter.value.trim(), page: 0, size: 20
-    })
+    if (!scoreItemId && defaultCases.value.length > 0) {
+      cases.value = defaultCases.value
+      return
+    }
+    const query = scoreItemId ? { scoreItemId, keyword: keywordFilter.value.trim() } : { keyword: '' }
+    const res = await caseRecommendationApi.recommendCases(props.projectId, { ...query, page: 0, size: 20 })
+    if (requestId !== recommendationRequestId) return
     cases.value = (res?.items || []).map(normalizeRecommendCase)
+    if (!scoreItemId) {
+      defaultCases.value = cases.value
+      return
+    }
+    evidenceReviewRequired.value = res?.evidenceReviewRequired === true
     matchedCertificates.value = res?.matchedCertificates || []
     const serverTotal = Number(res?.total)
     recommendTotal.value = Number.isFinite(serverTotal) ? serverTotal : cases.value.length
   } catch (err) {
-    cases.value = []; matchedCertificates.value = []; recommendTotal.value = 0
-    notifyErrorUnlessRateLimit(err, '获取推荐案例失败')
+    if (requestId === recommendationRequestId) notifyErrorUnlessRateLimit(err, '获取推荐案例失败')
   } finally {
-    loadingCases.value = false
+    if (requestId === recommendationRequestId) loadingCases.value = false
   }
 }
 
 let keywordDebounceTimer
-onBeforeUnmount(() => clearTimeout(keywordDebounceTimer))
+onBeforeUnmount(() => {
+  recommendationRequestId++
+  clearTimeout(keywordDebounceTimer)
+})
 watch(keywordFilter, () => {
   if (selectedItemId.value) {
     clearTimeout(keywordDebounceTimer)

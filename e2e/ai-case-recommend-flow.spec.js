@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { ensureApiSession, injectSession } from './auth-helpers.js'
+import { scoreItemOptionTitle } from '../src/utils/scoreItemOptionDisplay.js'
 
 async function loginAsRole(page, role) {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -104,6 +105,63 @@ test.describe('AI智能案例推荐', () => {
       await expect(firstCard).not.toContainText(/复用\s+\d+\s*次/)
       await expect(firstCard.getByRole('button', { name: /复用/ })).toBeVisible()
     }
+  })
+
+  test('在历史参考和待核验证明之间切换时展示对应结果', async ({ page }) => {
+    const projectId = process.env.XIYU_E2E_EVIDENCE_PROJECT_ID
+    test.skip(!projectId, '需要测试环境中包含证明条款和普通方案条款的固定项目')
+    const proofId = process.env.XIYU_E2E_EVIDENCE_PROOF_ITEM_ID
+    const referenceId = process.env.XIYU_E2E_EVIDENCE_REFERENCE_ITEM_ID
+    expect(proofId).toBeTruthy()
+    expect(referenceId).toBeTruthy()
+    expect(proofId).not.toBe(referenceId)
+
+    await loginAsRole(page, '/bidAdmin')
+    await page.goto(`/project/${projectId}`)
+    await page.locator('.el-step__title').filter({ hasText: /^标书制作$/ }).click()
+    const projectPath = `/api/projects/${projectId}`
+    const requestItems = page.waitForResponse(response =>
+      new URL(response.url()).pathname === `${projectPath}/score-items`
+      && response.request().method() === 'GET'
+    )
+    await page.getByRole('button', { name: 'AI智能推荐案例' }).click()
+    const itemsResponse = await requestItems
+    expect(itemsResponse.ok()).toBe(true)
+    const items = await itemsResponse.json()
+
+    const drawer = page.getByRole('dialog', { name: 'AI 智能案例推荐' })
+    const warning = drawer.getByText('当前推荐缺少可核验的证明材料，请人工核验原始材料。', { exact: true })
+    const referenceHeading = drawer.getByText('历史案例参考', { exact: false })
+    const cards = drawer.locator('.recommend-grid .case-card')
+
+    async function selectAndRecommend(itemId) {
+      const item = items.find(row => String(row.id) === itemId)
+      expect(item, `项目 ${projectId} 缺少评分项 ${itemId}`).toBeDefined()
+      const recommendation = page.waitForResponse(response =>
+        new URL(response.url()).pathname === `${projectPath}/cases/recommend`
+        && response.request().method() === 'POST'
+        && String(response.request().postDataJSON()?.scoreItemId) === itemId
+      )
+      await drawer.getByRole('combobox').click()
+      await page.getByRole('option', { name: scoreItemOptionTitle(item), exact: true }).click()
+      const response = await recommendation
+      expect(response.ok()).toBe(true)
+      return response.json()
+    }
+
+    if (String(items[0]?.id) === proofId) await selectAndRecommend(referenceId)
+    const proof = await selectAndRecommend(proofId)
+    expect(proof).toMatchObject({ evidenceReviewRequired: true, total: 0, items: [] })
+    await expect(warning).toBeVisible()
+    await expect(referenceHeading).toHaveCount(0)
+    await expect(cards).toHaveCount(0)
+
+    const reference = await selectAndRecommend(referenceId)
+    expect(reference.evidenceReviewRequired).toBe(false)
+    expect(reference.items.length).toBeGreaterThan(0)
+    await expect(warning).toHaveCount(0)
+    await expect(referenceHeading).toBeVisible()
+    await expect(cards.first()).toBeVisible()
   })
 
   test('案例库页面案例卡片展示正常', async ({ page }) => {

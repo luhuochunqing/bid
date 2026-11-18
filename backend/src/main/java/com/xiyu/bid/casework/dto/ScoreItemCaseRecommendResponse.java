@@ -15,6 +15,9 @@ public class ScoreItemCaseRecommendResponse {
 
     private long total;
 
+    /** 本评分项有原始证明要求，当前推荐无法自动核验。 */
+    private boolean evidenceReviewRequired;
+
     private List<Item> items;
 
     /**

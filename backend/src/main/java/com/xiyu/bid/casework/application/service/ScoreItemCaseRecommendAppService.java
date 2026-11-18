@@ -1,5 +1,5 @@
 // Input: ScoreItemCaseRecommendRequest (recommendation parameters)
-// Output: ScoreItemCaseRecommendResponse (evaluated and sorted recommendation items)
+// Output: ScoreItemCaseRecommendResponse (admitted references and manual evidence review status)
 // Pos: backend/src/main/java/com/xiyu/bid/casework/application/service/ - App Service Layer
 // 维护声明: 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -12,14 +12,17 @@ import com.xiyu.bid.casework.application.port.TenderQualificationQueryPort;
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 import com.xiyu.bid.casework.domain.policy.CaseCategoryMatchPolicy;
 import com.xiyu.bid.casework.domain.policy.CaseContentQualityPolicy;
+import com.xiyu.bid.casework.domain.policy.CaseRecommendationPurposePolicy;
+import com.xiyu.bid.casework.domain.policy.CaseRecommendationPurposePolicy.Purpose;
 import com.xiyu.bid.casework.domain.policy.PerformanceCaseAdmissionPolicy;
 import com.xiyu.bid.casework.domain.policy.QualificationPerformanceRetriever;
 import com.xiyu.bid.casework.domain.policy.ScoreItemCaseMatchPolicy;
-import com.xiyu.bid.casework.domain.policy.ScoreItemIntentRouter;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendRequest;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendResponse;
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
 import com.xiyu.bid.scoreparse.dto.ScoreItemDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
@@ -34,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 评分项级智能案例推荐应用服务（编排层 / 副作用隔离）。
@@ -65,6 +69,7 @@ public class ScoreItemCaseRecommendAppService {
     private final ScoreItemCaseMatchPolicy matchPolicy = new ScoreItemCaseMatchPolicy();
     private final ScoreItemCaseRecommendEvaluator evaluator = new ScoreItemCaseRecommendEvaluator(matchPolicy);
     private final QualificationPerformanceRetriever performanceRetriever = new QualificationPerformanceRetriever();
+    private final KnowledgeCategoryPolicy knowledgeCategoryPolicy = new KnowledgeCategoryPolicy();
 
     @org.springframework.beans.factory.annotation.Autowired
     public ScoreItemCaseRecommendAppService(
@@ -123,8 +128,11 @@ public class ScoreItemCaseRecommendAppService {
         String customerType = project != null ? project.getCustomerType() : null;
 
         ScoreItem scoreItem = null;
-        if (request.getScoreItemId() != null) {
-            scoreItem = scoreItemRepository.findById(request.getScoreItemId()).orElse(null);
+        Long scoreItemId = request.getScoreItemId();
+        if (scoreItemId != null) {
+            scoreItem = scoreItemRepository.findById(scoreItemId)
+                    .filter(item -> projectId.equals(item.getProjectId()))
+                    .orElseThrow(() -> new ResourceNotFoundException("评分项", scoreItemId.toString()));
         } else if (request.getScoreItemCode() != null && !request.getScoreItemCode().trim().isEmpty()) {
             String code = request.getScoreItemCode().trim();
             scoreItem = scoreItemRepository.findByProjectIdOrderByItemIndexAsc(projectId).stream()
@@ -133,19 +141,22 @@ public class ScoreItemCaseRecommendAppService {
                     .orElse(null);
         }
 
-        String qualReqText = null;
-        List<String> qualKeywords = List.of();
-
-        boolean performanceItem = scoreItem != null
-                && performanceRetriever.isPerformanceScoreItem(scoreItem.getDim(), scoreItem.getDetail());
-        QualificationPerformanceRetriever.PerformanceRequirementResult perfRequirement = performanceItem
-                ? lookupPerformanceRequirement(projectId, scoreItem.getDim(), scoreItem.getDetail())
-                : (scoreItem == null && !hasQueryKeyword(request.getKeyword()) ? lookupQualificationPerformance(projectId) : null);
-        if (perfRequirement != null) {
-            qualReqText = perfRequirement.matchedRequirementText();
-            qualKeywords = perfRequirement.keywords();
+        String factorName = scoreItem == null ? null : knowledgeCategoryPolicy.factorName(scoreItem.getCode(), scoreItem.getDim());
+        String detail = scoreItem == null ? null : scoreItem.getDetail();
+        Purpose purpose = CaseRecommendationPurposePolicy.determineRecommendationPurpose(factorName, detail);
+        if (purpose == Purpose.MANUAL_EVIDENCE) {
+            return ScoreItemCaseRecommendResponse.builder()
+                    .evidenceReviewRequired(true)
+                    .items(List.of())
+                    .matchedCertificates(List.of())
+                    .build();
         }
-        boolean applyAdmission = performanceItem || (scoreItem == null && perfRequirement != null);
+        boolean performanceItem = performanceRetriever.isPerformanceScoreItem(factorName, detail);
+        boolean lookupQualification = performanceItem || (scoreItem == null && !hasQueryKeyword(request.getKeyword()));
+        QualificationPerformanceRetriever.PerformanceRequirementResult perfRequirement = lookupQualification
+                ? lookupQualificationPerformance(projectId) : null;
+        String qualReqText = perfRequirement == null ? null : perfRequirement.matchedRequirementText();
+        List<String> qualKeywords = perfRequirement == null ? List.of() : perfRequirement.keywords();
 
         Map<Long, Double> vectorSimilarities = Map.of();
         if (vectorSemanticQueryPort != null) {
@@ -161,14 +172,13 @@ public class ScoreItemCaseRecommendAppService {
         }
 
         ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
-                scoreItem != null ? scoreItem.getId() : request.getScoreItemId(),
+                scoreItem != null ? scoreItem.getId() : null,
                 scoreItem != null ? scoreItem.getCode() : null,
                 scoreItem != null ? scoreItem.getDim() : null,
-                scoreItem != null ? scoreItem.getDetail() : null,
+                detail,
                 projectType, customerType, request.getKeyword(),
                 projectName, customerName, qualReqText, qualKeywords, vectorSimilarities);
 
-        // 关键判定：通过大类推断确定评分项业务意图
         CaseCategoryMatchPolicy.MacroCategory intent = CaseCategoryMatchPolicy.classifyMacroCategory(context.dim(), context.detail());
         List<ScoreItemCaseRecommendResponse.CertificateItem> matchedCertificates = List.of();
         if (enterpriseQualificationQueryPort != null && shouldQueryCertificates(context.dim(), context.detail())) {
@@ -182,6 +192,7 @@ public class ScoreItemCaseRecommendAppService {
         if (intent.isQualification() && !CaseCategoryMatchPolicy.hasTechnicalRequirement(context.dim(), context.detail())) {
             return ScoreItemCaseRecommendResponse.builder()
                     .total(matchedCertificates.size())
+                    .evidenceReviewRequired(purpose.requiresEvidenceReview())
                     .items(List.of()) // 纯资质证书类评分项：彻底物理阻断文本应答切片
                     .matchedCertificates(matchedCertificates)
                     .build();
@@ -189,8 +200,13 @@ public class ScoreItemCaseRecommendAppService {
 
         // 通过端口获取已激活案例（ACTIVE 过滤已下沉至 adapter）
         List<KnowledgeCaseReadModel> allActiveCases = knowledgeCaseQueryPort.findAllActive();
-        List<KnowledgeCaseReadModel> candidateCases =
-                applyAdmissionIfNeeded(allActiveCases, applyAdmission, perfRequirement);
+        List<KnowledgeCaseReadModel> candidateCases = performanceItem || perfRequirement != null
+                ? admitPerformanceCases(allActiveCases, perfRequirement) : allActiveCases;
+        if (performanceItem && purpose == Purpose.REFERENCE_AND_MANUAL_EVIDENCE) {
+            var planReferences = allActiveCases.stream()
+                    .filter(candidate -> CaseRecommendationPurposePolicy.isTechnicalPlanReference(candidate, perfRequirement));
+            candidateCases = Stream.concat(candidateCases.stream(), planReferences).distinct().toList();
+        }
         candidateCases = CaseContentQualityPolicy.filterAdmissible(candidateCases);
         Set<Long> sourceProjectIds = allActiveCases.stream()
                 .map(KnowledgeCaseReadModel::getSourceProjectId)
@@ -199,8 +215,10 @@ public class ScoreItemCaseRecommendAppService {
         Map<Long, ScoreItemCaseSourceMetaLoader.SourceMeta> sourceMetaByProjectId =
                 sourceMetaLoader.load(sourceProjectIds);
 
-        return evaluator.evaluateAndAssemble(
+        var response = evaluator.evaluateAndAssemble(
                 candidateCases, context, sourceMetaByProjectId, request.getPage(), request.getSize(), matchedCertificates);
+        response.setEvidenceReviewRequired(purpose.requiresEvidenceReview());
+        return response;
     }
 
     /**
@@ -214,14 +232,6 @@ public class ScoreItemCaseRecommendAppService {
                         item.getWeight(), item.getScoreType(), item.getStatusStage1(),
                         item.getEstScore(), item.getEstBasis(), item.getKbHit(), item.getLocation()))
                 .toList();
-    }
-
-    private QualificationPerformanceRetriever.PerformanceRequirementResult lookupPerformanceRequirement(
-            Long projectId, String dim, String detail) {
-        return tenderQualificationQueryPort.findByProjectId(projectId)
-                .flatMap(info -> performanceRetriever.retrieve(
-                        dim, detail, info.qualificationRequirements(), info.rawTenderText()))
-                .orElse(null);
     }
 
     private QualificationPerformanceRetriever.PerformanceRequirementResult lookupQualificationPerformance(Long projectId) {
@@ -242,13 +252,9 @@ public class ScoreItemCaseRecommendAppService {
                 || combined.contains("iso") || combined.contains("资信");
     }
 
-    private List<KnowledgeCaseReadModel> applyAdmissionIfNeeded(
+    private List<KnowledgeCaseReadModel> admitPerformanceCases(
             List<KnowledgeCaseReadModel> cases,
-            boolean applyAdmission,
             QualificationPerformanceRetriever.PerformanceRequirementResult requirement) {
-        if (!applyAdmission) {
-            return cases;
-        }
         List<KnowledgeCaseReadModel> admitted = PerformanceCaseAdmissionPolicy.admit(cases, requirement);
         log.info("业绩案例准入：候选 {} 条，准入 {} 条", cases.size(), admitted.size());
         if (admitted.isEmpty() && !cases.isEmpty()) {
