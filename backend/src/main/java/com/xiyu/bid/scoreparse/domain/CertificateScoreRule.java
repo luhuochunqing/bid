@@ -85,7 +85,7 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
             }
             var award = INDEPENDENT_AWARD.matcher(sentences[i]);
             if (!award.matches()) return Map.of();
-            String identity = estimateSystemIdentity(award.group(1));
+            String identity = estimateSystemIdentity(award.group(1), false);
             BigDecimal points = new BigDecimal(award.group(2));
             if (identity == null || points.signum() <= 0 || awards.putIfAbsent(identity, points) != null) return Map.of();
             total = total.add(points);
@@ -93,7 +93,11 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
         return awards.size() >= 2 && total.compareTo(weight) == 0 ? awards : Map.of();
     }
 
-    static String estimateSystemIdentity(String name) {
+    static String ledgerSystemIdentity(String name) {
+        return estimateSystemIdentity(name, true);
+    }
+
+    private static String estimateSystemIdentity(String name, boolean allowBareTrailingStandard) {
         String text = normalize(name);
         for (String identity : List.of("ISO9001", "ISO14001", "ISO45001", "ISO27001")) {
             String alias = STANDARDS.getOrDefault(identity, "(?:ISO(?:/IEC)?27001)");
@@ -103,6 +107,9 @@ public record CertificateScoreRule(List<Requirement> requirements, Map<Integer, 
             String standard = alias + "(?::[0-9]{4})?";
             if (text.matches("(?:" + standard + "(?:" + labelWithStandard + "|" + CERT_END + ")|"
                     + label + "(?:\\(" + standard + "\\))?)")) return identity;
+            if (allowBareTrailingStandard && text.matches("(?:" + labelWithStandard + ")" + standard)) {
+                return identity;
+            }
         }
         return null;
     }

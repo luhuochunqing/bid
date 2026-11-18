@@ -88,6 +88,27 @@ class CertificateScorePolicyTest {
     }
 
     @Test
+    void project1133RecognizesQualityCertificateWithTrailingStandardAndRejectsConflicts() {
+        var environment = simpleFact(45L, "ISO14001环境管理体系认证", REPLAY_DAY);
+        var occupational = simpleFact(44L, "ISO45001职业健康管理认证证书", REPLAY_DAY);
+        var security = simpleFact(4L, "ISO/IEC27001信息安全管理体系认证证书", REPLAY_DAY);
+
+        for (String name : List.of("质量管理体系认证证书ISO14001",
+                "ISO14001质量管理体系认证证书ISO9001")) {
+            var conflict = simpleFact(1L, name, REPLAY_DAY);
+            var partial = estimate1133(List.of(conflict, environment, occupational, security));
+            assertThat(partial.score()).as(name).isEqualByComparingTo("5");
+            assertThat(partial.status()).isEqualTo("PENDING");
+        }
+
+        var quality = simpleFact(1L, "质量管理体系认证证书ISO9001", REPLAY_DAY);
+        var full = estimate1133(List.of(quality, environment, occupational, security));
+        assertThat(full.score()).isEqualByComparingTo("6");
+        assertThat(full.status()).isEqualTo("OK");
+        assertThat(full.basis()).contains("ISO9001 +1分（#1 " + quality.name());
+    }
+
+    @Test
     void project1133ExcludesIneligibleRecordsAndIdentifiesMissingExpiry() {
         var expired = new CertificateScorePolicy.Fact(2L, "ISO14001环境管理体系认证", "",
                 REPLAY_DAY.minusDays(1), "EXPIRED", false, REPLAY_DAY.minusYears(3), "OTHER");

@@ -70,6 +70,7 @@ public final class CertificateScorePolicy {
         if (weight == null || asOf == null) return new Assessment(null, "PENDING", false, "粗估输入不完整，未计算");
         List<Fact> eligible = facts.stream().filter(f -> f.name() != null && !f.name().isBlank())
                 .filter(f -> !f.retired() && List.of("IN_STOCK", "EXPIRING", "VALID").contains(f.status() == null ? "" : f.status()))
+                .filter(f -> f.expiryDate() == null || !f.expiryDate().isBefore(asOf))
                 .filter(f -> f.issueDate() == null || !f.issueDate().isAfter(asOf))
                 .filter(f -> !List.of("PERSONNEL", "PRODUCT").contains(f.category() == null ? "" : f.category()))
                 .filter(f -> !PERSONNEL_CERTIFICATE_NAME.matcher(CertificateScoreRule.normalize(f.name())).matches())
@@ -77,8 +78,7 @@ public final class CertificateScorePolicy {
         var awards = CertificateScoreRule.independentAwards(dim, detail, weight);
         if (!awards.isEmpty()) return assessIndependentAwards(weight, asOf, eligible, awards);
 
-        List<Fact> usable = eligible.stream()
-                .filter(f -> f.expiryDate() != null && !f.expiryDate().isBefore(asOf)).toList();
+        List<Fact> usable = eligible.stream().filter(f -> f.expiryDate() != null).toList();
         var identities = CertificateScoreRule.identitiesForEstimate(dim, detail);
         var target = identities.isEmpty() ? ScoreItemConstraintExtractor.requiredForEstimate(detail, "CERT", weight)
                 : new ScoreItemConstraintExtractor.EstimateCount(identities.size(), true);
@@ -108,24 +108,19 @@ public final class CertificateScorePolicy {
         List<String> proofs = new ArrayList<>();
         for (var award : awards.entrySet()) {
             String identity = award.getKey();
-            Fact match = null;
-            boolean expiryUnverified = false;
+            Fact candidate = null;
             for (Fact fact : eligible) {
-                if (!identity.equals(CertificateScoreRule.estimateSystemIdentity(fact.name()))) continue;
-                if (fact.expiryDate() == null) {
-                    expiryUnverified = true;
-                } else if (!fact.expiryDate().isBefore(asOf)) {
-                    match = fact;
-                    break;
-                }
+                if (!identity.equals(CertificateScoreRule.ledgerSystemIdentity(fact.name()))) continue;
+                candidate = fact;
+                if (fact.expiryDate() != null) break;
             }
-            if (match != null) {
+            if (candidate != null && candidate.expiryDate() != null) {
                 hits++;
                 score = score.add(award.getValue());
                 proofs.add(identity + " +" + award.getValue() + "分（"
-                        + (match.id() == null ? "" : "#" + match.id() + " ") + match.name()
-                        + "，有效至 " + match.expiryDate() + "）");
-            } else if (expiryUnverified) {
+                        + (candidate.id() == null ? "" : "#" + candidate.id() + " ") + candidate.name()
+                        + "，有效至 " + candidate.expiryDate() + "）");
+            } else if (candidate != null) {
                 unknownExpiry = true;
                 proofs.add(identity + " 有效期待核验");
             } else {
