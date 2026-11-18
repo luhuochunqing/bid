@@ -16,6 +16,9 @@ final class ScoreWeightSourceEvidence {
     private ScoreWeightSourceEvidence() {}
 
     static boolean scoreColumn(CanonicalCellDto cell, CanonicalTable table) {
+        if (SourceTableHeaderPolicy.isEvaluationCriteriaTable(table)) {
+            return Integer.valueOf(3).equals(cell.column());
+        }
         return cell.column() != null && table.cells().stream().anyMatch(header -> Integer.valueOf(0).equals(header.row())
                 && cell.column().equals(header.column()) && header.rawText() != null
                 && header.rawText().replaceAll("\\s+", "").matches("(?s).*(?:最高分|分值|权重|得分).*"));

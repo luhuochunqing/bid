@@ -94,6 +94,10 @@ final class BaiduCrossPageTableLinker {
         for (int i = merged.size() - 1; i >= 0; i--) {
             CanonicalTable candidate = merged.get(i);
             if (!Boolean.TRUE.equals(candidate.isScoreTable()) || candidate.sourcePage() == null) continue;
+            if (BaiduRepeatedHeaderPolicy.hasEvaluationCriteriaHeader(curr)) {
+                return i == merged.size() - 1 && curr.sourcePage() - maxPage(candidate) == 1
+                        && BaiduRepeatedHeaderPolicy.continuesEvaluationCriteria(candidate, curr) ? i : -1;
+            }
             boolean repeatedHeader = hasHeaderRow(curr);
             var owner = originalOwners.get(curr.sourcePage());
             boolean trusted = owner != null && owner == originalOwners.get(maxPage(candidate))
@@ -198,7 +202,7 @@ final class BaiduCrossPageTableLinker {
                 .filter(c -> Integer.valueOf(0).equals(c.row()) && c.normalizedText() != null)
                 .filter(c -> HEADER_KEYWORD.matcher(c.normalizedText().replaceAll("\\s+", "")).matches())
                 .count();
-        return headerCells >= 2;
+        return headerCells >= 2 || BaiduRepeatedHeaderPolicy.hasEvaluationCriteriaHeader(table);
     }
 
     private static boolean isFirstRowContinuation(CanonicalTable previous, CanonicalTable table) {

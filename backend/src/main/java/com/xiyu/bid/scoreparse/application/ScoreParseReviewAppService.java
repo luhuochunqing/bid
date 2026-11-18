@@ -221,6 +221,7 @@ public class ScoreParseReviewAppService {
         if (!result.success()) {
             throw new IllegalArgumentException(result.errorMessage());
         }
+        ScoreParseReviewTotalPolicy.requirePublishable(task, adoptedSchemeId, qualifications.values(), result.totalWeight());
         if (itemPersistenceService != null) {
             itemPersistenceService.persistItems(projectId, task.getId(), result.candidates());
         }
@@ -252,7 +253,8 @@ public class ScoreParseReviewAppService {
                 prefer(edit == null ? null : edit.adjustedParentFactId(), fact.getParentFactId()),
                 edit == null ? null : edit.adjustedScoreType(), fact.getChildAggregation(),
                 ScoreParseReviewFactMapper.verifiedZeroDeduction(fact, evidence)
-                        && (edit == null || edit.adjustedSourceText() == null || fact.getSourceText().equals(edit.adjustedSourceText())));
+                        && (edit == null || edit.adjustedSourceText() == null || fact.getSourceText().equals(edit.adjustedSourceText())),
+                ScoreParseReviewFactMapper.sourceCellIds(fact));
     }
     private String prefer(String adjusted, String original) {
         return adjusted == null ? original : adjusted;

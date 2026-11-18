@@ -2,6 +2,7 @@ package com.xiyu.bid.scoreparse.domain;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,8 +22,14 @@ public final class ScoreReviewAdoptionPolicy {
             String parentFactId,
             String scoreType,
             String childAggregation,
-            boolean verifiedZeroDeduction
+            boolean verifiedZeroDeduction,
+            List<String> sourceCellIds
     ) {
+        public CandidateInput(String factId, String code, String dimension, BigDecimal weight, String sourceText,
+                              String parentFactId, String scoreType, String childAggregation, boolean verifiedZeroDeduction) {
+            this(factId, code, dimension, weight, sourceText, parentFactId, scoreType, childAggregation,
+                    verifiedZeroDeduction, List.of());
+        }
         public CandidateInput(String factId, String code, String dimension, BigDecimal weight,
                               String sourceText, String parentFactId, String scoreType, String childAggregation) {
             this(factId, code, dimension, weight, sourceText, parentFactId, scoreType, childAggregation, false);
@@ -43,8 +50,12 @@ public final class ScoreReviewAdoptionPolicy {
             parentFactId = parentFactId == null ? "" : parentFactId.trim();
             scoreType = scoreType == null ? "" : scoreType.trim().toUpperCase();
             childAggregation = ChildAggregation.legacyDefault(childAggregation).name();
+            sourceCellIds = sourceCellIds == null ? List.of() : sourceCellIds.stream()
+                    .filter(id -> id != null && !id.isBlank()).distinct().toList();
         }
     }
+
+    private record RuleSource(String cellId, String ruleText) {}
 
     public record AdoptionResult(
             boolean success,
@@ -84,6 +95,7 @@ public final class ScoreReviewAdoptionPolicy {
         boolean filterByIds = selectedFactIds != null && !selectedFactIds.isEmpty();
 
         List<ScoreCandidate> converted = new ArrayList<>();
+        Set<RuleSource> usedRules = new HashSet<>();
         BigDecimal total = BigDecimal.ZERO;
         int index = 1;
 
@@ -110,6 +122,17 @@ public final class ScoreReviewAdoptionPolicy {
             if (weight == null || (weight.signum() == 0 && !fact.verifiedZeroDeduction())) {
                 // 只保留正分或服务端完整来源核验的零分扣分规则；显式选择不能绕过。
                 continue;
+            }
+
+            if (fact.sourceText().isBlank() || fact.sourceText().matches("[-—–－]+")) {
+                return AdoptionResult.failure("评分项缺少标书原文，请核对并补全评分规则");
+            }
+
+            if (!fact.sourceCellIds().isEmpty()) {
+                String ruleText = EvidenceText.normalize(fact.sourceText()).text().replaceAll("\\s+", "");
+                if (fact.sourceCellIds().stream().anyMatch(cellId -> !usedRules.add(new RuleSource(cellId, ruleText)))) {
+                    return AdoptionResult.failure("候选中存在重复的原文评分项，请核对后重新采纳");
+                }
             }
 
             String dim = fact.dimension();

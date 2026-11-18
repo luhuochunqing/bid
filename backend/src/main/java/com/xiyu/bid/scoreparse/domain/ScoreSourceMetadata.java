@@ -5,7 +5,13 @@ import java.util.List;
 /** Keeps model wording separate from immutable original evidence and its diagnostics. */
 public record ScoreSourceMetadata(String modelRuleText, String modelQuotedText,
                                   List<SourceSpan> sourceSpans, List<String> diagnostics,
-                                  String modelCategory, String modelScoreType, ModelSourceClaim modelSourceClaim) {
+                                  String modelCategory, String modelScoreType, ModelSourceClaim modelSourceClaim,
+                                  String sourceScoreType) {
+    public ScoreSourceMetadata(String modelRuleText, String modelQuotedText,
+                               List<SourceSpan> sourceSpans, List<String> diagnostics,
+                               String modelCategory, String modelScoreType, ModelSourceClaim modelSourceClaim) {
+        this(modelRuleText, modelQuotedText, sourceSpans, diagnostics, modelCategory, modelScoreType, modelSourceClaim, "");
+    }
     public static final ScoreSourceMetadata EMPTY = new ScoreSourceMetadata("", "", List.of(), List.of());
     public ScoreSourceMetadata(String modelRuleText, String modelQuotedText,
                                List<SourceSpan> sourceSpans, List<String> diagnostics) {
@@ -19,6 +25,7 @@ public record ScoreSourceMetadata(String modelRuleText, String modelQuotedText,
         modelSourceClaim = modelSourceClaim == null ? ModelSourceClaim.EMPTY : modelSourceClaim;
         modelCategory = modelCategory == null ? "" : modelCategory;
         modelScoreType = modelScoreType == null ? "" : modelScoreType;
+        sourceScoreType = sourceScoreType == null ? "" : sourceScoreType;
         modelRuleText = modelRuleText == null ? "" : modelRuleText;
         modelQuotedText = modelQuotedText == null ? "" : modelQuotedText;
         sourceSpans = sourceSpans == null ? List.of() : List.copyOf(sourceSpans);

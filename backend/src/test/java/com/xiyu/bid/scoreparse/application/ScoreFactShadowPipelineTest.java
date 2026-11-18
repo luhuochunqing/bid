@@ -4,6 +4,7 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
@@ -19,6 +20,29 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ScoreFactShadowPipelineTest {
+
+    @Test
+    void formalItemUsesEvaluationCriteriaNameColumnInsteadOfRuleTitle() {
+        var table = new DocumentArtifact.CanonicalTable("criteria", null, "评分标准", 2, 5, List.of(),
+                List.of(cell("c00", 0, 0, "序号"), cell("c01", 0, 1, "评议类别"),
+                        cell("c02", 0, 2, "评价事项"), cell("c03", 0, 3, ""),
+                        cell("c04", 0, 4, "评价要素及分值"),
+                        cell("c10", 1, 0, "1"), cell("c11", 1, 1, "商务评议（10分）"),
+                        cell("c12", 1, 2, "类似业绩"), cell("c13", 1, 3, "10"),
+                        cell("c14", 1, 4, "投标人近三年业绩：每项得2分，最高得10分。")), true);
+        var candidate = ScoreFactShadowPipeline.run(artifact(List.of(table))).tables().getFirst()
+                .facts().getFirst().toCandidate().orElseThrow();
+
+        assertEquals("类似业绩", candidate.dim());
+        assertEquals("类似业绩", ScoreItemPersistenceService.resolveDim(candidate));
+    }
+
+    @Test
+    void legacyCandidateStillUsesTitleFromRule() {
+        var candidate = new ScoreCandidate("A1", "商务部分", "类似业绩：每项得2分",
+                BigDecimal.TEN, "OBJECTIVE", null, "", null, "LEGACY_FALLBACK");
+        assertEquals("类似业绩", ScoreItemPersistenceService.resolveDim(candidate));
+    }
 
     @Test
     void merged_origin_fixture_preserves_parent_total_and_all_leaf_weights() throws Exception {
@@ -175,7 +199,7 @@ class ScoreFactShadowPipelineTest {
                 artifact(List.of(eightyPointTable)), "本项目评分总分：80分。");
 
         assertEquals(ScoreParseDecision.AUTO_APPROVED, result.completeness().decision());
-        assertEquals(new BigDecimal("80.00"), result.completeness().declaredTotalScore());
+        assertEquals(0, new BigDecimal("80.00").compareTo(result.completeness().declaredTotalScore()));
         assertEquals(new BigDecimal("80.00"), result.completeness().leafWeightSum());
     }
 

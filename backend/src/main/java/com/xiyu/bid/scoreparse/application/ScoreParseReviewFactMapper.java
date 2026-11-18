@@ -82,6 +82,18 @@ final class ScoreParseReviewFactMapper {
                 qualification.layoutStatus(), qualification.tableIds());
     }
 
+    static List<String> sourceCellIds(ScoreParseFact fact) {
+        if (fact.getSourceCellIds() == null || fact.getSourceCellIds().isBlank()) return List.of();
+        try {
+            var ids = JSON.readTree(fact.getSourceCellIds());
+            if (!ids.isArray()) return List.of();
+            return java.util.stream.StreamSupport.stream(ids.spliterator(), false)
+                    .filter(JsonNode::isTextual).map(JsonNode::asText).toList();
+        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            return List.of();
+        }
+    }
+
     static boolean verifiedZeroDeduction(ScoreParseFact fact, List<ScoreParseEvidence> evidences) {
         if (fact.getWeight() == null || fact.getWeight().signum() != 0
                 || fact.getSourceText() == null || fact.getSourceText().isBlank()) return false;

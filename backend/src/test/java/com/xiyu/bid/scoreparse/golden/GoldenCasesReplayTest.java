@@ -550,13 +550,14 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-markdown-whole-rule"),
                 Arguments.of("case-chapter-heading-inter-spaces"),
                 Arguments.of("case-markdown-inner-row"),
-                Arguments.of("case-source-boundaries"));
+                Arguments.of("case-source-boundaries"),
+                Arguments.of("case-evaluation-method-and-score-equation"));
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
     void replayGoldenCase(String caseName) throws Exception {
-        if (caseName.equals("case-source-boundaries")) {
+        if (caseName.equals("case-source-boundaries") || caseName.equals("case-evaluation-method-and-score-equation")) {
             com.xiyu.bid.scoreparse.application.SourceBoundaryGoldenReplay.verify(
                     GoldenCasesReplaySupport.readFixture(caseName + ".md"),
                     GoldenCasesReplaySupport.parseExpected(GoldenCasesReplaySupport.readFixture(caseName + ".expected.json")));

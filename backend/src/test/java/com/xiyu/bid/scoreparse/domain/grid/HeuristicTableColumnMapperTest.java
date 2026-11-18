@@ -7,6 +7,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 class HeuristicTableColumnMapperTest {
 
     @Test
+    void evaluationCriteriaHeaderKeepsDedicatedNumericScoreColumn() {
+        var table = new TableGrid(java.util.List.of(
+                java.util.List.of("序号", "评议类 别", "评价事项", "", "评价要素及分值"),
+                java.util.List.of("1", "价格评议（30分）", "报价", "30", "按报价公式计算。"),
+                java.util.List.of("2", "商务评议（50分）", "业绩", "50", "每项得5分，最高得50分。"),
+                java.util.List.of("3", "技术评议（20分）", "服务", "20", "按服务方案评定。"),
+                java.util.List.of("合计", "", "", "100", "")
+        ));
+        var mapping = HeuristicTableColumnMapper.infer(table);
+        assertThat(mapping.headerRows()).isEqualTo(1);
+        assertThat(mapping.parentDimCol()).isEqualTo(1);
+        assertThat(mapping.dimCol()).isEqualTo(2);
+        assertThat(mapping.weightCol()).isEqualTo(3);
+        assertThat(mapping.detailCol()).isEqualTo(4);
+    }
+
+    @Test
     void infer_standardFourColumnTable_mappedCorrectly() {
         String markdown = """
                 | 序号 | 评分因素 | 评分标准 | 分值 |

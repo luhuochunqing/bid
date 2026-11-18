@@ -134,8 +134,10 @@ public record ScoreFact(
                 && dimension.replaceAll("\\s+", "").matches("(?s).*[（(]不计分[）)].*"))) {
             return Optional.empty();
         }
+        String scoreType = sourceMetadata.sourceScoreType().isBlank()
+                ? new ScoreTypeClassificationPolicy().classify(sourceText) : sourceMetadata.sourceScoreType();
         return Optional.of(new ScoreCandidate(
-                code, dimension, sourceText, weight, new ScoreTypeClassificationPolicy().classify(sourceText), null,
+                code, dimension, sourceText, weight, scoreType, null,
                 sourceText, extractionMethod, "EVIDENCE_PIPELINE"));
     }
 

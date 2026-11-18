@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "desensitization": "全字段合成，只有故障结构特征",
+  "schemeTitle": "第七章 评分标准",
+  "declaredTotal": 100,
+  "expectedFactCount": 3,
+  "rejectedMaterialQuote": "技术计划书",
+  "items": [
+    {"dimension": "业务证明", "weight": 30, "scoreType": "OBJECTIVE"},
+    {"dimension": "实施方案", "weight": 65, "scoreType": "SUBJECTIVE"},
+    {"dimension": "仓储资源", "weight": 5, "scoreType": "OBJECTIVE"}
+  ]
+}

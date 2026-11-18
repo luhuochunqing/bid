@@ -12,6 +12,14 @@ class OriginalScoreEvidenceRoleAndHeadingTest {
     private static final String SCHEME = "本项目评分办法";
 
     @Test
+    void uncheckedMethodFieldDoesNotCreateAnotherScoringScheme() {
+        assertThat(OriginalScoringSchemePolicy.isValidSchemeRoot(
+                "26  评标办法  □经评审的最低投标价法；")).isFalse();
+        assertThat(OriginalScoringSchemePolicy.isValidSchemeRoot(
+                "第七章 评标办法 附表")).isTrue();
+    }
+
+    @Test
     void wrappedItemMaximumIsNotPromotedToSchemeTotal() {
         String text = "# 本项目评分办法\n1.商品能够保证即时下单，年度集采品种下单后\n"
                 + "保证72小时到货得2分，每提前8小时加1分，\n"

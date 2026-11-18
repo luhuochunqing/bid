@@ -27,6 +27,8 @@ import java.util.regex.Pattern;
  */
 public final class ScoreTableSummaryPolicy {
 
+    private static final Pattern SCORE_SUM_FORMULA = Pattern.compile(
+            "(?:总分|总得分|总评分)[=＝](?:[\\p{IsHan}]{1,12}分[+＋])+[\\p{IsHan}]{1,12}分[。；;]?");
     private static final BigDecimal MAX_REASONABLE_TOTAL = BigDecimal.valueOf(1000);
     private static final Pattern SCORE_VALUE_PATTERN = Pattern.compile(
             "(?<!\\d)(\\d{1,4}(?:\\.\\d+)?)\\s*分");
@@ -116,21 +118,27 @@ public final class ScoreTableSummaryPolicy {
         if (rowCells == null || rowCells.isEmpty()) {
             return false;
         }
+        var origins = rowCells.stream().filter(CanonicalCell::isUsableOrigin)
+                .map(CanonicalCell::rawText).map(ScoreTableSummaryPolicy::normalizeCompact)
+                .filter(text -> !text.isBlank()).toList();
+        if (origins.size() == 1 && SCORE_SUM_FORMULA.matcher(origins.getFirst()).matches()) {
+            return true;
+        }
         boolean hasSummaryLabel = rowCells.stream()
                 .filter(CanonicalCell::isUsableOrigin)
                 .map(CanonicalCell::rawText)
                 .anyMatch(ScoreTableSummaryPolicy::isSummaryLabel);
-        boolean hasTotalMarker = rowCells.stream()
-                .filter(CanonicalCell::isUsableOrigin)
-                .map(CanonicalCell::rawText)
-                .map(ScoreTableSummaryPolicy::normalizeCompact)
-                .anyMatch(ScoreTableSummaryPolicy::hasTotalMarker);
+        boolean hasTotalMarker = origins.stream().anyMatch(ScoreTableSummaryPolicy::hasTotalMarker);
         boolean hasNumericTotal = rowCells.stream()
                 .filter(CanonicalCell::isUsableOrigin)
                 .map(CanonicalCell::rawText)
                 .map(String::trim)
                 .anyMatch(text -> SUMMARY_NUMERIC_CELL_PATTERN.matcher(text).matches());
         return hasSummaryLabel && (hasTotalMarker || hasNumericTotal);
+    }
+
+    static boolean isScoreSumFormula(String text) {
+        return SCORE_SUM_FORMULA.matcher(normalizeCompact(text)).matches();
     }
 
     /** A headerless summary can itself contain a header keyword such as 满分100分. */

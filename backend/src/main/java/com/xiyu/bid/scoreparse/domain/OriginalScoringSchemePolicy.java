@@ -20,7 +20,7 @@ final class OriginalScoringSchemePolicy {
             Pattern.DOTALL);
     /** A numbered method field declares how evaluation works; it is not a second scoring chapter. */
     private static final Pattern METHOD_DECLARATION = Pattern.compile(
-            "^(?:[0-9]{1,2}[.、]?)(?:评标|评审|评分)(?:方法|办法)[:：](?:采用|使用|为)?"
+            "^(?:[0-9]{1,2}[.、]?)(?:评标|评审|评分)(?:方法|办法)(?:[:：]|(?=[□☑☐✓✔]))[□☑☐✓✔]?(?:采用|使用|为)?"
                     + "(?:综合评分法|综合评估法|最低评标价法|经评审的最低投标价法)(?:[（(].*[）)])?[。；;]?$"
     );
     private static final Pattern OTHER = Pattern.compile(".*(?:其他标包|其它标包|示例|样例|参考).*", Pattern.DOTALL);

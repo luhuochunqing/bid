@@ -12,6 +12,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ScoreReviewAdoptionPolicyTest {
 
+    @Test void rejectsDuplicateRulesFromAnIdenticalSourceCellButKeepsDifferentRulesInThatCell() {
+        var first = new ScoreReviewAdoptionPolicy.CandidateInput("first", "1", "交付", BigDecimal.TEN,
+                "提供交付方案得10分", "", "SUBJECTIVE", "SUM", false, List.of("same-cell"));
+        var duplicate = new ScoreReviewAdoptionPolicy.CandidateInput("dup", "2", "技术", BigDecimal.TEN,
+                "提供交付方案 得10分", "", "SUBJECTIVE", "SUM", false, List.of("same-cell"));
+        var other = new ScoreReviewAdoptionPolicy.CandidateInput("other", "3", "物流", BigDecimal.valueOf(2),
+                "提供物流承诺得2分", "", "SUBJECTIVE", "SUM", false, List.of("same-cell"));
+        assertThat(policy.adopt(List.of(first, duplicate), Set.of(), Map.of()).errorMessage()).contains("重复");
+        assertThat(policy.adopt(List.of(first, other), Set.of(), Map.of()).candidates()).hasSize(2);
+    }
+
     @Test void explicitMixedSelectionNeverPublishesZeroOrUnknownMaximum() {
         var facts = List.of(
                 new ScoreReviewAdoptionPolicy.CandidateInput("q", "1", "资格要求", BigDecimal.ZERO, "具备有效营业执照", ""),
@@ -39,13 +50,13 @@ class ScoreReviewAdoptionPolicyTest {
         assertThat(policy.adopt(List.of(unknown), Set.of("u"), Map.of("u", BigDecimal.ONE.negate())).success()).isFalse();
     }
 
-    @Test void allowsManualAdoptionWithMissingRuleTextWithoutInventingContent() {
+    @Test void rejectsManualAdoptionWithMissingRuleText() {
         for (String text : List.of("", "   ", "—")) {
             var result = new ScoreReviewAdoptionPolicy().adopt(List.of(
                     new ScoreReviewAdoptionPolicy.CandidateInput("f", "business_financial", "商务", BigDecimal.valueOf(5), text, "")), Set.of("f"), Map.of());
-            assertThat(result.success()).as("original rule: %s", text).isTrue();
-            assertThat(result.totalWeight()).isEqualByComparingTo("5");
-            assertThat(result.candidates()).singleElement().satisfies(candidate -> assertThat(candidate.sourceText()).isEqualTo(text.trim()));
+            assertThat(result.success()).as("original rule: %s", text).isFalse();
+            assertThat(result.candidates()).isEmpty();
+            assertThat(result.errorMessage()).contains("标书原文");
         }
     }
     @Test void allowsSelectedUnknownParentAndChildrenByReviewingLeafItems() {

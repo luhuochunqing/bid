@@ -17,6 +17,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ScoreTableSummaryPolicyTest {
 
     @Test
+    void fullWidthScoreEquationDoesNotBecomeAnItem() {
+        var formula = grid(List.of(cell(0, 0, "总分＝价格分＋商务分＋技术分"),
+                cell(0, 1, ""), cell(0, 2, "")), 1);
+        assertThat(ScoreTableSummaryPolicy.isSummaryRow(formula.cellsInRow(0))).isTrue();
+        assertThat(ScoreTableSummaryPolicy.extractDeclaredTotals(formula, mapping())).isEmpty();
+        assertThat(ScoreTableSummaryPolicy.isSummaryRow("2", "报价得分＝基准价／报价×35分")).isFalse();
+    }
+
+    @Test
     void extractsDeclaredTotalFromProject1381SummaryCells() {
         CanonicalTableGrid grid = grid(List.of(
                 cell(0, 0, "序号"), cell(0, 1, "评分因素"), cell(0, 2, "评分标准"),
