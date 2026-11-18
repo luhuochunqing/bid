@@ -1,14 +1,17 @@
 package com.xiyu.bid.scoreparse.domain;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /** Pure certificate scoring with explicit corporate kind, grade and validity evidence. */
 public final class CertificateScorePolicy {
     public static final String ENGINE_VERSION = "certificate-score-v2";
+    private static final Pattern PERSONNEL_CERTIFICATE_NAME = Pattern.compile(".*(内审员|审核员|培训|人员|合格证|资格证).*");
     private CertificateScorePolicy() {}
     public record Fact(Long id, String name, String level, LocalDate expiryDate, String status,
                        boolean retired, LocalDate issueDate, String category) {
@@ -65,13 +68,17 @@ public final class CertificateScorePolicy {
     /** Stage-1 rough estimate only; the strict assess method and its proof semantics stay unchanged. */
     public static Assessment assessSimple(String dim, String detail, BigDecimal weight, LocalDate asOf, List<Fact> facts) {
         if (weight == null || asOf == null) return new Assessment(null, "PENDING", false, "粗估输入不完整，未计算");
-        List<Fact> usable = facts.stream().filter(f -> f.name() != null && !f.name().isBlank())
+        List<Fact> eligible = facts.stream().filter(f -> f.name() != null && !f.name().isBlank())
                 .filter(f -> !f.retired() && List.of("IN_STOCK", "EXPIRING", "VALID").contains(f.status() == null ? "" : f.status()))
-                .filter(f -> f.expiryDate() != null && !f.expiryDate().isBefore(asOf))
+                .filter(f -> f.expiryDate() == null || !f.expiryDate().isBefore(asOf))
                 .filter(f -> f.issueDate() == null || !f.issueDate().isAfter(asOf))
                 .filter(f -> !List.of("PERSONNEL", "PRODUCT").contains(f.category() == null ? "" : f.category()))
-                .filter(f -> !CertificateScoreRule.normalize(f.name()).matches(".*(内审员|审核员|培训|人员|合格证|资格证).*"))
+                .filter(f -> !PERSONNEL_CERTIFICATE_NAME.matcher(CertificateScoreRule.normalize(f.name())).matches())
                 .toList();
+        var awards = CertificateScoreRule.independentAwards(dim, detail, weight);
+        if (!awards.isEmpty()) return assessIndependentAwards(weight, asOf, eligible, awards);
+
+        List<Fact> usable = eligible.stream().filter(f -> f.expiryDate() != null).toList();
         var identities = CertificateScoreRule.identitiesForEstimate(dim, detail);
         var target = identities.isEmpty() ? ScoreItemConstraintExtractor.requiredForEstimate(detail, "CERT", weight)
                 : new ScoreItemConstraintExtractor.EstimateCount(identities.size(), true);
@@ -86,16 +93,52 @@ public final class CertificateScorePolicy {
         BigDecimal score = new PartialScorePolicy().estimateByCount(weight, count, target.count());
         String status = new ScoreStatusPolicy().evaluate(score, weight, "OBJECTIVE", false);
         String basis = "知识库粗估（资质证书）：要求" + target.count() + "项，命中" + count + "项，满足比例"
-                + BigDecimal.valueOf(Math.min(count, target.count()) * 100L).divide(BigDecimal.valueOf(target.count()), 2, java.math.RoundingMode.HALF_UP)
+                + BigDecimal.valueOf(Math.min(count, target.count()) * 100L).divide(BigDecimal.valueOf(target.count()), 2, RoundingMode.HALF_UP)
                 + "%，预计" + score + "/" + weight + "；" + (target.explicit() ? "按明确要求数量" : "未指定明确数量，按有无粗估")
                 + "；命中资料：" + (hits.isEmpty() ? "无" : String.join("、", hits))
                 + "；仅计有效且未退役的企业证书，有效期不明不计入；未核验正式评审附加条件";
         return new Assessment(score, status, count > 0, basis);
     }
 
+    private static Assessment assessIndependentAwards(
+            BigDecimal weight, LocalDate asOf, List<Fact> eligible, Map<String, BigDecimal> awards) {
+        BigDecimal score = BigDecimal.ZERO;
+        int hits = 0;
+        boolean unknownExpiry = false;
+        List<String> proofs = new ArrayList<>();
+        for (var award : awards.entrySet()) {
+            String identity = award.getKey();
+            Fact candidate = null;
+            for (Fact fact : eligible) {
+                if (!identity.equals(CertificateScoreRule.ledgerSystemIdentity(fact.name()))) continue;
+                candidate = fact;
+                if (fact.expiryDate() != null) break;
+            }
+            if (candidate != null && candidate.expiryDate() != null) {
+                hits++;
+                score = score.add(award.getValue());
+                proofs.add(identity + " +" + award.getValue() + "分（"
+                        + (candidate.id() == null ? "" : "#" + candidate.id() + " ") + candidate.name()
+                        + "，有效至 " + candidate.expiryDate() + "）");
+            } else if (candidate != null) {
+                unknownExpiry = true;
+                proofs.add(identity + " 有效期待核验");
+            } else {
+                proofs.add(identity + " 无有效记录");
+            }
+        }
+        String status = new ScoreStatusPolicy().evaluate(score, weight, "OBJECTIVE", unknownExpiry);
+        // Use persisted precision for the estimate and its evidence.
+        BigDecimal estimate = score.scale() > 2 ? score.setScale(2, RoundingMode.HALF_UP) : score;
+        String basis = "知识库粗估（资质证书）：要求" + awards.size() + "项，命中" + hits
+                + "项，按证书分值预计" + estimate + "/" + weight + "分；"
+                + String.join("；", proofs) + "；核验日 " + asOf + "；投标人持证主体待核验";
+        return new Assessment(estimate, status, hits > 0, basis);
+    }
+
     private static Evidence corporateKind(Fact fact, String identity) {
         String name = CertificateScoreRule.normalize(fact.name());
-        if ("PERSONNEL".equals(fact.category()) || name.matches(".*(内审员|审核员|培训|人员|合格证|资格证).*")) return Evidence.FAIL;
+        if ("PERSONNEL".equals(fact.category()) || PERSONNEL_CERTIFICATE_NAME.matcher(name).matches()) return Evidence.FAIL;
         if ("PRODUCT".equals(fact.category())) return Evidence.UNKNOWN;
         if (identity.startsWith("ISO")) {
             return name.matches(CertificateScoreRule.isoCertificatePattern()) ? Evidence.PASS : Evidence.UNKNOWN;
