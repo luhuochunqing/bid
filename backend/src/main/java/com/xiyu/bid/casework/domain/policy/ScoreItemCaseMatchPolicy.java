@@ -74,7 +74,7 @@ public class ScoreItemCaseMatchPolicy {
         // 0. 大类冲突一票否决门禁
         if (CaseCategoryMatchPolicy.isCategoryConflict(
                 context.dim(), context.detail(),
-                candidate.getScoringCategory(), candidate.getScoringPointTitle())) {
+                candidate.getScoringCategory(), candidate.getScoringPointTitle(), candidate.getResponseText())) {
             return new MatchResult(candidate.getId(), 0, "一般", List.of("大类冲突一票否决"), List.of());
         }
 
