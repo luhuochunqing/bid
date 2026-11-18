@@ -40,9 +40,9 @@ public final class CaseCategoryMatchPolicy {
     private static final String SECURITY_FILING_WITH_GRADE =
             "等级保护\\h*备案证明(?:\\h*证书)?\\h*第?\\h*([一二三四1234])\\h*级";
     private static final Pattern REQUIRED_SECURITY_FILING = Pattern.compile(SECURITY_FILING_WITH_GRADE);
-    // 存量案例可能沿用评分维度作分类。仅接受独立的持证应答，排除方案正文中的要求引用或承诺。
+    // 存量应答可省略主语。显式主语只接受案例中的西域简称或投标方自称。
     private static final Pattern HELD_SECURITY_FILING = Pattern.compile(
-            "[^。！？；，、：:;,.!?\\r\\n]*?(?<!不|未|无|不再|拟|将|曾|应|应当|须|需|若|承诺|计划|要求)"
+            "(?:(?:西域|我方|我司|本公司)\\h*)?"
                     + "(?:具有|持有|已获得|已取得)\\h*(?:公安部)?(?:信息系统安全|网络安全)?"
                     + SECURITY_FILING_WITH_GRADE + "(?:\\h*证书)?[。.]?");
 
@@ -51,20 +51,20 @@ public final class CaseCategoryMatchPolicy {
     /**
      * 判断评分项与候选案例是否存在互斥大类冲突（一票否决门禁）。
      * <p>
-     * 1. 评分项为纯资质证书类（QUALIFICATION）时，纯技术方案（TECHNICAL）与纯商务（COMMERCIAL）案例均一票否决（方案不能替代证书）；
-     * 2. 纯技术（TECHNICAL）与纯商务（COMMERCIAL）案例双向互斥否决。
-     * 旧技术标签的等保案例若以独立应答明确持有同类且满足等级的备案证明，可以进入相关性评分。
+     * 资质评分项否决商务、业绩和技术案例。技术案例若以独立应答明确持有同类且等级达标的
+     * 等保备案证明，可以进入相关性评分。技术与商务仍双向互斥。
      */
     public static boolean isCategoryConflict(
             String itemDim, String itemDetail,
             String candidateCategory, String candidateTitle, String candidateResponse) {
         MacroCategory itemCat = classifyMacroCategory(itemDim, itemDetail);
         MacroCategory candCat = classifyMacroCategory(candidateCategory, candidateTitle);
-        // 1. 评分项为纯资质证书类（QUALIFICATION）时，方案类（TECHNICAL）、商务类（COMMERCIAL）、业绩类（PERFORMANCE）案例均一票否决
-        if (itemCat == MacroCategory.QUALIFICATION
-                && (candCat == MacroCategory.TECHNICAL || candCat == MacroCategory.COMMERCIAL || candCat == MacroCategory.PERFORMANCE)) {
-            return candCat != MacroCategory.TECHNICAL
-                    || !hasMatchingSecurityFiling(itemDetail, candidateResponse);
+        if (itemCat == MacroCategory.QUALIFICATION) {
+            return switch (candCat) {
+                case TECHNICAL -> !hasMatchingSecurityFiling(itemDetail, candidateResponse);
+                case COMMERCIAL, PERFORMANCE -> true;
+                default -> false;
+            };
         }
         return isMutuallyExclusive(itemCat, candCat);
     }

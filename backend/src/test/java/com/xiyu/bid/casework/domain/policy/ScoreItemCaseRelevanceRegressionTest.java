@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ScoreItemCaseRelevanceRegressionTest {
     private final ScoreItemCaseMatchPolicy policy = new ScoreItemCaseMatchPolicy();
+    private static final String LEGACY_SECURITY_RESPONSE = "西域具有公安部信息系统安全等级保护备案证明证书三级证书。";
     private static final String DELIVERY_DETAIL = "配送能力评价 | 4 | （1）对投标人配送响应速度（从接到订单起开始计算，配送到货的时间）承诺进行评价，满足国铁通用物资采购平台物流规则的得2分；不满足的得0分。（2）对投标人的配送网点情况进行评价，提供哈尔滨、沈阳、北京、太原、呼和浩特、郑州、武汉、西安、济南、上海、南昌、广州、南宁、成都、昆明、兰州、乌鲁木齐、西宁中的配送网点情况，数量大于12个得2分；6-12个得1分；小于6个得0分。";
 
     @ParameterizedTest
@@ -52,7 +53,7 @@ class ScoreItemCaseRelevanceRegressionTest {
 
     @Test
     void capabilityLabelAndScoreAwardBoilerplateCannotMakeCertificateRelevant() {
-        KnowledgeCase certificate = legacySecurityCase("西域具有公安部信息系统安全等级保护备案证明证书三级证书。");
+        KnowledgeCase certificate = legacySecurityCase(LEGACY_SECURITY_RESPONSE);
         String text = ScoreItemCaseTextMatchPolicy.candidateFullText(certificate);
         assertThat(ScoreItemCaseTextMatchPolicy.calculateTitleSimilarity(deliveryContext(), certificate, text)).isZero();
         assertThat(ScoreItemCaseTextMatchPolicy.calculateDetailOverlap(DELIVERY_DETAIL, text,
@@ -62,8 +63,10 @@ class ScoreItemCaseRelevanceRegressionTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "西域具有公安部信息系统安全等级保护备案证明证书三级证书。",
-            "西域已取得公安部信息系统安全等级保护备案证明第4级证书。"
+            LEGACY_SECURITY_RESPONSE,
+            "西域已取得公安部信息系统安全等级保护备案证明第4级证书。",
+            "我方持有公安部信息系统安全等级保护备案证明三级证书。",
+            "具有公安部信息系统安全等级保护备案证明证书三级证书。"
     })
     void legacySecurityCertificateMatchesItsOwnScoreItemButNotDelivery(String response) {
         KnowledgeCase certificate = legacySecurityCase(response);
@@ -77,6 +80,8 @@ class ScoreItemCaseRelevanceRegressionTest {
             "西域具有公安部信息系统安全等级保护备案证明证书二级证书。",
             "西域不具有公安部信息系统安全等级保护备案证明证书三级证书。",
             "西域承诺具有公安部信息系统安全等级保护备案证明证书三级证书。",
+            "其合作方具有公安部信息系统安全等级保护备案证明证书三级证书。",
+            "西域的合作方已取得公安部信息系统安全等级保护备案证明证书三级证书。",
             "招标要求具有公安部信息系统安全等级保护备案证明证书三级证书。",
             "评审标准：具有公安部信息系统安全等级保护备案证明证书三级证书。",
             "本方案提供网站安全加固及等保备案咨询。"
@@ -84,8 +89,9 @@ class ScoreItemCaseRelevanceRegressionTest {
     void technicalCaseCannotUseTenderWordingOrAnInsufficientResponseAsCertificate(String response) {
         KnowledgeCase candidate = legacySecurityCase(response);
 
-        assertThat(policy.evaluate(candidate, securityCertificateContext()).matchReasons())
-                .containsExactly("大类冲突一票否决");
+        var result = policy.evaluate(candidate, securityCertificateContext());
+        assertThat(result.score()).isZero();
+        assertThat(result.matchReasons()).containsExactly("大类冲突一票否决");
     }
 
     @Test
