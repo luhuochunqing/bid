@@ -58,7 +58,7 @@ class CaseContentQualityPolicyTest {
     @DisplayName("纯格式模板与签字盖章下划线切片判定为低质")
     void formTemplatesAreLowQuality(String templateText) {
         CaseContentQualityPolicy.QualityVerdict verdict =
-                CaseContentQualityPolicy.evaluate("承诺书/授权书格式", templateText, 60);
+                CaseContentQualityPolicy.evaluateQuality("承诺书/授权书格式", templateText, 60);
 
         assertThat(verdict.isAdmissible()).isFalse();
         assertThat(verdict.rejectReason()).contains("模板");
@@ -77,7 +77,7 @@ class CaseContentQualityPolicyTest {
                 """;
 
         CaseContentQualityPolicy.QualityVerdict verdict =
-                CaseContentQualityPolicy.evaluate("第X章 目录", tocText, 60);
+                CaseContentQualityPolicy.evaluateQuality("第X章 目录", tocText, 60);
 
         assertThat(verdict.isAdmissible()).isFalse();
         assertThat(verdict.rejectReason()).contains("残片");
@@ -98,7 +98,7 @@ class CaseContentQualityPolicyTest {
     void placeholderResponsesAreLowQuality() {
         String placeholder = "本项完全满足招标文件要求，严格执行招标文件中的相关规范及要求，特此说明。";
         CaseContentQualityPolicy.QualityVerdict verdict =
-                CaseContentQualityPolicy.evaluate("服务要求", placeholder, 50);
+                CaseContentQualityPolicy.evaluateQuality("服务要求", placeholder, 50);
 
         assertThat(verdict.isAdmissible()).isFalse();
         assertThat(verdict.rejectReason()).contains("占位符");
@@ -115,7 +115,7 @@ class CaseContentQualityPolicyTest {
                 3. 日常运维：每月输出健康巡检与耗材消耗分析报告。
                 """;
         CaseContentQualityPolicy.QualityVerdict verdict1 =
-                CaseContentQualityPolicy.evaluate("仓储物流方案", logisticsPlan, 85);
+                CaseContentQualityPolicy.evaluateQuality("仓储物流方案", logisticsPlan, 85);
         assertThat(verdict1.isAdmissible()).isTrue();
         assertThat(verdict1.rejectReason()).isNull();
         assertThat(CaseContentQualityPolicy.isLowQuality("仓储物流方案", logisticsPlan, 85)).isFalse();
@@ -126,7 +126,7 @@ class CaseContentQualityPolicyTest {
                 采用 JWT 双向鉴权与国密 SM4 传输加密，接口响应时间在 200ms 以内，保障全年 99.99% 高可用。
                 """;
         CaseContentQualityPolicy.QualityVerdict verdict2 =
-                CaseContentQualityPolicy.evaluate("接口对接方案", integrationPlan, 90);
+                CaseContentQualityPolicy.evaluateQuality("接口对接方案", integrationPlan, 90);
         assertThat(verdict2.isAdmissible()).isTrue();
         assertThat(verdict2.rejectReason()).isNull();
         assertThat(CaseContentQualityPolicy.isLowQuality("接口对接方案", integrationPlan, 90)).isFalse();

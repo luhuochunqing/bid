@@ -61,8 +61,7 @@ public final class CaseContentQualityPolicy {
     /**
      * 对候选案例进行质量准入评估
      */
-    // REUSE-OK: backend/src/main/java/com/xiyu/bid/ai/core/ProjectScorePreviewPolicy.java — 评分预览策略与案例切片内容质量准入分属不同业务域，仅同名
-    public static QualityVerdict evaluate(String title, String responseText, Integer existingQualityScore) {
+    public static QualityVerdict evaluateQuality(String title, String responseText, Integer existingQualityScore) {
         if (responseText == null || responseText.isBlank()) {
             return new QualityVerdict(false, 0, "文本过短/无实质内容");
         }
@@ -128,7 +127,7 @@ public final class CaseContentQualityPolicy {
      * 判断指定标题和文本是否为低质切片
      */
     public static boolean isLowQuality(String title, String responseText, Integer existingQualityScore) {
-        return !evaluate(title, responseText, existingQualityScore).isAdmissible();
+        return !evaluateQuality(title, responseText, existingQualityScore).isAdmissible();
     }
 
     /**
