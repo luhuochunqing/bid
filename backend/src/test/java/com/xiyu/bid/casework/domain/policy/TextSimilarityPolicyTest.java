@@ -168,5 +168,20 @@ class TextSimilarityPolicyTest {
                 "朱双", "双双", "双的", "的标", "标讯", "讯不", "不可", "编辑", "不可编辑", "州胶", "公司", "有限公司"
         );
     }
+
+    @Test
+    @DisplayName("US4 分词规范化：条款文本分词严禁盲目 3-gram 及跨助词/连词假词滑窗（如员须、备较、高业）")
+    void testExtractTokens_NoCrossParticleOrBlindThreeGramTokens() {
+        String text = "人员须具备较高业务水平";
+
+        Set<String> tokens = TextSimilarityPolicy.extractTokens(text);
+
+        // 合法业务词汇必须保留
+        assertThat(tokens).contains("人员", "具备", "业务", "水平");
+
+        // 跨停用助词或生造跨词假词绝不出现
+        assertThat(tokens).doesNotContain("员须", "须具", "备较", "高业", "务水");
+        assertThat(tokens).noneMatch(t -> t.length() >= 3 && !TextSimilarityPolicy.isQualityEntity(t));
+    }
 }
 

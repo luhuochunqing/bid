@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -50,6 +51,9 @@ class ScoreItemCaseRecommendAppServiceTest {
 
     @Mock
     private com.xiyu.bid.casework.application.port.EnterpriseQualificationQueryPort enterpriseQualificationQueryPort;
+
+    @Mock
+    private com.xiyu.bid.casework.application.port.CaseVectorSemanticQueryPort vectorSemanticQueryPort;
 
     @InjectMocks
     private ScoreItemCaseRecommendAppService recommendAppService;
@@ -614,6 +618,8 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(matched.getFileUrl()).isEqualTo("https://oss.ehsy.com/certs/iso9001.jpg");
         assertThat(matched.getStatus()).isEqualTo("VALID");
         assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getItems()).isEmpty();
+        verify(knowledgeCaseQueryPort, never()).findAllActive();
     }
 
     @Test
@@ -647,6 +653,8 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getMatchedCertificates()).isEmpty();
         assertThat(response.getTotal()).isEqualTo(0);
+        assertThat(response.getItems()).isEmpty();
+        verify(knowledgeCaseQueryPort, never()).findAllActive();
     }
 
     @Test
@@ -693,4 +701,197 @@ class ScoreItemCaseRecommendAppServiceTest {
                 .containsExactly(902L);
     }
 
+    @Test
+    @DisplayName("US5 向量双轨融合：当向量端口提供高相似度时，评分项与案例无公共字词仍可通过语义召回")
+    void testRecommend_WithVectorSemanticQueryPort_IntegratesVectorSimilarities() {
+        Project project = new Project();
+        project.setId(200L);
+        project.setIndustry("工业品");
+        project.setCustomerType("央企");
+
+        ScoreItem item = ScoreItem.builder()
+                .id(50L)
+                .projectId(200L)
+                .code("3.1")
+                .dim("智能语音交互")
+                .detail("语义理解与多轮会话应答")
+                .itemIndex(1)
+                .build();
+
+        KnowledgeCase coldChainCase = new KnowledgeCase();
+        coldChainCase.setId(888L);
+        coldChainCase.setSourceProjectId(200L);
+        coldChainCase.setScoringPointTitle("冷链恒温监控仓储说明");
+        coldChainCase.setScoringCategory("技术方案");
+        coldChainCase.setResponseText("温湿度超限报警与喷淋降温");
+        coldChainCase.setProjectType("工业品");
+        coldChainCase.setCustomerType("央企");
+        coldChainCase.setBidResult("WON");
+        coldChainCase.setStatus("ACTIVE");
+
+        when(projectRepository.findById(200L)).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(50L)).thenReturn(Optional.of(item));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(coldChainCase));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+        when(vectorSemanticQueryPort.querySimilarities(org.mockito.ArgumentMatchers.contains("智能语音交互")))
+                .thenReturn(Map.of(888L, 0.85));
+
+        var response = recommendAppService.recommend(200L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(50L).size(10).build());
+
+        assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getItems().getFirst().getId()).isEqualTo(888L);
+        assertThat(response.getItems().getFirst().getMatchScore()).isGreaterThanOrEqualTo(30);
+        assertThat(response.getItems().getFirst().getMatchReasons())
+                .anyMatch(r -> r.contains("语义相似度匹配") && r.contains("85%"));
+    }
+
+    @Test
+    @DisplayName("US5 向量优雅降级：当向量端口异常抛错时，服务安全降级回退至纯词法评估，零异常中断")
+    void testRecommend_WhenVectorSemanticQueryPortThrows_GracefullyDegrades() {
+        Project project = new Project();
+        project.setId(201L);
+        project.setIndustry("工业品");
+        project.setCustomerType("央企");
+
+        ScoreItem item = ScoreItem.builder()
+                .id(51L)
+                .projectId(201L)
+                .code("1.1")
+                .dim("技术方案")
+                .detail("微服务架构与容灾备份方案")
+                .itemIndex(1)
+                .build();
+
+        KnowledgeCase microserviceCase = new KnowledgeCase();
+        microserviceCase.setId(777L);
+        microserviceCase.setSourceProjectId(201L);
+        microserviceCase.setScoringPointTitle("微服务架构与容灾备份方案");
+        microserviceCase.setScoringCategory("技术方案");
+        microserviceCase.setResponseText("具备微服务容灾备份体系");
+        microserviceCase.setProjectType("工业品");
+        microserviceCase.setCustomerType("央企");
+        microserviceCase.setStatus("ACTIVE");
+
+        when(projectRepository.findById(201L)).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(51L)).thenReturn(Optional.of(item));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(microserviceCase));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+        when(vectorSemanticQueryPort.querySimilarities(org.mockito.ArgumentMatchers.anyString()))
+                .thenThrow(new RuntimeException("Vector Service Unavailable"));
+
+        var response = recommendAppService.recommend(201L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(51L).size(10).build());
+
+        assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getItems().getFirst().getId()).isEqualTo(777L);
+    }
+
+    @Test
+    @DisplayName("US7/US8 质量门禁：推荐服务自动过滤纯模板与低质废料切片，仅推荐高质实质方案")
+    void testRecommend_FiltersOutLowQualityTemplates() {
+        Project project = new Project();
+        project.setId(301L);
+        project.setIndustry("工业品");
+        project.setCustomerType("央企");
+
+        ScoreItem item = ScoreItem.builder()
+                .id(61L)
+                .projectId(301L)
+                .code("2.1")
+                .dim("技术方案")
+                .detail("微服务架构与容灾备份方案")
+                .itemIndex(1)
+                .build();
+
+        KnowledgeCase genuineCase = new KnowledgeCase();
+        genuineCase.setId(801L);
+        genuineCase.setSourceProjectId(301L);
+        genuineCase.setScoringPointTitle("微服务架构与容灾备份方案");
+        genuineCase.setScoringCategory("技术方案");
+        genuineCase.setResponseText("具备完整的微服务高可用容灾备份体系与灾备演练机制。");
+        genuineCase.setProjectType("工业品");
+        genuineCase.setCustomerType("央企");
+        genuineCase.setStatus("ACTIVE");
+
+        KnowledgeCase templateCase = new KnowledgeCase();
+        templateCase.setId(802L);
+        templateCase.setSourceProjectId(301L);
+        templateCase.setScoringPointTitle("法定代表人授权委托书格式");
+        templateCase.setScoringCategory("技术方案");
+        templateCase.setResponseText("法定代表人授权委托书格式如下：我______系法定代表人，特此委托。签字：______ 日期：____年__月__日");
+        templateCase.setProjectType("工业品");
+        templateCase.setCustomerType("央企");
+        templateCase.setStatus("ACTIVE");
+
+        KnowledgeCase placeholderCase = new KnowledgeCase();
+        placeholderCase.setId(803L);
+        placeholderCase.setSourceProjectId(301L);
+        placeholderCase.setScoringPointTitle("容灾方案附件");
+        placeholderCase.setScoringCategory("技术方案");
+        placeholderCase.setResponseText("详见技术标附件。");
+        placeholderCase.setProjectType("工业品");
+        placeholderCase.setCustomerType("央企");
+        placeholderCase.setStatus("ACTIVE");
+
+        when(projectRepository.findById(301L)).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(61L)).thenReturn(Optional.of(item));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(genuineCase, templateCase, placeholderCase));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+
+        var response = recommendAppService.recommend(301L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(61L).size(10).build());
+
+        assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getItems().getFirst().getId()).isEqualTo(801L);
+    }
+
+    @Test
+    @DisplayName("复合评分项双轨兼容：当评分项同时包含资质要求与技术实施方案时，方案案例与资质证书并存返回")
+    void testRecommend_HybridScoringItemReturnsBothCasesAndCertificates() {
+        Project project = new Project();
+        project.setId(401L);
+        project.setIndustry("工业品");
+        project.setCustomerType("央企");
+
+        ScoreItem item = ScoreItem.builder()
+                .id(71L)
+                .projectId(401L)
+                .code("3.1")
+                .dim("企业资质认证")
+                .detail("具备ISO9001专业资质认证，并提供完整的系统实施与部署方案")
+                .itemIndex(1)
+                .build();
+
+        KnowledgeCase technicalCase = new KnowledgeCase();
+        technicalCase.setId(901L);
+        technicalCase.setSourceProjectId(401L);
+        technicalCase.setScoringPointTitle("系统实施与部署方案");
+        technicalCase.setScoringCategory("技术方案");
+        technicalCase.setResponseText("我司提供标准化的系统实施计划，包含需求调研、环境部署、联调测试与上线交付四个阶段。");
+        technicalCase.setProjectType("工业品");
+        technicalCase.setCustomerType("央企");
+        technicalCase.setStatus("ACTIVE");
+
+        ScoreItemCaseRecommendResponse.CertificateItem cert = ScoreItemCaseRecommendResponse.CertificateItem.builder()
+                .name("ISO9001质量管理体系认证")
+                .certificateNo("CERT-9001")
+                .build();
+
+        when(projectRepository.findById(401L)).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(71L)).thenReturn(Optional.of(item));
+        when(enterpriseQualificationQueryPort.findMatchingCertificates(any(), any(), any()))
+                .thenReturn(List.of(cert));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(technicalCase));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+
+        var response = recommendAppService.recommend(401L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(71L).size(10).build());
+
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getItems().getFirst().getId()).isEqualTo(901L);
+        assertThat(response.getMatchedCertificates()).hasSize(1);
+        assertThat(response.getMatchedCertificates().getFirst().getName()).isEqualTo("ISO9001质量管理体系认证");
+    }
 }

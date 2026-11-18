@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -29,13 +30,21 @@ public class ScoreItemCaseMatchPolicy {
             Long scoreItemId, String code, String dim, String detail,
             String projectType, String customerType, String keyword,
             String projectName, String customerName,
-            String qualificationRequirementText, List<String> qualificationKeywords
+            String qualificationRequirementText, List<String> qualificationKeywords,
+            Map<Long, Double> vectorSimilarities
     ) {
+        public ScoreItemContext {
+            qualificationKeywords = qualificationKeywords != null ? qualificationKeywords : List.of();
+            vectorSimilarities = vectorSimilarities != null ? vectorSimilarities : Map.of();
+        }
         public ScoreItemContext(Long scoreItemId, String code, String dim, String detail, String projectType, String customerType, String keyword) {
-            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, null, null, null, List.of());
+            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, null, null, null, List.of(), Map.of());
         }
         public ScoreItemContext(Long scoreItemId, String code, String dim, String detail, String projectType, String customerType, String keyword, String projectName, String customerName) {
-            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, projectName, customerName, null, List.of());
+            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, projectName, customerName, null, List.of(), Map.of());
+        }
+        public ScoreItemContext(Long scoreItemId, String code, String dim, String detail, String projectType, String customerType, String keyword, String projectName, String customerName, String qualificationRequirementText, List<String> qualificationKeywords) {
+            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, projectName, customerName, qualificationRequirementText, qualificationKeywords, Map.of());
         }
     }
 
@@ -78,6 +87,11 @@ public class ScoreItemCaseMatchPolicy {
             return new MatchResult(candidate.getId(), 0, "一般", List.of("大类冲突一票否决"), List.of());
         }
 
+        // 0.1 纯模板与低质废料切片一票否决门禁
+        if (candidate.getResponseText() != null && CaseContentQualityPolicy.isLowQuality(candidate)) {
+            return new MatchResult(candidate.getId(), 0, "一般", List.of("低质废料切片/纯模板过滤"), List.of());
+        }
+
         String candidateText = ScoreItemCaseTextMatchPolicy.candidateFullText(candidate);
         int score = 0;
         List<String> reasons = new ArrayList<>();
@@ -118,7 +132,17 @@ public class ScoreItemCaseMatchPolicy {
             reasons.add(titleScore >= 15 ? "评分点匹配" : "评分点部分匹配");
         }
 
-        // 内容适用性独立于客户/项目背景。背景、置顶和搜索词不能把无关案例变成评分项案例。
+        // 3.2 向量语义相似度通道（当存在向量分时，与词法重叠形成双轨融合）
+        if (context.vectorSimilarities() != null && candidate.getId() != null) {
+            Double cosSim = context.vectorSimilarities().get(candidate.getId());
+            if (cosSim != null && cosSim >= 0.5) {
+                int semanticScore = (int) Math.round(cosSim * 30);
+                score += semanticScore;
+                reasons.add("语义相似度匹配(" + Math.round(cosSim * 100) + "%)");
+            }
+        }
+
+        // 内容适用性独立于客户/项目背景。背景、置顶和非内容因素不能把无关案例变成评分项案例。
         int relevanceScore = score;
         boolean hasItemRequirement = hasText(context.dim()) || hasText(context.detail())
                 || hasText(context.qualificationRequirementText());
@@ -126,22 +150,22 @@ public class ScoreItemCaseMatchPolicy {
             return new MatchResult(candidate.getId(), 0, "一般", List.of("与评分项内容不相关"), List.of());
         }
 
+        // 3.5 搜索词命中：在主题相关的前提下，额外命中用户显式输入的搜索词
+        if (hasText(context.keyword()) && candidateText.contains(context.keyword().trim().toLowerCase(Locale.ROOT))) {
+            score += KEYWORD_HIT_BONUS;
+            relevanceScore += KEYWORD_HIT_BONUS;
+            reasons.add("搜索词命中");
+        }
+
         // 4. 项目专属核心实体匹配（最高 20 分）
         EntityMatchResult entityResult = calculateEntityScore(context, candidate, candidateText);
-        score += entityResult.score();
         if (!entityResult.hitEntities().isEmpty()) {
             reasons.add("命中项目专属实体(" + String.join("、", entityResult.hitEntities().stream().limit(2).toList()) + ")");
         }
 
-        // 4.5 搜索词命中：用户显式输入的关键词属于直接查询相关性
-        if (hasText(context.keyword()) && candidateText.contains(context.keyword().trim().toLowerCase(Locale.ROOT))) {
-            score += KEYWORD_HIT_BONUS;
-            reasons.add("搜索词命中");
-        }
-
-        // 5~10. 情境加成（类别/项目类型/客户类型/中标/质量）与业务主题无关，
-        // 只能在主题相关的案例之间拉开差距：存在评分项要求时，主题相关度不足按比例折算
-        int bonus = 0;
+        // 5~10. 情境加成（实体/类别/项目类型/客户类型/中标/质量）与业务主题无关，
+        // 只能在主题相关的案例之间拉开差距：存在评分项要求时，实体与背景加成必须严格受内容相关度比例门禁约束
+        int bonus = entityResult.score();
         int categoryScore = CaseCategoryMatchPolicy.calculateCategoryScore(
                 context.dim(), context.detail(), candidate.getScoringCategory());
         if (categoryScore > 0) {
@@ -166,7 +190,8 @@ public class ScoreItemCaseMatchPolicy {
             bonus += QUALITY_SCORE_BONUS;
         }
         if (hasItemRequirement) {
-            score += (int) Math.round(bonus * Math.min(1.0, (double) relevanceScore / RELEVANCE_FOR_FULL_BONUS));
+            double relevanceRatio = Math.min(1.0, (double) relevanceScore / RELEVANCE_FOR_FULL_BONUS);
+            score += (int) Math.round(bonus * relevanceRatio);
         } else {
             score += bonus;
         }

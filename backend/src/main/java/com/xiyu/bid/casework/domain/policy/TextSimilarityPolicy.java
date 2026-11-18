@@ -104,19 +104,91 @@ public final class TextSimilarityPolicy {
                 String cleanWord = cleanTitle(word);
                 int len = cleanWord.length();
                 if (len >= 2 && len <= 20) {
-                    tokens.add(cleanWord);
+                    if (isQualityEntity(cleanWord)) {
+                        tokens.add(cleanWord);
+                    }
                 }
                 if (containsCjk(cleanWord)) {
-                    for (int i = 0; i <= len - 2; i++) {
-                        tokens.add(cleanWord.substring(i, i + 2));
-                    }
-                    for (int i = 0; i <= len - 3; i++) {
-                        tokens.add(cleanWord.substring(i, i + 3));
-                    }
+                    tokens.addAll(segmentCjk(cleanWord));
                 }
             }
         }
         return tokens;
+    }
+
+    private static Set<String> segmentCjk(String text) {
+        Set<String> result = new LinkedHashSet<>();
+        int n = text.length();
+        int i = 0;
+        while (i < n) {
+            char c = text.charAt(i);
+            if (isModalOrParticle(c)) {
+                i++;
+                continue;
+            }
+            boolean matched = false;
+            int maxLen = Math.min(8, n - i);
+            for (int len = maxLen; len >= 2; len--) {
+                String sub = text.substring(i, i + len);
+                if (BiddingDomainLexicon.contains(sub)) {
+                    result.add(sub);
+                    if (len == 4) {
+                        String p1 = sub.substring(0, 2);
+                        String p2 = sub.substring(2, 4);
+                        if (BiddingDomainLexicon.contains(p1)) {
+                            result.add(p1);
+                        }
+                        if (BiddingDomainLexicon.contains(p2)) {
+                            result.add(p2);
+                        }
+                    }
+                    i += len;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                if (i + 1 < n && hasLexiconMatch(text, i + 1, n)) {
+                    i++;
+                    continue;
+                }
+                if (i + 2 <= n) {
+                    String sub2 = text.substring(i, i + 2);
+                    if (isQualityEntity(sub2) && !containsModalOrParticle(sub2)) {
+                        result.add(sub2);
+                        i += 2;
+                    } else {
+                        i++;
+                    }
+                } else {
+                    i++;
+                }
+            }
+        }
+        return result;
+    }
+
+    private static boolean hasLexiconMatch(String text, int start, int end) {
+        int maxLen = Math.min(8, end - start);
+        for (int len = maxLen; len >= 2; len--) {
+            if (BiddingDomainLexicon.contains(text.substring(start, start + len))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isModalOrParticle(char ch) {
+        return PunctuationEntityExtractor.isParticle(ch)
+                || ch == '须' || ch == '应' || ch == '需' || ch == '较' || ch == '并'
+                || ch == '且' || ch == '及' || ch == '与' || ch == '或' || ch == '等'
+                || ch == '把' || ch == '被' || ch == '从' || ch == '向' || ch == '由'
+                || ch == '于' || ch == '在' || ch == '是' || ch == '为' || ch == '以';
+    }
+
+    private static boolean containsModalOrParticle(String s) {
+        if (s == null || s.length() < 2) return false;
+        return isModalOrParticle(s.charAt(0)) || isModalOrParticle(s.charAt(s.length() - 1));
     }
 
     public static double jaccardSimilarity(Set<String> a, Set<String> b) {

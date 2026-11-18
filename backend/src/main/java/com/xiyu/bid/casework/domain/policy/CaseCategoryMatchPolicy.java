@@ -1,6 +1,7 @@
 package com.xiyu.bid.casework.domain.policy;
 
 import java.util.Locale;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 import static com.xiyu.bid.casework.domain.policy.TextSimilarityPolicy.hasText;
@@ -18,11 +19,31 @@ public final class CaseCategoryMatchPolicy {
         PERFORMANCE,
         QUALIFICATION,
         PERSONNEL,
-        OTHER
+        OTHER;
+
+        public boolean isQualification() {
+            return this == QUALIFICATION;
+        }
+
+        public boolean isPerformance() {
+            return this == PERFORMANCE;
+        }
+
+        public boolean isTechnical() {
+            return this == TECHNICAL;
+        }
+
+        public boolean isCommercial() {
+            return this == COMMERCIAL;
+        }
+
+        public boolean isPersonnel() {
+            return this == PERSONNEL;
+        }
     }
 
     private static final String[] PERSONNEL_KEYWORDS = {
-            "人员", "团队", "项目经理", "项目负责人", "架构师", "职称", "社保", "学历", "履历", "专家", "工程师", "人员配置", "团队投入", "骨干", "成员", "分支机构"
+            "人员", "团队", "项目经理", "项目负责人", "技术负责人", "负责人", "建造师", "人员资质", "架构师", "职称", "社保", "学历", "履历", "专家", "工程师", "人员配置", "团队投入", "骨干", "成员", "分支机构"
     };
     private static final String[] QUALIFICATION_KEYWORDS = {
             "资质", "资格", "证书", "认证", "认证体系", "体系认证", "管理体系", "许可", "执照", "iso", "aaa", "专利", "软著", "专精特新", "高新", "资质等级", "资信"
@@ -61,12 +82,21 @@ public final class CaseCategoryMatchPolicy {
         MacroCategory candCat = classifyMacroCategory(candidateCategory, candidateTitle);
         if (itemCat == MacroCategory.QUALIFICATION) {
             return switch (candCat) {
-                case TECHNICAL -> !hasMatchingSecurityFiling(itemDetail, candidateResponse);
+                case TECHNICAL -> !hasTechnicalRequirement(itemDim, itemDetail)
+                        && !hasMatchingSecurityFiling(itemDetail, candidateResponse);
                 case COMMERCIAL, PERFORMANCE -> true;
                 default -> false;
             };
         }
         return isMutuallyExclusive(itemCat, candCat);
+    }
+
+    public static boolean hasTechnicalRequirement(String dim, String detail) {
+        String combined = (Objects.toString(dim, "") + " " + Objects.toString(detail, "")).toLowerCase(Locale.ROOT);
+        return combined.contains("方案") || combined.contains("预案")
+                || combined.contains("实施") || combined.contains("架构")
+                || combined.contains("部署") || combined.contains("对接")
+                || combined.contains("售后") || combined.contains("运维");
     }
 
     private static boolean hasMatchingSecurityFiling(String requirement, String response) {

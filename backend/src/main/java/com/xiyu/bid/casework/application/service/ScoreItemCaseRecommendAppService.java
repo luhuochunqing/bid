@@ -5,15 +5,17 @@
 
 package com.xiyu.bid.casework.application.service;
 
+import com.xiyu.bid.casework.application.port.CaseVectorSemanticQueryPort;
 import com.xiyu.bid.casework.application.port.EnterpriseQualificationQueryPort;
 import com.xiyu.bid.casework.application.port.KnowledgeCaseQueryPort;
 import com.xiyu.bid.casework.application.port.TenderQualificationQueryPort;
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 import com.xiyu.bid.casework.domain.policy.CaseCategoryMatchPolicy;
+import com.xiyu.bid.casework.domain.policy.CaseContentQualityPolicy;
 import com.xiyu.bid.casework.domain.policy.PerformanceCaseAdmissionPolicy;
 import com.xiyu.bid.casework.domain.policy.QualificationPerformanceRetriever;
 import com.xiyu.bid.casework.domain.policy.ScoreItemCaseMatchPolicy;
-import com.xiyu.bid.casework.application.util.SummaryTruncator;
+import com.xiyu.bid.casework.domain.policy.ScoreItemIntentRouter;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendRequest;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendResponse;
 import com.xiyu.bid.entity.Project;
@@ -26,9 +28,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -52,8 +53,6 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class ScoreItemCaseRecommendAppService {
 
-    private static final DateTimeFormatter CREATED_AT_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
-
     private final KnowledgeCaseQueryPort knowledgeCaseQueryPort;
     private final ScoreItemRepository scoreItemRepository;
     private final ProjectRepository projectRepository;
@@ -61,8 +60,10 @@ public class ScoreItemCaseRecommendAppService {
     private final ScoreItemCaseSourceMetaLoader sourceMetaLoader;
     private final TenderQualificationQueryPort tenderQualificationQueryPort;
     private final EnterpriseQualificationQueryPort enterpriseQualificationQueryPort;
+    private final CaseVectorSemanticQueryPort vectorSemanticQueryPort;
 
     private final ScoreItemCaseMatchPolicy matchPolicy = new ScoreItemCaseMatchPolicy();
+    private final ScoreItemCaseRecommendEvaluator evaluator = new ScoreItemCaseRecommendEvaluator(matchPolicy);
     private final QualificationPerformanceRetriever performanceRetriever = new QualificationPerformanceRetriever();
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -73,7 +74,9 @@ public class ScoreItemCaseRecommendAppService {
             ProjectAccessScopeService projectAccessScopeService,
             ScoreItemCaseSourceMetaLoader sourceMetaLoader,
             TenderQualificationQueryPort tenderQualificationQueryPort,
-            EnterpriseQualificationQueryPort enterpriseQualificationQueryPort) {
+            EnterpriseQualificationQueryPort enterpriseQualificationQueryPort,
+            @org.springframework.beans.factory.annotation.Autowired(required = false)
+            CaseVectorSemanticQueryPort vectorSemanticQueryPort) {
         this.knowledgeCaseQueryPort = knowledgeCaseQueryPort;
         this.scoreItemRepository = scoreItemRepository;
         this.projectRepository = projectRepository;
@@ -81,6 +84,19 @@ public class ScoreItemCaseRecommendAppService {
         this.sourceMetaLoader = sourceMetaLoader;
         this.tenderQualificationQueryPort = tenderQualificationQueryPort;
         this.enterpriseQualificationQueryPort = enterpriseQualificationQueryPort;
+        this.vectorSemanticQueryPort = vectorSemanticQueryPort;
+    }
+
+    public ScoreItemCaseRecommendAppService(
+            KnowledgeCaseQueryPort knowledgeCaseQueryPort,
+            ScoreItemRepository scoreItemRepository,
+            ProjectRepository projectRepository,
+            ProjectAccessScopeService projectAccessScopeService,
+            ScoreItemCaseSourceMetaLoader sourceMetaLoader,
+            TenderQualificationQueryPort tenderQualificationQueryPort,
+            EnterpriseQualificationQueryPort enterpriseQualificationQueryPort) {
+        this(knowledgeCaseQueryPort, scoreItemRepository, projectRepository, projectAccessScopeService,
+                sourceMetaLoader, tenderQualificationQueryPort, enterpriseQualificationQueryPort, null);
     }
 
     public ScoreItemCaseRecommendAppService(
@@ -91,7 +107,7 @@ public class ScoreItemCaseRecommendAppService {
             ScoreItemCaseSourceMetaLoader sourceMetaLoader,
             TenderQualificationQueryPort tenderQualificationQueryPort) {
         this(knowledgeCaseQueryPort, scoreItemRepository, projectRepository, projectAccessScopeService,
-                sourceMetaLoader, tenderQualificationQueryPort, null);
+                sourceMetaLoader, tenderQualificationQueryPort, null, null);
     }
 
     /**
@@ -122,37 +138,60 @@ public class ScoreItemCaseRecommendAppService {
 
         boolean performanceItem = scoreItem != null
                 && performanceRetriever.isPerformanceScoreItem(scoreItem.getDim(), scoreItem.getDetail());
-        QualificationPerformanceRetriever.PerformanceRequirementResult perfRequirement = null;
-        if (performanceItem) {
-            perfRequirement = lookupPerformanceRequirement(projectId, scoreItem.getDim(), scoreItem.getDetail());
-        } else if (scoreItem == null && !hasQueryKeyword(request.getKeyword())) {
-            // 未选评分项且无关键词检索：若资格项存在业绩要求，回退用资格项作为推荐上下文
-            perfRequirement = lookupQualificationPerformance(projectId);
-        }
+        QualificationPerformanceRetriever.PerformanceRequirementResult perfRequirement = performanceItem
+                ? lookupPerformanceRequirement(projectId, scoreItem.getDim(), scoreItem.getDetail())
+                : (scoreItem == null && !hasQueryKeyword(request.getKeyword()) ? lookupQualificationPerformance(projectId) : null);
         if (perfRequirement != null) {
             qualReqText = perfRequirement.matchedRequirementText();
             qualKeywords = perfRequirement.keywords();
         }
         boolean applyAdmission = performanceItem || (scoreItem == null && perfRequirement != null);
 
+        Map<Long, Double> vectorSimilarities = Map.of();
+        if (vectorSemanticQueryPort != null) {
+            String vectorQuery = buildVectorQueryText(scoreItem, request.getKeyword(), qualReqText);
+            if (!vectorQuery.isBlank()) {
+                try {
+                    Map<Long, Double> queried = vectorSemanticQueryPort.querySimilarities(vectorQuery);
+                    if (queried != null) vectorSimilarities = queried;
+                } catch (RuntimeException ex) {
+                    log.warn("向量语义检索降级: {}", ex.getMessage());
+                }
+            }
+        }
+
         ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
                 scoreItem != null ? scoreItem.getId() : request.getScoreItemId(),
                 scoreItem != null ? scoreItem.getCode() : null,
                 scoreItem != null ? scoreItem.getDim() : null,
                 scoreItem != null ? scoreItem.getDetail() : null,
-                projectType,
-                customerType,
-                request.getKeyword(),
-                projectName,
-                customerName,
-                qualReqText,
-                qualKeywords
-        );
+                projectType, customerType, request.getKeyword(),
+                projectName, customerName, qualReqText, qualKeywords, vectorSimilarities);
+
+        // 关键判定：通过大类推断确定评分项业务意图
+        CaseCategoryMatchPolicy.MacroCategory intent = CaseCategoryMatchPolicy.classifyMacroCategory(context.dim(), context.detail());
+        List<ScoreItemCaseRecommendResponse.CertificateItem> matchedCertificates = List.of();
+        if (enterpriseQualificationQueryPort != null && shouldQueryCertificates(context.dim(), context.detail())) {
+            try {
+                matchedCertificates = enterpriseQualificationQueryPort.findMatchingCertificates(
+                        context.dim(), context.detail(), context.keyword());
+            } catch (RuntimeException ex) {
+                log.warn("资质库查询失败，降级为空: {}", ex.getMessage());
+            }
+        }
+        if (intent.isQualification() && !CaseCategoryMatchPolicy.hasTechnicalRequirement(context.dim(), context.detail())) {
+            return ScoreItemCaseRecommendResponse.builder()
+                    .total(matchedCertificates.size())
+                    .items(List.of()) // 纯资质证书类评分项：彻底物理阻断文本应答切片
+                    .matchedCertificates(matchedCertificates)
+                    .build();
+        }
 
         // 通过端口获取已激活案例（ACTIVE 过滤已下沉至 adapter）
         List<KnowledgeCaseReadModel> allActiveCases = knowledgeCaseQueryPort.findAllActive();
         List<KnowledgeCaseReadModel> candidateCases =
                 applyAdmissionIfNeeded(allActiveCases, applyAdmission, perfRequirement);
+        candidateCases = CaseContentQualityPolicy.filterAdmissible(candidateCases);
         Set<Long> sourceProjectIds = allActiveCases.stream()
                 .map(KnowledgeCaseReadModel::getSourceProjectId)
                 .filter(Objects::nonNull)
@@ -160,53 +199,8 @@ public class ScoreItemCaseRecommendAppService {
         Map<Long, ScoreItemCaseSourceMetaLoader.SourceMeta> sourceMetaByProjectId =
                 sourceMetaLoader.load(sourceProjectIds);
 
-        List<ScoreItemCaseMatchPolicy.MatchResult> results = matchPolicy.evaluateAll(candidateCases, context);
-        List<ScoreItemCaseRecommendResponse.Item> evaluatedItems = new java.util.ArrayList<>(candidateCases.size());
-        for (int i = 0; i < candidateCases.size(); i++) {
-            KnowledgeCaseReadModel candidate = candidateCases.get(i);
-            ScoreItemCaseMatchPolicy.MatchResult result = results.get(i);
-            ScoreItemCaseRecommendResponse.Item item = toResponseItem(
-                    candidate, result, sourceMetaByProjectId.get(candidate.getSourceProjectId()));
-            if (item.getMatchScore() > 0) {
-                evaluatedItems.add(item);
-            }
-        }
-        evaluatedItems = evaluatedItems.stream()
-                .sorted(Comparator.comparing(ScoreItemCaseRecommendResponse.Item::getIsPinned, Comparator.nullsLast(Comparator.reverseOrder()))
-                        .thenComparing(ScoreItemCaseRecommendResponse.Item::getMatchScore, Comparator.reverseOrder())
-                        .thenComparing(ScoreItemCaseRecommendResponse.Item::getReuseCount, Comparator.nullsLast(Comparator.reverseOrder())))
-                .toList();
-
-        int page = request.getPage() != null && request.getPage() >= 0 ? request.getPage() : 0;
-        int size = request.getSize() != null && request.getSize() > 0 ? request.getSize() : 10;
-        int fromIndex = Math.min(page * size, evaluatedItems.size());
-        int toIndex = Math.min(fromIndex + size, evaluatedItems.size());
-
-        List<ScoreItemCaseRecommendResponse.Item> pageItems = evaluatedItems.subList(fromIndex, toIndex);
-
-        // 关键判定：该评分项是否为资质证书类（若是，则直连企业资质库返回证书原件图片及信息）
-        CaseCategoryMatchPolicy.MacroCategory macroCategory =
-                CaseCategoryMatchPolicy.classifyMacroCategory(context.dim(), context.detail());
-        boolean isQualificationItem = macroCategory == CaseCategoryMatchPolicy.MacroCategory.QUALIFICATION;
-
-        List<ScoreItemCaseRecommendResponse.CertificateItem> matchedCertificates = List.of();
-        if (isQualificationItem && enterpriseQualificationQueryPort != null) {
-            try {
-                matchedCertificates = enterpriseQualificationQueryPort.findMatchingCertificates(
-                        context.dim(), context.detail(), request.getKeyword());
-            } catch (RuntimeException e) {
-                log.warn("查询企业资质证书失败，优雅降级：{}", e.getMessage());
-                matchedCertificates = List.of();
-            }
-        }
-
-        long totalCount = isQualificationItem ? matchedCertificates.size() : evaluatedItems.size();
-
-        return ScoreItemCaseRecommendResponse.builder()
-                .total(totalCount)
-                .items(pageItems)
-                .matchedCertificates(matchedCertificates)
-                .build();
+        return evaluator.evaluateAndAssemble(
+                candidateCases, context, sourceMetaByProjectId, request.getPage(), request.getSize(), matchedCertificates);
     }
 
     /**
@@ -220,43 +214,6 @@ public class ScoreItemCaseRecommendAppService {
                         item.getWeight(), item.getScoreType(), item.getStatusStage1(),
                         item.getEstScore(), item.getEstBasis(), item.getKbHit(), item.getLocation()))
                 .toList();
-    }
-
-    private ScoreItemCaseRecommendResponse.Item toResponseItem(
-            KnowledgeCaseReadModel candidate,
-            ScoreItemCaseMatchPolicy.MatchResult result,
-            ScoreItemCaseSourceMetaLoader.SourceMeta sourceMeta) {
-        String summary = SummaryTruncator.truncate(candidate.getResponseText(), 200);
-
-        return ScoreItemCaseRecommendResponse.Item.builder()
-                .id(candidate.getId())
-                .sourceProjectId(candidate.getSourceProjectId())
-                .sourceProjectName(candidate.getSourceProjectName())
-                .scoringPointTitle(candidate.getScoringPointTitle())
-                .scoringCategory(candidate.getScoringCategory())
-                .matchScore(result.score())
-                .matchLabel(result.matchLabel())
-                .matchReasons(result.matchReasons())
-                .matchedKeywords(result.matchedKeywords())
-                .requirementRaw(candidate.getRequirementRaw())
-                .responseText(candidate.getResponseText())
-                .responseTextSummary(summary)
-                .customerType(candidate.getCustomerType())
-                .projectType(candidate.getProjectType())
-                .bidResult(candidate.getBidResult())
-                .reuseCount(candidate.getReuseCount() != null ? candidate.getReuseCount() : 0)
-                .isPinned(candidate.getIsPinned() != null && candidate.getIsPinned())
-                .createdAt(candidate.getCreatedAt() == null ? null : candidate.getCreatedAt().format(CREATED_AT_FORMAT))
-                .bidEntity(sourceMeta == null ? null : sourceMeta.bidEntity())
-                .projectStatus(sourceMeta == null ? null : sourceMeta.projectStatus())
-                .subTopic(candidate.getSubTopic())
-                .qualityScore(candidate.getQualityScore())
-                .sourceSectionTitle(candidate.getSourceSectionTitle())
-                .sourceSectionPath(candidate.getSourceSectionPath())
-                .sourceDocumentName(candidate.getSourceDocumentName())
-                .sourcePageNumber(candidate.getSourcePageNumber())
-                .sourceSectionIndex(candidate.getSourceSectionIndex())
-                .build();
     }
 
     private QualificationPerformanceRetriever.PerformanceRequirementResult lookupPerformanceRequirement(
@@ -278,6 +235,13 @@ public class ScoreItemCaseRecommendAppService {
         return keyword != null && !keyword.trim().isEmpty();
     }
 
+    private static boolean shouldQueryCertificates(String dim, String detail) {
+        String combined = (Objects.toString(dim, "") + " " + Objects.toString(detail, "")).toLowerCase(Locale.ROOT);
+        return combined.contains("资质") || combined.contains("资格") || combined.contains("证书")
+                || combined.contains("认证") || combined.contains("许可") || combined.contains("执照")
+                || combined.contains("iso") || combined.contains("资信");
+    }
+
     private List<KnowledgeCaseReadModel> applyAdmissionIfNeeded(
             List<KnowledgeCaseReadModel> cases,
             boolean applyAdmission,
@@ -291,5 +255,24 @@ public class ScoreItemCaseRecommendAppService {
             log.info("业绩案例准入：无满足业绩证据的候选，诚实降级为空列表");
         }
         return admitted;
+    }
+
+    private static String buildVectorQueryText(ScoreItem scoreItem, String keyword, String qualReqText) {
+        StringBuilder sb = new StringBuilder();
+        if (scoreItem != null) {
+            if (scoreItem.getDim() != null && !scoreItem.getDim().isBlank()) {
+                sb.append(scoreItem.getDim()).append(' ');
+            }
+            if (scoreItem.getDetail() != null && !scoreItem.getDetail().isBlank()) {
+                sb.append(scoreItem.getDetail()).append(' ');
+            }
+        }
+        if (qualReqText != null && !qualReqText.isBlank()) {
+            sb.append(qualReqText).append(' ');
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            sb.append(keyword);
+        }
+        return sb.toString().trim();
     }
 }

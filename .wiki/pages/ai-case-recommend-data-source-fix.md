@@ -394,3 +394,78 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 - 提交 PR 前已重新执行正式三技能流程，清理、验证、独立 google-code-review 与 xiyu-code-review 均 PASS，取得 MERGE_READY 凭证；PR 远端 head 与本地源提交一致。上节 ESCALATE 及“未创建 PR / 未合并”描述记录的是早期阶段，后续状态以本节为准。
 - 修复前诊断正文和索引已随该 PR 合入；本次补录两条初诊日志，并明确标记历史状态，保留初诊到生产快照重放、修复验证的证据顺序。
 - 本任务未执行部署，合入后的真实线上接口/UI 验收未重新执行；本地快照重放结果不等于部署验收。
+
+---
+
+## Feature 090: 评分项意图确定性路由与乘法门禁打分重构（2026-11-18 Phase 1 止血）
+
+### 1. 业务死结与设计背景
+经过 Swarm 四维并行深度审计，明确了案例推荐长期无法根治的本质死结：
+1. **分类错置**：资质证书是客观履约证明文件（证书名、编号、有效期、扫描件），技术方案是主观方案阐述。以往系统强行将资质证书作为文本切片塞入 `knowledge_case` 候选池，企图用文本匹配算法召回，造成不可避免的方案与证书错配（如“配送能力推等保证书”）。
+2. **加性评分的代偿性谬误**：加法打分公式使得无关案例只要命中专属客户名（+20~25 分）或中标状态（+5 分），就能越过门槛，反客为主。
+
+### 2. 核心架构改进（FP-Java 纯核心）
+1. **意图确定性路由器 (`ScoreItemIntentRouter`)**：
+   - 入口前置分析评分项标题与详情，路由至 5 种核心业务意图：`QUALIFICATION`（资质证书）、`TECHNICAL`（技术方案）、`COMMERCIAL`（商务财务）、`PERFORMANCE`（同类业绩）、`PERSONNEL`（人员团队）。
+   - 包含多层级编号清洗与标书泛名前缀剥离（“技术部分评分项”、“评分标准”等）。
+   - 规则优先级固化：解决“技术负责人”优先归人员团队、纯“资质证书”归资质的优先级排序。
+2. **应用服务层物理阻断 (`ScoreItemCaseRecommendAppService`)**：
+   - 当意图判定为 `QUALIFICATION` 时，直接查询企业资质库并返回 `matchedCertificates`，将切片推荐列表物理置空（`items = List.of()`），彻底杜绝文本方案切片混入资质项。
+3. **乘法先验门禁与实体分折算归一 (`ScoreItemCaseMatchPolicy`)**：
+   - 彻底废除实体分直接累加的绕过漏洞；
+   - 客户/项目专属实体分统一纳入 `bonus` 计算，并严格受主题内容相关度 `relevanceRatio = min(1.0, relevanceScore / 8.0)` 比例折算；
+   - 存在评分项要求且内容相关度为 0 时，一票否决返回 0 分；
+   - 搜索词加成调整至 `relevanceScore == 0` 判定之后，确保搜索词无法复活无关案例。
+
+### 3. 验证与测试
+- 单元测试覆盖：`ScoreItemIntentRouterTest` (22)、`ScoreItemCaseMatchPolicyTest` (54)、`ScoreItemCaseRelevanceRegressionTest` (23)、`ScoreItemCaseRecommendAppServiceTest` (13)；
+- 前端测试：`AiRecommendDrawer.spec.js` (15 项全部通过)；
+- 契约验证：`specs/090-case-recommend-intent-routing/tasks.md` 全部勾选完成。
+
+## Feature 090: 向量语义双轨融合与正向最大匹配分词治理（2026-11-18 Phase 2 治本）
+
+### 1. 痛点根因与突破口
+1. **机械滑窗分词陷阱**：旧实现采用无边界 2-gram/3-gram 字符滑窗，将“人员须具备较高业务水平”切碎出“员须”、“备较”、“高业”等虚假跨词碎片。由于假词在案例库中极罕见（$DF=1$），其逆文档频率 IDF 暴增 7~10 倍，导致冷僻假词反客为主支配了 25 分条款分。
+2. **纯字面重叠的语义盲区**：当评分项与候选案例字面无公共词（如“冷链仓储” vs “智能语音”），但具备向量语义相关度时，旧纯词法匹配判定为 0 分，直接被门禁误杀。
+
+### 2. 核心架构改进（FP-Java 纯核心 + DDD 端口隔离）
+1. **正向最大匹配（FMM）与领域词典保护 (`BiddingDomainLexicon` & `TextSimilarityPolicy`)**：
+   - 构建 `BiddingDomainLexicon` 招投标专属领域词典，收录百余个高频业务词汇；
+   - 提取分词采用正向最大匹配（FMM，最大跨度 6），自动解构复合词；
+   - 强力阻断跨助词/连词边界碎片（'须', '应', '需', '较', '并', '且', '及', '与', '或', '等' 绝不进入首尾）；
+   - 在语料库 IDF 计算中，针对 $DF=1$ 且非领域词的假词进行平滑抑制。
+2. **向量语义检索端口与双轨融合 (`CaseVectorSemanticQueryPort` & `ScoreItemCaseMatchPolicy`)**：
+   - 定义六边形驱动端口 `CaseVectorSemanticQueryPort` 与适配器 `CaseVectorSemanticQueryAdapter`；
+   - 在 `ScoreItemCaseMatchPolicy` 中建立向量语义相似度通道：当余弦相似度 $\ge 0.5$ 时，折算 $cosSim \times 30$ 分作为语义基准分，突破零字面重叠门禁，实现语义智能召回；
+   - 零依赖优雅降级：向量服务不可用或异常时自动降级为空 Map，保证 100% 零异常中断。
+3. **行预算解耦与协作类拆分 (`ScoreItemCaseRecommendEvaluator`)**：
+   - 将排序、分页、置顶重排与 DTO 装配抽离至包级协作类 `ScoreItemCaseRecommendEvaluator`（114 行）；
+   - `ScoreItemCaseRecommendAppService` 由 298 行压至 268 行，消除行预算门禁风险。
+
+### 3. 验证与测试
+- 单元测试：全量 220 项单测（含 `FPJavaArchitectureTest`）100% 绿灯通过；
+- 前端测试：`AiRecommendDrawer.spec.js` 15 项测试全部通过。
+
+## Feature 090: 候选池纯模板清洗与低质废料切片过滤（2026-11-18 Phase 3 治理）
+
+### 1. 痛点根因与污染机制
+1. **历史切片池纯模板与填空废料污染**：切片库（`knowledge_case` / `bid_case_slice`）中存留大量非实质性方案切片，包括招标文件格式要求（如“法定代表人授权委托书格式”、“投标承诺函格式自拟”、“投标保证金保函格式”、“签字盖章下划线填空 ______”）；
+2. **敷衍占位符与排版残留**：存在大量“详见附件”、“见附表”、“本项完全满足要求，特此承诺”以及由大段点号与页码组成的目录提取残片（`第一节 ... 1`）；
+3. **高频词与实体误撞污染推荐**：由于这些模板切片中碰巧含有“三峡集团”等客户实体词或“方案/服务”等高频词，在过去的推荐中被频繁推送到前台，造成“选方案却推空白授权书模板”的恶劣体验，同时污染 TF-IDF 语料分布。
+
+### 2. 核心架构改进（FP-Java 纯核心 + 双层门禁防御）
+1. **纯核心内容质量准入策略 (`CaseContentQualityPolicy`)**：
+   - **超短文本阻断**：有效正文 $< 10$ 字符判定为无实质内容；
+   - **纯模板识别与下划线标记**：匹配“授权委托书格式”、“投标承诺函模板”、“格式自拟”等特征，且含签字盖章填空横线（`_{3,}`、`（签字）：`、`（盖章）：`）的切片一律拦截；
+   - **敷衍占位符拦截**：短文本且仅引用附件或表态承诺的切片直接过滤；
+   - **目录与排版残片拦截**：匹配点号引导符（`\.{3,}`）且符号/空白占比 $> 25\%$ 的目录切片直接拦截；
+   - **低信息熵检测**：不重复字符占比 $< 0.15$ 或重复单一符号的切片直接拦截；
+   - **零误杀保护**：保证字数充实、段落完整的真实技术方案、运维方案、接口对接方案 100% 正常放行。
+2. **双层防御体系（Defense-in-Depth）**：
+   - **编排层前置过滤**：在 `ScoreItemCaseRecommendAppService` 中召回候选集后，立即执行 `CaseContentQualityPolicy.filterAdmissible(candidateCases)`，低质切片不进入 TF-IDF 语料库，不参与打分计算，提升检索效率并保护语料纯度；
+   - **策略层兜底门禁**：在 `ScoreItemCaseMatchPolicy.evaluate` 中作为一票否决门禁，低质切片直接得 0 分并标记“低质废料切片/纯模板过滤”。
+
+### 3. 验证与测试
+- 单元测试：`CaseContentQualityPolicyTest` (10)、`ScoreItemCaseMatchPolicyTest` (14)、`ScoreItemCaseRecommendAppServiceTest` (6)；
+- 全量 70 项单测与前端抽屉 15 项测试 100% 绿灯通过；
+- 单文件行数全面符合 $\le 300$ 行硬门禁约束。
