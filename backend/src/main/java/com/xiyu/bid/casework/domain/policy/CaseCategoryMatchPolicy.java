@@ -1,6 +1,7 @@
 package com.xiyu.bid.casework.domain.policy;
 
 import java.util.Locale;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 import static com.xiyu.bid.casework.domain.policy.TextSimilarityPolicy.hasText;
@@ -18,7 +19,27 @@ public final class CaseCategoryMatchPolicy {
         PERFORMANCE,
         QUALIFICATION,
         PERSONNEL,
-        OTHER
+        OTHER;
+
+        public boolean isQualification() {
+            return this == QUALIFICATION;
+        }
+
+        public boolean isPerformance() {
+            return this == PERFORMANCE;
+        }
+
+        public boolean isTechnical() {
+            return this == TECHNICAL;
+        }
+
+        public boolean isCommercial() {
+            return this == COMMERCIAL;
+        }
+
+        public boolean isPersonnel() {
+            return this == PERSONNEL;
+        }
     }
 
     private static final String[] PERSONNEL_KEYWORDS = {
@@ -61,12 +82,21 @@ public final class CaseCategoryMatchPolicy {
         MacroCategory candCat = classifyMacroCategory(candidateCategory, candidateTitle);
         if (itemCat == MacroCategory.QUALIFICATION) {
             return switch (candCat) {
-                case TECHNICAL -> !hasMatchingSecurityFiling(itemDetail, candidateResponse);
+                case TECHNICAL -> !hasTechnicalRequirement(itemDim, itemDetail)
+                        && !hasMatchingSecurityFiling(itemDetail, candidateResponse);
                 case COMMERCIAL, PERFORMANCE -> true;
                 default -> false;
             };
         }
         return isMutuallyExclusive(itemCat, candCat);
+    }
+
+    public static boolean hasTechnicalRequirement(String dim, String detail) {
+        String combined = (Objects.toString(dim, "") + " " + Objects.toString(detail, "")).toLowerCase(Locale.ROOT);
+        return combined.contains("方案") || combined.contains("预案")
+                || combined.contains("实施") || combined.contains("架构")
+                || combined.contains("部署") || combined.contains("对接")
+                || combined.contains("售后") || combined.contains("运维");
     }
 
     private static boolean hasMatchingSecurityFiling(String requirement, String response) {

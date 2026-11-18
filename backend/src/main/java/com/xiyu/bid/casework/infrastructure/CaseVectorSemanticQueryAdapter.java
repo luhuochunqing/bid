@@ -59,10 +59,18 @@ public class CaseVectorSemanticQueryAdapter implements CaseVectorSemanticQueryPo
             for (BidCaseSliceVectorCache.BidCaseSliceVector slice : vectorCache.findAll()) {
                 if (slice.id() != null && slice.vector() != null) {
                     double cosSim = CosineSimilarityPolicy.compute(queryVector, slice.vector());
-                    if (cosSim > 0.0) {
+                    // 仅保留高于 0.5 门禁阈值的语义高相关项
+                    if (cosSim >= 0.5) {
                         similarities.merge(slice.id(), cosSim, Math::max);
                     }
                 }
+            }
+            // Top-50 剪枝保护：避免堆上分配并传递无界超大 Map 造成 GC 压力
+            if (similarities.size() > 50) {
+                return similarities.entrySet().stream()
+                        .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                        .limit(50)
+                        .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a));
             }
             return similarities;
         } catch (RuntimeException ex) {

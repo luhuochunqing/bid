@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -844,5 +845,53 @@ class ScoreItemCaseRecommendAppServiceTest {
 
         assertThat(response.getTotal()).isEqualTo(1);
         assertThat(response.getItems().getFirst().getId()).isEqualTo(801L);
+    }
+
+    @Test
+    @DisplayName("复合评分项双轨兼容：当评分项同时包含资质要求与技术实施方案时，方案案例与资质证书并存返回")
+    void testRecommend_HybridScoringItemReturnsBothCasesAndCertificates() {
+        Project project = new Project();
+        project.setId(401L);
+        project.setIndustry("工业品");
+        project.setCustomerType("央企");
+
+        ScoreItem item = ScoreItem.builder()
+                .id(71L)
+                .projectId(401L)
+                .code("3.1")
+                .dim("企业资质认证")
+                .detail("具备ISO9001专业资质认证，并提供完整的系统实施与部署方案")
+                .itemIndex(1)
+                .build();
+
+        KnowledgeCase technicalCase = new KnowledgeCase();
+        technicalCase.setId(901L);
+        technicalCase.setSourceProjectId(401L);
+        technicalCase.setScoringPointTitle("系统实施与部署方案");
+        technicalCase.setScoringCategory("技术方案");
+        technicalCase.setResponseText("我司提供标准化的系统实施计划，包含需求调研、环境部署、联调测试与上线交付四个阶段。");
+        technicalCase.setProjectType("工业品");
+        technicalCase.setCustomerType("央企");
+        technicalCase.setStatus("ACTIVE");
+
+        ScoreItemCaseRecommendResponse.CertificateItem cert = ScoreItemCaseRecommendResponse.CertificateItem.builder()
+                .name("ISO9001质量管理体系认证")
+                .certificateNo("CERT-9001")
+                .build();
+
+        when(projectRepository.findById(401L)).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(71L)).thenReturn(Optional.of(item));
+        when(enterpriseQualificationQueryPort.findMatchingCertificates(any(), any(), any()))
+                .thenReturn(List.of(cert));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(technicalCase));
+        when(sourceMetaLoader.load(anyCollection())).thenReturn(Map.of());
+
+        var response = recommendAppService.recommend(401L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(71L).size(10).build());
+
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getItems().getFirst().getId()).isEqualTo(901L);
+        assertThat(response.getMatchedCertificates()).hasSize(1);
+        assertThat(response.getMatchedCertificates().getFirst().getName()).isEqualTo("ISO9001质量管理体系认证");
     }
 }

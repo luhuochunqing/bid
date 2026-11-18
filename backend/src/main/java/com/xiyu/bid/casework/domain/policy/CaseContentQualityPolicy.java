@@ -87,9 +87,10 @@ public final class CaseContentQualityPolicy {
         if (countBlankMarkers(stripped) >= 2) {
             return new QualityVerdict(false, 0, "纯格式模板/非实质方案");
         }
-        if (title != null && (title.contains("授权委托书") || title.contains("承诺函格式") || title.contains("保函格式") || title.contains("模板"))
-                && (hasFormBlank || stripped.length() < 120)) {
-            return new QualityVerdict(false, 0, "纯格式模板/非实质方案");
+        if (title != null && (title.contains("授权委托书") || title.contains("承诺函格式") || title.contains("保函格式") || title.contains("模板"))) {
+            if (hasFormBlank || stripped.length() < 50) {
+                return new QualityVerdict(false, 0, "纯格式模板/非实质方案");
+            }
         }
 
         // 3. 目录与排版残片拦截

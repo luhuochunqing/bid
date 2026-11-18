@@ -130,6 +130,14 @@ class CaseContentQualityPolicyTest {
         assertThat(verdict2.isAdmissible()).isTrue();
         assertThat(verdict2.rejectReason()).isNull();
         assertThat(CaseContentQualityPolicy.isLowQuality("接口对接方案", integrationPlan, 90)).isFalse();
+
+        // 精炼实质性承诺函（无填空下划线）必须正常放行
+        String substantiveCommitment = "我公司在此郑重承诺：在本项目履约期间，实行严格的廉洁从业与保密守则，所有交付物均符合国家及行业最高标准。特此承诺。";
+        CaseContentQualityPolicy.QualityVerdict verdict3 =
+                CaseContentQualityPolicy.evaluateQuality("服务质量与履约承诺函", substantiveCommitment, 70);
+        assertThat(verdict3.isAdmissible()).isTrue();
+        assertThat(verdict3.rejectReason()).isNull();
+        assertThat(CaseContentQualityPolicy.isLowQuality("服务质量与履约承诺函", substantiveCommitment, 70)).isFalse();
     }
 
     @Test

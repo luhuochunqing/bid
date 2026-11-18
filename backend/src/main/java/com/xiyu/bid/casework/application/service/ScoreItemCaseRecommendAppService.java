@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -167,21 +168,21 @@ public class ScoreItemCaseRecommendAppService {
                 projectType, customerType, request.getKeyword(),
                 projectName, customerName, qualReqText, qualKeywords, vectorSimilarities);
 
-        // 关键判定：通过路由器确定评分项业务意图
-        ScoreItemIntentRouter.Intent intent = ScoreItemIntentRouter.route(context.dim(), context.detail());
-        if (intent.isQualification()) {
-            List<ScoreItemCaseRecommendResponse.CertificateItem> matchedCertificates = List.of();
-            if (enterpriseQualificationQueryPort != null) {
-                try {
-                    matchedCertificates = enterpriseQualificationQueryPort.findMatchingCertificates(
-                            context.dim(), context.detail(), context.keyword());
-                } catch (RuntimeException ex) {
-                    log.warn("资质库查询失败，降级为空: {}", ex.getMessage());
-                }
+        // 关键判定：通过大类推断确定评分项业务意图
+        CaseCategoryMatchPolicy.MacroCategory intent = CaseCategoryMatchPolicy.classifyMacroCategory(context.dim(), context.detail());
+        List<ScoreItemCaseRecommendResponse.CertificateItem> matchedCertificates = List.of();
+        if (enterpriseQualificationQueryPort != null && shouldQueryCertificates(context.dim(), context.detail())) {
+            try {
+                matchedCertificates = enterpriseQualificationQueryPort.findMatchingCertificates(
+                        context.dim(), context.detail(), context.keyword());
+            } catch (RuntimeException ex) {
+                log.warn("资质库查询失败，降级为空: {}", ex.getMessage());
             }
+        }
+        if (intent.isQualification() && !CaseCategoryMatchPolicy.hasTechnicalRequirement(context.dim(), context.detail())) {
             return ScoreItemCaseRecommendResponse.builder()
                     .total(matchedCertificates.size())
-                    .items(List.of()) // 资质证书类评分项：彻底物理阻断文本应答切片
+                    .items(List.of()) // 纯资质证书类评分项：彻底物理阻断文本应答切片
                     .matchedCertificates(matchedCertificates)
                     .build();
         }
@@ -199,7 +200,7 @@ public class ScoreItemCaseRecommendAppService {
                 sourceMetaLoader.load(sourceProjectIds);
 
         return evaluator.evaluateAndAssemble(
-                candidateCases, context, sourceMetaByProjectId, request.getPage(), request.getSize());
+                candidateCases, context, sourceMetaByProjectId, request.getPage(), request.getSize(), matchedCertificates);
     }
 
     /**
@@ -232,6 +233,13 @@ public class ScoreItemCaseRecommendAppService {
 
     private static boolean hasQueryKeyword(String keyword) {
         return keyword != null && !keyword.trim().isEmpty();
+    }
+
+    private static boolean shouldQueryCertificates(String dim, String detail) {
+        String combined = (Objects.toString(dim, "") + " " + Objects.toString(detail, "")).toLowerCase(Locale.ROOT);
+        return combined.contains("资质") || combined.contains("资格") || combined.contains("证书")
+                || combined.contains("认证") || combined.contains("许可") || combined.contains("执照")
+                || combined.contains("iso") || combined.contains("资信");
     }
 
     private List<KnowledgeCaseReadModel> applyAdmissionIfNeeded(

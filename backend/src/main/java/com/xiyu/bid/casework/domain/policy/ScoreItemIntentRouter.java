@@ -58,23 +58,7 @@ public final class ScoreItemIntentRouter {
         if (!hasText(dim) && !hasText(detail)) {
             return Intent.OTHER;
         }
-
         CaseCategoryMatchPolicy.MacroCategory macro = CaseCategoryMatchPolicy.classifyMacroCategory(dim, detail);
-        if (macro == CaseCategoryMatchPolicy.MacroCategory.QUALIFICATION) {
-            return Intent.QUALIFICATION;
-        }
-        if (macro == CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE) {
-            return Intent.PERFORMANCE;
-        }
-        if (macro == CaseCategoryMatchPolicy.MacroCategory.PERSONNEL) {
-            return Intent.PERSONNEL;
-        }
-        if (macro == CaseCategoryMatchPolicy.MacroCategory.COMMERCIAL) {
-            return Intent.COMMERCIAL;
-        }
-        if (macro == CaseCategoryMatchPolicy.MacroCategory.TECHNICAL) {
-            return Intent.TECHNICAL;
-        }
-        return Intent.OTHER;
+        return Intent.valueOf(macro.name());
     }
 }

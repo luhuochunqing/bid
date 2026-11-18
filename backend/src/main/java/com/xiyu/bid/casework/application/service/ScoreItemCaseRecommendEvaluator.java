@@ -41,6 +41,16 @@ final class ScoreItemCaseRecommendEvaluator {
             Map<Long, ScoreItemCaseSourceMetaLoader.SourceMeta> sourceMetaByProjectId,
             Integer pageParam,
             Integer sizeParam) {
+        return evaluateAndAssemble(candidateCases, context, sourceMetaByProjectId, pageParam, sizeParam, List.of());
+    }
+
+    ScoreItemCaseRecommendResponse evaluateAndAssemble(
+            List<KnowledgeCaseReadModel> candidateCases,
+            ScoreItemCaseMatchPolicy.ScoreItemContext context,
+            Map<Long, ScoreItemCaseSourceMetaLoader.SourceMeta> sourceMetaByProjectId,
+            Integer pageParam,
+            Integer sizeParam,
+            List<ScoreItemCaseRecommendResponse.CertificateItem> matchedCertificates) {
 
         List<ScoreItemCaseMatchPolicy.MatchResult> results = matchPolicy.evaluateAll(candidateCases, context);
         List<ScoreItemCaseRecommendResponse.Item> evaluatedItems = new ArrayList<>(candidateCases.size());
@@ -71,7 +81,7 @@ final class ScoreItemCaseRecommendEvaluator {
         return ScoreItemCaseRecommendResponse.builder()
                 .total(evaluatedItems.size())
                 .items(pageItems)
-                .matchedCertificates(List.of())
+                .matchedCertificates(matchedCertificates != null ? matchedCertificates : List.of())
                 .build();
     }
 
