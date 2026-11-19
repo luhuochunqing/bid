@@ -96,14 +96,14 @@ public final class DeterministicScoreFactExtractor {
             }
             WeightResolution weight = resolveWeight(rowCells, dimCell, detailCell, mapping);
             boolean isDimMergedContinuation = dimCell != null && dimCell.isMergedContinue();
-            if (code.isBlank() && dimension.isBlank() && !isDimMergedContinuation
-                    && (weight.weight() == null || weight.weight().compareTo(BigDecimal.ZERO) == 0)) {
+            boolean noCodeOrWeight = code.isBlank()
+                    && (weight.weight() == null || weight.weight().signum() == 0);
+            if (noCodeOrWeight && dimension.isBlank() && !isDimMergedContinuation) {
                 continue;
             }
             // 跨页溢出残行识别：无编号、无有效分值，且无独立细项维度（属于大类跨行单元格延续、大类名称或空维度），
             // 或细则文本以标点/序号小标开头（上一页细则被分页截断后的文本残片），直接跳过
-            boolean isOverflowContinuation = (code == null || code.isBlank())
-                    && (weight.weight() == null || weight.weight().compareTo(BigDecimal.ZERO) == 0)
+            boolean isOverflowContinuation = noCodeOrWeight
                     && (!detail.isBlank() && (detail.startsWith("；") || detail.startsWith(";")
                     || detail.startsWith(")") || detail.startsWith("）")
                     || detail.matches("^[0-9一二三四五六七八九十]+[、.\\s].*")

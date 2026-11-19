@@ -181,7 +181,7 @@ public class ScoreVersionActivationService {
                 && (i.computable() || i.diagnostics().contains("INVALID_SCORE_ITEM_NAME"))
                 && !i.diagnostics().contains("NOT_EFFECTIVE_SCORING_UNIT")
                 && !i.diagnostics().contains("OUT_OF_SCHEME")
-                && ScoreCategoryClassifier.isInvalidOrPlaceholderName(i.name()))) return false;
+                && ScoreCategoryClassifier.needsSpecificTitle(i.name()))) return false;
         var current=items.findByProjectIdOrderByItemIndexAsc(projectId);
         if(!current.isEmpty() && (token.versionId()==null || !coversCurrentRules(snapshot,current) || !snapshot.sourceDiagnostics().isEmpty() || !scheme.extractedTotalComplete()
                 || scheme.declaredTotal()==null || !"KNOWN".equals(scheme.declaredTotalStatus())
@@ -203,7 +203,7 @@ public class ScoreVersionActivationService {
         var selection=snapshot.items().stream()
                 .filter(i -> i.schemeId().equals(command.schemeId()) && i.computable())
                 .filter(i -> command.selectedItemIds()==null || command.selectedItemIds().contains(i.itemId())).toList();
-        if(selection.isEmpty() || selection.stream().anyMatch(i -> ScoreCategoryClassifier.isInvalidOrPlaceholderName(i.name()))
+        if(selection.isEmpty() || selection.stream().anyMatch(i -> ScoreCategoryClassifier.needsSpecificTitle(i.name()))
                 || command.selectedItemIds()!=null && (new HashSet<>(command.selectedItemIds()).size()!=command.selectedItemIds().size()
                 || selection.size()!=command.selectedItemIds().size())) throw new ScoreExtractionException(400,"INVALID_OR_NONCOMPUTABLE_SELECTION");
         var old=items.findByProjectIdOrderByItemIndexAsc(projectId);

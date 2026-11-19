@@ -19,6 +19,34 @@ class ScoreExtractionSnapshotTest {
     }
 
     @Test
+    void businessCategoryWithoutRuleTitleCannotBecomeAnEffectiveItem() {
+        var fact = new ScoreFact("revenue", "table", List.of("rule"),
+                "投标人提供营业收入证明得30分", "1", "商务", BigDecimal.valueOf(30),
+                null, null, null, "MODEL", 0.8, ScoreFact.ValidationStatus.AUTO_APPROVED);
+        var scope = new OriginalScoreEvidencePolicy.Qualification("revenue", "scheme", "IN_SCHEME", true, "OK", "");
+        var item = ScoreExtractionSnapshot.from("task", List.of(fact), List.of(scope), List.of()).items().getFirst();
+
+        assertThat(item.computable()).isFalse();
+        assertThat(item.effectiveMaximum()).isNull();
+        assertThat(item.diagnostics()).contains("INVALID_SCORE_ITEM_NAME");
+    }
+
+    @Test
+    void unverifiedModelRuleIsDisplayedButCannotSupplyTheMissingTitle() {
+        String modelRule = "营业总收入：投标人提供营业收入证明得30分";
+        var metadata = new ScoreSourceMetadata(modelRule, "", List.of(), List.of("UNVERIFIED_CLOSURE"));
+        var fact = new ScoreFact("revenue", "table", List.of("rule"), "", "1", "商务",
+                BigDecimal.valueOf(30), null, null, "", "MULTIMODAL", 0.8,
+                ScoreFact.ValidationStatus.REVIEW_REQUIRED, ChildAggregation.SUM, metadata);
+        var scope = new OriginalScoreEvidencePolicy.Qualification("revenue", "scheme", "IN_SCHEME", true, "OK", "");
+        var item = ScoreExtractionSnapshot.from("task", List.of(fact), List.of(scope), List.of()).items().getFirst();
+
+        assertThat(item.ruleText()).isEqualTo(modelRule);
+        assertThat(item.computable()).isFalse();
+        assertThat(item.diagnostics()).contains("INVALID_SCORE_ITEM_NAME");
+    }
+
+    @Test
     void ruleTypeTakesPriorityOverTheModelGuessOnlyWhenTheSourceIsConclusive() {
         var revenue = classifiedFact("营业总收入", "2024年营业总收入大于10亿元得10分", "SUBJECTIVE");
         var service = classifiedFact("服务方案", "根据服务方案的完整性、合理性综合评审打分", "OBJECTIVE");

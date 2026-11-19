@@ -33,14 +33,14 @@
     <article v-for="item in displayedItems" :key="item.itemId" class="candidate" :data-item-id="item.itemId">
       <label class="candidate-title">
         <input v-model="selectedIds" type="checkbox" :value="item.itemId" :disabled="blocked || busy || !selectable(item)" :aria-label="'选择' + item.name"
-          :aria-describedby="isInvalidCandidateDimension(item.name) ? 'invalid-score-name-' + item.itemId : undefined" />
+          :aria-describedby="needsSpecificTitle(item.name) ? 'invalid-score-name-' + item.itemId : undefined" />
       {{ categoryLabel(item.category) }} · {{ item.name }}
       </label>
-      <p>{{ item.computable && Number(item.rawMaximum) === 0 ? '扣分规则' : item.computable ? '可计算' : '不可计算' }} · {{ adopted.has(item.itemId) ? '已采纳' : '未采纳' }} · {{ item.validationStatus === 'AUTO_APPROVED' ? '原文已核验' : '原文未核验' }} · <span data-test="extraction-score-type">{{ scoreTypeLabel(item.scoreType) }}</span></p>
-      <p>{{ item.fieldSources?.rawMaximum === 'SOURCE_EVIDENCE' ? '原文依据最大分' : '候选最大分（模型提取，未核验）' }}：{{ scoreNumber(item.rawMaximum) }}{{ item.scoreUnit === 'PERCENTAGE' ? '%' : ' 分' }} · 有效分：{{ scoreNumber(item.effectiveMaximum) }} · 方案比例：{{ item.schemeRatio == null ? '未提供' : item.schemeRatio }}</p>
+      <p>{{ computable(item) && Number(item.rawMaximum) === 0 ? '扣分规则' : computable(item) ? '可计算' : '不可计算' }} · {{ adopted.has(item.itemId) ? '已采纳' : '未采纳' }} · {{ item.validationStatus === 'AUTO_APPROVED' ? '原文已核验' : '原文未核验' }} · <span data-test="extraction-score-type">{{ scoreTypeLabel(item.scoreType) }}</span></p>
+      <p>{{ item.fieldSources?.rawMaximum === 'SOURCE_EVIDENCE' ? '原文依据最大分' : '候选最大分（模型提取，未核验）' }}：{{ scoreNumber(item.rawMaximum) }}{{ item.scoreUnit === 'PERCENTAGE' ? '%' : ' 分' }} · 有效分：{{ scoreNumber(computable(item) ? item.effectiveMaximum : null) }} · 方案比例：{{ item.schemeRatio == null ? '未提供' : item.schemeRatio }}</p>
       <p v-if="item.schemeId !== schemeId">其他方案或方案归属待确认，本次不计分</p>
-      <p v-if="isInvalidCandidateDimension(item.name)" :id="'invalid-score-name-' + item.itemId" class="diagnostic">评分项名称无效，无法选用</p>
-      <p v-if="!item.computable" class="diagnostic">该项尚未确认，暂不计入总分</p>
+      <p v-if="needsSpecificTitle(item.name)" :id="'invalid-score-name-' + item.itemId" class="diagnostic">评分项名称无效，无法选用</p>
+      <p v-else-if="!computable(item)" class="diagnostic">该项尚未确认，暂不计入总分</p>
       <details>
         <summary>完整规则、材料要求与来源</summary>
         <h4>{{ item.fieldSources?.ruleText === 'MODEL_CLAIM' ? '模型规则说明（本项完整原文边界待核对）' : '本项规则原文' }}</h4>
@@ -80,6 +80,8 @@
 const PURE_CODE_DIM = /^([A-Za-z]?\d+(?:[.-]\d+)*|[一二三四五六七八九十]+)$/
 const PLACEHOLDER_DIM = /^评分项(?:\s*[A-Za-z]?\d+(?:[.-]\d+)*)?$/
 const SCORE_SUFFIX = /\s*[（(](?:满分|最高)?\s*\d+(?:\.\d+)?\s*分[）)]\s*$/
+const WEIGHT_CELL = /^[~≈]?\s*\d+(?:\.\d+)?\s*(?:分|分值|[%％])?\s*$/
+const GENERIC_TITLE = /^(商务|技术|价格|报价|综合|评议|商务分|技术分|价格分|报价分|商务部分|技术部分|价格部分|报价部分|综合评审|商务评议|技术评议|business|technical|price|commercial|商务评分|技术评分|价格评分|报价评分|综合评分|详细评审|评分标准|评审标准)$/i
 
 export function isInvalidCandidateDimension(dimension) {
   const name = String(dimension ?? '').trim()
@@ -93,6 +95,14 @@ export function isInvalidCandidateDimension(dimension) {
     if (depth < 0) return true
   }
   return depth !== 0
+}
+
+// Frozen payloads can predate ScoreCategoryClassifier.needsSpecificTitle.
+function needsSpecificTitle(dimension) {
+  if (isInvalidCandidateDimension(dimension)) return true
+  const name = String(dimension).trim()
+  return WEIGHT_CELL.test(name.replace(SCORE_SUFFIX, '').trim())
+    || GENERIC_TITLE.test(name.replace(/[（(][^）)]*[）)]|\s+/g, ''))
 }
 </script>
 <script setup>
@@ -124,7 +134,8 @@ const activeMissingTotal = computed(() => {
 })
 const adopted = computed(() => new Set(props.snapshot.adoption?.adoptedItemIds || []))
 const displayedItems = computed(() => [...(props.snapshot.items || [])].sort((a, b) => Number(b.schemeId === schemeId.value) - Number(a.schemeId === schemeId.value)))
-const selectable = item => Boolean(schemeId.value) && item.schemeId === schemeId.value && item.computable === true && !isInvalidCandidateDimension(item.name)
+const computable = item => item.computable === true && !needsSpecificTitle(item.name)
+const selectable = item => Boolean(schemeId.value) && item.schemeId === schemeId.value && computable(item)
 const selected = computed(() => displayedItems.value.filter(item => selectedIds.value.includes(item.itemId) && selectable(item)))
 const scoreTypeLabel = (type) => (type === 'OBJECTIVE' ? '客观项' : type === 'SUBJECTIVE' ? '主观项' : '待定类型')
 </script>

@@ -1117,6 +1117,165 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(response.getItems()).isEmpty();
         assertThat(response.isEvidenceReviewRequired()).isEqualTo(reviewRequired);
     }
+    @Test
+    @DisplayName("评分项为OBJECTIVE且未明确要求方案时：判定为MANUAL_EVIDENCE并拦截方案库推荐")
+    void testObjectiveScoreItemWithoutPlanRequirementInterceptsKnowledgeCases() {
+        Long projectId = 100L;
+        Long scoreItemId = 88L;
+
+        ScoreItem objectiveItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("B1")
+                .dim("电商数据")
+                .detail("提供电商平台系统数据截图")
+                .scoreType("OBJECTIVE")
+                .build();
+
+        when(scoreItemRepository.findById(scoreItemId)).thenReturn(Optional.of(objectiveItem));
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(
+                projectId,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(scoreItemId).build()
+        );
+
+        assertThat(response).isNotNull();
+        assertThat(response.isEvidenceReviewRequired()).isTrue();
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getTotal()).isZero();
+        assertThat(response.getMatchedCertificates()).isEmpty();
+        verifyNoInteractions(knowledgeCaseQueryPort, vectorSemanticQueryPort,
+                enterpriseQualificationQueryPort, tenderQualificationQueryPort);
+    }
+
+    @Test
+    @DisplayName("评分项为OBJECTIVE资质证书类：返回匹配证书且items为空拦截方案库推荐")
+    void testObjectiveQualificationItemReturnsCertificatesAndInterceptsKnowledgeCases() {
+        Long projectId = 100L;
+        Long scoreItemId = 89L;
+
+        ScoreItem certItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("Q2")
+                .dim("企业资质")
+                .detail("具有ISO9001质量管理体系认证证书，提供证书扫描件")
+                .scoreType("OBJECTIVE")
+                .build();
+
+        ScoreItemCaseRecommendResponse.CertificateItem cert = ScoreItemCaseRecommendResponse.CertificateItem.builder()
+                .id(999L)
+                .name("ISO9001质量管理体系认证")
+                .build();
+
+        when(scoreItemRepository.findById(scoreItemId)).thenReturn(Optional.of(certItem));
+        when(enterpriseQualificationQueryPort.findMatchingCertificates(eq("企业资质"), eq("具有ISO9001质量管理体系认证证书，提供证书扫描件"), eq(null)))
+                .thenReturn(List.of(cert));
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(
+                projectId,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(scoreItemId).build()
+        );
+
+        assertThat(response).isNotNull();
+        assertThat(response.isEvidenceReviewRequired()).isTrue();
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getMatchedCertificates()).hasSize(1);
+        assertThat(response.getMatchedCertificates().getFirst().getName()).isEqualTo("ISO9001质量管理体系认证");
+        verifyNoInteractions(knowledgeCaseQueryPort, vectorSemanticQueryPort, tenderQualificationQueryPort);
+    }
+
+    @Test
+    @DisplayName("评分项为OBJECTIVE但条款包含'方案说明截图'证据词：仍判定为MANUAL_EVIDENCE并拦截方案库推荐")
+    void testObjectiveScoreItemWithPlanScreenshotEvidenceInterceptsKnowledgeCases() {
+        Long projectId = 100L;
+        Long scoreItemId = 90L;
+
+        ScoreItem mixedEvidenceItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("B2")
+                .dim("商品丰富性")
+                .detail("自营商品SKU数量由多到少排序。提供电商平台系统方案说明截图。")
+                .scoreType("OBJECTIVE")
+                .build();
+
+        when(scoreItemRepository.findById(scoreItemId)).thenReturn(Optional.of(mixedEvidenceItem));
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(
+                projectId,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(scoreItemId).build()
+        );
+
+        assertThat(response).isNotNull();
+        assertThat(response.isEvidenceReviewRequired()).isTrue();
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getTotal()).isZero();
+        assertThat(response.getMatchedCertificates()).isEmpty();
+        verifyNoInteractions(knowledgeCaseQueryPort, vectorSemanticQueryPort,
+                enterpriseQualificationQueryPort, tenderQualificationQueryPort);
+    }
+
+    @Test
+    @DisplayName("评分项为OBJECTIVE且scoreType含空白字符与大小写：容错归一化并正确拦截方案库推荐")
+    void testObjectiveScoreItemWithWhitespaceAndCaseTolerated() {
+        Long projectId = 100L;
+        Long scoreItemId = 91L;
+
+        ScoreItem whitespaceItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("B3")
+                .dim("商品丰富性")
+                .detail("提供系统页面截图")
+                .scoreType("  objective  ")
+                .build();
+
+        when(scoreItemRepository.findById(scoreItemId)).thenReturn(Optional.of(whitespaceItem));
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(
+                projectId,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(scoreItemId).build()
+        );
+
+        assertThat(response).isNotNull();
+        assertThat(response.isEvidenceReviewRequired()).isTrue();
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getTotal()).isZero();
+        verifyNoInteractions(knowledgeCaseQueryPort, vectorSemanticQueryPort,
+                enterpriseQualificationQueryPort, tenderQualificationQueryPort);
+    }
+
+    @Test
+    @DisplayName("评分项为OBJECTIVE且包含非技术类优惠方案：判定为MANUAL_EVIDENCE并拦截方案库推荐")
+    void testObjectiveScoreItemWithCommercialDiscountPlanInterceptsKnowledgeCases() {
+        Long projectId = 100L;
+        Long scoreItemId = 92L;
+
+        ScoreItem discountItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("C1")
+                .dim("价格评分")
+                .detail("根据投标人提供的优惠方案计算折扣率，由高到低排序打分。提供价格折让方案。")
+                .scoreType("OBJECTIVE")
+                .build();
+
+        when(scoreItemRepository.findById(scoreItemId)).thenReturn(Optional.of(discountItem));
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(
+                projectId,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(scoreItemId).build()
+        );
+
+        assertThat(response).isNotNull();
+        assertThat(response.isEvidenceReviewRequired()).isTrue();
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getTotal()).isZero();
+        verifyNoInteractions(knowledgeCaseQueryPort, vectorSemanticQueryPort,
+                enterpriseQualificationQueryPort, tenderQualificationQueryPort);
+    }
 
     private static ScoreItem project1371Clause(String title, long id) throws IOException {
         try (var input = ScoreItemCaseRecommendAppServiceTest.class.getResourceAsStream(

@@ -493,3 +493,17 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 复合资质条款按单项标准应用等保最低等级。ISO9001 证书的范围提到等保时，仍可凭证书名称命中 ISO9001。二级等保报告无法通过范围说明或搜索词满足三级门槛。
 
 等保抽屉 E2E 使用 `XIYU_E2E_GRADE_PROTECTION_PROJECT_ID` 和 `XIYU_E2E_GRADE_PROTECTION_ITEM_ID` 指定三级及以上评分项。用 `XIYU_E2E_GRADE_PROTECTION_LOW_CERT_ID` 和 `XIYU_E2E_GRADE_PROTECTION_QUALIFIED_CERT_ID` 指定资质库中两份名称可区分、未下架的低等级和达标等级证书。根据资质库原始材料预设 `XIYU_E2E_GRADE_PROTECTION_REVIEW_REQUIRED` 为 `true` 或 `false`。验证待核验场景时，达标等级证书仍应被召回，测试环境中没有有效且带原件的达标证书。
+
+---
+
+## 阶段一改进：联动已有 scoreType 护栏与客观证明项大类去穿透（2026-11-19）
+
+### 1. 问题与根因
+- **存量客观评分项未联动已有 scoreType**：实体 `ScoreItem` 在解析期已有 `scoreType=OBJECTIVE` 字段，但推荐服务在入口处仅根据字符串正则推测，未利用该第一手事实。当条款未完全命中度量正则三元组时，依然可能召回主观技术方案。
+- **系统截图词表导致 TECHNICAL 大类误穿透**：条款中包含“电商平台系统数据截图”等表述时，因“系统”二字被 `CaseCategoryMatchPolicy` 判定为 `TECHNICAL` 大类，穿透了一票否决门禁并获得 +10 分大类一致加分。
+- **方案证据词与商业方案混淆**：“方案说明截图”被误判为方案编制交付要求，价格/优惠方案被误作为技术方案准入。
+
+### 2. 修复措施
+- **联动 scoreType 强校验**：`ScoreItemCaseRecommendAppService` 传入 `scoreItem.getScoreType()`，当 `scoreType == "OBJECTIVE"` 且未明确要求编写技术方案时，直接判定为 `Purpose.MANUAL_EVIDENCE` 阻断方案库推荐。
+- **新增证据词与非技术方案过滤**：引入 `EVIDENCE_OF_PLAN` 剥离“方案说明截图/扫描件”等客观证明词；引入 `NON_TECHNICAL_PLAN` 剔除优惠/价格/折扣方案。
+- **大类判定排除系统截图词**：在 `CaseCategoryMatchPolicy.classifyText` 中，判定 `TECHNICAL` 前先剔除 `NON_TECHNICAL_SYSTEM_TERMS`（覆盖电商平台/业务/ERP等各类系统数据/截图/截屏等）。

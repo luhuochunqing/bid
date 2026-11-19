@@ -91,8 +91,9 @@ public class ScoreItemPersistenceService {
         if (dimensions.stream().anyMatch(ScoreCategoryClassifier::isInvalidOrPlaceholderName)) {
             throw new ScoreExtractionException(400, "INVALID_SCORE_ITEM_NAME");
         }
+        List<String> scoreTypes = ordered.stream().map(this::resolveScoreType).toList();
         List<ScoreItem> oldItems = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
-        boolean fingerprintUnchanged = isFingerprintUnchanged(oldItems, ordered);
+        boolean fingerprintUnchanged = isFingerprintUnchanged(oldItems, ordered, scoreTypes);
 
         Map<String, ScoreResult> oldResultByCode = Map.of();
         if (fingerprintUnchanged && !oldItems.isEmpty()) {
@@ -110,10 +111,6 @@ public class ScoreItemPersistenceService {
         List<ScoreItem> items = new ArrayList<>();
         for (int i = 0; i < ordered.size(); i++) {
             ScoreCandidate candidate = ordered.get(i);
-            boolean typeResolved = ScoreReviewAdoptionPolicy.ADOPTED_CANDIDATE_PATTERN.equals(candidate.semanticPattern())
-                    || com.xiyu.bid.scoreparse.domain.GroupedCriteriaScoreTable.METHOD.equals(candidate.location());
-            String scoreType = typeResolved ? candidate.scoreTypeGuess()
-                    : classificationPolicy.classify(candidate.detail(), candidate.scoreTypeGuess());
             String detail = candidate.detail() == null || candidate.detail().isBlank()
                     ? "—" : candidate.detail();
             String location = resolveLocation(candidate.location());
@@ -125,7 +122,7 @@ public class ScoreItemPersistenceService {
                     .dim(dimensions.get(i))
                     .detail(detail)
                     .weight(candidate.weight() == null ? BigDecimal.ZERO : candidate.weight())
-                    .scoreType(scoreType)
+                    .scoreType(scoreTypes.get(i))
                     .statusStage1("PENDING")
                     .contextNote(candidate.contextNote())
                     .sourceText(candidate.sourceText())
@@ -194,7 +191,15 @@ public class ScoreItemPersistenceService {
                 projectId, parseTaskId, snapshot.facts().size());
     }
 
-    private boolean isFingerprintUnchanged(List<ScoreItem> oldItems, List<ScoreCandidate> candidates) {
+    private String resolveScoreType(ScoreCandidate candidate) {
+        boolean typeResolved = ScoreReviewAdoptionPolicy.ADOPTED_CANDIDATE_PATTERN.equals(candidate.semanticPattern())
+                || com.xiyu.bid.scoreparse.domain.GroupedCriteriaScoreTable.METHOD.equals(candidate.location());
+        return typeResolved ? candidate.scoreTypeGuess()
+                : classificationPolicy.classify(candidate.detail(), candidate.scoreTypeGuess());
+    }
+
+    private boolean isFingerprintUnchanged(
+            List<ScoreItem> oldItems, List<ScoreCandidate> candidates, List<String> scoreTypes) {
         if (oldItems == null || oldItems.size() != candidates.size()) {
             return false;
         }
@@ -202,6 +207,7 @@ public class ScoreItemPersistenceService {
             ScoreItem old = oldItems.get(i);
             ScoreCandidate candidate = candidates.get(i);
             if (!Objects.equals(old.getCode(), ScoreCodeSanitizer.clean(candidate.code()))
+                    || !Objects.equals(old.getScoreType(), scoreTypes.get(i))
                     || !Objects.equals(old.getWeight(), candidate.weight())
                     || !Objects.equals(old.getDetail(), candidate.detail())) {
                 return false;

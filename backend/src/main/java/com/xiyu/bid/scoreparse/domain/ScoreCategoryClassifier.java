@@ -21,6 +21,8 @@ public final class ScoreCategoryClassifier {
             "^(商务评分|技术评分|价格评分|报价评分|综合评分|详细评审|评分标准|评审标准)$");
     private static final Pattern PURE_NUMBER_OR_CODE = Pattern.compile("^(?:\\d+(?:[.-]\\d+)*|[一二三四五六七八九十]+)$");
     private static final Pattern ALPHANUMERIC_CODE = Pattern.compile("^[A-Za-z]\\d+(?:[.-]\\d+)*$");
+    private static final Pattern PURE_WEIGHT_CELL = Pattern.compile(
+            "^[~≈]?\\s*\\d+(?:\\.\\d+)?\\s*(?:分|分值|[%％])?\\s*$");
     private static final Pattern PLACEHOLDER_NAME = Pattern.compile("^评分项(?:\\s*[A-Za-z]?\\d+(?:[.-]\\d+)*)?$");
     private static final Pattern SCORE_SUFFIX = Pattern.compile(
             "\\s*[（(](?:满分|最高)?\\s*\\d+(?:\\.\\d+)?\\s*分[）)]\\s*$");
@@ -38,7 +40,7 @@ public final class ScoreCategoryClassifier {
     }
 
     /** 名称恢复时需要从细则另找具体标题的维度。 */
-    static boolean needsSpecificTitle(String dim) {
+    public static boolean needsSpecificTitle(String dim) {
         if (isInvalidOrPlaceholderName(dim)) {
             return true;
         }
@@ -47,7 +49,7 @@ public final class ScoreCategoryClassifier {
     }
 
     /**
-     * 判断候选或采纳名称是否为禁止落库的空名称、纯序号、未闭合截断、含表格分隔符或占位名。
+     * 判断名称是否为空、纯序号、分值、未闭合截断、含表格分隔符或占位名。
      */
     public static boolean isInvalidOrPlaceholderName(String name) {
         if (name == null || name.isBlank()) {
@@ -56,6 +58,7 @@ public final class ScoreCategoryClassifier {
         String trimmed = name.trim();
         String label = stripTrailingScore(trimmed);
         return label.isEmpty() || PURE_NUMBER_OR_CODE.matcher(label).matches()
+                || isWeightCell(label)
                 || isAlphanumericCode(label) || PLACEHOLDER_NAME.matcher(label).matches()
                 || trimmed.contains("|") || hasUnclosedBracket(trimmed);
     }
@@ -66,6 +69,10 @@ public final class ScoreCategoryClassifier {
 
     static boolean isAlphanumericCode(String name) {
         return ALPHANUMERIC_CODE.matcher(name).matches();
+    }
+
+    public static boolean isWeightCell(String text) {
+        return PURE_WEIGHT_CELL.matcher(text).matches();
     }
 
     /**

@@ -2,9 +2,12 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator;
+import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreCategoryClassifier;
 import com.xiyu.bid.scoreparse.domain.ScoreEvidence;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreRule;
+import com.xiyu.bid.scoreparse.domain.SourceSpan;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 
 import java.util.stream.Collectors;
@@ -40,11 +43,19 @@ final class TextPrimaryScoreFactMapper {
         boolean verified = restored.closed();
         var status = candidateEligible && !restored.text().isBlank() && verified && violations.isBlank() && validation.autoApprovable()
                 ? ScoreFact.ValidationStatus.AUTO_APPROVED : ScoreFact.ValidationStatus.REVIEW_REQUIRED;
-        String ruleTextForDimension = !restored.text().isBlank() ? restored.text()
-                : (fact.sourceMetadata() != null && !fact.sourceMetadata().modelRuleText().isBlank()
-                ? fact.sourceMetadata().modelRuleText() : fact.ruleText());
-        String dimension = com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.publishedDimension(
+        String ruleTextForDimension = restored.text();
+        if (!verified && !ruleTextForDimension.equals(restored.spans().stream()
+                .map(SourceSpan::rawText).collect(Collectors.joining("\n")).strip())) {
+            ruleTextForDimension = "";
+        }
+        String dimension = OriginalScoreEvidencePolicy.publishedDimension(
                 fact.dimension(), ruleTextForDimension, fact.weight());
+        if (ScoreCategoryClassifier.needsSpecificTitle(dimension)) {
+            String recovered = resolveRowTitleFromArtifact(artifact, fact, cellId, ruleTextForDimension);
+            if (!recovered.isBlank()) {
+                dimension = recovered;
+            }
+        }
         return new ScoreFact(factId, fact.tableId(), fact.sourceCellIds(), restored.text(), fact.code(), dimension,
                 fact.weight(), new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, fact.quotedText(), cellId,
                 start, start < 0 ? -1 : start + fact.quotedText().length(), "page=" + fact.pageNumber() + "; scoreType="
@@ -84,4 +95,33 @@ final class TextPrimaryScoreFactMapper {
                         ? com.xiyu.bid.scoreparse.domain.ModelSourceClaim.from(fact) : existing.modelSourceClaim());
     }
 
+    private static String resolveRowTitleFromArtifact(
+            DocumentArtifact artifact, MultimodalScoreFact fact, String cellId, String ruleText) {
+        if (artifact != null && !cellId.isBlank()) {
+            for (var table : artifact.tables()) {
+                if (!fact.tableId().isBlank() && !fact.tableId().equals(table.tableId())) {
+                    continue;
+                }
+                var target = table.cells().stream().filter(c -> cellId.equals(c.cellId())).findFirst().orElse(null);
+                if (target == null || target.row() == null || target.column() == null) {
+                    continue;
+                }
+                var leftCells = table.cells().stream()
+                        .filter(c -> target.row().equals(c.row()) && c.column() != null && c.column() < target.column())
+                        .sorted((a, b) -> Integer.compare(b.column(), a.column()))
+                        .toList();
+                for (var cell : leftCells) {
+                    String raw = cell.rawText() == null ? "" : cell.rawText().replace("\n", "").trim();
+                    if (ScoreCategoryClassifier.isWeightCell(raw)) {
+                        continue;
+                    }
+                    String candidate = OriginalScoreEvidencePolicy.publishedDimension(raw, ruleText, fact.weight());
+                    if (!ScoreCategoryClassifier.needsSpecificTitle(candidate)) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+        return "";
+    }
 }

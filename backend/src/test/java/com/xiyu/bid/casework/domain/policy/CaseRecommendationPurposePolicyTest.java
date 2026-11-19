@@ -31,4 +31,31 @@ class CaseRecommendationPurposePolicyTest {
             String title, String detail, CaseRecommendationPurposePolicy.Purpose expected) {
         assertThat(CaseRecommendationPurposePolicy.determineRecommendationPurpose(title, detail)).isEqualTo(expected);
     }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "商品丰富性 | 自营商品SKU数量由多到少排序。须提供本期系统截图。 | OBJECTIVE | MANUAL_EVIDENCE",
+            "企业资质 | 具有有效ISO9001认证证书，提供证书复印件。 | OBJECTIVE | MANUAL_EVIDENCE",
+            "财务状况 | 供应商近三年财务状况良好，提供经审计的财务报告。 | OBJECTIVE | MANUAL_EVIDENCE",
+            "电商数据 | 提供电商平台系统数据截图。 | OBJECTIVE | MANUAL_EVIDENCE",
+            "类似业绩 | 提供近三年类似业绩合同复印件。 | OBJECTIVE | MANUAL_EVIDENCE",
+            "商品丰富性 | 自营商品SKU数量由多到少排序。提供电商平台系统方案说明截图。 | OBJECTIVE | MANUAL_EVIDENCE",
+            "商品丰富性 | 自营商品SKU数量由多到少排序。提供系统方案截图。 | OBJECTIVE | MANUAL_EVIDENCE",
+            "履约证明 | 提供配送方案说明截图及相关材料。 | OBJECTIVE | MANUAL_EVIDENCE",
+            "价格评分 | 根据投标人提供的优惠方案计算折扣率，由高到低排序打分。提供价格折让方案。 | OBJECTIVE | MANUAL_EVIDENCE",
+            "优惠政策 | 提供优惠方案，按优惠幅度排序。 | OBJECTIVE | MANUAL_EVIDENCE",
+            "商品丰富性 | 自营商品SKU数量由多到少排序。须提供本期系统截图。 | OBJECTIVE  | MANUAL_EVIDENCE",
+            "商品丰富性 | 自营商品SKU数量由多到少排序。须提供本期系统截图。 |  objective  | MANUAL_EVIDENCE",
+            "履约方案 | 编制配送方案；自营网点数量由多到少排名，提供盖章证明材料。 | OBJECTIVE | REFERENCE_AND_MANUAL_EVIDENCE",
+            "技术实施方案 | 编制技术实施方案；提供相关测试用例。 | OBJECTIVE | REFERENCE_AND_MANUAL_EVIDENCE",
+            "应急方案 | 制定应急预案与处置流程。 | OBJECTIVE | REFERENCE_AND_MANUAL_EVIDENCE",
+            "配送能力 | 提供物流配送方案，说明2小时响应能力，经评委综合评价。 | SUBJECTIVE | REFERENCE",
+            "技术方案 | 提供平台操作方案及示例截图，由评委按方案合理性分档打分。 | SUBJECTIVE | REFERENCE",
+            "商品丰富性 | 自营商品SKU数量由多到少排序。须提供本期系统截图。 | SUBJECTIVE | MANUAL_EVIDENCE"
+    })
+    void separatesRequiredProofFromHumanEvaluatedReferenceWithScoreType(
+            String title, String detail, String scoreType, CaseRecommendationPurposePolicy.Purpose expected) {
+        assertThat(CaseRecommendationPurposePolicy.determineRecommendationPurpose(title, detail, scoreType))
+                .isEqualTo(expected);
+    }
 }

@@ -117,6 +117,29 @@ it('displays objective and subjective scoreType labels on candidate items', () =
   expect(cards[1].text()).toContain('主观项')
 })
 
+it('allows only the valid rule in a frozen snapshot with category and points labels', async () => {
+  const data = snapshot()
+  data.items = [
+    item('category', { name: '商务' }),
+    item('points', { name: '30分' }),
+    item('valid', { name: '营业总收入（30分）' }),
+  ]
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+
+  for (const id of ['category', 'points']) {
+    const row = w.get(`[data-item-id="${id}"]`)
+    expect(row.get('input').element.disabled).toBe(true)
+    expect(row.text()).toContain('评分项名称无效')
+    expect(row.text()).toContain('不可计算')
+  }
+  const valid = w.get('[data-item-id="valid"] input')
+  expect(valid.element.disabled).toBe(false)
+  await valid.setValue(true)
+  await w.get('textarea').setValue('核对后选取')
+  await w.get('[data-test="activate-extraction"]').trigger('click')
+  expect(w.emitted('activate')[0][0].selectedItemIds).toEqual(['valid'])
+})
+
 it.each(['', '1', '一', 'A1', 'b2-1.3', '评分项 21', '评分项 21（30分）', '1（30分）', '3 | 营业总收入', '商务评分（20'])(
   'excludes invalid historical name %j while allowing a valid rule',
   async (name) => {

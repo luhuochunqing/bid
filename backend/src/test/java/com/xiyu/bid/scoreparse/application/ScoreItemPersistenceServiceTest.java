@@ -9,6 +9,7 @@ import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseFact;
+import com.xiyu.bid.scoreparse.entity.ScoreResult;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository;
@@ -16,6 +17,8 @@ import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -333,6 +336,42 @@ class ScoreItemPersistenceServiceTest {
 
         assertThat(capturedSavedItems().getValue()).extracting(ScoreItem::getDim)
                 .containsExactly("近三年平均营业总收入");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"SUBJECTIVE", "OBJECTIVE"})
+    void manualAdoptionOnlyReusesResultsForTheSameScoreType(String adoptedType) {
+        var old = ScoreItem.builder().id(100L).code("1").weight(BigDecimal.TEN)
+                .detail("专家综合评审计分").scoreType("SUBJECTIVE").build();
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of(old));
+        when(itemRepository.saveAll(anyList())).thenAnswer(call -> {
+            List<ScoreItem> saved = call.getArgument(0);
+            saved.getFirst().setId(200L);
+            return saved;
+        });
+        boolean sameType = old.getScoreType().equals(adoptedType);
+        if (sameType) {
+            when(resultRepository.findByScoreItemIdIn(List.of(100L))).thenReturn(List.of(
+                    ScoreResult.builder().scoreItemId(100L).actualScore(BigDecimal.ONE).build()));
+        }
+
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(new ScoreCandidate("1", "实施方案",
+                old.getDetail(), old.getWeight(), adoptedType, null, old.getDetail(), "", "MANUAL_REVIEW_ADOPTED")));
+
+        assertThat(capturedSavedItems().getValue()).extracting(ScoreItem::getScoreType).containsExactly(adoptedType);
+        if (sameType) {
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<ScoreResult>> results = ArgumentCaptor.forClass(List.class);
+            verify(resultRepository).saveAll(results.capture());
+            assertThat(results.getValue()).singleElement().satisfies(result -> {
+                assertThat(result.getScoreItemId()).isEqualTo(200L);
+                assertThat(result.getActualScore()).isEqualByComparingTo(BigDecimal.ONE);
+            });
+            verify(resultRepository, never()).deleteByScoreItemIdIn(anyList());
+        } else {
+            verify(resultRepository).deleteByScoreItemIdIn(List.of(100L));
+            verify(resultRepository, never()).saveAll(anyList());
+        }
     }
 
     @Test

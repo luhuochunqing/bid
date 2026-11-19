@@ -18,8 +18,6 @@ public final class ScoreItemTitleExtractor {
             "([（(](?:满分|最高)?\\s*\\d+(?:\\.\\d+)?)\\s*\\n\\s*(分[）)])");
     private static final Pattern UNCLOSED_SCORE_SUFFIX = Pattern.compile(
             "\\s*[（(](?:满分|最高)?\\s*\\d+(?:\\.\\d+)?\\s*分?\\s*$");
-    private static final Pattern PURE_WEIGHT_CELL = Pattern.compile(
-            "^[~≈]?\\s*\\d+(?:\\.\\d+)?\\s*(?:分|分值|%)?\\s*$");
     private static final Pattern HTML_BREAK = Pattern.compile("(?i)<br\\s*/?>");
     private static final Pattern COLON = Pattern.compile("^\\s*(.+?)\\s*[：:]\\s*(.*)$");
     private static final Pattern PUNCTUATED_SENTENCE = Pattern.compile("[。；;]");
@@ -29,6 +27,7 @@ public final class ScoreItemTitleExtractor {
             "(?:得|加|扣)\\s*\\d+(?:\\.\\d+)?\\s*分|不得分|满分");
     private static final int MAX_TITLE_LENGTH = 40;
     private static final int LEGACY_FALLBACK_LENGTH = 50;
+    private static final int MAX_DIMENSION_LENGTH = 200;
 
     private ScoreItemTitleExtractor() {
     }
@@ -39,7 +38,7 @@ public final class ScoreItemTitleExtractor {
         boolean validDimension = !ScoreCategoryClassifier.isInvalidOrPlaceholderName(dimension)
                 && !isLegacyRuleBodyName(dimension, detail)
                 && !isLegacyRuleBodyName(dimension, candidate.sourceText());
-        String limitedDimension = dimension.length() > 200 ? dimension.substring(0, 200) : dimension;
+        String limitedDimension = limitLength(dimension, MAX_DIMENSION_LENGTH);
         if (validDimension && preferCandidateName) {
             return limitedDimension;
         }
@@ -56,7 +55,7 @@ public final class ScoreItemTitleExtractor {
             if (!ScoreCategoryClassifier.needsSpecificTitle(cleaned)
                     && !isLegacyRuleBodyName(cleaned, detail)
                     && !isLegacyRuleBodyName(cleaned, candidate.sourceText())) {
-                return cleaned.length() > 200 ? cleaned.substring(0, 200) : cleaned;
+                return limitLength(cleaned, MAX_DIMENSION_LENGTH);
             }
         }
         if (!validDimension) {
@@ -71,7 +70,7 @@ public final class ScoreItemTitleExtractor {
             String firstLine = newline > 0 ? trimmed.substring(0, newline).strip() : trimmed;
             if (!ScoreCategoryClassifier.needsSpecificTitle(firstLine)) {
                 return SCORE_PREDICATE.matcher(stripTrailingScore(firstLine)).find() ? ""
-                        : firstLine.substring(0, Math.min(firstLine.length(), LEGACY_FALLBACK_LENGTH));
+                        : limitLength(firstLine, LEGACY_FALLBACK_LENGTH);
             }
         }
         return limitedDimension;
@@ -152,8 +151,12 @@ public final class ScoreItemTitleExtractor {
     private static boolean matchesLegacyRuleBody(String name, String normalizedText) {
         String firstLine = normalizedText.trim().split("\\n", 2)[0].trim();
         // The legacy mapper copied up to 50 characters, which could omit the scoring predicate.
-        String legacyName = firstLine.substring(0, Math.min(firstLine.length(), LEGACY_FALLBACK_LENGTH)).trim();
+        String legacyName = limitLength(firstLine, LEGACY_FALLBACK_LENGTH).trim();
         return name.equals(legacyName) && SCORE_PREDICATE.matcher(stripTrailingScore(firstLine)).find();
+    }
+
+    private static String limitLength(String text, int length) {
+        return text.substring(0, Math.min(text.length(), length));
     }
 
     /**
@@ -171,22 +174,22 @@ public final class ScoreItemTitleExtractor {
         normalized = SPLIT_SCORE_NEWLINE.matcher(normalized).replaceAll("$1$2");
         String[] lines = normalized.stripTrailing().split("\n");
         int firstLineIndex = 0;
-        while (firstLineIndex < lines.length) {
-            String line = lines[firstLineIndex].trim();
+        String firstLine;
+        while (true) {
+            firstLine = lines[firstLineIndex].trim();
             boolean hasNextLine = firstLineIndex + 1 < lines.length;
-            if (line.contains("|")) {
-                Optional<String> piped = extractFromPipeLine(line, hasNextLine);
+            if (firstLine.contains("|")) {
+                Optional<String> piped = extractFromPipeLine(firstLine, hasNextLine);
                 if (piped.isPresent()) {
                     return piped;
                 }
             }
-            String probe = stripTrailingScore(line);
-            if (!hasNextLine || (!PURE_WEIGHT_CELL.matcher(probe).matches() && !ScoreCategoryClassifier.needsSpecificTitle(probe))) {
+            String probe = stripTrailingScore(firstLine);
+            if (!hasNextLine || !ScoreCategoryClassifier.needsSpecificTitle(probe)) {
                 break;
             }
             firstLineIndex++;
         }
-        String firstLine = lines[firstLineIndex].trim();
         int nextLineIndex = firstLineIndex + 1;
         boolean hasFollowingLines = nextLineIndex < lines.length;
 
@@ -263,7 +266,7 @@ public final class ScoreItemTitleExtractor {
     }
 
     private static boolean isNonTitleCell(String text) {
-        return text.isEmpty() || PURE_WEIGHT_CELL.matcher(text).matches()
+        return text.isEmpty() || ScoreCategoryClassifier.isWeightCell(text)
                 || ScoreCategoryClassifier.isAlphanumericCode(text);
     }
 
@@ -279,7 +282,6 @@ public final class ScoreItemTitleExtractor {
     private static boolean isAcceptableTitle(String title, boolean checkVerbAndPredicate) {
         if (title.length() > MAX_TITLE_LENGTH
                 || PUNCTUATED_SENTENCE.matcher(title).find()
-                || PURE_WEIGHT_CELL.matcher(title).matches()
                 || ScoreCategoryClassifier.needsSpecificTitle(title)) {
             return false;
         }

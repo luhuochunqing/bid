@@ -20,22 +20,21 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 final class ScoreParseReviewFactMapper {
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ScoreTypeClassificationPolicy SCORE_TYPE_POLICY = new ScoreTypeClassificationPolicy();
     private static final Pattern SCORE_TYPE_IN_EXPLANATION = Pattern.compile("scoreType=(OBJECTIVE|SUBJECTIVE)");
 
     private ScoreParseReviewFactMapper() {}
 
     static String resolveScoreType(String sourceText, List<ScoreParseEvidence> evidences) {
-        String scoreTypeGuess = null;
         for (ScoreParseEvidence evidence : evidences) {
             String explanation = evidence.getExplanation();
             if (explanation == null) continue;
             var matcher = SCORE_TYPE_IN_EXPLANATION.matcher(explanation);
             if (matcher.find()) {
-                scoreTypeGuess = matcher.group(1);
-                break;
+                return SCORE_TYPE_POLICY.classify(sourceText, matcher.group(1));
             }
         }
-        return new ScoreTypeClassificationPolicy().classify(sourceText, scoreTypeGuess);
+        return SCORE_TYPE_POLICY.classify(sourceText);
     }
 
     static BigDecimal declaredTotal(ScoreParseTask task) {
