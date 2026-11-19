@@ -8659,3 +8659,10 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
   2. `ScoreReviewAdoptionPolicy` 对空维度自动合成 `"评分项 " + index` 并允许直接采纳，致使项目 1394 出现 22/23 空候选仍可采纳落库（`"评分项 21"`、`"1"`）。
   3. `evidence.explanation` 中的 `scoreType` 来自模型初判。旧版复核和正式写入需使用同一分类策略，原文分类信号优先。原生 PDF 表格的 `isScoreTable` 仅标记表格类型，同一页可能只有表头或续表单元格。
 - **防线**：复核界面提示修正无效名称，领域采纳校验拒绝解析后仍缺有效名称的候选。正式写入优先保留有效的人工确认名称，历史冻结候选也须通过名称检查才能写入生效项。页内覆盖缺少证据时，保留原生解析结果和 `BAIDU_OCR_PAGE_FAILED`，供来源完整性检查使用。
+
+## 509. 第 282 次测试环境部署与 Bug 修复 E2E 复核（2026-11-19）
+
+- **部署**：锚点分支上直接运行 `deploy-test.sh` 会被 `dev-env.sh` 的 session gate 拦截，脚本 `set -e` 导致早退（无副作用）。维护模式需显式授权：`XYYU_SYNC_ENV_ACTIVE=1 XIYU_DEV_CONFIRMED=1 ENV=test bash scripts/release/deploy-test.sh`。
+- **已验证修复**：该评分项 1440 走 QUALIFICATION（`certs=0`, `reviewRequired=true`），无文本案例；2058/2115 走 MANUAL_EVIDENCE 并提示缺材料；空名称/纯序号/`|` 前缀候选采纳被前端禁用；客观非方案项（2104/1361/1362）0 条推荐，客观技术方案项保留参考 + 核验提示。
+- **残留**：2115 以关键词「技术」匹配到无关 ISO20000 证书；名称提取仍有长句截断（候选 5 项、「商务评」）；存量坏名称（`score_item` 2161/2163/2164/2181）未清理。
+- **测试方法**：ego-browser 中 `element.click()` 属于合成事件、无用户激活，`navigator.clipboard` 会报「复制失败」；复用类按钮必须用真实鼠标坐标点击验证，否则会把测试工具限制误判为产品缺陷。
