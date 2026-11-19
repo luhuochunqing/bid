@@ -1941,3 +1941,8 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 
 - 根因：客观量化评分项（如项目 38 自营商品 SKU 数量）已有 `scoreType=OBJECTIVE` 标签但下游未联动，导致依然召回主观方案库；且“系统数据截图”中的“系统”二字导致误判为 `TECHNICAL` 大类穿透一票否决门禁。
 - 修复：在 `ScoreItemCaseRecommendAppService` 中联动 `scoreType`，客观项未显式要求编制方案时直接阻断方案库推荐（`Purpose.MANUAL_EVIDENCE`）；增加 `EVIDENCE_OF_PLAN` 与 `NON_TECHNICAL_PLAN` 防止方案截图与价格折扣方案混淆；在 `CaseCategoryMatchPolicy` 中剔除系统截图相关词，避免大类误判为 `TECHNICAL`。
+
+## [2026-11-19] feat | [[score-parse-service]] 评分项结构化形态扩展 (Step 2.1)
+
+- 方案：通过 Flyway 迁移 V1227 及回滚 U1227 为 `score_item` 增加 `deliverable_type` 与 `scoring_mode` 列，默认 NULL 保持历史存量兼容。
+- 影响：为上游大模型结构化打标与下游双轨强类型路由奠定数据模型底座，零影响现有业务逻辑。
