@@ -25,7 +25,7 @@
         <el-input v-model="keywordFilter" placeholder="输入关键词进一步筛选..." clearable />
       </div>
 
-      <div v-if="isQualificationScoreItem" class="drawer-section qualification-notice">
+      <div v-if="isCertificateOnlyResult" class="drawer-section qualification-notice">
         <el-alert type="info" :closable="false" show-icon>
           <template #title>
             <div class="qualification-notice-title">资质证书类评分项提醒</div>
@@ -34,11 +34,11 @@
         </el-alert>
       </div>
 
-      <EnterpriseCertRecommendList v-if="isQualificationScoreItem || matchedCertificates.length > 0" :certificates="matchedCertificates" />
+      <EnterpriseCertRecommendList v-if="matchedCertificates.length > 0" :certificates="matchedCertificates" />
       <el-alert v-if="evidenceReviewRequired" type="warning" :closable="false" show-icon>
         <template #title>当前推荐缺少可核验的证明材料，请人工核验原始材料。</template>
       </el-alert>
-      <div v-if="!evidenceReviewRequired || cases.length > 0" class="drawer-section">
+      <div v-if="!isCertificateOnlyResult && (!evidenceReviewRequired || cases.length > 0)" class="drawer-section">
         <div class="section-label-row">
           <label class="section-label">
             历史案例参考
@@ -74,7 +74,7 @@
           </div>
           <el-empty
             v-else-if="!loadingCases && selectedItemId"
-            :description="isQualificationScoreItem ? '该评分项为资质证书类，技术方案案例不予推荐，请前往「资质中心」选用证书证明文件' : '暂无与本评分项相似的历史案例'"
+            description="暂无与本评分项相似的历史案例"
             :image-size="80"
           />
           <div v-else-if="!selectedItemId && defaultCases.length > 0" class="select-hint">基于项目基本信息推荐 {{ defaultCases.length }} 条案例，选择评分项可进一步筛选</div>
@@ -128,13 +128,10 @@ const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detailCase = ref(null)
 
-const currentScoreItem = computed(() => scoreItems.value.find(item => item.id === selectedItemId.value))
-const isQualificationScoreItem = computed(() => {
-  if (!currentScoreItem.value || loadingCases.value || evidenceReviewRequired.value) return false
-  const { dim: title = '', detail = '' } = currentScoreItem.value
-  return /(资质|资格|证书|体系认证|管理体系|iso|许可|执照)/i.test(title)
-    || /(资质证书|资格证书|体系认证|iso|许可证|执照|证书复印件|证书扫描件)/i.test(detail)
-})
+const isCertificateOnlyResult = computed(() =>
+  !loadingCases.value && !evidenceReviewRequired.value && cases.value.length === 0
+  && matchedCertificates.value.length > 0 && recommendTotal.value === matchedCertificates.value.length
+)
 
 const handleGoToScoreParse = () => { visible.value = false; emit('go-to-score-parse') }
 

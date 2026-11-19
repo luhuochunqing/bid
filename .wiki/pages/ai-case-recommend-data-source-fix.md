@@ -475,3 +475,21 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 项目 38 的「电商平台自营商品 SKU 数量」要求带日期的系统截图。历史「商品管理能力」方案与主题相关，但没有数量证明。案例推荐应先检查评分项要求的交付物，再排序候选。纯证明条款缺少可信来源时，接口返回 `evidenceReviewRequired=true` 和空结果。纯证明条款也可能属于业绩类。若条款需要合同、订单截图与发票相互印证，仍在查询历史案例前返回待核验。复合条款显式要求方案时可展示历史参考，同时提示核验证据。
 
 实现和验收见 [Spec 091](../../specs/091-case-recommend-evidence-admission/spec.md)。真实接口抽屉回归使用包含两种条款的测试项目，需要配置 `XIYU_E2E_EVIDENCE_PROJECT_ID`、`XIYU_E2E_EVIDENCE_PROOF_ITEM_ID`、`XIYU_E2E_EVIDENCE_REFERENCE_ITEM_ID`。
+
+---
+
+## 第 281 次测试验收修复：等保备案资质路由、三元组证据门禁与跨表向量 ID 修正（2026-11-19）
+
+### 1. 复发根因
+- **等保备案条款漏出资质通道**：`1373:1440`（「等保备案证明」+「第三级及以上等级保护测评」）不含“证书”二字，且 `"等级保护"` 原列在 `TECHNICAL_KEYWORDS` 末尾，导致归类为 `TECHNICAL`、跳过企业资质库查询，又因分词退化切出 `"三级"` / `"以上"` 泛词触发物流方案全额背景加成（44 分排第一）。
+- **证据门禁正则白名单漏判**：`CaseRecommendationPurposePolicy` 依赖前置比较符和窄量词单位，漏判 `"运营时长3年以上得5分/1-3年得2分"`（`1374:2058`）与 `"每提供1个对接案例得0.5分"`（`1371:2115`），且 `"日志"` / `"备案截图"` / `"测评报告"` 不在原始材料词表中。
+- **向量适配器跨表主键错配**：`CaseVectorSemanticQueryAdapter` 直接以 `bid_case_slice.id` 作为 `knowledge_case.id` 返回。
+
+### 2. 修复与防回归
+- 将 `备案证明`、`等保备案`、`等级保护测评`、`测评报告` 纳入资质路由，等保识别为 `GRADE_PROTECTION`。`CaseCategoryMatchPolicy.REQUIRED_SECURITY_FILING` 支持级数在前与在后两种语序。纯资质项返回 `items=[]`，每项已识别标准均有名称匹配、有效且附原件链接的证书时才解除待核验。搜索词和范围说明可用于召回候选。等保最低等级只依据证书名称和登记级别，两处都有等级时取较低值。
+- 将 `CaseRecommendationPurposePolicy` 升级为“事实度量对象 + 量化/分档计分规则 + 原始证明材料”三元组校验，支持全量量词单位、后置阈值（`3年以上得5分`）、`每提供1个...得0.5分` 及 `日志/截图/备案证明/测评报告/扫描件`。
+- `ScoreItemCaseTextMatchPolicy.GENERIC_SCORING_TOKENS` 过滤比较级/级别泛词（`以上/以下/以内/一级/二级/三级/四级`），`CaseVectorSemanticQueryAdapter` 只加载命中切片对应源文件下的活跃案例。切片与案例必须有相同 OBS 文件键和标题，且完整切片预览与案例正文开头一致才能加分。同一切片匹配多个案例时跳过。
+
+复合资质条款按单项标准应用等保最低等级。ISO9001 证书的范围提到等保时，仍可凭证书名称命中 ISO9001。二级等保报告无法通过范围说明或搜索词满足三级门槛。
+
+等保抽屉 E2E 使用 `XIYU_E2E_GRADE_PROTECTION_PROJECT_ID` 和 `XIYU_E2E_GRADE_PROTECTION_ITEM_ID` 指定三级及以上评分项。用 `XIYU_E2E_GRADE_PROTECTION_LOW_CERT_ID` 和 `XIYU_E2E_GRADE_PROTECTION_QUALIFIED_CERT_ID` 指定资质库中两份名称可区分、未下架的低等级和达标等级证书。根据资质库原始材料预设 `XIYU_E2E_GRADE_PROTECTION_REVIEW_REQUIRED` 为 `true` 或 `false`。验证待核验场景时，达标等级证书仍应被召回，测试环境中没有有效且带原件的达标证书。

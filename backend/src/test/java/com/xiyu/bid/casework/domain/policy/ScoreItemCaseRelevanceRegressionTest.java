@@ -119,6 +119,22 @@ class ScoreItemCaseRelevanceRegressionTest {
         assertThat(policy.evaluate(certificate, defaults).score()).isPositive();
     }
 
+    @Test
+    void securityFilingEvaluationRequirementRoutesToQualificationAndVetoesUnrelatedLogisticsCase() {
+        assertThat(CaseCategoryMatchPolicy.classifyMacroCategory("等保备案证明", "第三级及以上等级保护测评"))
+                .isEqualTo(CaseCategoryMatchPolicy.MacroCategory.QUALIFICATION);
+
+        KnowledgeCase logisticsCase = candidate(14401L, "物流配送及仓储能力", "技术方案",
+                "构建中心仓、前置仓、配送站三级仓配体系，具备3年以上物流配送能力。", "同项目测试");
+        var context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                1440L, "43", "等保备案证明", "第三级及以上等级保护测评",
+                "综合", "央企", null, "同项目测试", "测试客户");
+
+        var result = policy.evaluate(logisticsCase, context);
+        assertThat(result.score()).isZero();
+        assertThat(result.matchReasons()).containsExactly("大类冲突一票否决");
+    }
+
     private static ScoreItemCaseMatchPolicy.ScoreItemContext deliveryContext() {
         return new ScoreItemCaseMatchPolicy.ScoreItemContext(45L, "45", "45 配送能力评价", DELIVERY_DETAIL,
                 "综合", "央企", null, "三峡集团采购项目", "三峡集团");

@@ -28,7 +28,9 @@ final class ScoreItemCaseTextMatchPolicy {
     private static final double BM25_K1 = 1.2;
     private static final double BM25_B = 0.75;
 
-    private static final Set<String> GENERIC_SCORING_TOKENS = Set.of("能力", "评价", "评分", "得分");
+    private static final Set<String> GENERIC_SCORING_TOKENS = Set.of(
+            "能力", "评价", "评分", "得分",
+            "以上", "以下", "以内", "一级", "二级", "三级", "四级");
 
     /** 评分档位和“得N分”是评分模板，不是业务主题（例如证书和配送都会出现“得0分”）。 */
     private static final Pattern RUBRIC_BAND_PATTERN = Pattern.compile(

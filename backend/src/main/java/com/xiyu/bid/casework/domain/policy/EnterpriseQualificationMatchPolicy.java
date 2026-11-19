@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -22,8 +21,8 @@ public final class EnterpriseQualificationMatchPolicy {
 
     private static final int EXACT_STANDARD_MATCH_SCORE = 95;
     private static final int TITLE_KEYWORD_MATCH_SCORE = 85;
-    private static final int SCOPE_KEYWORD_MATCH_SCORE = 75;
     private static final int EXPIRING_WARN_DAYS = 60;
+    private static final Pattern GRADE_LEVEL_PATTERN = Pattern.compile("(?:第\\s*)?([一二三四五1-5])\\s*级");
 
     public record Candidate(
             Long id,
@@ -57,11 +56,16 @@ public final class EnterpriseQualificationMatchPolicy {
             List<String> matchReasons
     ) {}
 
+    public record CertificateEvidence(String name, String level, String status, String fileUrl) {}
+
     private record StandardTarget(String code, String name, Pattern pattern) {
         StandardTarget(String code, String name, String regex) {
             this(code, name, Pattern.compile(regex));
         }
     }
+
+    private static final StandardTarget GRADE_PROTECTION =
+            new StandardTarget("GRADE_PROTECTION", "网络安全等级保护备案/测评", "等级保护|等保");
 
     private static final List<StandardTarget> STANDARD_TARGETS = List.of(
             new StandardTarget("ISO9001", "质量管理体系(ISO9001)", "(?i)(?:iso\\s*9001|gb/?t\\s*19001|质量管理体系)"),
@@ -76,10 +80,28 @@ public final class EnterpriseQualificationMatchPolicy {
             new StandardTarget("SPECIALIZED", "专精特新企业证书", "(?i)(?:专精特新)"),
             new StandardTarget("CMMI", "CMMI软件能力成熟度认证", "(?i)(?:cmmi)"),
             new StandardTarget("ITSS", "ITSS信息技术服务标准", "(?i)(?:itss)"),
+            GRADE_PROTECTION,
             new StandardTarget("BUSINESS_LICENSE", "企业法人营业执照", "(?i)(?:营业执照)")
     );
 
     private EnterpriseQualificationMatchPolicy() {}
+
+    public static boolean coversRequiredStandards(String dim, String detail, List<CertificateEvidence> certificates) {
+        String requirement = qualificationRequirement(dim, detail);
+        List<StandardTarget> demands = demandedStandards(requirement);
+        if (demands.isEmpty()) {
+            return false;
+        }
+        int requiredSecurityGrade = demands.contains(GRADE_PROTECTION) ? extractGradeLevel(requirement) : 0;
+        List<CertificateEvidence> usableCertificates = certificates.stream()
+                .filter(cert -> ("VALID".equals(cert.status()) || "EXPIRING".equals(cert.status()))
+                        && hasText(cert.fileUrl()) && hasText(cert.name()))
+                .toList();
+        return demands.stream().allMatch(target -> usableCertificates.stream().anyMatch(cert ->
+                target.pattern().matcher(cert.name()).find()
+                        && (!target.equals(GRADE_PROTECTION)
+                        || certificateGrade(cert.name(), cert.level()) >= requiredSecurityGrade)));
+    }
 
     /**
      * 针对评分项维度与细则要求，从企业资质库候选集中匹配最符合条件的证书。
@@ -93,16 +115,14 @@ public final class EnterpriseQualificationMatchPolicy {
         }
 
         LocalDate today = asOfDate != null ? asOfDate : LocalDate.now();
-        String fullReqText = (Objects.toString(dim, "") + " " + Objects.toString(detail, "")).toLowerCase(Locale.ROOT);
+        String fullReqText = qualificationRequirement(dim, detail);
         String queryKeyword = hasText(keyword) ? keyword.trim().toLowerCase(Locale.ROOT) : "";
 
         // 识别招标条款中要求的标准体系集合
-        List<StandardTarget> demandedStandards = new ArrayList<>();
-        for (StandardTarget target : STANDARD_TARGETS) {
-            if (target.pattern().matcher(fullReqText).find()) {
-                demandedStandards.add(target);
-            }
-        }
+        List<StandardTarget> demandedStandards = demandedStandards(fullReqText);
+        int requiredSecurityGrade = demandedStandards.contains(GRADE_PROTECTION) ? extractGradeLevel(fullReqText) : 0;
+        boolean requiresGradedCertificateOnly = requiredSecurityGrade > 0 && demandedStandards.size() == 1;
+        Set<String> requirementEntities = PunctuationEntityExtractor.extractPunctuationEntities(dim, detail);
 
         List<MatchResult> results = new ArrayList<>();
 
@@ -116,24 +136,32 @@ public final class EnterpriseQualificationMatchPolicy {
             String candName = Objects.toString(cand.name(), "").toLowerCase(Locale.ROOT);
             String candScope = Objects.toString(cand.certScope(), "").toLowerCase(Locale.ROOT);
 
+            boolean rejectedGradeMatch = requiredSecurityGrade > 0
+                    && matchesStandard(GRADE_PROTECTION, candName, candScope)
+                    && certificateGrade(candName, cand.level()) < requiredSecurityGrade;
+
             // 1. 命中具体标准体系
             boolean standardHit = false;
             for (StandardTarget target : demandedStandards) {
-                if (target.pattern().matcher(candName).find()
-                        || target.pattern().matcher(candScope).find()) {
-                    score = Math.max(score, EXACT_STANDARD_MATCH_SCORE);
+                if (!(rejectedGradeMatch && target.equals(GRADE_PROTECTION))
+                        && matchesStandard(target, candName, candScope)) {
+                    score = EXACT_STANDARD_MATCH_SCORE;
                     reasons.add("命中" + target.name() + "认证要求");
                     standardHit = true;
                     break;
                 }
             }
 
+            // 关键词不得绕过等保等级限制。其他明确标准的命中可以独立保留。
+            if (!standardHit && (requiresGradedCertificateOnly || rejectedGradeMatch)) {
+                continue;
+            }
+
             // 2. 自由关键词/通用资质匹配（当未命中具体标准，但名称契合条款时）
             if (!standardHit) {
-                Set<String> entities = PunctuationEntityExtractor.extractPunctuationEntities(dim, detail);
-                for (String entity : entities) {
+                for (String entity : requirementEntities) {
                     if (entity.length() >= 2 && candName.contains(entity.toLowerCase(Locale.ROOT))) {
-                        score = Math.max(score, TITLE_KEYWORD_MATCH_SCORE);
+                        score = TITLE_KEYWORD_MATCH_SCORE;
                         reasons.add("证书名称契合条款关键词「" + entity + "」");
                         break;
                     }
@@ -153,19 +181,18 @@ public final class EnterpriseQualificationMatchPolicy {
 
             // 4. 有效期与状态核验
             String displayStatus = "VALID";
-            if (cand.expiryDate() != null) {
-                if (cand.expiryDate().isBefore(today)) {
-                    score = Math.min(score, 45); // 过期惩罚
-                    displayStatus = "EXPIRED";
-                    reasons.add("证书已于 " + cand.expiryDate() + " 过期");
+            boolean expiredByDate = cand.expiryDate() != null && cand.expiryDate().isBefore(today);
+            if (expiredByDate || "EXPIRED".equalsIgnoreCase(cand.status())) {
+                score = Math.min(score, 45);
+                displayStatus = "EXPIRED";
+                reasons.add(expiredByDate ? "证书已于 " + cand.expiryDate() + " 过期" : "资质库标记证书已过期");
+            } else if (cand.expiryDate() != null) {
+                long remainingDays = ChronoUnit.DAYS.between(today, cand.expiryDate());
+                if (remainingDays <= EXPIRING_WARN_DAYS) {
+                    displayStatus = "EXPIRING";
+                    reasons.add("证书即将于 " + remainingDays + " 天后到期");
                 } else {
-                    long remainingDays = ChronoUnit.DAYS.between(today, cand.expiryDate());
-                    if (remainingDays <= EXPIRING_WARN_DAYS) {
-                        displayStatus = "EXPIRING";
-                        reasons.add("证书即将于 " + remainingDays + " 天后到期");
-                    } else {
-                        reasons.add("证书在库且有效(至 " + cand.expiryDate() + ")");
-                    }
+                    reasons.add("证书在库且有效(至 " + cand.expiryDate() + ")");
                 }
             } else {
                 reasons.add("长期有效/未注明有效截止期");
@@ -198,5 +225,41 @@ public final class EnterpriseQualificationMatchPolicy {
                         .thenComparing(r -> hasText(r.fileUrl()), Comparator.reverseOrder())
                         .thenComparing(MatchResult::expiryDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
+    }
+
+    private static boolean matchesStandard(StandardTarget target, String name, String scope) {
+        return target.pattern().matcher(name).find() || target.pattern().matcher(scope).find();
+    }
+
+    private static String qualificationRequirement(String dim, String detail) {
+        return (Objects.toString(dim, "") + " " + Objects.toString(detail, "")).toLowerCase(Locale.ROOT);
+    }
+
+    private static List<StandardTarget> demandedStandards(String requirement) {
+        return STANDARD_TARGETS.stream().filter(target -> target.pattern().matcher(requirement).find()).toList();
+    }
+
+    private static int certificateGrade(String name, String level) {
+        int namedGrade = extractGradeLevel(name);
+        int registeredGrade = extractGradeLevel(level);
+        // 范围说明可能列出其他系统的等级。证书自身登记不一致时采用较低等级。
+        return namedGrade > 0 && registeredGrade > 0
+                ? Math.min(namedGrade, registeredGrade)
+                : Math.max(namedGrade, registeredGrade);
+    }
+
+    private static int extractGradeLevel(String text) {
+        if (!hasText(text)) {
+            return 0;
+        }
+        var matcher = GRADE_LEVEL_PATTERN.matcher(text);
+        int maxGrade = 0;
+        while (matcher.find()) {
+            char token = matcher.group(1).charAt(0);
+            int numeric = Character.digit(token, 10);
+            int grade = numeric >= 0 ? numeric : "一二三四五".indexOf(token) + 1;
+            maxGrade = Math.max(maxGrade, grade);
+        }
+        return maxGrade;
     }
 }

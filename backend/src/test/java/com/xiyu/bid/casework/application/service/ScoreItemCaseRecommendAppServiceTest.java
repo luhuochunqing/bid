@@ -1041,6 +1041,83 @@ class ScoreItemCaseRecommendAppServiceTest {
                 enterpriseQualificationQueryPort, tenderQualificationQueryPort);
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            ",,true",
+            "EXPIRED,https://oss.ehsy.com/cert/grade3.jpg,true",
+            "VALID,,true",
+            "VALID,'   ',true",
+            "VALID,https://oss.ehsy.com/cert/grade3.jpg,false",
+            "EXPIRING,https://oss.ehsy.com/cert/grade3.jpg,false"
+    })
+    @DisplayName("项目1373/1440 等保备案证明与第三级及以上等级保护测评：走资质通道阻断无关文本案例并给出待核验提示")
+    void project1373SecurityFilingRequiresUsableCertificate(String status, String fileUrl, boolean reviewRequired) {
+        Project project = new Project();
+        project.setId(1373L);
+        project.setIndustry("综合");
+        project.setCustomerType("央企");
+
+        ScoreItem item = ScoreItem.builder()
+                .id(1440L)
+                .projectId(1373L)
+                .code("43")
+                .dim("等保备案证明")
+                .detail("第三级及以上等级保护测评")
+                .itemIndex(1)
+                .build();
+
+        List<ScoreItemCaseRecommendResponse.CertificateItem> certificates = status == null ? List.of() : List.of(
+                ScoreItemCaseRecommendResponse.CertificateItem.builder()
+                        .id(30L).name("信息系统安全等级保护备案证明(三级)")
+                        .status(status).fileUrl(fileUrl).build());
+        when(projectRepository.findById(1373L)).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(1440L)).thenReturn(Optional.of(item));
+        when(enterpriseQualificationQueryPort.findMatchingCertificates(eq("等保备案证明"), eq("第三级及以上等级保护测评"), eq(null)))
+                .thenReturn(certificates);
+
+        var response = recommendAppService.recommend(1373L,
+                ScoreItemCaseRecommendRequest.builder().scoreItemId(1440L).size(20).build());
+
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getMatchedCertificates()).isEqualTo(certificates);
+        assertThat(response.getTotal()).isEqualTo(certificates.size());
+        assertThat(response.isEvidenceReviewRequired()).isEqualTo(reviewRequired);
+        verify(enterpriseQualificationQueryPort).findMatchingCertificates("等保备案证明", "第三级及以上等级保护测评", null);
+        verify(knowledgeCaseQueryPort, never()).findAllActive();
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {
+            "ISO9001质量管理体系认证 | 营业执照 | 营业执照 | true",
+            "ISO9001质量管理体系认证及三级等保测评 | | ISO9001认证证书 | true",
+            "ISO9001质量管理体系认证及三级等保测评 | | ISO9001认证证书,等保测评报告（三级） | false",
+            "ISO9001质量管理体系认证及三级等保测评 | | ISO9001认证证书,等保测评报告（二级） | true"
+    }, delimiter = '|')
+    void qualificationReviewRequiresCoverageOfEachStandard(
+            String detail, String keyword, String certificateNames, boolean reviewRequired) {
+        long projectId = 1373L;
+        long scoreItemId = 1440L;
+        Project project = new Project();
+        project.setId(projectId);
+        ScoreItem item = ScoreItem.builder().id(scoreItemId).projectId(projectId)
+                .dim("企业资质").detail(detail).build();
+        var certificates = java.util.Arrays.stream(certificateNames.split(","))
+                .map(name -> ScoreItemCaseRecommendResponse.CertificateItem.builder()
+                        .name(name).status("VALID").fileUrl("https://oss.ehsy.com/cert/original.pdf").build())
+                .toList();
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(scoreItemRepository.findById(scoreItemId)).thenReturn(Optional.of(item));
+        when(enterpriseQualificationQueryPort.findMatchingCertificates("企业资质", detail, keyword))
+                .thenReturn(certificates);
+
+        var response = recommendAppService.recommend(projectId, ScoreItemCaseRecommendRequest.builder()
+                .scoreItemId(scoreItemId).keyword(keyword).build());
+
+        assertThat(response.getMatchedCertificates()).isEqualTo(certificates);
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.isEvidenceReviewRequired()).isEqualTo(reviewRequired);
+    }
+
     private static ScoreItem project1371Clause(String title, long id) throws IOException {
         try (var input = ScoreItemCaseRecommendAppServiceTest.class.getResourceAsStream(
                 "/scoreparse-golden/1371_tables_v1.json")) {

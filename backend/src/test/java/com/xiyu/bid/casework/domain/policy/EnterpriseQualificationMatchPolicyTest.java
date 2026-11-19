@@ -2,6 +2,9 @@ package com.xiyu.bid.casework.domain.policy;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -79,6 +82,21 @@ class EnterpriseQualificationMatchPolicyTest {
     }
 
     @Test
+    void keepsStoredExpiredStatusWhenExpiryDateIsMissing() {
+        var expired = new EnterpriseQualificationMatchPolicy.Candidate(
+                1L, "信息系统安全等级保护备案证明(三级)", "三级", null, null, null, null,
+                "EXPIRED", null, "https://oss.ehsy.com/cert/expired.jpg", null, false);
+
+        var matches = EnterpriseQualificationMatchPolicy.matchCertificates(
+                "等保备案证明", "第三级及以上等级保护测评", null, List.of(expired), today);
+
+        assertThat(matches).singleElement().satisfies(match -> {
+            assertThat(match.status()).isEqualTo("EXPIRED");
+            assertThat(match.matchScore()).isLessThan(50);
+        });
+    }
+
+    @Test
     @DisplayName("已下架/已报废证书自动过滤")
     void testRetiredCertificatesAreExcluded() {
         String dim = "资质条件";
@@ -96,5 +114,88 @@ class EnterpriseQualificationMatchPolicyTest {
                 EnterpriseQualificationMatchPolicy.matchCertificates(dim, detail, null, candidates, today);
 
         assertThat(results).isEmpty();
+    }
+
+    @Test
+    @DisplayName("等保备案证明与等级保护测评条款精准匹配企业等保三级证书")
+    void testMatchGradeProtectionCertificates() {
+        String dim = "等保备案证明";
+        String detail = "第三级及以上等级保护测评";
+
+        List<EnterpriseQualificationMatchPolicy.Candidate> candidates = List.of(
+                new EnterpriseQualificationMatchPolicy.Candidate(
+                        30L, "信息系统安全等级保护备案证明(三级)", "三级", "31011243001-2024", "公安机关网安部门",
+                        LocalDate.of(2024, 5, 1), LocalDate.of(2027, 5, 1), "VALID",
+                        "西域电子商务平台等保三级", "https://oss.ehsy.com/cert/djbh3.jpg", "djbh3.jpg", false
+                ),
+                new EnterpriseQualificationMatchPolicy.Candidate(
+                        31L, "ISO9001质量管理体系认证", null, "001Q2", "认证机构",
+                        LocalDate.of(2024, 1, 1), LocalDate.of(2028, 1, 1), "VALID",
+                        "质量管理", "https://oss.ehsy.com/cert/iso.jpg", "iso.jpg", false
+                )
+        );
+
+        List<EnterpriseQualificationMatchPolicy.MatchResult> results =
+                EnterpriseQualificationMatchPolicy.matchCertificates(dim, detail, null, candidates, today);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.getFirst().id()).isEqualTo(30L);
+        assertThat(results.getFirst().matchScore()).isGreaterThanOrEqualTo(90);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = "二级")
+    @DisplayName("等保最低等级门禁：要求第三级及以上时拒绝仅二级等保证书")
+    void testRejectsLowerGradeProtectionCertificate(String keyword) {
+        String dim = "等保备案证明";
+        String detail = "第三级及以上等级保护测评";
+
+        List<EnterpriseQualificationMatchPolicy.Candidate> candidates = List.of(
+                new EnterpriseQualificationMatchPolicy.Candidate(
+                        32L, "信息系统安全等级保护备案证明(二级)", "二级", "31011243002-2024", "公安机关网安部门",
+                        LocalDate.of(2024, 5, 1), LocalDate.of(2027, 5, 1), "VALID",
+                        "覆盖二级等保备案及三级系统运维服务", "https://oss.ehsy.com/cert/djbh2.jpg", "djbh2.jpg", false
+                ),
+                new EnterpriseQualificationMatchPolicy.Candidate(
+                        30L, "信息系统安全等级保护备案证明(三级)", "三级", "31011243001-2024", "公安机关网安部门",
+                        LocalDate.of(2024, 5, 1), LocalDate.of(2027, 5, 1), "VALID",
+                        "三级等保备案", "https://oss.ehsy.com/cert/djbh3.jpg", "djbh3.jpg", false
+                )
+        );
+
+        List<EnterpriseQualificationMatchPolicy.MatchResult> results =
+                EnterpriseQualificationMatchPolicy.matchCertificates(dim, detail, keyword, candidates, today);
+
+        assertThat(results).extracting(EnterpriseQualificationMatchPolicy.MatchResult::id)
+                .containsExactly(30L);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = "二级")
+    void gradeRequirementDoesNotDiscardAnIndependentIsoMatch(String keyword) {
+        String dim = "企业资质";
+        String detail = "ISO9001质量管理体系认证及三级等保测评";
+        var isoCertificate = new EnterpriseQualificationMatchPolicy.Candidate(
+                1L, "ISO9001质量管理体系认证证书", null, null, null, null, null,
+                "VALID", "三级等保测评服务", "https://oss.ehsy.com/cert/iso9001.pdf", null, false);
+        var lowerGradeReport = new EnterpriseQualificationMatchPolicy.Candidate(
+                2L, "等保测评报告（二级）", "二级", null, null, null, null,
+                "VALID", "三级等保测评服务", "https://oss.ehsy.com/cert/grade2.pdf", null, false);
+        var qualifiedReport = new EnterpriseQualificationMatchPolicy.Candidate(
+                3L, "等保测评报告（三级）", "三级", null, null, null, null,
+                "VALID", null, "https://oss.ehsy.com/cert/grade3.pdf", null, false);
+
+        var matches = EnterpriseQualificationMatchPolicy.matchCertificates(
+                dim, detail, keyword, List.of(isoCertificate, lowerGradeReport, qualifiedReport), today);
+
+        assertThat(matches).extracting(EnterpriseQualificationMatchPolicy.MatchResult::id)
+                .containsExactlyInAnyOrder(1L, 3L);
+        var evidence = matches.stream()
+                .map(match -> new EnterpriseQualificationMatchPolicy.CertificateEvidence(
+                        match.name(), match.level(), match.status(), match.fileUrl()))
+                .toList();
+        assertThat(EnterpriseQualificationMatchPolicy.coversRequiredStandards(dim, detail, evidence)).isTrue();
     }
 }
