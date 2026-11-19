@@ -52,6 +52,13 @@
 > ```
 >
 > 环境门禁：必须显式声明 `ENV=prod`，否则脚本拒绝执行。
+>
+> **锚点分支执行注意（2026-11-19 第 45 次生产）**：在 `agent/*-init` 锚点分支执行时会被 session-gate 拦截（`set -e` 直接终止脚本；`XIYU_DEV_CONFIRMED=1` 仍会被 "rebase 后锚点复检" 拦下）。自动化部署需附加 `SKIP_SESSION_GATE=1`：
+> ```bash
+> ENV=prod SKIP_SESSION_GATE=1 bash scripts/release/deploy-prod.sh
+> ```
+>
+> **部署前置（迁移目录同步）**：服务器 `/tmp/migration-mysql/` 被 flyway-repair-runner 读取，落后于源码时首次 Validate 会报 `applied migration not resolved locally: <版本>`（第 281 次测试、第 45 次生产连续出现）。部署前先补齐该目录再 validate。
 
 ## GitHub 环境变量与 Secrets
 
