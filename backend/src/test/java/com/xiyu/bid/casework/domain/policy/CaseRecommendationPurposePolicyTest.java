@@ -58,4 +58,31 @@ class CaseRecommendationPurposePolicyTest {
         assertThat(CaseRecommendationPurposePolicy.determineRecommendationPurpose(title, detail, scoreType))
                 .isEqualTo(expected);
     }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "商品丰富性 | 自营商品SKU数量由多到少排序。提供系统截图。 | null | SYSTEM_SCREENSHOT | QUANTITATIVE_RANKING | MANUAL_EVIDENCE",
+            "企业资质 | 具有有效ISO9001证书，提供证书复印件。 | null | QUALIFICATION_CERT | OTHER | MANUAL_EVIDENCE",
+            "类似业绩 | 提供近三年类似业绩合同复印件。 | null | CONTRACT_INVOICE | STEPWISE_SCORING | MANUAL_EVIDENCE",
+            "电商数据 | 提供电商平台系统数据截图。 | null | SYSTEM_SCREENSHOT | null | MANUAL_EVIDENCE",
+            "技术实施方案 | 编制技术实施方案；附系统架构截图。 | null | SYSTEM_SCREENSHOT | SUBJECTIVE_REVIEW | REFERENCE_AND_MANUAL_EVIDENCE",
+            "履约方案 | 编制配送方案；提供相关资格证照。 | null | QUALIFICATION_CERT | SUBJECTIVE_REVIEW | REFERENCE_AND_MANUAL_EVIDENCE",
+            "技术方案 | 提供系统操作方案，由评委综合评价。 | null | TEXT_PROPOSAL | SUBJECTIVE_REVIEW | REFERENCE",
+            "实施方案 | 编制实施方案，提供演示截图。 | null | TEXT_PROPOSAL | SUBJECTIVE_REVIEW | REFERENCE_AND_MANUAL_EVIDENCE",
+            "商务报价 | 报价优惠方案。 | OBJECTIVE | TEXT_PROPOSAL | QUANTITATIVE_RANKING | REFERENCE_AND_MANUAL_EVIDENCE",
+            "活跃度 | 活跃用户数排位给分，提供统计证明。 | null | OTHER | QUANTITATIVE_RANKING | MANUAL_EVIDENCE",
+            "仓储面积 | 编制仓储方案，按面积由大到小排序。 | null | OTHER | QUANTITATIVE_RANKING | REFERENCE_AND_MANUAL_EVIDENCE",
+            "技术方案 | 提供平台操作方案及示例截图，由评委按方案合理性分档打分。 | SUBJECTIVE | null | null | REFERENCE",
+            "商品丰富性 | 自营商品SKU数量由多到少排序。须提供本期系统截图。 | SUBJECTIVE | null | null | MANUAL_EVIDENCE"
+    })
+    void separatesRequiredProofWithStructuredDeliverableTypeAndScoringMode(
+            String title, String detail, String scoreType, String deliverableType, String scoringMode,
+            CaseRecommendationPurposePolicy.Purpose expected) {
+        String effectiveScoreType = "null".equals(scoreType) ? null : scoreType;
+        String effectiveDeliverable = "null".equals(deliverableType) ? null : deliverableType;
+        String effectiveScoringMode = "null".equals(scoringMode) ? null : scoringMode;
+        assertThat(CaseRecommendationPurposePolicy.determineRecommendationPurpose(
+                title, detail, effectiveScoreType, effectiveDeliverable, effectiveScoringMode))
+                .isEqualTo(expected);
+    }
 }
