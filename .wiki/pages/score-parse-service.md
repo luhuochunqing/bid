@@ -788,6 +788,17 @@ trigger（同步<1s，互斥校验+建任务）
   3. 在 `ScoreItem.java` 实体中增加对应映射字段及访问方法；
   4. 新增 `ScoreItemEntityTest` 保证属性存取与默认 NULL 行为正确。
 
+## 39. 评分解析 Prompt 结构化提取与 DTO 输出对接（Step 2.2，2026-11-19）
+
+- **背景与目标**：
+  在 Step 2.1 建立了底层字段后，推进 Step 2.2：在上游大模型结构化提取 Prompt 中显式定义 `deliverable_type`（交付物形态）与 `scoring_mode`（评价模式）字段规范，并贯穿候选池、归并裁决、持久化服务与 API DTO。
+- **改动内容**：
+  1. 新增领域枚举 `ScoreDeliverableType`（包含 TEXT_PROPOSAL、SYSTEM_SCREENSHOT、QUALIFICATION_CERT、CONTRACT_INVOICE、OTHER）与 `ScoreScoringMode`（包含 SUBJECTIVE_REVIEW、QUANTITATIVE_RANKING、STEPWISE_SCORING、DEDUCTION、OTHER），提供高容错安全的 `normalize` 机制；
+  2. 在 `TableScoreExtractionPrompt` 与 `ScoreParsePrompts.buildCandidateExtractionPrompt`、`buildGlobalMergePrompt` 中增加交付物形态与评价模式提取要求；
+  3. 扩展 `TableScoreExtractionOutput.TableScoreItem`、`ScoreCandidateOutput.Candidate`、`ScoreCandidate`、`ScoreGlobalMergeOutput.MergedItem` 承载两字段；
+  4. 在 `ScoreItemPersistenceService` 中完成落库赋值，并在 `ScoreItemDTO` 与 `ScoreParseItemsReadSupport` / `ScoreItemCaseRecommendAppService` 中暴露字段；
+  5. 严格保持下游 Casework 推荐逻辑只读/PR !3058 逻辑原样不变，95 项推荐单测 100% 绿灯。
+
 
 
 

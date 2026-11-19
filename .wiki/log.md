@@ -1,3 +1,8 @@
+## [2026-11-19] feat | 评分解析 Prompt 结构化提取与 DTO 输出对接 (Step 2.2)
+
+- 在 ScoreParse 大模型 Prompt 中增加 deliverableType 与 scoringMode 结构化打标，贯穿候选池映射、归并裁决、持久化与 DTO 输出。
+- 回填：[[score-parse-service]]。
+
 ## [2026-11-18] fix | 体系认证按证书标准匹配和逐证计分
 
 - 复盘项目 1133 的证书预判漏认，覆盖有效期修饰语、标准号别名和不等额分值。

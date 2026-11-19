@@ -66,6 +66,14 @@ public class TableScoreExtractionOutput {
         @JsonProperty("score_type_guess")
         public String scoreTypeGuess;
 
+        /** 交付物形态：TEXT_PROPOSAL / SYSTEM_SCREENSHOT / QUALIFICATION_CERT / CONTRACT_INVOICE / OTHER */
+        @JsonProperty("deliverable_type")
+        public String deliverableType;
+
+        /** 评分模式：SUBJECTIVE_REVIEW / QUANTITATIVE_RANKING / STEPWISE_SCORING / DEDUCTION / OTHER */
+        @JsonProperty("scoring_mode")
+        public String scoringMode;
+
         /** 上下文约束/备注，无则 null */
         @JsonProperty("context_note")
         public String contextNote;

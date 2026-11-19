@@ -19,6 +19,8 @@ import java.math.BigDecimal;
  * @param semanticPattern 语义命中模式说明（召回三/四的命中理由，供审计追溯）
  * @param parentDim       表格父级大类原文；非表格候选为空
  * @param dimSource       维度来源：CELL、TITLE、PARENT_SINGLE 或 UNKNOWN
+ * @param deliverableType 交付物形态（TEXT_PROPOSAL、SYSTEM_SCREENSHOT 等）
+ * @param scoringMode     评分模式（SUBJECTIVE_REVIEW、QUANTITATIVE_RANKING 等）
  */
 public record ScoreCandidate(
         String code,
@@ -31,10 +33,22 @@ public record ScoreCandidate(
         String location,
         String semanticPattern,
         String parentDim,
-        String dimSource
+        String dimSource,
+        String deliverableType,
+        String scoringMode
 ) {
     public ScoreCandidate {
         code = ScoreCodeSanitizer.clean(code);
+        deliverableType = ScoreDeliverableType.normalize(deliverableType);
+        scoringMode = ScoreScoringMode.normalize(scoringMode);
+    }
+
+    /** 11-argument constructor for existing table/lane callers */
+    public ScoreCandidate(String code, String dim, String detail, BigDecimal weight,
+            String scoreTypeGuess, String contextNote, String sourceText,
+            String location, String semanticPattern, String parentDim, String dimSource) {
+        this(code, dim, detail, weight, scoreTypeGuess, contextNote, sourceText,
+                location, semanticPattern, parentDim, dimSource, null, null);
     }
 
     /** Legacy constructor retained for all non-table recall callers. */
@@ -42,7 +56,7 @@ public record ScoreCandidate(
             String scoreTypeGuess, String contextNote, String sourceText,
             String location, String semanticPattern) {
         this(code, dim, detail, weight, scoreTypeGuess, contextNote, sourceText,
-                location, semanticPattern, null, "UNKNOWN");
+                location, semanticPattern, null, "UNKNOWN", null, null);
     }
 
     public boolean hasParentDim() {
@@ -56,6 +70,7 @@ public record ScoreCandidate(
 
     public ScoreCandidate withWeight(BigDecimal newWeight) {
         return new ScoreCandidate(code, dim, detail, newWeight, scoreTypeGuess,
-                contextNote, sourceText, location, semanticPattern, parentDim, dimSource);
+                contextNote, sourceText, location, semanticPattern, parentDim, dimSource,
+                deliverableType, scoringMode);
     }
 }

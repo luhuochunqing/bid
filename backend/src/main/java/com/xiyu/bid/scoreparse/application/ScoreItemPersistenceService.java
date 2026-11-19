@@ -123,6 +123,8 @@ public class ScoreItemPersistenceService {
                     .detail(detail)
                     .weight(candidate.weight() == null ? BigDecimal.ZERO : candidate.weight())
                     .scoreType(scoreTypes.get(i))
+                    .deliverableType(candidate.deliverableType())
+                    .scoringMode(candidate.scoringMode())
                     .statusStage1("PENDING")
                     .contextNote(candidate.contextNote())
                     .sourceText(candidate.sourceText())

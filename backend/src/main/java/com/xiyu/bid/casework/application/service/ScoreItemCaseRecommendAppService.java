@@ -240,7 +240,8 @@ public class ScoreItemCaseRecommendAppService {
                 .map(item -> new ScoreItemDTO(
                         item.getId(), item.getCode(), item.getDim(), item.getDetail(),
                         item.getWeight(), item.getScoreType(), item.getStatusStage1(),
-                        item.getEstScore(), item.getEstBasis(), item.getKbHit(), item.getLocation()))
+                        item.getEstScore(), item.getEstBasis(), item.getKbHit(), item.getLocation(),
+                        item.getDeliverableType(), item.getScoringMode()))
                 .toList();
     }
 

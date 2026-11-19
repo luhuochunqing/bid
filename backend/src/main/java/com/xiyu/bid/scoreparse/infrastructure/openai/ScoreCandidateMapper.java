@@ -82,7 +82,11 @@ final class ScoreCandidateMapper {
                 safeText(candidate.contextNote),
                 alignedSource != null ? alignedSource : "",
                 truncate(safeText(candidate.location), LOCATION_MAX_CHARS),
-                safeText(candidate.semanticPattern)
+                safeText(candidate.semanticPattern),
+                null,
+                "UNKNOWN",
+                candidate.deliverableType,
+                candidate.scoringMode
         );
     }
 

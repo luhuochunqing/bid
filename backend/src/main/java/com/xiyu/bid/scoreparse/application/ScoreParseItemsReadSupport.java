@@ -57,6 +57,6 @@ final class ScoreParseItemsReadSupport {
                 stale && i.getEstScore()!=null?"知识库预判已过期或缺少计算记录，请更新知识库预判":i.getEstBasis(),
                 stale?Boolean.FALSE:i.getKbHit(),i.getLocation(),i.getSourceCellIds(),i.getWeightEvidence(),
                 i.getExtractionMethod(),i.getConfidence(),i.getValidationStatus(),i.getParentScoreItemId(),
-                state,i.getEstimatedAt());
+                state,i.getEstimatedAt(),i.getDeliverableType(),i.getScoringMode());
     }
 }

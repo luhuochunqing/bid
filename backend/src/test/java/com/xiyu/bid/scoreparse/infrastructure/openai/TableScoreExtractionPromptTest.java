@@ -25,6 +25,10 @@ class TableScoreExtractionPromptTest {
         assertThat(prompt).contains("跨行合并单元格");
         assertThat(prompt).contains("括号分值提取");
         assertThat(prompt).contains("供应商业绩");
+        assertThat(prompt).contains("deliverable_type");
+        assertThat(prompt).contains("SYSTEM_SCREENSHOT");
+        assertThat(prompt).contains("scoring_mode");
+        assertThat(prompt).contains("QUANTITATIVE_RANKING");
     }
 
     @Test
