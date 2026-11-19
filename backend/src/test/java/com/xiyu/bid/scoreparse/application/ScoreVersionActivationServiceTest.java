@@ -20,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -31,6 +33,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
@@ -66,33 +69,72 @@ class ScoreVersionActivationServiceTest {
         lenient().when(versions.findFirstByProjectIdOrderByIdDesc(PROJECT_ID)).thenReturn(Optional.empty());
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = {"", "1", "评分项 21（30分）", "1（30分）"})
     @DisplayName("版本化手动激活与自动激活均拦截空名称/纯序号的历史冻结快照项")
-    void rejectsEmptyOrInvalidNameInFrozenSnapshotOnBothAutoAndManualActivation() {
+    void rejectsEmptyOrInvalidNameInFrozenSnapshotOnBothAutoAndManualActivation(String name) {
         ScoreFact legacyFact = new ScoreFact("f-1", "t1", List.of("c1"), "规则原文得10分", "1", "",
                 BigDecimal.TEN, null, null, "", "MODEL", .9, ScoreFact.ValidationStatus.AUTO_APPROVED, ChildAggregation.SUM);
         OriginalScoreEvidencePolicy.Qualification q = new OriginalScoreEvidencePolicy.Qualification(
                 "f-1", "scheme-main", "IN_SCHEME", true, null, "t1:c1");
-        ExtractedScoreItem legacyEmptyNameItem = new ExtractedScoreItem(
-                1, "item-empty", "f-1", "scheme-main", "file-1", "", "", "规则原文得10分",
+        ExtractedScoreItem legacyItem = new ExtractedScoreItem(
+                1, "item-legacy", "f-1", "scheme-main", "file-1", name, "", "规则原文得10分",
                 List.of(), BigDecimal.TEN, null, BigDecimal.TEN, "POINTS", "OBJECTIVE",
                 null, "SUM", Map.of(), List.of(), "AUTO_APPROVED", BigDecimal.ONE, true, legacyFact, q);
         ScoreExtractionSnapshot frozenLegacy = new ScoreExtractionSnapshot(
                 1,
-                List.of(legacyEmptyNameItem),
+                List.of(legacyItem),
                 List.of(new ScoreExtractionSnapshot.Scheme("scheme-main", "评分方案", 1, BigDecimal.TEN, true, 1, BigDecimal.TEN, BigDecimal.TEN, "KNOWN")),
                 List.of());
 
-        stubFrozenTask(frozenLegacy);
+        var task = stubFrozenTask(frozenLegacy);
+        when(tasks.findLatestParseTaskForUpdate(PROJECT_ID)).thenReturn(Optional.of(task));
+        lenient().when(versions.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
 
-        assertThat(service.tryAutoActivate(PROJECT_ID, TASK_ID)).isFalse();
-        assertThatThrownBy(() -> service.activate(
-                PROJECT_ID, TASK_ID,
-                new ActivateScoreExtractionCommand("scheme-main", "empty:v1", "人工激活", List.of("item-empty")),
-                "admin"))
+        assertAll(
+                () -> assertThat(service.tryAutoActivate(PROJECT_ID, TASK_ID)).isFalse(),
+                () -> assertThatThrownBy(() -> service.activate(PROJECT_ID, TASK_ID,
+                        new ActivateScoreExtractionCommand("scheme-main", "empty:v1", "人工激活", List.of("item-legacy")),
+                        "admin")).isInstanceOf(ScoreExtractionException.class)
+                        .hasMessage("INVALID_OR_NONCOMPUTABLE_SELECTION"));
+        verify(versions, never()).saveAndFlush(any());
+        verify(items, never()).deleteByProjectId(PROJECT_ID);
+        verify(items, never()).saveAllAndFlush(any());
+    }
+
+    @Test
+    void mixedHistoricalSnapshotRequiresExplicitSelectionBeforeReplacingExistingRules() {
+        var snapshotItems = List.of(historicalItem("item-invalid", ""), historicalItem("item-valid", "人员资质（10分）"));
+        stubFrozenTask(new ScoreExtractionSnapshot(1, snapshotItems,
+                List.of(new ScoreExtractionSnapshot.Scheme("scheme-main", "评分方案", 2, BigDecimal.valueOf(20),
+                        true, 2, BigDecimal.valueOf(20), BigDecimal.valueOf(20), "KNOWN")), List.of()));
+        var oldItem = ScoreItem.builder().id(123L).dim("现行评分规则").weight(BigDecimal.valueOf(20)).build();
+        when(items.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of(oldItem));
+        when(versions.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        var fingerprint = service.currentToken(PROJECT_ID).fingerprint();
+
+        assertThatThrownBy(() -> service.activate(PROJECT_ID, TASK_ID,
+                new ActivateScoreExtractionCommand("scheme-main", fingerprint, "核对历史快照", null), "admin"))
                 .isInstanceOf(ScoreExtractionException.class)
                 .hasMessage("INVALID_OR_NONCOMPUTABLE_SELECTION");
-        verify(items, never()).saveAllAndFlush(any());
+        verify(versions, never()).saveAndFlush(any());
+        verify(results, never()).deleteByScoreItemIdIn(any());
+        verify(items, never()).deleteByProjectId(PROJECT_ID);
+
+        service.activate(PROJECT_ID, TASK_ID,
+                new ActivateScoreExtractionCommand("scheme-main", fingerprint, "选用已核对项目", List.of("item-valid")), "admin");
+        verify(results).deleteByScoreItemIdIn(List.of(oldItem.getId()));
+        verify(items).saveAllAndFlush(argThat((List<ScoreItem> saved) ->
+                saved.size() == 1 && "人员资质（10分）".equals(saved.getFirst().getDim())));
+    }
+
+    private static ExtractedScoreItem historicalItem(String id, String name) {
+        var fact = new ScoreFact(id, "t1", List.of(id), "提供证书得10分", "1", name,
+                BigDecimal.TEN, null, null, "", "MODEL", .9, ScoreFact.ValidationStatus.AUTO_APPROVED, ChildAggregation.SUM);
+        var qualification = new OriginalScoreEvidencePolicy.Qualification(id, "scheme-main", "IN_SCHEME", true, null, id);
+        return new ExtractedScoreItem(1, id, id, "scheme-main", "file-1", name, "", fact.sourceText(),
+                List.of(), BigDecimal.TEN, null, BigDecimal.TEN, "POINTS", "OBJECTIVE", null, "SUM",
+                Map.of(), List.of(), "AUTO_APPROVED", BigDecimal.ONE, true, fact, qualification);
     }
 
     @Test
@@ -114,9 +156,10 @@ class ScoreVersionActivationServiceTest {
                 List.of("NOT_EFFECTIVE_SCORING_UNIT", "INVALID_SCORE_ITEM_NAME"), "REVIEW_REQUIRED", BigDecimal.ONE, false,
                 facts.getFirst(), new OriginalScoreEvidencePolicy.Qualification(
                         "summary", "scheme-main", "IN_SCHEME", true, null, "t1:c1"));
-        stubFrozenTask(new ScoreExtractionSnapshot(1, List.of(named, summary),
+        var task = stubFrozenTask(new ScoreExtractionSnapshot(1, List.of(named, summary),
                 List.of(new ScoreExtractionSnapshot.Scheme("scheme-main", "评分方案", 2, BigDecimal.TEN,
                         true, 1, BigDecimal.TEN, BigDecimal.TEN, "KNOWN")), List.of()));
+        when(tasks.findLatestParseTaskForUpdate(PROJECT_ID)).thenReturn(Optional.of(task));
         lenient().when(versions.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
 
         assertThat(service.tryAutoActivate(PROJECT_ID, TASK_ID)).isTrue();
@@ -124,7 +167,27 @@ class ScoreVersionActivationServiceTest {
                 saved.size() == 1 && "人员资质".equals(saved.getFirst().getDim())));
     }
 
-    private void stubFrozenTask(ScoreExtractionSnapshot snapshot) {
+    @Test
+    void activatesQuantifiedRevenueAsObjectiveDespiteTheModelGuess() {
+        var metadata = new com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata("", "", List.of(), List.of(), "", "SUBJECTIVE");
+        var fact = new ScoreFact("f-revenue", "t1", List.of("c1"), "2024年营业总收入大于10亿元得10分",
+                "1", "营业总收入", BigDecimal.TEN, null, null, "", "MODEL", .9,
+                ScoreFact.ValidationStatus.AUTO_APPROVED, ChildAggregation.SUM, metadata);
+        var scope = new OriginalScoreEvidencePolicy.Qualification(
+                fact.factId(), "scheme-main", "IN_SCHEME", true, null, "t1:c1");
+        var snapshot = ScoreExtractionSnapshot.from(TASK_ID, List.of(fact), List.of(scope), List.of());
+        stubFrozenTask(snapshot);
+        when(versions.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+
+        service.activate(PROJECT_ID, TASK_ID,
+                new ActivateScoreExtractionCommand("scheme-main", "empty:v1", "核对营业收入",
+                        List.of(snapshot.items().getFirst().itemId())), "admin");
+
+        verify(items).saveAllAndFlush(argThat((List<ScoreItem> saved) ->
+                saved.size() == 1 && "OBJECTIVE".equals(saved.getFirst().getScoreType())));
+    }
+
+    private ScoreParseTask stubFrozenTask(ScoreExtractionSnapshot snapshot) {
         ScoreParseTask task = ScoreParseTask.builder()
                 .id(PARSE_ID).projectId(PROJECT_ID).taskId(TASK_ID)
                 .taskType("PARSE").status("COMPLETED").timeoutMarked(false).build();
@@ -136,8 +199,7 @@ class ScoreVersionActivationServiceTest {
                 .build();
 
         when(tasks.findByTaskId(TASK_ID)).thenReturn(Optional.of(task));
-        when(tasks.findLatestParseTaskForUpdate(PROJECT_ID)).thenReturn(Optional.of(task));
         when(snapshots.findById(PARSE_ID)).thenReturn(Optional.of(record));
-
+        return task;
     }
 }

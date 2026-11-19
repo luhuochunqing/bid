@@ -22,10 +22,10 @@ backlinks:
 - 人工采纳补齐正式写入前的校验。空原文、同源重复、已知漏项和总分冲突不得覆盖当前生效项。
 - 真实 OCR 录制回放和本地 MySQL 读回确认，项目 38 为 17 项、项目 39 为 10 项，两案各 100 分。历史 135 分候选均被拒绝。该证据用于代码验收，生产存量需上线后重解析。
 - 2026-11-19 E2E (!3055) 复查追加修复（PR2 scoreparse）：
-  1. `ScoreCategoryClassifier` / `ScoreItemTitleExtractor` / `DeterministicScoreFactExtractor` / `OriginalScoreEvidencePolicy` 保留未闭合括注（如 `"商务评分（20"`）直至名称恢复。从竖线分隔的原始行抽取标题时跳过序号列（如 `A1`）。未从原文恢复具体标题的截断项无法发布。
+  1. `ScoreCategoryClassifier` / `ScoreItemTitleExtractor` / `DeterministicScoreFactExtractor` / `OriginalScoreEvidencePolicy` 保留未闭合括注（如 `"商务评分（20"`）直至名称恢复。从竖线分隔的原始行抽取标题时跳过序号列（如 `A1`），正文在冒号后换行时也能提取标题。未从原文恢复具体标题的截断项无法发布。
   2. 复核卡片与 `ScoreReviewAdoptionPolicy` 按实际采纳的计分单元拦截空、纯序号（含中文序号）、未闭合括号、含分隔符及 `"评分项 N"` 兜底名称；`ScoreItemPersistenceService` 保留人工采纳确认的细则名称并拦截首行大类兜底；`ScoreExtractionSnapshot` 与 `ScoreVersionActivationService` 对新旧快照同步阻止空/无效名称标记可计算或激活落库。
-  3. `ScoreParseReviewFactMapper` 保留证据中的 `scoreType=(OBJECTIVE|SUBJECTIVE)` 标注（避免被规则文本覆写），`ScoreExtractionPanel.vue` 展示客观项/主观项类型标识。
+  3. 旧版复核与采纳按当前 `factId` 取分类证据。人工采纳显式选择的主客观类型随正式评分项写入。没有人工指定类型时，原文明确定性评审或量化条件优先，模型 `scoreType` 在原文分类信号不足时兜底。新生成的版本化快照同样优先依据规则原文分类，`ScoreExtractionPanel.vue` 展示快照类型，激活时写入该类型。
   4. `BaiduTableArtifactEnricher` 保留 `BAIDU_OCR_PAGE_FAILED` 与原生解析结果。评分表分类、页码和单元格只能证明存在评分表片段。表头页和仅保留一格的续表页都有失败诊断回归覆盖。
-  5. 同一格中引文和规则均不同的等分细则可分别计分。占位名仅触发标题恢复和发布校验。旧版覆盖在候选名称解析后仍无效时整批拒绝，保留既有正式项和历史打分。历史快照的不计分汇总行不妨碍有效明细自动激活。
+  5. 同一格中引文和规则均不同的等分细则可分别计分。旧版提取仅有大类名和计分正文时转人工复核，保留既有正式项和历史打分。历史快照的名称去掉末尾分值括注后仍须有效，纯序号和占位名禁止激活。不计分汇总行不妨碍有效明细自动激活。
 
 相关排查见 [[scoreparse-subjective-naming-and-recheck-dedup-rca]]。

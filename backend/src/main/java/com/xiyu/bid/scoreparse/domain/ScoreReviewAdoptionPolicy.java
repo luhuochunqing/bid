@@ -13,6 +13,8 @@ import java.util.Set;
  */
 public final class ScoreReviewAdoptionPolicy {
 
+    public static final String ADOPTED_CANDIDATE_PATTERN = "MANUAL_REVIEW_ADOPTED";
+
     public record CandidateInput(
             String factId,
             String code,
@@ -153,7 +155,7 @@ public final class ScoreReviewAdoptionPolicy {
                     "",
                     fact.sourceText(),
                     "",
-                    "MANUAL_REVIEW_ADOPTED"
+                    ADOPTED_CANDIDATE_PATTERN
             ));
 
             total = total.add(weight);

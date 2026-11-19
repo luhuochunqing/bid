@@ -8657,5 +8657,5 @@ PR结构收口：PricingSubmissionPolicy.instruction的句界定位只依赖当�
 - **根因**：
   1. PDF 跨行括注（`"商务评分（20\n分）"`）或单元格串行（`"3 | 营业总收入"`）未被 `cleanDimension` 剥离，且 `ScoreCategoryClassifier` 正则未涵盖 `"商务评分"` 与未闭合括号，导致大类/残缺文本穿透落库。
   2. `ScoreReviewAdoptionPolicy` 对空维度自动合成 `"评分项 " + index` 并允许直接采纳，致使项目 1394 出现 22/23 空候选仍可采纳落库（`"评分项 21"`、`"1"`）。
-  3. `ScoreParseReviewFactMapper` 丢弃了 `evidence.explanation` 中已确定的 `scoreType`。原生 PDF 表格的 `isScoreTable` 仅标记表格类型，同一页可能只有表头或续表单元格。
+  3. `evidence.explanation` 中的 `scoreType` 来自模型初判。旧版复核和正式写入需使用同一分类策略，原文分类信号优先。原生 PDF 表格的 `isScoreTable` 仅标记表格类型，同一页可能只有表头或续表单元格。
 - **防线**：复核界面提示修正无效名称，领域采纳校验拒绝解析后仍缺有效名称的候选。正式写入优先保留有效的人工确认名称，历史冻结候选也须通过名称检查才能写入生效项。页内覆盖缺少证据时，保留原生解析结果和 `BAIDU_OCR_PAGE_FAILED`，供来源完整性检查使用。

@@ -152,21 +152,21 @@ class ScoreItemPersistenceServiceTest {
     }
 
     @Test
-    void nullOrBlankDim_fallsBackToDetail() {
+    void nullOrBlankDim_recoversExplicitRuleTitle() {
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
                 .thenReturn(List.of());
 
         service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
-                new ScoreCandidate("1", null, "技术实施方案完整得10分",
+                new ScoreCandidate("1", null, "技术实施方案：方案完整得10分",
                         new BigDecimal("10"), "OBJECTIVE", null, "原文", "P1", null),
-                new ScoreCandidate("2", "   ", "商务资质证书得20分",
+                new ScoreCandidate("2", "   ", "商务资质证书：提供有效证书得20分",
                         new BigDecimal("20"), "OBJECTIVE", null, "原文", "P2", null)));
 
         ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
         List<ScoreItem> items = saved.getValue();
         assertThat(items).hasSize(2);
-        assertThat(items.get(0).getDim()).isEqualTo("技术实施方案完整得10分");
-        assertThat(items.get(1).getDim()).isEqualTo("商务资质证书得20分");
+        assertThat(items.get(0).getDim()).isEqualTo("技术实施方案");
+        assertThat(items.get(1).getDim()).isEqualTo("商务资质证书");
     }
 
     @Test
@@ -343,7 +343,10 @@ class ScoreItemPersistenceServiceTest {
                 "商务评分（20分）\n具体细则无冒号但需完整说明", "", "SEMANTIC");
         var candidateWithoutName = new ScoreCandidate("5", null, null,
                 BigDecimal.TEN, "OBJECTIVE", null, "原文", "P3", null);
-        for (var invalid : List.of(candidateWithTruncatedName, candidateWithoutName)) {
+        String ruleBody = "投标人提供营业收入证明得30分";
+        var candidateWithPlaceholder = new ScoreCandidate("6", "评分项 21（30分）", ruleBody,
+                new BigDecimal("30"), "OBJECTIVE", null, ruleBody, "", "SEMANTIC");
+        for (var invalid : List.of(candidateWithTruncatedName, candidateWithoutName, candidateWithPlaceholder)) {
             assertThatThrownBy(() -> service.persistItems(PROJECT_ID,
                     PARSE_TASK_ID, List.of(candidate("1", "人员资质", "5"), invalid)))
                     .isInstanceOf(ScoreExtractionException.class).hasMessage("INVALID_SCORE_ITEM_NAME");

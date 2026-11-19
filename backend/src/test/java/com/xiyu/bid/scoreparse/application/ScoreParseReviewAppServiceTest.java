@@ -1,15 +1,19 @@
 package com.xiyu.bid.scoreparse.application;
 
+import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.dto.ScoreParseReviewCommand;
 import com.xiyu.bid.scoreparse.dto.ScoreParseReviewDTO;
+import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseEvidence;
 import com.xiyu.bid.scoreparse.entity.ScoreParseFact;
 import com.xiyu.bid.scoreparse.entity.ScoreParseReview;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
+import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseReviewRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
+import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.inOrder;
@@ -291,6 +296,38 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
+    void adoptionWithoutTypeOverrideUsesTheSameFactEvidenceAsTheReview() {
+        mockLatestTask();
+        var objective = fact("objective", "20");
+        objective.setDimension("供货能力");
+        objective.setSourceText("按要求得20分");
+        var subjective = fact("subjective", "80");
+        subjective.setDimension("技术方案");
+        subjective.setSourceText("按要求得80分");
+        var objectiveEvidence = evidence("objective");
+        objectiveEvidence.setExplanation("scoreType=OBJECTIVE");
+        var subjectiveEvidence = evidence("subjective");
+        subjectiveEvidence.setExplanation("scoreType=SUBJECTIVE");
+        var evidence = new java.util.ArrayList<>(eligibleEvidence("objective", "subjective"));
+        evidence.add(objectiveEvidence);
+        evidence.add(subjectiveEvidence);
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(objective, subjective));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(evidence);
+
+        var result = service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("objective", "ADOPT_CANDIDATES", null, "确认"),
+                new ScoreParseReviewCommand.Action("subjective", "ADOPT_CANDIDATES", null, "确认")
+        ), "人工核对", 9L), "admin");
+
+        assertThat(result.facts()).extracting(ScoreParseReviewDTO.Fact::scoreType)
+                .containsExactly("OBJECTIVE", "SUBJECTIVE");
+        ArgumentCaptor<List<ScoreCandidate>> persisted = ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), persisted.capture());
+        assertThat(persisted.getValue()).extracting(ScoreCandidate::scoreTypeGuess)
+                .containsExactly("OBJECTIVE", "SUBJECTIVE");
+    }
+
+    @Test
     void submitReview_adoptCandidates_excludesPersistedOutOfSchemeFactsFromDefaultSelection() {
         mockLatestTask();
         ScoreParseFact inScheme = fact("in-scheme", "100");
@@ -311,6 +348,73 @@ class ScoreParseReviewAppServiceTest {
         verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), captor.capture());
         assertThat(captor.getValue()).hasSize(1).extracting(com.xiyu.bid.scoreparse.domain.ScoreCandidate::dim)
                 .containsExactly("资质");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void legacyCandidateTypeSurvivesFactPersistenceReviewAndFormalItemWrite() {
+        mockLatestTask();
+        var items = mock(ScoreItemRepository.class);
+        var results = mock(ScoreResultRepository.class);
+        var persistence = new ScoreItemPersistenceService(items, results, factRepository, evidenceRepository);
+        var review = new ScoreParseReviewAppService(taskRepository, factRepository, evidenceRepository,
+                reviewRepository, projectAccessScopeService, persistence, estimatedScoreService);
+        String rule = "按要求得20分";
+        persistence.persistReviewCandidateFacts(PROJECT_ID, 9L, List.of(new ScoreCandidate(
+                "1", "供货能力", rule, new BigDecimal("20"), "OBJECTIVE", null, rule, "", "SEMANTIC")));
+
+        ArgumentCaptor<List<ScoreParseFact>> facts = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<ScoreParseEvidence>> evidence = ArgumentCaptor.forClass(List.class);
+        verify(factRepository).saveAll(facts.capture());
+        verify(evidenceRepository).saveAll(evidence.capture());
+        var persistedFact = facts.getValue().getFirst();
+        persistedFact.setId(1L);
+        var persistedEvidence = evidence.getValue();
+        persistedEvidence.forEach(entry -> entry.setId(1L));
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(persistedFact));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(persistedEvidence);
+
+        assertThat(review.getReviewSnapshot(PROJECT_ID).facts()).extracting(ScoreParseReviewDTO.Fact::scoreType)
+                .containsExactly("OBJECTIVE");
+        review.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action(persistedFact.getFactId(), "ADOPT_CANDIDATES", null, "确认")
+        ), "人工核对", 9L), "admin");
+
+        ArgumentCaptor<List<ScoreItem>> savedItems = ArgumentCaptor.forClass(List.class);
+        verify(items).saveAll(savedItems.capture());
+        assertThat(savedItems.getValue()).extracting(ScoreItem::getScoreType).containsExactly("OBJECTIVE");
+    }
+
+    @Test
+    void adoptionWritesExplicitTypesEvenWhenTheRulesSuggestTheOpposite() {
+        mockLatestTask();
+        var items = mock(ScoreItemRepository.class);
+        var persistence = new ScoreItemPersistenceService(items, mock(ScoreResultRepository.class));
+        var review = new ScoreParseReviewAppService(taskRepository, factRepository, evidenceRepository,
+                reviewRepository, projectAccessScopeService, persistence, estimatedScoreService);
+        var contracts = fact("contracts", "10");
+        contracts.setCode("1");
+        contracts.setDimension("合同业绩");
+        contracts.setSourceText("每提供1份有效合同得2分，最高10分");
+        var proposal = fact("proposal", "10");
+        proposal.setCode("2");
+        proposal.setDimension("技术方案");
+        proposal.setSourceText("技术方案先进合理，专家酌情给分");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(contracts, proposal));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(eligibleEvidenceTotal("20", "contracts", "proposal"));
+        assertThat(review.getReviewSnapshot(PROJECT_ID).facts()).extracting(ScoreParseReviewDTO.Fact::scoreType)
+                .containsExactly("OBJECTIVE", "SUBJECTIVE");
+
+        review.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(
+                new ScoreParseReviewCommand.Action("contracts", "ADOPT_CANDIDATES", null, null,
+                        null, null, null, null, "SUBJECTIVE"),
+                new ScoreParseReviewCommand.Action("proposal", "ADOPT_CANDIDATES", null, null,
+                        null, null, null, null, "OBJECTIVE")
+        ), "人工核对", 9L), "admin");
+
+        ArgumentCaptor<List<ScoreItem>> savedItems = ArgumentCaptor.forClass(List.class);
+        verify(items).saveAll(savedItems.capture());
+        assertThat(savedItems.getValue()).extracting(ScoreItem::getScoreType).containsExactly("SUBJECTIVE", "OBJECTIVE");
     }
 
     @Test
@@ -701,8 +805,43 @@ class ScoreParseReviewAppServiceTest {
     }
 
     @Test
-    @DisplayName("复核 DTO 映射保留证据中的 OBJECTIVE 主客观分类并提纯截断维度为末级细则名称")
-    void factMapper_preservesVerifiedScoreTypeAndRefinesNoisyDimension() {
+    void legacyReviewRequiresANameWhenTheStoredDimensionWasCopiedFromTheRule() {
+        mockLatestTask();
+        String factId = "review-candidate-9-1-A1";
+        String rule = "投标人提供营业收入证明得30分";
+        var legacy = fact(factId, "30");
+        legacy.setDimension(rule);
+        legacy.setSourceText(rule);
+        legacy.setExtractionMethod("LEGACY_REVIEW_CANDIDATE");
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(legacy));
+        when(evidenceRepository.findByParseTaskId(9L)).thenReturn(eligibleEvidenceTotal("30", factId));
+
+        var snapshot = service.getReviewSnapshot(PROJECT_ID);
+        var oneClick = new ScoreParseReviewCommand.Action(null, "ADOPT_CANDIDATES", null, "一键采纳");
+        org.junit.jupiter.api.Assertions.assertAll(
+                () -> assertThat(snapshot.facts().getFirst().dimension()).isEmpty(),
+                () -> assertThatThrownBy(() -> service.submitReview(PROJECT_ID,
+                        new ScoreParseReviewCommand(List.of(oneClick), "人工核对", 9L), "admin"))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining("候选评分项缺少有效名称"));
+        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+        verify(reviewRepository, never()).save(org.mockito.ArgumentMatchers.any());
+
+        var named = new ScoreParseReviewCommand.Action(
+                factId, "ADOPT_CANDIDATES", null, null, null, "营业总收入", null, null, null);
+        service.submitReview(PROJECT_ID, new ScoreParseReviewCommand(List.of(named), "人工核对", 9L), "admin");
+
+        ArgumentCaptor<List<ScoreCandidate>> persisted = ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(9L), persisted.capture());
+        assertThat(persisted.getValue()).singleElement().satisfies(candidate -> {
+            assertThat(ScoreItemPersistenceService.resolveDim(candidate)).isEqualTo("营业总收入");
+            assertThat(candidate.detail()).isEqualTo(rule);
+        });
+    }
+
+    @Test
+    @DisplayName("复核 DTO 按原文确定主客观分类，并提纯截断维度为末级细则名称")
+    void factMapper_classifiesSourceTextAndRefinesNoisyDimension() {
         ScoreParseFact noisyFact = ScoreParseFact.builder()
                 .factId("f-noisy")
                 .code("3")
@@ -722,6 +861,28 @@ class ScoreParseReviewAppServiceTest {
         var dto = ScoreParseReviewFactMapper.toFactDTO(noisyFact, List.of(typeEvidence));
         assertThat(dto.scoreType()).isEqualTo("OBJECTIVE");
         assertThat(dto.dimension()).isEqualTo("营业总收入");
+    }
+
+    @Test
+    void factMapperPrioritizesExplicitSubjectiveRuleOverObjectiveGuess() {
+        ScoreParseFact fact = fact("f-subjective", "5");
+        fact.setSourceText("根据服务方案的完整性、合理性综合评审打分");
+        ScoreParseEvidence typeEvidence = evidence(fact.getFactId());
+        typeEvidence.setExplanation("page=25; scoreType=OBJECTIVE");
+
+        assertThat(ScoreParseReviewFactMapper.toFactDTO(fact, List.of(typeEvidence)).scoreType())
+                .isEqualTo("SUBJECTIVE");
+    }
+
+    @Test
+    void factMapperRetainsModelGuessWhenRuleHasNoClearTypeSignals() {
+        ScoreParseFact fact = fact("f-unclear", "5");
+        fact.setSourceText("按要求得5分");
+        ScoreParseEvidence typeEvidence = evidence(fact.getFactId());
+        typeEvidence.setExplanation("page=25; scoreType=OBJECTIVE");
+
+        assertThat(ScoreParseReviewFactMapper.toFactDTO(fact, List.of(typeEvidence)).scoreType())
+                .isEqualTo("OBJECTIVE");
     }
 
     private ScoreParseFact fact(String factId, String weight) {

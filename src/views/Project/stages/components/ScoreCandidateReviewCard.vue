@@ -69,8 +69,9 @@
             </td>
             <td class="col-weight"><el-input-number v-model="fact.weight" :disabled="readonly" :min="0" :precision="2" size="small" aria-label="分值" /></td>
             <td class="col-score-type">
-              <span class="score-type-label">{{ scoreTypeLabel(fact.scoreType) }}</span>
-              <el-select v-model="fact.scoreType" :disabled="readonly" size="small" placeholder="主客观" class="score-type-select" aria-label="评分类别">
+              <span class="score-type-label">{{ scoreTypeLabel(manualScoreTypes.get(fact) || fact.scoreType) }}</span>
+              <el-select :model-value="manualScoreTypes.get(fact)" @update:model-value="manualScoreTypes.set(fact, $event)"
+                :disabled="readonly" clearable size="small" placeholder="按规则自动判断" class="score-type-select" aria-label="评分类别">
                 <el-option label="客观项" value="OBJECTIVE" />
                 <el-option label="主观项" value="SUBJECTIVE" />
               </el-select>
@@ -137,7 +138,7 @@
         :loading="isAdoptingCandidates"
         :disabled="readonly || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId) || invalidEffectiveFacts.size > 0"
         data-test="btn-adopt-candidates"
-        @click="$emit('adopt', candidateFacts)"
+        @click="emit('adopt', candidateFacts.map(fact => ({ ...fact, scoreType: manualScoreTypes.get(fact) || undefined })))"
       >
         ⚡ 一键采纳为正式评分标准（{{ candidateTotalWeight }}分）
       </el-button>
@@ -149,7 +150,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { isManualScoreCandidate } from '@/composables/projectDetail/manualScoreCandidate.js'
 import { isInvalidCandidateDimension } from './ScoreExtractionPanel.vue'
@@ -228,6 +229,7 @@ function contributesScore(fact) {
 }
 
 const emit = defineEmits(['adopt', 'reparse', 'scheme-change', 'fact-change'])
+const manualScoreTypes = reactive(new WeakMap())
 
 function toggleFactEligibility(fact, eligible) {
   if (props.readonly) return

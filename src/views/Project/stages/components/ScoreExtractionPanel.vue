@@ -77,12 +77,14 @@
   </section>
 </template>
 <script>
-const PURE_CODE_DIM = /^(\d+(?:[.-]\d+)*|[一二三四五六七八九十]+)$/
-const PLACEHOLDER_DIM = /^评分项(?:\s*\d+(?:[.-]\d+)*)?$/
+const PURE_CODE_DIM = /^([A-Za-z]?\d+(?:[.-]\d+)*|[一二三四五六七八九十]+)$/
+const PLACEHOLDER_DIM = /^评分项(?:\s*[A-Za-z]?\d+(?:[.-]\d+)*)?$/
+const SCORE_SUFFIX = /\s*[（(](?:满分|最高)?\s*\d+(?:\.\d+)?\s*分[）)]\s*$/
 
 export function isInvalidCandidateDimension(dimension) {
   const name = String(dimension ?? '').trim()
-  if (!name || PURE_CODE_DIM.test(name) || PLACEHOLDER_DIM.test(name) || name.includes('|')) return true
+  const label = name.replace(SCORE_SUFFIX, '').trim()
+  if (!label || PURE_CODE_DIM.test(label) || PLACEHOLDER_DIM.test(label) || name.includes('|')) return true
 
   let depth = 0
   for (const character of name) {

@@ -26,6 +26,16 @@ import java.util.Optional;
 @Slf4j
 final class StructuredTableExtractionHandler {
     private StructuredTableExtractionHandler() {}
+
+    static String withFinalDecision(ScoreParseTask task) {
+        try {
+            var summary = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                    task.getRunSummary(), com.fasterxml.jackson.databind.node.ObjectNode.class);
+            return summary.put("decisionStatus", task.getDecisionStatus()).put("fallbackReason", task.getFallbackReason()).toString();
+        } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+            throw new IllegalStateException("评分解析摘要判定更新失败", failure);
+        }
+    }
     static StructuredTableResult extract(TenderTextSource source, LoadedBidFile loaded,
                                           SidecarDocumentArtifactExtractor artifactExtractor,
                                           SidecarTableExtractor sidecarTableExtractor) {

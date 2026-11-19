@@ -253,9 +253,9 @@ public final class OriginalScoreEvidencePolicy {
 
     public static String publishedDimension(String dimension, String sourceText, BigDecimal weight) {
         String cleaned = ScoreItemTitleExtractor.cleanDimensionLabel(dimension);
-        if (!ScoreCategoryClassifier.needsSpecificTitle(cleaned) && !sectionCategory(cleaned)
-                && !ScoreCategoryClassifier.hasUnclosedBracket(dimension)) return cleaned;
-        if (weight != null && sourceText != null && !sourceText.isBlank()) {
+        boolean needsSpecificTitle = ScoreCategoryClassifier.needsSpecificTitle(cleaned) || sectionCategory(cleaned)
+                || ScoreCategoryClassifier.hasUnclosedBracket(dimension);
+        if (needsSpecificTitle && weight != null && sourceText != null && !sourceText.isBlank()) {
             String number = weight.stripTrailingZeros().toPlainString();
             String compact = sourceText.replaceAll("\\s+", "");
             int at = compact.indexOf("（" + number + "分）");

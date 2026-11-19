@@ -57,6 +57,27 @@ class DeterministicScoreFactExtractorTest {
         assertTrue(snapshot.items().getFirst().diagnostics().contains("INVALID_SCORE_ITEM_NAME"));
     }
 
+    @Test
+    void truncatedMergedCategoryDoesNotLendFirstRuleTitleToContinuation() {
+        var table = gridWithMergedRegions(List.of(
+                cell("h0", 0, 0, "序号"), cell("h1", 0, 1, "评分因素"),
+                cell("h2", 0, 2, "评分细则"), cell("h3", 0, 3, "分值"),
+                cell("r1c0", 1, 0, "1"), cellWithMerge("r1c1", 1, 1, "商务评分（20", 2, 1, false),
+                cell("r1c2", 1, 2, "营业总收入：提供营业收入证明得5分"), cell("r1c3", 1, 3, "5"),
+                cell("r2c0", 2, 0, "2"), cellWithMerge("r2c1", 2, 1, "", 1, 1, true),
+                cell("r2c2", 2, 2, "投标人提供质量认证证书得15分"), cell("r2c3", 2, 3, "15")
+        ), List.of(new MergedRegionDto("r1c1", 2, 1)), 3, 4);
+
+        var facts = DeterministicScoreFactExtractor.extract(table, mapping());
+        assertEquals(2, facts.size());
+        assertEquals("营业总收入", facts.getFirst().dimension());
+        var continuation = facts.getLast();
+        assertEquals("", continuation.dimension());
+        assertEquals(new BigDecimal("15"), continuation.weight());
+        assertTrue(continuation.sourceCellIds().contains("r1c1"));
+        assertEquals("2 | 投标人提供质量认证证书得15分 | 15", continuation.sourceText());
+    }
+
     private static CanonicalCellDto cell(String id, int row, int column, String text) {
         return new CanonicalCellDto(
                 id, row, column, text, text, 1, 1, false,

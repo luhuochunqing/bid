@@ -117,13 +117,13 @@ it('displays objective and subjective scoreType labels on candidate items', () =
   expect(cards[1].text()).toContain('主观项')
 })
 
-it.each(['', '1', '一', '评分项 21', '3 | 营业总收入', '商务评分（20'])(
+it.each(['', '1', '一', 'A1', 'b2-1.3', '评分项 21', '评分项 21（30分）', '1（30分）', '3 | 营业总收入', '商务评分（20'])(
   'excludes invalid historical name %j while allowing a valid rule',
   async (name) => {
     const data = snapshot()
     data.items = [
       item('invalid', { name, computable: true }),
-      item('valid', { name: '营业总收入', computable: true }),
+      item('valid', { name: '营业总收入（30分）', computable: true }),
     ]
     const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
     const invalid = w.get('[data-item-id="invalid"]')

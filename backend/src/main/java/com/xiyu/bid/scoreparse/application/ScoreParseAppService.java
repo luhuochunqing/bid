@@ -223,6 +223,7 @@ public class ScoreParseAppService {
                 decision = ScoreParseDecision.REVIEW_REQUIRED;
                 task.setDecisionStatus(decision.name());
                 task.setFallbackReason("INVALID_SCORE_ITEM_NAME");
+                task.setRunSummary(StructuredTableExtractionHandler.withFinalDecision(task));
             }
             if (processed.originalTotal() != null) task.setOriginalTotalWeight(processed.originalTotal());
             taskRepository.save(task);

@@ -803,7 +803,7 @@ class ScoreParseAppServiceTest {
         String tableText = """
                 | 序号 | 评分项目 | 评分标准 | 分值 |
                 | --- | --- | --- | --- |
-                | 1 | 商务部分 | 财务状况良好得30分 | 30 |
+                | 1 | 商务部分 | 财务状况：财务状况良好得30分 | 30 |
                 | 2 | 技术方案 | 方案详细可行得70分 | 70 |
                 """;
         mockParseFlowWithText(tableText);
@@ -817,6 +817,7 @@ class ScoreParseAppServiceTest {
         verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(5L), captor.capture());
         List<ScoreCandidate> persisted = captor.getValue();
         assertThat(persisted).hasSize(2);
+        assertThat(ScoreItemPersistenceService.resolveDim(persisted.getFirst())).isEqualTo("财务状况");
         assertThat(persisted.get(0).weight()).isEqualByComparingTo(new BigDecimal("30"));
         assertThat(persisted.get(1).weight()).isEqualByComparingTo(new BigDecimal("70"));
     }
@@ -826,7 +827,7 @@ class ScoreParseAppServiceTest {
         String tableText = """
                 | 序号 | 评分项目 | 评分标准 | 分值 |
                 | --- | --- | --- | --- |
-                | 1 | 商务部分 | 财务状况良好得30分 | 30 |
+                | 1 | 商务部分 | 财务状况：财务状况良好得30分 | 30 |
                 | 2 | 技术方案 | 方案详细可行得70分 | 70 |
                 """;
         mockParseFlowWithText(tableText);
@@ -842,6 +843,7 @@ class ScoreParseAppServiceTest {
         verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(5L), captor.capture());
         List<ScoreCandidate> persisted = captor.getValue();
         assertThat(persisted).hasSize(2);
+        assertThat(ScoreItemPersistenceService.resolveDim(persisted.getFirst())).isEqualTo("财务状况");
         assertThat(persisted.get(0).weight()).isEqualByComparingTo(new BigDecimal("30"));
         assertThat(persisted.get(1).weight()).isEqualByComparingTo(new BigDecimal("70"));
     }
@@ -867,7 +869,27 @@ class ScoreParseAppServiceTest {
     }
 
     @Test
-    void legacyTableWithTruncatedNameAndOnlyRuleBodyRequiresReview() {
+    void legacyAutoApprovalRequiresReviewWhenCategoryHasOnlyScoringProse() {
+        var task = mockParseFlowWithText("""
+                | 序号 | 评分项目 | 评分标准 | 分值 |
+                | --- | --- | --- | --- |
+                | 1 | 商务 | 投标人提供营业收入证明得30分 | 30 |
+                | 2 | 技术方案 | 方案详细可行得70分 | 70 |
+                """);
+        when(schemaMapperProvider.getIfAvailable()).thenReturn(null);
+
+        service.executeParseAsync(TASK_ID);
+
+        assertThat(task.getDecisionStatus()).isEqualTo("REVIEW_REQUIRED");
+        assertThat(task.getFallbackReason()).isEqualTo("INVALID_SCORE_ITEM_NAME");
+        verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
+        verify(itemPersistenceService).persistReviewCandidateFacts(eq(PROJECT_ID), eq(5L), anyList());
+        verify(estimatedScoreService, never()).estimateForProject(any());
+        verify(stateService).markCompleted(TASK_ID);
+    }
+
+    @Test
+    void legacyTableWithTruncatedNameAndOnlyRuleBodyRequiresReview() throws Exception {
         String tableText = """
                 | 序号 | 评分项目 | 评分标准 | 分值 |
                 | --- | --- | --- | --- |
@@ -881,6 +903,10 @@ class ScoreParseAppServiceTest {
 
         assertThat(task.getDecisionStatus()).isEqualTo("REVIEW_REQUIRED");
         assertThat(task.getFallbackReason()).isEqualTo("INVALID_SCORE_ITEM_NAME");
+        var summary = new com.fasterxml.jackson.databind.ObjectMapper().readTree(task.getRunSummary());
+        assertThat(summary.path("decisionStatus").asText()).isEqualTo(task.getDecisionStatus());
+        assertThat(summary.path("fallbackReason").asText()).isEqualTo(task.getFallbackReason());
+        assertThat(summary.path("finalTotalWeight").decimalValue()).isEqualByComparingTo("100");
         verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
         verify(itemPersistenceService).persistReviewCandidateFacts(eq(PROJECT_ID), eq(5L), anyList());
         verify(estimatedScoreService, never()).estimateForProject(any());

@@ -250,14 +250,14 @@ public final class DeterministicScoreFactExtractor {
             Map<Integer, String> dimensionOriginCellIdByRow, Map<String, Integer> originRowByCellId) {
         CanonicalCell dimCell = cellAt(grid.cellsInRow(row), mapping.dimCol()).orElse(null);
         if (dimCell == null || !dimCell.isMergedContinue()) return fact;
-        Integer originRow = originRowByCellId.get(dimensionOriginCellIdByRow.get(row));
+        String originCellId = dimensionOriginCellIdByRow.get(row);
+        Integer originRow = originRowByCellId.get(originCellId);
         if (originRow == null) return fact;
         ScoreFact parent = resolveParentFact(originRow, mapping, grid, factByRow, parentFactByOriginRow);
-        ScoreFact originLeaf = factByRow.get(originRow);
-        String dim = !fact.dimension().isBlank() ? fact.dimension()
-                : (parent != null && !parent.dimension().isBlank() ? parent.dimension()
-                : (originLeaf != null && !originLeaf.dimension().isBlank() ? originLeaf.dimension() : ""));
-        String originCellId = dimensionOriginCellIdByRow.get(row);
+        // Only the merged cell is shared. The origin row's rule may supply a row-specific title.
+        String dim = fact.dimension().isBlank()
+                ? grid.findCell(originCellId).map(cell -> ScoreItemTitleExtractor.resolveDimension(cell.rawText(), "")).orElse("")
+                : fact.dimension();
         List<String> sourceCellIds = new ArrayList<>(fact.sourceCellIds());
         if (originCellId != null && !sourceCellIds.contains(originCellId)) sourceCellIds.add(originCellId);
         String sourceText = fact.sourceText();

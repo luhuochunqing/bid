@@ -1,5 +1,5 @@
 // Input: REVIEW_REQUIRED ScoreCandidate list
-// Output: ScoreFact snapshot list for review UI
+// Output: ScoreFact snapshots and candidate type evidence for review UI
 // Pos: scoreparse/application — legacy review candidate fact mapping
 package com.xiyu.bid.scoreparse.application;
 
@@ -8,6 +8,7 @@ import com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreItemOrderPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreItemTitleExtractor;
+import com.xiyu.bid.scoreparse.entity.ScoreParseEvidence;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -20,16 +21,23 @@ final class ScoreReviewCandidateFactMapper {
     private ScoreReviewCandidateFactMapper() {
     }
 
-    static List<ScoreFact> toFacts(Long parseTaskId, List<ScoreCandidate> candidates) {
-        if (candidates == null || candidates.isEmpty()) {
-            return List.of();
-        }
+    record ReviewSnapshot(List<ScoreFact> facts, List<ScoreParseEvidence> evidence) {}
+
+    static ReviewSnapshot toSnapshot(Long parseTaskId, List<ScoreCandidate> candidates) {
         List<ScoreCandidate> ordered = ORDER_POLICY.sort(candidates);
         List<ScoreFact> facts = new ArrayList<>();
+        List<ScoreParseEvidence> evidence = new ArrayList<>();
         for (int i = 0; i < ordered.size(); i++) {
-            facts.add(toFact(parseTaskId, i + 1, ordered.get(i)));
+            ScoreCandidate candidate = ordered.get(i);
+            ScoreFact fact = toFact(parseTaskId, i + 1, candidate);
+            facts.add(fact);
+            String guess = candidate.scoreTypeGuess();
+            if ("OBJECTIVE".equals(guess) || "SUBJECTIVE".equals(guess)) {
+                evidence.add(ScoreParseEvidence.builder().parseTaskId(parseTaskId).factId(fact.factId())
+                        .kind("CANDIDATE_SCORE_TYPE").explanation("scoreType=" + guess).build());
+            }
         }
-        return List.copyOf(facts);
+        return new ReviewSnapshot(List.copyOf(facts), List.copyOf(evidence));
     }
 
     private static ScoreFact toFact(Long parseTaskId, int index, ScoreCandidate candidate) {
@@ -53,9 +61,6 @@ final class ScoreReviewCandidateFactMapper {
     }
 
     private static String firstNonBlank(String... values) {
-        if (values == null) {
-            return "";
-        }
         for (String value : values) {
             if (value != null && !value.isBlank()) {
                 return value;

@@ -18,6 +18,19 @@ class ScoreExtractionSnapshotTest {
         assertThat(item.computable()).isTrue();
     }
 
+    @Test
+    void ruleTypeTakesPriorityOverTheModelGuessOnlyWhenTheSourceIsConclusive() {
+        var revenue = classifiedFact("营业总收入", "2024年营业总收入大于10亿元得10分", "SUBJECTIVE");
+        var service = classifiedFact("服务方案", "根据服务方案的完整性、合理性综合评审打分", "OBJECTIVE");
+        var ambiguous = classifiedFact("供货能力", "按要求得10分", "OBJECTIVE");
+        var noSource = classifiedFact("交付能力", "", "OBJECTIVE");
+        var items = ScoreExtractionSnapshot.from("task", List.of(revenue, service, ambiguous, noSource),
+                List.of(), List.of()).items();
+
+        assertThat(items).extracting(ExtractedScoreItem::scoreType)
+                .containsExactly("OBJECTIVE", "SUBJECTIVE", "OBJECTIVE", "OBJECTIVE");
+    }
+
     @Test void selectedUnknownBranchMakesTotalIncompleteEvenWhenEffectiveUnitsStillMatch() {
         var old=fact("old",BigDecimal.TEN);
         var parent=new ScoreFact("p","t",List.of(),"父项5分","p","父项",new BigDecimal("5"),null,null,null,"MODEL",.8,ScoreFact.ValidationStatus.REVIEW_REQUIRED,ChildAggregation.UNKNOWN);
@@ -164,6 +177,12 @@ class ScoreExtractionSnapshotTest {
         assertThat(item.name()).isEmpty();
         assertThat(item.computable()).isFalse();
         assertThat(item.diagnostics()).contains("INVALID_SCORE_ITEM_NAME");
+    }
+
+    private static ScoreFact classifiedFact(String name, String rule, String modelType) {
+        var metadata = new ScoreSourceMetadata("", "", List.of(), List.of(), "", modelType);
+        return new ScoreFact(name, "t", List.of(), rule, "1", name, BigDecimal.TEN, null, null, "",
+                "MODEL", .9, ScoreFact.ValidationStatus.REVIEW_REQUIRED, ChildAggregation.SUM, metadata);
     }
 
     static ScoreFact fact(String id, BigDecimal weight) {

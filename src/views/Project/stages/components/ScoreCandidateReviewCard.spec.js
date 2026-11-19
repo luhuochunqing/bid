@@ -108,6 +108,33 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.findAll('.col-detail')[0].text()).toContain('业绩要求')
   })
 
+  it.each([undefined, 'SUBJECTIVE', 'OBJECTIVE'])('submits only a manually selected score type (%s) with a corrected rule', async (manualType) => {
+    const fact = { factId: 'contracts', dimension: '合同业绩', weight: 10, scoreType: 'SUBJECTIVE',
+      sourceText: '技术方案先进合理，专家酌情给分', candidateEligible: true }
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: { candidateFacts: [fact], candidateTotalWeight: 10 },
+      global: { stubs: {
+        'el-alert': true,
+        'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
+        'el-input': { props: ['modelValue', 'size'], emits: ['update:modelValue'],
+          template: `<input :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" />` },
+        'el-select': { props: ['modelValue', 'size'], emits: ['update:modelValue'],
+          template: `<select :value="modelValue" @change="$emit('update:modelValue', $event.target.value)"><option value=""></option><slot /></select>` },
+        'el-option': { props: ['value'], template: '<option :value="value" />' },
+      } },
+    })
+    expect(wrapper.get('.score-type-label').text()).toBe('主观项')
+    if (manualType) await wrapper.get('[aria-label="评分类别"]').setValue(manualType)
+    const correctedRule = '每提供1份有效合同得2分，最高10分'
+    await wrapper.get('[aria-label="完整规则"]').setValue(correctedRule)
+    await wrapper.get('[data-test="btn-adopt-candidates"]').trigger('click')
+
+    const [[submittedFacts]] = wrapper.emitted('adopt')
+    expect(submittedFacts[0].sourceText).toBe(correctedRule)
+    expect(submittedFacts[0].scoreType).toBe(manualType)
+    expect(fact.scoreType).toBe('SUBJECTIVE')
+  })
+
   it('explains a partial candidate total and still allows explicit adoption', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: {
@@ -470,7 +497,7 @@ it('warns and refuses silent mutation when clicking include while schemeSelectio
 })
 
 it('blocks adoption when eligible candidates have empty, pure-numeric, placeholder, pipe, or unclosed-bracket names', () => {
-  for (const badDim of ['', '1', '一', '评分项 21', '商务评分（20', '3 | 营业总收入']) {
+  for (const badDim of ['', '1', '一', 'A1', 'b2-1.3', '评分项 21', '商务评分（20', '3 | 营业总收入']) {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: {
         candidateFacts: [

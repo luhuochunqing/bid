@@ -201,10 +201,10 @@ public class ScoreVersionActivationService {
         var snapshot=codec.decode(record.getPayload());
         if(snapshot.schemes().stream().noneMatch(s -> s.schemeId().equals(command.schemeId()))) throw new ScoreExtractionException(400,"SCHEME_NOT_FOUND");
         var selection=snapshot.items().stream()
-                .filter(i -> i.schemeId().equals(command.schemeId()) && i.computable()
-                        && !ScoreCategoryClassifier.isInvalidOrPlaceholderName(i.name()))
+                .filter(i -> i.schemeId().equals(command.schemeId()) && i.computable())
                 .filter(i -> command.selectedItemIds()==null || command.selectedItemIds().contains(i.itemId())).toList();
-        if(selection.isEmpty() || command.selectedItemIds()!=null && (new HashSet<>(command.selectedItemIds()).size()!=command.selectedItemIds().size()
+        if(selection.isEmpty() || selection.stream().anyMatch(i -> ScoreCategoryClassifier.isInvalidOrPlaceholderName(i.name()))
+                || command.selectedItemIds()!=null && (new HashSet<>(command.selectedItemIds()).size()!=command.selectedItemIds().size()
                 || selection.size()!=command.selectedItemIds().size())) throw new ScoreExtractionException(400,"INVALID_OR_NONCOMPUTABLE_SELECTION");
         var old=items.findByProjectIdOrderByItemIndexAsc(projectId);
         var version=versions.saveAndFlush(ScoreActiveVersion.builder().projectId(projectId).parseTaskId(task.getId()).schemeId(command.schemeId())

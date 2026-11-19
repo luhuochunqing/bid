@@ -24,17 +24,18 @@ final class ScoreParseReviewFactMapper {
 
     private ScoreParseReviewFactMapper() {}
 
-    private static String resolveScoreType(String sourceText, List<ScoreParseEvidence> evidences) {
-        if (evidences != null) {
-            for (ScoreParseEvidence evidence : evidences) {
-                if (evidence == null || evidence.getExplanation() == null) continue;
-                var matcher = SCORE_TYPE_IN_EXPLANATION.matcher(evidence.getExplanation());
-                if (matcher.find()) {
-                    return matcher.group(1);
-                }
+    static String resolveScoreType(String sourceText, List<ScoreParseEvidence> evidences) {
+        String scoreTypeGuess = null;
+        for (ScoreParseEvidence evidence : evidences) {
+            String explanation = evidence.getExplanation();
+            if (explanation == null) continue;
+            var matcher = SCORE_TYPE_IN_EXPLANATION.matcher(explanation);
+            if (matcher.find()) {
+                scoreTypeGuess = matcher.group(1);
+                break;
             }
         }
-        return new ScoreTypeClassificationPolicy().classify(sourceText);
+        return new ScoreTypeClassificationPolicy().classify(sourceText, scoreTypeGuess);
     }
 
     static BigDecimal declaredTotal(ScoreParseTask task) {

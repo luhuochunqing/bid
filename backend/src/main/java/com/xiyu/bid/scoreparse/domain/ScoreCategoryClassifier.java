@@ -20,7 +20,10 @@ public final class ScoreCategoryClassifier {
     private static final Pattern GENERIC_TITLE_NAMES = Pattern.compile(
             "^(商务评分|技术评分|价格评分|报价评分|综合评分|详细评审|评分标准|评审标准)$");
     private static final Pattern PURE_NUMBER_OR_CODE = Pattern.compile("^(?:\\d+(?:[.-]\\d+)*|[一二三四五六七八九十]+)$");
-    private static final Pattern PLACEHOLDER_NAME = Pattern.compile("^评分项(?:\\s*\\d+(?:[.-]\\d+)*)?$");
+    private static final Pattern ALPHANUMERIC_CODE = Pattern.compile("^[A-Za-z]\\d+(?:[.-]\\d+)*$");
+    private static final Pattern PLACEHOLDER_NAME = Pattern.compile("^评分项(?:\\s*[A-Za-z]?\\d+(?:[.-]\\d+)*)?$");
+    private static final Pattern SCORE_SUFFIX = Pattern.compile(
+            "\\s*[（(](?:满分|最高)?\\s*\\d+(?:\\.\\d+)?\\s*分[）)]\\s*$");
 
     private ScoreCategoryClassifier() {
     }
@@ -51,18 +54,24 @@ public final class ScoreCategoryClassifier {
             return true;
         }
         String trimmed = name.trim();
-        if (PURE_NUMBER_OR_CODE.matcher(trimmed).matches()
-                || PLACEHOLDER_NAME.matcher(trimmed).matches()
-                || trimmed.contains("|")) {
-            return true;
-        }
-        return hasUnclosedBracket(trimmed);
+        String label = stripTrailingScore(trimmed);
+        return label.isEmpty() || PURE_NUMBER_OR_CODE.matcher(label).matches()
+                || isAlphanumericCode(label) || PLACEHOLDER_NAME.matcher(label).matches()
+                || trimmed.contains("|") || hasUnclosedBracket(trimmed);
+    }
+
+    static String stripTrailingScore(String text) {
+        return SCORE_SUFFIX.matcher(text.trim()).replaceFirst("").trim();
+    }
+
+    static boolean isAlphanumericCode(String name) {
+        return ALPHANUMERIC_CODE.matcher(name).matches();
     }
 
     /**
      * 检测文本是否存在未成对闭合的括号（如 OCR/表格列截断导致的 "商务评分（20"）。
      */
-    public static boolean hasUnclosedBracket(String text) {
+    static boolean hasUnclosedBracket(String text) {
         int depth = 0;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);

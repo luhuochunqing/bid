@@ -33,12 +33,14 @@ class ScoreCategoryClassifierTest {
     @Test
     @DisplayName("空名称、纯序号、未闭合括号、竖线分隔符与占位符禁止作为有效落库名称")
     void invalidOrPlaceholderNameDetection() {
-        for (String invalid : java.util.List.of("", "   ", "1", "2.1", "一", "二", "二十一", "商务评分（20", "商务（未闭合", "3 | 营业总收入", "评分项", "评分项 21")) {
+        for (String invalid : java.util.List.of("", "   ", "1", "2.1", "一", "二", "二十一", "A1", "b2-1.3",
+                "商务评分（20", "商务（未闭合", "3 | 营业总收入", "评分项", "评分项 21")) {
             assertThat(ScoreCategoryClassifier.isInvalidOrPlaceholderName(invalid))
                     .as("expected invalid name: %s", invalid).isTrue();
         }
         assertThat(ScoreCategoryClassifier.isInvalidOrPlaceholderName("营业总收入")).isFalse();
         assertThat(ScoreCategoryClassifier.isInvalidOrPlaceholderName("营业总收入（2024年）")).isFalse();
+        assertThat(ScoreCategoryClassifier.isInvalidOrPlaceholderName("A1证书")).isFalse();
     }
 
     @Test
