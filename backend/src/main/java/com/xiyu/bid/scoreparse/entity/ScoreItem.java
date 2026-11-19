@@ -134,6 +134,14 @@ public class ScoreItem {
     @Column(name = "parent_score_item_id")
     private Long parentScoreItemId;
 
+    /** 交付物形态（TEXT_PROPOSAL, SYSTEM_SCREENSHOT, QUALIFICATION_CERT, CONTRACT_INVOICE, FINANCIAL_AUDIT, OTHER） */
+    @Column(name = "deliverable_type", length = 50)
+    private String deliverableType;
+
+    /** 评价方式（SUBJECTIVE_REVIEW, QUANTITATIVE_RANKING, PASS_FAIL_THRESHOLD, OTHER） */
+    @Column(name = "scoring_mode", length = 50)
+    private String scoringMode;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
