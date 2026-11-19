@@ -53,24 +53,60 @@ public final class CaseRecommendationPurposePolicy {
             "(?:(?:提供|提交|上传|附上?|出具|具有|持有|具备|须有|需有|配有|含|以)[^。]{0,120}" + MATERIAL_NOUNS
                     + "|(?:icp|ICP|公安部|等保|等级保护|接口|系统|官网|网站|平台|财务|社保|纳税|完税|银行|业绩)[^。；;]{0,24}"
                     + MATERIAL_NOUNS + ")");
+    private static final Pattern NON_TECHNICAL_PLAN = Pattern.compile(
+            "(?:优惠|报价|价格|折扣|促销|折让|商务|结算|付款)方案");
+    private static final Pattern EVIDENCE_OF_PLAN = Pattern.compile(
+            "(?:方案|预案)[^，,。；;\\n\\r]{0,8}?(?:说明)?(?:截图|截屏|界面|后台|证明|扫描件|复印件|原件|打印件|彩页|台账|报表|凭证|底单)");
     private static final Pattern PLAN_DELIVERABLE = Pattern.compile(
-            "(?:提供|提交|编制|编写|制定)[^，,。；;]{0,22}(?:方案|预案)");
+            "(?:提供|提交|编制|编写|制定|出具)[^，,。；;]{0,22}(?:方案|预案)"
+                    + "|(?:方案|预案)[^，,。；;]{0,10}(?:编制|编写|制定)");
 
     private CaseRecommendationPurposePolicy() {}
 
     public static Purpose determineRecommendationPurpose(String title, String detail) {
+        return determineRecommendationPurpose(title, detail, null);
+    }
+
+    public static Purpose determineRecommendationPurpose(String title, String detail, String scoreType) {
         String normalizedDetail = normalize(detail);
+        String normalizedTitle = normalize(title);
+
+        if (isObjectiveScoreType(scoreType)) {
+            boolean technicalPlanRequired = isTechnicalPlanDeliverableRequired(normalizedTitle, normalizedDetail);
+            return technicalPlanRequired ? Purpose.REFERENCE_AND_MANUAL_EVIDENCE : Purpose.MANUAL_EVIDENCE;
+        }
+
         // 按份、按数量/时间分档或逐项计数计分时，量词或等级本身已明确客观度量对象。
         boolean quantifiedScoring = SCORE_PER_DOCUMENT.matcher(normalizedDetail).find()
                 || SCORE_PER_UNIT.matcher(normalizedDetail).find()
                 || SCORE_BY_COUNT.matcher(normalizedDetail).find()
-                || ((METRIC.matcher(normalizedDetail).find() || METRIC.matcher(normalize(title)).find())
+                || ((METRIC.matcher(normalizedDetail).find() || METRIC.matcher(normalizedTitle).find())
                         && SCORING_RULE.matcher(normalizedDetail).find());
         if (!quantifiedScoring || !ORIGINAL_MATERIAL.matcher(normalizedDetail).find()) {
             return Purpose.REFERENCE;
         }
-        return PLAN_DELIVERABLE.matcher(normalizedDetail).find()
+        return isPlanDeliverableRequired(normalizedTitle, normalizedDetail)
                 ? Purpose.REFERENCE_AND_MANUAL_EVIDENCE : Purpose.MANUAL_EVIDENCE;
+    }
+
+    public static boolean isObjectiveScoreType(String scoreType) {
+        return scoreType != null && "OBJECTIVE".equalsIgnoreCase(scoreType.trim());
+    }
+
+    public static boolean isPlanDeliverableRequired(String normalizedTitle, String normalizedDetail) {
+        String cleanDetail = EVIDENCE_OF_PLAN.matcher(normalizedDetail).replaceAll("");
+        String cleanTitle = EVIDENCE_OF_PLAN.matcher(normalizedTitle).replaceAll("");
+        return PLAN_DELIVERABLE.matcher(cleanDetail).find()
+                || PLAN_DELIVERABLE.matcher(cleanTitle).find();
+    }
+
+    public static boolean isTechnicalPlanDeliverableRequired(String normalizedTitle, String normalizedDetail) {
+        String cleanDetail = NON_TECHNICAL_PLAN.matcher(
+                EVIDENCE_OF_PLAN.matcher(normalizedDetail).replaceAll("")).replaceAll("");
+        String cleanTitle = NON_TECHNICAL_PLAN.matcher(
+                EVIDENCE_OF_PLAN.matcher(normalizedTitle).replaceAll("")).replaceAll("");
+        return PLAN_DELIVERABLE.matcher(cleanDetail).find()
+                || PLAN_DELIVERABLE.matcher(cleanTitle).find();
     }
 
     public static boolean isTechnicalPlanReference(
