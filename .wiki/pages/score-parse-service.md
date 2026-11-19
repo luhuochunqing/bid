@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-11-06
-health_checked: 2026-11-06
+updated: 2026-11-19
+health_checked: 2026-11-19
 sources:
   - specs/065-tender-large-file-parse/spec.md
   - specs/041-ai-score-parse-backend/spec.md
@@ -777,6 +777,17 @@ trigger（同步<1s，互斥校验+建任务）
   1. `ScoreTableSplitPolicy` 中增加 `isScoringTable` 判断，在 `ownTotals.isEmpty()` 分支仅将实质评分表加入 `noEvidenceFacts`，彻底排除无分/0分审查表对完整性证据池的污染；
   2. 保持 `OriginalScoringTextScopePolicy.findScopeAt` 首匹配语义，避免二分搜索在重叠作用域下跳过父章节；
   3. 新增回归测试 `singleScoringTable_surroundedByAuditTablesWithoutWeightOrEvidence_evaluatedCleanlyWithoutAuditDefects`，保证审查表不污染单表 AUTO_APPROVED。
+
+## 38. 评分项数据模型扩展：交付物形态与评价模式字段（Step 2.1，2026-11-19）
+
+- **背景与目标**：
+  为彻底解决下游基于脆弱正则推断交付物导致的案例误推问题，启动“阶段二：上游结构化打标与下游双轨路由”。作为零风险第一步（Step 2.1），仅扩展底层数据模型与实体映射，完全不破坏现有运行时逻辑。
+- **改动内容**：
+  1. 通过 Flyway 迁移脚本 `V1227__add_deliverable_type_and_scoring_mode_to_score_item.sql` 为 `score_item` 增加 `deliverable_type` 与 `scoring_mode` 两列，定义为 `NULL DEFAULT NULL`，对历史存量数据完全兼容；
+  2. 提供对应回滚脚本 `U1227__add_deliverable_type_and_scoring_mode_to_score_item.sql` 并通过回滚契约测试；
+  3. 在 `ScoreItem.java` 实体中增加对应映射字段及访问方法；
+  4. 新增 `ScoreItemEntityTest` 保证属性存取与默认 NULL 行为正确。
+
 
 
 

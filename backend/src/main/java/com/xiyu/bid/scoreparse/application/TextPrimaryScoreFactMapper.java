@@ -6,9 +6,17 @@ import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreCategoryClassifier;
 import com.xiyu.bid.scoreparse.domain.ScoreEvidence;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import com.xiyu.bid.scoreparse.domain.ScoreItemTitleExtractor;
+import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 import com.xiyu.bid.scoreparse.domain.ScoreRule;
 import com.xiyu.bid.scoreparse.domain.SourceSpan;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
+import com.xiyu.bid.scoreparse.domain.grid.HeuristicTableColumnMapper;
+import com.xiyu.bid.scoreparse.domain.grid.TableGrid;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import java.util.stream.Collectors;
 
@@ -51,10 +59,7 @@ final class TextPrimaryScoreFactMapper {
         String dimension = OriginalScoreEvidencePolicy.publishedDimension(
                 fact.dimension(), ruleTextForDimension, fact.weight());
         if (ScoreCategoryClassifier.needsSpecificTitle(dimension)) {
-            String recovered = resolveRowTitleFromArtifact(artifact, fact, cellId, ruleTextForDimension);
-            if (!recovered.isBlank()) {
-                dimension = recovered;
-            }
+            dimension = resolveRowTitleFromArtifact(artifact, fact, cellId, dimension);
         }
         return new ScoreFact(factId, fact.tableId(), fact.sourceCellIds(), restored.text(), fact.code(), dimension,
                 fact.weight(), new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, fact.quotedText(), cellId,
@@ -96,32 +101,69 @@ final class TextPrimaryScoreFactMapper {
     }
 
     private static String resolveRowTitleFromArtifact(
-            DocumentArtifact artifact, MultimodalScoreFact fact, String cellId, String ruleText) {
-        if (artifact != null && !cellId.isBlank()) {
-            for (var table : artifact.tables()) {
-                if (!fact.tableId().isBlank() && !fact.tableId().equals(table.tableId())) {
-                    continue;
-                }
-                var target = table.cells().stream().filter(c -> cellId.equals(c.cellId())).findFirst().orElse(null);
-                if (target == null || target.row() == null || target.column() == null) {
-                    continue;
-                }
-                var leftCells = table.cells().stream()
-                        .filter(c -> target.row().equals(c.row()) && c.column() != null && c.column() < target.column())
-                        .sorted((a, b) -> Integer.compare(b.column(), a.column()))
-                        .toList();
-                for (var cell : leftCells) {
-                    String raw = cell.rawText() == null ? "" : cell.rawText().replace("\n", "").trim();
-                    if (ScoreCategoryClassifier.isWeightCell(raw)) {
-                        continue;
-                    }
-                    String candidate = OriginalScoreEvidencePolicy.publishedDimension(raw, ruleText, fact.weight());
-                    if (!ScoreCategoryClassifier.needsSpecificTitle(candidate)) {
-                        return candidate;
-                    }
-                }
+            DocumentArtifact artifact, MultimodalScoreFact fact, String cellId, String fallbackDimension) {
+        if (artifact == null || cellId.isBlank()) {
+            return fallbackDimension;
+        }
+        for (var table : artifact.tables()) {
+            if (!fact.tableId().isBlank() && !fact.tableId().equals(table.tableId())) {
+                continue;
+            }
+            var target = table.cells().stream().filter(c -> cellId.equals(c.cellId())).findFirst().orElse(null);
+            if (target == null || target.row() == null) {
+                continue;
+            }
+            var grid = originalGrid(table);
+            var mapping = HeuristicTableColumnMapper.infer(grid);
+            if (target.row() < mapping.headerRows()) {
+                return fallbackDimension;
+            }
+            int titleCol = mapping.dimCol();
+            if (titleCol == mapping.weightCol() && mapping.headerRows() > 0
+                    && ScoreCategoryClassifier.isInvalidOrPlaceholderName(grid.cell(target.row(), titleCol))) {
+                // A bracketed score can make column inference mistake a separate points column for an inline title.
+                var header = new TableGrid(List.of(grid.row(mapping.headerRows() - 1)));
+                titleCol = HeuristicTableColumnMapper.infer(header).dimCol();
+            } else if (titleCol == mapping.weightCol() && mapping.headerRows() == 0
+                    && ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(grid.cell(target.row(), titleCol)).matches()) {
+                titleCol = inferTitleWithStandaloneScores(grid, titleCol);
+            }
+            if (titleCol == mapping.detailCol()) {
+                return fallbackDimension;
+            }
+            String candidate = ScoreItemTitleExtractor.resolveDimension(grid.cell(target.row(), titleCol), "");
+            return ScoreCategoryClassifier.needsSpecificTitle(candidate) ? fallbackDimension : candidate;
+        }
+        return fallbackDimension;
+    }
+
+    private static int inferTitleWithStandaloneScores(TableGrid grid, int weightColumn) {
+        // Give column inference the equivalent bare score while retaining the original evidence.
+        List<List<String>> rows = new ArrayList<>();
+        for (var row : grid.allRows()) {
+            var score = ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(row.get(weightColumn).strip());
+            var cells = new ArrayList<>(row);
+            if (score.matches()) {
+                cells.set(weightColumn, score.group(1));
+            }
+            rows.add(cells);
+        }
+        return HeuristicTableColumnMapper.infer(new TableGrid(rows)).dimCol();
+    }
+
+    private static TableGrid originalGrid(DocumentArtifact.CanonicalTable table) {
+        List<List<String>> rows = new ArrayList<>();
+        for (int row = 0; row < table.rows(); row++) {
+            rows.add(new ArrayList<>(Collections.nCopies(table.columns(), "")));
+        }
+        for (var cell : table.cells()) {
+            Integer row = cell.row();
+            Integer column = cell.column();
+            if (row != null && row >= 0 && row < table.rows() && column != null && column >= 0
+                    && column < table.columns() && !Boolean.TRUE.equals(cell.isMergedContinue()) && cell.rawText() != null) {
+                rows.get(row).set(column, cell.rawText());
             }
         }
-        return "";
+        return new TableGrid(rows);
     }
 }

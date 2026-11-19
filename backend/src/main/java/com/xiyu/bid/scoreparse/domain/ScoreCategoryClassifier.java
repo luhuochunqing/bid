@@ -19,6 +19,10 @@ public final class ScoreCategoryClassifier {
                     + "|business|technical|price|commercial)$");
     private static final Pattern GENERIC_TITLE_NAMES = Pattern.compile(
             "^(商务评分|技术评分|价格评分|报价评分|综合评分|详细评审|评分标准|评审标准)$");
+    private static final Pattern PRICE_TITLE = Pattern.compile(
+            "^(?:(?:价格|报价)(?:分|部分|评分)?|price)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PRICE_SCORING_OPERATION = Pattern.compile(
+            "[=＝]|(?:得|加|扣)\\s*\\d+(?:\\.\\d+)?\\s*分");
     private static final Pattern PURE_NUMBER_OR_CODE = Pattern.compile("^(?:\\d+(?:[.-]\\d+)*|[一二三四五六七八九十]+)$");
     private static final Pattern ALPHANUMERIC_CODE = Pattern.compile("^[A-Za-z]\\d+(?:[.-]\\d+)*$");
     private static final Pattern PURE_WEIGHT_CELL = Pattern.compile(
@@ -46,6 +50,22 @@ public final class ScoreCategoryClassifier {
         }
         String clean = dim.replaceAll("[（(][^）)]*[）)]", "").replaceAll("\\s+", "");
         return isTopLevelCategory(clean) || GENERIC_TITLE_NAMES.matcher(clean).matches();
+    }
+
+    /** 报价项可沿用原文大类名，前提是已取得实际计分公式。结构与分值由快照另外校验。 */
+    public static boolean isPublishableName(String name, ScoreFact fact) {
+        if (!needsSpecificTitle(name)) {
+            return true;
+        }
+        if (isInvalidOrPlaceholderName(name) || fact == null
+                || !PRICE_TITLE.matcher(name.replaceAll("[（(][^）)]*[）)]|\\s+", "")).matches()) {
+            return false;
+        }
+        var diagnostics = fact.sourceMetadata().diagnostics();
+        String rule = fact.sourceText();
+        return !diagnostics.contains("FULL_RULE_UNIT_UNRESOLVED") && !diagnostics.contains("UNVERIFIED_CLOSURE")
+                && PRICE_SCORING_OPERATION.matcher(rule).find()
+                && ScoreTableSectionPolicy.isPriceFormula(java.util.List.of(rule.replaceAll("得分\\s*[=＝]", "得分=")));
     }
 
     /**

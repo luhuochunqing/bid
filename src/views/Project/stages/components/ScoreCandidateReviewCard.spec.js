@@ -496,8 +496,8 @@ it('warns and refuses silent mutation when clicking include while schemeSelectio
   expect(facts[0].candidateEligible).toBe(false)
 })
 
-it('blocks adoption when eligible candidates have empty, pure-numeric, placeholder, pipe, or unclosed-bracket names', () => {
-  for (const badDim of ['', '1', '一', 'A1', 'b2-1.3', '评分项 21', '商务评分（20', '3 | 营业总收入']) {
+it('blocks adoption when eligible candidates have empty, pure-numeric, score-only, placeholder, pipe, or unclosed-bracket names', () => {
+  for (const badDim of ['', '1', '一', 'A1', 'b2-1.3', '30分', '25%', '评分项 21', '商务评分（20', '3 | 营业总收入']) {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: {
         candidateFacts: [

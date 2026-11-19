@@ -1942,6 +1942,11 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 - 根因：客观量化评分项（如项目 38 自营商品 SKU 数量）已有 `scoreType=OBJECTIVE` 标签但下游未联动，导致依然召回主观方案库；且“系统数据截图”中的“系统”二字导致误判为 `TECHNICAL` 大类穿透一票否决门禁。
 - 修复：在 `ScoreItemCaseRecommendAppService` 中联动 `scoreType`，客观项未显式要求编制方案时直接阻断方案库推荐（`Purpose.MANUAL_EVIDENCE`）；增加 `EVIDENCE_OF_PLAN` 与 `NON_TECHNICAL_PLAN` 防止方案截图与价格折扣方案混淆；在 `CaseCategoryMatchPolicy` 中剔除系统截图相关词，避免大类误判为 `TECHNICAL`。
 
+## [2026-11-19] feat | [[score-parse-service]] 评分项结构化形态扩展 (Step 2.1)
+
+- 方案：通过 Flyway 迁移 V1227 及回滚 U1227 为 `score_item` 增加 `deliverable_type` 与 `scoring_mode` 列，默认 NULL 保持历史存量兼容。
+- 影响：为上游大模型结构化打标与下游双轨强类型路由奠定数据模型底座，零影响现有业务逻辑。
+
 ## [2026-11-19] compound | E2E !3055 评分项细则提取、采纳名称校验与 OCR 来源诊断
 
 - 更新 [[scoreparse-38-39-ocr-and-adoption]]。记录项目 1394 的评分项名称提取、复核名称校验、人工确认名称和主客观类型写入。历史冻结候选的激活校验覆盖带分值括注的占位名。仅取得原生评分表表头或跨页单元格时保留百度 OCR 失败诊断。

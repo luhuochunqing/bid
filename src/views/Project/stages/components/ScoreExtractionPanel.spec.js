@@ -160,3 +160,20 @@ it.each(['', '1', '一', 'A1', 'b2-1.3', '评分项 21', '评分项 21（30分�
     expect(w.emitted('activate')[0][0].selectedItemIds).toEqual(['valid'])
   },
 )
+
+it('allows a standalone price formula and keeps a price heading unselectable', async () => {
+  const data = snapshot()
+  const rule = '投标报价折扣率以有效投标折扣率的算术平均值为基准，报价得分=基准折扣率/投标报价折扣率×30分。'
+  data.items = [
+    item('formula', { name: '价格', ruleText: rule, fact: { sourceText: rule } }),
+    item('heading', { name: '价格', ruleText: '价格评分项目一览', fact: { sourceText: '价格评分项目一览' } }),
+  ]
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+  expect(w.get('[data-item-id="heading"] input').attributes('disabled')).toBeDefined()
+  const formula = w.get('[data-item-id="formula"] input')
+  expect(formula.attributes('disabled')).toBeUndefined()
+  await formula.setValue(true)
+  await w.get('textarea').setValue('核对报价公式')
+  await w.get('[data-test="activate-extraction"]').trigger('click')
+  expect(w.emitted('activate')[0][0].selectedItemIds).toEqual(['formula'])
+})

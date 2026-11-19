@@ -95,7 +95,7 @@ public record ScoreExtractionSnapshot(int payloadVersion, List<ExtractedScoreIte
             String itemRule = ruleSourceVerified ? f.sourceText()
                     : (!f.sourceMetadata().modelRuleText().isBlank() ? f.sourceMetadata().modelRuleText() : f.sourceText());
             String resolvedDim = ScoreItemTitleExtractor.resolveDimension(f.dimension(), ruleSourceVerified ? f.sourceText() : "");
-            boolean validName = !ScoreCategoryClassifier.needsSpecificTitle(resolvedDim);
+            boolean validName = ScoreCategoryClassifier.isPublishableName(resolvedDim, f);
             if (!validName) problems.add("INVALID_SCORE_ITEM_NAME");
             boolean computable = selected(f) && validName && precision && !scheme.isBlank() && !ratio && f.weight()!=null && (f.weight().signum()>0 || zeroDeduction)
                     && f.weight().compareTo(new BigDecimal("9999.99"))<=0 && !numericalConflict && structure && unit && occurrences.get(f.factId())==1 && sourceIdentityCounts.getOrDefault(ids.get(f.factId()),0L)==1
