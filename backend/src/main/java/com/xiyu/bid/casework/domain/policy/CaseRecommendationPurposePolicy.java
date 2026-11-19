@@ -64,13 +64,46 @@ public final class CaseRecommendationPurposePolicy {
     private CaseRecommendationPurposePolicy() {}
 
     public static Purpose determineRecommendationPurpose(String title, String detail) {
-        return determineRecommendationPurpose(title, detail, null);
+        return determineRecommendationPurpose(title, detail, null, null, null);
     }
 
     public static Purpose determineRecommendationPurpose(String title, String detail, String scoreType) {
+        return determineRecommendationPurpose(title, detail, scoreType, null, null);
+    }
+
+    public static Purpose determineRecommendationPurpose(
+            String title, String detail, String scoreType, String deliverableType, String scoringMode) {
         String normalizedDetail = normalize(detail);
         String normalizedTitle = normalize(title);
 
+        String normDeliverable = deliverableType == null ? null : deliverableType.trim().toUpperCase();
+        String normScoringMode = scoringMode == null ? null : scoringMode.trim().toUpperCase();
+
+        // 轨 1: 强类型优先路由（当上游 ScoreParse 提供了结构化打标时）
+        if (normDeliverable != null || normScoringMode != null) {
+            boolean technicalPlanRequired = isTechnicalPlanDeliverableRequired(normalizedTitle, normalizedDetail);
+            if ("SYSTEM_SCREENSHOT".equals(normDeliverable)
+                    || "QUALIFICATION_CERT".equals(normDeliverable)
+                    || "CONTRACT_INVOICE".equals(normDeliverable)) {
+                return technicalPlanRequired ? Purpose.REFERENCE_AND_MANUAL_EVIDENCE : Purpose.MANUAL_EVIDENCE;
+            }
+            if ("TEXT_PROPOSAL".equals(normDeliverable)) {
+                boolean requiresEvidence = isObjectiveScoreType(scoreType)
+                        || isQuantitativeScoringMode(normScoringMode)
+                        || ORIGINAL_MATERIAL.matcher(normalizedDetail).find();
+                return requiresEvidence ? Purpose.REFERENCE_AND_MANUAL_EVIDENCE : Purpose.REFERENCE;
+            }
+            if (isQuantitativeScoringMode(normScoringMode)) {
+                if (technicalPlanRequired) {
+                    return Purpose.REFERENCE_AND_MANUAL_EVIDENCE;
+                }
+                if (ORIGINAL_MATERIAL.matcher(normalizedDetail).find() || normDeliverable != null) {
+                    return Purpose.MANUAL_EVIDENCE;
+                }
+            }
+        }
+
+        // 轨 2: 降级兜底路由（存量历史数据或未知形态时，完全沿用既有正则与 scoreType 护栏）
         if (isObjectiveScoreType(scoreType)) {
             boolean technicalPlanRequired = isTechnicalPlanDeliverableRequired(normalizedTitle, normalizedDetail);
             return technicalPlanRequired ? Purpose.REFERENCE_AND_MANUAL_EVIDENCE : Purpose.MANUAL_EVIDENCE;
@@ -87,6 +120,16 @@ public final class CaseRecommendationPurposePolicy {
         }
         return isPlanDeliverableRequired(normalizedTitle, normalizedDetail)
                 ? Purpose.REFERENCE_AND_MANUAL_EVIDENCE : Purpose.MANUAL_EVIDENCE;
+    }
+
+    public static boolean isQuantitativeScoringMode(String scoringMode) {
+        if (scoringMode == null) {
+            return false;
+        }
+        String mode = scoringMode.trim().toUpperCase();
+        return "QUANTITATIVE_RANKING".equals(mode)
+                || "STEPWISE_SCORING".equals(mode)
+                || "DEDUCTION".equals(mode);
     }
 
     public static boolean isObjectiveScoreType(String scoreType) {

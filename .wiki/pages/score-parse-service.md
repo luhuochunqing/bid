@@ -109,6 +109,7 @@ trigger（同步<1s，互斥校验+建任务）
 - **类别只看因素名 `dim`，不扫细则 `detail`（1371）**：细则里的「人员配置 / 品牌覆盖 / 授权」不得把财务项送进人员库、把技术方案送进品牌库。`KnowledgeCategoryPolicy.categorize` 对空白 `dim` 返回 OTHER。
 - **仓库估计不以招标长句 LIKE 仓名，也不按「有在用仓」打满分（1371）**：`EstimatedScoreService` 不把细则切词当 `nameKeywords`；只有 `extractMinArea` 抽到正数才调 `WarehouseMatchService`。抽不到面积 → PENDING，禁止存在性 FULL。覆盖：`EstimatedScoreServiceTest`（无约束不调 match；5000㎡ 锁 `minArea`）。HTTP `/warehouse/match` 仍接受调用方自己的名称/面积。`Project1371ColumnInvariantsTest` 只锁召回权重/分类/物理序，不锁仓库估计。
 - **前端行身份用 `item.id`**：局部编号 `1/2` 会跨组重复，`ScoreParseTable` 禁止 `:key="item.code"`；打分结果 `lookupScoreResult` 优先 `scoreItemId`。
+- **结构化打标与下游双轨强类型路由（2026-11-19，Step 2.1-2.3）**：在 `score_item` 表持久化并在 Prompt 显式抽取 `deliverable_type`（TEXT_PROPOSAL、SYSTEM_SCREENSHOT、QUALIFICATION_CERT、CONTRACT_INVOICE、OTHER）与 `scoring_mode`（SUBJECTIVE_REVIEW、QUANTITATIVE_RANKING、STEPWISE_SCORING、DEDUCTION、OTHER）。下游 Casework 智能推荐在 `CaseRecommendationPurposePolicy` 中启用双轨路由：上游有结构化打标时，优先按强类型枚举确定性裁决（非方案材料或量化数值排位项直接归为 `MANUAL_EVIDENCE` 阻断方案库推荐，杜绝误召回）；存量未打标数据 100% 沿用既有规则平滑兜底，实现零破坏演进。
 
 ## 5. 阶段化打分（US3/US4）
 

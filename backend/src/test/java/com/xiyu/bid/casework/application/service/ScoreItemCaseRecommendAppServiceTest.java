@@ -937,6 +937,31 @@ class ScoreItemCaseRecommendAppServiceTest {
                 enterpriseQualificationQueryPort, tenderQualificationQueryPort);
     }
 
+    @Test
+    void project38WithStructuredDeliverableTypeBlocksSchemeRecommendations() {
+        var item = ScoreItem.builder()
+                .id(739L)
+                .projectId(38L)
+                .code("2")
+                .dim("商品丰富性")
+                .detail("提供电商平台自营商品管理界面与SKU数量相关证明。")
+                .deliverableType("SYSTEM_SCREENSHOT")
+                .scoringMode("QUANTITATIVE_RANKING")
+                .build();
+
+        when(scoreItemRepository.findById(739L)).thenReturn(Optional.of(item));
+
+        var response = recommendAppService.recommend(38L, ScoreItemCaseRecommendRequest.builder()
+                .scoreItemId(739L).keyword("SKU").build());
+
+        assertThat(response.getItems()).isEmpty();
+        assertThat(response.getTotal()).isZero();
+        assertThat(response.isEvidenceReviewRequired()).isTrue();
+        assertThat(response.getMatchedCertificates()).isEmpty();
+        verifyNoInteractions(knowledgeCaseQueryPort, vectorSemanticQueryPort,
+                enterpriseQualificationQueryPort, tenderQualificationQueryPort);
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void refusesEvidenceLookupForAMissingOrForeignItem(boolean existsInAnotherProject) {

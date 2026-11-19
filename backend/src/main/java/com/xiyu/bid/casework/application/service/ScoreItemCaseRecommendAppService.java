@@ -160,8 +160,10 @@ public class ScoreItemCaseRecommendAppService {
             }
         }
 
-        String scoreType = scoreItem == null ? null : scoreItem.getScoreType();
-        Purpose purpose = CaseRecommendationPurposePolicy.determineRecommendationPurpose(factorName, detail, scoreType);
+        Purpose purpose = CaseRecommendationPurposePolicy.determineRecommendationPurpose(
+                factorName, detail, scoreItem == null ? null : scoreItem.getScoreType(),
+                scoreItem == null ? null : scoreItem.getDeliverableType(),
+                scoreItem == null ? null : scoreItem.getScoringMode());
         if (purpose == Purpose.MANUAL_EVIDENCE && !pureQualification) {
             log.info("案例推荐[MANUAL_EVIDENCE]: projectId={}, scoreItemId={}, intent={}", projectId, scoreItemId, intent);
             return ScoreItemCaseRecommendResponse.builder().total(matchedCertificates.size())
@@ -174,8 +176,7 @@ public class ScoreItemCaseRecommendAppService {
             log.info("案例推荐[QUALIFICATION]: projectId={}, scoreItemId={}, certs={}, reviewRequired={}",
                     projectId, scoreItemId, matchedCertificates.size(), reviewRequired);
             return ScoreItemCaseRecommendResponse.builder().total(matchedCertificates.size())
-                    .evidenceReviewRequired(reviewRequired).items(List.of())
-                    .matchedCertificates(matchedCertificates).build();
+                    .evidenceReviewRequired(reviewRequired).items(List.of()).matchedCertificates(matchedCertificates).build();
         }
         boolean performanceItem = performanceRetriever.isPerformanceScoreItem(factorName, detail);
         boolean lookupQualification = performanceItem || (scoreItem == null && !hasQueryKeyword(request.getKeyword()));

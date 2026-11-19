@@ -1952,6 +1952,11 @@ phase9：23焦点与34额外PASS，原24保持；219旧误判更正；新文件�
 - 方案：通过 Flyway 迁移 V1227 及回滚 U1227 为 `score_item` 增加 `deliverable_type` 与 `scoring_mode` 列，默认 NULL 保持历史存量兼容。
 - 影响：为上游大模型结构化打标与下游双轨强类型路由奠定数据模型底座，零影响现有业务逻辑。
 
+## [2026-11-19] feat | [[score-parse-service]] 评分项结构化打标抽取与下游双轨路由 (Step 2.2 & 2.3)
+
+- 方案：在 ScoreParse Prompt 中抽取 `deliverable_type` 与 `scoring_mode` 并全链路持久化/暴露；下游 `CaseRecommendationPurposePolicy` 启用双轨强类型路由。
+- 影响：对具备结构化打标的评分项实现确定性路由，非方案材料（如系统截图、资质证书、发票合同）及量化排序项精准判定为 `MANUAL_EVIDENCE` 彻底阻断方案误召回；对存量未打标数据 100% 沿用既有规则平滑兜底。
+
 ## [2026-11-19] compound | E2E !3055 评分项细则提取、采纳名称校验与 OCR 来源诊断
 
 - 更新 [[scoreparse-38-39-ocr-and-adoption]]。记录项目 1394 的评分项名称提取、复核名称校验、人工确认名称和主客观类型写入。历史冻结候选的激活校验覆盖带分值括注的占位名。仅取得原生评分表表头或跨页单元格时保留百度 OCR 失败诊断。
