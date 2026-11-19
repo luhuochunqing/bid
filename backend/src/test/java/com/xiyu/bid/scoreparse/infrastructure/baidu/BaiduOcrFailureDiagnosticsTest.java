@@ -5,10 +5,13 @@ import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.infrastructure.baidu.BaiduTableModels.BaiduTableResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class BaiduOcrFailureDiagnosticsTest {
@@ -48,8 +51,37 @@ class BaiduOcrFailureDiagnosticsTest {
         assertThat(actual.warnings()).anyMatch(s -> s.startsWith("BAIDU_OCR_PAGE_FAILED:"));
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2})
+    void retainsPageFailureWhenBaselineContainsOnlyPartialScoreTableEvidence(int incompletePage) throws Exception {
+        var partialTable = new DocumentArtifact.CanonicalTable(
+                "t-p1", 1, "评分标准", 2, 2, List.of(),
+                List.of(new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                                "c1", 0, 0, "评分项", "评分项", 1, 1, false, "", 1),
+                        new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                                "c2", 1, 0, "营业总收入", "营业总收入", 1, 1, false, "", 2)),
+                true);
+        var source = baseline();
+        var baselineWithTable = new DocumentArtifact(source.artifact(), List.of(partialTable),
+                source.warnings(), source.textBlocks(), source.schemaVersion());
+        var attemptedPages = new ArrayList<Integer>();
+        var client = new BaiduTableOcrClient(enabled(), new ObjectMapper()) {
+            @Override public BaiduTableResponse extractTablesFromPdf(byte[] bytes, Integer page) throws IOException {
+                attemptedPages.add(page);
+                if (page == incompletePage) throw new IOException("HTTP 500");
+                return new BaiduTableResponse(0, List.of(), null, null, 1L);
+            }
+        };
+        var actual = new BaiduTableArtifactEnricher(client).enrichIfEnabled(baselineWithTable, pdf(2), "tender.pdf");
+        assertThat(attemptedPages).containsExactly(1, 2);
+        assertThat(actual.tables()).containsExactly(partialTable);
+        assertThat(actual.warnings()).containsExactly(
+                "existing-warning", "BAIDU_OCR_PAGE_FAILED:" + incompletePage + ":HTTP_500");
+    }
+
     private static BaiduOcrProperties enabled() {
         var properties = new BaiduOcrProperties();
+        properties.setGatewayEnabled(true);
         properties.setEnabled(true);
         return properties;
     }
@@ -62,8 +94,12 @@ class BaiduOcrFailureDiagnosticsTest {
     }
 
     private static byte[] pdf() throws IOException {
+        return pdf(1);
+    }
+
+    private static byte[] pdf(int pageCount) throws IOException {
         try (var document = new PDDocument(); var bytes = new ByteArrayOutputStream()) {
-            document.addPage(new PDPage());
+            for (int page = 0; page < pageCount; page++) document.addPage(new PDPage());
             document.save(bytes);
             return bytes.toByteArray();
         }

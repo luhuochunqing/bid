@@ -6,6 +6,59 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ScoreExtractionSnapshotTest {
+    @Test
+    void restoresLeafTitleInsteadOfAlphanumericRowNumber() {
+        var fact = new ScoreFact("revenue", "table", List.of(),
+                "A1 | 商务 | 营业总收入：2024年营业总收入大于10亿元得5分 | 5",
+                "A1", "商务", BigDecimal.valueOf(5), null, null, null,
+                "MODEL", 0.8, ScoreFact.ValidationStatus.REVIEW_REQUIRED);
+        var scope = new OriginalScoreEvidencePolicy.Qualification("revenue", "scheme", "IN_SCHEME", true, "OK", "");
+        var item = ScoreExtractionSnapshot.from("task", List.of(fact), List.of(scope), List.of()).items().getFirst();
+        assertThat(item.name()).isEqualTo("营业总收入");
+        assertThat(item.computable()).isTrue();
+    }
+
+    @Test
+    void businessCategoryWithoutRuleTitleCannotBecomeAnEffectiveItem() {
+        var fact = new ScoreFact("revenue", "table", List.of("rule"),
+                "投标人提供营业收入证明得30分", "1", "商务", BigDecimal.valueOf(30),
+                null, null, null, "MODEL", 0.8, ScoreFact.ValidationStatus.AUTO_APPROVED);
+        var scope = new OriginalScoreEvidencePolicy.Qualification("revenue", "scheme", "IN_SCHEME", true, "OK", "");
+        var item = ScoreExtractionSnapshot.from("task", List.of(fact), List.of(scope), List.of()).items().getFirst();
+
+        assertThat(item.computable()).isFalse();
+        assertThat(item.effectiveMaximum()).isNull();
+        assertThat(item.diagnostics()).contains("INVALID_SCORE_ITEM_NAME");
+    }
+
+    @Test
+    void unverifiedModelRuleIsDisplayedButCannotSupplyTheMissingTitle() {
+        String modelRule = "营业总收入：投标人提供营业收入证明得30分";
+        var metadata = new ScoreSourceMetadata(modelRule, "", List.of(), List.of("UNVERIFIED_CLOSURE"));
+        var fact = new ScoreFact("revenue", "table", List.of("rule"), "", "1", "商务",
+                BigDecimal.valueOf(30), null, null, "", "MULTIMODAL", 0.8,
+                ScoreFact.ValidationStatus.REVIEW_REQUIRED, ChildAggregation.SUM, metadata);
+        var scope = new OriginalScoreEvidencePolicy.Qualification("revenue", "scheme", "IN_SCHEME", true, "OK", "");
+        var item = ScoreExtractionSnapshot.from("task", List.of(fact), List.of(scope), List.of()).items().getFirst();
+
+        assertThat(item.ruleText()).isEqualTo(modelRule);
+        assertThat(item.computable()).isFalse();
+        assertThat(item.diagnostics()).contains("INVALID_SCORE_ITEM_NAME");
+    }
+
+    @Test
+    void ruleTypeTakesPriorityOverTheModelGuessOnlyWhenTheSourceIsConclusive() {
+        var revenue = classifiedFact("营业总收入", "2024年营业总收入大于10亿元得10分", "SUBJECTIVE");
+        var service = classifiedFact("服务方案", "根据服务方案的完整性、合理性综合评审打分", "OBJECTIVE");
+        var ambiguous = classifiedFact("供货能力", "按要求得10分", "OBJECTIVE");
+        var noSource = classifiedFact("交付能力", "", "OBJECTIVE");
+        var items = ScoreExtractionSnapshot.from("task", List.of(revenue, service, ambiguous, noSource),
+                List.of(), List.of()).items();
+
+        assertThat(items).extracting(ExtractedScoreItem::scoreType)
+                .containsExactly("OBJECTIVE", "SUBJECTIVE", "OBJECTIVE", "OBJECTIVE");
+    }
+
     @Test void selectedUnknownBranchMakesTotalIncompleteEvenWhenEffectiveUnitsStillMatch() {
         var old=fact("old",BigDecimal.TEN);
         var parent=new ScoreFact("p","t",List.of(),"父项5分","p","父项",new BigDecimal("5"),null,null,null,"MODEL",.8,ScoreFact.ValidationStatus.REVIEW_REQUIRED,ChildAggregation.UNKNOWN);
@@ -142,6 +195,22 @@ class ScoreExtractionSnapshotTest {
                 List.of(new OriginalScoreEvidencePolicy.Qualification("placeholder", "s", "IN_SCHEME", true, null, "")),
                 List.of()).items().getFirst();
         assertThat(item.computable()).isFalse();
+    }
+
+    @Test void pureNumericOrBlankNameIsNotComputableEvenWithPositiveWeight() {
+        var fact = new ScoreFact("num-1", "t", List.of("c"), "无冒号纯规则描述得5分", "1", "1",
+                new BigDecimal("5"), null, null, "", "MODEL", .9, ScoreFact.ValidationStatus.REVIEW_REQUIRED);
+        var q = new OriginalScoreEvidencePolicy.Qualification("num-1", "s", "IN_SCHEME", true, null, "t:c");
+        var item = ScoreExtractionSnapshot.from("task", List.of(fact), List.of(q), List.of()).items().getFirst();
+        assertThat(item.name()).isEmpty();
+        assertThat(item.computable()).isFalse();
+        assertThat(item.diagnostics()).contains("INVALID_SCORE_ITEM_NAME");
+    }
+
+    private static ScoreFact classifiedFact(String name, String rule, String modelType) {
+        var metadata = new ScoreSourceMetadata("", "", List.of(), List.of(), "", modelType);
+        return new ScoreFact(name, "t", List.of(), rule, "1", name, BigDecimal.TEN, null, null, "",
+                "MODEL", .9, ScoreFact.ValidationStatus.REVIEW_REQUIRED, ChildAggregation.SUM, metadata);
     }
 
     static ScoreFact fact(String id, BigDecimal weight) {

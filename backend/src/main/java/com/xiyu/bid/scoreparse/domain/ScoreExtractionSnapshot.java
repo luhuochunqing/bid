@@ -89,19 +89,23 @@ public record ScoreExtractionSnapshot(int payloadVersion, List<ExtractedScoreIte
                     .map(x -> new ScoreUnitPolicy.Node(x.factId(),x.parentFactId(),x.weight(),x.childAggregation().name())).toList();
             boolean unit = ScoreUnitPolicy.effectiveUnitIds(nodes).contains(f.factId());
             if (!unit) problems.add("NOT_EFFECTIVE_SCORING_UNIT");
-            boolean computable = selected(f) && precision && !scheme.isBlank() && !ratio && f.weight()!=null && (f.weight().signum()>0 || zeroDeduction)
-                    && f.weight().compareTo(new BigDecimal("9999.99"))<=0 && !numericalConflict && structure && unit && occurrences.get(f.factId())==1 && sourceIdentityCounts.getOrDefault(ids.get(f.factId()),0L)==1
-                    && f.validationStatus()!=ScoreFact.ValidationStatus.DUPLICATE && f.validationStatus()!=ScoreFact.ValidationStatus.STRUCTURE_INCOMPLETE;
-            String scoreType = f.sourceMetadata().modelScoreType();
-            if (!Set.of("OBJECTIVE","SUBJECTIVE").contains(scoreType)) scoreType = new ScoreTypeClassificationPolicy().classify(f.sourceText());
-            String id = ids.get(f.factId());
-            if (occurrences.get(f.factId()) > 1 || sourceIdentityCounts.getOrDefault(id,0L)>1) id = "local:"+ScoreVersionFingerprint.hash(taskId+":"+f.factId()+":"+result.size()).substring(0,40);
             boolean ruleSourceVerified = !f.sourceMetadata().diagnostics().contains("FULL_RULE_UNIT_UNRESOLVED")
                     && !f.sourceMetadata().diagnostics().contains("UNVERIFIED_CLOSURE")
                     && !f.sourceText().isBlank();
             String itemRule = ruleSourceVerified ? f.sourceText()
                     : (!f.sourceMetadata().modelRuleText().isBlank() ? f.sourceMetadata().modelRuleText() : f.sourceText());
-            result.add(new ExtractedScoreItem(1,id,f.factId(),scheme,fileId(f),f.dimension(),
+            String resolvedDim = ScoreItemTitleExtractor.resolveDimension(f.dimension(), ruleSourceVerified ? f.sourceText() : "");
+            boolean validName = ScoreCategoryClassifier.isPublishableName(resolvedDim, f);
+            if (!validName) problems.add("INVALID_SCORE_ITEM_NAME");
+            boolean computable = selected(f) && validName && precision && !scheme.isBlank() && !ratio && f.weight()!=null && (f.weight().signum()>0 || zeroDeduction)
+                    && f.weight().compareTo(new BigDecimal("9999.99"))<=0 && !numericalConflict && structure && unit && occurrences.get(f.factId())==1 && sourceIdentityCounts.getOrDefault(ids.get(f.factId()),0L)==1
+                    && f.validationStatus()!=ScoreFact.ValidationStatus.DUPLICATE && f.validationStatus()!=ScoreFact.ValidationStatus.STRUCTURE_INCOMPLETE;
+            String modelScoreType = f.sourceMetadata().modelScoreType();
+            String scoreType = f.sourceText().isBlank() && Set.of("OBJECTIVE", "SUBJECTIVE").contains(modelScoreType)
+                    ? modelScoreType : new ScoreTypeClassificationPolicy().classify(f.sourceText(), modelScoreType);
+            String id = ids.get(f.factId());
+            if (occurrences.get(f.factId()) > 1 || sourceIdentityCounts.getOrDefault(id,0L)>1) id = "local:"+ScoreVersionFingerprint.hash(taskId+":"+f.factId()+":"+result.size()).substring(0,40);
+            result.add(new ExtractedScoreItem(1,id,f.factId(),scheme,fileId(f),resolvedDim,
                     f.sourceMetadata().modelCategory(), itemRule,
                     List.of(),f.weight(),null,computable?f.weight():null,ratio?"PERCENTAGE":"POINTS",scoreType,
                     ids.get(f.parentFactId()),f.childAggregation().name(),Map.of("rawMaximum",f.isAutoApprovable() && f.weightEvidence()!=null?"SOURCE_EVIDENCE":"MODEL_CLAIM",

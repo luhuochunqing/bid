@@ -5,6 +5,8 @@ import { test, expect } from '@playwright/test'
 
 const projectId = process.env.XIYU_SCOREPARSE_PROJECT_ID
 const storageState = process.env.XIYU_SCOREPARSE_STORAGE_STATE
+const scoreTypeLabels = { OBJECTIVE: '客观项', SUBJECTIVE: '主观项' }
+const unusableName = /^(?:评分项(?:\s*\d+(?:[.-]\d+)*)?|\d+(?:[.-]\d+)*|[一二三四五六七八九十]+)$/
 if (storageState) test.use({ storageState })
 
 test('shows every extracted candidate without requiring formal adoption', async ({ page }) => {
@@ -14,6 +16,14 @@ test('shows every extracted candidate without requiring formal adoption', async 
   expect(response.ok()).toBe(true)
   const { data: snapshot } = await response.json()
   expect(snapshot?.items?.length).toBeGreaterThan(0)
+  if (projectId === '1394') {
+    const revenueRules = snapshot.items.filter(item =>
+      item.name === '营业总收入' && Number(item.rawMaximum) > 0 && !item.diagnostics?.includes('OUT_OF_SCHEME'))
+    expect(revenueRules.length, '项目 1394 的版本化快照应包含营业总收入评分项').toBeGreaterThan(0)
+    for (const rule of revenueRules) {
+      expect(rule.scoreType, '营业总收入的分值由量化门槛决定').toBe('OBJECTIVE')
+    }
+  }
   await page.locator('[data-test="score-parse-button"]').first().click()
   const drawer = page.locator('.score-parse-drawer')
   await expect(drawer).toBeVisible()
@@ -23,7 +33,52 @@ test('shows every extracted candidate without requiring formal adoption', async 
     const candidate = drawer.locator(`.extraction-panel [data-item-id="${item.itemId}"]`)
     await expect(candidate).toBeVisible()
     await expect(candidate).toContainText(item.name)
+    const type = scoreTypeLabels[item.scoreType]
+    await expect(candidate.locator('[data-test="extraction-score-type"]')).toHaveText(type ?? '待定类型')
+    if (item.computable) {
+      expect(type, `known type for ${item.itemId}`).toBeDefined()
+      expect(String(item.name || '').trim()).not.toBe('')
+      expect(item.name.trim()).not.toMatch(unusableName)
+      expect(item.name).not.toContain('|')
+    }
   }
+})
+
+test('project 1394 legacy review shows the revenue rule as objective and blocks invalid names', async ({ page }) => {
+  test.skip(process.env.XIYU_SCOREPARSE_LEGACY_1394 !== '1' || !storageState,
+    'Requires authenticated access to test project 1394 with a pending legacy review and versioned extraction disabled')
+  const path = '/api/projects/1394/score-parse/review'
+  const response = await page.request.get(path)
+  expect(response.ok()).toBe(true)
+  const { data: review } = await response.json()
+  expect(review?.status).toBe('COMPLETED')
+  expect(review?.decisionStatus).toBe('REVIEW_REQUIRED')
+  const revenue = review.facts.find(fact => fact.dimension === '营业总收入' && Number(fact.weight) > 0 && fact.scopeStatus !== 'OUT_OF_SCHEME')
+  expect(revenue?.scoreType, '营业总收入的分值由量化门槛决定').toBe('OBJECTIVE')
+
+  await page.goto('/project/1394/drafting')
+  await page.locator('[data-test="score-parse-button"]').first().click()
+  const drawer = page.locator('.score-parse-drawer')
+  const row = drawer.locator(`tr[data-fact-id="${revenue.factId}"]`)
+  const name = row.getByRole('textbox', { name: '评分维度' })
+  await expect(name).toHaveValue('营业总收入')
+  await expect(row.locator('.score-type-label')).toHaveText('客观项')
+  const adopt = drawer.locator('[data-test="btn-adopt-candidates"]')
+  await expect(adopt).toBeEnabled()
+
+  const submissions = []
+  page.on('request', request => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname === path) submissions.push(request.url())
+  })
+  for (const invalid of ['评分项 21', '1', '一', '3 | 营业总收入', '商务评分（20', '']) {
+    await name.fill(invalid)
+    await expect(row.locator('[data-test="invalid-dimension-hint"]')).toBeVisible()
+    await expect(adopt).toBeDisabled()
+    await adopt.evaluate(button => button.click())
+  }
+  await name.fill('营业总收入')
+  await expect(adopt).toBeEnabled()
+  expect(submissions).toEqual([])
 })
 
 test('active scoring rows retain complete rules and display numbers independently of internal codes', async ({ page }) => {

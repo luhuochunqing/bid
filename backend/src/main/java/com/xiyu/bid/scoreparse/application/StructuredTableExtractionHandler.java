@@ -26,6 +26,16 @@ import java.util.Optional;
 @Slf4j
 final class StructuredTableExtractionHandler {
     private StructuredTableExtractionHandler() {}
+
+    static String withFinalDecision(ScoreParseTask task) {
+        try {
+            var summary = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                    task.getRunSummary(), com.fasterxml.jackson.databind.node.ObjectNode.class);
+            return summary.put("decisionStatus", task.getDecisionStatus()).put("fallbackReason", task.getFallbackReason()).toString();
+        } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+            throw new IllegalStateException("评分解析摘要判定更新失败", failure);
+        }
+    }
     static StructuredTableResult extract(TenderTextSource source, LoadedBidFile loaded,
                                           SidecarDocumentArtifactExtractor artifactExtractor,
                                           SidecarTableExtractor sidecarTableExtractor) {
@@ -166,6 +176,11 @@ final class StructuredTableExtractionHandler {
                     taskId, candidateTotal, targetTotal);
             decision = ScoreParseDecision.REVIEW_REQUIRED;
             fallbackReason = "CANDIDATE_WEIGHT_SUM_MISMATCH";
+        }
+        if (decision == ScoreParseDecision.AUTO_APPROVED && ScoreItemPersistenceService.hasInvalidItemName(candidates)) {
+            log.warn("Evidence Pipeline 存在无效评分项名称，降级为需复核: taskId={}", taskId);
+            decision = ScoreParseDecision.REVIEW_REQUIRED;
+            fallbackReason = "INVALID_SCORE_ITEM_NAME";
         }
         // spec 062：权重合计信号基于全部表叶子候选（不以落库过滤集为准），
         // 保证文档级 REVIEW_REQUIRED 时 originalTotalWeight 仍反映全部事实权重。

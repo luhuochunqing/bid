@@ -9,6 +9,7 @@ import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseFact;
+import com.xiyu.bid.scoreparse.entity.ScoreResult;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository;
@@ -16,6 +17,8 @@ import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -24,9 +27,11 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -150,24 +155,21 @@ class ScoreItemPersistenceServiceTest {
     }
 
     @Test
-    void nullOrBlankDim_fallsBackToDetailOrPlaceholder_neverNull() {
+    void nullOrBlankDim_recoversExplicitRuleTitle() {
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
                 .thenReturn(List.of());
 
         service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
-                new ScoreCandidate("1", null, "技术实施方案完整得10分",
+                new ScoreCandidate("1", null, "技术实施方案：方案完整得10分",
                         new BigDecimal("10"), "OBJECTIVE", null, "原文", "P1", null),
-                new ScoreCandidate("2", "   ", "商务资质证书得20分",
-                        new BigDecimal("20"), "OBJECTIVE", null, "原文", "P2", null),
-                new ScoreCandidate("3", null, null,
-                        new BigDecimal("30"), "OBJECTIVE", null, "原文", "P3", null)));
+                new ScoreCandidate("2", "   ", "商务资质证书：提供有效证书得20分",
+                        new BigDecimal("20"), "OBJECTIVE", null, "原文", "P2", null)));
 
         ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
         List<ScoreItem> items = saved.getValue();
-        assertThat(items).hasSize(3);
-        assertThat(items.get(0).getDim()).isEqualTo("技术实施方案完整得10分");
-        assertThat(items.get(1).getDim()).isEqualTo("商务资质证书得20分");
-        assertThat(items.get(2).getDim()).isEqualTo("评分项");
+        assertThat(items).hasSize(2);
+        assertThat(items.get(0).getDim()).isEqualTo("技术实施方案");
+        assertThat(items.get(1).getDim()).isEqualTo("商务资质证书");
     }
 
     @Test
@@ -321,5 +323,75 @@ class ScoreItemPersistenceServiceTest {
     private ScoreCandidate candidate(String code, String detail, String weight) {
         return new ScoreCandidate(code, "资质", detail, new BigDecimal(weight),
                 "OBJECTIVE", null, detail, "P47", "SEMANTIC");
+    }
+
+    @Test
+    void manualReviewedCandidateNameIsPreserved() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
+                new ScoreCandidate("3", "近三年平均营业总收入",
+                        "3 | 营业总收入：营业收入超过10亿元得5分",
+                        new BigDecimal("5"), "OBJECTIVE", null,
+                        "3 | 营业总收入：营业收入超过10亿元得5分", "", "MANUAL_REVIEW_ADOPTED")));
+
+        assertThat(capturedSavedItems().getValue()).extracting(ScoreItem::getDim)
+                .containsExactly("近三年平均营业总收入");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"SUBJECTIVE", "OBJECTIVE"})
+    void manualAdoptionOnlyReusesResultsForTheSameScoreType(String adoptedType) {
+        var old = ScoreItem.builder().id(100L).code("1").weight(BigDecimal.TEN)
+                .detail("专家综合评审计分").scoreType("SUBJECTIVE").build();
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of(old));
+        when(itemRepository.saveAll(anyList())).thenAnswer(call -> {
+            List<ScoreItem> saved = call.getArgument(0);
+            saved.getFirst().setId(200L);
+            return saved;
+        });
+        boolean sameType = old.getScoreType().equals(adoptedType);
+        if (sameType) {
+            when(resultRepository.findByScoreItemIdIn(List.of(100L))).thenReturn(List.of(
+                    ScoreResult.builder().scoreItemId(100L).actualScore(BigDecimal.ONE).build()));
+        }
+
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(new ScoreCandidate("1", "实施方案",
+                old.getDetail(), old.getWeight(), adoptedType, null, old.getDetail(), "", "MANUAL_REVIEW_ADOPTED")));
+
+        assertThat(capturedSavedItems().getValue()).extracting(ScoreItem::getScoreType).containsExactly(adoptedType);
+        if (sameType) {
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<ScoreResult>> results = ArgumentCaptor.forClass(List.class);
+            verify(resultRepository).saveAll(results.capture());
+            assertThat(results.getValue()).singleElement().satisfies(result -> {
+                assertThat(result.getScoreItemId()).isEqualTo(200L);
+                assertThat(result.getActualScore()).isEqualByComparingTo(BigDecimal.ONE);
+            });
+            verify(resultRepository, never()).deleteByScoreItemIdIn(anyList());
+        } else {
+            verify(resultRepository).deleteByScoreItemIdIn(List.of(100L));
+            verify(resultRepository, never()).saveAll(anyList());
+        }
+    }
+
+    @Test
+    void rejectsEntireReplacementBeforeDeletingExistingRulesOrResultsWhenNameIsUnresolved() {
+        var candidateWithTruncatedName = new ScoreCandidate("4", "商务评分（20",
+                "商务评分（20分）\n具体细则无冒号但需完整说明",
+                BigDecimal.TEN, "OBJECTIVE", null,
+                "商务评分（20分）\n具体细则无冒号但需完整说明", "", "SEMANTIC");
+        var candidateWithoutName = new ScoreCandidate("5", null, null,
+                BigDecimal.TEN, "OBJECTIVE", null, "原文", "P3", null);
+        String ruleBody = "投标人提供营业收入证明得30分";
+        var candidateWithPlaceholder = new ScoreCandidate("6", "评分项 21（30分）", ruleBody,
+                new BigDecimal("30"), "OBJECTIVE", null, ruleBody, "", "SEMANTIC");
+        for (var invalid : List.of(candidateWithTruncatedName, candidateWithoutName, candidateWithPlaceholder)) {
+            assertThatThrownBy(() -> service.persistItems(PROJECT_ID,
+                    PARSE_TASK_ID, List.of(candidate("1", "人员资质", "5"), invalid)))
+                    .isInstanceOf(ScoreExtractionException.class).hasMessage("INVALID_SCORE_ITEM_NAME");
+        }
+        verifyNoInteractions(itemRepository, resultRepository);
+        assertThat(ScoreItemPersistenceService.hasInvalidItemName(List.of(candidateWithTruncatedName))).isTrue();
+        assertThat(ScoreItemPersistenceService.hasInvalidItemName(List.of(candidate("1", "人员资质", "5")))).isFalse();
     }
 }

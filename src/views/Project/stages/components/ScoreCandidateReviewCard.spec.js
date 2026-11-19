@@ -108,6 +108,33 @@ describe('ScoreCandidateReviewCard.vue', () => {
     expect(wrapper.findAll('.col-detail')[0].text()).toContain('业绩要求')
   })
 
+  it.each([undefined, 'SUBJECTIVE', 'OBJECTIVE'])('submits only a manually selected score type (%s) with a corrected rule', async (manualType) => {
+    const fact = { factId: 'contracts', dimension: '合同业绩', weight: 10, scoreType: 'SUBJECTIVE',
+      sourceText: '技术方案先进合理，专家酌情给分', candidateEligible: true }
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: { candidateFacts: [fact], candidateTotalWeight: 10 },
+      global: { stubs: {
+        'el-alert': true,
+        'el-button': { template: '<button v-bind="$attrs"><slot /></button>' },
+        'el-input': { props: ['modelValue', 'size'], emits: ['update:modelValue'],
+          template: `<input :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" />` },
+        'el-select': { props: ['modelValue', 'size'], emits: ['update:modelValue'],
+          template: `<select :value="modelValue" @change="$emit('update:modelValue', $event.target.value)"><option value=""></option><slot /></select>` },
+        'el-option': { props: ['value'], template: '<option :value="value" />' },
+      } },
+    })
+    expect(wrapper.get('.score-type-label').text()).toBe('主观项')
+    if (manualType) await wrapper.get('[aria-label="评分类别"]').setValue(manualType)
+    const correctedRule = '每提供1份有效合同得2分，最高10分'
+    await wrapper.get('[aria-label="完整规则"]').setValue(correctedRule)
+    await wrapper.get('[data-test="btn-adopt-candidates"]').trigger('click')
+
+    const [[submittedFacts]] = wrapper.emitted('adopt')
+    expect(submittedFacts[0].sourceText).toBe(correctedRule)
+    expect(submittedFacts[0].scoreType).toBe(manualType)
+    expect(fact.scoreType).toBe('SUBJECTIVE')
+  })
+
   it('explains a partial candidate total and still allows explicit adoption', () => {
     const wrapper = mount(ScoreCandidateReviewCard, {
       props: {
@@ -467,4 +494,65 @@ it('warns and refuses silent mutation when clicking include while schemeSelectio
   expect(wrapper.emitted('fact-change')).toBeUndefined()
   expect(facts[0].manualIncluded).toBeUndefined()
   expect(facts[0].candidateEligible).toBe(false)
+})
+
+it('blocks adoption when eligible candidates have empty, pure-numeric, score-only, placeholder, pipe, or unclosed-bracket names', () => {
+  for (const badDim of ['', '1', '一', 'A1', 'b2-1.3', '30分', '25%', '评分项 21', '商务评分（20', '3 | 营业总收入']) {
+    const wrapper = mount(ScoreCandidateReviewCard, {
+      props: {
+        candidateFacts: [
+          { factId: 'f1', code: '1', dimension: badDim, weight: 10, scoreType: 'OBJECTIVE', sourceText: '规则原文', candidateEligible: true },
+        ],
+        candidateTotalWeight: 10,
+      },
+      global: { stubs: { 'el-alert': true, 'el-select': true, 'el-option': true, 'el-button': { template: '<button v-bind="$attrs"><slot /></button>' } } },
+    })
+    expect(wrapper.find('[data-test="invalid-dimension-hint"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="invalid-dimension-alert"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="btn-adopt-candidates"]').attributes('disabled')).toBeDefined()
+  }
+})
+
+it.each(['SUM', 'UNKNOWN', undefined])('ignores the name of a %s rollup only while it has selected children', async (childAggregation) => {
+  const parent = { factId: 'parent', dimension: '', weight: 10, sourceText: '分组规则', candidateEligible: true, childAggregation }
+  const child = { factId: 'child', parentFactId: 'parent', dimension: '营业总收入', weight: 10, sourceText: '收入规则', candidateEligible: true }
+  const wrapper = mount(ScoreCandidateReviewCard, {
+    props: { candidateFacts: [parent, child], candidateTotalWeight: 10 },
+    global: { stubs: { 'el-alert': true, 'el-button': { template: '<button v-bind="$attrs"><slot /></button>' } } },
+  })
+  const button = wrapper.get('[data-test="btn-adopt-candidates"]')
+  expect(button.attributes('disabled')).toBeUndefined()
+  expect(wrapper.find('[data-test="invalid-dimension-alert"]').exists()).toBe(false)
+  expect(wrapper.find('[data-test="invalid-dimension-hint"]').exists()).toBe(false)
+  await wrapper.setProps({ candidateFacts: [parent, { ...child, manualExcluded: true }] })
+  expect(button.attributes('disabled')).toBeDefined()
+})
+
+it('checks the name of the effective shared cap and ignores its nested detail names', async () => {
+  const parent = { factId: 'parent', dimension: '企业资质', weight: 10, sourceText: '共享上限', candidateEligible: true, childAggregation: 'SHARED_CAP' }
+  const subgroup = { factId: 'group', parentFactId: 'parent', dimension: '', weight: 6, sourceText: '分组规则', candidateEligible: true, childAggregation: 'SUM' }
+  const child = { factId: 'child', parentFactId: 'group', dimension: '', weight: 6, sourceText: '细则', candidateEligible: true }
+  const wrapper = mount(ScoreCandidateReviewCard, {
+    props: { candidateFacts: [parent, subgroup, child], candidateTotalWeight: 10 },
+    global: { stubs: { 'el-alert': true, 'el-button': { template: '<button v-bind="$attrs"><slot /></button>' } } },
+  })
+  const button = wrapper.get('[data-test="btn-adopt-candidates"]')
+  expect(button.attributes('disabled')).toBeUndefined()
+  await wrapper.setProps({ candidateFacts: [{ ...parent, dimension: '' }, subgroup, child] })
+  expect(button.attributes('disabled')).toBeDefined()
+})
+
+it('requires a name for a zero-point deduction only when its source is verified', async () => {
+  const revenue = { factId: 'revenue', dimension: '营业总收入', weight: 10, sourceText: '收入规则', candidateEligible: true }
+  const deduction = { factId: 'deduction', dimension: '', weight: 0, sourceText: '缺少材料扣分',
+    candidateEligible: true, manualIncluded: true, scopeStatus: 'IN_SCHEME' }
+  const wrapper = mount(ScoreCandidateReviewCard, {
+    props: { candidateFacts: [revenue, deduction], candidateTotalWeight: 10 },
+    global: { stubs: { 'el-alert': true, 'el-button': { template: '<button v-bind="$attrs"><slot /></button>' } } },
+  })
+  const button = wrapper.get('[data-test="btn-adopt-candidates"]')
+  expect(button.attributes('disabled')).toBeUndefined()
+  await wrapper.setProps({ candidateFacts: [revenue, { ...deduction,
+    evidences: [{ kind: 'SOURCE_VERIFIED_ZERO_DEDUCTION', quotedText: deduction.sourceText }] }] })
+  expect(button.attributes('disabled')).toBeDefined()
 })

@@ -391,4 +391,20 @@ class CellAnchoredScoreExtractorTest {
     }
 
     // 关联：项目 33 真实物理版式中跨页残行大类标题含换行（部分\n（30\n分））单测见 ScoreParseContinuationRowTest
+
+    @Test
+    void extract_splitBracketCategoryAndPipeDetail_extractsCleanDimension() {
+        String markdown = """
+                | 序号 | 评分因素 | 评分细则 | 分值 |
+                |---|---|---|---|
+                | 3 | 商务评分 | 营业总收入：2024年营业总收入大于10亿元得5分 | 5 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = new TableColumnMapping(0, -1, 1, 2, 3, 1, false);
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+        assertThat(candidates).hasSize(1);
+        assertThat(candidates.get(0).dim()).isEqualTo("商务评分");
+        assertThat(com.xiyu.bid.scoreparse.domain.ScoreItemTitleExtractor.resolveDimension(
+                "商务评分（20", "3 | " + candidates.get(0).detail())).isEqualTo("营业总收入");
+    }
 }

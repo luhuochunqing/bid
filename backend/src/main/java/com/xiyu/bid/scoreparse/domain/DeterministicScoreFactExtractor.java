@@ -53,7 +53,8 @@ public final class DeterministicScoreFactExtractor {
             CanonicalCell detailCell = cellAt(rowCells, mapping.detailCol()).orElse(null);
             String detail = detailCell == null ? "" : detailCell.rawText();
             CanonicalCell dimCell = cellAt(rowCells, mapping.dimCol()).orElse(null);
-            String dimension = cleanDimension(dimCell == null ? "" : dimCell.rawText());
+            String rawDimension = dimCell == null ? "" : dimCell.rawText();
+            String dimension = ScoreItemTitleExtractor.cleanDimensionLabel(rawDimension);
             String code = cellAt(rowCells, mapping.codeCol()).map(CanonicalCell::rawText).orElse("").trim();
             String sourceText = rowCells.stream().filter(cell -> !cell.isMergedContinue())
                     .map(CanonicalCell::rawText).filter(text -> !text.isBlank())
@@ -83,25 +84,26 @@ public final class DeterministicScoreFactExtractor {
                     && explicitWeight.weight().compareTo(BigDecimal.ZERO) > 0
                     && hasScoredContinuation(grid, row, dimCell, mapping);
             if (splitMergedOrigin) {
+                String leafDim = ScoreItemTitleExtractor.resolveDimension(rawDimension, detail);
                 String parentId = factId(grid.tableId(), row, "", dimension, "parent");
                 parentFactByOriginRow.put(row, fact(parentId, grid.tableId(), List.of(dimCell.cellId()),
                         dimCell.rawText(), "", dimension, titleWeight, ScoreRule.MAX_SCORE, "",
                         method, ScoreFact.ValidationStatus.REVIEW_REQUIRED));
-                factByRow.put(row, fact(factId(grid.tableId(), row, code, dimension, "leaf"),
-                        grid.tableId(), sourceCellIds, sourceText, code, dimension, explicitWeight,
+                factByRow.put(row, fact(factId(grid.tableId(), row, code, leafDim, "leaf"),
+                        grid.tableId(), sourceCellIds, sourceText, code, leafDim, explicitWeight,
                         classifyRule(detail), parentId, method, ScoreFact.ValidationStatus.AUTO_APPROVED));
                 continue;
             }
             WeightResolution weight = resolveWeight(rowCells, dimCell, detailCell, mapping);
             boolean isDimMergedContinuation = dimCell != null && dimCell.isMergedContinue();
-            if (code.isBlank() && dimension.isBlank() && !isDimMergedContinuation
-                    && (weight.weight() == null || weight.weight().compareTo(BigDecimal.ZERO) == 0)) {
+            boolean noCodeOrWeight = code.isBlank()
+                    && (weight.weight() == null || weight.weight().signum() == 0);
+            if (noCodeOrWeight && dimension.isBlank() && !isDimMergedContinuation) {
                 continue;
             }
             // 跨页溢出残行识别：无编号、无有效分值，且无独立细项维度（属于大类跨行单元格延续、大类名称或空维度），
             // 或细则文本以标点/序号小标开头（上一页细则被分页截断后的文本残片），直接跳过
-            boolean isOverflowContinuation = (code == null || code.isBlank())
-                    && (weight.weight() == null || weight.weight().compareTo(BigDecimal.ZERO) == 0)
+            boolean isOverflowContinuation = noCodeOrWeight
                     && (!detail.isBlank() && (detail.startsWith("；") || detail.startsWith(";")
                     || detail.startsWith(")") || detail.startsWith("）")
                     || detail.matches("^[0-9一二三四五六七八九十]+[、.\\s].*")
@@ -109,20 +111,19 @@ public final class DeterministicScoreFactExtractor {
             if (isOverflowContinuation) {
                 continue;
             }
-            String factId = factId(grid.tableId(), row, code, dimension);
+            String leafDim = ScoreItemTitleExtractor.resolveDimension(rawDimension, detail);
+            String factId = factId(grid.tableId(), row, code, leafDim);
             ScoreFact.ValidationStatus status = weight.ambiguous() || weight.weight() == null
                     ? ScoreFact.ValidationStatus.REVIEW_REQUIRED
                     : ScoreFact.ValidationStatus.AUTO_APPROVED;
             factByRow.put(row, fact(factId, grid.tableId(), sourceCellIds, sourceText, code,
-                    dimension, weight, classifyRule(detail), "", method, status));
+                    leafDim, weight, classifyRule(detail), "", method, status));
         }
 
         Map<Integer, String> dimensionOriginCellIdByRow = new HashMap<>();
         for (MergedRegion region : grid.mergedRegions()) {
             Optional<CanonicalCell> originOpt = grid.findCell(region.startCellId());
-            if (originOpt.isEmpty()) {
-                continue;
-            }
+            if (originOpt.isEmpty()) continue;
             CanonicalCell origin = originOpt.get();
             if (origin.column() != mapping.dimCol()) {
                 continue;
@@ -243,24 +244,20 @@ public final class DeterministicScoreFactExtractor {
         return cells.stream().filter(cell -> cell.column() == column).findFirst();
     }
 
-    private static String cleanDimension(String raw) {
-        return raw == null ? "" : TITLE_WEIGHT.matcher(raw).replaceAll("").replaceAll("\\s+", " ").trim();
-    }
-
     private static ScoreFact resolveContinuationFact(
             int row, TableColumnMapping mapping, CanonicalTableGrid grid, ScoreFact fact,
             Map<Integer, ScoreFact> factByRow, Map<Integer, ScoreFact> parentFactByOriginRow,
             Map<Integer, String> dimensionOriginCellIdByRow, Map<String, Integer> originRowByCellId) {
         CanonicalCell dimCell = cellAt(grid.cellsInRow(row), mapping.dimCol()).orElse(null);
         if (dimCell == null || !dimCell.isMergedContinue()) return fact;
-        Integer originRow = originRowByCellId.get(dimensionOriginCellIdByRow.get(row));
+        String originCellId = dimensionOriginCellIdByRow.get(row);
+        Integer originRow = originRowByCellId.get(originCellId);
         if (originRow == null) return fact;
         ScoreFact parent = resolveParentFact(originRow, mapping, grid, factByRow, parentFactByOriginRow);
-        ScoreFact originLeaf = factByRow.get(originRow);
-        String dim = !fact.dimension().isBlank() ? fact.dimension()
-                : (parent != null && !parent.dimension().isBlank() ? parent.dimension()
-                : (originLeaf != null && !originLeaf.dimension().isBlank() ? originLeaf.dimension() : ""));
-        String originCellId = dimensionOriginCellIdByRow.get(row);
+        // Only the merged cell is shared. The origin row's rule may supply a row-specific title.
+        String dim = fact.dimension().isBlank()
+                ? grid.findCell(originCellId).map(cell -> ScoreItemTitleExtractor.resolveDimension(cell.rawText(), "")).orElse("")
+                : fact.dimension();
         List<String> sourceCellIds = new ArrayList<>(fact.sourceCellIds());
         if (originCellId != null && !sourceCellIds.contains(originCellId)) sourceCellIds.add(originCellId);
         String sourceText = fact.sourceText();

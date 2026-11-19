@@ -13,6 +13,8 @@ import java.util.Set;
  */
 public final class ScoreReviewAdoptionPolicy {
 
+    public static final String ADOPTED_CANDIDATE_PATTERN = "MANUAL_REVIEW_ADOPTED";
+
     public record CandidateInput(
             String factId,
             String code,
@@ -135,9 +137,9 @@ public final class ScoreReviewAdoptionPolicy {
                 }
             }
 
-            String dim = fact.dimension();
-            if (dim.isBlank()) {
-                dim = !fact.code().isBlank() ? "评分项 " + fact.code() : "评分项 " + index;
+            String dim = ScoreItemTitleExtractor.resolveDimension(fact.dimension(), fact.sourceText());
+            if (ScoreCategoryClassifier.isInvalidOrPlaceholderName(dim)) {
+                return AdoptionResult.failure("候选评分项缺少有效名称（含空名称、纯序号或异常截断），请核对并补全评分项名称后再采纳");
             }
 
             String code = fact.code().isBlank() ? String.valueOf(index) : fact.code();
@@ -153,7 +155,7 @@ public final class ScoreReviewAdoptionPolicy {
                     "",
                     fact.sourceText(),
                     "",
-                    "MANUAL_REVIEW_ADOPTED"
+                    ADOPTED_CANDIDATE_PATTERN
             ));
 
             total = total.add(weight);

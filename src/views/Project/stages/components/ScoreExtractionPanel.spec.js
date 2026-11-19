@@ -103,3 +103,77 @@ it('keeps unknown source diagnostic details readable as text', () => {
   expect(w.get('[data-test="extraction-source-diagnostics"]').text()).toContain('UNFAMILIAR:<img src=x onerror=alert(1)>')
   expect(w.find('img').exists()).toBe(false)
 })
+
+it('displays objective and subjective scoreType labels on candidate items', () => {
+  const data = snapshot()
+  data.items = [
+    item('客观指标', { scoreType: 'OBJECTIVE' }),
+    item('主观方案', { scoreType: 'SUBJECTIVE' }),
+  ]
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+  const cards = w.findAll('article.candidate')
+  expect(cards).toHaveLength(2)
+  expect(cards[0].text()).toContain('客观项')
+  expect(cards[1].text()).toContain('主观项')
+})
+
+it('allows only the valid rule in a frozen snapshot with category and points labels', async () => {
+  const data = snapshot()
+  data.items = [
+    item('category', { name: '商务' }),
+    item('points', { name: '30分' }),
+    item('valid', { name: '营业总收入（30分）' }),
+  ]
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+
+  for (const id of ['category', 'points']) {
+    const row = w.get(`[data-item-id="${id}"]`)
+    expect(row.get('input').element.disabled).toBe(true)
+    expect(row.text()).toContain('评分项名称无效')
+    expect(row.text()).toContain('不可计算')
+  }
+  const valid = w.get('[data-item-id="valid"] input')
+  expect(valid.element.disabled).toBe(false)
+  await valid.setValue(true)
+  await w.get('textarea').setValue('核对后选取')
+  await w.get('[data-test="activate-extraction"]').trigger('click')
+  expect(w.emitted('activate')[0][0].selectedItemIds).toEqual(['valid'])
+})
+
+it.each(['', '1', '一', 'A1', 'b2-1.3', '评分项 21', '评分项 21（30分）', '1（30分）', '3 | 营业总收入', '商务评分（20'])(
+  'excludes invalid historical name %j while allowing a valid rule',
+  async (name) => {
+    const data = snapshot()
+    data.items = [
+      item('invalid', { name, computable: true }),
+      item('valid', { name: '营业总收入（30分）', computable: true }),
+    ]
+    const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+    const invalid = w.get('[data-item-id="invalid"]')
+    expect(invalid.get('input[type="checkbox"]').attributes('disabled')).toBeDefined()
+    expect(invalid.text()).toContain('评分项名称无效')
+    const valid = w.get('[data-item-id="valid"] input[type="checkbox"]')
+    expect(valid.attributes('disabled')).toBeUndefined()
+    await valid.setValue(true)
+    await w.get('textarea').setValue('核对后选取')
+    await w.get('[data-test="activate-extraction"]').trigger('click')
+    expect(w.emitted('activate')[0][0].selectedItemIds).toEqual(['valid'])
+  },
+)
+
+it('allows a standalone price formula and keeps a price heading unselectable', async () => {
+  const data = snapshot()
+  const rule = '投标报价折扣率以有效投标折扣率的算术平均值为基准，报价得分=基准折扣率/投标报价折扣率×30分。'
+  data.items = [
+    item('formula', { name: '价格', ruleText: rule, fact: { sourceText: rule } }),
+    item('heading', { name: '价格', ruleText: '价格评分项目一览', fact: { sourceText: '价格评分项目一览' } }),
+  ]
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+  expect(w.get('[data-item-id="heading"] input').attributes('disabled')).toBeDefined()
+  const formula = w.get('[data-item-id="formula"] input')
+  expect(formula.attributes('disabled')).toBeUndefined()
+  await formula.setValue(true)
+  await w.get('textarea').setValue('核对报价公式')
+  await w.get('[data-test="activate-extraction"]').trigger('click')
+  expect(w.emitted('activate')[0][0].selectedItemIds).toEqual(['formula'])
+})

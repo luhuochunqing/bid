@@ -176,4 +176,21 @@ class ScoreReviewAdoptionPolicyTest {
         assertThat(result.candidates().stream().map(ScoreCandidate::dim).toList())
                 .containsExactly("企业业绩", "财务状况");
     }
+
+    @Test
+    @DisplayName("采纳门禁：禁止空名称、纯序号或占位名生成“评分项 N”兜底名直接落库")
+    void adopt_rejectsEmptyNumericAndPlaceholderNamesWithoutSynthesis() {
+        for (String badName : List.of("", "   ", "1", "2.1", "评分项", "评分项 21")) {
+            var bad = new ScoreReviewAdoptionPolicy.CandidateInput(
+                    "f-bad", "21", badName, BigDecimal.TEN, "无冒号的单纯正文条件得10分", "");
+            var result = policy.adopt(List.of(bad), Set.of("f-bad"), Map.of());
+            assertThat(result.success()).as("expected rejection for bad dim: %s", badName).isFalse();
+            assertThat(result.errorMessage()).contains("缺少有效名称");
+        }
+        var repairable = new ScoreReviewAdoptionPolicy.CandidateInput(
+                "f-ok", "3", "1", BigDecimal.TEN, "营业总收入：近三年高于5亿得10分", "");
+        var repaired = policy.adopt(List.of(repairable), Set.of("f-ok"), Map.of());
+        assertThat(repaired.success()).isTrue();
+        assertThat(repaired.candidates().getFirst().dim()).isEqualTo("营业总收入");
+    }
 }

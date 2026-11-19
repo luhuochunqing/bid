@@ -2,10 +2,21 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFact;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator;
+import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreCategoryClassifier;
 import com.xiyu.bid.scoreparse.domain.ScoreEvidence;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import com.xiyu.bid.scoreparse.domain.ScoreItemTitleExtractor;
+import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 import com.xiyu.bid.scoreparse.domain.ScoreRule;
+import com.xiyu.bid.scoreparse.domain.SourceSpan;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
+import com.xiyu.bid.scoreparse.domain.grid.HeuristicTableColumnMapper;
+import com.xiyu.bid.scoreparse.domain.grid.TableGrid;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import java.util.stream.Collectors;
 
@@ -40,11 +51,16 @@ final class TextPrimaryScoreFactMapper {
         boolean verified = restored.closed();
         var status = candidateEligible && !restored.text().isBlank() && verified && violations.isBlank() && validation.autoApprovable()
                 ? ScoreFact.ValidationStatus.AUTO_APPROVED : ScoreFact.ValidationStatus.REVIEW_REQUIRED;
-        String ruleTextForDimension = !restored.text().isBlank() ? restored.text()
-                : (fact.sourceMetadata() != null && !fact.sourceMetadata().modelRuleText().isBlank()
-                ? fact.sourceMetadata().modelRuleText() : fact.ruleText());
-        String dimension = com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy.publishedDimension(
+        String ruleTextForDimension = restored.text();
+        if (!verified && !ruleTextForDimension.equals(restored.spans().stream()
+                .map(SourceSpan::rawText).collect(Collectors.joining("\n")).strip())) {
+            ruleTextForDimension = "";
+        }
+        String dimension = OriginalScoreEvidencePolicy.publishedDimension(
                 fact.dimension(), ruleTextForDimension, fact.weight());
+        if (ScoreCategoryClassifier.needsSpecificTitle(dimension)) {
+            dimension = resolveRowTitleFromArtifact(artifact, fact, cellId, dimension);
+        }
         return new ScoreFact(factId, fact.tableId(), fact.sourceCellIds(), restored.text(), fact.code(), dimension,
                 fact.weight(), new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, fact.quotedText(), cellId,
                 start, start < 0 ? -1 : start + fact.quotedText().length(), "page=" + fact.pageNumber() + "; scoreType="
@@ -84,4 +100,70 @@ final class TextPrimaryScoreFactMapper {
                         ? com.xiyu.bid.scoreparse.domain.ModelSourceClaim.from(fact) : existing.modelSourceClaim());
     }
 
+    private static String resolveRowTitleFromArtifact(
+            DocumentArtifact artifact, MultimodalScoreFact fact, String cellId, String fallbackDimension) {
+        if (artifact == null || cellId.isBlank()) {
+            return fallbackDimension;
+        }
+        for (var table : artifact.tables()) {
+            if (!fact.tableId().isBlank() && !fact.tableId().equals(table.tableId())) {
+                continue;
+            }
+            var target = table.cells().stream().filter(c -> cellId.equals(c.cellId())).findFirst().orElse(null);
+            if (target == null || target.row() == null) {
+                continue;
+            }
+            var grid = originalGrid(table);
+            var mapping = HeuristicTableColumnMapper.infer(grid);
+            if (target.row() < mapping.headerRows()) {
+                return fallbackDimension;
+            }
+            int titleCol = mapping.dimCol();
+            if (titleCol == mapping.weightCol() && mapping.headerRows() > 0
+                    && ScoreCategoryClassifier.isInvalidOrPlaceholderName(grid.cell(target.row(), titleCol))) {
+                // A bracketed score can make column inference mistake a separate points column for an inline title.
+                var header = new TableGrid(List.of(grid.row(mapping.headerRows() - 1)));
+                titleCol = HeuristicTableColumnMapper.infer(header).dimCol();
+            } else if (titleCol == mapping.weightCol() && mapping.headerRows() == 0
+                    && ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(grid.cell(target.row(), titleCol)).matches()) {
+                titleCol = inferTitleWithStandaloneScores(grid, titleCol);
+            }
+            if (titleCol == mapping.detailCol()) {
+                return fallbackDimension;
+            }
+            String candidate = ScoreItemTitleExtractor.resolveDimension(grid.cell(target.row(), titleCol), "");
+            return ScoreCategoryClassifier.needsSpecificTitle(candidate) ? fallbackDimension : candidate;
+        }
+        return fallbackDimension;
+    }
+
+    private static int inferTitleWithStandaloneScores(TableGrid grid, int weightColumn) {
+        // Give column inference the equivalent bare score while retaining the original evidence.
+        List<List<String>> rows = new ArrayList<>();
+        for (var row : grid.allRows()) {
+            var score = ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(row.get(weightColumn).strip());
+            var cells = new ArrayList<>(row);
+            if (score.matches()) {
+                cells.set(weightColumn, score.group(1));
+            }
+            rows.add(cells);
+        }
+        return HeuristicTableColumnMapper.infer(new TableGrid(rows)).dimCol();
+    }
+
+    private static TableGrid originalGrid(DocumentArtifact.CanonicalTable table) {
+        List<List<String>> rows = new ArrayList<>();
+        for (int row = 0; row < table.rows(); row++) {
+            rows.add(new ArrayList<>(Collections.nCopies(table.columns(), "")));
+        }
+        for (var cell : table.cells()) {
+            Integer row = cell.row();
+            Integer column = cell.column();
+            if (row != null && row >= 0 && row < table.rows() && column != null && column >= 0
+                    && column < table.columns() && !Boolean.TRUE.equals(cell.isMergedContinue()) && cell.rawText() != null) {
+                rows.get(row).set(column, cell.rawText());
+            }
+        }
+        return new TableGrid(rows);
+    }
 }

@@ -75,6 +75,7 @@ import com.xiyu.bid.scoreparse.domain.ProjectEvidenceRequirementPolicy;
 import com.xiyu.bid.scoreparse.domain.LogicalRuleSourceUnit;
 import com.xiyu.bid.scoreparse.domain.DeductionItemPolicy;
 import com.xiyu.bid.scoreparse.domain.ImageAssignmentPlan;
+import com.xiyu.bid.scoreparse.domain.ScoreCategoryClassifier;
 import com.xiyu.bid.scoreparse.dto.ActivateScoreExtractionCommand;
 import com.xiyu.bid.scoreparse.entity.ScoreResult;
 import com.xiyu.bid.scoreparse.entity.ScoreActiveVersion;
@@ -176,6 +177,11 @@ public class ScoreVersionActivationService {
         if (scheme.declaredTotal()!=null
                 && "KNOWN".equals(scheme.declaredTotalStatus())
                 && scheme.declaredTotal().compareTo(scheme.computableTotal())!=0) return false;
+        if (snapshot.items().stream().anyMatch(i -> scheme.schemeId().equals(i.schemeId())
+                && (i.computable() || i.diagnostics().contains("INVALID_SCORE_ITEM_NAME"))
+                && !i.diagnostics().contains("NOT_EFFECTIVE_SCORING_UNIT")
+                && !i.diagnostics().contains("OUT_OF_SCHEME")
+                && !ScoreCategoryClassifier.isPublishableName(i.name(), i.fact()))) return false;
         var current=items.findByProjectIdOrderByItemIndexAsc(projectId);
         if(!current.isEmpty() && (token.versionId()==null || !coversCurrentRules(snapshot,current) || !snapshot.sourceDiagnostics().isEmpty() || !scheme.extractedTotalComplete()
                 || scheme.declaredTotal()==null || !"KNOWN".equals(scheme.declaredTotalStatus())
@@ -194,9 +200,11 @@ public class ScoreVersionActivationService {
         if(record.getFrozenAt()==null || !"COMPLETED".equals(task.getStatus()) || Boolean.TRUE.equals(task.getTimeoutMarked())) throw new ScoreExtractionException(409,"EXTRACTION_NOT_COMPLETED");
         var snapshot=codec.decode(record.getPayload());
         if(snapshot.schemes().stream().noneMatch(s -> s.schemeId().equals(command.schemeId()))) throw new ScoreExtractionException(400,"SCHEME_NOT_FOUND");
-        var selection=snapshot.items().stream().filter(i -> i.schemeId().equals(command.schemeId()) && i.computable())
+        var selection=snapshot.items().stream()
+                .filter(i -> i.schemeId().equals(command.schemeId()) && i.computable())
                 .filter(i -> command.selectedItemIds()==null || command.selectedItemIds().contains(i.itemId())).toList();
-        if(selection.isEmpty() || command.selectedItemIds()!=null && (new HashSet<>(command.selectedItemIds()).size()!=command.selectedItemIds().size()
+        if(selection.isEmpty() || selection.stream().anyMatch(i -> !ScoreCategoryClassifier.isPublishableName(i.name(), i.fact()))
+                || command.selectedItemIds()!=null && (new HashSet<>(command.selectedItemIds()).size()!=command.selectedItemIds().size()
                 || selection.size()!=command.selectedItemIds().size())) throw new ScoreExtractionException(400,"INVALID_OR_NONCOMPUTABLE_SELECTION");
         var old=items.findByProjectIdOrderByItemIndexAsc(projectId);
         var version=versions.saveAndFlush(ScoreActiveVersion.builder().projectId(projectId).parseTaskId(task.getId()).schemeId(command.schemeId())

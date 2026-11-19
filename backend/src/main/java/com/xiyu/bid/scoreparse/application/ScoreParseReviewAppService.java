@@ -39,8 +39,7 @@ public class ScoreParseReviewAppService {
     private final ProjectAccessScopeService projectAccessScopeService;
     private final ScoreItemPersistenceService itemPersistenceService;
     private final EstimatedScoreService estimatedScoreService;
-    private final com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy adoptionPolicy =
-            new com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy();
+    private final ScoreReviewAdoptionPolicy adoptionPolicy = new ScoreReviewAdoptionPolicy();
     @Transactional(readOnly = true)
     public ScoreParseReviewDTO getReviewSnapshot(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
@@ -165,12 +164,13 @@ public class ScoreParseReviewAppService {
                 }
             }
         }
-        List<ScoreParseEvidence> qualificationEvidence = evidenceRepository.findByParseTaskId(task.getId());
-        Map<String, ScoreParseReviewFactMapper.Qualification> qualifications = qualificationEvidence.stream()
+        var allEvidence = evidenceRepository.findByParseTaskId(task.getId());
+        var evidenceByFactId = allEvidence.stream().collect(Collectors.groupingBy(ScoreParseEvidence::getFactId));
+        Map<String, ScoreParseReviewFactMapper.Qualification> qualifications = allEvidence.stream()
                 .filter(evidence -> "SCHEME_QUALIFICATION".equals(evidence.getKind()))
                 .collect(Collectors.toMap(ScoreParseEvidence::getFactId, ScoreParseReviewFactMapper::qualification,
                         (first, ignored) -> first));
-        qualificationEvidence.stream().filter(evidence -> "ITEM_SCHEME_SCOPE_MISMATCH".equals(evidence.getKind()))
+        allEvidence.stream().filter(evidence -> "ITEM_SCHEME_SCOPE_MISMATCH".equals(evidence.getKind()))
                 .forEach(evidence -> qualifications.putIfAbsent(evidence.getFactId(), ScoreParseReviewFactMapper.qualification(evidence)));
         List<ScoreParseFact> eligibleFacts = facts.stream().filter(fact -> {
             ScoreParseReviewFactMapper.Qualification q = qualifications.get(fact.getFactId());
@@ -214,9 +214,10 @@ public class ScoreParseReviewAppService {
                     if (!eligibleIds.contains(fact.getFactId())) return false;
                     var q = qualifications.get(fact.getFactId());
                     return q == null || q.schemeId() == null || q.schemeId().isBlank() || adoptedSchemeId.equals(q.schemeId());
-                }).map(f -> toCandidateInput(f, edits.get(f.getFactId()), qualificationEvidence)).toList();
+                }).map(f -> toCandidateInput(f, edits.get(f.getFactId()),
+                        evidenceByFactId.getOrDefault(f.getFactId(), List.of()))).toList();
 
-        com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.AdoptionResult result =
+        ScoreReviewAdoptionPolicy.AdoptionResult result =
                 adoptionPolicy.adopt(inputs, selectedFactIds, adjustedWeights);
         if (!result.success()) {
             throw new IllegalArgumentException(result.errorMessage());
@@ -244,14 +245,16 @@ public class ScoreParseReviewAppService {
                 .operatorName(normalizeOperatorName(operatorName))
                 .build());
     }
-    private com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput toCandidateInput(
+    private ScoreReviewAdoptionPolicy.CandidateInput toCandidateInput(
             ScoreParseFact fact, ScoreParseReviewCommand.Action edit, List<ScoreParseEvidence> evidence) {
-        return new com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy.CandidateInput(
+        String sourceText = prefer(edit == null ? null : edit.adjustedSourceText(), fact.getSourceText());
+        String scoreType = edit == null ? null : edit.adjustedScoreType();
+        if (scoreType == null) scoreType = ScoreParseReviewFactMapper.resolveScoreType(sourceText, evidence);
+        return new ScoreReviewAdoptionPolicy.CandidateInput(
                 fact.getFactId(), prefer(edit == null ? null : edit.adjustedCode(), fact.getCode()),
                 prefer(edit == null ? null : edit.adjustedDimension(), fact.getDimension()), fact.getWeight(),
-                prefer(edit == null ? null : edit.adjustedSourceText(), fact.getSourceText()),
-                prefer(edit == null ? null : edit.adjustedParentFactId(), fact.getParentFactId()),
-                edit == null ? null : edit.adjustedScoreType(), fact.getChildAggregation(),
+                sourceText, prefer(edit == null ? null : edit.adjustedParentFactId(), fact.getParentFactId()),
+                scoreType, fact.getChildAggregation(),
                 ScoreParseReviewFactMapper.verifiedZeroDeduction(fact, evidence)
                         && (edit == null || edit.adjustedSourceText() == null || fact.getSourceText().equals(edit.adjustedSourceText())),
                 ScoreParseReviewFactMapper.sourceCellIds(fact));

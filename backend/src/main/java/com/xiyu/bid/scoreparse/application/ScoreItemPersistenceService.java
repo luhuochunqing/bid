@@ -5,10 +5,12 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.DeterministicScoreFactExtractor;
-import com.xiyu.bid.scoreparse.domain.ScoreCategoryClassifier;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreCategoryClassifier;
+import com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer;
 import com.xiyu.bid.scoreparse.domain.ScoreItemOrderPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreItemTitleExtractor;
+import com.xiyu.bid.scoreparse.domain.ScoreReviewAdoptionPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreResult;
@@ -45,7 +47,6 @@ public class ScoreItemPersistenceService {
     private com.xiyu.bid.scoreparse.repository.ScoreExtractionRecordRepository extractionSnapshotRepository;
     private final ScoreItemRepository itemRepository;
     private final ScoreResultRepository resultRepository;
-    private final com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository factRepository;
     private final com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository evidenceRepository;
     private final ScoreParseFactEvidenceWriter factEvidenceWriter;
     private final ScoreTypeClassificationPolicy classificationPolicy = new ScoreTypeClassificationPolicy();
@@ -60,7 +61,6 @@ public class ScoreItemPersistenceService {
             ObjectMapper objectMapper) {
         this.itemRepository = itemRepository;
         this.resultRepository = resultRepository;
-        this.factRepository = factRepository;
         this.evidenceRepository = evidenceRepository;
         this.factEvidenceWriter = new ScoreParseFactEvidenceWriter(factRepository, evidenceRepository,
                 objectMapper != null ? objectMapper : new ObjectMapper());
@@ -87,8 +87,13 @@ public class ScoreItemPersistenceService {
         if (extractionSnapshotRepository != null && parseTaskId != null && extractionSnapshotRepository.currentIdForUpdate(parseTaskId).isPresent())
             throw new ScoreExtractionException(409, "VERSIONED_TASK_REQUIRES_ACTIVATION");
         List<ScoreCandidate> ordered = orderPolicy.sort(candidates);
+        List<String> dimensions = ordered.stream().map(ScoreItemPersistenceService::resolveDim).toList();
+        if (dimensions.stream().anyMatch(ScoreCategoryClassifier::isInvalidOrPlaceholderName)) {
+            throw new ScoreExtractionException(400, "INVALID_SCORE_ITEM_NAME");
+        }
+        List<String> scoreTypes = ordered.stream().map(this::resolveScoreType).toList();
         List<ScoreItem> oldItems = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
-        boolean fingerprintUnchanged = isFingerprintUnchanged(oldItems, ordered);
+        boolean fingerprintUnchanged = isFingerprintUnchanged(oldItems, ordered, scoreTypes);
 
         Map<String, ScoreResult> oldResultByCode = Map.of();
         if (fingerprintUnchanged && !oldItems.isEmpty()) {
@@ -106,10 +111,6 @@ public class ScoreItemPersistenceService {
         List<ScoreItem> items = new ArrayList<>();
         for (int i = 0; i < ordered.size(); i++) {
             ScoreCandidate candidate = ordered.get(i);
-            String scoreType = com.xiyu.bid.scoreparse.domain.GroupedCriteriaScoreTable.METHOD.equals(candidate.location())
-                    ? candidate.scoreTypeGuess() : classificationPolicy.classify(candidate.detail(), candidate.scoreTypeGuess());
-            String code = resolveCode(candidate.code());
-            String dim = resolveDim(candidate);
             String detail = candidate.detail() == null || candidate.detail().isBlank()
                     ? "—" : candidate.detail();
             String location = resolveLocation(candidate.location());
@@ -117,11 +118,11 @@ public class ScoreItemPersistenceService {
                     .projectId(projectId)
                     .parseTaskId(parseTaskId)
                     .itemIndex(i + 1)
-                    .code(code)
-                    .dim(dim)
+                    .code(ScoreCodeSanitizer.clean(candidate.code()))
+                    .dim(dimensions.get(i))
                     .detail(detail)
                     .weight(candidate.weight() == null ? BigDecimal.ZERO : candidate.weight())
-                    .scoreType(scoreType)
+                    .scoreType(scoreTypes.get(i))
                     .statusStage1("PENDING")
                     .contextNote(candidate.contextNote())
                     .sourceText(candidate.sourceText())
@@ -174,28 +175,39 @@ public class ScoreItemPersistenceService {
     }
 
     /**
-     * REVIEW_REQUIRED 候选快照：不覆盖正式 score_item，只写入 score_parse_fact 供复核 UI 展示最新候选。
+     * REVIEW_REQUIRED 候选快照：保存候选事实与类型依据，供复核使用。
      */
     @Transactional
     public void persistReviewCandidateFacts(Long projectId, Long parseTaskId, List<ScoreCandidate> candidates) {
-        List<com.xiyu.bid.scoreparse.domain.ScoreFact> facts =
-                ScoreReviewCandidateFactMapper.toFacts(parseTaskId, candidates);
-        if (facts.isEmpty()) {
+        var snapshot = ScoreReviewCandidateFactMapper.toSnapshot(parseTaskId, candidates);
+        if (snapshot.facts().isEmpty()) {
             return;
         }
-        persistFactsAndEvidence(projectId, parseTaskId, facts);
+        persistFactsAndEvidence(projectId, parseTaskId, snapshot.facts());
+        if (evidenceRepository != null && !snapshot.evidence().isEmpty()) {
+            evidenceRepository.saveAll(snapshot.evidence());
+        }
         log.info("已保存 REVIEW_REQUIRED 候选事实快照: projectId={}, parseTaskId={}, facts={}",
-                projectId, parseTaskId, facts.size());
+                projectId, parseTaskId, snapshot.facts().size());
     }
 
-    private boolean isFingerprintUnchanged(List<ScoreItem> oldItems, List<ScoreCandidate> candidates) {
-        if (oldItems == null || candidates == null || oldItems.size() != candidates.size()) {
+    private String resolveScoreType(ScoreCandidate candidate) {
+        boolean typeResolved = ScoreReviewAdoptionPolicy.ADOPTED_CANDIDATE_PATTERN.equals(candidate.semanticPattern())
+                || com.xiyu.bid.scoreparse.domain.GroupedCriteriaScoreTable.METHOD.equals(candidate.location());
+        return typeResolved ? candidate.scoreTypeGuess()
+                : classificationPolicy.classify(candidate.detail(), candidate.scoreTypeGuess());
+    }
+
+    private boolean isFingerprintUnchanged(
+            List<ScoreItem> oldItems, List<ScoreCandidate> candidates, List<String> scoreTypes) {
+        if (oldItems == null || oldItems.size() != candidates.size()) {
             return false;
         }
         for (int i = 0; i < oldItems.size(); i++) {
             ScoreItem old = oldItems.get(i);
             ScoreCandidate candidate = candidates.get(i);
-            if (!Objects.equals(old.getCode(), resolveCode(candidate.code()))
+            if (!Objects.equals(old.getCode(), ScoreCodeSanitizer.clean(candidate.code()))
+                    || !Objects.equals(old.getScoreType(), scoreTypes.get(i))
                     || !Objects.equals(old.getWeight(), candidate.weight())
                     || !Objects.equals(old.getDetail(), candidate.detail())) {
                 return false;
@@ -214,35 +226,17 @@ public class ScoreItemPersistenceService {
         itemRepository.deleteByProjectId(projectId);
     }
 
-    private String resolveCode(String code) {
-        return com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer.clean(code);
-    }
-
-    static boolean isTopLevelCategory(String dim) {
-        return ScoreCategoryClassifier.isTopLevelCategory(dim);
+    static boolean hasInvalidItemName(List<ScoreCandidate> candidates) {
+        return candidates != null && candidates.stream()
+                .map(ScoreItemPersistenceService::resolveDim)
+                .anyMatch(ScoreCategoryClassifier::isInvalidOrPlaceholderName);
     }
 
     static String resolveDim(ScoreCandidate candidate) {
-        String trimmedDim = candidate.dim() == null ? "" : candidate.dim().trim();
-        boolean explicitName = !trimmedDim.isBlank() && "EVIDENCE_PIPELINE".equals(candidate.semanticPattern())
-                && DeterministicScoreFactExtractor.EVALUATION_CRITERIA_METHOD.equals(candidate.location());
-        boolean categoryDim = isTopLevelCategory(trimmedDim) || candidate.isParentOnlyDim();
-        if (!explicitName && candidate.detail() != null && !candidate.detail().isBlank()) {
-            String title = ScoreItemTitleExtractor.extract(candidate.detail()).orElse("");
-            if (!title.isBlank()) return title.length() > 200 ? title.substring(0, 200) : title;
-        }
-        if (!trimmedDim.isBlank() && (explicitName || !categoryDim)) {
-            return trimmedDim.length() > 200 ? trimmedDim.substring(0, 200) : trimmedDim;
-        }
-        if (candidate.detail() != null && !candidate.detail().isBlank()) {
-            String trimmed = candidate.detail().trim();
-            if (!isTopLevelCategory(trimmed)) {
-                int newline = trimmed.indexOf('\n');
-                String firstLine = newline > 0 ? trimmed.substring(0, newline).trim() : trimmed;
-                return firstLine.length() > 50 ? firstLine.substring(0, 50) : firstLine;
-            }
-        }
-        return !trimmedDim.isBlank() ? trimmedDim : "评分项";
+        boolean preferCandidateName = ScoreReviewAdoptionPolicy.ADOPTED_CANDIDATE_PATTERN.equals(candidate.semanticPattern())
+                || ("EVIDENCE_PIPELINE".equals(candidate.semanticPattern())
+                && DeterministicScoreFactExtractor.EVALUATION_CRITERIA_METHOD.equals(candidate.location()));
+        return ScoreItemTitleExtractor.resolveCandidateDimension(candidate, preferCandidateName);
     }
 
     private String resolveLocation(String location) {
