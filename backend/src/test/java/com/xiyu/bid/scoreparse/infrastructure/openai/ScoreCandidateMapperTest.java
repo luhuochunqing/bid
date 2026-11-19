@@ -22,6 +22,8 @@ class ScoreCandidateMapperTest {
         candidate.detail = detail;
         candidate.weight = 10.0;
         candidate.sourceText = sourceText;
+        candidate.deliverableType = "TEXT_PROPOSAL";
+        candidate.scoringMode = "SUBJECTIVE_REVIEW";
         return candidate;
     }
 
@@ -39,6 +41,8 @@ class ScoreCandidateMapperTest {
         assertThat(mapped.sourceText()).isEqualTo(mapped.detail());
         assertThat(mapped.dim()).isEqualTo("技术方案");
         assertThat(mapped.weight()).isEqualTo(BigDecimal.valueOf(10.0));
+        assertThat(mapped.deliverableType()).isEqualTo("TEXT_PROPOSAL");
+        assertThat(mapped.scoringMode()).isEqualTo("SUBJECTIVE_REVIEW");
     }
 
     @Test

@@ -21,6 +21,10 @@ public class ScoreGlobalMergeOutput {
         public Double weight;
         /** OBJECTIVE / SUBJECTIVE / null */
         public String scoreTypeGuess;
+        /** 交付物形态：TEXT_PROPOSAL / SYSTEM_SCREENSHOT / QUALIFICATION_CERT / CONTRACT_INVOICE / OTHER */
+        public String deliverableType;
+        /** 评分模式：SUBJECTIVE_REVIEW / QUANTITATIVE_RANKING / STEPWISE_SCORING / DEDUCTION / OTHER */
+        public String scoringMode;
         /** 对应原文片段 */
         public String sourceText;
     }

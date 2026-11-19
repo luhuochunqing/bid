@@ -219,12 +219,13 @@ public class ScoreItemMergePolicy {
         String mergedPattern = (baseIsStructured || laterIsStructured)
                 ? "STRUCTURED_TABLE"
                 : (later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern());
-        return new ScoreCandidate(mergedCode, mergedDim,
-                detail, mergedWeight, base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
+        String mergedDeliverableType = base.deliverableType() != null ? base.deliverableType() : later.deliverableType();
+        String mergedScoringMode = base.scoringMode() != null ? base.scoringMode() : later.scoringMode();
+        return new ScoreCandidate(mergedCode, mergedDim, detail, mergedWeight,
+                base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
                 later.contextNote() != null ? later.contextNote() : base.contextNote(),
                 sourceText, later.location() != null ? later.location() : base.location(),
-                mergedPattern,
-                mergedParentDim, mergedDimSource);
+                mergedPattern, mergedParentDim, mergedDimSource, mergedDeliverableType, mergedScoringMode);
     }
 
     private static boolean isStructuredChannel(ScoreCandidate c) {

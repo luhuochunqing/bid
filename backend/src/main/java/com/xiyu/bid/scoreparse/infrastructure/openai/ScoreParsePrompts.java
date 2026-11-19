@@ -77,11 +77,11 @@ public final class ScoreParsePrompts {
                 输出字段要求：
                 - code: 评分项编号（如 A1、1.2、2.2.1）；原文无编号则输出空字符串 ""（严禁输出 "null"、"undefined" 等字符串占位符）
                 - dim: 所属评分维度或具体评分因素名称（如 财务状况、注册资本金、营业收入、现金流、信用评价、价格折扣、系统对接能力等末级评价因素）；无法判断输出 null
-                - detail: 评分条件的完整原文表述（标书原文），必须完整保留原始句子、符号、比例、分号与段落，绝对禁止任何形式的 AI 摘要、概括、缩写或改写；报价类需把价格分计算方法、
-                  评标基准价公式、价格分计算公式、进入价格评分报价人数、下浮率、BP%%/HP%%/LP%%/L1/L2/RH/RL
-                  等参数完整保留在同一条"报价评分"项的 detail 中，不得拆分或遗漏
+                - detail: 评分条件的完整原文表述（标书原文），完整保留原始句子、符号、比例、分号与段落，绝对禁止 AI 摘要/概括/缩写/改写；报价类需把价格分计算方法、评标基准价公式、价格分计算公式、进入价格评分报价人数、下浮率、BP%%/HP%%/LP%%/L1/L2/RH/RL等参数完整保留在同一条"报价评分"项的 detail 中，不得拆分或遗漏
                 - weight: 该项满分分值（绝对数字，如 10 或 2.5 或 50）；必须准确提取末级分值列数字，禁止填 0 除非原文明确规定为 0 分
                 - scoreTypeGuess: OBJECTIVE（可验证的量化条件）或 SUBJECTIVE（需人工评审的描述性要求）
+                - deliverableType: 交付物形态（TEXT_PROPOSAL/SYSTEM_SCREENSHOT/QUALIFICATION_CERT/CONTRACT_INVOICE/OTHER）
+                - scoringMode: 评价模式（SUBJECTIVE_REVIEW/QUANTITATIVE_RANKING/STEPWISE_SCORING/DEDUCTION/OTHER）
                 - contextNote: 前后文中的约束注记（如"注：得分不超过X分"）；无则 null
                 - sourceText: 该项对应的原文片段（保持原文）
                 - location: 定位描述（如"P47 评分办法表 第3行"）；无法定位则 null
@@ -239,6 +239,8 @@ public final class ScoreParsePrompts {
                   - detail: 该项评审细则逐字原文，必须能在"评分章节原文"中逐字找到；禁止摘要、改写、补写
                   - weight: 该项满分分值（数字）；无法确定输出 null
                   - scoreTypeGuess: OBJECTIVE（可验证量化条件）或 SUBJECTIVE（需人工评审）
+                  - deliverableType: 交付物形态（TEXT_PROPOSAL/SYSTEM_SCREENSHOT/QUALIFICATION_CERT/CONTRACT_INVOICE/OTHER）
+                  - scoringMode: 评价模式（SUBJECTIVE_REVIEW/QUANTITATIVE_RANKING/STEPWISE_SCORING/DEDUCTION/OTHER）
                   - sourceText: 对应原文片段
                 - summary: {mergedGroupCount: 合并掉的重复候选组数, discardedCandidateCount: 丢弃的非评分项候选数, notes: ≤100字决策说明}
 

@@ -128,7 +128,9 @@ public class ScoreGlobalMergeExecutor {
                         item.weight == null ? null : BigDecimal.valueOf(item.weight),
                         item.scoreTypeGuess, null,
                         item.sourceText == null ? "" : item.sourceText,
-                        null, "GLOBAL_MERGE"))
+                        null, "GLOBAL_MERGE",
+                        null, "UNKNOWN",
+                        item.deliverableType, item.scoringMode))
                 .toList();
     }
 

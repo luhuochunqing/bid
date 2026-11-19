@@ -271,6 +271,26 @@ class ScoreItemPersistenceServiceTest {
     }
 
     @Test
+    void persistItems_persistsDeliverableTypeAndScoringMode() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
+                .thenReturn(List.of());
+
+        ScoreCandidate cand = new ScoreCandidate(
+                "1.1", "商品丰富性", "电商平台自营商品SKU数量由多到少排位", new BigDecimal("4"),
+                "OBJECTIVE", null, "电商平台自营商品SKU数量由多到少排位", "P38",
+                "TABLE_LLM", null, "UNKNOWN",
+                "SYSTEM_SCREENSHOT", "QUANTITATIVE_RANKING");
+
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(cand));
+
+        ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
+        assertThat(saved.getValue()).hasSize(1);
+        ScoreItem item = saved.getValue().get(0);
+        assertThat(item.getDeliverableType()).isEqualTo("SYSTEM_SCREENSHOT");
+        assertThat(item.getScoringMode()).isEqualTo("QUANTITATIVE_RANKING");
+    }
+
+    @Test
     void persistFactsAndEvidence_keepsOutOfSchemeFactWithTypedQualificationAudit() throws Exception {
         ScoreFact inScheme = new ScoreFact("in-scheme", "t-score", List.of("score-rule"),
                 "技术方案最高得100分", "1", "技术方案", new BigDecimal("100"), null, null,

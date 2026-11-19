@@ -19,6 +19,10 @@ public class ScoreCandidateOutput {
         public Double weight;
         /** SUBJECTIVE / OBJECTIVE */
         public String scoreTypeGuess;
+        /** 交付物形态：TEXT_PROPOSAL / SYSTEM_SCREENSHOT / QUALIFICATION_CERT / CONTRACT_INVOICE / OTHER */
+        public String deliverableType;
+        /** 评分模式：SUBJECTIVE_REVIEW / QUANTITATIVE_RANKING / STEPWISE_SCORING / DEDUCTION / OTHER */
+        public String scoringMode;
         /** 前后文注记，如"注：得分不超过 X 分" */
         public String contextNote;
         /** 对应原文片段 */

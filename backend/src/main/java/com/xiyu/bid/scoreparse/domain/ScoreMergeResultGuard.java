@@ -237,12 +237,15 @@ public final class ScoreMergeResultGuard {
                             best.contextNote() != null ? best.contextNote() : cand.contextNote(),
                             cand.sourceText() != null && !cand.sourceText().isBlank() ? cand.sourceText() : sourceText,
                             cand.location() != null && !cand.location().isBlank() ? cand.location() : best.location(),
-                            best.semanticPattern(), parentDim, dimSource);
+                            best.semanticPattern(), parentDim, dimSource,
+                            best.deliverableType() != null ? best.deliverableType() : cand.deliverableType(),
+                            best.scoringMode() != null ? best.scoringMode() : cand.scoringMode());
                 } else if (((best.parentDim() == null || best.parentDim().isBlank()) && parentDim != null)
                         || ("UNKNOWN".equals(best.dimSource()) && !"UNKNOWN".equals(dimSource))) {
                     best = new ScoreCandidate(code, best.dim(), best.detail(), weight,
                             best.scoreTypeGuess(), best.contextNote(), sourceText,
-                            best.location(), best.semanticPattern(), parentDim, dimSource);
+                            best.location(), best.semanticPattern(), parentDim, dimSource,
+                            best.deliverableType(), best.scoringMode());
                 }
             }
         }

@@ -207,7 +207,11 @@ public class LlmTableScoreExtractor {
                 item.contextNote != null ? item.contextNote.trim() : "",
                 alignedDetail != null ? alignedDetail : truncate(sourceTable, SOURCE_TEXT_MAX_CHARS),
                 "",
-                "TABLE_LLM"
+                "TABLE_LLM",
+                item.parentDim,
+                "UNKNOWN",
+                item.deliverableType,
+                item.scoringMode
         );
     }
 

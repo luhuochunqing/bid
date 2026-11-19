@@ -62,6 +62,8 @@ class LlmTableScoreExtractorTest {
         item1.dim = "财务状况";
         item1.detail = "资产负债率合理得5分";
         item1.weight = 5.0;
+        item1.deliverableType = "QUALIFICATION_CERT";
+        item1.scoringMode = "QUANTITATIVE_RANKING";
 
         TableScoreExtractionOutput.TableScoreItem item2 = new TableScoreExtractionOutput.TableScoreItem();
         item2.code = "1.2";
@@ -69,6 +71,8 @@ class LlmTableScoreExtractorTest {
         item2.dim = "供应商业绩";
         item2.detail = "提供近3年类似业绩得10分";
         item2.weight = 10.0;
+        item2.deliverableType = "CONTRACT_INVOICE";
+        item2.scoringMode = "STEPWISE_SCORING";
 
         output.items = List.of(item1, item2);
 
@@ -82,10 +86,14 @@ class LlmTableScoreExtractorTest {
         assertThat(candidates.get(0).dim()).isEqualTo("商务部分/财务状况");
         assertThat(candidates.get(0).weight()).isEqualByComparingTo(BigDecimal.valueOf(5.0));
         assertThat(candidates.get(0).detail()).isEqualTo("资产负债率合理得5分");
+        assertThat(candidates.get(0).deliverableType()).isEqualTo("QUALIFICATION_CERT");
+        assertThat(candidates.get(0).scoringMode()).isEqualTo("QUANTITATIVE_RANKING");
 
         assertThat(candidates.get(1).code()).isEqualTo("1.2");
         assertThat(candidates.get(1).dim()).isEqualTo("商务部分/供应商业绩");
         assertThat(candidates.get(1).weight()).isEqualByComparingTo(BigDecimal.valueOf(10.0));
+        assertThat(candidates.get(1).deliverableType()).isEqualTo("CONTRACT_INVOICE");
+        assertThat(candidates.get(1).scoringMode()).isEqualTo("STEPWISE_SCORING");
     }
 
     @Test

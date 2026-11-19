@@ -49,6 +49,18 @@ public final class TableScoreExtractionPrompt {
                    - 末级细则拆解：若大项包含多个末级打分小项（如财务状况下含净资产 2.5分、现金流 2.5分等），将每个小项作为独立条目提取，禁止合并为一条。
                    - 汇总行/大类标题行：如"分值构成（总分100分）"、"商务部分 56分"等大类总计行，标记 is_summary_row=true。
                    - 报价参数（如下浮率、基准价公式）不得单独拆分为评分项，应作为报价评分主项的 detail 组成部分。
+                   - deliverable_type（投标人需提供的材料/交付物形态，从以下枚举精确判断）：
+                     • TEXT_PROPOSAL：方案论述、技术方案、服务方案、实施方案、售后服务、培训承诺、管理制度等纯文本文字材料；
+                     • SYSTEM_SCREENSHOT：系统功能截图、软件操作界面、电商平台功能演示、后台系统功能或自营商品等界面截图证明；
+                     • QUALIFICATION_CERT：资质证书、体系认证（如ISO）、企业资信等级、厂商授权书等证书证明；
+                     • CONTRACT_INVOICE：同类业绩合同、结算发票、中标通知书、用户评价表等过往历史业绩证明；
+                     • OTHER：财务审计报告、社保证明、承诺函等其他证明材料或无法归类形态。
+                   - scoring_mode（打分与评价计算模式，从以下枚举精确判断）：
+                     • SUBJECTIVE_REVIEW：专家主观评审、根据优良差打分、横向对比评判；
+                     • QUANTITATIVE_RANKING：数值量化排位、按数量/金额/指标由多到少排序给分、排名分档；
+                     • STEPWISE_SCORING：阶梯/累进给分（如每提供一个得X分，每增加Y得Z分，设最高分）；
+                     • DEDUCTION：扣分制（从基准分扣减，扣完为止）；
+                     • OTHER：固定得分（具备即得满分）或其他模式。
 
                 请严格按 JSON Schema 输出结构化结果。
                 """.formatted(safeTable);

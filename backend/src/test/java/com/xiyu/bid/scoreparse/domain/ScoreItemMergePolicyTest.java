@@ -357,4 +357,19 @@ class ScoreItemMergePolicyTest {
         assertThat(result.code()).isEqualTo("1");
         assertThat(result.weight()).isEqualByComparingTo("40");
     }
+
+    @Test
+    void merge_preservesDeliverableTypeAndScoringMode() {
+        ScoreCandidate base = new ScoreCandidate("A1", "系统方案", "电商平台功能界面演示",
+                new BigDecimal("10"), "OBJECTIVE", null, "电商平台功能界面演示", "P47", null,
+                null, "UNKNOWN", "SYSTEM_SCREENSHOT", "QUANTITATIVE_RANKING");
+        ScoreCandidate later = new ScoreCandidate("A1", "系统方案", "电商平台功能界面演示完整方案",
+                new BigDecimal("10"), "OBJECTIVE", null, "电商平台功能界面演示完整方案", "P47 评分表", "GRADE_TO_SCORE",
+                null, "UNKNOWN", null, null);
+
+        List<ScoreCandidate> merged = policy.merge(List.of(base, later));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).deliverableType()).isEqualTo("SYSTEM_SCREENSHOT");
+        assertThat(merged.get(0).scoringMode()).isEqualTo("QUANTITATIVE_RANKING");
+    }
 }
