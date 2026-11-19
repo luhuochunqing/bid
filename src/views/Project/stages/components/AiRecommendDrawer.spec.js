@@ -382,20 +382,20 @@ describe('AiRecommendDrawer.vue', () => {
     expect(wrapper.text()).toContain('评分项类别一致：最高 10 分')
   })
 
-  it('renders qualification reminder when selected score item is certificate/qualification oriented', async () => {
+  it('renders the evidence warning when the qualification lookup has no usable certificate', async () => {
     caseRecommendationApi.getScoreItems.mockResolvedValue({
       data: [
         { id: 301, code: '1', dim: '1 管理体系', detail: '具有 ISO9001 质量管理体系认证、ISO14001环境管理体系认证，提供证书复印件' }
       ]
     })
-    caseRecommendationApi.recommendCases.mockResolvedValue({ total: 0, items: [] })
+    caseRecommendationApi.recommendCases.mockResolvedValue({ total: 0, items: [], matchedCertificates: [], evidenceReviewRequired: true })
 
     const wrapper = mountDrawer()
     await flushPromises()
 
-    expect(wrapper.find('.qualification-notice').exists()).toBe(true)
-    expect(wrapper.text()).toContain('资质证书类评分项提醒')
-    expect(wrapper.text()).toContain('该评分项为资质证书类要求，技术方案案例不予推荐')
+    expect(wrapper.find('.qualification-notice').exists()).toBe(false)
+    expect(wrapper.text()).toContain('请人工核验原始材料')
+    expect(wrapper.find('.recommend-grid .case-card').exists()).toBe(false)
   })
 
   it('keeps valid recommendations below 50 and displays the server total', async () => {
@@ -487,6 +487,39 @@ describe('AiRecommendDrawer.vue', () => {
     expect(copyUrlBtn).toBeDefined()
     await copyUrlBtn.trigger('click')
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://oss.ehsy.com/certs/iso9001.jpg')
+  })
+
+  it('keeps plan references visible when its requirement mentions a test report', async () => {
+    caseRecommendationApi.getScoreItems.mockResolvedValue([
+      { id: 1441, code: '44', dim: '系统安全方案', detail: '提供安全实施方案并附测评报告' },
+    ])
+    caseRecommendationApi.recommendCases.mockResolvedValue({ total: 1, items: [recommendItem] })
+
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(wrapper.find('.qualification-notice').exists()).toBe(false)
+    expect(wrapper.find('.recommend-grid .case-card').exists()).toBe(true)
+  })
+
+  it('recognizes 等保备案证明 and 第三级及以上等级保护测评 as qualification item when certs match', async () => {
+    caseRecommendationApi.getScoreItems.mockResolvedValue([
+      { id: 1440, code: '43', dim: '等保备案证明', detail: '第三级及以上等级保护测评' },
+    ])
+    caseRecommendationApi.recommendCases.mockResolvedValue({
+      total: 1,
+      items: [],
+      evidenceReviewRequired: false,
+      matchedCertificates: [{ id: 30, name: '信息系统安全等级保护备案证明(三级)' }],
+    })
+
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(wrapper.find('.qualification-notice').exists()).toBe(true)
+    expect(wrapper.find('.qualification-notice').text()).toContain('该评分项为资质证书类要求')
+    expect(wrapper.find('.cert-recommend-section').text()).toContain('信息系统安全等级保护备案证明(三级)')
+    expect(wrapper.text()).not.toContain('历史案例参考')
   })
 })
 

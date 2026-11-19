@@ -46,7 +46,8 @@ public final class CaseCategoryMatchPolicy {
             "人员", "团队", "项目经理", "项目负责人", "技术负责人", "负责人", "建造师", "人员资质", "架构师", "职称", "社保", "学历", "履历", "专家", "工程师", "人员配置", "团队投入", "骨干", "成员", "分支机构"
     };
     private static final String[] QUALIFICATION_KEYWORDS = {
-            "资质", "资格", "证书", "认证", "认证体系", "体系认证", "管理体系", "许可", "执照", "iso", "aaa", "专利", "软著", "专精特新", "高新", "资质等级", "资信"
+            "资质", "资格", "证书", "认证", "认证体系", "体系认证", "管理体系", "许可", "执照", "iso", "aaa", "专利", "软著", "专精特新", "高新", "资质等级", "资信",
+            "备案证明", "等保备案", "等级保护备案", "等级保护测评", "等保测评", "测评报告", "等保三级", "三级等保"
     };
     private static final String[] PERFORMANCE_KEYWORDS = {
             "业绩", "合同业绩", "项目业绩", "同类项目", "同类业绩", "供货业绩", "类似项目"
@@ -55,12 +56,15 @@ public final class CaseCategoryMatchPolicy {
             "商务", "报价", "价格", "财务", "审计", "纳税", "资产负债", "结算", "货款支付", "支付条款", "合同", "保证金", "保函", "交货期", "付款", "开票"
     };
     private static final String[] TECHNICAL_KEYWORDS = {
-            "技术", "方案", "系统", "对接", "能力", "运维", "架构", "安全", "开发", "功能", "接口", "部署", "硬件", "软件", "网络", "测试", "云平台", "数据库", "集成", "实施", "服务", "售后", "响应", "保障", "质保", "应急", "培训", "交付", "微服务", "容灾", "等级保护"
+            "技术", "方案", "系统", "对接", "能力", "运维", "架构", "安全", "开发", "功能", "接口", "部署", "硬件", "软件", "网络", "测试", "云平台", "数据库", "集成", "实施", "服务", "售后", "响应", "保障", "质保", "应急", "培训", "交付", "微服务", "容灾"
     };
 
     private static final String SECURITY_FILING_WITH_GRADE =
-            "等级保护\\h*备案证明(?:\\h*证书)?\\h*第?\\h*([一二三四1234])\\h*级";
-    private static final Pattern REQUIRED_SECURITY_FILING = Pattern.compile(SECURITY_FILING_WITH_GRADE);
+            "等级保护\\h*(?:备案证明|测评)(?:\\h*证书)?\\h*第?\\h*([一二三四1234])\\h*级";
+    private static final String GRADE_BEFORE_SECURITY_FILING =
+            "第?\\h*([一二三四1234])\\h*级(?:\\h*及以上|\\h*以上)?\\h*(?:信息系统安全|网络安全)?\\h*(?:等级保护|等保)\\h*(?:备案证明|测评|备案)?";
+    private static final Pattern REQUIRED_SECURITY_FILING = Pattern.compile(
+            SECURITY_FILING_WITH_GRADE + "|" + GRADE_BEFORE_SECURITY_FILING);
     // 存量应答可省略主语。显式主语只接受案例中的西域简称或投标方自称。
     private static final Pattern HELD_SECURITY_FILING = Pattern.compile(
             "(?:(?:西域|我方|我司|本公司)\\h*)?"
@@ -105,7 +109,11 @@ public final class CaseCategoryMatchPolicy {
         }
         var required = REQUIRED_SECURITY_FILING.matcher(requirement);
         var held = HELD_SECURITY_FILING.matcher(response.strip());
-        return required.find() && held.matches() && filingGrade(held.group(1)) >= filingGrade(required.group(1));
+        if (!required.find() || !held.matches()) {
+            return false;
+        }
+        String reqGrade = required.group(1) != null ? required.group(1) : required.group(2);
+        return filingGrade(held.group(1)) >= filingGrade(reqGrade);
     }
 
     private static int filingGrade(String level) {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { ensureApiSession, injectSession } from './auth-helpers.js'
+import { apiBaseUrl, ensureApiSession, injectSession } from './auth-helpers.js'
 import { scoreItemOptionTitle } from '../src/utils/scoreItemOptionDisplay.js'
 
 async function loginAsRole(page, role) {
@@ -162,6 +162,86 @@ test.describe('AI智能案例推荐', () => {
     await expect(warning).toHaveCount(0)
     await expect(referenceHeading).toBeVisible()
     await expect(cards.first()).toBeVisible()
+  })
+
+  test('等保三级及以上评分项排除低等级证书，缺少可用原件时标记待核验', async ({ page }) => {
+    const projectId = process.env.XIYU_E2E_GRADE_PROTECTION_PROJECT_ID
+    const itemId = process.env.XIYU_E2E_GRADE_PROTECTION_ITEM_ID
+    test.skip(!projectId || !itemId, '需要测试环境中包含等保备案评分项的固定项目')
+
+    const lowGradeId = process.env.XIYU_E2E_GRADE_PROTECTION_LOW_CERT_ID
+    const qualifiedId = process.env.XIYU_E2E_GRADE_PROTECTION_QUALIFIED_CERT_ID
+    const expectedReview = process.env.XIYU_E2E_GRADE_PROTECTION_REVIEW_REQUIRED
+    expect(lowGradeId, '需要固定的低等级等保证书 ID').toMatch(/^\d+$/)
+    expect(qualifiedId, '需要固定的达标等级等保证书 ID').toMatch(/^\d+$/)
+    expect(qualifiedId).not.toBe(lowGradeId)
+    expect(expectedReview, '需要根据资质库原始材料预先设定待核验状态').toMatch(/^(true|false)$/)
+
+    await loginAsRole(page, '/bidAdmin')
+    async function loadQualification(id) {
+      const response = await page.request.get(`${apiBaseUrl}/api/knowledge/qualifications/${id}`)
+      expect(response.ok(), `资质库缺少可读取的等保测试证书 ${id}`).toBe(true)
+      const { data } = await response.json()
+      expect(String(data.id)).toBe(id)
+      expect(data.name).toMatch(/等级保护|等保/)
+      expect(data.status).toMatch(/^(in_stock|valid|expiring|expired)$/)
+      return data
+    }
+    const [lowGrade, qualified] = await Promise.all([
+      loadQualification(lowGradeId),
+      loadQualification(qualifiedId),
+    ])
+    expect(qualified.name, '两份证书应有可在抽屉中区分的名称').not.toBe(lowGrade.name)
+    expect(`${lowGrade.name} ${lowGrade.level ?? ''}`).toMatch(/[一二12]\s*级/)
+    const qualifiedGrade = `${qualified.name} ${qualified.level ?? ''}`
+    expect(qualifiedGrade).toMatch(/[三四五345]\s*级/)
+    expect(qualifiedGrade).not.toMatch(/[一二12]\s*级/)
+
+    await page.goto(`/project/${projectId}`)
+    await page.locator('.el-step__title').filter({ hasText: /^标书制作$/ }).click()
+    const projectPath = `/api/projects/${projectId}`
+    const itemsRequest = page.waitForResponse(response =>
+      new URL(response.url()).pathname === `${projectPath}/score-items`
+      && response.request().method() === 'GET'
+    )
+    const recommendation = page.waitForResponse(response =>
+      new URL(response.url()).pathname === `${projectPath}/cases/recommend`
+      && response.request().method() === 'POST'
+      && String(response.request().postDataJSON()?.scoreItemId) === itemId
+    )
+    await page.getByRole('button', { name: 'AI智能推荐案例' }).click()
+    const itemsResponse = await itemsRequest
+    expect(itemsResponse.ok()).toBe(true)
+    const items = await itemsResponse.json()
+    const targetItem = items.find(row => String(row.id) === itemId)
+    expect(targetItem, `项目 ${projectId} 缺少等保评分项 ${itemId}`).toBeDefined()
+
+    const drawer = page.getByRole('dialog', { name: 'AI 智能案例推荐' })
+    if (targetItem !== items[0]) {
+      await drawer.getByRole('combobox').click()
+      await page.getByRole('option', { name: scoreItemOptionTitle(targetItem), exact: true }).click()
+    }
+    const response = await recommendation
+    expect(response.ok()).toBe(true)
+    const body = await response.json()
+    expect(body.items).toEqual([])
+    const certificateIds = body.matchedCertificates.map(cert => String(cert.id))
+    expect(certificateIds).toContain(qualifiedId)
+    expect(certificateIds).not.toContain(lowGradeId)
+    for (const cert of body.matchedCertificates) {
+      expect(`${cert.name ?? ''} ${cert.level ?? ''}`).not.toMatch(/[一二12]\s*级/)
+    }
+    expect(body.evidenceReviewRequired).toBe(expectedReview === 'true')
+
+    await expect(drawer.getByText(qualified.name, { exact: true })).toBeVisible()
+    await expect(drawer.getByText(lowGrade.name, { exact: true })).toHaveCount(0)
+    const warning = drawer.getByText('当前推荐缺少可核验的证明材料，请人工核验原始材料。', { exact: true })
+    if (expectedReview === 'true') {
+      await expect(warning).toBeVisible()
+    } else {
+      await expect(warning).toHaveCount(0)
+      await expect(drawer.getByText('资质证书类评分项提醒', { exact: true })).toBeVisible()
+    }
   })
 
   test('案例库页面案例卡片展示正常', async ({ page }) => {
