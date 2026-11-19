@@ -1,0 +1,6 @@
+-- V1227: add_deliverable_type_and_scoring_mode_to_score_item
+-- 说明: 阶段二 Step 2.1，为评分项扩展交付物形态与评价模式结构化字段，历史存量数据保持 NULL 兼容。
+
+ALTER TABLE score_item
+    ADD COLUMN deliverable_type VARCHAR(50) NULL DEFAULT NULL COMMENT '交付物形态: TEXT_PROPOSAL, SYSTEM_SCREENSHOT, QUALIFICATION_CERT, CONTRACT_INVOICE, FINANCIAL_AUDIT, OTHER',
+    ADD COLUMN scoring_mode VARCHAR(50) NULL DEFAULT NULL COMMENT '评价方式: SUBJECTIVE_REVIEW, QUANTITATIVE_RANKING, PASS_FAIL_THRESHOLD, OTHER';
