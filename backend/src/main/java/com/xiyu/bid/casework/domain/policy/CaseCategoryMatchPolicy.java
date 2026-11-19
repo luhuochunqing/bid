@@ -59,6 +59,12 @@ public final class CaseCategoryMatchPolicy {
             "技术", "方案", "系统", "对接", "能力", "运维", "架构", "安全", "开发", "功能", "接口", "部署", "硬件", "软件", "网络", "测试", "云平台", "数据库", "集成", "实施", "服务", "售后", "响应", "保障", "质保", "应急", "培训", "交付", "微服务", "容灾"
     };
 
+    /** 客观证明/证据条款中出现“电商平台系统数据截图/系统截图/系统页面截图/电商系统数据”等时排除对 TECHNICAL 的误判 */
+    private static final Pattern NON_TECHNICAL_SYSTEM_TERMS = Pattern.compile(
+            "(?:(?:电商平台|电商|在线交易|交易|采购|业务|后台|运营|管理|平台|ERP|CRM|OA|SAP|财务|销售|仓储|物流|库存|订单)?系统[^，,。；;\\n\\r]{0,10}?(?:截图|截屏|界面|后台|报表|台账|清单|证明|导出|打印件|原件|复印件|扫描件|彩页|底单|凭证))"
+                    + "|(?:(?:电商平台|电商|在线交易|交易|采购|业务|运营|销售|仓储|物流|订单)系统(?:数据|后台|界面|运行|信息|记录)?)",
+            Pattern.CASE_INSENSITIVE);
+
     private static final String SECURITY_FILING_WITH_GRADE =
             "等级保护\\h*(?:备案证明|测评)(?:\\h*证书)?\\h*第?\\h*([一二三四1234])\\h*级";
     private static final String GRADE_BEFORE_SECURITY_FILING =
@@ -177,10 +183,11 @@ public final class CaseCategoryMatchPolicy {
             return true;
         }
         String lower = dim.trim().toLowerCase(Locale.ROOT);
-        boolean hasSpecificTopic = lower.contains("方案") || lower.contains("预案")
-                || lower.contains("架构") || lower.contains("设计") || lower.contains("实施")
-                || lower.contains("部署") || lower.contains("对接") || lower.contains("系统")
-                || lower.contains("运维") || lower.contains("售后") || lower.contains("应急");
+        String textForTechnical = NON_TECHNICAL_SYSTEM_TERMS.matcher(lower).replaceAll("");
+        boolean hasSpecificTopic = textForTechnical.contains("方案") || textForTechnical.contains("预案")
+                || textForTechnical.contains("架构") || textForTechnical.contains("设计") || textForTechnical.contains("实施")
+                || textForTechnical.contains("部署") || textForTechnical.contains("对接") || textForTechnical.contains("系统")
+                || textForTechnical.contains("运维") || textForTechnical.contains("售后") || textForTechnical.contains("应急");
         if (hasSpecificTopic) {
             return lower.matches("^(?:技术(?:方案|部分|标|分|评价|评审|要求)?|商务(?:方案|部分|标|分)?|详细评审|综合(?:方案|评价|评审|能力|实力|商务)?|(?:商务|技术)[及与和](?:商务|技术)|资信[及与和]?技术|技术资信|[0-9]+(?:\\.[0-9]+)*.*)$");
         }
@@ -205,7 +212,8 @@ public final class CaseCategoryMatchPolicy {
         if (containsAny(lower, COMMERCIAL_KEYWORDS)) {
             return MacroCategory.COMMERCIAL;
         }
-        if (containsAny(lower, TECHNICAL_KEYWORDS)) {
+        String textForTechnical = NON_TECHNICAL_SYSTEM_TERMS.matcher(lower).replaceAll("");
+        if (containsAny(textForTechnical, TECHNICAL_KEYWORDS)) {
             return MacroCategory.TECHNICAL;
         }
         return MacroCategory.OTHER;

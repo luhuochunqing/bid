@@ -149,12 +149,7 @@ public class ScoreItemCaseRecommendAppService {
         CaseCategoryMatchPolicy.MacroCategory intent = CaseCategoryMatchPolicy.classifyMacroCategory(itemDim, detail);
         boolean pureQualification = intent.isQualification()
                 && !CaseCategoryMatchPolicy.hasTechnicalRequirement(itemDim, detail);
-        Purpose purpose = CaseRecommendationPurposePolicy.determineRecommendationPurpose(factorName, detail);
-        if (purpose == Purpose.MANUAL_EVIDENCE && !pureQualification) {
-            log.info("案例推荐[MANUAL_EVIDENCE]: projectId={}, scoreItemId={}, intent={}", projectId, scoreItemId, intent);
-            return ScoreItemCaseRecommendResponse.builder()
-                    .evidenceReviewRequired(true).items(List.of()).matchedCertificates(List.of()).build();
-        }
+
         List<ScoreItemCaseRecommendResponse.CertificateItem> matchedCertificates = List.of();
         if (enterpriseQualificationQueryPort != null && shouldQueryCertificates(itemDim, detail)) {
             try {
@@ -164,19 +159,23 @@ public class ScoreItemCaseRecommendAppService {
                 log.warn("资质库查询失败，降级为空: {}", ex.getMessage());
             }
         }
+
+        String scoreType = scoreItem == null ? null : scoreItem.getScoreType();
+        Purpose purpose = CaseRecommendationPurposePolicy.determineRecommendationPurpose(factorName, detail, scoreType);
+        if (purpose == Purpose.MANUAL_EVIDENCE && !pureQualification) {
+            log.info("案例推荐[MANUAL_EVIDENCE]: projectId={}, scoreItemId={}, intent={}", projectId, scoreItemId, intent);
+            return ScoreItemCaseRecommendResponse.builder().total(matchedCertificates.size())
+                    .evidenceReviewRequired(true).items(List.of()).matchedCertificates(matchedCertificates).build();
+        }
         if (pureQualification) {
             List<CertificateEvidence> evidence = matchedCertificates.stream()
-                    .map(cert -> new CertificateEvidence(cert.getName(), cert.getLevel(), cert.getStatus(), cert.getFileUrl()))
-                    .toList();
+                    .map(cert -> new CertificateEvidence(cert.getName(), cert.getLevel(), cert.getStatus(), cert.getFileUrl())).toList();
             boolean reviewRequired = !EnterpriseQualificationMatchPolicy.coversRequiredStandards(itemDim, detail, evidence);
             log.info("案例推荐[QUALIFICATION]: projectId={}, scoreItemId={}, certs={}, reviewRequired={}",
                     projectId, scoreItemId, matchedCertificates.size(), reviewRequired);
-            return ScoreItemCaseRecommendResponse.builder()
-                    .total(matchedCertificates.size())
-                    .evidenceReviewRequired(reviewRequired)
-                    .items(List.of()) // 纯资质证书类评分项：彻底物理阻断文本应答切片
-                    .matchedCertificates(matchedCertificates)
-                    .build();
+            return ScoreItemCaseRecommendResponse.builder().total(matchedCertificates.size())
+                    .evidenceReviewRequired(reviewRequired).items(List.of())
+                    .matchedCertificates(matchedCertificates).build();
         }
         boolean performanceItem = performanceRetriever.isPerformanceScoreItem(factorName, detail);
         boolean lookupQualification = performanceItem || (scoreItem == null && !hasQueryKeyword(request.getKeyword()));
@@ -203,6 +202,7 @@ public class ScoreItemCaseRecommendAppService {
                 scoreItem != null ? scoreItem.getCode() : null,
                 itemDim, detail, projectType, customerType, request.getKeyword(),
                 projectName, customerName, qualReqText, qualKeywords, vectorSimilarities);
+
 
         // 通过端口获取已激活案例（ACTIVE 过滤已下沉至 adapter）
         List<KnowledgeCaseReadModel> allActiveCases = knowledgeCaseQueryPort.findAllActive();
