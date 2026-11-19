@@ -167,6 +167,11 @@ final class StructuredTableExtractionHandler {
             decision = ScoreParseDecision.REVIEW_REQUIRED;
             fallbackReason = "CANDIDATE_WEIGHT_SUM_MISMATCH";
         }
+        if (decision == ScoreParseDecision.AUTO_APPROVED && ScoreItemPersistenceService.hasInvalidItemName(candidates)) {
+            log.warn("Evidence Pipeline 存在无效评分项名称，降级为需复核: taskId={}", taskId);
+            decision = ScoreParseDecision.REVIEW_REQUIRED;
+            fallbackReason = "INVALID_SCORE_ITEM_NAME";
+        }
         // spec 062：权重合计信号基于全部表叶子候选（不以落库过滤集为准），
         // 保证文档级 REVIEW_REQUIRED 时 originalTotalWeight 仍反映全部事实权重。
         List<ScoreCandidate> allLeafCandidates = structured.tableCompletenesses().stream()

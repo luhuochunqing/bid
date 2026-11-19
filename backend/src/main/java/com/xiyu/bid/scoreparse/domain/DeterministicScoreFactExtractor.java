@@ -53,7 +53,8 @@ public final class DeterministicScoreFactExtractor {
             CanonicalCell detailCell = cellAt(rowCells, mapping.detailCol()).orElse(null);
             String detail = detailCell == null ? "" : detailCell.rawText();
             CanonicalCell dimCell = cellAt(rowCells, mapping.dimCol()).orElse(null);
-            String dimension = cleanDimension(dimCell == null ? "" : dimCell.rawText());
+            String rawDimension = dimCell == null ? "" : dimCell.rawText();
+            String dimension = ScoreItemTitleExtractor.cleanDimensionLabel(rawDimension);
             String code = cellAt(rowCells, mapping.codeCol()).map(CanonicalCell::rawText).orElse("").trim();
             String sourceText = rowCells.stream().filter(cell -> !cell.isMergedContinue())
                     .map(CanonicalCell::rawText).filter(text -> !text.isBlank())
@@ -83,12 +84,13 @@ public final class DeterministicScoreFactExtractor {
                     && explicitWeight.weight().compareTo(BigDecimal.ZERO) > 0
                     && hasScoredContinuation(grid, row, dimCell, mapping);
             if (splitMergedOrigin) {
+                String leafDim = ScoreItemTitleExtractor.resolveDimension(rawDimension, detail);
                 String parentId = factId(grid.tableId(), row, "", dimension, "parent");
                 parentFactByOriginRow.put(row, fact(parentId, grid.tableId(), List.of(dimCell.cellId()),
                         dimCell.rawText(), "", dimension, titleWeight, ScoreRule.MAX_SCORE, "",
                         method, ScoreFact.ValidationStatus.REVIEW_REQUIRED));
-                factByRow.put(row, fact(factId(grid.tableId(), row, code, dimension, "leaf"),
-                        grid.tableId(), sourceCellIds, sourceText, code, dimension, explicitWeight,
+                factByRow.put(row, fact(factId(grid.tableId(), row, code, leafDim, "leaf"),
+                        grid.tableId(), sourceCellIds, sourceText, code, leafDim, explicitWeight,
                         classifyRule(detail), parentId, method, ScoreFact.ValidationStatus.AUTO_APPROVED));
                 continue;
             }
@@ -109,20 +111,19 @@ public final class DeterministicScoreFactExtractor {
             if (isOverflowContinuation) {
                 continue;
             }
-            String factId = factId(grid.tableId(), row, code, dimension);
+            String leafDim = ScoreItemTitleExtractor.resolveDimension(rawDimension, detail);
+            String factId = factId(grid.tableId(), row, code, leafDim);
             ScoreFact.ValidationStatus status = weight.ambiguous() || weight.weight() == null
                     ? ScoreFact.ValidationStatus.REVIEW_REQUIRED
                     : ScoreFact.ValidationStatus.AUTO_APPROVED;
             factByRow.put(row, fact(factId, grid.tableId(), sourceCellIds, sourceText, code,
-                    dimension, weight, classifyRule(detail), "", method, status));
+                    leafDim, weight, classifyRule(detail), "", method, status));
         }
 
         Map<Integer, String> dimensionOriginCellIdByRow = new HashMap<>();
         for (MergedRegion region : grid.mergedRegions()) {
             Optional<CanonicalCell> originOpt = grid.findCell(region.startCellId());
-            if (originOpt.isEmpty()) {
-                continue;
-            }
+            if (originOpt.isEmpty()) continue;
             CanonicalCell origin = originOpt.get();
             if (origin.column() != mapping.dimCol()) {
                 continue;
@@ -241,10 +242,6 @@ public final class DeterministicScoreFactExtractor {
 
     private static java.util.Optional<CanonicalCell> cellAt(List<CanonicalCell> cells, int column) {
         return cells.stream().filter(cell -> cell.column() == column).findFirst();
-    }
-
-    private static String cleanDimension(String raw) {
-        return raw == null ? "" : TITLE_WEIGHT.matcher(raw).replaceAll("").replaceAll("\\s+", " ").trim();
     }
 
     private static ScoreFact resolveContinuationFact(

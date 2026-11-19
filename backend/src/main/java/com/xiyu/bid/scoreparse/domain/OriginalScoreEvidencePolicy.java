@@ -252,23 +252,22 @@ public final class OriginalScoreEvidencePolicy {
     }
 
     public static String publishedDimension(String dimension, String sourceText, BigDecimal weight) {
-        if (!sectionCategory(dimension) || weight == null || sourceText == null || sourceText.isBlank()) {
-            return dimension == null ? "" : dimension;
+        String cleaned = ScoreItemTitleExtractor.cleanDimensionLabel(dimension);
+        if (!ScoreCategoryClassifier.needsSpecificTitle(cleaned) && !sectionCategory(cleaned)
+                && !ScoreCategoryClassifier.hasUnclosedBracket(dimension)) return cleaned;
+        if (weight != null && sourceText != null && !sourceText.isBlank()) {
+            String number = weight.stripTrailingZeros().toPlainString();
+            String compact = sourceText.replaceAll("\\s+", "");
+            int at = compact.indexOf("（" + number + "分）");
+            if (at < 0) at = compact.indexOf("(" + number + "分)");
+            if (at > 0) {
+                int start = at;
+                while (start > 0 && nameChar(compact.charAt(start - 1))) start--;
+                String name = compact.substring(start, at).replaceFirst("^(?:商务|技术|报价|价格|其他)?(?:评分标准|评分|标准|部分)?", "");
+                if (name.length() >= 2 && name.length() <= 24 && !ScoreCategoryClassifier.needsSpecificTitle(name)) return name;
+            }
         }
-        String number = weight.stripTrailingZeros().toPlainString();
-        String compact = sourceText.replaceAll("\\s+", "");
-        int at = markerAt(compact, "（" + number + "分）");
-        if (at < 0) at = markerAt(compact, "(" + number + "分)");
-        if (at <= 0) return dimension;
-        int start = at;
-        while (start > 0 && nameChar(compact.charAt(start - 1))) start--;
-        String name = compact.substring(start, at).replaceFirst(
-                "^(?:商务|技术|报价|价格|其他)?(?:评分标准|评分|标准|部分)?", "");
-        return name.length() >= 2 && name.length() <= 24 ? name : dimension;
-    }
-
-    private static int markerAt(String compact, String marker) {
-        return compact.indexOf(marker);
+        return ScoreItemTitleExtractor.resolveDimension(dimension, sourceText);
     }
 
     private static boolean nameChar(char value) {

@@ -5,8 +5,8 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.DeterministicScoreFactExtractor;
-import com.xiyu.bid.scoreparse.domain.ScoreCategoryClassifier;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreCategoryClassifier;
 import com.xiyu.bid.scoreparse.domain.ScoreItemOrderPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreItemTitleExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy;
@@ -87,6 +87,10 @@ public class ScoreItemPersistenceService {
         if (extractionSnapshotRepository != null && parseTaskId != null && extractionSnapshotRepository.currentIdForUpdate(parseTaskId).isPresent())
             throw new ScoreExtractionException(409, "VERSIONED_TASK_REQUIRES_ACTIVATION");
         List<ScoreCandidate> ordered = orderPolicy.sort(candidates);
+        List<String> dimensions = ordered.stream().map(ScoreItemPersistenceService::resolveDim).toList();
+        if (dimensions.stream().anyMatch(ScoreCategoryClassifier::isInvalidOrPlaceholderName)) {
+            throw new ScoreExtractionException(400, "INVALID_SCORE_ITEM_NAME");
+        }
         List<ScoreItem> oldItems = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
         boolean fingerprintUnchanged = isFingerprintUnchanged(oldItems, ordered);
 
@@ -109,7 +113,6 @@ public class ScoreItemPersistenceService {
             String scoreType = com.xiyu.bid.scoreparse.domain.GroupedCriteriaScoreTable.METHOD.equals(candidate.location())
                     ? candidate.scoreTypeGuess() : classificationPolicy.classify(candidate.detail(), candidate.scoreTypeGuess());
             String code = resolveCode(candidate.code());
-            String dim = resolveDim(candidate);
             String detail = candidate.detail() == null || candidate.detail().isBlank()
                     ? "—" : candidate.detail();
             String location = resolveLocation(candidate.location());
@@ -118,7 +121,7 @@ public class ScoreItemPersistenceService {
                     .parseTaskId(parseTaskId)
                     .itemIndex(i + 1)
                     .code(code)
-                    .dim(dim)
+                    .dim(dimensions.get(i))
                     .detail(detail)
                     .weight(candidate.weight() == null ? BigDecimal.ZERO : candidate.weight())
                     .scoreType(scoreType)
@@ -218,31 +221,17 @@ public class ScoreItemPersistenceService {
         return com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer.clean(code);
     }
 
-    static boolean isTopLevelCategory(String dim) {
-        return ScoreCategoryClassifier.isTopLevelCategory(dim);
+    public static boolean hasInvalidItemName(List<ScoreCandidate> candidates) {
+        return candidates != null && candidates.stream()
+                .map(ScoreItemPersistenceService::resolveDim)
+                .anyMatch(ScoreCategoryClassifier::isInvalidOrPlaceholderName);
     }
 
     static String resolveDim(ScoreCandidate candidate) {
-        String trimmedDim = candidate.dim() == null ? "" : candidate.dim().trim();
-        boolean explicitName = !trimmedDim.isBlank() && "EVIDENCE_PIPELINE".equals(candidate.semanticPattern())
-                && DeterministicScoreFactExtractor.EVALUATION_CRITERIA_METHOD.equals(candidate.location());
-        boolean categoryDim = isTopLevelCategory(trimmedDim) || candidate.isParentOnlyDim();
-        if (!explicitName && candidate.detail() != null && !candidate.detail().isBlank()) {
-            String title = ScoreItemTitleExtractor.extract(candidate.detail()).orElse("");
-            if (!title.isBlank()) return title.length() > 200 ? title.substring(0, 200) : title;
-        }
-        if (!trimmedDim.isBlank() && (explicitName || !categoryDim)) {
-            return trimmedDim.length() > 200 ? trimmedDim.substring(0, 200) : trimmedDim;
-        }
-        if (candidate.detail() != null && !candidate.detail().isBlank()) {
-            String trimmed = candidate.detail().trim();
-            if (!isTopLevelCategory(trimmed)) {
-                int newline = trimmed.indexOf('\n');
-                String firstLine = newline > 0 ? trimmed.substring(0, newline).trim() : trimmed;
-                return firstLine.length() > 50 ? firstLine.substring(0, 50) : firstLine;
-            }
-        }
-        return !trimmedDim.isBlank() ? trimmedDim : "评分项";
+        boolean preferCandidateName = "MANUAL_REVIEW_ADOPTED".equals(candidate.semanticPattern())
+                || ("EVIDENCE_PIPELINE".equals(candidate.semanticPattern())
+                && DeterministicScoreFactExtractor.EVALUATION_CRITERIA_METHOD.equals(candidate.location()));
+        return ScoreItemTitleExtractor.resolveCandidateDimension(candidate, preferCandidateName);
     }
 
     private String resolveLocation(String location) {

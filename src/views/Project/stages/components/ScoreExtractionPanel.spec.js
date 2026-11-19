@@ -103,3 +103,37 @@ it('keeps unknown source diagnostic details readable as text', () => {
   expect(w.get('[data-test="extraction-source-diagnostics"]').text()).toContain('UNFAMILIAR:<img src=x onerror=alert(1)>')
   expect(w.find('img').exists()).toBe(false)
 })
+
+it('displays objective and subjective scoreType labels on candidate items', () => {
+  const data = snapshot()
+  data.items = [
+    item('客观指标', { scoreType: 'OBJECTIVE' }),
+    item('主观方案', { scoreType: 'SUBJECTIVE' }),
+  ]
+  const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+  const cards = w.findAll('article.candidate')
+  expect(cards).toHaveLength(2)
+  expect(cards[0].text()).toContain('客观项')
+  expect(cards[1].text()).toContain('主观项')
+})
+
+it.each(['', '1', '一', '评分项 21', '3 | 营业总收入', '商务评分（20'])(
+  'excludes invalid historical name %j while allowing a valid rule',
+  async (name) => {
+    const data = snapshot()
+    data.items = [
+      item('invalid', { name, computable: true }),
+      item('valid', { name: '营业总收入', computable: true }),
+    ]
+    const w = mount(ScoreExtractionPanel, { props: { snapshot: data } })
+    const invalid = w.get('[data-item-id="invalid"]')
+    expect(invalid.get('input[type="checkbox"]').attributes('disabled')).toBeDefined()
+    expect(invalid.text()).toContain('评分项名称无效')
+    const valid = w.get('[data-item-id="valid"] input[type="checkbox"]')
+    expect(valid.attributes('disabled')).toBeUndefined()
+    await valid.setValue(true)
+    await w.get('textarea').setValue('核对后选取')
+    await w.get('[data-test="activate-extraction"]').trigger('click')
+    expect(w.emitted('activate')[0][0].selectedItemIds).toEqual(['valid'])
+  },
+)

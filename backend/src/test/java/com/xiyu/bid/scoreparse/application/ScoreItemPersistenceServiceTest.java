@@ -24,9 +24,11 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -150,7 +152,7 @@ class ScoreItemPersistenceServiceTest {
     }
 
     @Test
-    void nullOrBlankDim_fallsBackToDetailOrPlaceholder_neverNull() {
+    void nullOrBlankDim_fallsBackToDetail() {
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
                 .thenReturn(List.of());
 
@@ -158,16 +160,13 @@ class ScoreItemPersistenceServiceTest {
                 new ScoreCandidate("1", null, "技术实施方案完整得10分",
                         new BigDecimal("10"), "OBJECTIVE", null, "原文", "P1", null),
                 new ScoreCandidate("2", "   ", "商务资质证书得20分",
-                        new BigDecimal("20"), "OBJECTIVE", null, "原文", "P2", null),
-                new ScoreCandidate("3", null, null,
-                        new BigDecimal("30"), "OBJECTIVE", null, "原文", "P3", null)));
+                        new BigDecimal("20"), "OBJECTIVE", null, "原文", "P2", null)));
 
         ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
         List<ScoreItem> items = saved.getValue();
-        assertThat(items).hasSize(3);
+        assertThat(items).hasSize(2);
         assertThat(items.get(0).getDim()).isEqualTo("技术实施方案完整得10分");
         assertThat(items.get(1).getDim()).isEqualTo("商务资质证书得20分");
-        assertThat(items.get(2).getDim()).isEqualTo("评分项");
     }
 
     @Test
@@ -321,5 +320,36 @@ class ScoreItemPersistenceServiceTest {
     private ScoreCandidate candidate(String code, String detail, String weight) {
         return new ScoreCandidate(code, "资质", detail, new BigDecimal(weight),
                 "OBJECTIVE", null, detail, "P47", "SEMANTIC");
+    }
+
+    @Test
+    void manualReviewedCandidateNameIsPreserved() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
+                new ScoreCandidate("3", "近三年平均营业总收入",
+                        "3 | 营业总收入：营业收入超过10亿元得5分",
+                        new BigDecimal("5"), "OBJECTIVE", null,
+                        "3 | 营业总收入：营业收入超过10亿元得5分", "", "MANUAL_REVIEW_ADOPTED")));
+
+        assertThat(capturedSavedItems().getValue()).extracting(ScoreItem::getDim)
+                .containsExactly("近三年平均营业总收入");
+    }
+
+    @Test
+    void rejectsEntireReplacementBeforeDeletingExistingRulesOrResultsWhenNameIsUnresolved() {
+        var candidateWithTruncatedName = new ScoreCandidate("4", "商务评分（20",
+                "商务评分（20分）\n具体细则无冒号但需完整说明",
+                BigDecimal.TEN, "OBJECTIVE", null,
+                "商务评分（20分）\n具体细则无冒号但需完整说明", "", "SEMANTIC");
+        var candidateWithoutName = new ScoreCandidate("5", null, null,
+                BigDecimal.TEN, "OBJECTIVE", null, "原文", "P3", null);
+        for (var invalid : List.of(candidateWithTruncatedName, candidateWithoutName)) {
+            assertThatThrownBy(() -> service.persistItems(PROJECT_ID,
+                    PARSE_TASK_ID, List.of(candidate("1", "人员资质", "5"), invalid)))
+                    .isInstanceOf(ScoreExtractionException.class).hasMessage("INVALID_SCORE_ITEM_NAME");
+        }
+        verifyNoInteractions(itemRepository, resultRepository);
+        assertThat(ScoreItemPersistenceService.hasInvalidItemName(List.of(candidateWithTruncatedName))).isTrue();
+        assertThat(ScoreItemPersistenceService.hasInvalidItemName(List.of(candidate("1", "人员资质", "5")))).isFalse();
     }
 }

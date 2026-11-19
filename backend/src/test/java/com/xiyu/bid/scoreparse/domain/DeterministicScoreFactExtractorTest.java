@@ -7,6 +7,7 @@ import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact.CanonicalTable.Merge
 import com.xiyu.bid.scoreparse.domain.grid.CanonicalTableGrid;
 import com.xiyu.bid.scoreparse.domain.grid.CanonicalTableGridFactory;
 import com.xiyu.bid.scoreparse.domain.grid.TableColumnMapping;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -35,6 +36,25 @@ class DeterministicScoreFactExtractorTest {
             var facts = DeterministicScoreFactExtractor.extract(table, mapping());
             assertEquals(text.contains("得5分") ? 1 : 0, facts.size());
         }
+    }
+
+    @Test
+    void truncatedCategoryWithoutLeafTitleDoesNotBecomePublishableName() {
+        var table = grid(List.of(
+                cell("h0", 0, 0, "序号"), cell("h1", 0, 1, "评分因素"),
+                cell("h2", 0, 2, "评分细则"), cell("h3", 0, 3, "分值"),
+                cell("c0", 1, 0, "1"), cell("c1", 1, 1, "商务评分（20"),
+                cell("c2", 1, 2, "投标人提供营业收入证明得30分"), cell("c3", 1, 3, "30")
+        ), 2, 4);
+
+        var facts = DeterministicScoreFactExtractor.extract(table, mapping());
+        assertEquals(1, facts.size());
+        assertEquals(new BigDecimal("30"), facts.getFirst().weight());
+        assertEquals("", facts.getFirst().dimension());
+        var scope = new OriginalScoreEvidencePolicy.Qualification(facts.getFirst().factId(), "scheme", "IN_SCHEME", true, "OK", "");
+        var snapshot = ScoreExtractionSnapshot.from("task", facts, List.of(scope), List.of());
+        assertFalse(snapshot.items().getFirst().computable());
+        assertTrue(snapshot.items().getFirst().diagnostics().contains("INVALID_SCORE_ITEM_NAME"));
     }
 
     private static CanonicalCellDto cell(String id, int row, int column, String text) {
@@ -761,6 +781,37 @@ class DeterministicScoreFactExtractorTest {
         assertEquals(0, result.candidates().get(1).weight().compareTo(new BigDecimal("20")));
         assertEquals("3", result.candidates().get(2).code());
         assertEquals(0, result.candidates().get(2).weight().compareTo(new BigDecimal("50")));
+    }
+
+    @Test
+    @DisplayName("跨行截断括号与竖线前缀不会泄漏进评分项维度名称（project 1394 回归）")
+    void refinesSplitBracketCategoryAndPipePrefixIntoCleanLeafDimension() {
+        CanonicalTableGrid grid = gridWithMergedRegions(List.of(
+                cell("r0c0", 0, 0, "序号"),
+                cell("r0c1", 0, 1, "评审大类"),
+                cell("r0c2", 0, 2, "评分标准"),
+                cell("r0c3", 0, 3, "分值"),
+                cellWithMerge("r1c0", 1, 0, "3", 1, 1, false),
+                cellWithMerge("r1c1", 1, 1, "商务评分（20\n分）", 2, 1, false),
+                cell("r1c2", 1, 2, "3 | 营业总收入：2024年营业总收入大于10亿得5分"),
+                cell("r1c3", 1, 3, "5"),
+                cellWithMerge("r2c0", 2, 0, "4", 1, 1, false),
+                cellWithMerge("r2c1", 2, 1, "", 1, 1, true),
+                cell("r2c2", 2, 2, "净资产收益率：净资产收益率大于10%得3分"),
+                cell("r2c3", 2, 3, "3")
+        ), List.of(
+                new MergedRegionDto("r1c1", 2, 1)
+        ), 3, 4);
+
+        List<ScoreFact> facts = DeterministicScoreFactExtractor.extract(grid, mapping());
+        List<ScoreFact> leaves = facts.stream().filter(f -> ScoreFact.isLeaf(f, facts)).toList();
+        assertEquals(2, leaves.size());
+        assertEquals("营业总收入", leaves.get(0).dimension());
+        assertEquals("净资产收益率", leaves.get(1).dimension());
+        facts.forEach(f -> {
+            assertFalse(f.dimension().contains("（20"), "dimension must not contain unclosed bracket: " + f.dimension());
+            assertFalse(f.dimension().contains("|"), "dimension must not contain table pipe: " + f.dimension());
+        });
     }
 }
 

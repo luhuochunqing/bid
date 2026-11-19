@@ -61,10 +61,11 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(fact, idx) in eligibleFacts" :key="fact.factId || idx">
+          <tr v-for="(fact, idx) in eligibleFacts" :key="fact.factId || idx" :data-fact-id="fact.factId">
             <td class="col-center"><el-input v-model="fact.code" :disabled="readonly" size="small" :aria-label="`第${idx + 1}项序号`" /></td>
             <td class="col-dim">
               <el-input v-model="fact.dimension" :disabled="readonly" size="small" aria-label="评分维度" />
+              <div v-if="invalidEffectiveFacts.has(fact)" class="validation-diff" data-test="invalid-dimension-hint">名称为空、纯序号或异常截断，请补全。</div>
             </td>
             <td class="col-weight"><el-input-number v-model="fact.weight" :disabled="readonly" :min="0" :precision="2" size="small" aria-label="分值" /></td>
             <td class="col-score-type">
@@ -129,10 +130,12 @@
         title="父子评分关系未确认，暂按明细计分；请核对后决定是否采纳。" />
       <el-alert v-if="hasExplicitAlternative" type="warning" :closable="false"
         title="已选择备用提取结果，请核对是否与其他候选项重复计分。" />
+      <el-alert v-if="invalidEffectiveFacts.size > 0" type="error" :closable="false" data-test="invalid-dimension-alert"
+        title="存在空名称、纯序号或异常截断的评分项，请补全具体名称后再采纳。" />
       <el-button
         type="primary"
         :loading="isAdoptingCandidates"
-        :disabled="readonly || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId)"
+        :disabled="readonly || candidateTotalWeight <= 0 || (schemeSelectionRequired && !selectedSchemeId) || invalidEffectiveFacts.size > 0"
         data-test="btn-adopt-candidates"
         @click="$emit('adopt', candidateFacts)"
       >
@@ -149,6 +152,7 @@
 import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { isManualScoreCandidate } from '@/composables/projectDetail/manualScoreCandidate.js'
+import { isInvalidCandidateDimension } from './ScoreExtractionPanel.vue'
 import {
   exclusionLabel,
   readableEvidences,
@@ -160,33 +164,15 @@ import {
 
 const props = defineProps({
   readonly: { type: Boolean, default: false },
-  candidateFacts: {
-    type: Array,
-    default: () => [],
-  },
+  candidateFacts: { type: Array, default: () => [] },
   schemes: { type: Array, default: () => [] },
   selectedSchemeId: { type: String, default: null },
   schemeSelectionRequired: { type: Boolean, default: false },
-  candidateTotalWeight: {
-    type: Number,
-    default: 0,
-  },
-  declaredTotalWeight: {
-    type: Number,
-    default: 100,
-  },
-  adoptionStatus: {
-    type: String,
-    default: 'DECLARED_TOTAL',
-  },
-  isAdoptingCandidates: {
-    type: Boolean,
-    default: false,
-  },
-  reparseDisabled: {
-    type: Boolean,
-    default: false,
-  },
+  candidateTotalWeight: { type: Number, default: 0 },
+  declaredTotalWeight: { type: Number, default: 100 },
+  adoptionStatus: { type: String, default: 'DECLARED_TOTAL' },
+  isAdoptingCandidates: { type: Boolean, default: false },
+  reparseDisabled: { type: Boolean, default: false },
 })
 
 const selectedSchemeTitle = computed(() => {
@@ -202,6 +188,44 @@ const hasExplicitAlternative = computed(() => eligibleFacts.value.some((fact) =>
   && fact.evidences?.some((evidence) => evidence.kind === 'ALTERNATIVE_EXTRACTION_SET_NOT_SELECTED')))
 const auditFacts = computed(() => props.candidateFacts.filter((fact) =>
   !isManualScoreCandidate(fact, props.selectedSchemeId, props.schemes.length)))
+const invalidEffectiveFacts = computed(() => {
+  const ids = new Set(eligibleFacts.value.map(fact => fact.factId))
+  const childrenByParent = new Map()
+  const pending = []
+  for (const fact of eligibleFacts.value) {
+    const parentId = fact.parentFactId
+    if (!parentId || !ids.has(parentId)) {
+      pending.push(fact)
+    } else {
+      const children = childrenByParent.get(parentId) || []
+      children.push(fact)
+      childrenByParent.set(parentId, children)
+    }
+  }
+
+  const invalid = new Set()
+  while (pending.length) {
+    const fact = pending.pop()
+    const children = childrenByParent.get(fact.factId)
+    const relation = String(fact.childAggregation || '').trim().toUpperCase()
+    const parentIsUnit = ['SHARED_CAP', 'BEST_OF', 'MUTUALLY_EXCLUSIVE'].includes(relation)
+    // Match legacy adoption: SUM and UNKNOWN traverse selected children, caps publish the parent.
+    if (children?.length && !parentIsUnit) {
+      pending.push(...children)
+    } else if (isInvalidCandidateDimension(fact.dimension) && contributesScore(fact)) {
+      invalid.add(fact)
+    }
+  }
+  return invalid
+})
+
+function contributesScore(fact) {
+  const weight = Number(fact.weight)
+  return weight > 0 || (fact.weight != null && String(fact.weight).trim() !== '' && weight === 0
+    && fact.candidateEligible === true && fact.scopeStatus === 'IN_SCHEME' && fact.sourceText?.trim()
+    && fact.evidences?.some(evidence => evidence.kind === 'SOURCE_VERIFIED_ZERO_DEDUCTION'
+      && evidence.quotedText === fact.sourceText))
+}
 
 const emit = defineEmits(['adopt', 'reparse', 'scheme-change', 'fact-change'])
 

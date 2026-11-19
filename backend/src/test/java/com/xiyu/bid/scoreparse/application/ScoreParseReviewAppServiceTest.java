@@ -12,6 +12,7 @@ import com.xiyu.bid.scoreparse.repository.ScoreParseReviewRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -682,6 +683,45 @@ class ScoreParseReviewAppServiceTest {
                 .thenReturn(List.of(task));
         lenient().when(taskRepository.findLatestParseTaskForUpdate(PROJECT_ID))
                 .thenReturn(java.util.Optional.of(task));
+    }
+
+    @Test
+    void legacyReviewRejectsAnEditedPlaceholderBeforePublishingOrAuditingAdoption() {
+        mockLatestTask();
+        when(factRepository.findByParseTaskId(9L)).thenReturn(List.of(fact("f1", "10")));
+        var action = new ScoreParseReviewCommand.Action(
+                "f1", "ADOPT_CANDIDATES", null, null, null, "评分项 21", null, null, "OBJECTIVE");
+
+        assertThatThrownBy(() -> service.submitReview(PROJECT_ID,
+                new ScoreParseReviewCommand(List.of(action), "人工核对", 9L), "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("候选评分项缺少有效名称");
+        verify(itemPersistenceService, never()).persistItems(eq(PROJECT_ID), eq(9L), anyList());
+        verify(reviewRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("复核 DTO 映射保留证据中的 OBJECTIVE 主客观分类并提纯截断维度为末级细则名称")
+    void factMapper_preservesVerifiedScoreTypeAndRefinesNoisyDimension() {
+        ScoreParseFact noisyFact = ScoreParseFact.builder()
+                .factId("f-noisy")
+                .code("3")
+                .dimension("商务评分（20")
+                .weight(new BigDecimal("5"))
+                .sourceText("3 | 营业总收入：2024年营业总收入大于10亿得5分")
+                .validationStatus("REVIEW_REQUIRED")
+                .build();
+        ScoreParseEvidence typeEvidence = ScoreParseEvidence.builder()
+                .id(99L)
+                .parseTaskId(9L)
+                .factId("f-noisy")
+                .kind("SOURCE_CELL")
+                .explanation("page=25; scoreType=OBJECTIVE")
+                .build();
+
+        var dto = ScoreParseReviewFactMapper.toFactDTO(noisyFact, List.of(typeEvidence));
+        assertThat(dto.scoreType()).isEqualTo("OBJECTIVE");
+        assertThat(dto.dimension()).isEqualTo("营业总收入");
     }
 
     private ScoreParseFact fact(String factId, String weight) {

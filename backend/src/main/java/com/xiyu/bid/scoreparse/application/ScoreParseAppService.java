@@ -218,22 +218,25 @@ public class ScoreParseAppService {
                 return;
             }
             List<ScoreCandidate> valid = processed.candidates();
+            ScoreParseDecision decision = processed.decisionStatus();
+            if (decision == ScoreParseDecision.AUTO_APPROVED && ScoreItemPersistenceService.hasInvalidItemName(valid)) {
+                decision = ScoreParseDecision.REVIEW_REQUIRED;
+                task.setDecisionStatus(decision.name());
+                task.setFallbackReason("INVALID_SCORE_ITEM_NAME");
+            }
             if (processed.originalTotal() != null) task.setOriginalTotalWeight(processed.originalTotal());
             taskRepository.save(task);
-            // task2 收敛纪律：只有 AUTO_APPROVED 可覆盖旧 score_item；
-            // REVIEW_REQUIRED / STRUCTURE_INCOMPLETE / PARSE_FAILED 都保留旧项，避免不完整结果洗掉可用数据。
-            if (!valid.isEmpty() && processed.decisionStatus() == ScoreParseDecision.AUTO_APPROVED) {
+            // 仅 AUTO_APPROVED 覆盖旧 score_item；无效名称等需复核结果转人工复核。
+            if (!valid.isEmpty() && decision == ScoreParseDecision.AUTO_APPROVED) {
                 updateProgress(taskId, 90, "PERSIST", "评分项落库");
                 itemPersistenceService.persistItems(task.getProjectId(), task.getId(), valid);
                 updateProgress(taskId, 95, "ESTIMATE", "阶段 1 预计得分计算");
                 estimatedScoreService.estimateForProject(task.getProjectId());
-            } else if (!valid.isEmpty() && processed.decisionStatus() == ScoreParseDecision.REVIEW_REQUIRED) {
+            } else if (!valid.isEmpty() && decision == ScoreParseDecision.REVIEW_REQUIRED) {
                 itemPersistenceService.persistReviewCandidateFacts(task.getProjectId(), task.getId(), valid);
-                log.warn("解析结果未自动通过，已保存复核候选快照且保留现有评分项不覆盖: taskId={}, decision={}", taskId, processed.decisionStatus());
-            } else {
-                log.warn("解析结果未自动通过，保留现有评分项不覆盖: taskId={}, decision={}", taskId, processed.decisionStatus());
-            }
-            log.info("解析任务完成: taskId={}, items={}, totalWeight={}, decision={}", taskId, valid.size(), processed.weightResult().totalWeight(), processed.decisionStatus());
+                log.warn("解析结果转人工复核（保留旧评分项）: taskId={}, fallback={}", taskId, task.getFallbackReason());
+            } else log.warn("解析结果未自动通过，保留现有评分项不覆盖: taskId={}, decision={}", taskId, decision);
+            log.info("解析任务完成: taskId={}, items={}, totalWeight={}, decision={}", taskId, valid.size(), processed.weightResult().totalWeight(), decision);
             stateService.markCompleted(taskId);
             progressService.clearProgress(taskId);
         } finally {

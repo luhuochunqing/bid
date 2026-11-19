@@ -6,6 +6,10 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.scoreparse.domain.AiProviderDiagnostics;
+import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreEvidence;
+import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
@@ -320,5 +324,48 @@ class StructuredTableExtractionMarkCompletedTest {
         verify(estService, never()).estimateForProject(any());
         assertThat(task.getNormalizationWarning()).contains("不符合100分声明总分");
         verify(taskRepo).save(task);
+    }
+
+    @Test
+    void invalidCandidateName_downgradesAutoApprovedToReviewRequiredWithoutOverwritingItems() {
+        var weight = new BigDecimal("100");
+        var evidence = new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, "100", "c1", 0, 3, "");
+        var fact = new ScoreFact("f1", "table", List.of("c1"), "商务评分（100分）\n具体细则未给出独立标题得100分",
+                "1", "商务评分（100", weight, evidence, null, "", "EVIDENCE_PIPELINE",
+                1, ScoreFact.ValidationStatus.AUTO_APPROVED);
+        var facts = List.of(fact);
+        var candidates = List.of(fact.toCandidate().orElseThrow());
+        var completeness = ScoreCompletenessPolicy.evaluateCompleteness(facts, "本项目评分总分100分。");
+        var qualifications = List.of(new OriginalScoreEvidencePolicy.Qualification(
+                "f1", "scheme", "IN_SCHEME", true, null, "table:c1"));
+        var total = new OriginalScoreEvidencePolicy.Total(weight, "TENDER_TEXT", "scheme", "table", List.of());
+        var verification = new OriginalScoreEvidencePolicy.Verification(
+                "document", "scheme", total, List.of(), qualifications);
+        var proof = OriginalScoreEvidencePolicy.publicationProof(verification, completeness.leafWeightSum(), facts, candidates);
+        assertThat(proof).isNotNull();
+        assertThat(completeness.decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        var withInvalidName = StructuredTableResult.evidencePipeline(
+                facts, candidates, completeness, List.of(), List.of(proof), qualifications, null);
+
+        ScoreParseTask task = new ScoreParseTask();
+        task.setId(88L);
+        task.setProjectId(1394L);
+        ScoreParseTaskRepository taskRepo = mock(ScoreParseTaskRepository.class);
+        ScoreParseTaskStateService stateService = mock(ScoreParseTaskStateService.class);
+        ScoreParseProgressService progressService = mock(ScoreParseProgressService.class);
+        ScoreItemPersistenceService itemService = mock(ScoreItemPersistenceService.class);
+        EstimatedScoreService estService = mock(EstimatedScoreService.class);
+
+        StructuredTableExtractionHandler.markEvidencePipelineCompleted(
+                task, "task-invalid-name", withInvalidName, taskRepo, stateService,
+                progressService, itemService, estService);
+
+        assertThat(task.getDecisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED.name());
+        assertThat(task.getFallbackReason()).isEqualTo("INVALID_SCORE_ITEM_NAME");
+        verify(itemService).persistFactsAndEvidence(1394L, 88L, facts, qualifications);
+        verify(itemService, never()).persistItems(any(), any(), anyList());
+        verify(estService, never()).estimateForProject(any());
+        verify(stateService).markCompleted("task-invalid-name");
+        verify(stateService, never()).failTask(any(), any());
     }
 }

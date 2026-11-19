@@ -6,6 +6,18 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ScoreExtractionSnapshotTest {
+    @Test
+    void restoresLeafTitleInsteadOfAlphanumericRowNumber() {
+        var fact = new ScoreFact("revenue", "table", List.of(),
+                "A1 | 商务 | 营业总收入：2024年营业总收入大于10亿元得5分 | 5",
+                "A1", "商务", BigDecimal.valueOf(5), null, null, null,
+                "MODEL", 0.8, ScoreFact.ValidationStatus.REVIEW_REQUIRED);
+        var scope = new OriginalScoreEvidencePolicy.Qualification("revenue", "scheme", "IN_SCHEME", true, "OK", "");
+        var item = ScoreExtractionSnapshot.from("task", List.of(fact), List.of(scope), List.of()).items().getFirst();
+        assertThat(item.name()).isEqualTo("营业总收入");
+        assertThat(item.computable()).isTrue();
+    }
+
     @Test void selectedUnknownBranchMakesTotalIncompleteEvenWhenEffectiveUnitsStillMatch() {
         var old=fact("old",BigDecimal.TEN);
         var parent=new ScoreFact("p","t",List.of(),"父项5分","p","父项",new BigDecimal("5"),null,null,null,"MODEL",.8,ScoreFact.ValidationStatus.REVIEW_REQUIRED,ChildAggregation.UNKNOWN);
@@ -142,6 +154,16 @@ class ScoreExtractionSnapshotTest {
                 List.of(new OriginalScoreEvidencePolicy.Qualification("placeholder", "s", "IN_SCHEME", true, null, "")),
                 List.of()).items().getFirst();
         assertThat(item.computable()).isFalse();
+    }
+
+    @Test void pureNumericOrBlankNameIsNotComputableEvenWithPositiveWeight() {
+        var fact = new ScoreFact("num-1", "t", List.of("c"), "无冒号纯规则描述得5分", "1", "1",
+                new BigDecimal("5"), null, null, "", "MODEL", .9, ScoreFact.ValidationStatus.REVIEW_REQUIRED);
+        var q = new OriginalScoreEvidencePolicy.Qualification("num-1", "s", "IN_SCHEME", true, null, "t:c");
+        var item = ScoreExtractionSnapshot.from("task", List.of(fact), List.of(q), List.of()).items().getFirst();
+        assertThat(item.name()).isEmpty();
+        assertThat(item.computable()).isFalse();
+        assertThat(item.diagnostics()).contains("INVALID_SCORE_ITEM_NAME");
     }
 
     static ScoreFact fact(String id, BigDecimal weight) {

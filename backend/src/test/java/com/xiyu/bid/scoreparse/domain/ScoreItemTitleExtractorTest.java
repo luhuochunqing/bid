@@ -7,6 +7,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ScoreItemTitleExtractorTest {
 
     @Test
+    void htmlBreakOnlyRulesHaveNoTitleOrFallbackName() {
+        for (String blankRule : java.util.List.of("<br>", "<BR /><br/>", " <br> <br> ")) {
+            assertThat(ScoreItemTitleExtractor.extract(blankRule)).isEmpty();
+            assertThat(ScoreItemTitleExtractor.resolveDimension("", blankRule)).isEmpty();
+            var candidate = new ScoreCandidate("1", "", blankRule, java.math.BigDecimal.ONE,
+                    "OBJECTIVE", null, blankRule, "", "SEMANTIC");
+            assertThat(ScoreCategoryClassifier.isInvalidOrPlaceholderName(
+                    ScoreItemTitleExtractor.resolveCandidateDimension(candidate, false))).isTrue();
+        }
+    }
+
+    @Test
     void extractsNumberedTitleFromFirstLine() {
         assertThat(ScoreItemTitleExtractor.extract("1. 人员配置：具备相关经验。"))
                 .contains("人员配置");
@@ -76,5 +88,49 @@ class ScoreItemTitleExtractorTest {
     void oversizedPrefix_returnsEmpty() {
         String longPrefix = "A".repeat(45) + "：细则内容";
         assertThat(ScoreItemTitleExtractor.extract(longPrefix)).isEmpty();
+    }
+
+    @Test
+    void cleansMalformedDimensionAndExtractsLeafFromPipeOrCategoryPrefixedDetail() {
+        assertThat(ScoreItemTitleExtractor.cleanDimensionLabel("商务评分（20\n分）")).isEqualTo("商务评分");
+        assertThat(ScoreItemTitleExtractor.cleanDimensionLabel("商务评分（20")).isEqualTo("商务评分");
+        assertThat(ScoreItemTitleExtractor.cleanDimensionLabel("3 | 营业总收入")).isEqualTo("营业总收入");
+
+        assertThat(ScoreItemTitleExtractor.extract("3 | 营业总收入 | 2024年营业总收入大于10亿元得5分"))
+                .contains("营业总收入");
+        assertThat(ScoreItemTitleExtractor.extract("商务评分（20\n分）\n1. 营业总收入：近三年年均营业总收入不低于5亿元。"))
+                .contains("营业总收入");
+
+        assertThat(ScoreItemTitleExtractor.resolveDimension("商务评分（20", "营业总收入：近三年高于5亿得5分"))
+                .isEqualTo("营业总收入");
+        assertThat(ScoreItemTitleExtractor.resolveDimension("商务评分（20", "无冒号的单纯描述文本"))
+                .isEmpty();
+        assertThat(ScoreItemTitleExtractor.resolveDimension("商务评分（20\n分）", "无冒号的单纯描述文本"))
+                .isEqualTo("商务评分");
+        assertThat(ScoreItemTitleExtractor.resolveDimension("1", "无冒号的单纯描述文本"))
+                .isEmpty();
+    }
+    @Test
+    void publicationRequiresSpecificTitleForUnclosedDimension() {
+        assertThat(OriginalScoreEvidencePolicy.publishedDimension(
+                "商务评分（20", "投标人提供营业收入证明得30分", java.math.BigDecimal.valueOf(30))).isEmpty();
+        assertThat(OriginalScoreEvidencePolicy.publishedDimension(
+                "商务评分（20", "营业总收入（30分）：投标人提供营业收入证明得30分",
+                java.math.BigDecimal.valueOf(30))).isEqualTo("营业总收入");
+    }
+
+    @Test
+    void legacyCandidateWithUnclosedDimensionNeedsAnExtractedTitle() {
+        String body = "投标人提供营业收入证明得30分";
+        var unrecoverable = legacyCandidateWithTruncatedName(body);
+        var recoverable = legacyCandidateWithTruncatedName("营业总收入（30分）：" + body);
+
+        assertThat(ScoreItemTitleExtractor.resolveCandidateDimension(unrecoverable, false)).isEmpty();
+        assertThat(ScoreItemTitleExtractor.resolveCandidateDimension(recoverable, false)).isEqualTo("营业总收入");
+    }
+
+    private ScoreCandidate legacyCandidateWithTruncatedName(String detail) {
+        return new ScoreCandidate("1", "商务评分（20", detail, java.math.BigDecimal.valueOf(30),
+                "OBJECTIVE", null, detail, "", "SEMANTIC");
     }
 }

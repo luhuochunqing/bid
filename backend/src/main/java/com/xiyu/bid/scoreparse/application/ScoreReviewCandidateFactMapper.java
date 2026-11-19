@@ -3,7 +3,6 @@
 // Pos: scoreparse/application — legacy review candidate fact mapping
 package com.xiyu.bid.scoreparse.application;
 
-import com.xiyu.bid.scoreparse.domain.ScoreCategoryClassifier;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
@@ -35,7 +34,7 @@ final class ScoreReviewCandidateFactMapper {
 
     private static ScoreFact toFact(Long parseTaskId, int index, ScoreCandidate candidate) {
         String code = ScoreCodeSanitizer.clean(candidate.code());
-        String dim = resolveDim(candidate);
+        String dim = ScoreItemTitleExtractor.resolveCandidateDimension(candidate, false);
         return new ScoreFact(
                 "review-candidate-" + parseTaskId + "-" + index + "-" + code,
                 "legacy-review-candidates",
@@ -51,27 +50,6 @@ final class ScoreReviewCandidateFactMapper {
                 0.5,
                 ScoreFact.ValidationStatus.REVIEW_REQUIRED
         );
-    }
-
-    private static String resolveDim(ScoreCandidate candidate) {
-        String trimmedDim = candidate.dim() == null ? "" : candidate.dim().trim();
-        boolean categoryDim = ScoreCategoryClassifier.isTopLevelCategory(trimmedDim) || candidate.isParentOnlyDim();
-        if (candidate.detail() != null && !candidate.detail().isBlank()) {
-            String title = ScoreItemTitleExtractor.extract(candidate.detail()).orElse("");
-            if (!title.isBlank()) return title.length() > 200 ? title.substring(0, 200) : title;
-        }
-        if (!trimmedDim.isBlank() && !categoryDim) {
-            return trimmedDim.length() > 200 ? trimmedDim.substring(0, 200) : trimmedDim;
-        }
-        if (candidate.detail() != null && !candidate.detail().isBlank()) {
-            String trimmed = candidate.detail().trim();
-            if (!ScoreCategoryClassifier.isTopLevelCategory(trimmed)) {
-                int newline = trimmed.indexOf('\n');
-                String firstLine = newline > 0 ? trimmed.substring(0, newline).trim() : trimmed;
-                return firstLine.length() > 50 ? firstLine.substring(0, 50) : firstLine;
-            }
-        }
-        return !trimmedDim.isBlank() ? trimmedDim : "评分项";
     }
 
     private static String firstNonBlank(String... values) {

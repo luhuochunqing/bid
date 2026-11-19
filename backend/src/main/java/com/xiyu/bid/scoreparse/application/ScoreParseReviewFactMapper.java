@@ -2,6 +2,8 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.scoreparse.domain.ScoreItemTitleExtractor;
+import com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy;
 import com.xiyu.bid.scoreparse.dto.ScoreParseReviewDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseEvidence;
 import com.xiyu.bid.scoreparse.entity.ScoreParseFact;
@@ -10,6 +12,7 @@ import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
@@ -17,8 +20,22 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 final class ScoreParseReviewFactMapper {
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final Pattern SCORE_TYPE_IN_EXPLANATION = Pattern.compile("scoreType=(OBJECTIVE|SUBJECTIVE)");
 
     private ScoreParseReviewFactMapper() {}
+
+    private static String resolveScoreType(String sourceText, List<ScoreParseEvidence> evidences) {
+        if (evidences != null) {
+            for (ScoreParseEvidence evidence : evidences) {
+                if (evidence == null || evidence.getExplanation() == null) continue;
+                var matcher = SCORE_TYPE_IN_EXPLANATION.matcher(evidence.getExplanation());
+                if (matcher.find()) {
+                    return matcher.group(1);
+                }
+            }
+        }
+        return new ScoreTypeClassificationPolicy().classify(sourceText);
+    }
 
     static BigDecimal declaredTotal(ScoreParseTask task) {
         if (task != null && task.getRunSummary() != null && !task.getRunSummary().isBlank()) {
@@ -48,12 +65,14 @@ final class ScoreParseReviewFactMapper {
                         .orElseGet(Qualification::sourceUnverified));
         boolean scored = fact.getWeight() != null && fact.getWeight().signum() > 0
                 || verifiedZeroDeduction(fact, evidences);
+        String resolvedDimension = ScoreItemTitleExtractor.resolveDimension(fact.getDimension(), fact.getSourceText());
+        String resolvedScoreType = resolveScoreType(fact.getSourceText(), evidences);
         return new ScoreParseReviewDTO.Fact(
                 fact.getFactId(),
                 fact.getCode(),
-                fact.getDimension(),
+                resolvedDimension,
                 fact.getWeight(),
-                new com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy().classify(fact.getSourceText()),
+                resolvedScoreType,
                 fact.getValidationStatus(),
                 evidences.stream().map(ScoreParseEvidence::getExplanation)
                         .filter(java.util.Objects::nonNull).filter(message -> !message.isBlank())

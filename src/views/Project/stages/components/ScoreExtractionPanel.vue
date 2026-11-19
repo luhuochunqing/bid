@@ -32,12 +32,14 @@
     </div>
     <article v-for="item in displayedItems" :key="item.itemId" class="candidate" :data-item-id="item.itemId">
       <label class="candidate-title">
-        <input v-model="selectedIds" type="checkbox" :value="item.itemId" :disabled="blocked || busy || !selectable(item)" :aria-label="'选择' + item.name" />
+        <input v-model="selectedIds" type="checkbox" :value="item.itemId" :disabled="blocked || busy || !selectable(item)" :aria-label="'选择' + item.name"
+          :aria-describedby="isInvalidCandidateDimension(item.name) ? 'invalid-score-name-' + item.itemId : undefined" />
       {{ categoryLabel(item.category) }} · {{ item.name }}
       </label>
-      <p>{{ item.computable && Number(item.rawMaximum) === 0 ? '扣分规则' : item.computable ? '可计算' : '不可计算' }} · {{ adopted.has(item.itemId) ? '已采纳' : '未采纳' }} · {{ item.validationStatus === 'AUTO_APPROVED' ? '原文已核验' : '原文未核验' }}</p>
+      <p>{{ item.computable && Number(item.rawMaximum) === 0 ? '扣分规则' : item.computable ? '可计算' : '不可计算' }} · {{ adopted.has(item.itemId) ? '已采纳' : '未采纳' }} · {{ item.validationStatus === 'AUTO_APPROVED' ? '原文已核验' : '原文未核验' }} · <span data-test="extraction-score-type">{{ scoreTypeLabel(item.scoreType) }}</span></p>
       <p>{{ item.fieldSources?.rawMaximum === 'SOURCE_EVIDENCE' ? '原文依据最大分' : '候选最大分（模型提取，未核验）' }}：{{ scoreNumber(item.rawMaximum) }}{{ item.scoreUnit === 'PERCENTAGE' ? '%' : ' 分' }} · 有效分：{{ scoreNumber(item.effectiveMaximum) }} · 方案比例：{{ item.schemeRatio == null ? '未提供' : item.schemeRatio }}</p>
       <p v-if="item.schemeId !== schemeId">其他方案或方案归属待确认，本次不计分</p>
+      <p v-if="isInvalidCandidateDimension(item.name)" :id="'invalid-score-name-' + item.itemId" class="diagnostic">评分项名称无效，无法选用</p>
       <p v-if="!item.computable" class="diagnostic">该项尚未确认，暂不计入总分</p>
       <details>
         <summary>完整规则、材料要求与来源</summary>
@@ -70,10 +72,27 @@
       <label>人工切换原因（仅记录选择理由，不修改原文）
         <textarea v-model="reason" rows="2" aria-label="人工切换原因" :disabled="busy || blocked" />
       </label>
-      <button type="button" data-test="activate-extraction" :disabled="busy || blocked || !selected.length || !reason.trim()" @click="$emit('activate', { schemeId, selectedItemIds: [...selectedIds], reason })">{{ busy ? '正在切换…' : '确认完整替换为所选项' }}</button>
+      <button type="button" data-test="activate-extraction" :disabled="busy || blocked || !selected.length || !reason.trim()" @click="$emit('activate', { schemeId, selectedItemIds: selected.map(item => item.itemId), reason })">{{ busy ? '正在切换…' : '确认完整替换为所选项' }}</button>
     </div>
   </section>
 </template>
+<script>
+const PURE_CODE_DIM = /^(\d+(?:[.-]\d+)*|[一二三四五六七八九十]+)$/
+const PLACEHOLDER_DIM = /^评分项(?:\s*\d+(?:[.-]\d+)*)?$/
+
+export function isInvalidCandidateDimension(dimension) {
+  const name = String(dimension ?? '').trim()
+  if (!name || PURE_CODE_DIM.test(name) || PLACEHOLDER_DIM.test(name) || name.includes('|')) return true
+
+  let depth = 0
+  for (const character of name) {
+    if (character === '(' || character === '（') depth++
+    if (character === ')' || character === '）') depth--
+    if (depth < 0) return true
+  }
+  return depth !== 0
+}
+</script>
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { categoryLabel } from '@/composables/projectDetail/scoreParseTask.js'
@@ -103,8 +122,9 @@ const activeMissingTotal = computed(() => {
 })
 const adopted = computed(() => new Set(props.snapshot.adoption?.adoptedItemIds || []))
 const displayedItems = computed(() => [...(props.snapshot.items || [])].sort((a, b) => Number(b.schemeId === schemeId.value) - Number(a.schemeId === schemeId.value)))
-const selectable = item => Boolean(schemeId.value) && item.schemeId === schemeId.value && item.computable === true
+const selectable = item => Boolean(schemeId.value) && item.schemeId === schemeId.value && item.computable === true && !isInvalidCandidateDimension(item.name)
 const selected = computed(() => displayedItems.value.filter(item => selectedIds.value.includes(item.itemId) && selectable(item)))
+const scoreTypeLabel = (type) => (type === 'OBJECTIVE' ? '客观项' : type === 'SUBJECTIVE' ? '主观项' : '待定类型')
 </script>
 <style scoped>
 .extraction-panel { margin-bottom: var(--space-lg); color: var(--text-primary); }
