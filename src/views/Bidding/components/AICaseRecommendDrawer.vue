@@ -31,7 +31,7 @@
           <span class="alert-title">暂无评分项数据，请先在任务看板进行「AI 评分标准解析」</span>
         </template>
         <template #default>
-          <div class="alert-action">
+          <div v-if="recommendError !== SCORE_ITEM_RESELECT_MESSAGE" class="alert-action">
             <el-button type="primary" link size="small" @click="$emit('goto-score-parse')">
               前往解析 →
             </el-button>
@@ -48,7 +48,7 @@
               v-model="selectedScoreItemId"
               :items="scoreItems"
               placeholder="选择关联评分项"
-              @change="handleScoreItemChange"
+              @change="fetchRecommendations()"
             />
           </div>
         </div>
@@ -59,14 +59,14 @@
             placeholder="输入技术关键词快速检索（如：高可用、双活、应急预案）"
             clearable
             class="keyword-input"
-            @keyup.enter="handleSearch"
-            @clear="handleSearch"
+            @keyup.enter="fetchRecommendations()"
+            @clear="fetchRecommendations()"
           >
             <template #prefix>
               <span class="search-icon">🔍</span>
             </template>
             <template #append>
-              <el-button type="primary" :loading="loading" @click="handleSearch">
+              <el-button type="primary" :loading="loading" @click="fetchRecommendations()">
                 检索
               </el-button>
             </template>
@@ -74,8 +74,22 @@
         </div>
       </div>
 
-      <!-- 推荐列表区域 -->
+      <el-alert v-if="recommendError" type="error" :closable="false" show-icon class="no-score-item-alert">
+        <template #title>
+          <span class="alert-title">{{ recommendError }}</span>
+        </template>
+        <template #default>
+          <div class="alert-action">
+            <el-button type="primary" link size="small" @click="reloadAll">重新加载</el-button>
+          </div>
+        </template>
+      </el-alert>
+      <el-alert v-else-if="evidenceReviewRequired" type="warning" :closable="false" show-icon class="no-score-item-alert">
+        <template #title>当前推荐缺少可核验的证明材料，请人工核验原始材料。</template>
+      </el-alert>
+
       <div
+        v-if="!recommendError && (!evidenceReviewRequired || recommendedCases.length > 0)"
         v-loading="loading"
         element-loading-text="AI 正在根据评分项要素匹配案例..."
         class="case-list-container"
@@ -90,7 +104,6 @@
           />
         </div>
 
-        <!-- 空状态 -->
         <div v-else-if="!loading" class="empty-wrap">
           <div class="empty-icon">📂</div>
           <div class="empty-title">暂无推荐案例</div>
@@ -99,7 +112,6 @@
       </div>
     </div>
 
-    <!-- 弹窗子组件 -->
     <AICaseDetailModal
       v-model="detailModalVisible"
       :case-detail="activeCase"
@@ -120,8 +132,14 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
+import {
+  extractRecommendErrorMessage,
+  fetchRecommendScoreItems,
+  isScoreItemNotFoundError,
+  matchRefreshedScoreItemId,
+  SCORE_ITEM_RESELECT_MESSAGE
+} from '@/views/Knowledge/views/caseRecommendRefresh.js'
 import AICaseRecommendCard from './AICaseRecommendCard.vue'
 import AICaseDetailModal from './AICaseDetailModal.vue'
 import AICaseReuseSectionModal from './AICaseReuseSectionModal.vue'
@@ -159,6 +177,9 @@ const selectedScoreItemId = ref(null)
 const searchKeyword = ref('')
 const recommendedCases = ref([])
 const totalCases = ref(0)
+const evidenceReviewRequired = ref(false)
+const recommendError = ref('')
+let recommendationRequestId = 0
 
 const detailModalVisible = ref(false)
 const reuseModalVisible = ref(false)
@@ -179,51 +200,65 @@ const currentDefaultChapter = computed(() => {
   return ''
 })
 
-const loadScoreItems = async () => {
+const loadScoreItems = async (requestId, recovering = false) => {
   if (!props.projectId) return
   try {
-    const res = await caseRecommendationApi.getScoreItems(props.projectId)
-    if (res && res.data) {
-      scoreItems.value = res.data
-    } else if (Array.isArray(res)) {
-      scoreItems.value = res
-    }
+    const items = await fetchRecommendScoreItems(props.projectId, recovering)
+    if (requestId !== recommendationRequestId) return
+    scoreItems.value = items
+    return items
   } catch (err) {
+    if (requestId !== recommendationRequestId) return
+    if (recovering) {
+      recommendError.value = extractRecommendErrorMessage(err, '获取评分项失败，请稍后重试')
+      return
+    }
     console.warn('获取评分项列表失败，支持关键词直接检索', err)
   }
 }
 
-const fetchRecommendations = async () => {
+const fetchRecommendations = async (allowStaleRetry = true) => {
   if (!props.projectId) return
+  const requestId = ++recommendationRequestId
   loading.value = true
+  recommendError.value = ''
+  evidenceReviewRequired.value = false
+  const scoreItemId = selectedScoreItemId.value
   try {
     const res = await caseRecommendationApi.recommendCases(props.projectId, {
-      scoreItemId: selectedScoreItemId.value,
+      scoreItemId,
       keyword: searchKeyword.value.trim(),
       page: 0,
       size: 20
     })
-    if (res && res.items) {
-      recommendedCases.value = res.items
-      totalCases.value = res.total || res.items.length
-    } else {
-      recommendedCases.value = []
-      totalCases.value = 0
-    }
+    if (requestId !== recommendationRequestId) return
+    evidenceReviewRequired.value = res?.evidenceReviewRequired === true
+    const items = res?.items
+    recommendedCases.value = items || []
+    totalCases.value = items ? res.total || items.length : 0
   } catch (err) {
-    notifyErrorUnlessRateLimit(err, '获取推荐案例失败')
+    if (requestId !== recommendationRequestId) return
     recommendedCases.value = []
+    totalCases.value = 0
+    if (allowStaleRetry && scoreItemId && isScoreItemNotFoundError(err)) {
+      const previousItem = scoreItems.value.find(item => String(item.id) === String(scoreItemId))
+      const refreshedId = matchRefreshedScoreItemId(await loadScoreItems(requestId, true), previousItem)
+      if (requestId !== recommendationRequestId || refreshedId === undefined) return
+      selectedScoreItemId.value = refreshedId
+      if (refreshedId != null) return await fetchRecommendations(false)
+      recommendError.value = SCORE_ITEM_RESELECT_MESSAGE
+      return
+    }
+    recommendError.value = extractRecommendErrorMessage(err)
   } finally {
-    loading.value = false
+    if (requestId === recommendationRequestId) loading.value = false
   }
 }
 
-const handleScoreItemChange = () => {
-  fetchRecommendations()
-}
-
-const handleSearch = () => {
-  fetchRecommendations()
+const reloadAll = async () => {
+  const requestId = recommendationRequestId
+  await loadScoreItems(requestId)
+  if (requestId === recommendationRequestId) await fetchRecommendations()
 }
 
 const openDetail = (caseItem) => {
@@ -248,25 +283,16 @@ const handleReuseSuccess = (payload) => {
   emit('case-reused', payload)
 }
 
-watch(
-  () => drawerVisible.value,
-  (visible) => {
-    if (visible) {
-      if (props.defaultScoreItemId) {
-        selectedScoreItemId.value = props.defaultScoreItemId
-      }
-      loadScoreItems()
-      fetchRecommendations()
-    }
-  }
-)
+const handleOpen = async () => {
+  ++recommendationRequestId
+  if (!drawerVisible.value || !props.projectId) return
+  if (props.defaultScoreItemId) selectedScoreItemId.value = props.defaultScoreItemId
+  loading.value = true
+  await reloadAll()
+}
 
-onMounted(() => {
-  if (drawerVisible.value) {
-    loadScoreItems()
-    fetchRecommendations()
-  }
-})
+watch(drawerVisible, handleOpen)
+onMounted(handleOpen)
 </script>
 
 <style scoped>

@@ -88,7 +88,7 @@ describe('AICaseRecommendDrawer.vue', () => {
     })
 
     await flushPromises()
-    expect(caseRecommendationApi.getScoreItems).toHaveBeenCalledWith(123)
+    expect(caseRecommendationApi.getScoreItems).toHaveBeenCalledWith(123, { silentError: false })
     expect(caseRecommendationApi.recommendCases).toHaveBeenCalledWith(123, expect.any(Object))
 
     expect(wrapper.text()).toContain('AI 智能推荐案例')
@@ -111,13 +111,21 @@ describe('AICaseRecommendDrawer.vue', () => {
         directives: {
           loading: () => {}
         },
-        stubs: commonStubs
+        stubs: {
+          ...commonStubs,
+          'el-input': {
+            props: ['modelValue'],
+            emits: ['update:modelValue'],
+            template: `<div><input :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" /><slot name="append" /></div>`
+          },
+          'el-button': { template: '<button type="button"><slot /></button>' }
+        }
       }
     })
 
     await flushPromises()
-    wrapper.vm.searchKeyword = '双活'
-    await wrapper.vm.handleSearch()
+    await wrapper.get('.keyword-row input').setValue('双活')
+    await wrapper.get('.keyword-row button').trigger('click')
     await flushPromises()
 
     expect(caseRecommendationApi.recommendCases).toHaveBeenCalledWith(123, {
@@ -215,5 +223,99 @@ describe('AICaseRecommendDrawer.vue', () => {
     expect(optionItem.text()).not.toContain('系统架构高可用设计')
     expect(wrapper.find('.el-tooltip-mock').attributes('data-content')).toBe('系统架构高可用设计')
     expect(wrapper.find('.score-item-detail-preview').text()).toContain('系统架构高可用设计')
+  })
+
+  it('shows evidenceReviewRequired warning and hides empty state when proof-only item returns no cases', async () => {
+    caseRecommendationApi.recommendCases.mockResolvedValue({
+      total: 0,
+      items: [],
+      evidenceReviewRequired: true
+    })
+
+    const wrapper = mount(AICaseRecommendDrawer, {
+      props: { modelValue: true, projectId: 123, defaultScoreItemId: 1 },
+      global: { directives: { loading: () => {} }, stubs: commonStubs }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('当前推荐缺少可核验的证明材料，请人工核验原始材料。')
+    expect(wrapper.find('.empty-wrap').exists()).toBe(false)
+  })
+
+  it('auto-refreshes score items and retries once on 404 stale scoreItemId', async () => {
+    const stale404 = Object.assign(new Error('评分项 not found: 739'), { response: { status: 404 } })
+    caseRecommendationApi.getScoreItems
+      .mockResolvedValueOnce([{ id: 739, code: '2', dim: '商品丰富性', detail: '按 SKU 数量排序' }])
+      .mockResolvedValueOnce([{ id: 796, code: '', dim: '商品丰富性', detail: '按 SKU 数量排序' }])
+    caseRecommendationApi.recommendCases
+      .mockRejectedValueOnce(stale404)
+      .mockResolvedValueOnce({ total: 0, items: [], evidenceReviewRequired: true })
+
+    const wrapper = mount(AICaseRecommendDrawer, {
+      props: { modelValue: true, projectId: 123, defaultScoreItemId: 739 },
+      global: { directives: { loading: () => {} }, stubs: commonStubs }
+    })
+    await flushPromises()
+
+    expect(caseRecommendationApi.getScoreItems).toHaveBeenCalledTimes(2)
+    expect(caseRecommendationApi.recommendCases).toHaveBeenCalledTimes(2)
+    expect(caseRecommendationApi.recommendCases).toHaveBeenNthCalledWith(2, 123, expect.objectContaining({ scoreItemId: 796 }))
+    expect(wrapper.text()).toContain('当前推荐缺少可核验的证明材料，请人工核验原始材料。')
+  })
+
+  it('reports the failed score item refresh after a recommendation 404', async () => {
+    caseRecommendationApi.getScoreItems
+      .mockResolvedValueOnce([{ id: 739, dim: '服务能力', detail: '配送服务细则' }])
+      .mockRejectedValueOnce({ response: { status: 503, data: { msg: '评分项服务暂不可用' } } })
+    caseRecommendationApi.recommendCases.mockRejectedValueOnce({
+      response: { status: 404, data: { msg: '评分项不存在' } },
+    })
+
+    const wrapper = mount(AICaseRecommendDrawer, {
+      props: { modelValue: true, projectId: 123, defaultScoreItemId: 739 },
+      global: { directives: { loading: () => {} }, stubs: commonStubs }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('评分项服务暂不可用')
+    expect(caseRecommendationApi.getScoreItems).toHaveBeenNthCalledWith(2, 123, { silentError: true })
+    expect(caseRecommendationApi.recommendCases).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks for a new selection when the refreshed list no longer contains the stale item', async () => {
+    caseRecommendationApi.getScoreItems
+      .mockResolvedValueOnce([{ id: 739, code: '2', dim: '商品丰富性' }])
+      .mockResolvedValueOnce([{ id: 789, code: '1', dim: '降价率' }])
+    caseRecommendationApi.recommendCases.mockRejectedValueOnce({ response: { status: 404 } })
+
+    const wrapper = mount(AICaseRecommendDrawer, {
+      props: { modelValue: true, projectId: 123, defaultScoreItemId: 739 },
+      global: { directives: { loading: () => {} }, stubs: commonStubs }
+    })
+    await flushPromises()
+
+    expect(caseRecommendationApi.recommendCases).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('请重新选择评分项')
+  })
+
+  it.each([
+    ['配送服务细则', '售后服务细则'],
+    ['配送服务细则', ''],
+    ['—', '—']
+  ])('asks for a new selection when a reused code has details %j and %j', async (previousDetail, detail) => {
+    caseRecommendationApi.getScoreItems
+      .mockResolvedValueOnce([{ id: 739, code: 'item-2', dim: '服务能力', detail: previousDetail }])
+      .mockResolvedValueOnce([{ id: 796, code: 'item-2', dim: '服务能力', detail }])
+    caseRecommendationApi.recommendCases.mockRejectedValueOnce({ response: { status: 404 } })
+
+    const wrapper = mount(AICaseRecommendDrawer, {
+      props: { modelValue: true, projectId: 123, defaultScoreItemId: 739 },
+      global: { directives: { loading: () => {} }, stubs: commonStubs }
+    })
+    await flushPromises()
+
+    expect(caseRecommendationApi.getScoreItems).toHaveBeenCalledTimes(2)
+    expect(caseRecommendationApi.recommendCases).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('请重新选择评分项')
   })
 })

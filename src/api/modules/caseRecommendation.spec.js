@@ -34,9 +34,15 @@ describe('caseRecommendationApi', () => {
 
     const result = await caseRecommendationApi.getScoreItems(10)
 
-    expect(httpClient.get).toHaveBeenCalledWith('/api/projects/10/score-items')
+    expect(httpClient.get).toHaveBeenCalledWith('/api/projects/10/score-items', undefined)
     expect(result).toEqual(bareArray)
     expect(Array.isArray(result)).toBe(true)
+  })
+
+  it('getScoreItems(): forwards the silent error option for drawer recovery', async () => {
+    await caseRecommendationApi.getScoreItems(10, { silentError: true })
+
+    expect(httpClient.get).toHaveBeenCalledWith('/api/projects/10/score-items', { silentError: true })
   })
 
   // 后端直接返回 ResponseEntity<ScoreItemCaseRecommendResponse>（裸 {total, items}，不走信封）。
@@ -56,7 +62,7 @@ describe('caseRecommendationApi', () => {
       keyword: '高可用',
       page: 0,
       size: 20
-    })
+    }, { silentError: true })
     expect(result).toEqual(barePayload)
     expect(result.items).toHaveLength(1)
   })
@@ -71,7 +77,7 @@ describe('caseRecommendationApi', () => {
       keyword: '',
       page: 0,
       size: 10
-    })
+    }, { silentError: true })
   })
 
   // 案例详情/复用同样直接返回裸对象（KnowledgeCaseController 返回 ResponseEntity，无信封），

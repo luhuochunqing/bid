@@ -18,7 +18,7 @@ export const caseRecommendationApi = {
       keyword: params.keyword || '',
       page: params.page || 0,
       size: params.size || 10
-    })
+    }, { silentError: true })
   },
 
   /**
@@ -27,8 +27,8 @@ export const caseRecommendationApi = {
    * 注：后端直接返回裸数组（不走统一信封），
    * client.js 拦截器已解包 response.data，此处不可再取 .data
    */
-  async getScoreItems(projectId) {
-    return httpClient.get(`/api/projects/${projectId}/score-items`)
+  async getScoreItems(projectId, config) {
+    return httpClient.get(`/api/projects/${projectId}/score-items`, config)
   },
 
   /**
