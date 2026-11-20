@@ -4,6 +4,7 @@
 // 维护声明: 维护者按项目SOP；FR-021 细节自 ScoreParseAppServiceTest 迁入
 package com.xiyu.bid.scoreparse.application;
 
+import com.xiyu.bid.casework.domain.policy.CaseRecommendationPurposePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
@@ -413,5 +414,61 @@ class ScoreItemPersistenceServiceTest {
         verifyNoInteractions(itemRepository, resultRepository);
         assertThat(ScoreItemPersistenceService.hasInvalidItemName(List.of(candidateWithTruncatedName))).isTrue();
         assertThat(ScoreItemPersistenceService.hasInvalidItemName(List.of(candidate("1", "人员资质", "5")))).isFalse();
+    }
+
+    @Test
+    void evidencePipelineCandidatesWithoutLlmTagsPersistDeterministicDeliverableTypeAndScoringMode() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
+                new ScoreCandidate("1", "商品丰富性",
+                        "按电商平台自营商品SKU数量由多到少进行排序，第一名得4分，每低1名扣1分，提供系统数据截图",
+                        new BigDecimal("4"), "OBJECTIVE", null,
+                        "原文", "TABLE_GRID", "EVIDENCE_PIPELINE"),
+                new ScoreCandidate("2", "总体服务方案",
+                        "评标委员会对投标人提供的总体服务方案进行综合评审",
+                        new BigDecimal("10"), "SUBJECTIVE", null,
+                        "原文", "TABLE_GRID", "EVIDENCE_PIPELINE"),
+                new ScoreCandidate("3", "显式打标项",
+                        "普通说明文本",
+                        new BigDecimal("6"), "OBJECTIVE", null,
+                        "原文", "GLOBAL_MERGE", "GLOBAL_MERGE",
+                        null, "UNKNOWN", "CONTRACT_INVOICE", "DEDUCTION")));
+
+        ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
+        assertThat(saved.getValue()).extracting(ScoreItem::getDeliverableType)
+                .containsExactly("SYSTEM_SCREENSHOT", "TEXT_PROPOSAL", "CONTRACT_INVOICE");
+        assertThat(saved.getValue()).extracting(ScoreItem::getScoringMode)
+                .containsExactly("QUANTITATIVE_RANKING", "SUBJECTIVE_REVIEW", "DEDUCTION");
+    }
+
+    @Test
+    void preservesHistoricalReferenceForSubjectiveProposalWithIllustrativeScreenshot() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
+                new ScoreCandidate("1", "技术方案",
+                        "提供平台操作方案及示例截图，由评委按方案合理性分档打分。",
+                        new BigDecimal("4"), "SUBJECTIVE", null,
+                        "原文", "TABLE_GRID", "EVIDENCE_PIPELINE")));
+
+        ScoreItem item = capturedSavedItems().getValue().getFirst();
+        assertThat(item.getScoreType()).isEqualTo("SUBJECTIVE");
+        assertThat(CaseRecommendationPurposePolicy.determineRecommendationPurpose(
+                item.getDim(), item.getDetail(), item.getScoreType(), item.getDeliverableType(), item.getScoringMode()))
+                .isEqualTo(CaseRecommendationPurposePolicy.Purpose.REFERENCE);
+    }
+
+    @Test
+    void preservesPerformanceRecommendationForOrdinaryContractAndInvoiceClause() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
+                new ScoreCandidate("3", "类似业绩", "投标人须提供类似业绩合同或协议及结算发票复印件。",
+                        new BigDecimal("4"), "SUBJECTIVE", null,
+                        "原文", "TABLE_GRID", "EVIDENCE_PIPELINE")));
+
+        ScoreItem item = capturedSavedItems().getValue().getFirst();
+        assertThat(CaseRecommendationPurposePolicy.determineRecommendationPurpose(
+                item.getDim(), item.getDetail(), item.getScoreType(), item.getDeliverableType(), item.getScoringMode()))
+                .isEqualTo(CaseRecommendationPurposePolicy.Purpose.REFERENCE);
     }
 }

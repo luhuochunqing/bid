@@ -38,6 +38,7 @@ import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
 import com.xiyu.bid.scoreparse.domain.AiProviderDiagnostics;
 import com.xiyu.bid.scoreparse.domain.ScoreItemOrderPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer;
+import com.xiyu.bid.scoreparse.domain.ScoreItemClassificationPolicy;
 import com.xiyu.bid.scoreparse.domain.TableCompleteness;
 import com.xiyu.bid.scoreparse.domain.SourceAnchorCatalog;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
@@ -109,6 +110,10 @@ final class ScoreActiveProjection {
         return ScoreItem.builder().projectId(projectId).parseTaskId(taskId).activeVersionId(versionId)
                 .sourceFactId(i.factId()).itemIndex(index).code(ScoreCodeSanitizer.clean(f.code()).isBlank()?"item-"+index:ScoreCodeSanitizer.clean(f.code()))
                 .dim(i.name()).detail(i.ruleText()).weight(i.effectiveMaximum()).scoreType(i.scoreType())
+                .deliverableType(ScoreItemClassificationPolicy.classifyDeliverableType(
+                        i.name(), i.ruleText(), null))
+                .scoringMode(ScoreItemClassificationPolicy.classifyScoringMode(
+                        i.ruleText(), i.scoreType(), null))
                 .statusStage1("PENDING").sourceText(f.sourceText()).sourceCellIds(codec.encode(f.sourceCellIds()))
                 .weightEvidence(f.weightEvidence()==null?null:codec.encode(f.weightEvidence())).extractionMethod(f.extractionMethod())
                 .confidence(i.confidence()).validationStatus(i.validationStatus())

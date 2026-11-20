@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import AiRecommendDrawer from './AiRecommendDrawer.vue'
 import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import ScoreItemSelect from '@/components/common/ScoreItemSelect.vue'
 
 vi.mock('@/api/modules/caseRecommendation', () => ({
@@ -195,7 +196,7 @@ describe('AiRecommendDrawer.vue', () => {
   it('loads score items and triggers preliminary recommendations on open', async () => {
     const wrapper = await mockOpenWithCases([recommendItem])
 
-    expect(caseRecommendationApi.getScoreItems).toHaveBeenCalledWith(10)
+    expect(caseRecommendationApi.getScoreItems).toHaveBeenCalledWith(10, { silentError: false })
     expect(caseRecommendationApi.recommendCases).toHaveBeenCalledWith(10, {
       scoreItemId: 1,
       keyword: '',
@@ -521,5 +522,124 @@ describe('AiRecommendDrawer.vue', () => {
     expect(wrapper.find('.cert-recommend-section').text()).toContain('信息系统安全等级保护备案证明(三级)')
     expect(wrapper.text()).not.toContain('历史案例参考')
   })
+
+  it('auto-refreshes score items and retries once when recommend returns 404 for a stale scoreItemId', async () => {
+    const stale404 = Object.assign(new Error('评分项 not found: 739'), { response: { status: 404 } })
+    caseRecommendationApi.getScoreItems
+      .mockResolvedValueOnce([{ id: 739, code: 'item-2', dim: '服务能力', detail: '配送服务细则' }])
+      .mockResolvedValueOnce([
+        { id: 789, code: 'item-2', dim: '服务能力', detail: '售后服务细则' },
+        { id: 796, code: 'item-3', dim: '服务能力', detail: '配送服务细则' },
+      ])
+    caseRecommendationApi.recommendCases
+      .mockRejectedValueOnce(stale404)
+      .mockResolvedValueOnce(evidenceResponse)
+
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(caseRecommendationApi.getScoreItems).toHaveBeenCalledTimes(2)
+    expect(caseRecommendationApi.recommendCases).toHaveBeenCalledTimes(2)
+    expect(caseRecommendationApi.recommendCases).toHaveBeenNthCalledWith(1, 10, expect.objectContaining({ scoreItemId: 739 }))
+    expect(caseRecommendationApi.recommendCases).toHaveBeenNthCalledWith(2, 10, expect.objectContaining({ scoreItemId: 796 }))
+    expect(wrapper.find('.el-alert-mock').text()).toMatch(/缺少可核验.*人工核验/)
+    expect(wrapper.find('.cases-container').exists()).toBe(false)
+  })
+
+  it('reports a failed 404 recovery in the drawer without a duplicate toast', async () => {
+    caseRecommendationApi.getScoreItems
+      .mockResolvedValueOnce([{ id: 739, dim: '服务能力', detail: '配送服务细则' }])
+      .mockRejectedValueOnce({ response: { status: 503, data: { msg: '评分项服务暂不可用' } } })
+    caseRecommendationApi.recommendCases.mockRejectedValueOnce({
+      response: { status: 404, data: { msg: '评分项不存在' } },
+    })
+
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(wrapper.get('.recommend-error-alert').text()).toContain('评分项服务暂不可用')
+    expect(caseRecommendationApi.getScoreItems).toHaveBeenNthCalledWith(2, 10, { silentError: true })
+    expect(caseRecommendationApi.recommendCases).toHaveBeenCalledTimes(1)
+    expect(notifyErrorUnlessRateLimit).not.toHaveBeenCalled()
+    expect(wrapper.find('.cases-container').exists()).toBe(false)
+  })
+
+  it('renders explicit error alert instead of fake 0-result empty state on non-404 failure', async () => {
+    caseRecommendationApi.getScoreItems.mockResolvedValue([evidenceScoreItem])
+    caseRecommendationApi.recommendCases.mockRejectedValue(
+      Object.assign(new Error('Request failed with status code 503'), { response: { status: 503, data: { msg: '服务暂不可用' } } }),
+    )
+
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(wrapper.find('.recommend-error-alert').exists()).toBe(true)
+    expect(wrapper.find('.recommend-error-alert').text()).toContain('服务暂不可用')
+    expect(wrapper.find('.cases-container').exists()).toBe(false)
+  })
+
+  it('asks for a new selection when multiple refreshed items match the stale item', async () => {
+    caseRecommendationApi.getScoreItems
+      .mockResolvedValueOnce([{ id: 739, code: '2', dim: '商品丰富性', detail: '按 SKU 数量排序' }])
+      .mockResolvedValueOnce([
+        { id: 796, code: '2', dim: '商品丰富性', detail: '按 SKU 数量排序' },
+        { id: 797, code: '3', dim: '商品丰富性', detail: '按 SKU 数量排序' },
+      ])
+    caseRecommendationApi.recommendCases.mockRejectedValueOnce({ response: { status: 404 } })
+
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    expect(caseRecommendationApi.recommendCases).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.recommend-error-alert').text()).toContain('请重新选择评分项')
+  })
+
+  it.each([
+    ['before', true],
+    ['after', false],
+  ])('requires reselection when keyword debounce expires %s the 404 refresh completes', async (_, timerFirst) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const previousItem = { id: 739, code: 'item-2', dim: '服务能力', detail: '配送服务细则' }
+    const nextItem = { ...previousItem, id: 789, detail: '售后服务细则' }
+    let finishRefresh
+    const refreshedItems = new Promise(resolve => { finishRefresh = resolve })
+    caseRecommendationApi.getScoreItems
+      .mockResolvedValueOnce([previousItem])
+      .mockReturnValueOnce(refreshedItems)
+    caseRecommendationApi.recommendCases
+      .mockRejectedValueOnce({ response: { status: 404 } })
+      .mockResolvedValue({ total: 1, items: [recommendItem] })
+
+    const wrapper = mountDrawer()
+    try {
+      await flushPromises()
+      expect(caseRecommendationApi.getScoreItems).toHaveBeenCalledTimes(2)
+      await wrapper.get('input').setValue('电网')
+
+      if (timerFirst) await vi.advanceTimersByTimeAsync(300)
+      finishRefresh([nextItem])
+      await flushPromises()
+      if (!timerFirst) await vi.advanceTimersByTimeAsync(300)
+
+      expect(caseRecommendationApi.recommendCases).toHaveBeenCalledTimes(1)
+      expect(wrapper.get('.recommend-error-alert').text()).toContain('请重新选择评分项')
+      expect(wrapper.find('.cases-container').exists()).toBe(false)
+
+      const select = wrapper.getComponent(ScoreItemSelect)
+      select.vm.$emit('update:modelValue', nextItem.id)
+      select.vm.$emit('change', nextItem.id)
+      await flushPromises()
+
+      expect(caseRecommendationApi.recommendCases).toHaveBeenCalledTimes(2)
+      expect(caseRecommendationApi.recommendCases).toHaveBeenLastCalledWith(10, {
+        scoreItemId: nextItem.id, keyword: '电网', page: 0, size: 20,
+      })
+      expect(wrapper.find('.recommend-error-alert').exists()).toBe(false)
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
+  })
+
 })
 

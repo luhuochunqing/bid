@@ -16,10 +16,9 @@
           v-model="selectedItemId"
           :items="scoreItems"
           placeholder="请选择评分项"
-          @change="handleItemChange"
+          @change="handleItemChange()"
         />
       </div>
-
       <div class="drawer-section">
         <label class="section-label">关键词过滤</label>
         <el-input v-model="keywordFilter" placeholder="输入关键词进一步筛选..." clearable />
@@ -35,10 +34,18 @@
       </div>
 
       <EnterpriseCertRecommendList v-if="matchedCertificates.length > 0" :certificates="matchedCertificates" />
-      <el-alert v-if="evidenceReviewRequired" type="warning" :closable="false" show-icon>
+      <el-alert v-if="recommendError" type="error" :closable="false" show-icon class="recommend-error-alert">
+        <template #title>
+          <div class="empty-score-alert">
+            <span>{{ recommendError }}</span>
+            <el-button v-if="recommendError !== SCORE_ITEM_RESELECT_MESSAGE" type="primary" size="small" @click="handleItemChange()">重新加载</el-button>
+          </div>
+        </template>
+      </el-alert>
+      <el-alert v-else-if="evidenceReviewRequired" type="warning" :closable="false" show-icon>
         <template #title>当前推荐缺少可核验的证明材料，请人工核验原始材料。</template>
       </el-alert>
-      <div v-if="!isCertificateOnlyResult && (!evidenceReviewRequired || cases.length > 0)" class="drawer-section">
+      <div v-if="!recommendError && !isCertificateOnlyResult && (!evidenceReviewRequired || cases.length > 0)" class="drawer-section">
         <div class="section-label-row">
           <label class="section-label">
             历史案例参考
@@ -105,7 +112,16 @@ import CaseCard from '@/views/Knowledge/views/components/CaseCard.vue'
 import CaseDetailDialog from '@/views/Knowledge/views/components/CaseDetailDialog.vue'
 import EnterpriseCertRecommendList from './EnterpriseCertRecommendList.vue'
 import { useBidCaseSourceActions } from '@/views/Knowledge/views/useBidCaseSourceActions.js'
-import { getMatchLabel } from '@/views/Knowledge/views/caseLabels.js'
+import {
+  extractRecommendErrorMessage,
+  fetchRecommendScoreItems,
+  filterRecommendCases,
+  isScoreItemNotFoundError,
+  matchRefreshedScoreItemId,
+  mergeRecommendCaseDetail,
+  normalizeRecommendCase,
+  SCORE_ITEM_RESELECT_MESSAGE
+} from '@/views/Knowledge/views/caseRecommendRefresh.js'
 import ScoreItemSelect from '@/components/common/ScoreItemSelect.vue'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
@@ -120,9 +136,11 @@ const cases = ref([])
 const matchedCertificates = ref([])
 const recommendTotal = ref(0)
 const evidenceReviewRequired = ref(false)
+const recommendError = ref('')
 const loadingCases = ref(false)
 const defaultCases = ref([])
 let recommendationRequestId = 0
+let keywordDebounceTimer
 
 const detailVisible = ref(false)
 const detailLoading = ref(false)
@@ -134,38 +152,44 @@ const isCertificateOnlyResult = computed(() =>
 )
 
 const handleGoToScoreParse = () => { visible.value = false; emit('go-to-score-parse') }
+const filteredCases = computed(() =>
+  selectedItemId.value ? cases.value : filterRecommendCases(cases.value, keywordFilter.value)
+)
 
-const filteredCases = computed(() => {
-  if (selectedItemId.value) return cases.value
-  const kw = keywordFilter.value.trim().toLowerCase()
-  if (!kw) return cases.value
-  return cases.value.filter(c =>
-    (c.scoringTitle || '').toLowerCase().includes(kw) ||
-    (c.responseTextSummary || '').toLowerCase().includes(kw) ||
-    (c.sourceProjectName || '').toLowerCase().includes(kw)
-  )
-})
-
-async function handleOpen() {
+async function loadScoreItemsList(requestId, recovering = false) {
   scoreItemsLoading.value = true
   try {
-    const res = await caseRecommendationApi.getScoreItems(props.projectId)
-    const items = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : [])
+    const items = await fetchRecommendScoreItems(props.projectId, recovering)
+    if (requestId !== recommendationRequestId) return
     scoreItems.value = items
+    return items
   } catch (err) {
+    if (requestId !== recommendationRequestId) return
+    if (recovering) {
+      recommendError.value = extractRecommendErrorMessage(err, '获取评分项失败，请稍后重试')
+      return
+    }
     scoreItems.value = []
     notifyErrorUnlessRateLimit(err, '获取评分项失败')
   } finally {
     scoreItemsLoading.value = false
   }
+}
+
+async function handleOpen() {
+  const requestId = ++recommendationRequestId
+  await loadScoreItemsList(requestId)
+  if (requestId !== recommendationRequestId) return
   selectedItemId.value = scoreItems.value[0]?.id ?? null
   await handleItemChange()
 }
 
-async function handleItemChange() {
+async function handleItemChange(allowStaleRetry = true) {
+  clearTimeout(keywordDebounceTimer)
   const requestId = ++recommendationRequestId
   const scoreItemId = selectedItemId.value
   evidenceReviewRequired.value = false
+  recommendError.value = ''
   matchedCertificates.value = []
   recommendTotal.value = 0
   cases.value = []
@@ -188,44 +212,32 @@ async function handleItemChange() {
     const serverTotal = Number(res?.total)
     recommendTotal.value = Number.isFinite(serverTotal) ? serverTotal : cases.value.length
   } catch (err) {
-    if (requestId === recommendationRequestId) notifyErrorUnlessRateLimit(err, '获取推荐案例失败')
+    if (requestId !== recommendationRequestId) return
+    if (allowStaleRetry && scoreItemId && isScoreItemNotFoundError(err)) {
+      const previousItem = scoreItems.value.find(item => item.id === scoreItemId)
+      const refreshedId = matchRefreshedScoreItemId(await loadScoreItemsList(requestId, true), previousItem)
+      if (requestId !== recommendationRequestId || refreshedId === undefined) return
+      selectedItemId.value = refreshedId
+      if (refreshedId != null) return await handleItemChange(false)
+      recommendError.value = SCORE_ITEM_RESELECT_MESSAGE
+      return
+    }
+    recommendError.value = extractRecommendErrorMessage(err)
   } finally {
     if (requestId === recommendationRequestId) loadingCases.value = false
   }
 }
-
-let keywordDebounceTimer
 onBeforeUnmount(() => {
   recommendationRequestId++
   clearTimeout(keywordDebounceTimer)
 })
 watch(keywordFilter, () => {
-  if (selectedItemId.value) {
-    clearTimeout(keywordDebounceTimer)
-    keywordDebounceTimer = setTimeout(() => handleItemChange(), 300)
-  }
+  if (!selectedItemId.value) return
+  clearTimeout(keywordDebounceTimer)
+  keywordDebounceTimer = setTimeout(() => {
+    if (selectedItemId.value && !scoreItemsLoading.value) handleItemChange()
+  }, 300)
 })
-
-function normalizeRecommendCase(item) {
-  const matchScore = item.matchScore ?? item.score ?? 0
-  return {
-    caseId: item.id ?? item.caseId,
-    scoringTitle: item.scoringPointTitle || item.scoringTitle,
-    responseTextSummary: item.responseTextSummary || item.responseText || '',
-    projectType: item.projectType,
-    customerType: item.customerType,
-    createdAt: item.createdAt || '',
-    score: matchScore,
-    matchScore,
-    matchLabel: getMatchLabel(matchScore, item.matchLabel),
-    matchReasons: item.matchReasons || [],
-    matchedKeywords: item.matchedKeywords || [],
-    responseText: item.responseText || '',
-    sourceProjectName: item.sourceProjectName,
-    subTopic: item.subTopic,
-    qualityScore: item.qualityScore,
-  }
-}
 
 async function viewDetail(caseId) {
   detailVisible.value = true
@@ -233,15 +245,7 @@ async function viewDetail(caseId) {
   const current = cases.value.find(c => (c.caseId ?? c.id) === caseId)
   detailCase.value = current ? { ...current } : null
   try {
-    const res = await caseRecommendationApi.getCaseDetail(caseId)
-    const full = res?.data || res
-    detailCase.value = {
-      ...full,
-      matchScore: current?.matchScore ?? current?.score ?? full?.matchScore,
-      matchLabel: current?.matchLabel ?? full?.matchLabel,
-      matchReasons: current?.matchReasons ?? full?.matchReasons,
-      matchedKeywords: current?.matchedKeywords ?? full?.matchedKeywords,
-    }
+    detailCase.value = mergeRecommendCaseDetail(await caseRecommendationApi.getCaseDetail(caseId), current)
   } catch (err) {
     notifyErrorUnlessRateLimit(err, '获取案例详情失败')
     detailVisible.value = false
@@ -290,7 +294,6 @@ async function openBidDocument(d, options) {
 .tooltip-sub { margin-top: 4px; font-size: 11px; color: var(--el-color-warning); }
 .cases-container { min-height: 200px; }
 .select-hint { color: var(--text-muted); font-size: 14px; text-align: center; padding: 40px 0; }
-
 .recommend-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
 @media (max-width: 720px) { .recommend-grid { grid-template-columns: 1fr; } }
 .empty-score-alert { display: flex; align-items: center; gap: 12px; }

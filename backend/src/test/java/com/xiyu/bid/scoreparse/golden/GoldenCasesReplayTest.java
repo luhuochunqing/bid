@@ -8,6 +8,7 @@ package com.xiyu.bid.scoreparse.golden;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
+import com.xiyu.bid.casework.domain.policy.CaseRecommendationPurposePolicy;
 import com.xiyu.bid.scoreparse.domain.ChildAggregation;
 import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
 import com.xiyu.bid.scoreparse.domain.OriginalRuleRestoration;
@@ -17,7 +18,9 @@ import com.xiyu.bid.scoreparse.domain.ScoreSourceMetadata;
 import com.xiyu.bid.scoreparse.domain.OriginalScoreEvidencePolicy;
 import com.xiyu.bid.scoreparse.domain.OriginalScoringContext;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreItemClassificationPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreUnitPolicy;
 import com.xiyu.bid.scoreparse.domain.MultimodalScoreFactValidator;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
@@ -96,10 +99,49 @@ class GoldenCasesReplayTest {
         assertEquals("能够提供最长账期", expected.path("items").get(0).path("dimension").asText());
         assertEquals("交货期限承诺", expected.path("items").get(1).path("dimension").asText());
 
-        // Also verify that policy recognizes them as OBJECTIVE
-        var policy = new com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy();
-        assertEquals("OBJECTIVE", policy.classify("最长账期6个月（含）以上的，得5分；最长账期3个月(含)~6个月的，得3分；其余不得分。"));
-        assertEquals("OBJECTIVE", policy.classify("交货期限承诺：按时交付得5分，未按时交付不得分。"));
+        var policy = new ScoreTypeClassificationPolicy();
+        String paymentPeriodDetail = "最长账期6个月（含）以上的，得5分；最长账期3个月(含)~6个月的，得3分；其余不得分。";
+        String deliveryDetail = "交货期限承诺：按时交付得5分，未按时交付不得分。";
+        assertEquals("OBJECTIVE", policy.classify(paymentPeriodDetail));
+        assertEquals("OBJECTIVE", policy.classify(deliveryDetail));
+
+        assertEquals(null, ScoreItemClassificationPolicy.classifyDeliverableType(
+                "能够提供最长账期", paymentPeriodDetail, null));
+        assertEquals("STEPWISE_SCORING", ScoreItemClassificationPolicy.classifyScoringMode(
+                paymentPeriodDetail, "OBJECTIVE", null));
+        assertEquals(null, ScoreItemClassificationPolicy.classifyDeliverableType(
+                "交货期限承诺", deliveryDetail, null));
+        assertEquals("OTHER", ScoreItemClassificationPolicy.classifyScoringMode(
+                deliveryDetail, "OBJECTIVE", null));
+    }
+
+    @ParameterizedTest
+    @MethodSource("historicalReferenceClauses")
+    void classificationPreservesHistoricalReference(
+            String fixture, String title, String detail, String expectedMode) throws Exception {
+        assertTrue(GoldenCasesReplaySupport.readFixture(fixture).contains(detail));
+        String scoreType = "SUBJECTIVE";
+        String deliverable = ScoreItemClassificationPolicy.classifyDeliverableType(title, detail, null);
+        String mode = ScoreItemClassificationPolicy.classifyScoringMode(detail, scoreType, null);
+
+        assertAll(
+                () -> assertEquals(expectedMode, mode),
+                () -> assertEquals(CaseRecommendationPurposePolicy.Purpose.REFERENCE,
+                        CaseRecommendationPurposePolicy.determineRecommendationPurpose(
+                                title, detail, scoreType, deliverable, mode)));
+    }
+
+    static Stream<Arguments> historicalReferenceClauses() {
+        return Stream.of(
+                Arguments.of("1371_tables_v1.json", "商品质量管控（2分）",
+                        "根据供应商商品质量管控方案优劣及完善程度进行综合排序，最优者得满分，优得2分，良得1分，一般0.5分，最低分不低于0.5分。",
+                        "SUBJECTIVE_REVIEW"),
+                Arguments.of("1359_sidecar.md", "品牌丰富度（4分）",
+                        "对应答人提供的品牌丰富度进行评价。品牌丰富优秀得4分；良好得2分；一般及以下得1分。",
+                        "SUBJECTIVE_REVIEW"),
+                Arguments.of("1359_sidecar.md", "供货服务（16分）",
+                        "根据能够承诺的电话支持服务响应速度倒序排序情况进行评分（2分）  优秀得2分；一般及以下得1分",
+                        "QUANTITATIVE_RANKING"));
     }
 
     @Test
